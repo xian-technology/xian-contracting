@@ -63,6 +63,14 @@ class ContractingCompiler(ast.NodeTransformer):
         code = astor.to_source(tree)
         return code
 
+    def _convert_float_to_decimal_call(self, float_value):
+        """Helper method to create a decimal() call from a float value."""
+        return ast.Call(
+            func=ast.Name(id='decimal', ctx=ast.Load()),
+            args=[ast.Str(str(float_value))],
+            keywords=[]
+        )
+
     def visit_FunctionDef(self, node):
 
         # Presumes all decorators are valid, as caught by linter.
@@ -89,6 +97,33 @@ class ContractingCompiler(ast.NodeTransformer):
         else:
             self.private_names.add(node.name)
             node.name = self.privatize(node.name)
+
+        # Handle float literals in function parameter defaults
+        if node.args.defaults:
+            new_defaults = []
+            for default in node.args.defaults:
+                # Handle both ast.Num (Python < 3.8) and ast.Constant (Python 3.8+)
+                if isinstance(default, ast.Num) and isinstance(default.n, float):
+                    new_defaults.append(self._convert_float_to_decimal_call(default.n))
+                elif isinstance(default, ast.Constant) and isinstance(default.value, float):
+                    new_defaults.append(self._convert_float_to_decimal_call(default.value))
+                else:
+                    new_defaults.append(default)
+            node.args.defaults = new_defaults
+
+        # Handle float literals in keyword-only defaults (Python 3+)
+        if hasattr(node.args, 'kw_defaults') and node.args.kw_defaults:
+            new_kw_defaults = []
+            for default in node.args.kw_defaults:
+                if default is None:
+                    new_kw_defaults.append(default)
+                elif isinstance(default, ast.Num) and isinstance(default.n, float):
+                    new_kw_defaults.append(self._convert_float_to_decimal_call(default.n))
+                elif isinstance(default, ast.Constant) and isinstance(default.value, float):
+                    new_kw_defaults.append(self._convert_float_to_decimal_call(default.value))
+                else:
+                    new_kw_defaults.append(default)
+            node.args.kw_defaults = new_kw_defaults
 
         self.generic_visit(node)
 
@@ -119,4 +154,11 @@ class ContractingCompiler(ast.NodeTransformer):
         if isinstance(node.n, float):
             return ast.Call(func=ast.Name(id='decimal', ctx=ast.Load()),
                             args=[ast.Str(str(node.n))], keywords=[])
+        return node
+
+    def visit_Constant(self, node):
+        # Python 3.8+ uses ast.Constant instead of ast.Num for literals
+        if isinstance(node.value, float):
+            return ast.Call(func=ast.Name(id='decimal', ctx=ast.Load()),
+                            args=[ast.Str(str(node.value))], keywords=[])
         return node
