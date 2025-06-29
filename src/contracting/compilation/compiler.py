@@ -1,7 +1,7 @@
 import ast
 import astor
-from typing import Set
 
+from typing import Set
 from contracting import constants
 from contracting.compilation.linter import Linter
 
