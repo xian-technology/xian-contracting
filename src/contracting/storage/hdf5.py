@@ -1,152 +1,199 @@
-import h5py
+"""SQLite-backed storage adapter used by :mod:`contracting.storage.driver`.
 
-from threading import Lock
+This module replaces the legacy HDF5 implementation with a lightweight,
+pure-Python dependency that offers the same high level primitives
+(`get`, `set`, `delete`, and key iteration).  The public functions retain
+their original signatures so that the rest of the codebase continues to
+interact with the storage layer transparently.
+"""
+
+from __future__ import annotations
+
+import sqlite3
 from collections import defaultdict
-from contracting.storage.encoder import encode, decode
-from contracting import constants
+from pathlib import Path
+from threading import Lock
+from typing import Iterable, Optional
 
-# A dictionary to maintain file-specific locks
-file_locks = defaultdict(Lock)
+from contextlib import contextmanager
+
+from contracting.storage.encoder import decode, encode
+from contracting import constants
 
 # Constants
 ATTR_LEN_MAX = 64000
 ATTR_VALUE = "value"
 ATTR_BLOCK = "block"
 
+# A dictionary to maintain file-specific locks (mirrors the old behaviour)
+file_locks = defaultdict(Lock)
 
-def get_file_lock(file_path):
+# SQL fragments used throughout the module
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS kv (
+    group_name TEXT PRIMARY KEY,
+    value BLOB,
+    block INTEGER
+)
+"""
+
+
+def get_file_lock(file_path: str) -> Lock:
     """Retrieve a lock for a specific file path."""
-    return file_locks[file_path]
+
+    normalized = _normalize_path(file_path)
+    return file_locks[normalized]
 
 
-def get_value(file_path, group_name):
+def get_value(file_path: str, group_name: str):
     return get_attr(file_path, group_name, ATTR_VALUE)
 
 
-def get_block(file_path, group_name):
+def get_block(file_path: str, group_name: str):
     return get_attr(file_path, group_name, ATTR_BLOCK)
 
 
-def get_attr(file_path, group_name, attr_name):
-    try:
-        with h5py.File(file_path, 'r') as f:
-            try:
-                value = f[group_name].attrs[attr_name]
-                return value.decode() if isinstance(value, bytes) else value
-            except KeyError:
-                return None
-    except OSError:
-        # File doesn't exist
+def get_attr(file_path: str, group_name: str, attr_name: str):
+    """Fetch a single attribute (value or block) for ``group_name``."""
+
+    path = _normalize_path(file_path)
+    if not Path(path).exists():
         return None
 
+    with _connect(path) as conn:
+        cursor = conn.execute(
+            "SELECT value, block FROM kv WHERE group_name = ?", (group_name,)
+        )
+        row = cursor.fetchone()
+
+    if row is None:
+        return None
+
+    if attr_name == ATTR_VALUE:
+        return row[0]
+    if attr_name == ATTR_BLOCK:
+        return row[1]
+
+    return None
 
 
-def get_groups(file_path):
-    try:
-        with h5py.File(file_path, 'r') as f:
-            return list(f.keys())
-    except OSError:
-        # File doesn't exist
+def get_groups(file_path: str) -> Iterable[str]:
+    """Return the stored group names for the SQLite file."""
+
+    path = _normalize_path(file_path)
+    if not Path(path).exists():
         return []
 
+    with _connect(path) as conn:
+        cursor = conn.execute("SELECT group_name FROM kv")
+        return [row[0] for row in cursor.fetchall()]
 
 
-def set(file_path, group_name, value, blocknum, timeout=20):
-    """
-    Set the value and blocknum attributes in the HDF5 file for the given group.
-    """
-    # Acquire a file lock to prevent concurrent writes
-    lock = get_file_lock(file_path if isinstance(file_path, str) else file_path.filename)
-    if lock.acquire(timeout=timeout):
-        try:
-            with h5py.File(file_path, 'a') as f:
+def set(
+    file_path: str,
+    group_name: str,
+    value,
+    blocknum: Optional[int],
+    timeout: int = 20,
+):
+    """Persist ``value`` and ``blocknum`` for ``group_name``."""
 
-                # Write value and blocknum to the group attributes
-                write_attr(f, group_name, ATTR_VALUE, value, timeout)
-                write_attr(f, group_name, ATTR_BLOCK, blocknum, timeout)
-        finally:
-            # Always release the lock after operation
-            lock.release()
-    else:
+    path = _normalize_path(file_path)
+    lock = get_file_lock(path)
+
+    if not lock.acquire(timeout=timeout):
         raise TimeoutError("Lock acquisition timed out")
 
-
-def write_attr(file_or_path, group_name, attr_name, value, timeout=20):
-    """
-    Write an attribute to a group inside an HDF5 file.
-    """
-
-    # Open the file and ensure group exists, then write the attribute
-    if isinstance(file_or_path, str):
-        with h5py.File(file_or_path, 'a') as f:
-            _write_attr_to_file(f, group_name, attr_name, value, timeout)
-    else:
-        _write_attr_to_file(file_or_path, group_name, attr_name, value, timeout)
-
-
-def _write_attr_to_file(file, group_name, attr_name, value, timeout):
-    """
-    Internal method to write the attribute to the group.
-    """
-    # Ensure the group exists, or create it if necessary
-    grp = file.require_group(group_name)
-
-    # Write or update the attribute in the group
-    if attr_name in grp.attrs:
-        del grp.attrs[attr_name]
-    if value is not None:
-        grp.attrs[attr_name] = value
+    try:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        with _connect(path, timeout=timeout) as conn:
+            conn.execute(
+                """
+                INSERT INTO kv (group_name, value, block)
+                VALUES (?, ?, ?)
+                ON CONFLICT(group_name) DO UPDATE SET
+                    value = excluded.value,
+                    block = excluded.block
+                """,
+                (group_name, value, blocknum if blocknum is not None else -1),
+            )
+            conn.commit()
+    finally:
+        lock.release()
 
 
+def delete(file_path: str, group_name: str, timeout: int = 20):
+    path = _normalize_path(file_path)
+    lock = get_file_lock(path)
 
-def delete(file_path, group_name, timeout=20):
-    lock = get_file_lock(file_path if isinstance(file_path, str) else file_path.filename)
-    if lock.acquire(timeout=timeout):
-        try:
-            with h5py.File(file_path, 'a') as f:
-                try:
-                    del f[group_name].attrs[ATTR_VALUE]
-                    del f[group_name].attrs[ATTR_BLOCK]
-                except KeyError:
-                    pass
-        finally:
-            lock.release()
-    else:
+    if not lock.acquire(timeout=timeout):
         raise TimeoutError("Lock acquisition timed out")
 
+    try:
+        if not Path(path).exists():
+            return
 
-def set_value_to_disk(file_path, group_name, value, block_num=None, timeout=20):
-    """
-    Save value to disk with optional block number.
-    """
+        with _connect(path, timeout=timeout) as conn:
+            conn.execute("DELETE FROM kv WHERE group_name = ?", (group_name,))
+            conn.commit()
+    finally:
+        lock.release()
+
+
+def set_value_to_disk(
+    file_path: str,
+    group_name: str,
+    value,
+    block_num: Optional[int] = None,
+    timeout: int = 20,
+):
+    """Save ``value`` to disk with an optional ``block_num``."""
+
     encoded_value = encode(value) if value is not None else None
- 
-    set(file_path, group_name, encoded_value, block_num if block_num is not None else -1, timeout)
+    set(file_path, group_name, encoded_value, block_num, timeout)
 
 
-def delete_key_from_disk(file_path, group_name, timeout=20):
+def delete_key_from_disk(file_path: str, group_name: str, timeout: int = 20):
     delete(file_path, group_name, timeout)
 
 
-def get_value_from_disk(file_path, group_name):
+def get_value_from_disk(file_path: str, group_name: str):
     return decode(get_value(file_path, group_name))
 
 
-        
-def get_all_keys_from_file(file_path):
-    """
-    Retrieve all keys (datasets and groups) from an HDF5 file and replace '/' with a specified character.
-    
-    :param file_path: Path to the HDF5 file.
-    :param replace_char: Character to replace '/' with in the keys.
-    :return: List of all keys in the HDF5 file with '/' replaced by replace_char.
-    """
-    keys = []
+def get_all_keys_from_file(file_path: str):
+    """Return all keys from ``file_path`` replacing '/' with ``constants.DELIMITER``."""
 
-    def visit_func(name, node):
-        keys.append(name.replace(constants.HDF5_GROUP_SEPARATOR, constants.DELIMITER))
+    path = _normalize_path(file_path)
+    if not Path(path).exists():
+        return []
 
-    with h5py.File(file_path, 'r') as f:
-        f.visititems(visit_func)
+    with _connect(path) as conn:
+        cursor = conn.execute("SELECT group_name FROM kv")
+        raw_keys = [row[0] for row in cursor.fetchall()]
 
-    return keys
+    return [
+        key.replace(constants.HDF5_GROUP_SEPARATOR, constants.DELIMITER)
+        for key in raw_keys
+    ]
+
+
+@contextmanager
+def _connect(path: str, timeout: int = 5):
+    """Create a SQLite connection initialised with the storage schema."""
+
+    conn = sqlite3.connect(path, timeout=timeout)
+    try:
+        conn.execute(SCHEMA)
+        yield conn
+    finally:
+        conn.close()
+
+
+def _normalize_path(file_path) -> str:
+    """Normalise ``file_path`` values that may be ``Path`` objects."""
+
+    if hasattr(file_path, "filename"):
+        return str(file_path.filename)
+    return str(file_path)
+
