@@ -10,6 +10,30 @@ import importlib
 import decimal
 
 
+def _snapshot_driver_state(driver: Driver):
+    """Capture lightweight copies of the driver's mutable state."""
+
+    return {
+        'pending_writes': driver.pending_writes.copy(),
+        'pending_reads': driver.pending_reads.copy(),
+        'pending_deltas': deepcopy(driver.pending_deltas),
+        'transaction_writes': driver.transaction_writes.copy(),
+        'log_events': list(driver.log_events),
+        'cache_items': list(driver.cache.items()),
+    }
+
+
+def _restore_driver_state(driver: Driver, snapshot):
+    driver.pending_writes = snapshot['pending_writes']
+    driver.pending_reads = snapshot['pending_reads']
+    driver.pending_deltas = snapshot['pending_deltas']
+    driver.transaction_writes = snapshot['transaction_writes']
+    driver.log_events = snapshot['log_events']
+
+    driver.cache.clear()
+    driver.cache.update(snapshot['cache_items'])
+
+
 class Executor:
     def __init__(self,
                  production=False,
@@ -48,7 +72,6 @@ class Executor:
                 stamp_cost=constants.STAMPS_PER_TAU,
                 metering=None) -> dict:
 
-        current_driver_pending_writes = deepcopy(self.driver.pending_writes)
         self.driver.clear_transaction_writes()
         self.driver.clear_events()
 
@@ -62,8 +85,11 @@ class Executor:
 
         if driver:
             runtime.rt.env.update({'__Driver': driver})
-        else:
-            driver = runtime.rt.env.get('__Driver')
+            driver.clear_transaction_writes()
+            driver.clear_events()
+        driver = runtime.rt.env.get('__Driver')
+
+        driver_state_snapshot = _snapshot_driver_state(driver)
 
         install_database_loader(driver=driver)
 
@@ -138,7 +164,7 @@ class Executor:
             result = e
             status_code = 1
             # Revert the writes if the transaction fails
-            driver.pending_writes = current_driver_pending_writes
+            _restore_driver_state(driver, driver_state_snapshot)
             transaction_writes = {}
             events = []
             if auto_commit:

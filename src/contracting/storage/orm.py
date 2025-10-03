@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from contracting.storage.driver import Driver
 from contracting.execution.runtime import rt
 from contracting import constants
@@ -58,7 +60,10 @@ class Hash(Datum):
         if type(value) == float or type(value) == ContractingDecimal:
             return ContractingDecimal(str(value))
 
-        return value
+        if value is None:
+            return None
+
+        return deepcopy(value)
 
     def _validate_key(self, key):
         if isinstance(key, tuple):

@@ -8,6 +8,8 @@ from cachetools import TTLCache
 from contracting import constants
 from contracting.storage import hdf5
 
+from copy import deepcopy
+
 import marshal
 import decimal
 import os
@@ -40,6 +42,17 @@ class Driver:
         self.contract_state = storage_home.joinpath("contract_state")
         self.run_state = storage_home.joinpath("run_state")
         self.__build_directories()
+
+    @staticmethod
+    def _clone_value(value):
+        if value is None:
+            return None
+
+        # Immutable primitives can be returned directly.
+        if isinstance(value, (str, bytes, int, bool, ContractingDecimal, decimal.Decimal)):
+            return value
+
+        return deepcopy(value)
 
     def __build_directories(self):
         self.contract_state.mkdir(exist_ok=True, parents=True)
@@ -82,10 +95,10 @@ class Driver:
         # Parse the key to get the filename and group
         value = self.find(key)
         if save and self.pending_reads.get(key) is None:
-            self.pending_reads[key] = value
+            self.pending_reads[key] = self._clone_value(value)
         # if value is not None:
         #     rt.deduct_read(*encode_kv(key, value))
-        return value
+        return self._clone_value(value)
 
 
     def set(self, key, value, is_txn_write=False):
@@ -94,9 +107,11 @@ class Driver:
             self.get(key)
         if type(value) in [decimal.Decimal, float]:
             value = ContractingDecimal(str(value))
-        self.pending_writes[key] = value
+
+        cloned_value = self._clone_value(value)
+        self.pending_writes[key] = cloned_value
         if is_txn_write:
-            self.transaction_writes[key] = value
+            self.transaction_writes[key] = self._clone_value(cloned_value)
 
 
     def find(self, key: str):
@@ -179,13 +194,13 @@ class Driver:
         # Collect pending writes with matching prefix
         for k, v in self.pending_writes.items():
             if k.startswith(prefix) and v is not None:
-                _items[k] = v
+                _items[k] = self._clone_value(v)
                 keys.add(k)
 
         # Collect cache items with matching prefix
         for k, v in self.cache.items():
             if k.startswith(prefix) and v is not None:
-                _items[k] = v
+                _items[k] = self._clone_value(v)
                 keys.add(k)
 
         # Collect keys from the disk
@@ -202,7 +217,6 @@ class Driver:
         return list(self.items(prefix).keys())
 
     def values(self, prefix=""):
-        l = list(self.items(prefix).values())
         return list(self.items(prefix).values())
 
     def make_key(self, contract, variable, args=[]):
@@ -340,7 +354,7 @@ class Driver:
                     break
                 to_delete.append(_nanos)
                 for key, delta in _deltas['writes'].items():
-                    self.cache[key] = delta[0]  # Restoring the value before the write
+                    self.cache[key] = self._clone_value(delta[0])  # Restoring the value before the write
 
             for _nanos in to_delete:
                 self.pending_deltas.pop(_nanos, None)
@@ -370,11 +384,17 @@ class Driver:
         deltas = {}
         for k, v in self.pending_writes.items():
             current = self.pending_reads.get(k)
-            deltas[k] = (current, v)
+            deltas[k] = (
+                self._clone_value(current),
+                self._clone_value(v)
+            )
 
-            self.cache[k] = v
+            self.cache[k] = self._clone_value(v)
 
-        self.pending_deltas[nanos] = {"writes": deltas, "reads": self.pending_reads}
+        self.pending_deltas[nanos] = {
+            "writes": deltas,
+            "reads": deepcopy(self.pending_reads)
+        }
 
         # Clear the top cache
         self.pending_reads = {}
