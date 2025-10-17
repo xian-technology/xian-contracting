@@ -61,7 +61,10 @@ class Hash(Datum):
 
         if type(value) == float or type(value) == ContractingDecimal:
             return ContractingDecimal(str(value))
-
+        # Return a defensive copy for mutable structures to prevent in-place
+        # mutations from affecting cached objects in the driver.
+        if isinstance(value, (list, dict)):
+            return deepcopy(value)
         return value
 
     def _validate_key(self, key):
