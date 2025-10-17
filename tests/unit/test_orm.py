@@ -83,6 +83,15 @@ class TestVariable(TestCase):
         v.set(None)
         self.assertEqual(v.get(), 999)
 
+    def test_mutable_default_is_copied(self):
+        contract = 'stustu'
+        name = 'cfg'
+        v = Variable(contract, name, driver=driver, default_value={'a': []})
+        first = v.get()
+        first['a'].append(1)
+        second = v.get()
+        self.assertEqual(second, {'a': []})
+
 
 class TestHash(TestCase):
     def setUp(self):
