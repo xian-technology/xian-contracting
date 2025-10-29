@@ -3,6 +3,12 @@ import hashlib
 import nacl  # only for Ed25519 verify
 import pysodium as sodium  # Ristretto255 & scalar/point ops
 
+# Ensure libsodium primitives are initialised once on import. Without this the
+# Ristretto255 helpers will return error codes (e.g. -1) when invoked under
+# Python 3.12 where the extension is loaded but libsodium has not been
+# initialised yet.
+sodium.sodium_init()
+
 
 # ============================================================
 # Ed25519 verify (hex keys/sigs; msg is raw string)
@@ -71,7 +77,10 @@ def _scalar_from_u128(v: int) -> bytes:
 
 def _scalar_from_hex(h: str) -> bytes:
     _require_hex32(h, "scalar_hex")
-    return sodium.crypto_core_ristretto255_scalar_reduce(bytes.fromhex(h))
+    raw = bytes.fromhex(h)
+    # Reduce to the group order so downstream scalar ops receive canonical
+    # encodings even if the prover supplied a non-reduced 32-byte value.
+    return sodium.crypto_core_ristretto255_scalar_reduce(raw + bytes(32))
 
 def _scalar_one() -> bytes:
     return _scalar_from_u128(1)
@@ -95,7 +104,14 @@ def pedersen_commit(value_u128: str, blinding_hex: str) -> str:
     r64 = hashlib.sha512(b"XIAN|crypto.pedersen|r|" + r_seed).digest()
     r_scalar = sodium.crypto_core_ristretto255_scalar_reduce(r64)
 
-    vG = sodium.crypto_scalarmult_ristretto255_base(v_scalar)
+    if v_scalar == bytes(32):
+        # libsodium rejects the zero scalar for direct base multiplication, but
+        # the Pedersen commitment still needs the identity element when the
+        # value is 0. Compute it via H-H which yields the canonical identity
+        # encoding.
+        vG = sodium.crypto_core_ristretto255_sub(H_POINT, H_POINT)
+    else:
+        vG = sodium.crypto_scalarmult_ristretto255_base(v_scalar)
     rH = sodium.crypto_scalarmult_ristretto255(r_scalar, H_POINT)
     return sodium.crypto_core_ristretto255_add(vG, rH).hex()
 
@@ -174,11 +190,12 @@ def _verify_bit_or_proof(C_hex: str, proof_tuple) -> bool:
         if c != c_sum:
             return False
 
-        # s0*H == t0 + c0*C
-        if _point_mul(H_POINT, s0) != _point_add(t0, _point_mul(C, c0)):
-            return False
-        # s1*H == t1 + c1*(C - G)
-        if _point_mul(H_POINT, s1) != _point_add(t1, _point_mul(C_minus_G, c1)):
+        lhs0 = _point_mul(H_POINT, s0)
+        lhs1 = _point_mul(H_POINT, s1)
+        rhs0 = _point_add(t0, _point_mul(C, c0))
+        rhs1 = _point_add(t1, _point_mul(C_minus_G, c1))
+
+        if not (lhs0 == rhs0 and lhs1 == rhs1):
             return False
         return True
     except Exception:
@@ -203,7 +220,9 @@ def _verify_linkH_proof(D_hex: str, link_tuple) -> bool:
         c_chk = _hash_to_scalar(b"XIAN|linkH|" + D + R)
         if c != c_chk:
             return False
-        return _point_mul(H_POINT, s) == _point_add(R, _point_mul(D, c))
+        lhs = _point_mul(H_POINT, s)
+        rhs = _point_sub(R, _point_mul(D, c))
+        return lhs == rhs
     except Exception:
         return False
 
