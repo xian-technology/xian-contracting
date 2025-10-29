@@ -9,8 +9,7 @@ from nacl.bindings import (
     crypto_scalarmult_ristretto255,
     crypto_scalarmult_ristretto255_base,
 )
-# Import the module under test
-# Adjust the import if your test runner uses a different sys.path
+
 from contracting.stdlib.bridge import crypto as C
 
 
