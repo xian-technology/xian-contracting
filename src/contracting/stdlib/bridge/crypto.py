@@ -5,7 +5,7 @@ import pysodium as sodium  # Ristretto255 & scalar/point ops
 
 # Ensure libsodium primitives are initialised once on import. Without this the
 # Ristretto255 helpers will return error codes (e.g. -1) when invoked under
-# Python 3.12 where the extension is loaded but libsodium has not been
+# Python where the extension is loaded but libsodium has not been
 # initialised yet.
 sodium.sodium_init()
 
