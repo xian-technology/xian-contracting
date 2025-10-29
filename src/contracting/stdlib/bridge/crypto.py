@@ -1,23 +1,20 @@
 from types import ModuleType
 import hashlib
-import nacl
-from nacl.bindings import (
-    crypto_core_ristretto255_is_valid_point,
-    crypto_core_ristretto255_from_hash,
-    crypto_core_ristretto255_add,
-    crypto_core_ristretto255_sub,
-    crypto_core_ristretto255_scalar_reduce,
-    crypto_core_ristretto255_scalar_add,
-    crypto_core_ristretto255_scalar_negate,
-    crypto_scalarmult_ristretto255_base,
-    crypto_scalarmult_ristretto255,
-)
+import nacl  # only for Ed25519 verify
+import pysodium as sodium  # Ristretto255 & scalar/point ops
 
-# ============================================================================
+
+# ============================================================
 # Ed25519 verify (hex keys/sigs; msg is raw string)
-# ============================================================================
+# ============================================================
 
 def verify(vk: str, msg: str, signature: str):
+    """
+    Ed25519 verify using PyNaCl.
+    vk: 32-byte hex public key
+    signature: 64-byte hex
+    msg: raw string (UTF-8 encoded here)
+    """
     try:
         vk_bytes = bytes.fromhex(vk)
         sig_bytes = bytes.fromhex(signature)
@@ -27,8 +24,9 @@ def verify(vk: str, msg: str, signature: str):
     except Exception:
         return False
 
+
 def key_is_valid(key: str):
-    """Check if hex string is 32 bytes (64 hex chars)."""
+    """Check if hex string is exactly 32 bytes (64 hex chars)."""
     if not isinstance(key, str) or len(key) != 64:
         return False
     try:
@@ -37,14 +35,12 @@ def key_is_valid(key: str):
     except Exception:
         return False
 
-# ============================================================================
-# Ristretto/Pedersen commitments (hex-only API)
-# ============================================================================
 
-MAX_HEX_LEN = 64  # 32 bytes
+# ============================================================
+# Ristretto/Pedersen commitments (hex-only API via pysodium)
+# ============================================================
 
-_H_HASH = hashlib.sha512(b"XIAN|crypto.pedersen|H").digest()  # 64 bytes
-H_POINT = crypto_core_ristretto255_from_hash(_H_HASH)         # 32B point (bytes)
+MAX_HEX_LEN = 64  # 32 bytes hex
 
 def _is_hex32(s: str) -> bool:
     if not isinstance(s, str) or len(s) != MAX_HEX_LEN:
@@ -61,7 +57,7 @@ def _require_hex32(s: str, name: str):
 def _require_point_hex(h: str, name: str):
     _require_hex32(h, name)
     b = bytes.fromhex(h)
-    assert crypto_core_ristretto255_is_valid_point(b), f"{name} is not canonical"
+    assert bool(sodium.crypto_core_ristretto255_is_valid_point(b)), f"{name} is not canonical"
 
 def _u128_from_dec(ds: str) -> int:
     assert isinstance(ds, str) and ds.isdigit(), "value_u128 must be decimal string"
@@ -70,77 +66,89 @@ def _u128_from_dec(ds: str) -> int:
     return v
 
 def _scalar_from_u128(v: int) -> bytes:
-    return crypto_core_ristretto255_scalar_reduce(v.to_bytes(64, "little"))
+    # libsodium expects 64B input to scalar_reduce
+    return sodium.crypto_core_ristretto255_scalar_reduce(v.to_bytes(64, "little"))
 
 def _scalar_from_hex(h: str) -> bytes:
     _require_hex32(h, "scalar_hex")
-    return crypto_core_ristretto255_scalar_reduce(bytes.fromhex(h))
+    return sodium.crypto_core_ristretto255_scalar_reduce(bytes.fromhex(h))
 
 def _scalar_one() -> bytes:
     return _scalar_from_u128(1)
 
+# Fixed second generator H via hash-to-group (deterministic & domain-separated)
+_H_HASH = hashlib.sha512(b"XIAN|crypto.pedersen|H").digest()  # 64 bytes
+H_POINT = sodium.crypto_core_ristretto255_from_hash(_H_HASH)  # 32B point (bytes)
+
 def pedersen_commit(value_u128: str, blinding_hex: str) -> str:
+    """
+    C = v*G + r*H  on Ristretto255.
+    value_u128: decimal string "0".."2^128-1"
+    blinding_hex: 32-byte hex (secret; mapped to scalar via SHA-512 then reduce)
+    Returns 32-byte point hex.
+    """
     v_int = _u128_from_dec(value_u128)
     _require_hex32(blinding_hex, "blinding_hex")
 
     v_scalar = _scalar_from_u128(v_int)
     r_seed = bytes.fromhex(blinding_hex)
     r64 = hashlib.sha512(b"XIAN|crypto.pedersen|r|" + r_seed).digest()
-    r_scalar = crypto_core_ristretto255_scalar_reduce(r64)
+    r_scalar = sodium.crypto_core_ristretto255_scalar_reduce(r64)
 
-    vG = crypto_scalarmult_ristretto255_base(v_scalar)
-    rH = crypto_scalarmult_ristretto255(r_scalar, H_POINT)
-    return crypto_core_ristretto255_add(vG, rH).hex()
+    vG = sodium.crypto_scalarmult_ristretto255_base(v_scalar)
+    rH = sodium.crypto_scalarmult_ristretto255(r_scalar, H_POINT)
+    return sodium.crypto_core_ristretto255_add(vG, rH).hex()
 
 def pedersen_add(a_hex: str, b_hex: str) -> str:
     _require_point_hex(a_hex, "a_hex"); _require_point_hex(b_hex, "b_hex")
-    return crypto_core_ristretto255_add(bytes.fromhex(a_hex), bytes.fromhex(b_hex)).hex()
+    return sodium.crypto_core_ristretto255_add(bytes.fromhex(a_hex), bytes.fromhex(b_hex)).hex()
 
 def pedersen_sub(a_hex: str, b_hex: str) -> str:
     _require_point_hex(a_hex, "a_hex"); _require_point_hex(b_hex, "b_hex")
-    return crypto_core_ristretto255_sub(bytes.fromhex(a_hex), bytes.fromhex(b_hex)).hex()
+    return sodium.crypto_core_ristretto255_sub(bytes.fromhex(a_hex), bytes.fromhex(b_hex)).hex()
 
 def pedersen_neg(p_hex: str) -> str:
     _require_point_hex(p_hex, "p_hex")
     P = bytes.fromhex(p_hex)
-    neg1 = crypto_core_ristretto255_scalar_negate(_scalar_one())
-    return crypto_scalarmult_ristretto255(neg1, P).hex()
+    neg1 = sodium.crypto_core_ristretto255_scalar_negate(_scalar_one())
+    return sodium.crypto_scalarmult_ristretto255(neg1, P).hex()
 
 def pedersen_eq(a_hex: str, b_hex: str) -> bool:
     if not (_is_hex32(a_hex) and _is_hex32(b_hex)):
         return False
     A = bytes.fromhex(a_hex); B = bytes.fromhex(b_hex)
-    if not (crypto_core_ristretto255_is_valid_point(A) and crypto_core_ristretto255_is_valid_point(B)):
+    if not (sodium.crypto_core_ristretto255_is_valid_point(A) and sodium.crypto_core_ristretto255_is_valid_point(B)):
         return False
     return A == B
 
 def ristretto_is_canonical(point_hex: str) -> bool:
     if not _is_hex32(point_hex):
         return False
-    return crypto_core_ristretto255_is_valid_point(bytes.fromhex(point_hex))
+    return bool(sodium.crypto_core_ristretto255_is_valid_point(bytes.fromhex(point_hex)))
 
-G_POINT = crypto_scalarmult_ristretto255_base(_scalar_one())  # bytes
+G_POINT = sodium.crypto_scalarmult_ristretto255_base(_scalar_one())  # bytes (basepoint)
 
-# ============================================================================
+
+# ============================================================
 # Python-only range proof verification (Σ-protocol)
 #   - Inputs: hex strings and tuples only (no JSON)
 #   - bit_proof: tuple(str,str,str,str,str,str) = (t0,t1,c0,s0,c1,s1)
 #   - link_proof: tuple(str,str,str) = (R,c,s)
-# ============================================================================
+# ============================================================
 
 _ALLOWED_BITS = {8, 16, 32, 64}
 
 def _hash_to_scalar(data: bytes) -> bytes:
-    return crypto_core_ristretto255_scalar_reduce(hashlib.sha512(data).digest())
+    return sodium.crypto_core_ristretto255_scalar_reduce(hashlib.sha512(data).digest())
 
 def _point_mul(point_bytes: bytes, scalar_bytes: bytes) -> bytes:
-    return crypto_scalarmult_ristretto255(scalar_bytes, point_bytes)
+    return sodium.crypto_scalarmult_ristretto255(scalar_bytes, point_bytes)
 
 def _point_add(A: bytes, B: bytes) -> bytes:
-    return crypto_core_ristretto255_add(A, B)
+    return sodium.crypto_core_ristretto255_add(A, B)
 
 def _point_sub(A: bytes, B: bytes) -> bytes:
-    return crypto_core_ristretto255_sub(A, B)
+    return sodium.crypto_core_ristretto255_sub(A, B)
 
 def _verify_bit_or_proof(C_hex: str, proof_tuple) -> bool:
     """
@@ -162,7 +170,7 @@ def _verify_bit_or_proof(C_hex: str, proof_tuple) -> bool:
         c1 = _scalar_from_hex(c1_hex); s1 = _scalar_from_hex(s1_hex)
 
         c = _hash_to_scalar(b"XIAN|bit_or|" + C + C_minus_G + t0 + t1)
-        c_sum = crypto_core_ristretto255_scalar_add(c0, c1)
+        c_sum = sodium.crypto_core_ristretto255_scalar_add(c0, c1)
         if c != c_sum:
             return False
 
@@ -250,9 +258,10 @@ def range_proof_verify(amount_commitment_hex: str,
     except Exception:
         return False
 
-# ============================================================================
+
+# ============================================================
 # Exports
-# ============================================================================
+# ============================================================
 
 crypto_module = ModuleType('crypto')
 
