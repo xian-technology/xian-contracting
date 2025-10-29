@@ -75,8 +75,8 @@ def make_bit_commitment_and_proof(bit: int, r_hex: str):
 
         # c = c0 + c1  =>  c0 = c - c1
         c0 = sodium.crypto_core_ristretto255_scalar_sub(c, c1)
-        # s0 = k_true - c0*r
-        s0 = sodium.crypto_core_ristretto255_scalar_sub(
+        # s0 = k_true + c0*r  (verifier checks s0*H = t0 + c0*C)
+        s0 = sodium.crypto_core_ristretto255_scalar_add(
             k_true,
             sodium.crypto_core_ristretto255_scalar_mul(c0, r),
         )
@@ -93,8 +93,8 @@ def make_bit_commitment_and_proof(bit: int, r_hex: str):
 
         # c = c0 + c1  =>  c1 = c - c0
         c1 = sodium.crypto_core_ristretto255_scalar_sub(c, c0)
-        # s1 = k_true - c1*r
-        s1 = sodium.crypto_core_ristretto255_scalar_sub(
+        # s1 = k_true + c1*r  (verifier checks s1*H = t1 + c1*(C - G))
+        s1 = sodium.crypto_core_ristretto255_scalar_add(
             k_true,
             sodium.crypto_core_ristretto255_scalar_mul(c1, r),
         )

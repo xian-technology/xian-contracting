@@ -77,8 +77,10 @@ def _scalar_from_u128(v: int) -> bytes:
 
 def _scalar_from_hex(h: str) -> bytes:
     _require_hex32(h, "scalar_hex")
-    # Proof scalars are provided as canonical 32-byte encodings already.
-    return bytes.fromhex(h)
+    raw = bytes.fromhex(h)
+    # Reduce to the group order so downstream scalar ops receive canonical
+    # encodings even if the prover supplied a non-reduced 32-byte value.
+    return sodium.crypto_core_ristretto255_scalar_reduce(raw + bytes(32))
 
 def _scalar_one() -> bytes:
     return _scalar_from_u128(1)
@@ -190,14 +192,10 @@ def _verify_bit_or_proof(C_hex: str, proof_tuple) -> bool:
 
         lhs0 = _point_mul(H_POINT, s0)
         lhs1 = _point_mul(H_POINT, s1)
-        rhs0_add = _point_add(t0, _point_mul(C, c0))
-        rhs0_sub = _point_sub(t0, _point_mul(C, c0))
-        rhs1_add = _point_add(t1, _point_mul(C_minus_G, c1))
-        rhs1_sub = _point_sub(t1, _point_mul(C_minus_G, c1))
+        rhs0 = _point_add(t0, _point_mul(C, c0))
+        rhs1 = _point_add(t1, _point_mul(C_minus_G, c1))
 
-        valid_bit0 = lhs0 == rhs0_sub and lhs1 == rhs1_add
-        valid_bit1 = lhs0 == rhs0_add and lhs1 == rhs1_sub
-        if not (valid_bit0 or valid_bit1):
+        if not (lhs0 == rhs0 and lhs1 == rhs1):
             return False
         return True
     except Exception:
