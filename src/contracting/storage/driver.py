@@ -178,15 +178,18 @@ class Driver:
 
         # Collect pending writes with matching prefix
         for k, v in self.pending_writes.items():
-            if k.startswith(prefix) and v is not None:
-                _items[k] = v
+            if k.startswith(prefix):
+                # Always mark the key as seen to suppress disk rehydration
                 keys.add(k)
+                if v is not None:
+                    _items[k] = v
 
         # Collect cache items with matching prefix
         for k, v in self.cache.items():
-            if k.startswith(prefix) and v is not None:
-                _items[k] = v
+            if k.startswith(prefix):
                 keys.add(k)
+                if v is not None:
+                    _items[k] = v
 
         # Collect keys from the disk
         db_keys = set(self.iter_from_disk(prefix=prefix))
@@ -202,7 +205,6 @@ class Driver:
         return list(self.items(prefix).keys())
 
     def values(self, prefix=""):
-        l = list(self.items(prefix).values())
         return list(self.items(prefix).values())
 
     def make_key(self, contract, variable, args=[]):

@@ -47,7 +47,8 @@ class AbstractContract:
                                         **default_kwargs))
 
     def keys(self):
-        return self.executor.driver.keys(self.name)
+        # Scope strictly to this contract's namespace
+        return self.executor.driver.keys(f"{self.name}.")
 
     # a variable contains a DOT, but no __, and no :
     # a hash contains a DOT, no __, and a :
