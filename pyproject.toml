@@ -10,13 +10,12 @@ repository = "https://github.com/xian-network/xian-contracting"
 keywords = ["blockchain", "xian", "contracting", "python"]
 classifiers = [
     "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Development Status :: 5 - Production/Stable",
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.11,<3.13"
+python = "~=3.11.0"
 astor = "0.8.1"
 pycodestyle = "2.10.0"
 autopep8 = "1.5.7"
