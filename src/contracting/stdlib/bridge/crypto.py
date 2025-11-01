@@ -247,6 +247,13 @@ def range_proof_verify(amount_commitment_hex: str,
         if len(bit_commitments_hex) != len(bit_proofs) or len(bit_commitments_hex) != bits:
             return False
 
+        # Normalise iterables so callers may supply JSON-friendly lists.
+        try:
+            canonical_bit_proofs = [tuple(proof) for proof in bit_proofs]
+            canonical_link_proof = tuple(link_proof_tuple)
+        except TypeError:
+            return False
+
         _require_point_hex(amount_commitment_hex, "amount_commitment_hex")
         C = bytes.fromhex(amount_commitment_hex)
 
@@ -255,7 +262,7 @@ def range_proof_verify(amount_commitment_hex: str,
         for i in range(bits):
             Ci_hex = bit_commitments_hex[i]
             _require_point_hex(Ci_hex, f"bit_commitments_hex[{i}]")
-            if not _verify_bit_or_proof(Ci_hex, bit_proofs[i]):
+            if not _verify_bit_or_proof(Ci_hex, canonical_bit_proofs[i]):
                 return False
             Ci_bytes.append(bytes.fromhex(Ci_hex))
 
@@ -270,7 +277,7 @@ def range_proof_verify(amount_commitment_hex: str,
         D = _point_sub(C, S)
 
         # 4) prove D is H-multiple
-        if not _verify_linkH_proof(D.hex(), link_proof_tuple):
+        if not _verify_linkH_proof(D.hex(), canonical_link_proof):
             return False
 
         return True
