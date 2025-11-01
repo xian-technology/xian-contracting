@@ -65,12 +65,6 @@ def _require_point_hex(h: str, name: str):
     b = bytes.fromhex(h)
     assert bool(sodium.crypto_core_ristretto255_is_valid_point(b)), f"{name} is not canonical"
 
-def _u128_from_dec(ds: str) -> int:
-    assert isinstance(ds, str) and ds.isdigit(), "value_u128 must be decimal string"
-    v = int(ds, 10)
-    assert 0 <= v <= (1 << 128) - 1, "value_u128 out of range"
-    return v
-
 def _scalar_from_u128(v: int) -> bytes:
     # libsodium expects 64B input to scalar_reduce
     return sodium.crypto_core_ristretto255_scalar_reduce(v.to_bytes(64, "little"))
@@ -88,32 +82,6 @@ def _scalar_one() -> bytes:
 # Fixed second generator H via hash-to-group (deterministic & domain-separated)
 _H_HASH = hashlib.sha512(b"XIAN|crypto.pedersen|H").digest()  # 64 bytes
 H_POINT = sodium.crypto_core_ristretto255_from_hash(_H_HASH)  # 32B point (bytes)
-
-def pedersen_commit(value_u128: str, blinding_hex: str) -> str:
-    """
-    C = v*G + r*H  on Ristretto255.
-    value_u128: decimal string "0".."2^128-1"
-    blinding_hex: 32-byte hex (secret; mapped to scalar via SHA-512 then reduce)
-    Returns 32-byte point hex.
-    """
-    v_int = _u128_from_dec(value_u128)
-    _require_hex32(blinding_hex, "blinding_hex")
-
-    v_scalar = _scalar_from_u128(v_int)
-    r_seed = bytes.fromhex(blinding_hex)
-    r64 = hashlib.sha512(b"XIAN|crypto.pedersen|r|" + r_seed).digest()
-    r_scalar = sodium.crypto_core_ristretto255_scalar_reduce(r64)
-
-    if v_scalar == bytes(32):
-        # libsodium rejects the zero scalar for direct base multiplication, but
-        # the Pedersen commitment still needs the identity element when the
-        # value is 0. Compute it via H-H which yields the canonical identity
-        # encoding.
-        vG = sodium.crypto_core_ristretto255_sub(H_POINT, H_POINT)
-    else:
-        vG = sodium.crypto_scalarmult_ristretto255_base(v_scalar)
-    rH = sodium.crypto_scalarmult_ristretto255(r_scalar, H_POINT)
-    return sodium.crypto_core_ristretto255_add(vG, rH).hex()
 
 def pedersen_add(a_hex: str, b_hex: str) -> str:
     _require_point_hex(a_hex, "a_hex"); _require_point_hex(b_hex, "b_hex")
@@ -201,6 +169,33 @@ def _verify_bit_or_proof(C_hex: str, proof_tuple) -> bool:
     except Exception:
         return False
 
+def _verify_schnorr_H(D: bytes, proof_tuple, domain_prefix: bytes, subtract_challenge: bool = True) -> bool:
+    """
+    Generic Schnorr verifier over the fixed generator H.  Expects knowledge of r
+    such that D = r*H.  `proof_tuple` may be a tuple or list `(R, c, s)` of hex
+    strings.
+    """
+    try:
+        if not (isinstance(proof_tuple, (list, tuple)) and len(proof_tuple) == 3):
+            return False
+        R_hex, c_hex, s_hex = proof_tuple
+        _require_point_hex(R_hex, "R_hex")
+
+        R = bytes.fromhex(R_hex)
+        c = _scalar_from_hex(c_hex)
+        s = _scalar_from_hex(s_hex)
+
+        challenge = _hash_to_scalar(domain_prefix + D + R)
+        if c != challenge:
+            return False
+
+        lhs = _point_mul(H_POINT, s)
+        challenge_term = _point_mul(D, c)
+        rhs = _point_sub(R, challenge_term) if subtract_challenge else _point_add(R, challenge_term)
+        return lhs == rhs
+    except Exception:
+        return False
+
 def _verify_linkH_proof(D_hex: str, link_tuple) -> bool:
     """
     Knowledge of r: D = r*H
@@ -208,21 +203,30 @@ def _verify_linkH_proof(D_hex: str, link_tuple) -> bool:
     """
     try:
         _require_point_hex(D_hex, "D_hex")
-        if not (isinstance(link_tuple, tuple) and len(link_tuple) == 3):
-            return False
-        R_hex, c_hex, s_hex = link_tuple
-
         D = bytes.fromhex(D_hex)
-        R = bytes.fromhex(R_hex)
-        c = _scalar_from_hex(c_hex)
-        s = _scalar_from_hex(s_hex)
+        return _verify_schnorr_H(D, link_tuple, b"XIAN|linkH|")
+    except Exception:
+        return False
 
-        c_chk = _hash_to_scalar(b"XIAN|linkH|" + D + R)
-        if c != c_chk:
-            return False
-        lhs = _point_mul(H_POINT, s)
-        rhs = _point_sub(R, _point_mul(D, c))
-        return lhs == rhs
+
+def pedersen_same_value_proof_verify(commitment_a_hex: str, commitment_b_hex: str, proof_tuple) -> bool:
+    """
+    Verify a Schnorr proof that two commitments encode the same value.  The
+    prover demonstrates knowledge of r such that (A - B) = r*H, which can only
+    hold when both commitments share the same amount component.
+
+    `proof_tuple` may be a tuple or list of three 32-byte hex strings (R, c, s).
+    """
+    try:
+        _require_point_hex(commitment_a_hex, "commitment_a_hex")
+        _require_point_hex(commitment_b_hex, "commitment_b_hex")
+
+        A = bytes.fromhex(commitment_a_hex)
+        B = bytes.fromhex(commitment_b_hex)
+        D = _point_sub(A, B)
+        domain = b"XIAN|same_value|" + A + B
+
+        return _verify_schnorr_H(D, proof_tuple, domain)
     except Exception:
         return False
 
@@ -287,11 +291,11 @@ crypto_module = ModuleType('crypto')
 crypto_module.verify = verify
 crypto_module.key_is_valid = key_is_valid
 
-crypto_module.pedersen_commit = pedersen_commit
 crypto_module.pedersen_add = pedersen_add
 crypto_module.pedersen_sub = pedersen_sub
 crypto_module.pedersen_neg = pedersen_neg
 crypto_module.pedersen_eq = pedersen_eq
+crypto_module.pedersen_same_value_proof_verify = pedersen_same_value_proof_verify
 crypto_module.ristretto_is_canonical = ristretto_is_canonical
 
 crypto_module.range_proof_verify = range_proof_verify
