@@ -15,31 +15,28 @@ sodium.sodium_init()
 # ============================================================
 
 def verify(vk: str, msg: str, signature: str):
-    """
-    Ed25519 verify using PyNaCl.
-    vk: 32-byte hex public key
-    signature: 64-byte hex
-    msg: raw string (UTF-8 encoded here)
-    """
+    vk = bytes.fromhex(vk)
+    msg = msg.encode()
+    signature = bytes.fromhex(signature)
+
+    vk = nacl.signing.VerifyKey(vk)
     try:
-        vk_bytes = bytes.fromhex(vk)
-        sig_bytes = bytes.fromhex(signature)
-        msg_bytes = msg.encode('utf-8')
-        nacl.signing.VerifyKey(vk_bytes).verify(msg_bytes, sig_bytes)
-        return True
-    except Exception:
+        vk.verify(msg, signature)
+    except:
         return False
+    return True
 
 
 def key_is_valid(key: str):
-    """Check if hex string is exactly 32 bytes (64 hex chars)."""
-    if not isinstance(key, str) or len(key) != 64:
+    """ Check if the given address is valid.
+     Can be used with public and private keys """
+    if not len(key) == 64:
         return False
     try:
         int(key, 16)
-        return True
-    except Exception:
+    except:
         return False
+    return True
 
 
 # ============================================================
