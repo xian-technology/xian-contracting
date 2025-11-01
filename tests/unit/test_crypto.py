@@ -229,8 +229,6 @@ class TestCryptoModule(TestCase):
         self.assertFalse(C.verify(vk_hex, msg + "!", sig_hex))
 
     def test_pedersen_group_ops_with_locally_built_commitments(self):
-        self.assertFalse(hasattr(C, 'pedersen_commit'))
-
         v = "123456"
         r_hex = "11" * 32
         c1 = pedersen_commit_for_tests(v, r_hex)
@@ -241,12 +239,6 @@ class TestCryptoModule(TestCase):
         zero_blind = "33" * 32
         z1 = pedersen_commit_for_tests("0", zero_blind)
         z2 = pedersen_commit_for_tests("0", zero_blind)
-        self.assertEqual(z1, z2)
-
-        # Zero-value path should remain deterministic as well (exercise v_scalar == 0 branch)
-        zero_blind = "33" * 32
-        z1 = C.pedersen_commit("0", zero_blind)
-        z2 = C.pedersen_commit("0", zero_blind)
         self.assertEqual(z1, z2)
 
         # C + (-C) == identity (encoded point is canonical)

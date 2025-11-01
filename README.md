@@ -17,6 +17,13 @@ Xian Contracting is a Python-based smart contract development and execution fram
 pip install xian-contracting
 ```
 
+The crypto bridge relies on [`libsodium`](https://doc.libsodium.org/). When running the test suite (especially the crypto-focused
+tests), ensure the shared library is available on your system. On Debian/Ubuntu based distributions you can install it with:
+
+```bash
+sudo apt-get install libsodium-dev
+```
+
 ## Quick Start
 
 Here's a complete token contract example with approval system:
