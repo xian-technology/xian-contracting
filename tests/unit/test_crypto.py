@@ -271,6 +271,16 @@ class TestCryptoModule(TestCase):
         self.assertTrue(ok1)
         self.assertTrue(ok2)
 
+    def test_range_proof_verify_accepts_list_serialised_inputs(self):
+        value = 173
+        C_amt_hex, bit_cmts, bit_proofs, link_pf = make_range_proof(value, bits=8)
+
+        # Simulate JSON serialisation (tuples -> lists)
+        bit_proofs_lists = [list(p) for p in bit_proofs]
+        link_pf_list = list(link_pf)
+
+        self.assertTrue(C.range_proof_verify(C_amt_hex, bit_cmts, bit_proofs_lists, link_pf_list, 8))
+
     def test_range_proof_verify_rejects_tamper(self):
         value = 77
         C_amt_hex, bit_cmts, bit_proofs, link_pf = make_range_proof(value, bits=8)

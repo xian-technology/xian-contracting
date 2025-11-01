@@ -114,9 +114,9 @@ G_POINT = sodium.crypto_scalarmult_ristretto255_base(_scalar_one())  # bytes (ba
 
 # ============================================================
 # Python-only range proof verification (Σ-protocol)
-#   - Inputs: hex strings and tuples only (no JSON)
-#   - bit_proof: tuple(str,str,str,str,str,str) = (t0,t1,c0,s0,c1,s1)
-#   - link_proof: tuple(str,str,str) = (R,c,s)
+#   - Inputs: hex strings and tuple/list containers (JSON-friendly)
+#   - bit_proof: sequence[str] len==6  (t0,t1,c0,s0,c1,s1)
+#   - link_proof: sequence[str] len==3 (R,c,s)
 # ============================================================
 
 _ALLOWED_BITS = {8, 16, 32, 64}
@@ -141,9 +141,9 @@ def _verify_bit_or_proof(C_hex: str, proof_tuple) -> bool:
     """
     try:
         _require_point_hex(C_hex, "C_hex")
-        if not (isinstance(proof_tuple, tuple) and len(proof_tuple) == 6):
+        if not (isinstance(proof_tuple, (list, tuple)) and len(proof_tuple) == 6):
             return False
-        t0_hex, t1_hex, c0_hex, s0_hex, c1_hex, s1_hex = proof_tuple
+        t0_hex, t1_hex, c0_hex, s0_hex, c1_hex, s1_hex = tuple(proof_tuple)
 
         C = bytes.fromhex(C_hex)
         C_minus_G = _point_sub(C, G_POINT)
