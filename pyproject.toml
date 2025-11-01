@@ -24,6 +24,7 @@ h5py = "*"
 cachetools = "*"
 loguru = "*"
 pynacl = "*"
+pysodium = "*"
 psutil = "*"
 
 [build-system]
