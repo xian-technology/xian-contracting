@@ -112,7 +112,6 @@ def ristretto_is_canonical(point_hex: str) -> bool:
 
 G_POINT = sodium.crypto_scalarmult_ristretto255_base(_scalar_one())  # bytes (basepoint)
 
-
 # ============================================================
 # Python-only range proof verification (Σ-protocol)
 #   - Inputs: hex strings and tuples only (no JSON)
