@@ -205,13 +205,14 @@ def _verify_linkH_proof(D_hex: str, link_tuple) -> bool:
         return False
 
 
-def pedersen_same_value_proof_verify(commitment_a_hex: str, commitment_b_hex: str, proof_tuple) -> bool:
+def pedersen_same_value_proof_verify(commitment_a_hex: str, commitment_b_hex: str, proof_list) -> bool:
     """
     Verify a Schnorr proof that two commitments encode the same value.  The
     prover demonstrates knowledge of r such that (A - B) = r*H, which can only
     hold when both commitments share the same amount component.
 
-    `proof_tuple` may be a tuple or list of three 32-byte hex strings (R, c, s).
+    `proof_list` may be a list (or any tuple-like iterable) of three 32-byte hex
+    strings (R, c, s).
     """
     try:
         _require_point_hex(commitment_a_hex, "commitment_a_hex")
@@ -222,21 +223,21 @@ def pedersen_same_value_proof_verify(commitment_a_hex: str, commitment_b_hex: st
         D = _point_sub(A, B)
         domain = b"XIAN|same_value|" + A + B
 
-        return _verify_schnorr_H(D, proof_tuple, domain)
+        return _verify_schnorr_H(D, proof_list, domain)
     except Exception:
         return False
 
 def range_proof_verify(amount_commitment_hex: str,
                        bit_commitments_hex: list,
                        bit_proofs: list,
-                       link_proof_tuple,
+                       link_proof_list,
                        bits: int) -> bool:
     """
     Verify v in [0, 2^bits) for commitment C.
       - amount_commitment_hex: 32B point hex (C)
       - bit_commitments_hex: list[str] length == bits (each 32B point hex)
       - bit_proofs: list[tuple] length == bits (each 6-elem tuple of hex)
-      - link_proof_tuple: 3-elem tuple (R,c,s) hex
+      - link_proof_list: 3-elem list (R,c,s) hex
       - bits ∈ {8,16,32,64}
     """
     try:
@@ -250,7 +251,7 @@ def range_proof_verify(amount_commitment_hex: str,
         # Normalise iterables so callers may supply JSON-friendly lists.
         try:
             canonical_bit_proofs = [tuple(proof) for proof in bit_proofs]
-            canonical_link_proof = tuple(link_proof_tuple)
+            canonical_link_proof = tuple(link_proof_list)
         except TypeError:
             return False
 
