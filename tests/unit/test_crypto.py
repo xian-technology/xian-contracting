@@ -214,6 +214,12 @@ class TestCryptoModule(TestCase):
         z2 = pedersen_commit_for_tests("0", zero_blind)
         self.assertEqual(z1, z2)
 
+        # Zero-value path should remain deterministic as well (exercise v_scalar == 0 branch)
+        zero_blind = "33" * 32
+        z1 = C.pedersen_commit("0", zero_blind)
+        z2 = C.pedersen_commit("0", zero_blind)
+        self.assertEqual(z1, z2)
+
         # C + (-C) == identity (encoded point is canonical)
         neg = C.pedersen_neg(c1)
         zero = C.pedersen_add(c1, neg)
