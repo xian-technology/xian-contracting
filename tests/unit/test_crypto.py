@@ -39,6 +39,26 @@ def _hash_to_scalar(ctx: bytes) -> bytes:
     return _scalar_reduce_from_bytes(hashlib.sha512(ctx).digest())
 
 
+def pedersen_commit_for_tests(value_u128: str, blinding_hex: str) -> str:
+    assert isinstance(value_u128, str) and value_u128.isdigit(), "value must be decimal string"
+    v_int = int(value_u128, 10)
+    assert 0 <= v_int <= (1 << 128) - 1, "value out of range"
+    assert isinstance(blinding_hex, str) and len(blinding_hex) == 64, "blinding must be 32-byte hex"
+    _ = int(blinding_hex, 16)  # raises if non-hex
+
+    v_scalar = _scalar_from_u128(v_int)
+    r_seed = bytes.fromhex(blinding_hex)
+    r64 = hashlib.sha512(b"XIAN|crypto.pedersen|r|" + r_seed).digest()
+    r_scalar = _scalar_reduce_from_bytes(r64)
+
+    if v_scalar == bytes(32):
+        vG = _point_sub(H_POINT, H_POINT)
+    else:
+        vG = sodium.crypto_scalarmult_ristretto255_base(v_scalar)
+    rH = _point_mul(H_POINT, r_scalar)
+    return _point_add(vG, rH).hex()
+
+
 # === In-test prover for the Σ-protocol range proof ===========================
 
 def make_bit_commitment_and_proof(bit: int, r_hex: str):
@@ -48,7 +68,7 @@ def make_bit_commitment_and_proof(bit: int, r_hex: str):
     """
     assert bit in (0, 1)
     # Commitment C_i = b*G + r*H (use module under test)
-    Ci_hex = C.pedersen_commit(str(bit), r_hex)  # 32B hex
+    Ci_hex = pedersen_commit_for_tests(str(bit), r_hex)  # 32B hex
     Ci = bytes.fromhex(Ci_hex)
     Ci_minus_G = _point_sub(Ci, G_POINT)
 
@@ -114,7 +134,7 @@ def make_range_proof(amount_value: int, bits: int = 8):
     assert 0 <= amount_value < (1 << bits)
     # Amount & blinding
     r_amt_hex = os.urandom(32).hex()
-    C_amt_hex = C.pedersen_commit(str(amount_value), r_amt_hex)
+    C_amt_hex = pedersen_commit_for_tests(str(amount_value), r_amt_hex)
     C_amt = bytes.fromhex(C_amt_hex)
 
     # Bits
@@ -179,12 +199,20 @@ class TestCryptoModule(TestCase):
         self.assertTrue(C.verify(vk_hex, msg, sig_hex))
         self.assertFalse(C.verify(vk_hex, msg + "!", sig_hex))
 
-    def test_pedersen_commit_determinism_and_ops(self):
+    def test_pedersen_group_ops_with_locally_built_commitments(self):
+        self.assertFalse(hasattr(C, 'pedersen_commit'))
+
         v = "123456"
         r_hex = "11" * 32
-        c1 = C.pedersen_commit(v, r_hex)
-        c2 = C.pedersen_commit(v, r_hex)
-        self.assertEqual(c1, c2)  # deterministic
+        c1 = pedersen_commit_for_tests(v, r_hex)
+        c2 = pedersen_commit_for_tests(v, r_hex)
+        self.assertEqual(c1, c2)  # deterministic even when built locally
+
+        # Zero-value path should remain deterministic as well (exercise v_scalar == 0 branch)
+        zero_blind = "33" * 32
+        z1 = pedersen_commit_for_tests("0", zero_blind)
+        z2 = pedersen_commit_for_tests("0", zero_blind)
+        self.assertEqual(z1, z2)
 
         # C + (-C) == identity (encoded point is canonical)
         neg = C.pedersen_neg(c1)
@@ -194,13 +222,13 @@ class TestCryptoModule(TestCase):
 
         # Add/sub roundtrip
         r2_hex = "22" * 32
-        d = C.pedersen_commit("1", r2_hex)
+        d = pedersen_commit_for_tests("1", r2_hex)
         rtrip = C.pedersen_sub(C.pedersen_add(c1, d), d)
         self.assertTrue(C.pedersen_eq(c1, rtrip))
 
     def test_ristretto_is_canonical(self):
         v = "0"; r_hex = "33" * 32
-        c = C.pedersen_commit(v, r_hex)
+        c = pedersen_commit_for_tests(v, r_hex)
         self.assertTrue(C.ristretto_is_canonical(c))
         # Break hex length
         self.assertFalse(C.ristretto_is_canonical(c[:-2]))
@@ -211,8 +239,10 @@ class TestCryptoModule(TestCase):
         # Build a valid 8-bit proof for a small value
         value = 173  # 0b10101101
         C_amt_hex, bit_cmts, bit_proofs, link_pf = make_range_proof(value, bits=8)
-        ok = C.range_proof_verify(C_amt_hex, bit_cmts, bit_proofs, link_pf, 8)
-        self.assertTrue(ok)
+        ok1 = C.range_proof_verify(C_amt_hex, bit_cmts, bit_proofs, link_pf, 8)
+        ok2 = C.range_proof_verify(C_amt_hex, bit_cmts, bit_proofs, link_pf, 8)
+        self.assertTrue(ok1)
+        self.assertTrue(ok2)
 
     def test_range_proof_verify_rejects_tamper(self):
         value = 77

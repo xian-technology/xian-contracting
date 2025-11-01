@@ -65,12 +65,6 @@ def _require_point_hex(h: str, name: str):
     b = bytes.fromhex(h)
     assert bool(sodium.crypto_core_ristretto255_is_valid_point(b)), f"{name} is not canonical"
 
-def _u128_from_dec(ds: str) -> int:
-    assert isinstance(ds, str) and ds.isdigit(), "value_u128 must be decimal string"
-    v = int(ds, 10)
-    assert 0 <= v <= (1 << 128) - 1, "value_u128 out of range"
-    return v
-
 def _scalar_from_u128(v: int) -> bytes:
     # libsodium expects 64B input to scalar_reduce
     return sodium.crypto_core_ristretto255_scalar_reduce(v.to_bytes(64, "little"))
@@ -88,32 +82,6 @@ def _scalar_one() -> bytes:
 # Fixed second generator H via hash-to-group (deterministic & domain-separated)
 _H_HASH = hashlib.sha512(b"XIAN|crypto.pedersen|H").digest()  # 64 bytes
 H_POINT = sodium.crypto_core_ristretto255_from_hash(_H_HASH)  # 32B point (bytes)
-
-def pedersen_commit(value_u128: str, blinding_hex: str) -> str:
-    """
-    C = v*G + r*H  on Ristretto255.
-    value_u128: decimal string "0".."2^128-1"
-    blinding_hex: 32-byte hex (secret; mapped to scalar via SHA-512 then reduce)
-    Returns 32-byte point hex.
-    """
-    v_int = _u128_from_dec(value_u128)
-    _require_hex32(blinding_hex, "blinding_hex")
-
-    v_scalar = _scalar_from_u128(v_int)
-    r_seed = bytes.fromhex(blinding_hex)
-    r64 = hashlib.sha512(b"XIAN|crypto.pedersen|r|" + r_seed).digest()
-    r_scalar = sodium.crypto_core_ristretto255_scalar_reduce(r64)
-
-    if v_scalar == bytes(32):
-        # libsodium rejects the zero scalar for direct base multiplication, but
-        # the Pedersen commitment still needs the identity element when the
-        # value is 0. Compute it via H-H which yields the canonical identity
-        # encoding.
-        vG = sodium.crypto_core_ristretto255_sub(H_POINT, H_POINT)
-    else:
-        vG = sodium.crypto_scalarmult_ristretto255_base(v_scalar)
-    rH = sodium.crypto_scalarmult_ristretto255(r_scalar, H_POINT)
-    return sodium.crypto_core_ristretto255_add(vG, rH).hex()
 
 def pedersen_add(a_hex: str, b_hex: str) -> str:
     _require_point_hex(a_hex, "a_hex"); _require_point_hex(b_hex, "b_hex")
@@ -287,7 +255,6 @@ crypto_module = ModuleType('crypto')
 crypto_module.verify = verify
 crypto_module.key_is_valid = key_is_valid
 
-crypto_module.pedersen_commit = pedersen_commit
 crypto_module.pedersen_add = pedersen_add
 crypto_module.pedersen_sub = pedersen_sub
 crypto_module.pedersen_neg = pedersen_neg
