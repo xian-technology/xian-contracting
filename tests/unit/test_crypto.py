@@ -186,6 +186,12 @@ class TestCryptoModule(TestCase):
         c2 = C.pedersen_commit(v, r_hex)
         self.assertEqual(c1, c2)  # deterministic
 
+        # Zero-value path should remain deterministic as well (exercise v_scalar == 0 branch)
+        zero_blind = "33" * 32
+        z1 = C.pedersen_commit("0", zero_blind)
+        z2 = C.pedersen_commit("0", zero_blind)
+        self.assertEqual(z1, z2)
+
         # C + (-C) == identity (encoded point is canonical)
         neg = C.pedersen_neg(c1)
         zero = C.pedersen_add(c1, neg)
@@ -211,8 +217,10 @@ class TestCryptoModule(TestCase):
         # Build a valid 8-bit proof for a small value
         value = 173  # 0b10101101
         C_amt_hex, bit_cmts, bit_proofs, link_pf = make_range_proof(value, bits=8)
-        ok = C.range_proof_verify(C_amt_hex, bit_cmts, bit_proofs, link_pf, 8)
-        self.assertTrue(ok)
+        ok1 = C.range_proof_verify(C_amt_hex, bit_cmts, bit_proofs, link_pf, 8)
+        ok2 = C.range_proof_verify(C_amt_hex, bit_cmts, bit_proofs, link_pf, 8)
+        self.assertTrue(ok1)
+        self.assertTrue(ok2)
 
     def test_range_proof_verify_rejects_tamper(self):
         value = 77
