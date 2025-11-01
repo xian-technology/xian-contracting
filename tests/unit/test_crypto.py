@@ -39,6 +39,26 @@ def _hash_to_scalar(ctx: bytes) -> bytes:
     return _scalar_reduce_from_bytes(hashlib.sha512(ctx).digest())
 
 
+def pedersen_commit_for_tests(value_u128: str, blinding_hex: str) -> str:
+    assert isinstance(value_u128, str) and value_u128.isdigit(), "value must be decimal string"
+    v_int = int(value_u128, 10)
+    assert 0 <= v_int <= (1 << 128) - 1, "value out of range"
+    assert isinstance(blinding_hex, str) and len(blinding_hex) == 64, "blinding must be 32-byte hex"
+    _ = int(blinding_hex, 16)  # raises if non-hex
+
+    v_scalar = _scalar_from_u128(v_int)
+    r_seed = bytes.fromhex(blinding_hex)
+    r64 = hashlib.sha512(b"XIAN|crypto.pedersen|r|" + r_seed).digest()
+    r_scalar = _scalar_reduce_from_bytes(r64)
+
+    if v_scalar == bytes(32):
+        vG = _point_sub(H_POINT, H_POINT)
+    else:
+        vG = sodium.crypto_scalarmult_ristretto255_base(v_scalar)
+    rH = _point_mul(H_POINT, r_scalar)
+    return _point_add(vG, rH).hex()
+
+
 # === In-test prover for the Σ-protocol range proof ===========================
 
 def make_bit_commitment_and_proof(bit: int, r_hex: str):
@@ -48,7 +68,7 @@ def make_bit_commitment_and_proof(bit: int, r_hex: str):
     """
     assert bit in (0, 1)
     # Commitment C_i = b*G + r*H (use module under test)
-    Ci_hex = C.pedersen_commit(str(bit), r_hex)  # 32B hex
+    Ci_hex = pedersen_commit_for_tests(str(bit), r_hex)  # 32B hex
     Ci = bytes.fromhex(Ci_hex)
     Ci_minus_G = _point_sub(Ci, G_POINT)
 
@@ -114,7 +134,7 @@ def make_range_proof(amount_value: int, bits: int = 8):
     assert 0 <= amount_value < (1 << bits)
     # Amount & blinding
     r_amt_hex = os.urandom(32).hex()
-    C_amt_hex = C.pedersen_commit(str(amount_value), r_amt_hex)
+    C_amt_hex = pedersen_commit_for_tests(str(amount_value), r_amt_hex)
     C_amt = bytes.fromhex(C_amt_hex)
 
     # Bits
@@ -159,6 +179,35 @@ def make_range_proof(amount_value: int, bits: int = 8):
     return C_amt_hex, bit_commitments, bit_proofs, link_proof
 
 
+def make_same_value_proof(value: int):
+    """Return (commitment_a, commitment_b, proof_list)."""
+    assert isinstance(value, int) and value >= 0
+    r1_hex = os.urandom(32).hex()
+    r2_hex = os.urandom(32).hex()
+    C1_hex = pedersen_commit_for_tests(str(value), r1_hex)
+    C2_hex = pedersen_commit_for_tests(str(value), r2_hex)
+
+    C1 = bytes.fromhex(C1_hex)
+    C2 = bytes.fromhex(C2_hex)
+    D = _point_sub(C1, C2)
+
+    r1 = _r_scalar_from_blinding_hex(r1_hex)
+    r2 = _r_scalar_from_blinding_hex(r2_hex)
+    r_diff = sodium.crypto_core_ristretto255_scalar_sub(r1, r2)
+
+    k = _scalar_reduce_from_bytes(os.urandom(64))
+    R = _point_mul(H_POINT, k)
+    domain = b"XIAN|same_value|" + C1 + C2
+    c = _hash_to_scalar(domain + D + R)
+    s = sodium.crypto_core_ristretto255_scalar_sub(
+        k,
+        sodium.crypto_core_ristretto255_scalar_mul(c, r_diff),
+    )
+
+    proof_list = [R.hex(), c.hex(), s.hex()]
+    return C1_hex, C2_hex, proof_list
+
+
 # === Tests ===================================================================
 
 class TestCryptoModule(TestCase):
@@ -179,12 +228,20 @@ class TestCryptoModule(TestCase):
         self.assertTrue(C.verify(vk_hex, msg, sig_hex))
         self.assertFalse(C.verify(vk_hex, msg + "!", sig_hex))
 
-    def test_pedersen_commit_determinism_and_ops(self):
+    def test_pedersen_group_ops_with_locally_built_commitments(self):
+        self.assertFalse(hasattr(C, 'pedersen_commit'))
+
         v = "123456"
         r_hex = "11" * 32
-        c1 = C.pedersen_commit(v, r_hex)
-        c2 = C.pedersen_commit(v, r_hex)
-        self.assertEqual(c1, c2)  # deterministic
+        c1 = pedersen_commit_for_tests(v, r_hex)
+        c2 = pedersen_commit_for_tests(v, r_hex)
+        self.assertEqual(c1, c2)  # deterministic even when built locally
+
+        # Zero-value path should remain deterministic as well (exercise v_scalar == 0 branch)
+        zero_blind = "33" * 32
+        z1 = pedersen_commit_for_tests("0", zero_blind)
+        z2 = pedersen_commit_for_tests("0", zero_blind)
+        self.assertEqual(z1, z2)
 
         # Zero-value path should remain deterministic as well (exercise v_scalar == 0 branch)
         zero_blind = "33" * 32
@@ -200,13 +257,13 @@ class TestCryptoModule(TestCase):
 
         # Add/sub roundtrip
         r2_hex = "22" * 32
-        d = C.pedersen_commit("1", r2_hex)
+        d = pedersen_commit_for_tests("1", r2_hex)
         rtrip = C.pedersen_sub(C.pedersen_add(c1, d), d)
         self.assertTrue(C.pedersen_eq(c1, rtrip))
 
     def test_ristretto_is_canonical(self):
         v = "0"; r_hex = "33" * 32
-        c = C.pedersen_commit(v, r_hex)
+        c = pedersen_commit_for_tests(v, r_hex)
         self.assertTrue(C.ristretto_is_canonical(c))
         # Break hex length
         self.assertFalse(C.ristretto_is_canonical(c[:-2]))
@@ -246,3 +303,18 @@ class TestCryptoModule(TestCase):
         # Claim bits=16 with only 8 provided
         ok = C.range_proof_verify(C_amt_hex, bit_cmts, bit_proofs, link_pf, 16)
         self.assertFalse(ok)
+
+    def test_pedersen_same_value_proof_accepts_valid_proof(self):
+        C1_hex, C2_hex, proof = make_same_value_proof(42)
+        self.assertTrue(C.pedersen_same_value_proof_verify(C1_hex, C2_hex, proof))
+        # Repeat to ensure deterministic verification path and tuple backwards compatibility
+        self.assertTrue(C.pedersen_same_value_proof_verify(C1_hex, C2_hex, tuple(proof)))
+
+    def test_pedersen_same_value_proof_rejects_tamper(self):
+        C1_hex, C2_hex, proof = make_same_value_proof(7)
+        bad_R = ("00" * 32)
+        tampered = [bad_R, proof[1], proof[2]]
+        self.assertFalse(C.pedersen_same_value_proof_verify(C1_hex, C2_hex, tampered))
+
+        bad_commit = C.pedersen_add(C1_hex, C2_hex)
+        self.assertFalse(C.pedersen_same_value_proof_verify(bad_commit, C2_hex, proof))
