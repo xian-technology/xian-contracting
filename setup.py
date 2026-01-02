@@ -9,7 +9,7 @@ setup(
     install_requires=[
         "astor==0.8.1",
         "pycodestyle==2.10.0",
-        "autopep8==1.5.7",
+        "autopep8==2.3.2",
         "iso8601",
         "h5py",
         "cachetools",
