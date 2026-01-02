@@ -8,7 +8,7 @@ setup(
     package_dir={'': 'src'},  # Root package is in the src directory
     install_requires=[
         "astor==0.8.1",
-        "pycodestyle==2.10.0",
+        "pycodestyle==2.14.0",
         "autopep8==1.5.7",
         "iso8601",
         "h5py",
