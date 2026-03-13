@@ -13,7 +13,7 @@
 - `tests/`: unit, integration, security, and performance coverage.
 
 ## Workflow
-- `master` is the only working branch for this repo right now. Stay on `master` unless explicitly told otherwise.
+- `main` is the primary working branch for this repo. Stay on `main` unless explicitly told otherwise.
 - Preserve runtime behavior deliberately. If a fix changes execution semantics, add regression tests in the same change.
 - Avoid cross-repo orchestration changes here unless the ABCI or CLI layer requires a new importable primitive.
 - Keep built-in contracts and storage/runtime helpers aligned with the execution model. Do not treat this repo like a general utilities package.

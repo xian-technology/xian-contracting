@@ -32,8 +32,8 @@ if [[ "${bump_type}" != "patch" && "${bump_type}" != "minor" && "${bump_type}" !
 fi
 
 branch="$(git branch --show-current)"
-if [[ "${branch}" != "master" ]]; then
-    print_error "Please switch to the master branch before creating a release"
+if [[ "${branch}" != "main" ]]; then
+    print_error "Please switch to the main branch before creating a release"
     exit 1
 fi
 
@@ -82,8 +82,8 @@ print(f"{major}.{minor}.{patch}")
 PY
 )"
 
-print_status "Pulling latest changes from master..."
-git pull origin master
+print_status "Pulling latest changes from main..."
+git pull origin main
 
 print_status "Current version: ${current_version}"
 print_status "New version will be: ${new_version}"
