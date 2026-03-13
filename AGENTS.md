@@ -16,6 +16,7 @@
 - `master` is the only working branch for this repo right now. Stay on `master` unless explicitly told otherwise.
 - Preserve runtime behavior deliberately. If a fix changes execution semantics, add regression tests in the same change.
 - Avoid cross-repo orchestration changes here unless the ABCI or CLI layer requires a new importable primitive.
+- Keep built-in contracts and storage/runtime helpers aligned with the execution model. Do not treat this repo like a general utilities package.
 
 ## Validation
 - Preferred setup: `uv sync --group dev`
@@ -27,3 +28,4 @@
 ## Notes
 - The test suite now uses a repo-local HOME via `tests/conftest.py`, so it does not need host access to `~/.cometbft`.
 - Review `examples/` and release helpers critically before expanding them; do not add convenience tooling that belongs in `xian-cli` or `xian-stack`.
+- If you touch metering, tracing, imports, or storage encoding, assume the change is consensus-sensitive and test accordingly.
