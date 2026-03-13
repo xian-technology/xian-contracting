@@ -135,5 +135,4 @@ class TestMetering(TestCase):
         output = self.e.execute(**TEST_SUBMISSION_KWARGS,
                                 kwargs=submission_kwargs_for_file(erc20_clone_path), auto_commit=False
                                 )
-        self.assertNotEquals(self.e.driver.pending_writes['con_currency.balances:stu'], prior_balance)
-
+        self.assertNotEqual(self.e.driver.pending_writes['con_currency.balances:stu'], prior_balance)

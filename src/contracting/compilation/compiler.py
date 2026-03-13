@@ -123,11 +123,11 @@ class ContractingCompiler(ast.NodeTransformer):
         self.generic_visit(node)
         return node
 
-    def visit_Num(self, node):
-        if isinstance(node.n, float):
+    def visit_Constant(self, node):
+        if isinstance(node.value, float):
             return ast.Call(
                 func=ast.Name(id="decimal", ctx=ast.Load()),
-                args=[ast.Str(str(node.n))],
+                args=[ast.Str(str(node.value))],
                 keywords=[],
             )
         return node

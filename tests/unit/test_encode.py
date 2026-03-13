@@ -1,50 +1,64 @@
-from unittest import TestCase
-from contracting.storage.encoder import encode, decode, safe_repr, convert_dict, MONGO_MAX_INT, MONGO_MIN_INT
-from contracting.stdlib.bridge.time import Datetime, Timedelta
 from datetime import datetime
+from decimal import Decimal
+from unittest import TestCase
+
+from contracting.storage.encoder import (
+    MONGO_MAX_INT,
+    MONGO_MIN_INT,
+    as_object,
+    convert,
+    convert_dict,
+    decode,
+    decode_kv,
+    encode,
+    encode_kv,
+    make_key,
+    safe_repr,
+)
 from contracting.stdlib.bridge.decimal import ContractingDecimal
+from contracting.stdlib.bridge.time import Datetime, Timedelta
 
 
 class TestEncode(TestCase):
     def test_int_to_bytes(self):
         i = 1000
-        b = '1000'
+        b = "1000"
 
         self.assertEqual(encode(i), b)
 
     def test_str_to_bytes(self):
-        s = 'hello'
+        s = "hello"
         b = '"hello"'
 
         self.assertEqual(encode(s), b)
 
     def test_dec_to_bytes(self):
         d = 1.098409840984
-        b = '1.098409840984'
+        b = "1.098409840984"
 
         self.assertEqual(encode(d), b)
 
     def test_decode_bytes_to_int(self):
-        b = '1234'
+        b = "1234"
         i = 1234
 
         self.assertEqual(decode(b), i)
 
     def test_decode_bytes_to_str(self):
         b = '"howdy"'
-        s = 'howdy'
+        s = "howdy"
 
         self.assertEqual(decode(b), s)
 
     def test_decode_bytes_to_dec(self):
         b = '{"__fixed__":"0.0044997618965276"}'
-        d = ContractingDecimal('0.0044997618965276')
+        d = ContractingDecimal("0.0044997618965276")
 
         # _d is the actual Decimal object included in the wrapped stdlib ContractingDecimal
         self.assertEqual(decode(b)._d, d)
 
     def test_decode_failure(self):
-        b = b'xwow'
+        b = b"xwow"
 
         self.assertIsNone(decode(b))
 
@@ -82,7 +96,7 @@ class TestEncode(TestCase):
         self.assertEqual(str(i), encode(i))
 
     def test_int_decode(self):
-        i = '10'
+        i = "10"
 
         self.assertEqual(10, decode(i))
 
@@ -94,25 +108,43 @@ class TestEncode(TestCase):
         self.assertEqual('{"__big_int__":"' + str(si) + '"}', encode(si))
 
     def test_bigint_decode(self):
-        _bi = '{"__big_int__":' + str(MONGO_MAX_INT+1) + '}'
+        _bi = '{"__big_int__":' + str(MONGO_MAX_INT + 1) + "}"
 
-        self.assertEqual(decode(_bi), MONGO_MAX_INT+1)
+        self.assertEqual(decode(_bi), MONGO_MAX_INT + 1)
 
     def test_encode_ints_nested_list(self):
-        d = {'lists':[ {'i': 123,'bi': MONGO_MAX_INT} ]}
-        expected = '{"lists":[{"i":123,"bi":{"__big_int__":"' + str(MONGO_MAX_INT) + '"}}]}'
+        d = {"lists": [{"i": 123, "bi": MONGO_MAX_INT}]}
+        expected = (
+            '{"lists":[{"i":123,"bi":{"__big_int__":"'
+            + str(MONGO_MAX_INT)
+            + '"}}]}'
+        )
 
         self.assertEqual(encode(d), expected)
 
     def test_encode_dict_with_list_containing_different_types(self):
-        d = {'lists':[ {'i': 123,'bi': MONGO_MAX_INT}, 'hello' ]}
-        expected = '{"lists":[{"i":123,"bi":{"__big_int__":"' + str(MONGO_MAX_INT) + '"}},"hello"]}'
+        d = {"lists": [{"i": 123, "bi": MONGO_MAX_INT}, "hello"]}
+        expected = (
+            '{"lists":[{"i":123,"bi":{"__big_int__":"'
+            + str(MONGO_MAX_INT)
+            + '"}},"hello"]}'
+        )
+
+        self.assertEqual(encode(d), expected)
+
+    def test_encode_dict_with_list_containing_big_int(self):
+        d = {"lists": [MONGO_MAX_INT]}
+        expected = '{"lists":[{"__big_int__":"' + str(MONGO_MAX_INT) + '"}]}'
 
         self.assertEqual(encode(d), expected)
 
     def test_encode_ints_nested_dict(self):
-        d = {'d': {'bi': MONGO_MAX_INT, 'str': 'hello'}}
-        expected = '{"d":{"bi":{"__big_int__":"' + str(MONGO_MAX_INT) + '"},"str":"hello"}}'
+        d = {"d": {"bi": MONGO_MAX_INT, "str": "hello"}}
+        expected = (
+            '{"d":{"bi":{"__big_int__":"'
+            + str(MONGO_MAX_INT)
+            + '"},"str":"hello"}}'
+        )
 
         self.assertEqual(encode(d), expected)
 
@@ -144,10 +176,17 @@ class TestEncode(TestCase):
         self.assertNotEqual(safe_repr(a), safe_repr(b))
 
     def test_safe_repr_assertion_error_string(self):
-        a = AssertionError('Hello')
-        b = AssertionError('Hello')
+        a = AssertionError("Hello")
+        b = AssertionError("Hello")
 
         self.assertEqual(safe_repr(a), safe_repr(b))
+
+    def test_safe_repr_returns_none_if_repr_raises(self):
+        class BrokenObject:
+            def __repr__(self):
+                raise RuntimeError("bad repr")
+
+        self.assertIsNone(safe_repr(BrokenObject()))
 
     def test_contracting_decimal(self):
         c = ContractingDecimal(a=123.456)
@@ -155,151 +194,103 @@ class TestEncode(TestCase):
 
         self.assertEqual(encode(c), b)
 
+    def test_decimal_encode(self):
+        d = Decimal("1.234500")
+
+        self.assertEqual(encode(d), '{"__fixed__":"1.2345"}')
+
+    def test_bytes_encode_and_decode(self):
+        encoded = encode(b"abc")
+
+        self.assertEqual(encoded, '{"__bytes__":"616263"}')
+        self.assertEqual(decode(encoded), b"abc")
+
+    def test_encode_unsupported_object_raises_type_error(self):
+        with self.assertRaises(TypeError):
+            encode(object())
+
     def test_decode_fixed_trailing_doesnt_get_rid_of_zeros_properly(self):
         b = '{"__fixed__":"1.10"}'
 
         d = decode(b)
 
     def test_encoding_fixed_trailing_zeros(self):
-        b = ContractingDecimal('123.000000')
+        b = ContractingDecimal("123.000000")
 
         e = encode(b)
 
         print(e)
 
     def test_convert_returns_normal_dict(self):
-        d = {
-            1: 2,
-            "a": "b"
-        }
+        d = {1: 2, "a": "b"}
 
         d2 = convert_dict(d)
         self.assertEqual(d, d2)
 
     def test_convert_bigint(self):
-        d = {'bigint': {'__big_int__': str(2**65)}}
-        expected = {'bigint': 2**65}
+        d = {"bigint": {"__big_int__": str(2**65)}}
+        expected = {"bigint": 2**65}
 
         self.assertDictEqual(convert_dict(d), expected)
 
     def test_convert_contracting_decimal(self):
-        d = {
-            'kwargs': {
-                '__fixed__': '0.1234'
-            }
-        }
+        d = {"kwargs": {"__fixed__": "0.1234"}}
 
-        expected = {
-            'kwargs': ContractingDecimal('0.1234')
-        }
+        expected = {"kwargs": ContractingDecimal("0.1234")}
 
         self.assertEqual(expected, convert_dict(d))
 
     def test_convert_contracting_datetime(self):
-        d = {
-            'kwargs': {
-                    "__time__": [
-                      2021,
-                      4,
-                      29,
-                      21,
-                      30,
-                      54,
-                      0
-                    ]
-                  }
-        }
+        d = {"kwargs": {"__time__": [2021, 4, 29, 21, 30, 54, 0]}}
 
-        expected = {
-            'kwargs': Datetime(2021, 4, 29, 21, 30, 54, 0)
-        }
+        expected = {"kwargs": Datetime(2021, 4, 29, 21, 30, 54, 0)}
 
         self.assertEqual(expected, convert_dict(d))
 
     def test_convert_contracting_timedelta(self):
-        d = {
-            'kwargs': {
-                    "__delta__": [8, 0]
-            }
-        }
+        d = {"kwargs": {"__delta__": [8, 0]}}
 
-        expected = {
-            'kwargs': Timedelta(days=8, seconds=0)
-        }
+        expected = {"kwargs": Timedelta(days=8, seconds=0)}
 
         self.assertEqual(expected, convert_dict(d))
 
     def test_convert_contracting_bytes(self):
-        d = {
-            'kwargs': {
-                    "__bytes__": "123456"
-            }
-        }
+        d = {"kwargs": {"__bytes__": "123456"}}
 
-        expected = {
-            'kwargs': b'\x124V'
-        }
+        expected = {"kwargs": b"\x124V"}
 
         self.assertEqual(expected, convert_dict(d))
 
     def test_multiple_conversions(self):
         d = {
-            'kwargs': {
-                '__fixed__': '0.1234'
-            },
-            'kwargs2': {
-                "__time__": [
-                      2021,
-                      4,
-                      29,
-                      21,
-                      30,
-                      54,
-                      0
-                    ]
-                  },
-            'kwargs3': {
-                "__delta__": [8, 0]
-            },
-            'kwargs4': {
-                "__bytes__": "123456"
-            }
+            "kwargs": {"__fixed__": "0.1234"},
+            "kwargs2": {"__time__": [2021, 4, 29, 21, 30, 54, 0]},
+            "kwargs3": {"__delta__": [8, 0]},
+            "kwargs4": {"__bytes__": "123456"},
         }
 
         expected = {
-            'kwargs': ContractingDecimal('0.1234'),
-            'kwargs2': Datetime(2021, 4, 29, 21, 30, 54, 0),
-            'kwargs3': Timedelta(days=8, seconds=0),
-            'kwargs4': b'\x124V',
+            "kwargs": ContractingDecimal("0.1234"),
+            "kwargs2": Datetime(2021, 4, 29, 21, 30, 54, 0),
+            "kwargs3": Timedelta(days=8, seconds=0),
+            "kwargs4": b"\x124V",
         }
 
         self.assertEqual(expected, convert_dict(d))
 
     def test_nested_dictionaries(self):
         d = {
-            'kwargs': {
-                '__fixed__': '0.1234'
+            "kwargs": {"__fixed__": "0.1234"},
+            "thing": {
+                "thing2": {"__time__": [2021, 4, 29, 21, 30, 54, 0]},
             },
-            'thing': {
-                'thing2': {
-                    "__time__": [
-                        2021,
-                        4,
-                        29,
-                        21,
-                        30,
-                        54,
-                        0
-                    ]
-                },
-            }
         }
 
         expected = {
-            'kwargs': ContractingDecimal('0.1234'),
-            'thing': {
-                'thing2': Datetime(2021, 4, 29, 21, 30, 54, 0),
-            }
+            "kwargs": ContractingDecimal("0.1234"),
+            "thing": {
+                "thing2": Datetime(2021, 4, 29, 21, 30, 54, 0),
+            },
         }
 
         d2 = convert_dict(d)
@@ -308,35 +299,55 @@ class TestEncode(TestCase):
 
     def test_lists(self):
         d = {
-            'kwargs': [
-                {
-                    '__fixed__': '0.1234'
-                },
-                {
-                    '__fixed__': '0.1235'
-                },
-                {
-                    '__fixed__': '0.1236'
-                },
-                {
-                    '__fixed__': '0.1237'
-                },
-                {
-                    '__fixed__': '0.1238'
-                },
+            "kwargs": [
+                {"__fixed__": "0.1234"},
+                {"__fixed__": "0.1235"},
+                {"__fixed__": "0.1236"},
+                {"__fixed__": "0.1237"},
+                {"__fixed__": "0.1238"},
             ]
         }
 
         expected = {
-            'kwargs': [
-                ContractingDecimal('0.1234'),
-                ContractingDecimal('0.1235'),
-                ContractingDecimal('0.1236'),
-                ContractingDecimal('0.1237'),
-                ContractingDecimal('0.1238'),
+            "kwargs": [
+                ContractingDecimal("0.1234"),
+                ContractingDecimal("0.1235"),
+                ContractingDecimal("0.1236"),
+                ContractingDecimal("0.1237"),
+                ContractingDecimal("0.1238"),
             ]
         }
 
         d2 = convert_dict(d)
 
         self.assertEqual(expected, d2)
+
+    def test_decode_none_returns_none(self):
+        self.assertIsNone(decode(None))
+
+    def test_as_object_returns_plain_dict_for_unknown_keys(self):
+        d = {"hello": "world"}
+
+        self.assertEqual(as_object(d), d)
+
+    def test_make_key_builds_composite_key(self):
+        self.assertEqual(
+            make_key("currency", "balances", ["stu", "main"]),
+            "currency.balances:stu:main",
+        )
+        self.assertEqual(make_key("currency", "balances"), "currency.balances")
+
+    def test_encode_and_decode_kv_round_trip(self):
+        key, value = encode_kv("currency.balances:stu", {"amount": 123})
+
+        self.assertEqual(key, b"currency.balances:stu")
+        self.assertEqual(
+            decode_kv(key, value),
+            ("currency.balances:stu", {"amount": 123}),
+        )
+
+    def test_convert_returns_value_for_unknown_type_marker(self):
+        self.assertEqual(convert("__unknown__", "value"), "value")
+
+    def test_convert_dict_returns_non_dict_values_unchanged(self):
+        self.assertEqual(convert_dict(["a", "b"]), ["a", "b"])

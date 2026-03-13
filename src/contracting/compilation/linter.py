@@ -175,7 +175,7 @@ class Linter(ast.NodeVisitor):
 
         return super().generic_visit(node)
 
-    def visit_Num(self, node):
+    def visit_Constant(self, node):
         # NOTE: Integers are important for indexing and slicing so we cannot replace them.
         # They also will not suffer from rounding issues.
         # TODO: are any types we don't allow right now?

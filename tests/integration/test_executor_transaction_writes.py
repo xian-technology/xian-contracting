@@ -33,7 +33,7 @@ class TestTransactionWrites(TestCase):
             stamps=1000,
             sender="bill",
         )
-        self.assertEquals(res3["writes"], self.c.executor.driver.pending_writes)
+        self.assertEqual(res3["writes"], self.c.executor.driver.pending_writes)
         res2 = self.c.executor.execute(
             contract_name="currency",
             function_name="transfer",
@@ -42,7 +42,7 @@ class TestTransactionWrites(TestCase):
             sender="bill",
         )
         
-        self.assertEquals(res2["writes"], self.c.executor.driver.pending_writes)
+        self.assertEqual(res2["writes"], self.c.executor.driver.pending_writes)
         # This operation will raise an exception, so will not make any writes.
         res3 = self.c.executor.execute(
             contract_name="currency",
@@ -51,7 +51,7 @@ class TestTransactionWrites(TestCase):
             stamps=1000,
             sender="bill",
         )
-        self.assertEquals(res3["writes"], {})
+        self.assertEqual(res3["writes"], {})
 
 
 if __name__ == "__main__":
