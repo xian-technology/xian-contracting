@@ -1,11 +1,11 @@
-from types import FunctionType, ModuleType
-from contracting.constants import PRIVATE_METHOD_PREFIX
-from contracting.storage.orm import Datum
-from contracting.storage.driver import Driver, OWNER_KEY
-from contracting.execution.runtime import rt
-
 import importlib
 import sys
+from types import FunctionType, ModuleType
+
+from contracting.constants import PRIVATE_METHOD_PREFIX
+from contracting.execution.runtime import rt
+from contracting.storage.driver import OWNER_KEY, Driver
+from contracting.storage.orm import Datum
 
 
 def extract_closure(fn):
@@ -29,7 +29,10 @@ class Func:
 
         num_args = f.__code__.co_argcount
 
-        if f.__code__.co_name == self.name and f.__code__.co_varnames[:num_args] == self.args:
+        if (
+            f.__code__.co_name == self.name
+            and f.__code__.co_varnames[:num_args] == self.args
+        ):
             return True
 
         return False
@@ -38,7 +41,9 @@ class Func:
 class Var:
     def __init__(self, name, t):
         self.name = PRIVATE_METHOD_PREFIX + name
-        assert issubclass(t, Datum), 'Cannot enforce a variable that is not a Variable, Hash, or Foreign type!'
+        assert issubclass(t, Datum), (
+            "Cannot enforce a variable that is not a Variable, Hash, or Foreign type!"
+        )
         self.type = t
 
     def is_of(self, v):
@@ -48,15 +53,19 @@ class Var:
 
 
 def import_module(name):
-    assert not name.isdigit() and all(c.isalnum() or c == '_' for c in name), 'Invalid contract name!'
-    assert name.islower(), 'Name must be lowercase!'
+    assert not name.isdigit() and all(c.isalnum() or c == "_" for c in name), (
+        "Invalid contract name!"
+    )
+    assert name.islower(), "Name must be lowercase!"
 
-    _driver = rt.env.get('__Driver') or Driver()
+    _driver = rt.env.get("__Driver") or Driver()
 
-    if name in set(list(sys.stdlib_module_names) + list(sys.builtin_module_names)):
+    if name in set(
+        list(sys.stdlib_module_names) + list(sys.builtin_module_names)
+    ):
         raise ImportError
 
-    if name.startswith('_'):
+    if name.startswith("_"):
         raise ImportError
 
     if _driver.get_contract(name) is None:
@@ -86,12 +95,12 @@ def enforce_interface(m: ModuleType, interface: list):
 
 
 def owner_of(m: ModuleType):
-    _driver = rt.env.get('__Driver') or Driver()
+    _driver = rt.env.get("__Driver") or Driver()
     owner = _driver.get_var(m.__name__, OWNER_KEY)
     return owner
 
 
-imports_module = ModuleType('importlib')
+imports_module = ModuleType("importlib")
 imports_module.import_module = import_module
 imports_module.enforce_interface = enforce_interface
 imports_module.Func = Func
@@ -99,5 +108,5 @@ imports_module.Var = Var
 imports_module.owner_of = owner_of
 
 exports = {
-    'importlib': imports_module,
+    "importlib": imports_module,
 }

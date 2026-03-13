@@ -17,6 +17,18 @@ Xian Contracting is a Python-based smart contract development and execution fram
 pip install xian-contracting
 ```
 
+## Development Setup
+
+```bash
+uv sync --group dev
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest
+```
+
+The test suite uses a repo-local home directory via `tests/conftest.py`, so it
+does not need access to `~/.cometbft` on the host machine.
+
 ## Quick Start
 
 Here's a complete token contract example with approval system:
@@ -198,6 +210,14 @@ from contracting.client import ContractingClient
 
 client = ContractingClient()
 violations = client.lint(contract_code)
+```
+
+Repo validation:
+
+```bash
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest
 ```
 
 ## License

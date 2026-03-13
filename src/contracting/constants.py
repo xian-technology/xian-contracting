@@ -2,18 +2,24 @@ from pathlib import Path
 
 RECURSION_LIMIT = 1024
 
-DELIMITER = ':'
-INDEX_SEPARATOR = '.'
-HDF5_GROUP_SEPARATOR = '/'
+DELIMITER = ":"
+INDEX_SEPARATOR = "."
+HDF5_GROUP_SEPARATOR = "/"
 
-SUBMISSION_CONTRACT_NAME = 'submission'
-PRIVATE_METHOD_PREFIX = '__'
-EXPORT_DECORATOR_STRING = 'export'
-INIT_DECORATOR_STRING = 'construct'
-INIT_FUNC_NAME = '__{}'.format(PRIVATE_METHOD_PREFIX)
+SUBMISSION_CONTRACT_NAME = "submission"
+PRIVATE_METHOD_PREFIX = "__"
+EXPORT_DECORATOR_STRING = "export"
+INIT_DECORATOR_STRING = "construct"
+INIT_FUNC_NAME = "__{}".format(PRIVATE_METHOD_PREFIX)
 VALID_DECORATORS = {EXPORT_DECORATOR_STRING, INIT_DECORATOR_STRING}
 
-ORM_CLASS_NAMES = {'Variable', 'Hash', 'ForeignVariable', 'ForeignHash', 'LogEvent'}
+ORM_CLASS_NAMES = {
+    "Variable",
+    "Hash",
+    "ForeignVariable",
+    "ForeignHash",
+    "LogEvent",
+}
 
 MAX_HASH_DIMENSIONS = 16
 MAX_KEY_SIZE = 1024

@@ -1,9 +1,10 @@
-from contracting.storage.driver import Driver
-from contracting.execution.runtime import rt
-from contracting import constants
-from contracting.stdlib.bridge.decimal import ContractingDecimal
-from contracting.storage.encoder import encode_kv
 from copy import deepcopy
+
+from contracting import constants
+from contracting.execution.runtime import rt
+from contracting.stdlib.bridge.decimal import ContractingDecimal
+from contracting.storage.driver import Driver
+from contracting.storage.encoder import encode_kv
 
 driver = rt.env.get("__Driver") or Driver()
 
@@ -15,7 +16,14 @@ class Datum:
 
 
 class Variable(Datum):
-    def __init__(self, contract, name, driver: Driver = driver, t=None, default_value=None):
+    def __init__(
+        self,
+        contract,
+        name,
+        driver: Driver = driver,
+        t=None,
+        default_value=None,
+    ):
         self._type = None
 
         if isinstance(t, type):
@@ -28,8 +36,8 @@ class Variable(Datum):
     def set(self, value):
         if self._type is not None and value is not None:
             assert isinstance(value, self._type), (
-              f'Wrong type passed to variable! '
-              f'Expected {self._type}, got {type(value)}.'
+                f"Wrong type passed to variable! "
+                f"Expected {self._type}, got {type(value)}."
             )
 
         self._driver.set(self._key, value, True)
@@ -43,8 +51,11 @@ class Variable(Datum):
             return dv
         return value
 
+
 class Hash(Datum):
-    def __init__(self, contract, name, driver: Driver = driver, default_value=None):
+    def __init__(
+        self, contract, name, driver: Driver = driver, default_value=None
+    ):
         super().__init__(contract, name, driver=driver)
         self._delimiter = constants.DELIMITER
         self._default_value = default_value
@@ -59,7 +70,7 @@ class Hash(Datum):
         if value is None:
             value = self._default_value
 
-        if type(value) == float or type(value) == ContractingDecimal:
+        if isinstance(value, float | ContractingDecimal):
             return ContractingDecimal(str(value))
         # Return a defensive copy for mutable structures to prevent in-place
         # mutations from affecting cached objects in the driver.
@@ -81,7 +92,9 @@ class Hash(Datum):
                 k = str(k)
 
                 assert constants.DELIMITER not in k, "Illegal delimiter in key."
-                assert constants.INDEX_SEPARATOR not in k, "Illegal separator in key."
+                assert constants.INDEX_SEPARATOR not in k, (
+                    "Illegal separator in key."
+                )
 
                 new_key_str += f"{k}{self._delimiter}"
 
@@ -90,11 +103,13 @@ class Hash(Datum):
             key = str(key)
 
             assert constants.DELIMITER not in key, "Illegal delimiter in key."
-            assert constants.INDEX_SEPARATOR not in key, "Illegal separator in key."
+            assert constants.INDEX_SEPARATOR not in key, (
+                "Illegal separator in key."
+            )
 
-        assert (
-            len(key) <= constants.MAX_KEY_SIZE
-        ), f"Key is too long ({len(key)}). Max is {constants.MAX_KEY_SIZE}."
+        assert len(key) <= constants.MAX_KEY_SIZE, (
+            f"Key is too long ({len(key)}). Max is {constants.MAX_KEY_SIZE}."
+        )
         return key
 
     def _prefix_for_args(self, args):
@@ -134,7 +149,12 @@ class Hash(Datum):
 
 class ForeignVariable(Variable):
     def __init__(
-        self, contract, name, foreign_contract, foreign_name, driver: Driver = driver
+        self,
+        contract,
+        name,
+        foreign_contract,
+        foreign_name,
+        driver: Driver = driver,
     ):
         super().__init__(contract, name, driver=driver)
         self._key = self._driver.make_key(foreign_contract, foreign_name)
@@ -145,7 +165,12 @@ class ForeignVariable(Variable):
 
 class ForeignHash(Hash):
     def __init__(
-        self, contract, name, foreign_contract, foreign_name, driver: Driver = driver
+        self,
+        contract,
+        name,
+        foreign_contract,
+        foreign_name,
+        driver: Driver = driver,
     ):
         super().__init__(contract, name, driver=driver)
         self._key = self._driver.make_key(foreign_contract, foreign_name)
@@ -179,10 +204,12 @@ class LogEvent(Datum):
         assert isinstance(params, dict), "Args must be a dictionary."
         assert len(params) > 0, "Args must have at least one argument."
         # Check for indexed arguments with a maximum of three
-        indexed_args_count = sum(1 for arg in params.values() if arg.get("idx", False))
-        assert (
-            indexed_args_count <= 3
-        ), "Args must have at most three indexed arguments."
+        indexed_args_count = sum(
+            1 for arg in params.values() if arg.get("idx", False)
+        )
+        assert indexed_args_count <= 3, (
+            "Args must have at most three indexed arguments."
+        )
         for param in params.values():
             if not isinstance(param["type"], tuple):
                 param["type"] = (param["type"],)
@@ -192,25 +219,24 @@ class LogEvent(Datum):
                 for t in param["type"]
             ), "Each type in args must be str, int, float, decimal or bool."
 
-
     def write_event(self, event_data):
         contract = rt.context.this
         caller = rt.context.caller
-        assert len(event_data) == len(
-            self._params
-        ), "Event Data must have the same number of arguments as specified in the event."
+        assert len(event_data) == len(self._params), (
+            "Event Data must have the same number of arguments as specified in the event."
+        )
 
         # Check for unexpected arguments
         for arg in event_data:
-            assert (
-                arg in self._params
-            ), f"Unexpected argument {arg} in the data dictionary."
+            assert arg in self._params, (
+                f"Unexpected argument {arg} in the data dictionary."
+            )
 
         # Check for missing and type-mismatched arguments
         for arg in self._params:
-            assert (
-                arg in event_data
-            ), f"Argument {arg} is missing from the data dictionary."
+            assert arg in event_data, (
+                f"Argument {arg} is missing from the data dictionary."
+            )
 
             # Check the type of the argument
             assert isinstance(event_data[arg], self._params[arg]["type"]), (
@@ -220,10 +246,10 @@ class LogEvent(Datum):
 
             # Check the size of the argument
             value_size = len(str(event_data[arg]).encode("utf-8"))
-            assert (
-                value_size <= 1024
-            ), f"Argument {arg} is too large ({value_size} bytes). Max is 1024 bytes."
-        
+            assert value_size <= 1024, (
+                f"Argument {arg} is too large ({value_size} bytes). Max is 1024 bytes."
+            )
+
         event = {
             "contract": contract,
             "event": self._event,
@@ -241,22 +267,20 @@ class LogEvent(Datum):
             },
         }
 
-
         for arg, value in event["data_indexed"].items():
-            assert isinstance(
-                value, self._params[arg]["type"]
-            ), f"Indexed argument {arg} is the wrong type! Expected {self._params[arg]['type']}, got {type(value)}."
+            assert isinstance(value, self._params[arg]["type"]), (
+                f"Indexed argument {arg} is the wrong type! Expected {self._params[arg]['type']}, got {type(value)}."
+            )
             encoded = encode_kv(arg, value)
             rt.deduct_write(*encoded)
         for arg, value in event["data"].items():
-            assert isinstance(
-                value, self._params[arg]["type"]
-            ), f"Non-indexed argument {arg} is the wrong type! Expected {self._params[arg]['type']}, got {type(value)}."
+            assert isinstance(value, self._params[arg]["type"]), (
+                f"Non-indexed argument {arg} is the wrong type! Expected {self._params[arg]['type']}, got {type(value)}."
+            )
             encoded = encode_kv(arg, value)
             rt.deduct_write(*encoded)
 
         self._driver.set_event(event)
-
 
     def __call__(self, data):
         self.write_event(data)

@@ -1,14 +1,14 @@
-from importlib.abc import Loader
-from importlib import invalidate_caches, __import__
-from importlib.machinery import ModuleSpec
-from contracting.storage.driver import Driver
-from contracting.stdlib import env
-from contracting.execution.runtime import rt
-
-import marshal
 import builtins
-import sys
 import importlib.util
+import marshal
+import sys
+from importlib import __import__, invalidate_caches
+from importlib.abc import Loader
+from importlib.machinery import ModuleSpec
+
+from contracting.execution.runtime import rt
+from contracting.stdlib import env
+from contracting.storage.driver import Driver
 
 # This function overrides the __import__ function, which is the builtin function that is called whenever Python runs
 # an 'import' statement. If the globals dictionary contains {'__contract__': True}, then this function will make sure
@@ -22,20 +22,26 @@ import importlib.util
 def is_valid_import(name):
     spec = importlib.util.find_spec(name)
     if not isinstance(spec.loader, DatabaseLoader):
-        raise ImportError("module {} cannot be imported in a smart contract.".format(name))
+        raise ImportError(
+            "module {} cannot be imported in a smart contract.".format(name)
+        )
 
 
 def restricted_import(name, globals=None, locals=None, fromlist=(), level=0):
-    if globals is not None and globals.get('__contract__') is True:
+    if globals is not None and globals.get("__contract__") is True:
         spec = importlib.util.find_spec(name)
         if spec is None or not isinstance(spec.loader, DatabaseLoader):
-            raise ImportError("module {} cannot be imported in a smart contract.".format(name))
+            raise ImportError(
+                "module {} cannot be imported in a smart contract.".format(name)
+            )
 
     return __import__(name, globals, locals, fromlist, level)
 
 
 def enable_restricted_imports():
     builtins.__import__ = restricted_import
+
+
 #    builtins.float = ContractingDecimal
 
 
@@ -63,14 +69,14 @@ def uninstall_database_loader():
         sys.meta_path.remove(DatabaseFinder)
 
 
-def install_system_contracts(directory=''):
+def install_system_contracts(directory=""):
     pass
 
 
-'''
+"""
     Is this where interaction with the database occurs with the interface of code strings, etc?
     IE: pushing a contract does sanity checks here?
-'''
+"""
 
 
 class DatabaseFinder:
@@ -98,7 +104,7 @@ class DatabaseLoader(Loader):
         if code is None:
             raise ImportError("Module {} not found".format(module.__name__))
 
-        if type(code) != bytes:
+        if not isinstance(code, bytes):
             code = bytes.fromhex(code)
 
         code = marshal.loads(code)
@@ -109,16 +115,16 @@ class DatabaseLoader(Loader):
         scope = env.gather()
         scope.update(rt.env)
 
-        scope.update({'__contract__': True})
+        scope.update({"__contract__": True})
 
         # execute the module with the std env and update the module to pass forward
         exec(code, scope)
 
         # Update the module's attributes with the new scope
         vars(module).update(scope)
-        del vars(module)['__builtins__']
+        del vars(module)["__builtins__"]
 
         rt.loaded_modules.append(module.__name__)
 
     def module_repr(self, module):
-        return '<module {!r} (smart contract)>'.format(module.__name__)
+        return "<module {!r} (smart contract)>".format(module.__name__)

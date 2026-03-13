@@ -1,10 +1,9 @@
-from contracting import constants
-from contracting.execution.tracer import Tracer
+import os
+import sys
 
 import contracting
-import sys
-import os
-import math
+from contracting import constants
+from contracting.execution.tracer import Tracer
 
 
 class Context:
@@ -15,7 +14,7 @@ class Context:
         self._maxlen = maxlen
 
     def _context_changed(self, contract):
-        if self._get_state()['this'] == contract:
+        if self._get_state()["this"] == contract:
             return False
         return True
 
@@ -25,7 +24,10 @@ class Context:
         return self._state[-1]
 
     def _add_state(self, state: dict):
-        if self._context_changed(state['this']) and len(self._state) < self._maxlen:
+        if (
+            self._context_changed(state["this"])
+            and len(self._state) < self._maxlen
+        ):
             self._state.append(state)
             self._depth.append(1)
 
@@ -34,7 +36,9 @@ class Context:
             self._depth[-1] += 1
 
     def _pop_state(self):
-        if len(self._state) > 0: #len(self._state) should equal len(self._depth)
+        if (
+            len(self._state) > 0
+        ):  # len(self._state) should equal len(self._depth)
             self._depth[-1] -= 1
             if self._depth[-1] == 0:
                 self._state.pop(-1)
@@ -46,45 +50,48 @@ class Context:
 
     @property
     def this(self):
-        return self._get_state()['this']
+        return self._get_state()["this"]
 
     @property
     def caller(self):
-        return self._get_state()['caller']
+        return self._get_state()["caller"]
 
     @property
     def signer(self):
-        return self._get_state()['signer']
+        return self._get_state()["signer"]
 
     @property
     def owner(self):
-        return self._get_state()['owner']
+        return self._get_state()["owner"]
 
     @property
     def entry(self):
-        return self._get_state()['entry']
+        return self._get_state()["entry"]
 
     @property
     def submission_name(self):
-        return self._get_state()['submission_name']
+        return self._get_state()["submission_name"]
 
-_context = Context({
-        'this': None,
-        'caller': None,
-        'owner': None,
-        'signer': None,
-        'entry': None,
-        'submission_name': None
-    })
+
+_context = Context(
+    {
+        "this": None,
+        "caller": None,
+        "owner": None,
+        "signer": None,
+        "entry": None,
+        "submission_name": None,
+    }
+)
 
 WRITE_MAX = 1024 * 128
 
 
 class Runtime:
     cu_path = contracting.__path__[0]
-    cu_path = os.path.join(cu_path, 'execution', 'metering', 'cu_costs.const')
+    cu_path = os.path.join(cu_path, "execution", "metering", "cu_costs.const")
 
-    os.environ['CU_COST_FNAME'] = cu_path
+    os.environ["CU_COST_FNAME"] = cu_path
 
     loaded_modules = []
 
@@ -136,7 +143,9 @@ class Runtime:
         if key is not None and cls.tracer.is_started():
             cost = len(key) + len(value)
             cls.writes += cost
-            assert cls.writes < WRITE_MAX, 'You have exceeded the maximum write capacity per transaction!'
+            assert cls.writes < WRITE_MAX, (
+                "You have exceeded the maximum write capacity per transaction!"
+            )
 
             stamp_cost = cost * constants.WRITE_COST_PER_BYTE
             cls.tracer.add_cost(stamp_cost)

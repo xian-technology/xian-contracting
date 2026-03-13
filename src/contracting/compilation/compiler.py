@@ -1,4 +1,5 @@
 import ast
+
 import astor
 
 from contracting import constants
@@ -6,7 +7,7 @@ from contracting.compilation.linter import Linter
 
 
 class ContractingCompiler(ast.NodeTransformer):
-    def __init__(self, module_name='__main__', linter=Linter()):
+    def __init__(self, module_name="__main__", linter=Linter()):
         self.module_name = module_name
         self.linter = linter
         self.lint_alerts = None
@@ -49,12 +50,12 @@ class ContractingCompiler(ast.NodeTransformer):
 
     @staticmethod
     def privatize(s):
-        return '{}{}'.format(constants.PRIVATE_METHOD_PREFIX, s)
+        return "{}{}".format(constants.PRIVATE_METHOD_PREFIX, s)
 
     def compile(self, source: str, lint=True):
         tree = self.parse(source, lint=lint)
 
-        compiled_code = compile(tree, '<compilation>', 'exec')
+        compiled_code = compile(tree, "<compilation>", "exec")
 
         return compiled_code
 
@@ -72,16 +73,18 @@ class ContractingCompiler(ast.NodeTransformer):
 
             # change the name of the init function to '____' so it is uncallable except once
             if decorator.id == constants.INIT_DECORATOR_STRING:
-                node.name = '____'
+                node.name = "____"
 
             elif decorator.id == constants.EXPORT_DECORATOR_STRING:
                 # Transform @export decorators to @__export(contract_name) decorators
-                decorator.id = '{}{}'.format('__', constants.EXPORT_DECORATOR_STRING)
+                decorator.id = "{}{}".format(
+                    "__", constants.EXPORT_DECORATOR_STRING
+                )
 
                 new_node = ast.Call(
                     func=decorator,
                     args=[ast.Str(s=self.module_name)],
-                    keywords=[]
+                    keywords=[],
                 )
 
                 node.decorator_list.append(new_node)
@@ -95,12 +98,17 @@ class ContractingCompiler(ast.NodeTransformer):
         return node
 
     def visit_Assign(self, node):
-        if (isinstance(node.value, ast.Call) and not
-            isinstance(node.value.func, ast.Attribute) and
-            node.value.func.id in constants.ORM_CLASS_NAMES):
-
-            node.value.keywords.append(ast.keyword('contract', ast.Str(self.module_name)))
-            node.value.keywords.append(ast.keyword('name', ast.Str(node.targets[0].id)))
+        if (
+            isinstance(node.value, ast.Call)
+            and not isinstance(node.value.func, ast.Attribute)
+            and node.value.func.id in constants.ORM_CLASS_NAMES
+        ):
+            node.value.keywords.append(
+                ast.keyword("contract", ast.Str(self.module_name))
+            )
+            node.value.keywords.append(
+                ast.keyword("name", ast.Str(node.targets[0].id))
+            )
             self.orm_names.add(node.targets[0].id)
 
         self.generic_visit(node)
@@ -117,6 +125,9 @@ class ContractingCompiler(ast.NodeTransformer):
 
     def visit_Num(self, node):
         if isinstance(node.n, float):
-            return ast.Call(func=ast.Name(id='decimal', ctx=ast.Load()),
-                            args=[ast.Str(str(node.n))], keywords=[])
+            return ast.Call(
+                func=ast.Name(id="decimal", ctx=ast.Load()),
+                args=[ast.Str(str(node.n))],
+                keywords=[],
+            )
         return node

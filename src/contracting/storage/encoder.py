@@ -1,12 +1,15 @@
-import json
 import decimal
+import json
 
+from contracting.constants import DELIMITER, INDEX_SEPARATOR
+from contracting.stdlib.bridge.decimal import (
+    ContractingDecimal,
+    fix_precision,
+)
 from contracting.stdlib.bridge.time import Datetime, Timedelta
-from contracting.stdlib.bridge.decimal import ContractingDecimal, MAX_LOWER_PRECISION, fix_precision
-from contracting.constants import INDEX_SEPARATOR, DELIMITER
 
-MONGO_MIN_INT = -(2 ** 63)
-MONGO_MAX_INT = 2 ** 63 - 1
+MONGO_MIN_INT = -(2**63)
+MONGO_MAX_INT = 2**63 - 1
 
 ##
 # ENCODER CLASS
@@ -19,11 +22,11 @@ MONGO_MAX_INT = 2 ** 63 - 1
 def safe_repr(obj, max_len=1024):
     try:
         r = obj.__repr__()
-        rr = r.split(' at 0x')
+        rr = r.split(" at 0x")
         if len(rr) > 1:
-            return rr[0] + '>'
+            return rr[0] + ">"
         return rr[0][:max_len]
-    except:
+    except Exception:
         return None
 
 
@@ -31,28 +34,37 @@ class Encoder(json.JSONEncoder):
     def default(self, o, *args):
         if isinstance(o, Datetime) or o.__class__.__name__ == Datetime.__name__:
             return {
-                '__time__': [o.year, o.month, o.day, o.hour, o.minute, o.second, o.microsecond]
+                "__time__": [
+                    o.year,
+                    o.month,
+                    o.day,
+                    o.hour,
+                    o.minute,
+                    o.second,
+                    o.microsecond,
+                ]
             }
-        elif isinstance(o, Timedelta) or o.__class__.__name__ == Timedelta.__name__:
-            return {
-                '__delta__': [o._timedelta.days, o._timedelta.seconds]
-            }
+        elif (
+            isinstance(o, Timedelta)
+            or o.__class__.__name__ == Timedelta.__name__
+        ):
+            return {"__delta__": [o._timedelta.days, o._timedelta.seconds]}
         elif isinstance(o, bytes):
-            return {
-                '__bytes__': o.hex()
-            }
-        elif isinstance(o, decimal.Decimal) or o.__class__.__name__ == decimal.Decimal.__name__:
-            #return format(o, f'.{MAX_LOWER_PRECISION}f')
-            return {
-                '__fixed__': str(fix_precision(o))
-            }
+            return {"__bytes__": o.hex()}
+        elif (
+            isinstance(o, decimal.Decimal)
+            or o.__class__.__name__ == decimal.Decimal.__name__
+        ):
+            # return format(o, f'.{MAX_LOWER_PRECISION}f')
+            return {"__fixed__": str(fix_precision(o))}
 
-        elif isinstance(o, ContractingDecimal) or o.__class__.__name__ == ContractingDecimal.__name__:
-            #return format(o._d, f'.{MAX_LOWER_PRECISION}f')
-            return {
-                '__fixed__': str(fix_precision(o._d))
-            }
-        #else:
+        elif (
+            isinstance(o, ContractingDecimal)
+            or o.__class__.__name__ == ContractingDecimal.__name__
+        ):
+            # return format(o._d, f'.{MAX_LOWER_PRECISION}f')
+            return {"__fixed__": str(fix_precision(o._d))}
+        # else:
         #    return safe_repr(o)
         return super().default(o)
 
@@ -61,9 +73,7 @@ def encode_int(value: int):
     if MONGO_MIN_INT < value < MONGO_MAX_INT:
         return value
 
-    return {
-        '__big_int__': str(value)
-    }
+    return {"__big_int__": str(value)}
 
 
 def encode_ints_in_dict(data: dict):
@@ -90,11 +100,11 @@ def encode_ints_in_dict(data: dict):
 
 # JSON library from Python 3 doesn't let you instantiate your custom Encoder. You have to pass it as an obj to json
 def encode(data: str):
-    """ NOTE:
+    """NOTE:
     Normally encoding behavior is overriden in 'default' method inside
     a class derived from json.JSONEncoder. Unfortunately this can be done only
     for custom types.
-    
+
     Due to MongoDB integer limitation (8 bytes), we need to preprocess 'big' integers.
     """
     if isinstance(data, int):
@@ -102,20 +112,20 @@ def encode(data: str):
     elif isinstance(data, dict):
         data = encode_ints_in_dict(data)
 
-    return json.dumps(data, cls=Encoder, separators=(',', ':'))
+    return json.dumps(data, cls=Encoder, separators=(",", ":"))
 
 
 def as_object(d):
-    if '__time__' in d:
-        return Datetime(*d['__time__'])
-    elif '__delta__' in d:
-        return Timedelta(days=d['__delta__'][0], seconds=d['__delta__'][1])
-    elif '__bytes__' in d:
-        return bytes.fromhex(d['__bytes__'])
-    elif '__fixed__' in d:
-        return ContractingDecimal(d['__fixed__'])
-    elif '__big_int__' in d:
-        return int(d['__big_int__'])
+    if "__time__" in d:
+        return Datetime(*d["__time__"])
+    elif "__delta__" in d:
+        return Timedelta(days=d["__delta__"][0], seconds=d["__delta__"][1])
+    elif "__bytes__" in d:
+        return bytes.fromhex(d["__bytes__"])
+    elif "__fixed__" in d:
+        return ContractingDecimal(d["__fixed__"])
+    elif "__big_int__" in d:
+        return int(d["__big_int__"])
     return dict(d)
 
 
@@ -130,7 +140,7 @@ def decode(data):
 
     try:
         return json.loads(data, object_hook=as_object)
-    except json.decoder.JSONDecodeError as e:
+    except json.decoder.JSONDecodeError:
         return None
 
 
@@ -161,19 +171,19 @@ def decode_kv(key, value):
     return k, v
 
 
-TYPES = {'__fixed__', '__delta__', '__bytes__', '__time__', '__big_int__'}
+TYPES = {"__fixed__", "__delta__", "__bytes__", "__time__", "__big_int__"}
 
 
 def convert(k, v):
-    if k == '__fixed__':
+    if k == "__fixed__":
         return ContractingDecimal(v)
-    elif k == '__delta__':
+    elif k == "__delta__":
         return Timedelta(days=v[0], seconds=v[1])
-    elif k == '__bytes__':
+    elif k == "__bytes__":
         return bytes.fromhex(v)
-    elif k == '__time__':
+    elif k == "__time__":
         return Datetime(*v)
-    elif k == '__big_int__':
+    elif k == "__big_int__":
         return int(v)
     return v
 

@@ -1,25 +1,32 @@
-from contracting.execution import runtime
-from contracting.storage.driver import Driver
-from contracting.execution.module import install_database_loader, uninstall_builtins, enable_restricted_imports, disable_restricted_imports
-from contracting.stdlib.bridge.decimal import ContractingDecimal, CONTEXT
-from contracting.stdlib.bridge.random import Seeded
-from contracting import constants
+import decimal
+import importlib
 from copy import deepcopy
 
-import importlib
-import decimal
+from contracting import constants
+from contracting.execution import runtime
+from contracting.execution.module import (
+    disable_restricted_imports,
+    enable_restricted_imports,
+    install_database_loader,
+    uninstall_builtins,
+)
+from contracting.stdlib.bridge.decimal import CONTEXT, ContractingDecimal
+from contracting.stdlib.bridge.random import Seeded
+from contracting.storage.driver import Driver
 
 
 class Executor:
-    def __init__(self,
-                 production=False,
-                 driver=None,
-                 metering=True,
-                 currency_contract='currency',
-                 balances_hash='balances',
-                 bypass_privates=False,
-                 bypass_balance_amount=False,
-                 bypass_cache=False):
+    def __init__(
+        self,
+        production=False,
+        driver=None,
+        metering=True,
+        currency_contract="currency",
+        balances_hash="balances",
+        bypass_privates=False,
+        bypass_balance_amount=False,
+        bypass_cache=False,
+    ):
 
         self.metering = metering
         self.driver = driver
@@ -32,38 +39,48 @@ class Executor:
         self.balances_hash = balances_hash
 
         self.bypass_privates = bypass_privates
-        self.bypass_balance_amount = bypass_balance_amount  # For Stamp Estimation
+        self.bypass_balance_amount = (
+            bypass_balance_amount  # For Stamp Estimation
+        )
 
-        runtime.rt.env.update({'__Driver': self.driver})
+        runtime.rt.env.update({"__Driver": self.driver})
 
     def wipe_modules(self):
         uninstall_builtins()
         install_database_loader()
 
-    def execute(self, sender, contract_name, function_name, kwargs,
-                environment={},
-                auto_commit=False,
-                driver=None,
-                stamps=constants.DEFAULT_STAMPS,
-                stamp_cost=constants.STAMPS_PER_TAU,
-                metering=None) -> dict:
+    def execute(
+        self,
+        sender,
+        contract_name,
+        function_name,
+        kwargs,
+        environment={},
+        auto_commit=False,
+        driver=None,
+        stamps=constants.DEFAULT_STAMPS,
+        stamp_cost=constants.STAMPS_PER_TAU,
+        metering=None,
+    ) -> dict:
 
         current_driver_pending_writes = deepcopy(self.driver.pending_writes)
         self.driver.clear_transaction_writes()
         self.driver.clear_events()
 
         if not self.bypass_privates:
-            assert not function_name.startswith(constants.PRIVATE_METHOD_PREFIX), 'Private method not callable.'
+            assert not function_name.startswith(
+                constants.PRIVATE_METHOD_PREFIX
+            ), "Private method not callable."
 
         if metering is None:
             metering = self.metering
 
-        runtime.rt.env.update({'__Driver': self.driver})
+        runtime.rt.env.update({"__Driver": self.driver})
 
         if driver:
-            runtime.rt.env.update({'__Driver': driver})
+            runtime.rt.env.update({"__Driver": driver})
         else:
-            driver = runtime.rt.env.get('__Driver')
+            driver = runtime.rt.env.get("__Driver")
 
         install_database_loader(driver=driver)
 
@@ -71,11 +88,13 @@ class Executor:
 
         try:
             if metering:
-                balances_key = (f'{self.currency_contract}'
-                                f'{constants.INDEX_SEPARATOR}'
-                                f'{self.balances_hash}'
-                                f'{constants.DELIMITER}'
-                                f'{sender}')
+                balances_key = (
+                    f"{self.currency_contract}"
+                    f"{constants.INDEX_SEPARATOR}"
+                    f"{self.balances_hash}"
+                    f"{constants.DELIMITER}"
+                    f"{sender}"
+                )
 
                 if self.bypass_balance_amount:
                     balance = 9999999
@@ -83,14 +102,16 @@ class Executor:
                 else:
                     balance = driver.get(balances_key)
 
-                    if type(balance) == dict:
-                        balance = ContractingDecimal(balance.get('__fixed__'))
+                    if isinstance(balance, dict):
+                        balance = ContractingDecimal(balance.get("__fixed__"))
 
                     if balance is None:
                         balance = 0
 
-                assert balance * stamp_cost >= stamps, (f'Sender does not have enough stamps for the transaction. '
-                                                        f'Balance at key {balances_key} is {balance}')
+                assert balance * stamp_cost >= stamps, (
+                    f"Sender does not have enough stamps for the transaction. "
+                    f"Balance at key {balances_key} is {balance}"
+                )
 
             runtime.rt.env.update(environment)
             status_code = 0
@@ -99,16 +120,21 @@ class Executor:
             # runtime.rt.set_up(stmps=stamps * 1000, meter=metering)
 
             runtime.rt.context._base_state = {
-                'signer': sender,
-                'caller': sender,
-                'this': contract_name,
-                'entry': (contract_name, function_name),
-                'owner': driver.get_owner(contract_name),
-                'submission_name': None
+                "signer": sender,
+                "caller": sender,
+                "this": contract_name,
+                "entry": (contract_name, function_name),
+                "owner": driver.get_owner(contract_name),
+                "submission_name": None,
             }
 
-            if runtime.rt.context.owner is not None and runtime.rt.context.owner != runtime.rt.context.caller:
-                raise Exception(f'Caller {runtime.rt.context.caller} is not the owner {runtime.rt.context.owner}!')
+            if (
+                runtime.rt.context.owner is not None
+                and runtime.rt.context.owner != runtime.rt.context.caller
+            ):
+                raise Exception(
+                    f"Caller {runtime.rt.context.caller} is not the owner {runtime.rt.context.owner}!"
+                )
 
             decimal.setcontext(CONTEXT)
 
@@ -117,10 +143,12 @@ class Executor:
 
             # Add the contract name to the context on a submission call
             if contract_name == constants.SUBMISSION_CONTRACT_NAME:
-                runtime.rt.context._base_state['submission_name'] = kwargs.get('name')
+                runtime.rt.context._base_state["submission_name"] = kwargs.get(
+                    "name"
+                )
 
             for k, v in kwargs.items():
-                if type(v) == float:
+                if isinstance(v, float):
                     kwargs[k] = ContractingDecimal(str(v))
 
             enable_restricted_imports()
@@ -149,7 +177,7 @@ class Executor:
             driver.clear_transaction_writes()
             runtime.rt.tracer.stop()
 
-        #runtime.rt.tracer.stop()
+        # runtime.rt.tracer.stop()
 
         # Deduct the stamps if that is enabled
         stamps_used = runtime.rt.tracer.get_stamp_used()
@@ -161,7 +189,9 @@ class Executor:
             stamps_used = stamps
 
         if metering:
-            assert balances_key is not None, 'Balance key was not set properly. Cannot deduct stamps.'
+            assert balances_key is not None, (
+                "Balance key was not set properly. Cannot deduct stamps."
+            )
 
             to_deduct = stamps_used
             to_deduct /= stamp_cost
@@ -181,15 +211,15 @@ class Executor:
 
         Seeded.s = False
         runtime.rt.clean_up()
-        runtime.rt.env.update({'__Driver': driver})
+        runtime.rt.env.update({"__Driver": driver})
 
         output = {
-            'status_code': status_code,
-            'result': result,
-            'stamps_used': stamps_used,
-            'writes': transaction_writes,
-            'reads': driver.pending_reads,
-            'events': events
+            "status_code": status_code,
+            "result": result,
+            "stamps_used": stamps_used,
+            "writes": transaction_writes,
+            "reads": driver.pending_reads,
+            "events": events,
         }
 
         disable_restricted_imports()

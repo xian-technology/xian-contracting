@@ -2,18 +2,16 @@ import ast
 import sys
 
 from .. import constants
-
 from ..compilation.whitelists import (
-    ALLOWED_AST_TYPES,
     ALLOWED_ANNOTATION_TYPES,
-    VIOLATION_TRIGGERS,
+    ALLOWED_AST_TYPES,
+    ILLEGAL_AST_TYPES,
     ILLEGAL_BUILTINS,
-    ILLEGAL_AST_TYPES
+    VIOLATION_TRIGGERS,
 )
 
 
 class Linter(ast.NodeVisitor):
-
     def __init__(self):
         self._violations = []
         self._functions = []
@@ -25,17 +23,28 @@ class Linter(ast.NodeVisitor):
         self.return_annotation = set()
         self.arg_types = set()
 
-        self.builtins = list(set(list(sys.stdlib_module_names) + list(sys.builtin_module_names)))
+        self.builtins = list(
+            set(list(sys.stdlib_module_names) + list(sys.builtin_module_names))
+        )
 
     def ast_types(self, t, lnum):
         if type(t) not in ALLOWED_AST_TYPES:
-            str = "Line {}".format(lnum) + " : " + VIOLATION_TRIGGERS[0] + " : {}" .format(type(t).__name__)
+            str = (
+                "Line {}".format(lnum)
+                + " : "
+                + VIOLATION_TRIGGERS[0]
+                + " : {}".format(type(t).__name__)
+            )
             self._violations.append(str)
             self._is_success = False
 
     def not_system_variable(self, v, lnum):
-        if v.startswith('_') or v.endswith('_'):
-            str = "Line {} : ".format(lnum) + VIOLATION_TRIGGERS[1] + " : {}" .format(v)
+        if v.startswith("_") or v.endswith("_"):
+            str = (
+                "Line {} : ".format(lnum)
+                + VIOLATION_TRIGGERS[1]
+                + " : {}".format(v)
+            )
             self._violations.append(str)
             self._is_success = False
 
@@ -49,12 +58,12 @@ class Linter(ast.NodeVisitor):
     def visit_Name(self, node):
         self.not_system_variable(node.id, node.lineno)
 
-        if node.id == 'rt':# or node.id == 'Hash' or node.id == 'Variable':
+        if node.id == "rt":  # or node.id == 'Hash' or node.id == 'Variable':
             self._is_success = False
             str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[13]
             self._violations.append(str)
 
-        if node.id in ILLEGAL_BUILTINS and node.id != 'float':
+        if node.id in ILLEGAL_BUILTINS and node.id != "float":
             self._is_success = False
             str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[13]
             self._violations.append(str)
@@ -64,7 +73,7 @@ class Linter(ast.NodeVisitor):
 
     def visit_Attribute(self, node):
         self.not_system_variable(node.attr, node.lineno)
-        if node.attr == 'rt':
+        if node.attr == "rt":
             self._is_success = False
             str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[13]
             self._violations.append(str)
@@ -103,22 +112,31 @@ class Linter(ast.NodeVisitor):
     def visit_Assign(self, node):
         # resource_names, func_name = Assert.valid_assign(node, Parser.parser_scope)
         if isinstance(node.value, ast.Name):
-            if node.value.id == 'Hash' or node.value.id == 'Variable' or node.value.id == 'LogEvent':
+            if (
+                node.value.id == "Hash"
+                or node.value.id == "Variable"
+                or node.value.id == "LogEvent"
+            ):
                 self._is_success = False
                 str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[13]
                 self._violations.append(str)
 
-        if (isinstance(node.value, ast.Call) and not
-            isinstance(node.value.func, ast.Attribute) and
-            node.value.func.id in constants.ORM_CLASS_NAMES):
-
-            if node.value.func.id in ['Variable', 'Hash', 'LogEvent']:
+        if (
+            isinstance(node.value, ast.Call)
+            and not isinstance(node.value.func, ast.Attribute)
+            and node.value.func.id in constants.ORM_CLASS_NAMES
+        ):
+            if node.value.func.id in ["Variable", "Hash", "LogEvent"]:
                 kwargs = [k.arg for k in node.value.keywords]
-                if 'contract' in kwargs or 'name' in kwargs:
+                if "contract" in kwargs or "name" in kwargs:
                     self._is_success = False
-                    str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[10]
+                    str = (
+                        "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[10]
+                    )
                     self._violations.append(str)
-            if ast.Tuple in [type(t) for t in node.targets] or isinstance(node.value, ast.Tuple):
+            if ast.Tuple in [type(t) for t in node.targets] or isinstance(
+                node.value, ast.Tuple
+            ):
                 self._is_success = False
                 str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[11]
                 self._violations.append(str)
@@ -171,24 +189,34 @@ class Linter(ast.NodeVisitor):
         try:
             for n in node.body:
                 if isinstance(n, ast.FunctionDef):
-                    str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[18]
+                    str = (
+                        "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[18]
+                    )
                     self._violations.append(str)
                     self._is_success = False
-        except:
+        except Exception:
             pass
 
         # Only allow 1 decorator per function definition.
         if len(node.decorator_list) > 1:
-            str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[9] + \
-                  ": Detected: {} MAX limit: 1".format(len(node.decorator_list))
+            str = (
+                "Line {}: ".format(node.lineno)
+                + VIOLATION_TRIGGERS[9]
+                + ": Detected: {} MAX limit: 1".format(len(node.decorator_list))
+            )
             self._violations.append(str)
             self._is_success = False
         export_decorator = False
         for d in node.decorator_list:
             # Only allow decorators from the allowed set.
             if d.id not in constants.VALID_DECORATORS:
-                str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[7] + \
-                      ": valid list: {}".format(d.id, constants.VALID_DECORATORS)
+                str = (
+                    "Line {}: ".format(node.lineno)
+                    + VIOLATION_TRIGGERS[7]
+                    + ": valid list: {}".format(
+                        d.id,
+                    )
+                )
                 self._violations.append(str)
                 self._is_success = False
 
@@ -198,7 +226,9 @@ class Linter(ast.NodeVisitor):
 
             if d.id == constants.INIT_DECORATOR_STRING:
                 if self._constructor_visited:
-                    str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[8]
+                    str = (
+                        "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[8]
+                    )
                     self._violations.append(str)
                     self._is_success = False
                 self._constructor_visited = True
@@ -212,7 +242,7 @@ class Linter(ast.NodeVisitor):
                     try:
                         self.arg_types.add((a.annotation.id, node.lineno))
                     except AttributeError:
-                        arg = a.annotation.value.id + '.' + a.annotation.attr
+                        arg = a.annotation.value.id + "." + a.annotation.attr
                         self.arg_types.add((arg, node.lineno))
                 else:
                     self.arg_types.add((None, node.lineno))
@@ -222,7 +252,7 @@ class Linter(ast.NodeVisitor):
                 try:
                     self.arg_types.add((a.annotation.id, node.lineno))
                 except AttributeError:
-                    arg = a.annotation.value.id + '.' + a.annotation.attr
+                    arg = a.annotation.value.id + "." + a.annotation.attr
                     self.arg_types.add((arg, node.lineno))
             else:
                 self.return_annotation.add((None, node.lineno))
@@ -236,13 +266,23 @@ class Linter(ast.NodeVisitor):
             self._violations.append(str)
             self._is_success = False
         elif t not in ALLOWED_ANNOTATION_TYPES:
-            str = "Line {}".format(lnum) + " : " + VIOLATION_TRIGGERS[15] + " : {}" .format(t)
+            str = (
+                "Line {}".format(lnum)
+                + " : "
+                + VIOLATION_TRIGGERS[15]
+                + " : {}".format(t)
+            )
             self._violations.append(str)
             self._is_success = False
 
     def check_return_types(self, t, lnum):
         if t is not None:
-            str = "Line {}".format(lnum) + " : " + VIOLATION_TRIGGERS[17] + " : {}" .format(t)
+            str = (
+                "Line {}".format(lnum)
+                + " : "
+                + VIOLATION_TRIGGERS[17]
+                + " : {}".format(t)
+            )
             self._violations.append(str)
             self._is_success = False
 
@@ -270,21 +310,23 @@ class Linter(ast.NodeVisitor):
             self._is_success = False
 
         for t, lineno in self.arg_types:
-            self.annotation_types(t,lineno)
+            self.annotation_types(t, lineno)
 
         for t, lineno in self.return_annotation:
-            self.check_return_types(t,lineno)
+            self.check_return_types(t, lineno)
 
     def _collect_function_defs(self, root):
         for node in ast.walk(root):
             if isinstance(node, ast.FunctionDef):
                 self._functions.append(node.name)
-            elif isinstance(node, ast.Import) or isinstance(node, ast.ImportFrom):
+            elif isinstance(node, ast.Import) or isinstance(
+                node, ast.ImportFrom
+            ):
                 for n in node.names:
                     if n.asname:
                         self._functions.append(n.asname)
                     else:
-                        self._functions.append(n.name.split('.')[-1])
+                        self._functions.append(n.name.split(".")[-1])
 
     def check(self, ast_tree):
         self._reset()
@@ -293,11 +335,14 @@ class Linter(ast.NodeVisitor):
         self.visit(ast_tree)
         self._final_checks()
         if self._is_success is False:
-            return sorted(self._violations, key=lambda x: int(x.split(':')[0].split()[1]))
+            return sorted(
+                self._violations, key=lambda x: int(x.split(":")[0].split()[1])
+            )
         else:
             return None
 
     def dump_violations(self):
         import pprint
+
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(self._violations)

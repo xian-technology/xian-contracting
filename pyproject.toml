@@ -1,31 +1,67 @@
-[tool.poetry]
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
 name = "xian-contracting"
 version = "1.0.1"
 description = "Xian Network Python Contracting Engine"
-authors = ["Xian Network <info@xian.org>"]
 readme = "README.md"
-packages = [{include = "contracting", from = "src"}]
 license = "GPL-3.0-only"
-repository = "https://github.com/xian-network/xian-contracting"
+authors = [{ name = "Xian Network", email = "info@xian.org" }]
+requires-python = ">=3.11"
+dependencies = [
+    "astor>=0.8.1,<0.9",
+    "autopep8>=1.5.7,<2",
+    "cachetools>=5,<6",
+    "h5py>=3.10,<4",
+    "psutil>=5,<8",
+    "pynacl>=1.5.0,<2",
+]
 keywords = ["blockchain", "xian", "contracting", "python"]
 classifiers = [
     "Programming Language :: Python :: 3.11",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Development Status :: 5 - Production/Stable",
 ]
 
-[tool.poetry.dependencies]
-python = "~=3.11.0"
-astor = "0.8.1"
-pycodestyle = "2.10.0"
-autopep8 = "1.5.7"
-iso8601 = "*"
-h5py = "*"
-cachetools = "*"
-loguru = "*"
-pynacl = "*"
-psutil = "*"
+[project.urls]
+Repository = "https://github.com/xian-technology/xian-contracting"
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2,<10",
+    "pytest-cov>=7.0.0,<8",
+    "ruff>=0.15.6,<0.16",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+contracting = ["contracts/*.s.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 80
+target-version = "py311"
+exclude = [
+    "examples",
+    "tests/integration/test_contracts",
+    "tests",
+    "tests/performance/test_contracts",
+    "tests/security/contracts",
+    "tests/unit/contracts",
+    "tests/unit/precompiled",
+    "tests/unit/test_sys_contracts",
+    "src/contracting/contracts",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]

@@ -1,15 +1,24 @@
 import unittest
-from contracting.storage.driver import Driver
-from contracting.execution.executor import Executor
-from contracting.constants import STAMPS_PER_TAU
-from xian.processor import TxProcessor
-from contracting.client import ContractingClient
-import contracting
+import os
+import logging
 import random
 import string
-import os
 import sys
-from loguru import logger
+
+import contracting
+from contracting.client import ContractingClient
+from contracting.constants import STAMPS_PER_TAU
+from contracting.execution.executor import Executor
+from contracting.storage.driver import Driver
+
+try:
+    from xian.processor import TxProcessor
+
+    XIAN_AVAILABLE = True
+except ModuleNotFoundError:
+    XIAN_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 # Get the directory where the script is located
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
@@ -40,6 +49,7 @@ TEST_SUBMISSION_KWARGS = {
     'function_name': 'submit_contract'
 }
 
+@unittest.skipUnless(XIAN_AVAILABLE, "xian-abci is required for this test")
 class MyTestCase(unittest.TestCase):
 
     def setUp(self):

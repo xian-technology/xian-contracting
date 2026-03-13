@@ -4,13 +4,15 @@ import ast
 def methods_for_contract(contract_code: str):
     tree = ast.parse(contract_code)
 
-    function_defs = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+    function_defs = [
+        n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
+    ]
 
     funcs = []
     for definition in function_defs:
         func_name = definition.name
 
-        if func_name.startswith('__'):
+        if func_name.startswith("__"):
             continue
 
         kwargs = []
@@ -19,14 +21,11 @@ def methods_for_contract(contract_code: str):
             try:
                 a = arg.annotation.id
             except AttributeError:
-                a = arg.annotation.value.id + '.' + arg.annotation.attr
+                a = arg.annotation.value.id + "." + arg.annotation.attr
 
-            kwargs.append({
-                'name': arg.arg,
-                'type': a
-            })
+            kwargs.append({"name": arg.arg, "type": a})
 
-        funcs.append({'name': func_name, 'arguments': kwargs})
+        funcs.append({"name": func_name, "arguments": kwargs})
 
     return funcs
 
@@ -47,13 +46,10 @@ def variables_for_contract(contract_code: str):
     hashes = []
 
     for assign in assigns:
-        if type(assign.value) == ast.Call:
-            if assign.value.func.id == 'Variable':
-                variables.append(assign.targets[0].id.lstrip('__'))
-            elif assign.value.func.id == 'Hash':
-                hashes.append(assign.targets[0].id.lstrip('__'))
+        if isinstance(assign.value, ast.Call):
+            if assign.value.func.id == "Variable":
+                variables.append(assign.targets[0].id.lstrip("__"))
+            elif assign.value.func.id == "Hash":
+                hashes.append(assign.targets[0].id.lstrip("__"))
 
-    return {
-        'variables': variables,
-        'hashes': hashes
-    }
+    return {"variables": variables, "hashes": hashes}

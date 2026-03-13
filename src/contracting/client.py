@@ -1,25 +1,32 @@
-from contracting.execution.executor import Executor
-from contracting.storage.driver import Driver
-from contracting.compilation.compiler import ContractingCompiler
-from contracting.stdlib.bridge.time import Datetime
+import ast
+import inspect
+import os
 from datetime import datetime
 from functools import partial
 from types import FunctionType
 
-import ast
-import inspect
 import astor
 import autopep8
-import os
+
+from contracting.compilation.compiler import ContractingCompiler
+from contracting.execution.executor import Executor
+from contracting.stdlib.bridge.time import Datetime
+from contracting.storage.driver import Driver
 
 from . import constants
-
-from .storage.orm import Variable
-from .storage.orm import Hash
+from .storage.orm import Hash, Variable
 
 
 class AbstractContract:
-    def __init__(self, name, signer, environment, executor: Executor, funcs, return_full_output=False):
+    def __init__(
+        self,
+        name,
+        signer,
+        environment,
+        executor: Executor,
+        funcs,
+        return_full_output=False,
+    ):
         self.name = name
         self.signer = signer
         self.environment = environment
@@ -37,14 +44,20 @@ class AbstractContract:
                 default_kwargs[kwarg] = None
 
             # each function is a partial that allows kwarg overloading and overriding
-            setattr(self, func, partial(self._abstract_function_call,
-                                        signer=self.signer,
-                                        contract_name=self.name,
-                                        executor=self.executor,
-                                        func=func,
-                                        return_full_output=return_full_output,
-                                        # environment=self.environment,
-                                        **default_kwargs))
+            setattr(
+                self,
+                func,
+                partial(
+                    self._abstract_function_call,
+                    signer=self.signer,
+                    contract_name=self.name,
+                    executor=self.executor,
+                    func=func,
+                    return_full_output=return_full_output,
+                    # environment=self.environment,
+                    **default_kwargs,
+                ),
+            )
 
     def keys(self):
         # Scope strictly to this contract's namespace
@@ -64,7 +77,9 @@ class AbstractContract:
             for arg in args:
                 a.append(arg)
 
-        k = self.executor.driver.make_key(contract=self.name, variable=variable, args=a)
+        k = self.executor.driver.make_key(
+            contract=self.name, variable=variable, args=a
+        )
         return self.executor.driver.get(k)
 
     def quick_write(self, variable, key=None, value=None, args=None):
@@ -77,7 +92,9 @@ class AbstractContract:
             for arg in args:
                 a.append(arg)
 
-        k = self.executor.driver.make_key(contract=self.name, variable=variable, args=a)
+        k = self.executor.driver.make_key(
+            contract=self.name, variable=variable, args=a
+        )
 
         self.executor.driver.set(k, value)
         self.executor.driver.commit()
@@ -92,7 +109,7 @@ class AbstractContract:
 
         # Append private method prefix to function name if it isn't there already
         if not f.startswith(constants.PRIVATE_METHOD_PREFIX):
-            f = '{}{}'.format(constants.PRIVATE_METHOD_PREFIX, f)
+            f = "{}{}".format(constants.PRIVATE_METHOD_PREFIX, f)
 
         # Execute
         result = self._abstract_function_call(
@@ -103,7 +120,7 @@ class AbstractContract:
             func=f,
             metering=None,
             now=None,
-            **kwargs
+            **kwargs,
         )
 
         # Set executor back to restricted mode
@@ -116,26 +133,35 @@ class AbstractContract:
             # return the attribute if it exists on the instance
             return self.__getattribute__(item)
         except AttributeError as e:
-
             # otherwise, attempt to resolve it. full name is contract.item
-            fullname = '{}.{}'.format(self.name, item)
+            fullname = "{}.{}".format(self.name, item)
 
             # if the raw name exists, it is a __protected__ or a variable, so prepare for those
             if fullname in self.keys():
-                variable = Variable(contract=self.name, name=item, driver=self.executor.driver)
+                variable = Variable(
+                    contract=self.name, name=item, driver=self.executor.driver
+                )
 
                 # return just the value if it is __protected__ to prevent sets
-                if item.startswith('__'):
+                if item.startswith("__"):
                     return variable.get()
 
                 # otherwise, return the variable object with allows sets
                 return variable
 
             # otherwise, see if contract.items: has more than one entry
-            if len(self.executor.driver.values(prefix=self.name + '.' + item + ':')) > 0:
-
+            if (
+                len(
+                    self.executor.driver.values(
+                        prefix=self.name + "." + item + ":"
+                    )
+                )
+                > 0
+            ):
                 # if so, it is a hash. return the hash object
-                return Hash(contract=self.name, name=item, driver=self.executor.driver)
+                return Hash(
+                    contract=self.name, name=item, driver=self.executor.driver
+                )
 
             # otherwise, the attribut does not exist, so throw the error.
             raise e
@@ -145,17 +171,17 @@ class AbstractContract:
         return Datetime(d.year, d.month, d.day, hour=d.hour, minute=d.minute)
 
     def _abstract_function_call(
-            self,
-            signer,
-            executor,
-            contract_name,
-            func,
-            environment=None,
-            stamps=constants.DEFAULT_STAMPS,
-            metering=None,
-            now=None,
-            return_full_output=False,
-            **kwargs
+        self,
+        signer,
+        executor,
+        contract_name,
+        func,
+        environment=None,
+        stamps=constants.DEFAULT_STAMPS,
+        metering=None,
+        now=None,
+        return_full_output=False,
+        **kwargs,
     ):
 
         # for k, v in kwargs.items():
@@ -165,8 +191,8 @@ class AbstractContract:
         if now is None:
             now = self.now()
 
-        if environment.get('now') is None:
-            environment.update({'now': now})
+        if environment.get("now") is None:
+            environment.update({"now": now})
 
         output = executor.execute(
             sender=signer,
@@ -175,29 +201,33 @@ class AbstractContract:
             kwargs=kwargs,
             stamps=stamps,
             environment=environment,
-            metering=metering
+            metering=metering,
         )
 
         if executor.production:
             executor.sandbox.terminate()
 
-        if output['status_code'] == 1:
-            raise output['result'] if not return_full_output else output
-        return output['result'] if not return_full_output else output
+        if output["status_code"] == 1:
+            raise output["result"] if not return_full_output else output
+        return output["result"] if not return_full_output else output
 
 
 class ContractingClient:
     def __init__(
-            self,
-            signer='sys',
-            submission_filename=os.path.join(os.path.dirname(__file__), 'contracts/submission.s.py'),
-            storage_home=constants.STORAGE_HOME,
-            driver:Driver=None,
-            metering=False,
-            compiler=ContractingCompiler(),
-            environment={},
+        self,
+        signer="sys",
+        submission_filename=os.path.join(
+            os.path.dirname(__file__), "contracts/submission.s.py"
+        ),
+        storage_home=constants.STORAGE_HOME,
+        driver: Driver = None,
+        metering=False,
+        compiler=ContractingCompiler(),
+        environment={},
     ):
-        driver = driver if driver is not None else Driver(storage_home=storage_home)
+        driver = (
+            driver if driver is not None else Driver(storage_home=storage_home)
+        )
         self.executor = Executor(metering=metering, driver=driver)
         self.raw_driver = driver
         self.signer = signer
@@ -210,32 +240,34 @@ class ContractingClient:
             with open(self.submission_filename) as f:
                 contract = f.read()
 
-            self.raw_driver.set_contract(name='submission', code=contract)
+            self.raw_driver.set_contract(name="submission", code=contract)
             self.raw_driver.commit()
 
         # Get submission contract from state
-        self.submission_contract = self.get_contract('submission')
+        self.submission_contract = self.get_contract("submission")
 
     def set_submission_contract(self, filename=None, commit=True):
-        state_contract = self.get_contract('submission')
+        state_contract = self.get_contract("submission")
 
         if filename is None:
             filename = self.submission_filename
 
         if filename is None and state_contract is None:
-            raise AssertionError("No submission contract provided or found in state.")
+            raise AssertionError(
+                "No submission contract provided or found in state."
+            )
 
         if filename is not None:
             with open(filename) as f:
                 contract = f.read()
 
-            self.raw_driver.delete_contract(name='submission')
-            self.raw_driver.set_contract(name='submission', code=contract)
+            self.raw_driver.delete_contract(name="submission")
+            self.raw_driver.set_contract(name="submission", code=contract)
 
             if commit:
                 self.raw_driver.commit()
 
-        self.submission_contract = self.get_contract('submission')
+        self.submission_contract = self.get_contract("submission")
 
     def flush(self):
         # flushes storage and resubmits genesis contracts
@@ -254,7 +286,9 @@ class ContractingClient:
 
         tree = ast.parse(contract)
 
-        function_defs = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+        function_defs = [
+            n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
+        ]
 
         funcs = []
         for definition in function_defs:
@@ -277,8 +311,10 @@ class ContractingClient:
         closure_tree = ast.parse(closure_code)
 
         # Remove the enclosing function by swapping out the function def node with its children
-        assert len(closure_tree.body) == 1, 'Module has multiple body nodes.'
-        assert isinstance(closure_tree.body[0], ast.FunctionDef), 'Function definition not found at root.'
+        assert len(closure_tree.body) == 1, "Module has multiple body nodes."
+        assert isinstance(closure_tree.body[0], ast.FunctionDef), (
+            "Function definition not found at root."
+        )
 
         func_def_body = closure_tree.body[0]
         closure_tree.body = func_def_body.body
@@ -311,16 +347,26 @@ class ContractingClient:
         code = self.compiler.parse_to_code(f)
         return code
 
-    def submit(self, f, name=None, metering=None, owner=None, constructor_args={}, signer=None):
+    def submit(
+        self,
+        f,
+        name=None,
+        metering=None,
+        owner=None,
+        constructor_args={},
+        signer=None,
+    ):
 
-        assert self.submission_contract is not None, "No submission contract set. Try set_submission_contract first."
+        assert self.submission_contract is not None, (
+            "No submission contract set. Try set_submission_contract first."
+        )
 
         if isinstance(f, FunctionType):
             f, n = self.closure_to_code_string(f)
             if name is None:
                 name = n
 
-        assert name is not None, 'No name provided.'
+        assert name is not None, "No name provided."
 
         if signer is None:
             signer = self.signer
@@ -331,14 +377,14 @@ class ContractingClient:
             owner=owner,
             constructor_args=constructor_args,
             metering=metering,
-            signer=signer
+            signer=signer,
         )
 
     def get_contracts(self):
         contracts = []
         for key in self.raw_driver.keys():
-            if key.endswith('.__code__'):
-                contracts.append(key.replace('.__code__', ''))
+            if key.endswith(".__code__"):
+                contracts.append(key.replace(".__code__", ""))
         return contracts
 
     def get_var(self, contract, variable, arguments=[], mark=False):
