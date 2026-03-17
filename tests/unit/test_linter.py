@@ -41,6 +41,14 @@ def hello(name: str):
 """
         self.assertIsNone(self.linter.check(code))
 
+    def test_export_with_return_annotation(self):
+        code = """
+@export
+def hello(name: str) -> str:
+    return "Hello " + name
+"""
+        self.assertIsNone(self.linter.check(code))
+
     def test_hash_and_variable(self):
         code = """
 balances = Hash(default_value=0)
@@ -281,8 +289,8 @@ def f(x):
     def test_e018_return_annotation(self):
         code = """
 @export
-def f(x: int) -> str:
-    return str(x)
+def f(x: int) -> mytype:
+    return x
 """
         self.assertIn(ErrorCode.E018, self._codes(code))
 

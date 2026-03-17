@@ -57,7 +57,7 @@ _MESSAGES = {
     ErrorCode.E015: "Argument '{name}' shadows ORM variable defined at module level",
     ErrorCode.E016: "Type annotation '{annotation}' is not allowed; use one of: {allowed}",
     ErrorCode.E017: "All @export function arguments must have type annotations",
-    ErrorCode.E018: "Return type annotations are not allowed on @export functions",
+    ErrorCode.E018: "Return type annotation '{annotation}' is not allowed; use one of: {allowed}",
     ErrorCode.E019: "Nested function definitions are not allowed",
     ErrorCode.E020: "Syntax error: {detail}",
 }
@@ -343,5 +343,13 @@ class Linter:
                 )
 
         for annotation_name, func_node in visitor.return_annotations:
-            if annotation_name is not None:
-                visitor.add(ErrorCode.E018, func_node)
+            if (
+                annotation_name is not None
+                and annotation_name not in ALLOWED_ANNOTATION_TYPES
+            ):
+                visitor.add(
+                    ErrorCode.E018,
+                    func_node,
+                    annotation=annotation_name,
+                    allowed=allowed,
+                )
