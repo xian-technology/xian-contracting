@@ -55,7 +55,7 @@ class Executor:
         contract_name,
         function_name,
         kwargs,
-        environment={},
+        environment=None,
         auto_commit=False,
         driver=None,
         stamps=constants.DEFAULT_STAMPS,
@@ -66,6 +66,7 @@ class Executor:
         current_driver_pending_writes = deepcopy(self.driver.pending_writes)
         self.driver.clear_transaction_writes()
         self.driver.clear_events()
+        environment = {} if environment is None else dict(environment)
 
         if not self.bypass_privates:
             assert not function_name.startswith(
@@ -138,6 +139,13 @@ class Executor:
 
             decimal.setcontext(CONTEXT)
 
+            for k, v in kwargs.items():
+                if isinstance(v, float):
+                    kwargs[k] = ContractingDecimal(str(v))
+
+            runtime.rt.set_up(stmps=stamps * 1000, meter=metering)
+            enable_restricted_imports()
+
             module = importlib.import_module(contract_name)
             func = getattr(module, function_name)
 
@@ -147,12 +155,6 @@ class Executor:
                     "name"
                 )
 
-            for k, v in kwargs.items():
-                if isinstance(v, float):
-                    kwargs[k] = ContractingDecimal(str(v))
-
-            enable_restricted_imports()
-            runtime.rt.set_up(stmps=stamps * 1000, meter=metering)
             result = func(**kwargs)
             transaction_writes = deepcopy(driver.transaction_writes)
             events = deepcopy(driver.log_events)
@@ -176,6 +178,7 @@ class Executor:
             driver.clear_events()
             driver.clear_transaction_writes()
             runtime.rt.tracer.stop()
+            disable_restricted_imports()
 
         # runtime.rt.tracer.stop()
 

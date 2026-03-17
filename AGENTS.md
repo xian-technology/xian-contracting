@@ -8,7 +8,7 @@
 ## Project Layout
 - `src/contracting/compilation/`: parser, compiler, linter, and whitelist logic.
 - `src/contracting/execution/`: runtime, executor, module loading, and tracing.
-- `src/contracting/storage/`: drivers, ORM helpers, encoder, and HDF5 support.
+- `src/contracting/storage/`: drivers, ORM helpers, encoder, and LMDB-backed state storage.
 - `src/contracting/contracts/`: built-in and system contract assets.
 - `tests/`: unit, integration, security, and performance coverage.
 

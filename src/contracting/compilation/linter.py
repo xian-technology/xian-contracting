@@ -1,348 +1,347 @@
+"""Smart contract linter for Xian."""
+
+from __future__ import annotations
+
 import ast
 import sys
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any
 
-from .. import constants
-from ..compilation.whitelists import (
+from contracting import constants
+from contracting.compilation.whitelists import (
     ALLOWED_ANNOTATION_TYPES,
-    ALLOWED_AST_TYPES,
     ILLEGAL_AST_TYPES,
     ILLEGAL_BUILTINS,
-    VIOLATION_TRIGGERS,
 )
 
 
-class Linter(ast.NodeVisitor):
-    def __init__(self):
-        self._violations = []
-        self._functions = []
-        self._is_one_export = False
-        self._is_success = True
-        self._constructor_visited = False
-        self.orm_names = set()
-        self.visited_args = set()
-        self.return_annotation = set()
-        self.arg_types = set()
+class ErrorCode(str, Enum):
+    E001 = "E001"
+    E002 = "E002"
+    E003 = "E003"
+    E004 = "E004"
+    E005 = "E005"
+    E006 = "E006"
+    E007 = "E007"
+    E008 = "E008"
+    E009 = "E009"
+    E010 = "E010"
+    E011 = "E011"
+    E012 = "E012"
+    E013 = "E013"
+    E014 = "E014"
+    E015 = "E015"
+    E016 = "E016"
+    E017 = "E017"
+    E018 = "E018"
+    E019 = "E019"
+    E020 = "E020"
 
-        self.builtins = list(
-            set(list(sys.stdlib_module_names) + list(sys.builtin_module_names))
-        )
 
-    def ast_types(self, t, lnum):
-        if type(t) not in ALLOWED_AST_TYPES:
-            str = (
-                "Line {}".format(lnum)
-                + " : "
-                + VIOLATION_TRIGGERS[0]
-                + " : {}".format(type(t).__name__)
-            )
-            self._violations.append(str)
-            self._is_success = False
+_MESSAGES = {
+    ErrorCode.E001: "Illegal syntax: {detail}",
+    ErrorCode.E002: "Name '{name}' must not start or end with underscore",
+    ErrorCode.E003: "Imports are not allowed inside functions",
+    ErrorCode.E004: "'from ... import' is not allowed; use 'import' instead",
+    ErrorCode.E005: "Cannot import stdlib module '{name}'",
+    ErrorCode.E006: "Class definitions are not allowed",
+    ErrorCode.E007: "Async functions are not allowed",
+    ErrorCode.E008: "Invalid decorator '{name}'; must be 'export' or 'construct'",
+    ErrorCode.E009: "Multiple @construct decorators found; only one allowed",
+    ErrorCode.E010: "Functions may have at most one decorator",
+    ErrorCode.E011: "Cannot pass '{kwarg}' to {orm}; it is set automatically",
+    ErrorCode.E012: "Tuple unpacking on ORM assignment is not allowed",
+    ErrorCode.E013: "Contract must have at least one @export function",
+    ErrorCode.E014: "'{name}' is not allowed in smart contracts",
+    ErrorCode.E015: "Argument '{name}' shadows ORM variable defined at module level",
+    ErrorCode.E016: "Type annotation '{annotation}' is not allowed; use one of: {allowed}",
+    ErrorCode.E017: "All @export function arguments must have type annotations",
+    ErrorCode.E018: "Return type annotations are not allowed on @export functions",
+    ErrorCode.E019: "Nested function definitions are not allowed",
+    ErrorCode.E020: "Syntax error: {detail}",
+}
 
-    def not_system_variable(self, v, lnum):
-        if v.startswith("_") or v.endswith("_"):
-            str = (
-                "Line {} : ".format(lnum)
-                + VIOLATION_TRIGGERS[1]
-                + " : {}".format(v)
-            )
-            self._violations.append(str)
-            self._is_success = False
 
-    def no_nested_imports(self, node):
-        for item in node.body:
-            if type(item) in [ast.ImportFrom, ast.Import]:
-                str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[2]
-                self._violations.append(str)
-                self._is_success = False
+@dataclass(frozen=True, slots=True)
+class LintError:
+    code: ErrorCode
+    message: str
+    line: int
+    col: int
+    end_line: int
+    end_col: int
 
-    def visit_Name(self, node):
-        self.not_system_variable(node.id, node.lineno)
+    def __str__(self) -> str:
+        return f"{self.line}:{self.col}: {self.code.value} {self.message}"
 
-        if node.id == "rt":  # or node.id == 'Hash' or node.id == 'Variable':
-            self._is_success = False
-            str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[13]
-            self._violations.append(str)
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "code": self.code.value,
+            "message": self.message,
+            "line": self.line,
+            "col": self.col,
+            "end_line": self.end_line,
+            "end_col": self.end_col,
+        }
 
-        if node.id in ILLEGAL_BUILTINS and node.id != "float":
-            self._is_success = False
-            str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[13]
-            self._violations.append(str)
 
-        self.generic_visit(node)
-        return node
+class LintingError(Exception):
+    def __init__(self, errors: list[LintError]):
+        self.errors = tuple(errors)
+        super().__init__([str(error) for error in errors])
 
-    def visit_Attribute(self, node):
-        self.not_system_variable(node.attr, node.lineno)
-        if node.attr == "rt":
-            self._is_success = False
-            str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[13]
-            self._violations.append(str)
-        self.generic_visit(node)
-        return node
 
-    def visit_Import(self, node):
-        for n in node.names:
-            if n.name in self.builtins:
-                self._is_success = False
-                str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[13]
-                self._violations.append(str)
-        return node
+def _make_error(
+    code: ErrorCode,
+    node: ast.AST | None = None,
+    *,
+    line: int = 1,
+    col: int = 0,
+    end_line: int | None = None,
+    end_col: int | None = None,
+    **kwargs: Any,
+) -> LintError:
+    if node is not None:
+        line = getattr(node, "lineno", line)
+        col = getattr(node, "col_offset", col)
+        end_line = getattr(node, "end_lineno", None) or line
+        end_col = getattr(node, "end_col_offset", None) or col
+    else:
+        end_line = end_line or line
+        end_col = end_col or col
 
-    def visit_ImportFrom(self, node):
-        str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[3]
-        self._violations.append(str)
-        self._is_success = False
+    message = _MESSAGES[code].format(**kwargs) if kwargs else _MESSAGES[code]
+    return LintError(
+        code=code,
+        message=message,
+        line=line,
+        col=col,
+        end_line=end_line,
+        end_col=end_col,
+    )
 
-    # TODO: Why are we even doing any logic instead of just failing on visiting these?
-    def visit_ClassDef(self, node):
-        str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[5]
-        self._violations.append(str)
-        self._is_success = False
-        self.generic_visit(node)
-        return node
 
-    def visit_AsyncFunctionDef(self, node):
-        str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[6]
-        self._violations.append(str)
+class _LintVisitor(ast.NodeVisitor):
+    def __init__(self) -> None:
+        self.errors: list[LintError] = []
+        self.orm_names: set[str] = set()
+        self.export_args: list[tuple[str, ast.AST]] = []
+        self.arg_annotations: list[tuple[str | None, ast.AST]] = []
+        self.return_annotations: list[tuple[str | None, ast.AST]] = []
+        self.has_export = False
+        self.has_construct = False
+        self.in_function = False
 
-        self._is_success = False
-        self.generic_visit(node)
-        return node
+    def add(self, code: ErrorCode, node: ast.AST | None = None, **kwargs: Any):
+        self.errors.append(_make_error(code, node, **kwargs))
 
-    def visit_Assign(self, node):
-        # resource_names, func_name = Assert.valid_assign(node, Parser.parser_scope)
-        if isinstance(node.value, ast.Name):
+    def visit_Name(self, node: ast.Name) -> None:
+        self._check_name(node.id, node)
+        ast.NodeVisitor.generic_visit(self, node)
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        self._check_name(node.attr, node)
+        ast.NodeVisitor.generic_visit(self, node)
+
+    def _check_name(self, name: str, node: ast.AST) -> None:
+        if name == "rt":
+            self.add(ErrorCode.E014, node, name="rt")
+        elif name.startswith("_") or name.endswith("_"):
+            self.add(ErrorCode.E002, node, name=name)
+
+    def visit_Import(self, node: ast.Import) -> None:
+        if self.in_function:
+            self.add(ErrorCode.E003, node)
+            return
+
+        for alias in node.names:
             if (
-                node.value.id == "Hash"
-                or node.value.id == "Variable"
-                or node.value.id == "LogEvent"
+                alias.name in sys.stdlib_module_names
+                or alias.name in sys.builtin_module_names
             ):
-                self._is_success = False
-                str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[13]
-                self._violations.append(str)
+                self.add(ErrorCode.E005, node, name=alias.name)
 
-        if (
-            isinstance(node.value, ast.Call)
-            and not isinstance(node.value.func, ast.Attribute)
-            and node.value.func.id in constants.ORM_CLASS_NAMES
-        ):
-            if node.value.func.id in ["Variable", "Hash", "LogEvent"]:
-                kwargs = [k.arg for k in node.value.keywords]
-                if "contract" in kwargs or "name" in kwargs:
-                    self._is_success = False
-                    str = (
-                        "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[10]
-                    )
-                    self._violations.append(str)
-            if ast.Tuple in [type(t) for t in node.targets] or isinstance(
-                node.value, ast.Tuple
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        self.add(ErrorCode.E004, node)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self.add(ErrorCode.E006, node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self.add(ErrorCode.E007, node)
+        ast.NodeVisitor.generic_visit(self, node)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        if self.in_function:
+            self.add(ErrorCode.E019, node)
+            return
+
+        decorators = node.decorator_list
+        if len(decorators) > 1:
+            self.add(ErrorCode.E010, node)
+
+        decorator_name = None
+        if decorators:
+            decorator = decorators[0]
+            if isinstance(decorator, ast.Name):
+                decorator_name = decorator.id
+            elif isinstance(decorator, ast.Call) and isinstance(
+                decorator.func, ast.Name
             ):
-                self._is_success = False
-                str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[11]
-                self._violations.append(str)
-            try:
-                self.orm_names.add(node.targets[0].id)
-            except AttributeError:
-                pass
-
-        self.generic_visit(node)
-
-        return node
-
-    def visit_AugAssign(self, node):
-        # TODO: Checks here?
-        self.generic_visit(node)
-        return node
-
-    def visit_Call(self, node: ast.Call):
-        # Prevent calling of illegal builtins
-        if isinstance(node.func, ast.Name):
-            if node.func.id in ILLEGAL_BUILTINS:
-                self._is_success = False
-                str = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[13]
-                self._violations.append(str)
-
-        self.generic_visit(node)
-        return node
-
-    def generic_visit(self, node):
-        # Prevent calling of illegal builtins
-
-        if type(node) in ILLEGAL_AST_TYPES:
-            self._is_success = False
-            s = "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[0]
-            self._violations.append(s)
-
-        return super().generic_visit(node)
-
-    def visit_Constant(self, node):
-        # NOTE: Integers are important for indexing and slicing so we cannot replace them.
-        # They also will not suffer from rounding issues.
-        # TODO: are any types we don't allow right now?
-        self.generic_visit(node)
-        return node
-
-    def visit_FunctionDef(self, node):
-        self.no_nested_imports(node)
-
-        # Make sure there are no closures
-        try:
-            for n in node.body:
-                if isinstance(n, ast.FunctionDef):
-                    str = (
-                        "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[18]
-                    )
-                    self._violations.append(str)
-                    self._is_success = False
-        except Exception:
-            pass
-
-        # Only allow 1 decorator per function definition.
-        if len(node.decorator_list) > 1:
-            str = (
-                "Line {}: ".format(node.lineno)
-                + VIOLATION_TRIGGERS[9]
-                + ": Detected: {} MAX limit: 1".format(len(node.decorator_list))
-            )
-            self._violations.append(str)
-            self._is_success = False
-        export_decorator = False
-        for d in node.decorator_list:
-            # Only allow decorators from the allowed set.
-            if d.id not in constants.VALID_DECORATORS:
-                str = (
-                    "Line {}: ".format(node.lineno)
-                    + VIOLATION_TRIGGERS[7]
-                    + ": valid list: {}".format(
-                        d.id,
-                    )
+                decorator_name = decorator.func.id
+            if decorator_name not in constants.VALID_DECORATORS:
+                self.add(
+                    ErrorCode.E008,
+                    decorator,
+                    name=decorator_name or "<complex>",
                 )
-                self._violations.append(str)
-                self._is_success = False
+                decorator_name = None
 
-            if d.id == constants.EXPORT_DECORATOR_STRING:
-                self._is_one_export = True
-                export_decorator = True
+        if decorator_name == constants.INIT_DECORATOR_STRING:
+            if self.has_construct:
+                self.add(ErrorCode.E009, node)
+            self.has_construct = True
 
-            if d.id == constants.INIT_DECORATOR_STRING:
-                if self._constructor_visited:
-                    str = (
-                        "Line {}: ".format(node.lineno) + VIOLATION_TRIGGERS[8]
-                    )
-                    self._violations.append(str)
-                    self._is_success = False
-                self._constructor_visited = True
+        if decorator_name == constants.EXPORT_DECORATOR_STRING:
+            self.has_export = True
+            self._check_export_args(node)
 
-        # Add argument names to set to make sure that no ORM variable names are being reused in function def args
-        arguments = node.args
-        for a in arguments.args:
-            self.visited_args.add((a.arg, node.lineno))
-            if export_decorator:
-                if a.annotation is not None:
-                    try:
-                        self.arg_types.add((a.annotation.id, node.lineno))
-                    except AttributeError:
-                        arg = a.annotation.value.id + "." + a.annotation.attr
-                        self.arg_types.add((arg, node.lineno))
-                else:
-                    self.arg_types.add((None, node.lineno))
+        self.in_function = True
+        ast.NodeVisitor.generic_visit(self, node)
+        self.in_function = False
 
-        if export_decorator:
-            if node.returns is not None:
-                try:
-                    self.arg_types.add((a.annotation.id, node.lineno))
-                except AttributeError:
-                    arg = a.annotation.value.id + "." + a.annotation.attr
-                    self.arg_types.add((arg, node.lineno))
+    def _check_export_args(self, node: ast.FunctionDef) -> None:
+        for arg in node.args.args:
+            self.export_args.append((arg.arg, arg))
+            if arg.annotation is None:
+                self.arg_annotations.append((None, arg))
             else:
-                self.return_annotation.add((None, node.lineno))
+                self.arg_annotations.append(
+                    (self._resolve_annotation(arg.annotation), arg)
+                )
 
-        self.generic_visit(node)
-        return node
-
-    def annotation_types(self, t, lnum):
-        if t is None:
-            str = "Line {}".format(lnum) + " : " + VIOLATION_TRIGGERS[16]
-            self._violations.append(str)
-            self._is_success = False
-        elif t not in ALLOWED_ANNOTATION_TYPES:
-            str = (
-                "Line {}".format(lnum)
-                + " : "
-                + VIOLATION_TRIGGERS[15]
-                + " : {}".format(t)
+        if node.returns is not None:
+            self.return_annotations.append(
+                (self._resolve_annotation(node.returns), node)
             )
-            self._violations.append(str)
-            self._is_success = False
 
-    def check_return_types(self, t, lnum):
-        if t is not None:
-            str = (
-                "Line {}".format(lnum)
-                + " : "
-                + VIOLATION_TRIGGERS[17]
-                + " : {}".format(t)
-            )
-            self._violations.append(str)
-            self._is_success = False
+    @staticmethod
+    def _resolve_annotation(node: ast.AST) -> str | None:
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            return f"{node.value.id}.{node.attr}"
+        if isinstance(node, ast.Constant):
+            return str(node.value)
+        return None
 
-    def _reset(self):
-        self._violations = []
-        self._functions = []
-        self._is_one_export = False
-        self._is_success = True
-        self._constructor_visited = False
-        self.orm_names = set()
-        self.visited_args = set()
-        self.return_annotation = set()
-        self.arg_types = set()
+    def visit_Assign(self, node: ast.Assign) -> None:
+        if isinstance(node.value, ast.Call) and isinstance(
+            node.value.func, ast.Name
+        ):
+            func_name = node.value.func.id
+            if func_name in constants.ORM_CLASS_NAMES:
+                self._check_orm_assign(node, func_name)
+        elif (
+            isinstance(node.value, ast.Name)
+            and node.value.id in constants.ORM_CLASS_NAMES
+        ):
+            self.add(ErrorCode.E014, node, name=node.value.id)
 
-    def _final_checks(self):
-        for name, lineno in self.visited_args:
-            if name in self.orm_names:
-                str = "Line {}: ".format(lineno) + VIOLATION_TRIGGERS[14]
-                self._violations.append(str)
-                self._is_success = False
+        ast.NodeVisitor.generic_visit(self, node)
 
-        if not self._is_one_export:
-            str = "Line 0: " + VIOLATION_TRIGGERS[12]
-            self._violations.append(str)
-            self._is_success = False
+    def _check_orm_assign(self, node: ast.Assign, orm_name: str) -> None:
+        for target in node.targets:
+            if isinstance(target, ast.Tuple):
+                self.add(ErrorCode.E012, node)
+                return
 
-        for t, lineno in self.arg_types:
-            self.annotation_types(t, lineno)
+        if orm_name in {"Variable", "Hash", "LogEvent"}:
+            for keyword in node.value.keywords:
+                if keyword.arg in {"contract", "name"}:
+                    self.add(
+                        ErrorCode.E011,
+                        keyword,
+                        kwarg=keyword.arg,
+                        orm=orm_name,
+                    )
 
-        for t, lineno in self.return_annotation:
-            self.check_return_types(t, lineno)
+        if node.targets and isinstance(node.targets[0], ast.Name):
+            self.orm_names.add(node.targets[0].id)
 
-    def _collect_function_defs(self, root):
-        for node in ast.walk(root):
-            if isinstance(node, ast.FunctionDef):
-                self._functions.append(node.name)
-            elif isinstance(node, ast.Import) or isinstance(
-                node, ast.ImportFrom
-            ):
-                for n in node.names:
-                    if n.asname:
-                        self._functions.append(n.asname)
-                    else:
-                        self._functions.append(n.name.split(".")[-1])
+    def visit_Call(self, node: ast.Call) -> None:
+        if isinstance(node.func, ast.Name) and node.func.id in ILLEGAL_BUILTINS:
+            self.add(ErrorCode.E014, node, name=node.func.id)
+        ast.NodeVisitor.generic_visit(self, node)
 
-    def check(self, ast_tree):
-        self._reset()
-        # pass 1 - collect function def and imports
-        self._collect_function_defs(ast_tree)
-        self.visit(ast_tree)
-        self._final_checks()
-        if self._is_success is False:
-            return sorted(
-                self._violations, key=lambda x: int(x.split(":")[0].split()[1])
-            )
+    def generic_visit(self, node: ast.AST) -> None:
+        if type(node) in ILLEGAL_AST_TYPES:
+            self.add(ErrorCode.E001, node, detail=type(node).__name__)
+        ast.NodeVisitor.generic_visit(self, node)
+
+
+class Linter:
+    def check(self, source_or_tree: str | ast.AST) -> list[LintError] | None:
+        tree: ast.AST
+        if isinstance(source_or_tree, ast.AST):
+            tree = source_or_tree
         else:
+            try:
+                tree = ast.parse(source_or_tree)
+            except SyntaxError as exc:
+                return [
+                    _make_error(
+                        ErrorCode.E020,
+                        line=exc.lineno or 1,
+                        col=(exc.offset or 1) - 1,
+                        detail=exc.msg,
+                    )
+                ]
+
+        visitor = _LintVisitor()
+        visitor.visit(tree)
+        self._final_checks(visitor, tree)
+
+        if not visitor.errors:
             return None
 
-    def dump_violations(self):
-        import pprint
+        visitor.errors.sort(key=lambda error: (error.line, error.col))
+        return visitor.errors
 
-        pp = pprint.PrettyPrinter(indent=4)
-        pp.pprint(self._violations)
+    def check_raise(self, source_or_tree: str | ast.AST) -> None:
+        errors = self.check(source_or_tree)
+        if errors:
+            raise LintingError(errors)
+
+    def _final_checks(self, visitor: _LintVisitor, tree: ast.AST) -> None:
+        if not visitor.has_export:
+            first_func = next(
+                (
+                    node
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.FunctionDef)
+                ),
+                None,
+            )
+            visitor.add(ErrorCode.E013, first_func)
+
+        for name, arg_node in visitor.export_args:
+            if name in visitor.orm_names:
+                visitor.add(ErrorCode.E015, arg_node, name=name)
+
+        allowed = ", ".join(sorted(ALLOWED_ANNOTATION_TYPES))
+        for annotation_name, arg_node in visitor.arg_annotations:
+            if annotation_name is None:
+                visitor.add(ErrorCode.E017, arg_node)
+            elif annotation_name not in ALLOWED_ANNOTATION_TYPES:
+                visitor.add(
+                    ErrorCode.E016,
+                    arg_node,
+                    annotation=annotation_name,
+                    allowed=allowed,
+                )
+
+        for annotation_name, func_node in visitor.return_annotations:
+            if annotation_name is not None:
+                visitor.add(ErrorCode.E018, func_node)

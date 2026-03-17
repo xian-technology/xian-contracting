@@ -1,15 +1,13 @@
 import ast
 
-import astor
-
 from contracting import constants
-from contracting.compilation.linter import Linter
+from contracting.compilation.linter import Linter, LintingError
 
 
 class ContractingCompiler(ast.NodeTransformer):
-    def __init__(self, module_name="__main__", linter=Linter()):
+    def __init__(self, module_name="__main__", linter=None):
         self.module_name = module_name
-        self.linter = linter
+        self.linter = linter or Linter()
         self.lint_alerts = None
         self.constructor_visited = False
         self.private_names = set()
@@ -23,12 +21,13 @@ class ContractingCompiler(ast.NodeTransformer):
 
         if lint:
             self.lint_alerts = self.linter.check(tree)
-            # compilation.fix_missing_locations(tree)
+        else:
+            self.lint_alerts = None
 
         tree = self.visit(tree)
 
         if self.lint_alerts is not None:
-            raise Exception(self.lint_alerts)
+            raise LintingError(self.lint_alerts)
 
         # check all visited nodes and see if they are actually private
 
@@ -45,6 +44,7 @@ class ContractingCompiler(ast.NodeTransformer):
         self.private_names = set()
         self.orm_names = set()
         self.visited_names = set()
+        self.lint_alerts = None
 
         return tree
 
@@ -61,8 +61,7 @@ class ContractingCompiler(ast.NodeTransformer):
 
     def parse_to_code(self, source, lint=True):
         tree = self.parse(source, lint=lint)
-        code = astor.to_source(tree)
-        return code
+        return ast.unparse(tree)
 
     def visit_FunctionDef(self, node):
 
@@ -83,7 +82,7 @@ class ContractingCompiler(ast.NodeTransformer):
 
                 new_node = ast.Call(
                     func=decorator,
-                    args=[ast.Str(s=self.module_name)],
+                    args=[ast.Constant(value=self.module_name)],
                     keywords=[],
                 )
 
@@ -104,10 +103,16 @@ class ContractingCompiler(ast.NodeTransformer):
             and node.value.func.id in constants.ORM_CLASS_NAMES
         ):
             node.value.keywords.append(
-                ast.keyword("contract", ast.Str(self.module_name))
+                ast.keyword(
+                    arg="contract",
+                    value=ast.Constant(value=self.module_name),
+                )
             )
             node.value.keywords.append(
-                ast.keyword("name", ast.Str(node.targets[0].id))
+                ast.keyword(
+                    arg="name",
+                    value=ast.Constant(value=node.targets[0].id),
+                )
             )
             self.orm_names.add(node.targets[0].id)
 
@@ -127,7 +132,7 @@ class ContractingCompiler(ast.NodeTransformer):
         if isinstance(node.value, float):
             return ast.Call(
                 func=ast.Name(id="decimal", ctx=ast.Load()),
-                args=[ast.Str(str(node.value))],
+                args=[ast.Constant(value=str(node.value))],
                 keywords=[],
             )
         return node

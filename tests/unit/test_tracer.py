@@ -1,178 +1,174 @@
-from types import SimpleNamespace
+import opcode
+import types
 from unittest import TestCase
 from unittest.mock import patch
 
-from contracting.execution.tracer import MAX_STAMPS, Tracer
+from contracting.execution.tracer import (
+    CU_COSTS,
+    MAX_CALL_COUNT,
+    MAX_STAMPS,
+    CallLimitExceededError,
+    StampExceededError,
+    Tracer,
+)
 
 
-def sample_contract():
-    __contract__ = True
-    return 1
+def make_code(source="x = 1\ny = 2\n"):
+    return compile(source, "<test>", "exec")
 
 
-class TestTracer(TestCase):
-    def make_frame(
-        self, globals_dict=None, lasti=0, code=sample_contract.__code__
-    ):
-        return SimpleNamespace(
-            f_code=code,
-            f_globals=globals_dict or {},
-            f_lasti=lasti,
-        )
+class TestTracerLifecycle(TestCase):
+    def setUp(self):
+        self.tracer = Tracer()
 
-    @patch("contracting.execution.tracer.sys.settrace")
-    def test_start_stop_and_reset_manage_state(self, settrace):
-        tracer = Tracer()
-        tracer.cost = 99
-        tracer.call_count = 8
-        tracer.stamp_supplied = 123
-        tracer.last_frame_mem_usage = 11
-        tracer.total_mem_usage = 22
+    def tearDown(self):
+        self.tracer.reset()
 
-        tracer.start()
+    def test_start_resets_counters(self):
+        self.tracer.cost = 99
+        self.tracer.call_count = 8
+        self.tracer.stamp_supplied = 123
 
-        self.assertTrue(tracer.is_started())
-        self.assertEqual(settrace.call_args_list[0].args, (tracer.trace_func,))
-        self.assertEqual(tracer.get_stamp_used(), 0)
-        self.assertEqual(tracer.call_count, 0)
+        self.tracer.start()
 
-        tracer.stop()
+        self.assertTrue(self.tracer.is_started())
+        self.assertEqual(self.tracer.get_stamp_used(), 0)
+        self.assertEqual(self.tracer.call_count, 0)
 
-        self.assertFalse(tracer.is_started())
-        self.assertEqual(settrace.call_args_list[-1].args, (None,))
+    def test_stop_idempotent(self):
+        self.tracer.start()
+        self.tracer.stop()
+        self.tracer.stop()
+        self.assertFalse(self.tracer.is_started())
 
-        tracer.cost = 7
-        tracer.stamp_supplied = 9
-        tracer.last_frame_mem_usage = 10
-        tracer.total_mem_usage = 11
-        tracer.call_count = 12
+    def test_reset_clears_all_state(self):
+        self.tracer.start()
+        self.tracer.cost = 7
+        self.tracer.stamp_supplied = 9
+        self.tracer.call_count = 12
 
-        tracer.reset()
+        self.tracer.reset()
 
-        self.assertEqual(tracer.get_stamp_used(), 0)
-        self.assertEqual(tracer.stamp_supplied, 0)
-        self.assertEqual(tracer.get_last_frame_mem_usage(), 0)
-        self.assertEqual(tracer.get_total_mem_usage(), 0)
-        self.assertEqual(tracer.call_count, 0)
+        self.assertEqual(self.tracer.get_stamp_used(), 0)
+        self.assertEqual(self.tracer.stamp_supplied, 0)
+        self.assertEqual(self.tracer.call_count, 0)
+        self.assertFalse(self.tracer.is_started())
 
-    @patch("contracting.execution.tracer.sys.settrace")
-    def test_add_cost_stops_when_stamp_limit_is_exceeded(self, settrace):
-        tracer = Tracer()
-        tracer.started = True
-        tracer.set_stamp(3)
 
-        with self.assertRaises(AssertionError):
-            tracer.add_cost(4)
+class TestOpcodeCosts(TestCase):
+    def test_call_opcode_cost_is_named_not_legacy_indexed(self):
+        call_opcode = opcode.opmap.get("CALL")
+        if call_opcode is not None:
+            self.assertEqual(CU_COSTS[call_opcode], 1610)
 
-        self.assertFalse(tracer.is_started())
-        self.assertEqual(settrace.call_args.args, (None,))
+    def test_instrumented_opcode_cost_tracks_base_opcode(self):
+        inst_call = opcode.opmap.get("INSTRUMENTED_CALL")
+        call = opcode.opmap.get("CALL")
+        if inst_call is not None and call is not None and inst_call < 256:
+            self.assertEqual(CU_COSTS[inst_call], CU_COSTS[call])
 
-    @patch("contracting.execution.tracer.sys.settrace")
-    def test_add_cost_stops_when_max_stamp_limit_is_exceeded(self, settrace):
-        tracer = Tracer()
-        tracer.started = True
-        tracer.set_stamp(MAX_STAMPS)
 
-        with self.assertRaises(AssertionError):
-            tracer.add_cost(MAX_STAMPS + 1)
+class TestAddCost(TestCase):
+    def setUp(self):
+        self.tracer = Tracer()
 
-        self.assertFalse(tracer.is_started())
-        self.assertEqual(settrace.call_args.args, (None,))
+    def tearDown(self):
+        self.tracer.reset()
 
-    def test_trace_func_ignores_non_contract_frames(self):
-        tracer = Tracer()
-        frame = self.make_frame()
+    def test_add_cost_accumulates(self):
+        self.tracer.start()
+        self.tracer.set_stamp(1000)
+        self.tracer.add_cost(100)
+        self.tracer.add_cost(200)
+        self.assertEqual(self.tracer.get_stamp_used(), 300)
 
-        result = tracer.trace_func(frame, "line", None)
+    def test_add_cost_raises_on_stamp_exceeded(self):
+        self.tracer.start()
+        self.tracer.set_stamp(3)
 
-        self.assertIsNone(result)
-        self.assertEqual(tracer.call_count, 1)
-        self.assertEqual(tracer.get_stamp_used(), 0)
-        self.assertEqual(tracer.get_total_mem_usage(), 0)
+        with self.assertRaises(StampExceededError):
+            self.tracer.add_cost(4)
 
-    @patch("contracting.execution.tracer.sys.settrace")
-    def test_trace_func_stops_when_call_count_limit_is_exceeded(self, settrace):
-        tracer = Tracer()
-        tracer.started = True
-        tracer.max_call_count = 0
+    def test_add_cost_raises_on_max_stamps_exceeded(self):
+        self.tracer.start()
+        self.tracer.set_stamp(MAX_STAMPS + 100)
 
-        with self.assertRaises(AssertionError):
-            tracer.trace_func(self.make_frame(), "line", None)
+        with self.assertRaises(StampExceededError):
+            self.tracer.add_cost(MAX_STAMPS + 1)
 
-        self.assertFalse(tracer.is_started())
-        self.assertEqual(settrace.call_args.args, (None,))
 
-    def test_trace_func_tracks_contract_cost_and_memory(self):
-        tracer = Tracer()
-        tracer.set_stamp(MAX_STAMPS)
-        frame = self.make_frame(globals_dict={"__contract__": True})
+class TestInstructionCallback(TestCase):
+    def setUp(self):
+        self.tracer = Tracer()
 
-        with (
-            patch.object(tracer, "get_memory_usage", side_effect=[128, 256]),
-            patch.object(tracer, "get_opcode", return_value=0),
-        ):
-            result = tracer.trace_func(frame, "line", None)
+    def tearDown(self):
+        self.tracer.reset()
 
-        self.assertIs(result.__self__, tracer)
-        self.assertEqual(result.__func__, tracer.trace_func.__func__)
-        self.assertEqual(tracer.get_stamp_used(), 2)
-        self.assertEqual(tracer.get_last_frame_mem_usage(), 256)
-        self.assertEqual(tracer.get_total_mem_usage(), 128)
+    def test_callback_charges_opcode_cost(self):
+        self.tracer.set_stamp(MAX_STAMPS)
+        self.tracer.start()
+        code = make_code()
 
-    @patch("contracting.execution.tracer.sys.settrace")
-    def test_trace_func_stops_when_memory_limit_is_exceeded(self, settrace):
-        tracer = Tracer()
-        tracer.started = True
-        tracer.set_stamp(MAX_STAMPS)
-        tracer.last_frame_mem_usage = 1
-        frame = self.make_frame(globals_dict={"__contract__": True})
+        self.tracer._instruction_callback(code, 0)
 
-        with (
-            patch.object(
-                tracer, "get_memory_usage", return_value=600 * 1024 * 1024
-            ),
-            patch.object(tracer, "get_opcode", return_value=0),
-            self.assertRaises(AssertionError),
-        ):
-            tracer.trace_func(frame, "line", None)
+        self.assertEqual(self.tracer.get_stamp_used(), CU_COSTS[code.co_code[0]])
+        self.assertEqual(self.tracer.call_count, 1)
 
-        self.assertFalse(tracer.is_started())
-        self.assertEqual(settrace.call_args.args, (None,))
+    def test_callback_raises_on_call_limit(self):
+        self.tracer.start()
+        self.tracer.set_stamp(MAX_STAMPS)
+        self.tracer.call_count = MAX_CALL_COUNT
 
-    @patch("contracting.execution.tracer.sys.settrace")
-    def test_trace_func_stops_when_cost_limit_is_exceeded(self, settrace):
-        tracer = Tracer()
-        tracer.started = True
-        tracer.set_stamp(1)
-        tracer.last_frame_mem_usage = 1
-        frame = self.make_frame(globals_dict={"__contract__": True})
+        with self.assertRaises(CallLimitExceededError):
+            self.tracer._instruction_callback(make_code(), 0)
 
-        with (
-            patch.object(tracer, "get_memory_usage", return_value=1),
-            patch.object(tracer, "get_opcode", return_value=85),
-            self.assertRaises(AssertionError),
-        ):
-            tracer.trace_func(frame, "line", None)
+    def test_callback_raises_on_stamp_exceeded(self):
+        self.tracer.start()
+        self.tracer.set_stamp(1)
+        self.tracer.cost = 1
 
-        self.assertFalse(tracer.is_started())
-        self.assertEqual(settrace.call_args.args, (None,))
+        with self.assertRaises(StampExceededError):
+            self.tracer._instruction_callback(make_code(), 0)
 
-    @patch("contracting.execution.tracer.dis.get_instructions")
-    def test_get_opcode_caches_instructions_and_defaults_to_zero(
-        self, get_instructions
-    ):
-        tracer = Tracer()
-        code = sample_contract.__code__
-        get_instructions.return_value = [SimpleNamespace(offset=8, opcode=12)]
+    def test_callback_has_no_process_side_effects(self):
+        self.tracer.start()
+        self.tracer.set_stamp(MAX_STAMPS)
+        code = make_code()
 
-        self.assertEqual(tracer.get_opcode(code, 8), 12)
-        self.assertEqual(tracer.get_opcode(code, 99), 0)
-        self.assertEqual(get_instructions.call_count, 1)
+        with patch(
+            "contracting.execution.tracer.sys.monitoring.set_local_events"
+        ) as set_local_events:
+            self.tracer.register_code(code)
+            for _ in range(10):
+                self.tracer._instruction_callback(code, 0)
 
-    @patch("contracting.execution.tracer.psutil.Process")
-    def test_get_memory_usage_returns_process_rss(self, process_cls):
-        process_cls.return_value.memory_info.return_value.rss = 321
+        self.assertGreaterEqual(set_local_events.call_count, 1)
 
-        tracer = Tracer()
 
-        self.assertEqual(tracer.get_memory_usage(), 321)
+class TestCodeRegistration(TestCase):
+    def setUp(self):
+        self.tracer = Tracer()
+
+    def tearDown(self):
+        self.tracer.reset()
+
+    def test_register_enables_events_recursively(self):
+        code = compile("def foo():\n    return 1\n", "<test>", "exec")
+        nested = [const for const in code.co_consts if isinstance(const, types.CodeType)]
+        self.tracer.start()
+
+        with patch(
+            "contracting.execution.tracer.sys.monitoring.set_local_events"
+        ) as set_local_events:
+            self.tracer.register_code(code)
+
+        self.assertEqual(set_local_events.call_count, 1 + len(nested))
+
+    def test_register_buffers_when_not_started(self):
+        with patch(
+            "contracting.execution.tracer.sys.monitoring.set_local_events"
+        ) as set_local_events:
+            self.tracer.register_code(make_code())
+
+        set_local_events.assert_not_called()
+        self.assertEqual(len(self.tracer._pending_codes), 1)

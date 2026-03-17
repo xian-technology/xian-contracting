@@ -1,6 +1,7 @@
+from unittest import TestCase
+
 from contracting.compilation import parser
 from contracting.compilation.compiler import ContractingCompiler
-from unittest import TestCase
 
 
 class TestParser(TestCase):
@@ -235,4 +236,3 @@ def something():
         }
 
         self.assertDictEqual(got, expected)
-

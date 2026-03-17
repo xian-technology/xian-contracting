@@ -1,508 +1,355 @@
+"""Tests for the smart contract linter."""
+
 from unittest import TestCase
-from contracting.compilation.linter import Linter
-import ast
-from contracting.compilation.whitelists import ALLOWED_AST_TYPES, ALLOWED_ANNOTATION_TYPES, VIOLATION_TRIGGERS
+
+from contracting.compilation.linter import (
+    ErrorCode,
+    Linter,
+    LintError,
+    LintingError,
+)
+
+VALID_CONTRACT = """
+v = Variable()
+
+@construct
+def seed():
+    v.set(0)
+
+@export
+def get(key: str):
+    return v.get()
+
+@export
+def set_val(key: str, value: int):
+    v.set(value)
+"""
 
 
-class TestLinter(TestCase):
+class TestLinterClean(TestCase):
     def setUp(self):
-        self.l = Linter()
+        self.linter = Linter()
 
-    def test_linter(self):
-        # log = get_logger("TestSenecaLinter")
-        data = '''
+    def test_valid_contract(self):
+        self.assertIsNone(self.linter.check(VALID_CONTRACT))
+
+    def test_simple_export(self):
+        code = """
 @export
-def a():
-    b = 10
-    return b
-    '''
+def hello(name: str):
+    return "Hello " + name
+"""
+        self.assertIsNone(self.linter.check(code))
 
-        print("stu code: \n{}".format(data))
-        ptree = ast.parse(data)
-        status = self.l.check(ptree)
-        self.l.dump_violations()
-        if status is None:
-            print("Success!")
-        else:
-            print("Failed!")
+    def test_hash_and_variable(self):
+        code = """
+balances = Hash(default_value=0)
+owner = Variable()
 
-        self.assertEqual(status, None)
+@construct
+def seed():
+    owner.set("alice")
 
-    # TODO - Verify this tetst is working as expected.
-    def test_good_ast_type(self):
-        # Dictionary to handle special cases of AST nodes that require arguments
-        special_cases = {
-            ast.Index: lambda: ast.Index(value=ast.Str(s='test')),
-        }
-
-        for t in ALLOWED_AST_TYPES:
-            if t in special_cases:
-                _t = special_cases[t]()
-            else:
-                _t = t()
-
-            self.l.ast_types(_t, 1)
-            self.assertListEqual([], self.l._violations)
-
-    def test_bad_ast_type(self):
-        err = 'Line 1 : S1- Illegal contracting syntax type used : AsyncFunctionDef'
-        t = ast.AsyncFunctionDef()
-        self.l.ast_types(t, 1)
-        self.l.dump_violations()
-        self.assertMultiLineEqual(err, self.l._violations[0])
-
-    def test_not_system_variable(self):
-        v = 'package'
-        self.l.not_system_variable(v, 1)
-        self.l.dump_violations()
-        self.assertListEqual([], self.l._violations)
-
-    def test_system_variable(self):
-        v = '__package__'
-        err = "Line 1 : S2- Illicit use of '_' before variable : __package__"
-        self.l.not_system_variable(v, 1)
-        self.l.dump_violations()
-        self.assertMultiLineEqual(err, self.l._violations[0])
-
-    '''
-    Is blocking all underscore variables really the solution to preventing access to system variables?
-    '''
-    def test_not_system_variable_ast(self):
-        code = '''
 @export
-def a():
-    __ruh_roh__ = 'shaggy'
-        '''
-        err = "Line 4 : S2- Illicit use of '_' before variable : __ruh_roh__"
+def transfer(amount: float, to: str):
+    balances[ctx.caller] -= amount
+    balances[to] += amount
+"""
+        self.assertIsNone(self.linter.check(code))
 
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-        self.assertMultiLineEqual(err, self.l._violations[0])
+    def test_import_contract(self):
+        code = """
+import currency
 
-    def test_not_system_variable_ast_success(self):
-        code = '''
 @export
-def a():
-    ruh_roh = 'shaggy'
-        '''
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-        self.assertEqual(chk, None)
-        self.assertListEqual([], self.l._violations)
+def spend(amount: float):
+    currency.transfer(amount=amount, to="bob")
+"""
+        self.assertIsNone(self.linter.check(code))
 
-    # def test_visit_async_func_def_fail(self):
-    #     err = 'Error : Illegal AST type: AsyncFunctionDef'
-    #     n = compilation.AsyncFunctionDef()
-    #
-    #     self.l.visit_AsyncFunctionDef(n)
-    #     self.l.dump_violations()
-    #     self.assertMultiLineEqual(err, self.l._violations[0])
 
-    def test_visit_async_func_def_fail_code(self):
-        code = '''
-@export
-async def a():
-    ruh_roh = 'shaggy'
-def b():
-    c = 1 + 2
-'''
-        err = 'Line 3: S7- Illicit use of Async functions'
+class TestErrorPositions(TestCase):
+    def setUp(self):
+        self.linter = Linter()
 
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-        self.assertEqual(len(chk), 3)
-        self.assertMultiLineEqual(err, self.l._violations[0])
-
-#TODO failing
-    # def test_visit_class_fail(self):
-    #     err = 'Error : Illegal AST type: ClassDef'
-    #     n = compilation.ClassDef()
-    #     self.l.visit_ClassDef(n)
-    #     self.l.dump_violations()
-
-        # self.assertMultiLineEqual(err, self.l._violations[0])
-
-    def test_visit_class_fail_code(self):
-        code = '''
-class Scooby:
+    def test_error_has_line_and_col(self):
+        code = """
+class Bad:
     pass
-        '''
-        err = 'Line 2: S6- Illicit use of classes'
+"""
+        errors = self.linter.check(code)
+        self.assertIsNotNone(errors)
+        err = next(error for error in errors if error.code == ErrorCode.E006)
+        self.assertEqual(err.line, 2)
+        self.assertEqual(err.col, 0)
 
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-        self.assertEqual(len(chk), 3)
-        self.assertMultiLineEqual(err, self.l._violations[0])
+    def test_error_has_end_positions(self):
+        code = """
+class Bad:
+    pass
+"""
+        errors = self.linter.check(code)
+        err = next(error for error in errors if error.code == ErrorCode.E006)
+        self.assertGreater(err.end_line, 0)
+        self.assertGreaterEqual(err.end_col, 0)
 
-    def test_visit_try_except_fail_code(self):
-        code = '''
-@export
-def try_it():
-    try:
-        a = 0
-    except:
-        a = 1
-'''
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-
-        print(self.l._violations)
-
-    def test_accessing_system_vars(self):
-        code = '''
-@export
-def a():
-    ruh_roh = 'shaggy'
-    ruh_roh.__dir__()
-'''
-        err = "Line 5 : S2- Illicit use of '_' before variable : __dir__"
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-        self.assertMultiLineEqual(err, self.l._violations[0])
-
-    def test_accessing_attribute(self):
-        code = '''
-@export
-def a():
-    ruh_roh = 'shaggy'
-    ruh_roh.capitalize()
-    '''
-
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-        self.assertEqual(chk, None)
-        self.assertListEqual([], self.l._violations)
-
-#TODO failed test case
-
-    def test_no_nested_imports(self):
-        code = '''
-@export
-def a():
-    import something
-        '''
-
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-        self.assertEqual(chk, ['Line 3: S3- Illicit use of Nested imports'])
-
-    def test_no_nested_imports_works(self):
-        code = '''
-@export
-def a():
-    ruh_roh = 'shaggy'
-    ruh_roh.capitalize()
-            '''
-
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-        self.assertEqual(chk, None)
-        self.assertListEqual([], self.l._violations)
-
-    def test_augassign(self):
-        code = '''
-@export
-def a():
-    b = 0
-    b += 1
-'''
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-        self.assertEqual(chk, None)
-        self.assertListEqual([], self.l._violations)
-
-    def test_no_import_from(self):
-        code = '''
-from something import a
-@export
-def a():
-    b = 0
-    b += 1
-'''
-        err = 'Line 2: S4- ImportFrom compilation nodes not yet supported'
-
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-        self.assertMultiLineEqual(err, self.l._violations[0])
-
-# disabling import check it would be done by compiler
-
-#     def test_import_non_existent_contract(self):
-#         code = '''
-# import something
-# @export
-# def a():
-#     b = 0
-#     b += 1
-# '''
-#         err = 'Line 2: S5- Contract not found in lib: something'
-#
-#         c = compilation.parse(code)
-#         self.l.check(c)
-#         self.l.dump_violations()
-#         self.assertMultiLineEqual(err, self.l._violations[0])
-
-    def test_final_checks_set_properly(self):
-        code = '''
-def a():
-    b = 0
-    b += 1
-        '''
-
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-        self.assertEqual(chk, ['Line 0: S13- No valid contracting decorator found'])
-        self.assertFalse(self.l._is_one_export)
-
-    def test_collect_function_defs(self):
-        code = '''
-@export
-def a():
-    return 42
+    def test_errors_sorted_by_position(self):
+        code = """
+class A:
+    pass
 
 @export
-def b():
-    return 1000000
+def ok():
+    pass
+
+class B:
+    pass
+"""
+        errors = self.linter.check(code)
+        lines = [error.line for error in errors]
+        self.assertEqual(lines, sorted(lines))
+
+    def test_syntax_error_position(self):
+        errors = self.linter.check("def (")
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0].code, ErrorCode.E020)
+        self.assertEqual(errors[0].line, 1)
+
+
+class TestErrorCodes(TestCase):
+    def setUp(self):
+        self.linter = Linter()
+
+    def _codes(self, code: str):
+        errors = self.linter.check(code) or []
+        return {error.code for error in errors}
+
+    def test_e001_lambda(self):
+        code = """
+@export
+def f(x: int):
+    g = lambda: x
+    return g()
+"""
+        self.assertIn(ErrorCode.E001, self._codes(code))
+
+    def test_e002_dunder_attribute_blocked(self):
+        code = """
+@export
+def f():
+    x = ().__class__.__bases__[0].__subclasses__()
+"""
+        self.assertIn(ErrorCode.E002, self._codes(code))
+
+    def test_e003_nested_import(self):
+        code = """
+@export
+def f():
+    import os
+"""
+        self.assertIn(ErrorCode.E003, self._codes(code))
+
+    def test_e004_import_from(self):
+        code = """
+from os import path
 
 @export
-def x():
-    return 64
+def f():
+    pass
+"""
+        self.assertIn(ErrorCode.E004, self._codes(code))
+
+    def test_e005_stdlib_import(self):
+        code = """
+import os
 
 @export
-def y():
-    return 24
-'''
-        c = ast.parse(code)
-        self.l._collect_function_defs(c)
-        self.l.dump_violations()
-        self.assertEqual(self.l._functions, ['a', 'b', 'x', 'y'])
+def f():
+    pass
+"""
+        self.assertIn(ErrorCode.E005, self._codes(code))
 
-    def test_assignment_of_import(self):
-        code = '''
-import import_this
+    def test_e006_class(self):
+        code = """
+class Foo:
+    pass
+"""
+        self.assertIn(ErrorCode.E006, self._codes(code))
+
+    def test_e007_async(self):
+        code = """
+@export
+async def f():
+    pass
+"""
+        self.assertIn(ErrorCode.E007, self._codes(code))
+
+    def test_e008_invalid_decorator(self):
+        code = """
+@invalid_decorator
+def f():
+    pass
+"""
+        self.assertIn(ErrorCode.E008, self._codes(code))
+
+    def test_e009_multiple_constructors(self):
+        code = """
+@construct
+def seed1():
+    pass
+
+@construct
+def seed2():
+    pass
 
 @export
-def test():
-    a = import_this.howdy()
-    a -= 1000
-    return a        
-'''
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
+def f():
+    pass
+"""
+        self.assertIn(ErrorCode.E009, self._codes(code))
 
-    def test_good_orm_initialization(self):
-        code = '''
+    def test_e010_multiple_decorators(self):
+        code = """
+@construct
+@export
+def f():
+    pass
+"""
+        self.assertIn(ErrorCode.E010, self._codes(code))
+
+    def test_e011_orm_keyword_override(self):
+        code = """
+v = Variable(contract="currency")
+
+@export
+def f():
+    pass
+"""
+        self.assertIn(ErrorCode.E011, self._codes(code))
+
+    def test_e012_tuple_orm_assignment(self):
+        code = """
+a, b = Variable()
+
+@export
+def f(x: int):
+    pass
+"""
+        self.assertIn(ErrorCode.E012, self._codes(code))
+
+    def test_e013_no_export(self):
+        code = """
+def f():
+    pass
+"""
+        self.assertIn(ErrorCode.E013, self._codes(code))
+
+    def test_e014_illegal_builtin(self):
+        code = """
+@export
+def f():
+    exec("print(1)")
+"""
+        self.assertIn(ErrorCode.E014, self._codes(code))
+
+    def test_e015_orm_shadow(self):
+        code = """
 v = Variable()
 
 @export
-def set(i: int):
-    v.set(i)
-'''
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.assertEqual(self.l._violations, [])
-
-    def test_bad_orm_initialization(self):
-        code = '''
-v = Variable(contract='currency', name='stus_balance')
-
-@export
-def set(i: int):
-    v.set(i)
-'''
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.assertEqual(chk[0], 'Line 2: S11- Illicit keyword overloading for ORM assignments')
-
-    def test_multi_targets_orm_fails(self):
-        code = '''
-v, x = Variable()
-
-@export
-def set(i):
-    v.set(i)
-    '''
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-        print(chk)
-        self.assertEqual(chk[0], 'Line 2: S12- Multiple targets to ORM definition detected')
-
-    def test_multi_decorator_fails(self):
-        code = '''
-@construct
-@export
-def kaboom():
-    print('i like to break things')
-'''
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-        self.assertEqual(chk[0], 'Line 4: S10- Illicit use of multiple decorators: Detected: 2 MAX limit: 1')
-
-    def test_invalid_decorator_fails(self):
-        code = '''
-@contracting_invalid
-def wont_work():
-    print('i hope')
-'''
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-        self.assertEqual(chk[1], 'Line 3: S8- Invalid decorator used: valid list: contracting_invalid')
-
-    def test_multiple_constructors_fails(self):
-        code = '''
-@construct
-def seed_1():
+def f(v: int):
     pass
-    
-@construct
-def seed_1():
+"""
+        self.assertIn(ErrorCode.E015, self._codes(code))
+
+    def test_e016_bad_annotation(self):
+        code = """
+@export
+def f(x: mytype):
     pass
-    
+"""
+        self.assertIn(ErrorCode.E016, self._codes(code))
+
+    def test_e017_missing_annotation(self):
+        code = """
 @export
-def seed_5():
+def f(x):
     pass
-'''
+"""
+        self.assertIn(ErrorCode.E017, self._codes(code))
 
-        c = ast.parse(code)
-        chk = self.l.check(c)
-        self.l.dump_violations()
-        self.assertEqual(len(chk),1)
-        self.assertEqual(self.l._violations, ['Line 7: S9- Multiple use of constructors detected'])
-
-    def test_function_str_annotation(self):
-        code = '''
+    def test_e018_return_annotation(self):
+        code = """
 @export
-def greeting(name: str):
-    return 'Hello ' + name
-'''
-        c = ast.parse(code)
-        chk = self.l.check(c)
+def f(x: int) -> str:
+    return str(x)
+"""
+        self.assertIn(ErrorCode.E018, self._codes(code))
 
-        self.assertEqual(chk, None)
-
-    def test_function_dict_annotation(self):
-        code = '''
+    def test_e019_nested_function(self):
+        code = """
 @export
-def greeting(name: dict):
-    return 'Hello ' + name
-'''
-        c = ast.parse(code)
-        chk = self.l.check(c)
+def f():
+    def g():
+        pass
+    g()
+"""
+        self.assertIn(ErrorCode.E019, self._codes(code))
 
-        self.assertEqual(chk, None)
-
-    def test_function_bad_annotation(self):
-        code = '''
-@export
-def greeting(name: mytype):
-    return 'Hello ' + name
-'''
-        c = ast.parse(code)
-        chk = self.l.check(c)
-
-        self.assertEqual(chk, ['Line 3 : S16- Illegal argument annotation used : mytype'])
+    def test_e020_syntax_error(self):
+        self.assertIn(ErrorCode.E020, self._codes("def ("))
 
 
-    def test_function_none_annotation(self):
-        code = '''
-@export
-def greeting(name):
-    return 'Hello ' + name
-'''
-        c = ast.parse(code)
-        chk = self.l.check(c)
+class TestLintErrorFormat(TestCase):
+    def test_str_format(self):
+        err = LintError(
+            code=ErrorCode.E006,
+            message="Class definitions are not allowed",
+            line=5,
+            col=0,
+            end_line=6,
+            end_col=8,
+        )
+        self.assertEqual(
+            str(err),
+            "5:0: E006 Class definitions are not allowed",
+        )
 
-        self.assertEqual(chk, ['Line 3 : S17- No valid argument annotation found'])
-
-
-    def test_none_return_annotation(self):
-        code = '''
-@export
-def greeting(name: str):
-    return 'Hello ' + name
-'''
-        c = ast.parse(code)
-        chk = self.l.check(c)
-
-        self.assertEqual(self.l._violations, [])
-
-
-    def test_contract_annotation(self):
-        code ='''
-@export
-def transfer(amount, to):
-    sender = ctx.caller
-    assert balances[sender] >= amount, 'Not enough coins to send!'
-
-    balances[sender] -= amount
-    balances[to] += amount
-
-def greeting(name):
-    return 'Hello ' + name
-'''
-        c = ast.parse(code)
-        chk = self.l.check(c)
-
-        self.assertEqual(chk, ['Line 3 : S17- No valid argument annotation found'])
+    def test_to_dict(self):
+        err = LintError(
+            code=ErrorCode.E001,
+            message="Illegal syntax: Lambda",
+            line=3,
+            col=4,
+            end_line=3,
+            end_col=20,
+        )
+        data = err.to_dict()
+        self.assertEqual(data["code"], "E001")
+        self.assertEqual(data["line"], 3)
+        self.assertEqual(data["col"], 4)
+        self.assertEqual(data["end_line"], 3)
+        self.assertEqual(data["end_col"], 20)
 
 
-## ANNOTATIONS ARE OKAY
-#   def test_function_return_annotation(self):
-#       code = '''
-#@export
-#def greeting(name: str) -> str:
-#    return 'Hello ' + name
-#'''
-#        c = ast.parse(code)
-#        chk = self.l.check(c)
-#
-#        self.assertEqual(['Line 2 : S18- Illegal use of return annotation : str'], chk)
+class TestCheckRaise(TestCase):
+    def setUp(self):
+        self.linter = Linter()
 
-    def test_violations_sorted_by_line_number(self):
-        code = '''
-class Illegal1:  # Line 2
+    def test_clean_code_no_exception(self):
+        self.linter.check_raise(VALID_CONTRACT)
+
+    def test_bad_code_raises(self):
+        code = """
+class Bad:
     pass
+"""
+        with self.assertRaises(LintingError):
+            self.linter.check_raise(code)
 
-@export
-def good_function():
-    pass
-
-from something import stuff  # Line 8
-
-class Illegal2:  # Line 10
-    pass
-    '''
-
-        c = ast.parse(code)
-        violations = self.l.check(c)
-
-        self.assertIsNotNone(violations)
-        self.assertEqual(len(violations), 5)
-
-        line_numbers = [int(v.split(':')[0].split()[1]) for v in violations]
-        
-
-        self.assertEqual(line_numbers, sorted(line_numbers))
-
-        self.assertTrue(violations[0].startswith('Line 2'))  # No export decorator
-        self.assertTrue(violations[1].startswith('Line 2'))  # First class definition
-        self.assertTrue(violations[2].startswith('Line 9'))  # ImportFrom
-        self.assertTrue(violations[3].startswith('Line 11'))  # Second class definition
-        self.assertTrue(violations[4].startswith('Line 11'))  # Second class definition
-
+    def test_raise_message_contains_error_code(self):
+        try:
+            self.linter.check_raise("def (")
+            self.fail("Expected exception")
+        except LintingError as exc:
+            self.assertIn("E020", str(exc))

@@ -1,7 +1,7 @@
+from __future__ import annotations
+
 import decimal
 import marshal
-import os
-import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -11,14 +11,11 @@ from contracting import constants
 from contracting.execution.runtime import rt
 from contracting.stdlib.bridge.decimal import ContractingDecimal
 from contracting.stdlib.bridge.time import Datetime
-from contracting.storage import hdf5
 from contracting.storage.encoder import encode_kv
+from contracting.storage.lmdb_store import LMDBStore
 
-FILE_EXT = ".d"
-HASH_EXT = ".x"
-
-DELIMITER = "."
-HASH_DEPTH_DELIMITER = ":"
+INDEX_SEPARATOR = constants.INDEX_SEPARATOR
+HASH_DELIMITER = constants.DELIMITER
 
 CODE_KEY = "__code__"
 TYPE_KEY = "__type__"
@@ -30,7 +27,11 @@ DEVELOPER_KEY = "__developer__"
 
 
 class Driver:
-    def __init__(self, bypass_cache=False, storage_home=constants.STORAGE_HOME):
+    def __init__(
+        self,
+        bypass_cache: bool = False,
+        storage_home: Path = constants.STORAGE_HOME,
+    ) -> None:
         self.pending_deltas = {}
         self.pending_writes = {}
         self.pending_reads = {}
@@ -38,210 +39,94 @@ class Driver:
         self.log_events = []
         self.cache = TTLCache(maxsize=1000, ttl=6 * 3600)
         self.bypass_cache = bypass_cache
-        self.contract_state = storage_home.joinpath("contract_state")
-        self.run_state = storage_home.joinpath("run_state")
-        self.__build_directories()
-
-    def __build_directories(self):
-        self.contract_state.mkdir(exist_ok=True, parents=True)
-        self.run_state.mkdir(exist_ok=True, parents=True)
-
-    def __parse_key(self, key):
-        # Split the key into parts (filename, group, etc.)
-        parts = key.split(
-            constants.INDEX_SEPARATOR, 1
-        )  # Ensure key contains the INDEX_SEPARATOR
-
-        # The first part should be the filename (e.g., "currency")
-        filename = parts[0].split(constants.DELIMITER, 1)[
-            0
-        ]  # Get only 'currency' from 'currency.balances'
-
-        # The rest (after the first '.') becomes the group and attribute inside the HDF5 file
-        if len(parts) > 1:
-            variable = parts[1].replace(
-                constants.DELIMITER, constants.HDF5_GROUP_SEPARATOR
-            )
-        else:
-            variable = parts[0].replace(
-                constants.DELIMITER, constants.HDF5_GROUP_SEPARATOR
-            )
-
-        return filename, variable
-
-    def __filename_to_path(self, filename):
-        if filename.startswith("__"):
-            return str(self.run_state.joinpath(filename))
-        else:
-            return str(self.contract_state.joinpath(filename))
-
-    def __get_files(self):
-        return sorted(
-            os.listdir(self.contract_state) + os.listdir(self.run_state)
-        )
-
-    def is_file(self, filename):
-        file_path = Path(self.__filename_to_path(filename))
-        return file_path.is_file()
+        self.storage_home = Path(storage_home)
+        self.storage_path = self.storage_home / "lmdb"
+        self.storage_path.mkdir(parents=True, exist_ok=True)
+        self._store = LMDBStore(self.storage_path)
 
     def get(self, key: str, save: bool = True):
-        """
-        Get a value from the cache, pending reads, or disk. If save is True,
-        the value will be saved to pending_reads.
-        """
-        # Parse the key to get the filename and group
         value = self.find(key)
         if save and self.pending_reads.get(key) is None:
             self.pending_reads[key] = value
-        # if value is not None:
-        #     rt.deduct_read(*encode_kv(key, value))
         return value
 
-    def set(self, key, value, is_txn_write=False):
+    def set(self, key, value, is_txn_write: bool = False):
         rt.deduct_write(*encode_kv(key, value))
         if self.pending_reads.get(key) is None:
             self.get(key)
-        if type(value) in [decimal.Decimal, float]:
+        if isinstance(value, (decimal.Decimal, float)):
             value = ContractingDecimal(str(value))
         self.pending_writes[key] = value
         if is_txn_write:
             self.transaction_writes[key] = value
 
     def find(self, key: str):
-        """
-        Find the value for a given key. If not found in cache or pending writes,
-        it will look it up from the disk.
-        """
         if self.bypass_cache:
-            # Parse the key to get the filename and group
-            filename, variable = self.__parse_key(key)
-            value = hdf5.get_value_from_disk(
-                self.__filename_to_path(filename), variable
-            )
-            return value
+            return self._store.get(key)
 
         value = self.pending_writes.get(key)
         if value is None:
             value = self.cache.get(key)
         if value is None:
-            # Parse the key to get the filename and group for disk lookup
-            filename, variable = self.__parse_key(key)
-            value = hdf5.get_value_from_disk(
-                self.__filename_to_path(filename), variable
-            )
+            value = self._store.get(key)
         return value
 
-    def __get_keys_from_file(self, filename):
-        return hdf5.get_groups(self.__filename_to_path(filename))
-
-    def keys_from_disk(self, prefix=None, length=0):
-        """
-        Get all keys from disk with a given prefix
-        """
-        keys = set()
-        try:
-            for filename in self.__get_files():
-                for key in self.__get_keys_from_file(filename):
-                    if prefix and key.startswith(prefix):
-                        keys.add(key)
-                    elif not prefix:
-                        keys.add(key)
-
-                    if 0 < length <= len(keys):
-                        raise AssertionError(
-                            "Length threshold has been hit. Continuing."
-                        )
-        except AssertionError:
-            pass
-
-        keys = list(keys)
-        keys.sort()
+    def keys_from_disk(self, prefix: str | None = None, length: int = 0):
+        keys = self._store.keys(prefix or "")
+        if length > 0:
+            return keys[:length]
         return keys
 
-    def iter_from_disk(self, prefix="", length=0):
-        try:
-            filename, _ = self.__parse_key(prefix)
-        except Exception:
-            return self.keys(prefix=prefix)
-
-        if not self.is_file(filename=filename):
-            return []
-
-        keys_from_file = self.__get_keys_from_file(filename)
-
-        keys = [key for key in keys_from_file if key.startswith(prefix)]
-        keys.sort()
-
-        return keys if length == 0 else keys[:length]
+    def iter_from_disk(self, prefix: str = "", length: int = 0):
+        keys = self._store.keys(prefix)
+        if length > 0:
+            return keys[:length]
+        return keys
 
     def value_from_disk(self, key):
-        """
-        Retrieve a value from the disk based on the parsed key.
-        """
-        # Parse the key to get the filename and group
-        filename, variable = self.__parse_key(key)
-        return hdf5.get_value_from_disk(
-            self.__filename_to_path(filename), variable
-        )
+        return self._store.get(key)
 
-    def items(self, prefix=""):
-        """
-        Get all existing items with a given prefix.
-        """
-        _items = {}
-        keys = set()
+    def items(self, prefix: str = ""):
+        items = {}
+        seen = set()
 
-        # Collect pending writes with matching prefix
-        for k, v in self.pending_writes.items():
-            if k.startswith(prefix):
-                # Always mark the key as seen to suppress disk rehydration
-                keys.add(k)
-                if v is not None:
-                    _items[k] = v
+        for key, value in self.pending_writes.items():
+            if key.startswith(prefix):
+                seen.add(key)
+                if value is not None:
+                    items[key] = value
 
-        # Collect cache items with matching prefix
-        for k, v in self.cache.items():
-            if k.startswith(prefix):
-                keys.add(k)
-                if v is not None:
-                    _items[k] = v
+        for key, value in self.cache.items():
+            if key.startswith(prefix):
+                seen.add(key)
+                if value is not None:
+                    items[key] = value
 
-        # Collect keys from the disk
-        db_keys = set(self.iter_from_disk(prefix=prefix))
+        for key, value in self._store.items(prefix).items():
+            if key not in seen:
+                items[key] = value
 
-        # Subtract already collected keys and add missing ones from disk
-        for k in db_keys - keys:
-            _items[k] = self.get(k)  # Cache get will add the keys to the cache
+        return items
 
-        return _items
-
-    def keys(self, prefix=""):
+    def keys(self, prefix: str = ""):
         return list(self.items(prefix).keys())
 
-    def values(self, prefix=""):
+    def values(self, prefix: str = ""):
         return list(self.items(prefix).values())
 
-    def make_key(self, contract, variable, args=[]):
-        contract_variable = DELIMITER.join((contract, variable))
+    def make_key(self, contract, variable, args=None):
+        contract_variable = INDEX_SEPARATOR.join((contract, variable))
         if args:
-            return HASH_DEPTH_DELIMITER.join(
+            return HASH_DELIMITER.join(
                 (contract_variable, *[str(arg) for arg in args])
             )
         return contract_variable
 
-    def set_var(self, contract, variable, arguments=[], value=None, mark=True):
-        """
-        Set a variable in a contract.
-        """
-        # Construct the key and set the value
+    def set_var(self, contract, variable, arguments=None, value=None, mark=True):
         key = self.make_key(contract, variable, arguments)
         self.set(key, value)
 
-    def get_var(self, contract, variable, arguments=[], mark=True):
-        """
-        Get a variable from a contract.
-        """
-        # Construct the key and get the value
+    def get_var(self, contract, variable, arguments=None, mark=True):
         key = self.make_key(contract, variable, arguments)
         return self.get(key)
 
@@ -266,48 +151,40 @@ class Driver:
         code,
         owner=None,
         overwrite=False,
-        timestamp=Datetime._from_datetime(datetime.now()),
+        timestamp=None,
         developer=None,
     ):
-        if self.get_contract(name) is None:
-            code_obj = compile(code, "", "exec")
-            code_blob = marshal.dumps(code_obj)
+        if self.get_contract(name) is not None and not overwrite:
+            return
 
-            self.set_var(name, CODE_KEY, value=code)
-            self.set_var(name, COMPILED_KEY, value=code_blob)
-            self.set_var(name, OWNER_KEY, value=owner)
-            self.set_var(name, TIME_KEY, value=timestamp)
-            self.set_var(name, DEVELOPER_KEY, value=developer)
+        if timestamp is None:
+            timestamp = Datetime._from_datetime(datetime.now())
+
+        code_obj = compile(code, name, "exec")
+        code_blob = marshal.dumps(code_obj)
+
+        self.set_var(name, CODE_KEY, value=code)
+        self.set_var(name, COMPILED_KEY, value=code_blob)
+        self.set_var(name, OWNER_KEY, value=owner)
+        self.set_var(name, TIME_KEY, value=timestamp)
+        self.set_var(name, DEVELOPER_KEY, value=developer)
 
     def delete_contract(self, name):
-        """
-        Fully delete a contract from the caches and disk
-        """
         for key in self.keys(name):
-            if self.cache.get(key) is not None:
-                del self.cache[key]
-
-            if self.pending_writes.get(key) is not None:
-                del self.pending_writes[key]
-
-            self.delete_key_from_disk(key)
+            self.cache.pop(key, None)
+            self.pending_writes.pop(key, None)
+        self._store.delete_prefix(f"{name}{INDEX_SEPARATOR}")
 
     def get_contract_files(self):
-        """
-        Get all contract files as a list of strings
-        """
-        return sorted(os.listdir(self.contract_state))
+        contracts = set()
+        for key in self._store.keys():
+            contract = key.split(INDEX_SEPARATOR, 1)[0]
+            if not contract.startswith("__"):
+                contracts.add(contract)
+        return sorted(contracts)
 
     def delete_key_from_disk(self, key):
-        """
-        Delete a key from the disk by parsing the filename and group from the key.
-        """
-        # Parse the key to get the filename and group
-        filename, variable = self.__parse_key(key)
-        if len(filename) < constants.FILENAME_LEN_MAX:
-            hdf5.delete_key_from_disk(
-                self.__filename_to_path(filename), variable
-            )
+        self._store.delete(key)
 
     def flush_cache(self):
         self.pending_writes.clear()
@@ -318,157 +195,109 @@ class Driver:
         self.cache.clear()
 
     def flush_disk(self):
-        shutil.rmtree(self.run_state, ignore_errors=True)
-        shutil.rmtree(self.contract_state, ignore_errors=True)
-        self.__build_directories()
+        self._store.flush()
 
     def flush_file(self, filename):
-        file_path = self.__filename_to_path(filename)
-        if os.path.isfile(file_path):
-            os.unlink(file_path)
+        self._store.delete_prefix(f"{filename}{INDEX_SEPARATOR}")
 
     def set_event(self, event):
         self.log_events.append(event)
 
     def flush_full(self):
-        """
-        Flush all caches and disk storage.
-        """
         self.flush_disk()
         self.flush_cache()
 
     def delete(self, key):
-        """
-        Delete a key fully from the caches and queue it for deletion from disk on commit.
-        """
-        self.set(
-            key, None
-        )  # Setting the value to None will mark it for deletion
+        self.set(key, None)
 
     def rollback(self, nanos=None):
-        """
-        Rollback to a given Nanoseconds in L2 cache or if no Nanoseconds is given, rollback to the latest state on disk.
-        """
         if nanos is None:
-            # Resets to the latest state on disk
             self.cache.clear()
             self.pending_reads.clear()
             self.pending_writes.clear()
             self.pending_deltas.clear()
-        else:
-            to_delete = []
-            for _nanos, _deltas in sorted(
-                self.pending_deltas.items(), reverse=True
-            ):
-                if _nanos < nanos:
-                    break
-                to_delete.append(_nanos)
-                for key, delta in _deltas["writes"].items():
-                    self.cache[key] = delta[
-                        0
-                    ]  # Restoring the value before the write
+            return
 
-            for _nanos in to_delete:
-                self.pending_deltas.pop(_nanos, None)
+        to_delete = []
+        for delta_nanos, deltas in sorted(
+            self.pending_deltas.items(),
+            reverse=True,
+        ):
+            if delta_nanos < nanos:
+                break
+            to_delete.append(delta_nanos)
+            for key, delta in deltas["writes"].items():
+                self.cache[key] = delta[0]
+
+        for delta_nanos in to_delete:
+            self.pending_deltas.pop(delta_nanos, None)
 
     def commit(self):
-        """
-        Save the current state to disk and clear the L1 and L2 caches.
-        """
-        for k, v in self.pending_writes.items():
-            # Parse the key before applying to HDF5
-            filename, variable = self.__parse_key(k)
-            if v is None:
-                hdf5.delete_key_from_disk(
-                    self.__filename_to_path(filename), variable
-                )
-            else:
-                hdf5.set_value_to_disk(
-                    self.__filename_to_path(filename), variable, v, None
-                )
+        if self.pending_writes:
+            self._store.batch_set(self.pending_writes)
 
         self.cache.clear()
         self.pending_writes.clear()
         self.pending_reads.clear()
 
     def hard_apply(self, nanos):
-        """
-        Save the current state to disk and L1 cache and clear the L2 cache.
-        """
-
         deltas = {}
-        for k, v in self.pending_writes.items():
-            current = self.pending_reads.get(k)
-            deltas[k] = (current, v)
-
-            self.cache[k] = v
+        for key, value in self.pending_writes.items():
+            current = self.pending_reads.get(key)
+            deltas[key] = (current, value)
+            self.cache[key] = value
 
         self.pending_deltas[nanos] = {
             "writes": deltas,
             "reads": self.pending_reads,
         }
 
-        # Clear the top cache
         self.pending_reads = {}
         self.pending_writes.clear()
 
-        # Run through the sorted HCLs from oldest to newest applying each one
         to_delete = []
-        for _nanos, _deltas in sorted(self.pending_deltas.items()):
-            # Run through all state changes, taking the second value, which is the post delta
-            for key, delta in _deltas["writes"].items():
-                # Parse the key before applying to HDF5
-                filename, variable = self.__parse_key(key)
-                hdf5.set_value_to_disk(
-                    self.__filename_to_path(filename), variable, delta[1], nanos
-                )
-
-            to_delete.append(_nanos)
-            if _nanos == nanos:
+        for delta_nanos, deltas in sorted(self.pending_deltas.items()):
+            writes = {
+                key: delta[1]
+                for key, delta in deltas["writes"].items()
+            }
+            self._store.batch_set(writes)
+            to_delete.append(delta_nanos)
+            if delta_nanos == nanos:
                 break
 
-        # Remove the deltas from the set
-        [self.pending_deltas.pop(key) for key in to_delete]
+        for delta_nanos in to_delete:
+            self.pending_deltas.pop(delta_nanos, None)
 
     def get_all_contract_state(self):
-        """
-        Queries the disk storage and returns a dictionary with all the state from the contract storage directory.
-        """
-        all_contract_state = {}
-        for file_path in self.contract_state.iterdir():
-            filename = file_path.name
-            keys = hdf5.get_all_keys_from_file(
-                self.__filename_to_path(filename)
-            )
-            for key in keys:
-                full_key = f"{filename}{DELIMITER}{key}"
-                value = self.get(full_key)
-                all_contract_state[full_key] = value
-
-        return all_contract_state
+        contract_state = {}
+        for key, value in self._store.items().items():
+            contract = key.split(INDEX_SEPARATOR, 1)[0]
+            if not contract.startswith("__"):
+                contract_state[key] = value
+        return contract_state
 
     def get_run_state(self):
-        """
-        Retrieves the latest state information from the run state directory.
-        """
         run_state = {}
-        for file_path in self.run_state.iterdir():
-            filename = file_path.name
-            keys = self.__get_keys_from_file(self.__filename_to_path(filename))
-            for key in keys:
-                full_key = f"{filename}{DELIMITER}{key}"
-                value = hdf5.get_value_from_disk(
-                    self.__filename_to_path(filename), key
-                )
-                run_state[full_key] = value
-
+        for key, value in self._store.items().items():
+            contract = key.split(INDEX_SEPARATOR, 1)[0]
+            if contract.startswith("__"):
+                run_state[key] = value
         return run_state
 
     def clear_transaction_writes(self):
-        """
-        Clear the transaction-specific writes.
-        """
         self.transaction_writes.clear()
 
     def clear_events(self):
         self.log_events.clear()
+
+    @property
+    def contract_state(self):
+        return self.storage_path
+
+    @property
+    def run_state(self):
+        return self.storage_path
+
+    def is_file(self, filename):
+        return self._store.exists(f"{filename}{INDEX_SEPARATOR}{CODE_KEY}")

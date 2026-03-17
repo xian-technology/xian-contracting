@@ -5,7 +5,6 @@ from datetime import datetime
 from functools import partial
 from types import FunctionType
 
-import astor
 import autopep8
 
 from contracting.compilation.compiler import ContractingCompiler
@@ -319,7 +318,7 @@ class ContractingClient:
         func_def_body = closure_tree.body[0]
         closure_tree.body = func_def_body.body
 
-        contract_code = astor.to_source(closure_tree)
+        contract_code = ast.unparse(closure_tree)
         name = func_def_body.name
 
         return contract_code, name
@@ -328,17 +327,11 @@ class ContractingClient:
         if isinstance(f, FunctionType):
             f, _ = self.closure_to_code_string(f)
 
-        tree = ast.parse(f)
-        violations = self.compiler.linter.check(tree)
-
-        if violations is None:
+        if raise_errors:
+            self.compiler.linter.check_raise(f)
             return None
-        else:
-            if raise_errors:
-                for v in violations:
-                    raise Exception(v)
-            else:
-                return violations
+
+        return self.compiler.linter.check(f)
 
     def compile(self, f):
         if isinstance(f, FunctionType):

@@ -1,9 +1,17 @@
-from unittest import TestCase
-from contracting.execution.module import *
-from contracting.storage.driver import Driver
-import types
 import glob
 import os
+import sys
+import types
+from unittest import TestCase
+
+from contracting.execution.module import (
+    DatabaseFinder,
+    DatabaseLoader,
+    install_database_loader,
+    uninstall_database_loader,
+)
+from contracting.storage.driver import Driver
+
 
 class TestDatabase(TestCase):
     def setUp(self):
@@ -20,7 +28,11 @@ class TestDatabase(TestCase):
         self.d.set_contract(name, code)
         _code = self.d.get_contract(name)
 
-        self.assertEqual(code, _code, 'Pushing and getting contracts is not working.')
+        self.assertEqual(
+            code,
+            _code,
+            "Pushing and getting contracts is not working.",
+        )
 
     def test_flush(self):
         code = 'a = 123'
@@ -38,10 +50,17 @@ class TestDatabaseLoader(TestCase):
         self.dl = DatabaseLoader()
 
     def test_init(self):
-        self.assertTrue(isinstance(self.dl.d, Driver), 'self.d is not a Database object.')
+        self.assertTrue(
+            isinstance(self.dl.d, Driver),
+            "self.d is not a Database object.",
+        )
 
     def test_create_module(self):
-        self.assertEqual(self.dl.create_module(None), None, 'self.create_module should return None')
+        self.assertEqual(
+            self.dl.create_module(None),
+            None,
+            "self.create_module should return None",
+        )
 
     def test_exec_module(self):
         module = types.ModuleType('test')
@@ -65,7 +84,10 @@ class TestDatabaseLoader(TestCase):
     def test_module_representation(self):
         module = types.ModuleType('howdy')
 
-        self.assertEqual(self.dl.module_repr(module), "<module 'howdy' (smart contract)>")
+        self.assertEqual(
+            self.dl.module_repr(module),
+            "<module 'howdy' (smart contract)>",
+        )
 
 
 class TestInstallLoader(TestCase):
@@ -87,11 +109,9 @@ class TestInstallLoader(TestCase):
         dl.d.set_contract('testing', 'a = 1234567890')
         dl.d.commit()
 
-        install_database_loader()
+        install_database_loader(driver=dl.d)
 
         import testing
-
-        #dl.d.flush()
 
         self.assertEqual(testing.a, 1234567890)
 
@@ -105,10 +125,11 @@ class TestModuleLoadingIntegration(TestCase):
         driver.flush_full()
 
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        contracts = glob.glob(os.path.join(self.script_dir, "test_sys_contracts", "*.py"))
+        contracts = glob.glob(
+            os.path.join(self.script_dir, "test_sys_contracts", "*.py")
+        )
         for contract in contracts:
-            name = contract.split('/')[-1]
-            name = name.split('.')[0]
+            name = contract.split("/")[-1].split(".")[0]
 
             with open(contract) as f:
                 code = f.read()
@@ -129,6 +150,6 @@ print("now i can run my functions!")
 
         exec(code, vars(ctx))
 
-        print('ok do it again')
+        print("ok do it again")
 
         exec(code, vars(ctx))

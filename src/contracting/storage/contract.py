@@ -12,7 +12,7 @@ class Contract:
         self._driver = driver
 
     def submit(
-        self, name, code, owner=None, constructor_args={}, developer=None
+        self, name, code, owner=None, constructor_args=None, developer=None
     ):
         if self._driver.get_contract(name) is not None:
             raise Exception("Contract already exists.")
@@ -25,7 +25,9 @@ class Contract:
         scope.update({"__contract__": True})
         scope.update(rt.env)
 
-        exec(code_obj, scope)
+        compiled = compile(code_obj, name, "exec")
+        rt.tracer.register_code(compiled)
+        exec(compiled, scope)
 
         if scope.get(constants.INIT_FUNC_NAME) is not None:
             if constructor_args is None:

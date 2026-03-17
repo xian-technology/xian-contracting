@@ -1,11 +1,8 @@
-from unittest import TestCase
-from contracting.storage.driver import Driver
-from contracting.execution.executor import Executor
 import os
+from unittest import TestCase
 
-import contracting
-import psutil
-import gc
+from contracting.execution.executor import Executor
+from contracting.storage.driver import Driver
 
 
 def submission_kwargs_for_file(f):
@@ -56,28 +53,4 @@ class TestMetering(TestCase):
 
     def tearDown(self):
         self.d.flush_full()
-
-    # def test_memory_clean_up_after_execution(self):
-    #     process = psutil.Process(os.getpid())
-    #     before = process.memory_info().rss / 1024 / 1024
-    #     for i in range(500):
-    #         output = self.e.execute('stu', 'con_currency', 'transfer', kwargs={'amount': 100, 'to': 'colin'}, auto_commit=True,metering=True)
-    #     gc.collect()
-    #     after = process.memory_info().rss / 1024 / 1024
-    #     before_2 = process.memory_info().rss / 1024 / 1024
-    #     for i in range(500):
-    #         output = self.e.execute('stu', 'con_currency', 'transfer', kwargs={'amount': 100, 'to': 'colin'}, auto_commit=True,metering=False)
-    #     gc.collect()
-    #     after_2 = process.memory_info().rss / 1024 / 1024
-
-    #     print(f'RAM Difference with metering: {after - before} MB')
-    #     print(f'RAM Difference without metering: {after_2 - before_2} MB')
-
-        
-
-if __name__ == '__main__':
-    t = TestMetering()
-    t.setUp()
-    t.test_memory_clean_up_after_execution()
-    t.tearDown()
    

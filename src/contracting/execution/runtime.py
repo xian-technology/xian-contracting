@@ -1,7 +1,5 @@
-import os
 import sys
 
-import contracting
 from contracting import constants
 from contracting.execution.tracer import Tracer
 
@@ -88,11 +86,6 @@ WRITE_MAX = 1024 * 128
 
 
 class Runtime:
-    cu_path = contracting.__path__[0]
-    cu_path = os.path.join(cu_path, "execution", "metering", "cu_costs.const")
-
-    os.environ["CU_COST_FNAME"] = cu_path
-
     loaded_modules = []
 
     env = {}

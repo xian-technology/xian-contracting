@@ -68,7 +68,11 @@ value = driver.get("example.key")
 
 - Contracts use Python syntax with Xian-specific decorators such as `@construct`
   and `@export`.
-- Metering, memory limits, and restricted imports are part of the runtime
-  contract and should not change casually.
+- Instruction metering is driven by `sys.monitoring`, so opcode costs are tied
+  to the active CPython minor version and validators must stay version-aligned.
+- State storage is LMDB-backed and exposed through the `Driver` API; storage
+  semantics are consensus-sensitive.
+- Restricted imports are part of the runtime contract and should not change
+  casually.
 - Built-in contracts and runtime helpers should stay aligned with the execution
   model rather than growing into general convenience utilities.

@@ -57,16 +57,26 @@ def uninstall_builtins():
     invalidate_caches()
 
 
-def install_database_loader(driver=Driver()):
+def _remove_database_finders():
+    sys.meta_path[:] = [
+        finder
+        for finder in sys.meta_path
+        if finder is not DatabaseFinder
+    ]
+
+
+def install_database_loader(driver=None):
+    if driver is None:
+        driver = DatabaseFinder.driver or Driver()
     DatabaseFinder.driver = driver
-    if DatabaseFinder not in sys.meta_path:
-        sys.meta_path.insert(0, DatabaseFinder)
+    _remove_database_finders()
+    sys.meta_path.insert(0, DatabaseFinder)
+    invalidate_caches()
 
 
 def uninstall_database_loader():
-    sys.meta_path = list(set(sys.meta_path))
-    if DatabaseFinder in sys.meta_path:
-        sys.meta_path.remove(DatabaseFinder)
+    _remove_database_finders()
+    invalidate_caches()
 
 
 def install_system_contracts(directory=""):
@@ -82,18 +92,19 @@ def install_system_contracts(directory=""):
 class DatabaseFinder:
     driver = Driver()
 
-    def find_spec(self, fullname, path=None, target=None):
-        if DatabaseFinder.driver.get_contract(self) is None:
+    @classmethod
+    def find_spec(cls, fullname, path=None, target=None):
+        if cls.driver.get_contract(fullname) is None:
             return None
-        return ModuleSpec(self, DatabaseLoader(DatabaseFinder.driver))
+        return ModuleSpec(fullname, DatabaseLoader(cls.driver))
 
 
 MODULE_CACHE = {}
 
 
 class DatabaseLoader(Loader):
-    def __init__(self, d=Driver()):
-        self.d = d
+    def __init__(self, d=None):
+        self.d = d or Driver()
 
     def create_module(self, spec):
         return None
@@ -111,6 +122,8 @@ class DatabaseLoader(Loader):
 
         if code is None:
             raise ImportError("Module {} not found".format(module.__name__))
+
+        rt.tracer.register_code(code)
 
         scope = env.gather()
         scope.update(rt.env)

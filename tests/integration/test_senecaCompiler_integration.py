@@ -1,11 +1,12 @@
+import ast
+import os
+import re
 from unittest import TestCase
+
+from contracting import constants
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.stdlib import env
-from contracting import constants
 
-import re
-import astor
-import os
 
 class TestSenecaCompiler(TestCase):
     def test_visit_assign_variable(self):
@@ -14,7 +15,7 @@ v = Variable()
 '''
         c = ContractingCompiler()
         comp = c.parse(code, lint=False)
-        code_str = astor.to_source(comp)
+        code_str = ast.unparse(comp)
 
         scope = env.gather()
 
@@ -30,8 +31,7 @@ fv = ForeignVariable(foreign_contract='scoob', foreign_name='kumbucha')
         '''
         c = ContractingCompiler()
         comp = c.parse(code, lint=False)
-        code_str = astor.to_source(comp)
-
+        code_str = ast.unparse(comp)
         scope = env.gather()
 
         exec(code_str, scope)
@@ -46,7 +46,7 @@ h = Hash()
         '''
         c = ContractingCompiler()
         comp = c.parse(code, lint=False)
-        code_str = astor.to_source(comp)
+        code_str = ast.unparse(comp)
 
         scope = env.gather()
 
@@ -63,7 +63,7 @@ fv = ForeignHash(foreign_contract='scoob', foreign_name='kumbucha')
 
         c = ContractingCompiler()
         comp = c.parse(code, lint=False)
-        code_str = astor.to_source(comp)
+        code_str = ast.unparse(comp)
 
         scope = env.gather()
 
@@ -95,7 +95,7 @@ def private():
 
         c = ContractingCompiler()
         comp = c.parse(code, lint=False)
-        code_str = astor.to_source(comp)
+        code_str = ast.unparse(comp)
 
         self.assertIn('__private', code_str)
 
@@ -111,7 +111,7 @@ def private(message):
 
         c = ContractingCompiler()
         comp = c.parse(code, lint=False)
-        code_str = astor.to_source(comp)
+        code_str = ast.unparse(comp)
 
         # there should be two private occurances of the method call
         self.assertEqual(len([m.start() for m in re.finditer('__private', code_str)]), 2)
@@ -135,7 +135,7 @@ def e():
 '''
         c = ContractingCompiler()
         comp = c.parse(code, lint=False)
-        code_str = astor.to_source(comp)
+        code_str = ast.unparse(comp)
 
         self.assertEqual(len([m.start() for m in re.finditer(constants.PRIVATE_METHOD_PREFIX, code_str)]), 9)
 
@@ -155,7 +155,8 @@ def goodbye():
 
         c = ContractingCompiler()
         comp = c.parse(code, lint=False)
-        code_str = astor.to_source(comp)
+        code_str = ast.unparse(comp)
+        self.assertIn("def ____():", code_str)
 
     def test_token_contract_parses_correctly(self):
         currency_path = os.path.join(os.path.dirname(__file__), "test_contracts", "currency.s.py")
@@ -166,15 +167,15 @@ def goodbye():
 
         c = ContractingCompiler()
         comp = c.parse(code, lint=False)
-        code_str = astor.to_source(comp)
+        self.assertIsInstance(ast.unparse(comp), str)
 
     def test_export_decorator_argument_is_added(self):
         code = '''
 @export
 def test():
     pass        
-'''
+        '''
         c = ContractingCompiler()
         comp = c.parse(code, lint=False)
-        code_str = astor.to_source(comp)
-        print(code_str)
+        code_str = ast.unparse(comp)
+        self.assertIn("@__export('__main__')", code_str)

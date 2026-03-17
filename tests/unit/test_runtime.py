@@ -1,140 +1,96 @@
 from unittest import TestCase
+
 from contracting.execution import runtime
-import sys
-import psutil
-import os
+from contracting.execution.tracer import StampExceededError
 
 
-class TestRuntime(TestCase):
+class TestRuntimeLifecycle(TestCase):
     def tearDown(self):
         runtime.rt.tracer.stop()
         runtime.rt.clean_up()
 
-    def test_tracer_works_roughly(self):
-        stamps = 1000000
-        # This doesnt work because we are only metering things with _contract_ in Globals
-        runtime.rt.set_up(stmps=stamps, meter=True)
-        globals()['__contract__'] = True
-        x = max([i for i in range(2)])
-        globals()['__contract__'] = False
-        runtime.rt.tracer.stop()
-        used = runtime.rt.tracer.get_stamp_used()
-        runtime.rt.clean_up()
-        self.assertLess(stamps - used, stamps)
+    def test_set_up_starts_tracer_when_metering(self):
+        runtime.rt.set_up(stmps=1000, meter=True)
+        self.assertTrue(runtime.rt.tracer.is_started())
 
-    def test_tracer_bypass_records_no_stamps(self):
-        stamps = 1000
-        runtime.rt.set_up(stmps=stamps, meter=False)
-        a = 5
-        b = 5
-        runtime.rt.tracer.stop()
-        used = runtime.rt.tracer.get_stamp_used()
-        runtime.rt.clean_up()
-        self.assertEqual(stamps - used, stamps)
+    def test_set_up_does_not_start_tracer_without_metering(self):
+        runtime.rt.set_up(stmps=1000, meter=False)
+        self.assertFalse(runtime.rt.tracer.is_started())
 
-    def test_arbitrary_modification_of_stamps_works(self):
-        stamps = 1000
-        sub = 500
-        runtime.rt.set_up(stmps=stamps, meter=True)
-        globals()['__contract__'] = True
-        a = 5
-        globals()['__contract__'] = False
+    def test_clean_up_stops_tracer(self):
+        runtime.rt.set_up(stmps=1000, meter=True)
+        runtime.rt.clean_up()
+        self.assertFalse(runtime.rt.tracer.is_started())
+
+
+class TestTracerMetering(TestCase):
+    def tearDown(self):
         runtime.rt.tracer.stop()
-        used_1 = runtime.rt.tracer.get_stamp_used()
-        runtime.rt.tracer.set_stamp(stamps - sub)
-        used_2 = runtime.rt.tracer.get_stamp_used()
         runtime.rt.clean_up()
 
-        print(used_1, used_2)
-
-    def test_starting_and_stopping_tracer_works_roughly(self):
-        stamps = 1000000
-        runtime.rt.set_up(stmps=stamps, meter=True)
-        globals()['__contract__'] = True
-        x = max([i for i in range(4)])
-        globals()['__contract__'] = False
+    def test_tracer_works_with_registered_code(self):
+        runtime.rt.set_up(stmps=1_000_000, meter=True)
+        code = compile("x = max([i for i in range(2)])", "<test>", "exec")
+        runtime.rt.tracer.register_code(code)
+        exec(code)
         runtime.rt.tracer.stop()
-        used_1 = runtime.rt.tracer.get_stamp_used()
+        self.assertGreater(runtime.rt.tracer.get_stamp_used(), 0)
+
+    def test_more_work_costs_more(self):
+        runtime.rt.set_up(stmps=1_000_000, meter=True)
+        code_big = compile("x = max([i for i in range(100)])", "<test>", "exec")
+        runtime.rt.tracer.register_code(code_big)
+        exec(code_big)
+        runtime.rt.tracer.stop()
+        used_big = runtime.rt.tracer.get_stamp_used()
         runtime.rt.clean_up()
 
-        stamps = 10000000
-        runtime.rt.set_up(stmps=stamps, meter=True)
-        globals()['__contract__'] = True
-        x = max([i for i in range(1)])
+        runtime.rt.set_up(stmps=10_000_000, meter=True)
+        code_small = compile("x = 1", "<test>", "exec")
+        runtime.rt.tracer.register_code(code_small)
+        exec(code_small)
         runtime.rt.tracer.stop()
-        x = max([i for i in range(1)])
-        runtime.rt.tracer.stop()
-        globals()['__contract__'] = False
-        used_2 = runtime.rt.tracer.get_stamp_used()
-        runtime.rt.clean_up()
+        used_small = runtime.rt.tracer.get_stamp_used()
 
-        self.assertGreater(used_1, used_2)
+        self.assertGreater(used_big, used_small)
 
-    def test_modifying_stamps_during_tracing(self):
-        stamps = 10000
-        runtime.rt.set_up(stmps=stamps, meter=True)
-        a = 5
-        b = 5
-        runtime.rt.tracer.stop()
-        c = 5
-        d = 5
-        e = 5
-        runtime.rt.clean_up()
-        used_1 = runtime.rt.tracer.get_stamp_used()
-
-        stamps = 5000
-        runtime.rt.set_up(stmps=stamps, meter=True)
-        a = 5
-        b = 5
-        runtime.rt.tracer.stop()
-        used_1 = runtime.rt.tracer.get_stamp_used()
-        runtime.rt.set_up(stmps=stamps - used_1, meter=True)
-        c = 5
-        d = 5
-        e = 5
-        runtime.rt.clean_up()
-        used_2 = runtime.rt.tracer.get_stamp_used()
-
-        print(used_1, used_2)
-
-    def test_add_exists(self):
-        stamps = 1000
-
-        runtime.rt.set_up(stmps=stamps, meter=True)
-
+    def test_add_cost_directly(self):
+        runtime.rt.set_up(stmps=1000, meter=True)
         runtime.rt.tracer.add_cost(900)
         runtime.rt.tracer.stop()
+        self.assertEqual(runtime.rt.tracer.get_stamp_used(), 900)
 
-        used_1 = runtime.rt.tracer.get_stamp_used()
 
+class TestWriteDeduction(TestCase):
+    def tearDown(self):
+        runtime.rt.tracer.stop()
         runtime.rt.clean_up()
-        print(used_1)
 
     def test_deduct_write_adjusts_total_writes(self):
-        stamps = 1000
-
-        runtime.rt.set_up(stmps=stamps, meter=True)
-
-        self.assertEqual(runtime.rt.writes, 0)
-
-        runtime.rt.deduct_write('a', 'bad')
-
+        runtime.rt.set_up(stmps=100_000, meter=True)
+        runtime.rt.deduct_write("a", "bad")
         self.assertEqual(runtime.rt.writes, 4)
 
-        runtime.rt.clean_up()
+    def test_deduct_write_adds_stamp_cost(self):
+        runtime.rt.set_up(stmps=100_000, meter=True)
+        cost_before = runtime.rt.tracer.get_stamp_used()
+        runtime.rt.deduct_write("key", "val")
+        self.assertGreater(runtime.rt.tracer.get_stamp_used(), cost_before)
 
     def test_deduct_write_fails_if_too_many_writes(self):
-        stamps = 1000
+        runtime.rt.set_up(stmps=100_000_000, meter=True)
+        runtime.rt.deduct_write("a", "bad")
+        with self.assertRaises((AssertionError, StampExceededError)):
+            runtime.rt.deduct_write("a", "b" * 128 * 1024)
 
-        runtime.rt.set_up(stmps=stamps, meter=True)
 
-        self.assertEqual(runtime.rt.writes, 0)
-
-        runtime.rt.deduct_write('a', 'bad')
-
-        self.assertEqual(runtime.rt.writes, 4)
-
-        with self.assertRaises(AssertionError):
-            runtime.rt.deduct_write('a', 'b' * 32 * 1024)
-
+class TestReadDeduction(TestCase):
+    def tearDown(self):
+        runtime.rt.tracer.stop()
         runtime.rt.clean_up()
+
+    def test_deduct_read_adds_cost(self):
+        runtime.rt.set_up(stmps=100_000, meter=True)
+        cost_before = runtime.rt.tracer.get_stamp_used()
+        runtime.rt.deduct_read("mykey", "myvalue")
+        self.assertGreater(runtime.rt.tracer.get_stamp_used(), cost_before)

@@ -1,8 +1,7 @@
 import unittest
-import os
-from shutil import rmtree
-from datetime import datetime
+
 from contracting.storage.driver import Driver
+
 
 class TestDriver(unittest.TestCase):
 
@@ -105,7 +104,7 @@ class TestDriver(unittest.TestCase):
         contract_state = self.driver.get_all_contract_state()
         self.assertIn(key, contract_state)
         self.assertEqual(contract_state[key], value)
-        
+
     def test_transaction_writes(self):
         key = 'test_key'
         value = 'test_value'
@@ -114,7 +113,7 @@ class TestDriver(unittest.TestCase):
         transaction_writes = self.driver.transaction_writes
         self.assertIn(key, transaction_writes)
         self.assertEqual(transaction_writes[key], value)
-        
+
     def test_clear_transaction_writes(self):
         key = 'test_key'
         value = 'test_value'
@@ -127,6 +126,3 @@ class TestDriver(unittest.TestCase):
     def test_get_run_state(self):
         # We can't test this function here since we are not running a real blockchain.
         pass
-
-if __name__ == '__main__':
-    unittest.main()
