@@ -122,7 +122,9 @@ class Driver:
             )
         return contract_variable
 
-    def set_var(self, contract, variable, arguments=None, value=None, mark=True):
+    def set_var(
+        self, contract, variable, arguments=None, value=None, mark=True
+    ):
         key = self.make_key(contract, variable, arguments)
         self.set(key, value)
 
@@ -257,10 +259,7 @@ class Driver:
 
         to_delete = []
         for delta_nanos, deltas in sorted(self.pending_deltas.items()):
-            writes = {
-                key: delta[1]
-                for key, delta in deltas["writes"].items()
-            }
+            writes = {key: delta[1] for key, delta in deltas["writes"].items()}
             self._store.batch_set(writes)
             to_delete.append(delta_nanos)
             if delta_nanos == nanos:

@@ -17,6 +17,8 @@ TOOL_ID = sys.monitoring.PROFILER_ID
 DEFAULT_COST = 4
 MAX_STAMPS = 6_500_000
 MAX_CALL_COUNT = 800_000
+
+
 class StampExceededError(AssertionError):
     """Raised when the accumulated cost exceeds the stamp budget."""
 

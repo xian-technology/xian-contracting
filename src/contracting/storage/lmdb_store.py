@@ -109,9 +109,7 @@ class LMDBStore:
         return items
 
     def delete(self, key: str):
-        self._run_write_transaction(
-            lambda txn: txn.delete(key.encode("utf-8"))
-        )
+        self._run_write_transaction(lambda txn: txn.delete(key.encode("utf-8")))
 
     def delete_prefix(self, prefix: str):
         prefix_bytes = prefix.encode("utf-8")

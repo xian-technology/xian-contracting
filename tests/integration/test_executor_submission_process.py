@@ -283,7 +283,10 @@ def get_v():
         output = e.execute(**TEST_SUBMISSION_KWARGS,
             kwargs=submission_kwargs_for_file(test_orm_no_contract_access_path))
 
-        self.assertEqual(str(output['result']) , '["Line 1 : S2- Illicit use of \'_\' before variable : __Contract"]')
+        self.assertEqual(
+            str(output["result"]),
+            '["1:4: E002 Name \'__Contract\' must not start or end with underscore"]',
+        )
 
     def test_construct_function_sets_properly(self):
         e = Executor(metering=False)

@@ -59,9 +59,7 @@ def uninstall_builtins():
 
 def _remove_database_finders():
     sys.meta_path[:] = [
-        finder
-        for finder in sys.meta_path
-        if finder is not DatabaseFinder
+        finder for finder in sys.meta_path if finder is not DatabaseFinder
     ]
 
 
