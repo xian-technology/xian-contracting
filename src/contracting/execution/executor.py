@@ -64,6 +64,7 @@ class Executor:
     ) -> dict:
 
         current_driver_pending_writes = deepcopy(self.driver.pending_writes)
+        self.driver.clear_transaction_reads()
         self.driver.clear_transaction_writes()
         self.driver.clear_events()
         environment = {} if environment is None else dict(environment)
@@ -222,7 +223,7 @@ class Executor:
             "result": result,
             "stamps_used": stamps_used,
             "writes": transaction_writes,
-            "reads": driver.pending_reads,
+            "reads": driver.transaction_reads,
             "events": events,
         }
 

@@ -35,6 +35,7 @@ class Driver:
         self.pending_deltas = {}
         self.pending_writes = {}
         self.pending_reads = {}
+        self.transaction_reads = {}
         self.transaction_writes = {}
         self.log_events = []
         self.cache = TTLCache(maxsize=1000, ttl=6 * 3600)
@@ -46,8 +47,11 @@ class Driver:
 
     def get(self, key: str, save: bool = True):
         value = self.find(key)
-        if save and self.pending_reads.get(key) is None:
-            self.pending_reads[key] = value
+        if save:
+            if self.pending_reads.get(key) is None:
+                self.pending_reads[key] = value
+            if self.transaction_reads.get(key) is None:
+                self.transaction_reads[key] = value
         return value
 
     def set(self, key, value, is_txn_write: bool = False):
@@ -192,6 +196,7 @@ class Driver:
         self.pending_writes.clear()
         self.pending_reads.clear()
         self.pending_deltas.clear()
+        self.transaction_reads.clear()
         self.transaction_writes.clear()
         self.log_events.clear()
         self.cache.clear()
@@ -218,6 +223,9 @@ class Driver:
             self.pending_reads.clear()
             self.pending_writes.clear()
             self.pending_deltas.clear()
+            self.transaction_reads.clear()
+            self.transaction_writes.clear()
+            self.log_events.clear()
             return
 
         to_delete = []
@@ -241,6 +249,9 @@ class Driver:
         self.cache.clear()
         self.pending_writes.clear()
         self.pending_reads.clear()
+        self.transaction_reads.clear()
+        self.transaction_writes.clear()
+        self.log_events.clear()
 
     def hard_apply(self, nanos):
         deltas = {}
@@ -286,6 +297,9 @@ class Driver:
 
     def clear_transaction_writes(self):
         self.transaction_writes.clear()
+
+    def clear_transaction_reads(self):
+        self.transaction_reads.clear()
 
     def clear_events(self):
         self.log_events.clear()
