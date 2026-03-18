@@ -1,14 +1,14 @@
 import decimal
-from decimal import ROUND_FLOOR, Context, Decimal
+from decimal import ROUND_DOWN, Context, Decimal
 
 # Define precision constants
-MAX_UPPER_PRECISION = 30
+MAX_UPPER_PRECISION = 61
 MAX_LOWER_PRECISION = 30
 
 # Set the decimal context for precision and rounding
 CONTEXT = Context(
     prec=MAX_UPPER_PRECISION + MAX_LOWER_PRECISION,
-    rounding=ROUND_FLOOR,
+    rounding=ROUND_DOWN,
     Emin=-100,
     Emax=100,
 )
@@ -20,8 +20,11 @@ def make_min_decimal_str(prec):
     return "0." + "0" * (prec - 1) + "1"
 
 
-def make_max_decimal_str(prec):
-    return "1" + "0" * (prec - 1)
+def make_max_decimal_str(upper_prec, lower_prec=0):
+    whole = "9" * upper_prec
+    if lower_prec <= 0:
+        return whole
+    return f"{whole}.{'9' * lower_prec}"
 
 
 # Convert scientific notation to non-exponential format if needed
@@ -43,7 +46,9 @@ def neg_sci_not(s: str):
 
 
 # Define maximum and minimum decimal constants
-MAX_DECIMAL = Decimal(make_max_decimal_str(MAX_UPPER_PRECISION))
+MAX_DECIMAL = Decimal(
+    make_max_decimal_str(MAX_UPPER_PRECISION, MAX_LOWER_PRECISION)
+)
 MIN_DECIMAL = Decimal(make_min_decimal_str(MAX_LOWER_PRECISION))
 
 
@@ -51,7 +56,12 @@ MIN_DECIMAL = Decimal(make_min_decimal_str(MAX_LOWER_PRECISION))
 def fix_precision(x: Decimal):
     if x > MAX_DECIMAL:
         return MAX_DECIMAL
-    return x.quantize(MIN_DECIMAL, rounding=ROUND_FLOOR).normalize()
+    if x < -MAX_DECIMAL:
+        return -MAX_DECIMAL
+    quantized = x.quantize(MIN_DECIMAL, rounding=ROUND_DOWN).normalize()
+    if quantized == 0:
+        return Decimal("0")
+    return quantized
 
 
 # Main ContractingDecimal class
@@ -77,7 +87,7 @@ class ContractingDecimal:
         self._d = fix_precision(self._d)
 
     def __bool__(self):
-        return self._d > 0
+        return self._d != 0
 
     def __eq__(self, other):
         return self._d == self._get_other(other)

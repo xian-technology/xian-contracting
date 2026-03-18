@@ -236,3 +236,17 @@ def something():
         }
 
         self.assertDictEqual(got, expected)
+
+    def test_float_literals_preserve_source_precision(self):
+        code = """
+@export
+def amount() -> float:
+    return 0.123456789012345678901234567890
+"""
+
+        compiled = self.compiler.parse_to_code(code)
+
+        self.assertIn(
+            "decimal('0.123456789012345678901234567890')",
+            compiled,
+        )

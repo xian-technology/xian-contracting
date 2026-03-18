@@ -9,6 +9,7 @@ class ContractingCompiler(ast.NodeTransformer):
         self.module_name = module_name
         self.linter = linter or Linter()
         self.lint_alerts = None
+        self.source = None
         self.constructor_visited = False
         self.private_names = set()
         self.orm_names = set()
@@ -16,6 +17,7 @@ class ContractingCompiler(ast.NodeTransformer):
 
     def parse(self, source: str, lint=True):
         self.constructor_visited = False
+        self.source = source
 
         tree = ast.parse(source)
 
@@ -45,6 +47,7 @@ class ContractingCompiler(ast.NodeTransformer):
         self.orm_names = set()
         self.visited_names = set()
         self.lint_alerts = None
+        self.source = None
 
         return tree
 
@@ -130,9 +133,10 @@ class ContractingCompiler(ast.NodeTransformer):
 
     def visit_Constant(self, node):
         if isinstance(node.value, float):
+            literal = ast.get_source_segment(self.source, node) or str(node.value)
             return ast.Call(
                 func=ast.Name(id="decimal", ctx=ast.Load()),
-                args=[ast.Constant(value=str(node.value))],
+                args=[ast.Constant(value=literal)],
                 keywords=[],
             )
         return node

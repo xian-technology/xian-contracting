@@ -1,10 +1,13 @@
-from decimal import Decimal
-import decimal
-import math
-
-from contracting.stdlib.bridge.decimal import ContractingDecimal, fix_precision, MAX_DECIMAL, neg_sci_not
-from unittest import TestCase
 import unittest
+from decimal import Decimal
+from unittest import TestCase
+
+from contracting.stdlib.bridge.decimal import (
+    MAX_DECIMAL,
+    ContractingDecimal,
+    fix_precision,
+    neg_sci_not,
+)
 
 
 class TestDecimal(TestCase):
@@ -22,6 +25,9 @@ class TestDecimal(TestCase):
 
     def test_bool_false(self):
         self.assertFalse(ContractingDecimal(0))
+
+    def test_bool_negative_nonzero(self):
+        self.assertTrue(ContractingDecimal(-1))
 
     def test_eq_whole_numbers(self):
         self.assertEqual(ContractingDecimal(1), ContractingDecimal(1))
@@ -134,7 +140,7 @@ class TestDecimal(TestCase):
 
     def test_fix_precision_cuts_too_high(self):
         e = Decimal('123456789012345678901234567890')
-        self.assertEqual(fix_precision(e), MAX_DECIMAL)
+        self.assertEqual(fix_precision(e), e)
 
     def test_fix_precision_doesnt_cut_high(self):
         e = Decimal('12345678901234567890123456789')
@@ -142,13 +148,29 @@ class TestDecimal(TestCase):
 
     def test_fix_precision_cuts_all_decimals_if_too_high(self):
         e = Decimal('123456789012345678901234567890.123456')
-        self.assertEqual(fix_precision(e), MAX_DECIMAL)
+        self.assertEqual(fix_precision(e), e)
 
     def test_fix_precision_cuts_decimals_if_high_but_not_too_high(self):
         e = Decimal('12345678901234567890123456789.123456789012345678901234567890')
         f = Decimal('12345678901234567890123456789.12345678901234567890123456789')
 
         self.assertEqual(fix_precision(e), f)
+
+    def test_fix_precision_clamps_negative_overflow(self):
+        e = Decimal(
+            '-12345678901234567890123456789012345678901234567890123456789012'
+        )
+        self.assertEqual(fix_precision(e), -MAX_DECIMAL)
+
+    def test_fix_precision_rounds_negative_toward_zero(self):
+        d = Decimal('-1.123456789012345678901234567890123')
+        e = Decimal('-1.12345678901234567890123456789')
+
+        self.assertEqual(fix_precision(d), e)
+
+    def test_max_decimal_exceeds_ethereum_18_decimal_range(self):
+        ethereum_style_max = Decimal(2**256 - 1) / (Decimal(10) ** 18)
+        self.assertGreater(MAX_DECIMAL, ethereum_style_max)
 
     def test_contracting_decimal_can_round(self):
         s = '12345678901234567890123456789.123456789012345678901234567890'
