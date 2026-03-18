@@ -1,5 +1,6 @@
 from unittest import TestCase
 
+from contracting import constants
 from contracting.execution import runtime
 from contracting.execution.tracer import StampExceededError
 
@@ -94,3 +95,22 @@ class TestReadDeduction(TestCase):
         cost_before = runtime.rt.tracer.get_stamp_used()
         runtime.rt.deduct_read("mykey", "myvalue")
         self.assertGreater(runtime.rt.tracer.get_stamp_used(), cost_before)
+
+
+class TestReturnValueDeduction(TestCase):
+    def tearDown(self):
+        runtime.rt.tracer.stop()
+        runtime.rt.clean_up()
+
+    def test_deduct_return_value_adds_cost(self):
+        runtime.rt.set_up(stmps=100_000, meter=True)
+        cost_before = runtime.rt.tracer.get_stamp_used()
+        runtime.rt.deduct_return_value({"value": "ok"})
+        self.assertGreater(runtime.rt.tracer.get_stamp_used(), cost_before)
+
+    def test_deduct_return_value_fails_if_too_large(self):
+        runtime.rt.set_up(stmps=10_000_000, meter=True)
+        with self.assertRaises(AssertionError):
+            runtime.rt.deduct_return_value(
+                "a" * (constants.MAX_RETURN_VALUE_SIZE + 1)
+            )

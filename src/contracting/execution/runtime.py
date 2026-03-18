@@ -143,5 +143,19 @@ class Runtime:
             stamp_cost = cost * constants.WRITE_COST_PER_BYTE
             cls.tracer.add_cost(stamp_cost)
 
+    @classmethod
+    def deduct_return_value(cls, value):
+        if not cls.tracer.is_started():
+            return
+
+        from contracting.storage.encoder import encode
+
+        encoded = encode(value).encode("utf-8")
+        size = len(encoded)
+        assert size <= constants.MAX_RETURN_VALUE_SIZE, (
+            "Return value exceeds the maximum allowed size."
+        )
+        cls.tracer.add_cost(size * constants.RETURN_VALUE_COST_PER_BYTE)
+
 
 rt = Runtime()

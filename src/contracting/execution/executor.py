@@ -156,6 +156,7 @@ class Executor:
                 )
 
             result = func(**kwargs)
+            runtime.rt.deduct_return_value(result)
             transaction_writes = deepcopy(driver.transaction_writes)
             events = deepcopy(driver.log_events)
             runtime.rt.tracer.stop()
