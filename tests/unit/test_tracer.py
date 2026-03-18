@@ -97,21 +97,25 @@ class TestAddCost(TestCase):
             self.tracer.add_cost(MAX_STAMPS + 1)
 
 
-class TestInstructionCallback(TestCase):
+class TestLineCallback(TestCase):
     def setUp(self):
         self.tracer = Tracer()
 
     def tearDown(self):
         self.tracer.reset()
 
-    def test_callback_charges_opcode_cost(self):
+    def test_callback_charges_line_cost(self):
         self.tracer.set_stamp(MAX_STAMPS)
         self.tracer.start()
         code = make_code()
+        line_number = code.co_firstlineno
 
-        self.tracer._instruction_callback(code, 0)
+        self.tracer._line_callback(code, line_number)
 
-        self.assertEqual(self.tracer.get_stamp_used(), CU_COSTS[code.co_code[0]])
+        self.assertEqual(
+            self.tracer.get_stamp_used(),
+            self.tracer._line_cost(code, line_number),
+        )
         self.assertEqual(self.tracer.call_count, 1)
 
     def test_callback_raises_on_call_limit(self):
@@ -120,7 +124,7 @@ class TestInstructionCallback(TestCase):
         self.tracer.call_count = MAX_CALL_COUNT
 
         with self.assertRaises(CallLimitExceededError):
-            self.tracer._instruction_callback(make_code(), 0)
+            self.tracer._line_callback(make_code(), 1)
 
     def test_callback_raises_on_stamp_exceeded(self):
         self.tracer.start()
@@ -128,7 +132,7 @@ class TestInstructionCallback(TestCase):
         self.tracer.cost = 1
 
         with self.assertRaises(StampExceededError):
-            self.tracer._instruction_callback(make_code(), 0)
+            self.tracer._line_callback(make_code(), 1)
 
     def test_callback_has_no_process_side_effects(self):
         self.tracer.start()
@@ -140,7 +144,7 @@ class TestInstructionCallback(TestCase):
         ) as set_local_events:
             self.tracer.register_code(code)
             for _ in range(10):
-                self.tracer._instruction_callback(code, 0)
+                self.tracer._line_callback(code, code.co_firstlineno)
 
         self.assertGreaterEqual(set_local_events.call_count, 1)
 
@@ -154,7 +158,11 @@ class TestCodeRegistration(TestCase):
 
     def test_register_enables_events_recursively(self):
         code = compile("def foo():\n    return 1\n", "<test>", "exec")
-        nested = [const for const in code.co_consts if isinstance(const, types.CodeType)]
+        nested = [
+            const
+            for const in code.co_consts
+            if isinstance(const, types.CodeType)
+        ]
         self.tracer.start()
 
         with patch(

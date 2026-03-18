@@ -1,13 +1,14 @@
 """Deterministic contract execution metering.
 
-This tracer uses ``sys.monitoring`` (PEP 669) to meter contract bytecode at
-instruction granularity. Only code objects explicitly registered through
-``register_code`` are charged, which keeps the rest of the Python runtime out
-of the hot path and out of consensus accounting.
+This tracer uses ``sys.monitoring`` (PEP 669) to meter registered contract
+bytecode at line granularity using precomputed per-line bytecode costs. That
+keeps consensus accounting deterministic without paying the runtime cost of a
+Python callback for every single instruction.
 """
 
 from __future__ import annotations
 
+import dis
 import opcode
 import sys
 import types
@@ -137,6 +138,7 @@ class Tracer:
         "call_count",
         "_pending_codes",
         "_registered_codes",
+        "_line_costs",
     )
 
     def __init__(self) -> None:
@@ -146,6 +148,7 @@ class Tracer:
         self.call_count = 0
         self._pending_codes: list[types.CodeType] = []
         self._registered_codes: set[int] = set()
+        self._line_costs: dict[int, dict[int, int]] = {}
 
     def start(self) -> None:
         self.cost = 0
@@ -159,8 +162,8 @@ class Tracer:
 
         sys.monitoring.register_callback(
             TOOL_ID,
-            sys.monitoring.events.INSTRUCTION,
-            self._instruction_callback,
+            sys.monitoring.events.LINE,
+            self._line_callback,
         )
 
         for code in self._pending_codes:
@@ -175,7 +178,7 @@ class Tracer:
             sys.monitoring.set_events(TOOL_ID, 0)
             sys.monitoring.register_callback(
                 TOOL_ID,
-                sys.monitoring.events.INSTRUCTION,
+                sys.monitoring.events.LINE,
                 None,
             )
             sys.monitoring.free_tool_id(TOOL_ID)
@@ -191,6 +194,7 @@ class Tracer:
         self.call_count = 0
         self._pending_codes.clear()
         self._registered_codes.clear()
+        self._line_costs.clear()
 
     def register_code(self, code: types.CodeType) -> None:
         if not self.started:
@@ -208,7 +212,7 @@ class Tracer:
         sys.monitoring.set_local_events(
             TOOL_ID,
             code,
-            sys.monitoring.events.INSTRUCTION,
+            sys.monitoring.events.LINE,
         )
 
         for const in code.co_consts:
@@ -232,10 +236,10 @@ class Tracer:
     def is_started(self) -> bool:
         return self.started
 
-    def _instruction_callback(
+    def _line_callback(
         self,
         code: types.CodeType,
-        offset: int,
+        line_number: int,
     ) -> None:
         self.call_count += 1
         if self.call_count > MAX_CALL_COUNT:
@@ -244,9 +248,27 @@ class Tracer:
                 "Call count exceeded threshold! Infinite Loop?"
             )
 
-        self.cost += CU_COSTS[code.co_code[offset]]
+        self.cost += self._line_cost(code, line_number)
         if self.cost > self.stamp_supplied or self.cost > MAX_STAMPS:
             self.stop()
             raise StampExceededError(
                 "The cost has exceeded the stamp supplied!"
             )
+
+    def _line_cost(self, code: types.CodeType, line_number: int) -> int:
+        code_id = id(code)
+        line_costs = self._line_costs.get(code_id)
+        if line_costs is None:
+            line_costs = {}
+            for instruction in dis.get_instructions(code):
+                lineno = instruction.starts_line
+                if instruction.positions is not None:
+                    lineno = instruction.positions.lineno or lineno
+                if lineno is None:
+                    continue
+                line_costs[lineno] = line_costs.get(lineno, 0) + _opcode_cost(
+                    instruction.opname
+                )
+            self._line_costs[code_id] = line_costs
+
+        return line_costs.get(line_number, DEFAULT_COST)
