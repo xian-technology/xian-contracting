@@ -1,11 +1,11 @@
 from copy import deepcopy
 
 from xian_runtime_types.decimal import ContractingDecimal
+from xian_runtime_types.encoding import encode_kv
 
 from contracting import constants
 from contracting.execution.runtime import rt
 from contracting.storage.driver import Driver
-from contracting.storage.encoder import encode_kv
 
 driver = rt.env.get("__Driver") or Driver()
 

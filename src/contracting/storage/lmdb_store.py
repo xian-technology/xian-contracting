@@ -6,8 +6,7 @@ import os
 from pathlib import Path
 
 import lmdb
-
-from contracting.storage.encoder import decode, encode
+from xian_runtime_types.encoding import decode, encode
 
 DEFAULT_MAP_SIZE = int(
     os.environ.get(

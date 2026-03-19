@@ -6,10 +6,10 @@ from functools import partial
 from types import FunctionType
 
 import autopep8
+from xian_runtime_types.time import Datetime
 
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution.executor import Executor
-from contracting.stdlib.bridge.time import Datetime
 from contracting.storage.driver import Driver
 
 from . import constants

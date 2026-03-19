@@ -148,7 +148,7 @@ class Runtime:
         if not cls.tracer.is_started():
             return
 
-        from contracting.storage.encoder import encode
+        from xian_runtime_types.encoding import encode
 
         encoded = encode(value).encode("utf-8")
         size = len(encoded)

@@ -4,9 +4,9 @@ import tempfile
 from pathlib import Path
 from unittest import TestCase
 
-from contracting.stdlib.bridge.time import Datetime
 from contracting.storage.lmdb_store import LMDBStore
 from xian_runtime_types.decimal import ContractingDecimal
+from xian_runtime_types.time import Datetime
 
 
 class TestLMDBStoreBasic(TestCase):

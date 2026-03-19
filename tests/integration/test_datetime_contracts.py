@@ -1,6 +1,6 @@
 from unittest import TestCase
 from contracting.client import ContractingClient
-from contracting.stdlib.bridge.time import Datetime
+from xian_runtime_types.time import Datetime
 import os
 
 class TestSenecaClientReplacesExecutor(TestCase):

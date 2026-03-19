@@ -1,6 +1,6 @@
 import importlib
 from unittest import TestCase
-from contracting.stdlib.bridge.time import Datetime
+from xian_runtime_types.time import Datetime
 from contracting.client import ContractingClient
 from contracting.storage.driver import Driver
 import os
