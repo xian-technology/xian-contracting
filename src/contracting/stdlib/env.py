@@ -1,6 +1,7 @@
+from xian_runtime_types.decimal import exports as decimal_exports
+
 from contracting.stdlib.bridge.access import exports as access_exports
 from contracting.stdlib.bridge.crypto import exports as crypto_exports
-from contracting.stdlib.bridge.decimal import exports as decimal_exports
 from contracting.stdlib.bridge.hashing import exports as hash_exports
 from contracting.stdlib.bridge.imports import exports as imports_exports
 from contracting.stdlib.bridge.orm import exports as orm_exports

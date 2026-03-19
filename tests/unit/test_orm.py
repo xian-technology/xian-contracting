@@ -2,7 +2,7 @@ from unittest import TestCase
 from contracting import constants
 from contracting.storage.driver import Driver
 from contracting.storage.orm import Datum, Variable, ForeignHash, ForeignVariable, Hash, LogEvent
-from contracting.stdlib.bridge.decimal import ContractingDecimal
+from xian_runtime_types.decimal import ContractingDecimal
 
 # from contracting.stdlib.env import gather
 

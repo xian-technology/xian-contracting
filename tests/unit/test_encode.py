@@ -15,8 +15,8 @@ from contracting.storage.encoder import (
     make_key,
     safe_repr,
 )
-from contracting.stdlib.bridge.decimal import ContractingDecimal
 from contracting.stdlib.bridge.time import Datetime, Timedelta
+from xian_runtime_types.decimal import ContractingDecimal
 
 
 class TestEncode(TestCase):

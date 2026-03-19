@@ -1,11 +1,9 @@
 import decimal
 import json
 
+from xian_runtime_types.decimal import ContractingDecimal, fix_precision
+
 from contracting.constants import DELIMITER, INDEX_SEPARATOR
-from contracting.stdlib.bridge.decimal import (
-    ContractingDecimal,
-    fix_precision,
-)
 from contracting.stdlib.bridge.time import Datetime, Timedelta
 
 MONGO_MIN_INT = -(2**63)

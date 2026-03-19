@@ -1,8 +1,9 @@
 from copy import deepcopy
 
+from xian_runtime_types.decimal import ContractingDecimal
+
 from contracting import constants
 from contracting.execution.runtime import rt
-from contracting.stdlib.bridge.decimal import ContractingDecimal
 from contracting.storage.driver import Driver
 from contracting.storage.encoder import encode_kv
 

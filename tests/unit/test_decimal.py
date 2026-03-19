@@ -2,7 +2,7 @@ import unittest
 from decimal import Decimal
 from unittest import TestCase
 
-from contracting.stdlib.bridge.decimal import (
+from xian_runtime_types.decimal import (
     MAX_DECIMAL,
     ContractingDecimal,
     DecimalOverflowError,

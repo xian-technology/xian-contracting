@@ -2,6 +2,8 @@ import decimal
 import importlib
 from copy import deepcopy
 
+from xian_runtime_types.decimal import CONTEXT, ContractingDecimal
+
 from contracting import constants
 from contracting.execution import runtime
 from contracting.execution.module import (
@@ -10,7 +12,6 @@ from contracting.execution.module import (
     install_database_loader,
     uninstall_builtins,
 )
-from contracting.stdlib.bridge.decimal import CONTEXT, ContractingDecimal
 from contracting.stdlib.bridge.random import Seeded
 from contracting.storage.driver import Driver
 

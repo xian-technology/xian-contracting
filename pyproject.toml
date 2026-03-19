@@ -15,6 +15,7 @@ dependencies = [
     "cachetools>=5,<8",
     "lmdb>=1.6,<2",
     "pynacl>=1.5.0,<2",
+    "xian-runtime-types>=0.1.0,<0.2",
 ]
 keywords = ["blockchain", "xian", "contracting", "python"]
 classifiers = [
@@ -39,7 +40,7 @@ package-dir = {"" = "src"}
 include-package-data = true
 
 [tool.setuptools.packages.find]
-where = ["src", "packages/xian-runtime-types/src"]
+where = ["src"]
 
 [tool.setuptools.package-data]
 contracting = ["contracts/*.s.py"]
@@ -65,3 +66,6 @@ exclude = [
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 ignore = ["E501"]
+
+[tool.uv.sources]
+xian-runtime-types = { path = "packages/xian-runtime-types", editable = true }
