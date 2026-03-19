@@ -39,7 +39,7 @@ package-dir = {"" = "src"}
 include-package-data = true
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "packages/xian-runtime-types/src"]
 
 [tool.setuptools.package-data]
 contracting = ["contracts/*.s.py"]
