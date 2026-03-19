@@ -5,6 +5,7 @@ from unittest import TestCase
 from contracting.stdlib.bridge.decimal import (
     MAX_DECIMAL,
     ContractingDecimal,
+    DecimalOverflowError,
     fix_precision,
     neg_sci_not,
 )
@@ -156,11 +157,19 @@ class TestDecimal(TestCase):
 
         self.assertEqual(fix_precision(e), f)
 
-    def test_fix_precision_clamps_negative_overflow(self):
+    def test_fix_precision_rejects_negative_overflow(self):
         e = Decimal(
             '-12345678901234567890123456789012345678901234567890123456789012'
         )
-        self.assertEqual(fix_precision(e), -MAX_DECIMAL)
+        with self.assertRaises(DecimalOverflowError):
+            fix_precision(e)
+
+    def test_fix_precision_rejects_positive_overflow(self):
+        e = Decimal(
+            '12345678901234567890123456789012345678901234567890123456789012'
+        )
+        with self.assertRaises(DecimalOverflowError):
+            fix_precision(e)
 
     def test_fix_precision_rounds_negative_toward_zero(self):
         d = Decimal('-1.123456789012345678901234567890123')
@@ -171,6 +180,12 @@ class TestDecimal(TestCase):
     def test_max_decimal_exceeds_ethereum_18_decimal_range(self):
         ethereum_style_max = Decimal(2**256 - 1) / (Decimal(10) ** 18)
         self.assertGreater(MAX_DECIMAL, ethereum_style_max)
+
+    def test_fix_precision_allows_extra_fractional_digits_if_value_stays_in_range(self):
+        e = Decimal(
+            '9' * 61 + '.' + '9' * 30 + '9'
+        )
+        self.assertEqual(fix_precision(e), MAX_DECIMAL)
 
     def test_contracting_decimal_can_round(self):
         s = '12345678901234567890123456789.123456789012345678901234567890'

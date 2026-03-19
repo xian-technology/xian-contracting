@@ -1,5 +1,5 @@
 import decimal
-from decimal import ROUND_DOWN, Context, Decimal
+from decimal import ROUND_DOWN, Context, Decimal, InvalidOperation
 
 # Define precision constants
 MAX_UPPER_PRECISION = 61
@@ -52,15 +52,24 @@ MAX_DECIMAL = Decimal(
 MIN_DECIMAL = Decimal(make_min_decimal_str(MAX_LOWER_PRECISION))
 
 
+class DecimalOverflowError(OverflowError):
+    pass
+
+
 # Ensure the value is within bounds and quantized
 def fix_precision(x: Decimal):
-    if x > MAX_DECIMAL:
-        return MAX_DECIMAL
-    if x < -MAX_DECIMAL:
-        return -MAX_DECIMAL
-    quantized = x.quantize(MIN_DECIMAL, rounding=ROUND_DOWN).normalize()
+    try:
+        quantized = x.quantize(MIN_DECIMAL, rounding=ROUND_DOWN).normalize()
+    except InvalidOperation as exc:
+        raise DecimalOverflowError(
+            f"Value {x} exceeds the supported decimal range."
+        ) from exc
     if quantized == 0:
         return Decimal("0")
+    if quantized > MAX_DECIMAL or quantized < -MAX_DECIMAL:
+        raise DecimalOverflowError(
+            f"Value {x} exceeds the supported decimal range."
+        )
     return quantized
 
 
