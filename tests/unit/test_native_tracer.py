@@ -1,6 +1,8 @@
 import sys
 from unittest import TestCase
+from unittest.mock import ANY, patch
 
+from contracting.execution.native_tracer import TOOL_ID
 from contracting.execution.tracer import StampExceededError, create_tracer
 
 
@@ -24,6 +26,18 @@ class TestNativeTracer(TestCase):
         exec(code)
         self.tracer.stop()
         self.assertGreater(self.tracer.get_stamp_used(), 0)
+
+    def test_native_tracer_registers_backend_callback_directly(self):
+        with patch(
+            "contracting.execution.native_tracer.sys.monitoring.register_callback"
+        ) as register_callback:
+            self.tracer.start()
+
+        register_callback.assert_called_once_with(
+            TOOL_ID,
+            ANY,
+            self.tracer._instruction_callback,
+        )
 
     def test_native_tracer_raises_on_stamp_exceeded(self):
         self.tracer.start()

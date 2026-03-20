@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import dis
 import sys
 import types
 
 from contracting.execution.tracer_common import (
+    CU_COSTS,
     CallLimitExceededError,
     StampExceededError,
-    _opcode_cost,
 )
 
 TOOL_ID = sys.monitoring.PROFILER_ID
@@ -15,22 +14,21 @@ TOOL_ID = sys.monitoring.PROFILER_ID
 _NATIVE_IMPORT_ERROR: Exception | None = None
 
 try:
-    from xian_native_tracer import (
-        InstructionMeter,
-        NativeCallLimitExceededError,
-        NativeStampExceededError,
-    )
+    from xian_native_tracer import InstructionMeter
 except ImportError as exc:  # pragma: no cover - exercised via selection path
     _NATIVE_IMPORT_ERROR = exc
     InstructionMeter = None
-    NativeCallLimitExceededError = None
-    NativeStampExceededError = None
 
 
 class NativeInstructionTracer:
     """Instruction-granular metering backed by a Rust extension."""
 
-    __slots__ = ("_backend", "_pending_codes", "_registered_codes")
+    __slots__ = (
+        "_backend",
+        "_instruction_callback",
+        "_pending_codes",
+        "_registered_codes",
+    )
 
     def __init__(self) -> None:
         if _NATIVE_IMPORT_ERROR is not None:
@@ -39,7 +37,12 @@ class NativeInstructionTracer:
                 "xian-native-tracer to use native_instruction_v1"
             ) from _NATIVE_IMPORT_ERROR
 
-        self._backend = InstructionMeter()
+        self._backend = InstructionMeter(
+            CU_COSTS,
+            StampExceededError,
+            CallLimitExceededError,
+        )
+        self._instruction_callback = self._backend.instruction_callback
         self._pending_codes: list[types.CodeType] = []
         self._registered_codes: set[int] = set()
 
@@ -97,7 +100,7 @@ class NativeInstructionTracer:
             return
 
         self._registered_codes.add(code_id)
-        self._backend.register_code(code, self._instruction_costs(code))
+        self._backend.register_code(code)
         sys.monitoring.set_local_events(
             TOOL_ID,
             code,
@@ -112,40 +115,10 @@ class NativeInstructionTracer:
         self._backend.set_stamp(stamp)
 
     def add_cost(self, new_cost: int) -> None:
-        try:
-            self._backend.add_cost(new_cost)
-        except NativeStampExceededError as exc:
-            self.stop()
-            raise StampExceededError(
-                "The cost has exceeded the stamp supplied!"
-            ) from exc
+        self._backend.add_cost(new_cost)
 
     def get_stamp_used(self) -> int:
         return self._backend.get_stamp_used()
 
     def is_started(self) -> bool:
         return self._backend.is_started()
-
-    def _instruction_callback(
-        self,
-        code: types.CodeType,
-        instruction_offset: int,
-    ) -> None:
-        try:
-            self._backend.instruction_callback(code, instruction_offset)
-        except NativeCallLimitExceededError as exc:
-            self.stop()
-            raise CallLimitExceededError(
-                "Call count exceeded threshold! Infinite Loop?"
-            ) from exc
-        except NativeStampExceededError as exc:
-            self.stop()
-            raise StampExceededError(
-                "The cost has exceeded the stamp supplied!"
-            ) from exc
-
-    def _instruction_costs(self, code: types.CodeType) -> dict[int, int]:
-        return {
-            instruction.offset: _opcode_cost(instruction.opname)
-            for instruction in dis.get_instructions(code)
-        }
