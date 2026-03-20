@@ -1,0 +1,184 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "contracting-v*"
+      - "runtime-types-v*"
+      - "native-tracer-v*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-context:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      package_dir: ${{ steps.resolve.outputs.package_dir }}
+      project_name: ${{ steps.resolve.outputs.project_name }}
+      release_name: ${{ steps.resolve.outputs.release_name }}
+      version: ${{ steps.resolve.outputs.version }}
+      pypi_environment: ${{ steps.resolve.outputs.pypi_environment }}
+      pypi_url: ${{ steps.resolve.outputs.pypi_url }}
+      needs_rust: ${{ steps.resolve.outputs.needs_rust }}
+    steps:
+      - name: Resolve package from tag
+        id: resolve
+        run: |
+          tag="${GITHUB_REF_NAME}"
+
+          case "${tag}" in
+            contracting-v*)
+              version="${tag#contracting-v}"
+              package_dir="."
+              project_name="xian-contracting"
+              pypi_environment="pypi-xian-contracting"
+              needs_rust="false"
+              ;;
+            runtime-types-v*)
+              version="${tag#runtime-types-v}"
+              package_dir="packages/xian-runtime-types"
+              project_name="xian-runtime-types"
+              pypi_environment="pypi-xian-runtime-types"
+              needs_rust="false"
+              ;;
+            native-tracer-v*)
+              version="${tag#native-tracer-v}"
+              package_dir="packages/xian-native-tracer"
+              project_name="xian-native-tracer"
+              pypi_environment="pypi-xian-native-tracer"
+              needs_rust="true"
+              ;;
+            *)
+              echo "Unsupported release tag: ${tag}" >&2
+              exit 1
+              ;;
+          esac
+
+          {
+            echo "package_dir=${package_dir}"
+            echo "project_name=${project_name}"
+            echo "release_name=${project_name} ${version}"
+            echo "version=${version}"
+            echo "pypi_environment=${pypi_environment}"
+            echo "pypi_url=https://pypi.org/p/${project_name}"
+            echo "needs_rust=${needs_rust}"
+          } >> "${GITHUB_OUTPUT}"
+
+  build:
+    needs: release-context
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Ensure Rust toolchain is available
+        if: needs.release-context.outputs.needs_rust == 'true'
+        run: |
+          if ! command -v cargo >/dev/null 2>&1; then
+            curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain stable
+            echo "${HOME}/.cargo/bin" >> "${GITHUB_PATH}"
+          fi
+          cargo --version
+
+      - name: Install build tooling
+        run: python -m pip install --upgrade build
+
+      - name: Build distributions
+        run: |
+          package_dir="${{ needs.release-context.outputs.package_dir }}"
+          cd "${package_dir}"
+          python -m build
+
+      - name: Verify built version matches tag
+        run: |
+          package_dir="${{ needs.release-context.outputs.package_dir }}"
+          expected="${{ needs.release-context.outputs.version }}"
+          python - <<'PY'
+          import os
+          import pathlib
+          import sys
+
+          package_dir = pathlib.Path(os.environ["PACKAGE_DIR"])
+          expected = os.environ["EXPECTED_VERSION"]
+          dist_dir = package_dir / "dist"
+          files = [path.name for path in dist_dir.iterdir() if path.is_file()]
+          if not files:
+              raise SystemExit(f"No distribution artifacts were built in {dist_dir}")
+          if not all(expected in name for name in files):
+              raise SystemExit(
+                  f"Built artifacts do not match tag version {expected}: {files}"
+              )
+          PY
+        env:
+          PACKAGE_DIR: ${{ needs.release-context.outputs.package_dir }}
+          EXPECTED_VERSION: ${{ needs.release-context.outputs.version }}
+
+      - name: Stage release artifacts
+        run: |
+          package_dir="${{ needs.release-context.outputs.package_dir }}"
+          mkdir -p /tmp/release-dist
+          cp "${package_dir}"/dist/* /tmp/release-dist/
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-dist
+          path: /tmp/release-dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs:
+      - release-context
+      - build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment:
+      name: ${{ needs.release-context.outputs.pypi_environment }}
+      url: ${{ needs.release-context.outputs.pypi_url }}
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: release-dist
+          path: dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    needs:
+      - release-context
+      - build
+      - publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: release-dist
+          path: dist
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --verify-tag \
+            --title "${{ needs.release-context.outputs.release_name }}" \
+            --generate-notes
