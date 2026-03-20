@@ -133,7 +133,9 @@ class ContractingCompiler(ast.NodeTransformer):
 
     def visit_Constant(self, node):
         if isinstance(node.value, float):
-            literal = ast.get_source_segment(self.source, node) or str(node.value)
+            literal = ast.get_source_segment(self.source, node) or str(
+                node.value
+            )
             return ast.Call(
                 func=ast.Name(id="decimal", ctx=ast.Load()),
                 args=[ast.Constant(value=literal)],

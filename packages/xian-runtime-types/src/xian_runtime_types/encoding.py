@@ -101,7 +101,9 @@ def as_object(value):
     if "__time__" in value:
         return Datetime(*value["__time__"])
     if "__delta__" in value:
-        return Timedelta(days=value["__delta__"][0], seconds=value["__delta__"][1])
+        return Timedelta(
+            days=value["__delta__"][0], seconds=value["__delta__"][1]
+        )
     if "__bytes__" in value:
         return bytes.fromhex(value["__bytes__"])
     if "__fixed__" in value:
