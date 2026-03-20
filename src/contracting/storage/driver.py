@@ -38,6 +38,7 @@ class Driver:
         self.transaction_reads = {}
         self.transaction_writes = {}
         self.log_events = []
+        self.track_transaction_reads = True
         self.cache = TTLCache(maxsize=1000, ttl=6 * 3600)
         self.bypass_cache = bypass_cache
         self.storage_home = Path(storage_home)
@@ -50,7 +51,10 @@ class Driver:
         if save:
             if self.pending_reads.get(key) is None:
                 self.pending_reads[key] = value
-            if self.transaction_reads.get(key) is None:
+            if (
+                self.track_transaction_reads
+                and self.transaction_reads.get(key) is None
+            ):
                 self.transaction_reads[key] = value
         return value
 
@@ -300,6 +304,11 @@ class Driver:
 
     def clear_transaction_reads(self):
         self.transaction_reads.clear()
+
+    def set_transaction_read_tracking(self, enabled: bool) -> None:
+        self.track_transaction_reads = enabled
+        if not enabled:
+            self.transaction_reads.clear()
 
     def clear_events(self):
         self.log_events.clear()
