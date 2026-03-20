@@ -45,9 +45,20 @@ This should remain deterministic and versioned as part of the execution policy.
 
 ## Future Native Tracer
 
-If we add a higher-performance tracer, it should be optional and versioned.
+`native_instruction_v1` now exists as an optional Rust-backed backend via the
+`xian-native-tracer` package.
 
-Recommended direction:
+What remains true:
+
+- the pure-Python tracer remains the default
+- `xian-contracting` keeps working without native extensions
+- the native backend is optional and must be selected explicitly
+- startup must fail loudly if a caller selects `native_instruction_v1` without
+  the package installed
+
+The remaining native-tracer backlog is about hardening, packaging, and policy.
+
+Design direction:
 
 - language: Rust
 - Python binding layer: PyO3/maturin
@@ -59,14 +70,6 @@ Why Rust:
 - good performance
 - mature Linux/macOS packaging story for Python extensions
 - simpler long-term maintenance than a niche toolchain
-
-What must remain true:
-
-- the pure-Python tracer remains the default
-- `xian-contracting` must keep working without native extensions
-- the native backend is an optional extra, not a required dependency
-- startup must fail loudly if a network requires a native backend and it is not
-  available
 
 ## Tracer Backend Policy
 

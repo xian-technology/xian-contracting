@@ -23,6 +23,10 @@ class TestRuntimeLifecycle(TestCase):
         runtime.rt.clean_up()
         self.assertFalse(runtime.rt.tracer.is_started())
 
+    def test_set_tracer_mode_switches_backend(self):
+        runtime.rt.set_tracer_mode("python_line_v1")
+        self.assertEqual(runtime.rt.tracer_mode, "python_line_v1")
+
 
 class TestTracerMetering(TestCase):
     def tearDown(self):

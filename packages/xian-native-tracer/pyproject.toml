@@ -1,0 +1,22 @@
+[build-system]
+requires = ["maturin>=1.8,<2"]
+build-backend = "maturin"
+
+[project]
+name = "xian-native-tracer"
+version = "0.1.0"
+description = "Rust-backed instruction metering for the Xian contracting engine"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Xian Network", email = "info@xian.org" }]
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Rust",
+]
+
+[tool.maturin]
+module-name = "xian_native_tracer._native"
+python-source = "python"

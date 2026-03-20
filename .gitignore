@@ -15,3 +15,5 @@ htmlcov/
 logs
 .ccls
 *.pyc
+Cargo.lock
+target/

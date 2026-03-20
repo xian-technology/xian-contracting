@@ -5,11 +5,15 @@ from unittest.mock import patch
 
 from contracting.execution.tracer import (
     CU_COSTS,
+    DEFAULT_TRACER_MODE,
     MAX_CALL_COUNT,
     MAX_STAMPS,
+    SUPPORTED_TRACER_MODES,
     CallLimitExceededError,
     StampExceededError,
     Tracer,
+    create_tracer,
+    resolve_tracer_mode,
 )
 
 
@@ -66,6 +70,17 @@ class TestOpcodeCosts(TestCase):
         call = opcode.opmap.get("CALL")
         if inst_call is not None and call is not None and inst_call < 256:
             self.assertEqual(CU_COSTS[inst_call], CU_COSTS[call])
+
+
+class TestTracerSelection(TestCase):
+    def test_default_mode_is_supported(self):
+        self.assertIn(DEFAULT_TRACER_MODE, SUPPORTED_TRACER_MODES)
+        self.assertEqual(resolve_tracer_mode(None), DEFAULT_TRACER_MODE)
+
+    def test_factory_returns_python_tracer_by_default(self):
+        tracer = create_tracer()
+        self.assertIsInstance(tracer, Tracer)
+        tracer.reset()
 
 
 class TestAddCost(TestCase):
@@ -140,7 +155,7 @@ class TestLineCallback(TestCase):
         code = make_code()
 
         with patch(
-            "contracting.execution.tracer.sys.monitoring.set_local_events"
+            "contracting.execution.python_tracer.sys.monitoring.set_local_events"
         ) as set_local_events:
             self.tracer.register_code(code)
             for _ in range(10):
@@ -166,7 +181,7 @@ class TestCodeRegistration(TestCase):
         self.tracer.start()
 
         with patch(
-            "contracting.execution.tracer.sys.monitoring.set_local_events"
+            "contracting.execution.python_tracer.sys.monitoring.set_local_events"
         ) as set_local_events:
             self.tracer.register_code(code)
 
@@ -174,7 +189,7 @@ class TestCodeRegistration(TestCase):
 
     def test_register_buffers_when_not_started(self):
         with patch(
-            "contracting.execution.tracer.sys.monitoring.set_local_events"
+            "contracting.execution.python_tracer.sys.monitoring.set_local_events"
         ) as set_local_events:
             self.tracer.register_code(make_code())
 

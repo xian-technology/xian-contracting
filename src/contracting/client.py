@@ -9,6 +9,7 @@ import autopep8
 from xian_runtime_types.time import Datetime
 
 from contracting.compilation.compiler import ContractingCompiler
+from contracting.execution import runtime
 from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 
@@ -223,7 +224,10 @@ class ContractingClient:
         metering=False,
         compiler=ContractingCompiler(),
         environment={},
+        tracer_mode: str | None = None,
     ):
+        if tracer_mode is not None:
+            runtime.rt.set_tracer_mode(tracer_mode)
         driver = (
             driver if driver is not None else Driver(storage_home=storage_home)
         )

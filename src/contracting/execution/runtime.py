@@ -1,7 +1,11 @@
 import sys
 
 from contracting import constants
-from contracting.execution.tracer import Tracer
+from contracting.execution.tracer import (
+    DEFAULT_TRACER_MODE,
+    create_tracer,
+    resolve_tracer_mode,
+)
 
 
 class Context:
@@ -93,11 +97,24 @@ class Runtime:
 
     writes = 0
 
-    tracer = Tracer()
+    tracer_mode = DEFAULT_TRACER_MODE
+    tracer = create_tracer(DEFAULT_TRACER_MODE)
 
     signer = None
 
     context = _context
+
+    @classmethod
+    def set_tracer_mode(cls, mode: str) -> None:
+        selected = resolve_tracer_mode(mode)
+        if cls.tracer.is_started():
+            raise RuntimeError(
+                "cannot switch tracer mode during active execution"
+            )
+
+        cls.tracer.reset()
+        cls.tracer = create_tracer(selected)
+        cls.tracer_mode = selected
 
     @classmethod
     def set_up(cls, stmps, meter):
