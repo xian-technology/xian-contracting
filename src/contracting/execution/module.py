@@ -2,6 +2,7 @@ import builtins
 import importlib.util
 import marshal
 import sys
+from contextvars import ContextVar
 from importlib import __import__, invalidate_caches
 from importlib.abc import Loader
 from importlib.machinery import ModuleSpec
@@ -65,8 +66,9 @@ def _remove_database_finders():
 
 def install_database_loader(driver=None):
     if driver is None:
-        driver = DatabaseFinder.driver or Driver()
-    DatabaseFinder.driver = driver
+        driver = DatabaseFinder.current_driver() or Driver()
+    _DATABASE_DRIVER.set(driver)
+    DatabaseFinder.default_driver = driver
     _remove_database_finders()
     sys.meta_path.insert(0, DatabaseFinder)
     invalidate_caches()
@@ -88,13 +90,28 @@ def install_system_contracts(directory=""):
 
 
 class DatabaseFinder:
-    driver = Driver()
+    default_driver = Driver()
+
+    @classmethod
+    def current_driver(cls):
+        return (
+            rt.env.get("__Driver")
+            or _DATABASE_DRIVER.get()
+            or cls.default_driver
+        )
 
     @classmethod
     def find_spec(cls, fullname, path=None, target=None):
-        if cls.driver.get_contract(fullname) is None:
+        driver = cls.current_driver()
+        if driver.get_contract(fullname) is None:
             return None
-        return ModuleSpec(fullname, DatabaseLoader(cls.driver))
+        return ModuleSpec(fullname, DatabaseLoader(driver))
+
+
+_DATABASE_DRIVER: ContextVar[Driver | None] = ContextVar(
+    "contracting_database_driver",
+    default=None,
+)
 
 
 MODULE_CACHE = {}
@@ -102,7 +119,7 @@ MODULE_CACHE = {}
 
 class DatabaseLoader(Loader):
     def __init__(self, d=None):
-        self.d = d or Driver()
+        self.d = d or DatabaseFinder.current_driver()
 
     def create_module(self, spec):
         return None

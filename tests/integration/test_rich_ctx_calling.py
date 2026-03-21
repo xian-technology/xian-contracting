@@ -126,34 +126,167 @@ class TestRandomsContract(TestCase):
 
         self.assertDictEqual(res, expected)
 
-    # To-Do: Figure out why this test does not work when using pytest tests/integration, but works when running the test directly
-    # def test_dynamic_call(self):
-    #     dy = self.c.get_contract('con_dynamic_import')
-    #     res1, res2 = dy.called_from_a_far()
+    def test_dynamic_call(self):
+        dy = self.c.get_contract('con_dynamic_import')
+        res1, res2 = dy.called_from_a_far()
 
-    #     expected1 = {
-    #         'name': 'call_me_again_again',
-    #         'entry': ('con_dynamic_import', 'called_from_a_far'),
-    #         'owner': None,
-    #         'this': 'con_all_in_one',
-    #         'signer': 'stu',
-    #         'caller': 'con_dynamic_import',
-    #         'submission_name': None
-    #     }
+        expected1 = {
+            'name': 'call_me_again_again',
+            'entry': ('con_dynamic_import', 'called_from_a_far'),
+            'owner': None,
+            'this': 'con_all_in_one',
+            'signer': 'stu',
+            'caller': 'con_dynamic_import',
+            'submission_name': None
+        }
 
-    #     expected2 = {
-    #         'name': 'called_from_a_far',
-    #         'entry': ('con_dynamic_import', 'called_from_a_far'),
-    #         'owner': None,
-    #         'this': 'con_dynamic_import',
-    #         'signer': 'stu',
-    #         'caller': 'stu',
-    #         'submission_name': None
-    #     }
+        expected2 = {
+            'name': 'called_from_a_far',
+            'entry': ('con_dynamic_import', 'called_from_a_far'),
+            'owner': None,
+            'this': 'con_dynamic_import',
+            'signer': 'stu',
+            'caller': 'stu',
+            'submission_name': None
+        }
 
-    #     self.assertDictEqual(res1, expected1)
-    #     self.assertDictEqual(res2, expected2)
+        self.assertDictEqual(res1, expected1)
+        self.assertDictEqual(res2, expected2)
 
+    def test_three_contract_call_chain_restores_each_frame(self):
+        con_root = '''
+@export
+def call_mid():
+    m = importlib.import_module('con_mid')
+    leaf_ctx, mid_ctx = m.call_leaf()
+    return {
+        'root_ctx': {
+            'this': ctx.this,
+            'caller': ctx.caller,
+            'signer': ctx.signer,
+            'entry': ctx.entry,
+        },
+        'mid_ctx': mid_ctx,
+        'leaf_ctx': leaf_ctx,
+    }
+'''
+        con_mid = '''
+@export
+def call_leaf():
+    m = importlib.import_module('con_leaf')
+    leaf_ctx = m.inspect()
+    return [
+        leaf_ctx,
+        {
+            'this': ctx.this,
+            'caller': ctx.caller,
+            'signer': ctx.signer,
+            'entry': ctx.entry,
+        },
+    ]
+'''
+        con_leaf = '''
+@export
+def inspect():
+    return {
+        'this': ctx.this,
+        'caller': ctx.caller,
+        'signer': ctx.signer,
+        'entry': ctx.entry,
+    }
+'''
+
+        self.c.submit(con_root, name='con_root')
+        self.c.submit(con_mid, name='con_mid')
+        self.c.submit(con_leaf, name='con_leaf')
+
+        root = self.c.get_contract('con_root')
+        result = root.call_mid()
+
+        self.assertDictEqual(
+            result['root_ctx'],
+            {
+                'this': 'con_root',
+                'caller': 'stu',
+                'signer': 'stu',
+                'entry': ('con_root', 'call_mid'),
+            },
+        )
+        self.assertDictEqual(
+            result['mid_ctx'],
+            {
+                'this': 'con_mid',
+                'caller': 'con_root',
+                'signer': 'stu',
+                'entry': ('con_root', 'call_mid'),
+            },
+        )
+        self.assertDictEqual(
+            result['leaf_ctx'],
+            {
+                'this': 'con_leaf',
+                'caller': 'con_mid',
+                'signer': 'stu',
+                'entry': ('con_root', 'call_mid'),
+            },
+        )
+
+    def test_reentering_original_contract_rewrites_and_restores_caller(self):
+        con_root = '''
+@export
+def bounce():
+    m = importlib.import_module('con_mid_reentry')
+    return m.reenter_root()
+
+@export
+def inspect():
+    return {
+        'this': ctx.this,
+        'caller': ctx.caller,
+        'signer': ctx.signer,
+        'entry': ctx.entry,
+    }
+'''
+        con_mid = '''
+@export
+def reenter_root():
+    root = importlib.import_module('con_root_reentry')
+    reentered = root.inspect()
+    return {
+        'mid_ctx': {
+            'this': ctx.this,
+            'caller': ctx.caller,
+            'signer': ctx.signer,
+            'entry': ctx.entry,
+        },
+        'reentered_root_ctx': reentered,
+    }
+'''
+
+        self.c.submit(con_root, name='con_root_reentry')
+        self.c.submit(con_mid, name='con_mid_reentry')
+
+        root = self.c.get_contract('con_root_reentry')
+        result = root.bounce()
+
+        self.assertDictEqual(
+            result['mid_ctx'],
+            {
+                'this': 'con_mid_reentry',
+                'caller': 'con_root_reentry',
+                'signer': 'stu',
+                'entry': ('con_root_reentry', 'bounce'),
+            },
+        )
+        self.assertDictEqual(
+            result['reentered_root_ctx'],
+            {
+                'this': 'con_root_reentry',
+                'caller': 'con_mid_reentry',
+                'signer': 'stu',
+                'entry': ('con_root_reentry', 'bounce'),
+            },
+        )
 
     def test_submission_name_in_construct_function(self):
         contract = self.c.get_contract('con_submission_name_test')

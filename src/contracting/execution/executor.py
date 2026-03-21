@@ -44,8 +44,6 @@ class Executor:
             bypass_balance_amount  # For Stamp Estimation
         )
 
-        runtime.rt.env.update({"__Driver": self.driver})
-
     def wipe_modules(self):
         uninstall_builtins()
         install_database_loader()
@@ -60,173 +58,169 @@ class Executor:
         auto_commit=False,
         driver=None,
         stamps=constants.DEFAULT_STAMPS,
-        stamp_cost=constants.STAMPS_PER_TAU,
+        stamp_cost=constants.STAMPS_PER_T,
         metering=None,
     ) -> dict:
+        # Execution mutates Python's process-global import hooks and module
+        # cache. Keep one in-process execution active at a time; xian-abci
+        # parallelism uses separate worker processes, so this does not reduce
+        # node-side speculative parallel execution.
+        with runtime.rt.execution_lock:
+            current_driver_pending_writes = deepcopy(
+                self.driver.pending_writes
+            )
+            self.driver.clear_transaction_reads()
+            self.driver.clear_transaction_writes()
+            self.driver.clear_events()
+            environment = {} if environment is None else dict(environment)
 
-        current_driver_pending_writes = deepcopy(self.driver.pending_writes)
-        self.driver.clear_transaction_reads()
-        self.driver.clear_transaction_writes()
-        self.driver.clear_events()
-        environment = {} if environment is None else dict(environment)
+            if not self.bypass_privates:
+                assert not function_name.startswith(
+                    constants.PRIVATE_METHOD_PREFIX
+                ), "Private method not callable."
 
-        if not self.bypass_privates:
-            assert not function_name.startswith(
-                constants.PRIVATE_METHOD_PREFIX
-            ), "Private method not callable."
+            if metering is None:
+                metering = self.metering
 
-        if metering is None:
-            metering = self.metering
-
-        runtime.rt.env.update({"__Driver": self.driver})
-
-        if driver:
+            driver = driver or self.driver
             runtime.rt.env.update({"__Driver": driver})
-        else:
-            driver = runtime.rt.env.get("__Driver")
 
-        install_database_loader(driver=driver)
+            install_database_loader(driver=driver)
 
-        balances_key = None
+            balances_key = None
 
-        try:
+            try:
+                if metering:
+                    balances_key = (
+                        f"{self.currency_contract}"
+                        f"{constants.INDEX_SEPARATOR}"
+                        f"{self.balances_hash}"
+                        f"{constants.DELIMITER}"
+                        f"{sender}"
+                    )
+
+                    if self.bypass_balance_amount:
+                        balance = 9999999
+
+                    else:
+                        balance = driver.get(balances_key)
+
+                        if isinstance(balance, dict):
+                            balance = ContractingDecimal(
+                                balance.get("__fixed__")
+                            )
+
+                        if balance is None:
+                            balance = 0
+
+                    assert balance * stamp_cost >= stamps, (
+                        f"Sender does not have enough stamps for the transaction. "
+                        f"Balance at key {balances_key} is {balance}"
+                    )
+
+                runtime.rt.env.update(environment)
+                status_code = 0
+
+                runtime.rt.context._base_state = {
+                    "signer": sender,
+                    "caller": sender,
+                    "this": contract_name,
+                    "entry": (contract_name, function_name),
+                    "owner": driver.get_owner(contract_name),
+                    "submission_name": None,
+                }
+
+                if (
+                    runtime.rt.context.owner is not None
+                    and runtime.rt.context.owner
+                    != runtime.rt.context.caller
+                ):
+                    raise Exception(
+                        f"Caller {runtime.rt.context.caller} is not the owner {runtime.rt.context.owner}!"
+                    )
+
+                decimal.setcontext(CONTEXT)
+
+                for k, v in kwargs.items():
+                    if isinstance(v, float):
+                        kwargs[k] = ContractingDecimal(str(v))
+
+                runtime.rt.set_up(stmps=stamps * 1000, meter=metering)
+                enable_restricted_imports()
+
+                module = importlib.import_module(contract_name)
+                func = getattr(module, function_name)
+
+                if contract_name == constants.SUBMISSION_CONTRACT_NAME:
+                    runtime.rt.context._base_state["submission_name"] = (
+                        kwargs.get("name")
+                    )
+
+                result = func(**kwargs)
+                runtime.rt.deduct_return_value(result)
+                transaction_writes = deepcopy(driver.transaction_writes)
+                events = deepcopy(driver.log_events)
+                runtime.rt.tracer.stop()
+                disable_restricted_imports()
+
+                if auto_commit:
+                    driver.commit()
+
+            except Exception as e:
+                result = e
+                status_code = 1
+                driver.pending_writes = current_driver_pending_writes
+                transaction_writes = {}
+                events = []
+                if auto_commit:
+                    driver.flush_cache()
+
+            finally:
+                driver.clear_events()
+                driver.clear_transaction_writes()
+                runtime.rt.tracer.stop()
+                disable_restricted_imports()
+
+            stamps_used = runtime.rt.tracer.get_stamp_used()
+
+            stamps_used = stamps_used // 1000
+            stamps_used += 5
+
+            if stamps_used > stamps:
+                stamps_used = stamps
+
             if metering:
-                balances_key = (
-                    f"{self.currency_contract}"
-                    f"{constants.INDEX_SEPARATOR}"
-                    f"{self.balances_hash}"
-                    f"{constants.DELIMITER}"
-                    f"{sender}"
+                assert balances_key is not None, (
+                    "Balance key was not set properly. Cannot deduct stamps."
                 )
 
-                if self.bypass_balance_amount:
-                    balance = 9999999
+                to_deduct = stamps_used
+                to_deduct /= stamp_cost
+                to_deduct = ContractingDecimal(to_deduct)
 
-                else:
-                    balance = driver.get(balances_key)
+                balance = driver.get(balances_key)
+                if balance is None:
+                    balance = 0
 
-                    if isinstance(balance, dict):
-                        balance = ContractingDecimal(balance.get("__fixed__"))
+                balance = max(balance - to_deduct, 0)
 
-                    if balance is None:
-                        balance = 0
+                driver.set(balances_key, balance)
+                transaction_writes[balances_key] = balance
 
-                assert balance * stamp_cost >= stamps, (
-                    f"Sender does not have enough stamps for the transaction. "
-                    f"Balance at key {balances_key} is {balance}"
-                )
+                if auto_commit:
+                    driver.commit()
 
-            runtime.rt.env.update(environment)
-            status_code = 0
+            Seeded.s = False
+            runtime.rt.clean_up()
 
-            # Multiply stamps by 1000 because we divide by it later
-            # runtime.rt.set_up(stmps=stamps * 1000, meter=metering)
-
-            runtime.rt.context._base_state = {
-                "signer": sender,
-                "caller": sender,
-                "this": contract_name,
-                "entry": (contract_name, function_name),
-                "owner": driver.get_owner(contract_name),
-                "submission_name": None,
+            output = {
+                "status_code": status_code,
+                "result": result,
+                "stamps_used": stamps_used,
+                "writes": transaction_writes,
+                "reads": driver.transaction_reads,
+                "events": events,
             }
 
-            if (
-                runtime.rt.context.owner is not None
-                and runtime.rt.context.owner != runtime.rt.context.caller
-            ):
-                raise Exception(
-                    f"Caller {runtime.rt.context.caller} is not the owner {runtime.rt.context.owner}!"
-                )
-
-            decimal.setcontext(CONTEXT)
-
-            for k, v in kwargs.items():
-                if isinstance(v, float):
-                    kwargs[k] = ContractingDecimal(str(v))
-
-            runtime.rt.set_up(stmps=stamps * 1000, meter=metering)
-            enable_restricted_imports()
-
-            module = importlib.import_module(contract_name)
-            func = getattr(module, function_name)
-
-            # Add the contract name to the context on a submission call
-            if contract_name == constants.SUBMISSION_CONTRACT_NAME:
-                runtime.rt.context._base_state["submission_name"] = kwargs.get(
-                    "name"
-                )
-
-            result = func(**kwargs)
-            runtime.rt.deduct_return_value(result)
-            transaction_writes = deepcopy(driver.transaction_writes)
-            events = deepcopy(driver.log_events)
-            runtime.rt.tracer.stop()
             disable_restricted_imports()
-
-            if auto_commit:
-                driver.commit()
-
-        except Exception as e:
-            result = e
-            status_code = 1
-            # Revert the writes if the transaction fails
-            driver.pending_writes = current_driver_pending_writes
-            transaction_writes = {}
-            events = []
-            if auto_commit:
-                driver.flush_cache()
-
-        finally:
-            driver.clear_events()
-            driver.clear_transaction_writes()
-            runtime.rt.tracer.stop()
-            disable_restricted_imports()
-
-        # runtime.rt.tracer.stop()
-
-        # Deduct the stamps if that is enabled
-        stamps_used = runtime.rt.tracer.get_stamp_used()
-
-        stamps_used = stamps_used // 1000
-        stamps_used += 5
-
-        if stamps_used > stamps:
-            stamps_used = stamps
-
-        if metering:
-            assert balances_key is not None, (
-                "Balance key was not set properly. Cannot deduct stamps."
-            )
-
-            to_deduct = stamps_used
-            to_deduct /= stamp_cost
-            to_deduct = ContractingDecimal(to_deduct)
-
-            balance = driver.get(balances_key)
-            if balance is None:
-                balance = 0
-
-            balance = max(balance - to_deduct, 0)
-
-            driver.set(balances_key, balance)
-            transaction_writes[balances_key] = balance
-
-            if auto_commit:
-                driver.commit()
-
-        Seeded.s = False
-        runtime.rt.clean_up()
-        runtime.rt.env.update({"__Driver": driver})
-
-        output = {
-            "status_code": status_code,
-            "result": result,
-            "stamps_used": stamps_used,
-            "writes": transaction_writes,
-            "reads": driver.transaction_reads,
-            "events": events,
-        }
-
-        disable_restricted_imports()
-        return output
+            return output

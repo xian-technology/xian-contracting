@@ -118,3 +118,29 @@ class TestContext(TestCase):
 
         with self.assertRaises(Exception):
             c.owner = 1
+
+    def test_add_state_raises_when_recursion_limit_is_exceeded(self):
+        c = Context(
+            base_state={
+                'caller': 'stu',
+                'signer': 'stu',
+                'this': 'contract',
+                'owner': None,
+            },
+            maxlen=1,
+        )
+
+        c._add_state({
+            'caller': 'stu',
+            'signer': 'stu',
+            'this': 'contract_a',
+            'owner': None,
+        })
+
+        with self.assertRaises(RecursionError):
+            c._add_state({
+                'caller': 'contract_a',
+                'signer': 'stu',
+                'this': 'contract_b',
+                'owner': None,
+            })

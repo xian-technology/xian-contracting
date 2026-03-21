@@ -1,7 +1,10 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from unittest import TestCase
 
 from contracting import constants
 from contracting.execution import runtime
+from contracting.execution.runtime import Context
 from contracting.execution.tracer import StampExceededError
 
 
@@ -26,6 +29,31 @@ class TestRuntimeLifecycle(TestCase):
     def test_set_tracer_mode_switches_backend(self):
         runtime.rt.set_tracer_mode("python_line_v1")
         self.assertEqual(runtime.rt.tracer_mode, "python_line_v1")
+
+    def test_runtime_state_is_isolated_per_thread(self):
+        barrier = Barrier(2)
+
+        def worker(tag):
+            runtime.rt.env = {"tag": tag}
+            runtime.rt.context = Context(
+                base_state={
+                    "caller": tag,
+                    "signer": tag,
+                    "this": f"con_{tag}",
+                    "owner": None,
+                    "entry": (f"con_{tag}", "run"),
+                    "submission_name": None,
+                }
+            )
+            barrier.wait()
+            return runtime.rt.env["tag"], runtime.rt.context.signer
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            result_a = executor.submit(worker, "alpha")
+            result_b = executor.submit(worker, "beta")
+
+        self.assertEqual(result_a.result(), ("alpha", "alpha"))
+        self.assertEqual(result_b.result(), ("beta", "beta"))
 
 
 class TestTracerMetering(TestCase):

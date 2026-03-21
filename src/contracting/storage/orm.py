@@ -7,8 +7,6 @@ from contracting import constants
 from contracting.execution.runtime import rt
 from contracting.storage.driver import Driver
 
-driver = rt.env.get("__Driver") or Driver()
-
 
 class Datum:
     def __init__(self, contract, name, driver: Driver):
@@ -21,7 +19,7 @@ class Variable(Datum):
         self,
         contract,
         name,
-        driver: Driver = driver,
+        driver: Driver | None = None,
         t=None,
         default_value=None,
     ):
@@ -32,7 +30,8 @@ class Variable(Datum):
 
         self._default_value = default_value
 
-        super().__init__(contract, name, driver=driver)
+        resolved_driver = driver or rt.env.get("__Driver") or Driver()
+        super().__init__(contract, name, driver=resolved_driver)
 
     def set(self, value):
         if self._type is not None and value is not None:
@@ -55,9 +54,14 @@ class Variable(Datum):
 
 class Hash(Datum):
     def __init__(
-        self, contract, name, driver: Driver = driver, default_value=None
+        self,
+        contract,
+        name,
+        driver: Driver | None = None,
+        default_value=None,
     ):
-        super().__init__(contract, name, driver=driver)
+        resolved_driver = driver or rt.env.get("__Driver") or Driver()
+        super().__init__(contract, name, driver=resolved_driver)
         self._delimiter = constants.DELIMITER
         self._default_value = default_value
 
@@ -155,7 +159,7 @@ class ForeignVariable(Variable):
         name,
         foreign_contract,
         foreign_name,
-        driver: Driver = driver,
+        driver: Driver | None = None,
     ):
         super().__init__(contract, name, driver=driver)
         self._key = self._driver.make_key(foreign_contract, foreign_name)
@@ -171,7 +175,7 @@ class ForeignHash(Hash):
         name,
         foreign_contract,
         foreign_name,
-        driver: Driver = driver,
+        driver: Driver | None = None,
     ):
         super().__init__(contract, name, driver=driver)
         self._key = self._driver.make_key(foreign_contract, foreign_name)
@@ -196,8 +200,15 @@ class LogEvent(Datum):
     - Add checks for use of illegal types and argument names (See Hash checks.)
     """
 
-    def __init__(self, contract, name, event, params, driver: Driver = driver):
-        self._driver = driver
+    def __init__(
+        self,
+        contract,
+        name,
+        event,
+        params,
+        driver: Driver | None = None,
+    ):
+        self._driver = driver or rt.env.get("__Driver") or Driver()
         self._params = params
         self._event = event
         self._signer = rt.context.signer
