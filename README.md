@@ -1,18 +1,17 @@
 # xian-contracting
 
 `xian-contracting` is the Python contract runtime for Xian. It owns contract
-compilation, secure execution, storage behavior, metering, and related runtime
-semantics. This repo is security-sensitive and should stay narrowly focused on
-execution correctness.
+compilation, secure execution, storage semantics, metering, and the runtime
+rules that contracts must obey.
 
-## Ownership
+## Scope
 
 This repo owns:
 
-- compilation and linting under `src/contracting/compilation/`
-- runtime, executor, and tracing under `src/contracting/execution/`
-- storage drivers and encoding under `src/contracting/storage/`
-- built-in contract assets under `src/contracting/contracts/`
+- compilation and linting
+- runtime execution, tracing, and metering
+- storage drivers, encoding, and contract-side runtime helpers
+- packaged shared runtime types and the optional native tracer backend
 
 This repo does not own:
 
@@ -20,13 +19,15 @@ This repo does not own:
 - operator lifecycle commands
 - ABCI request handling
 
-## Installation
+## Key Directories
 
-```bash
-pip install xian-contracting
-```
+- `src/contracting/`: main runtime, storage, compilation, and stdlib bridge code
+- `packages/`: shared runtime packages such as `xian-runtime-types` and the
+  optional native tracer
+- `tests/`: unit, integration, and security coverage
+- `docs/`: architecture, backlog, and execution notes
 
-## Development
+## Validation
 
 ```bash
 uv sync --group dev
@@ -35,11 +36,21 @@ uv run ruff format --check .
 uv run pytest
 ```
 
-The test suite uses a repo-local home directory via `tests/conftest.py`, so it
-does not require host access to `~/.cometbft`.
-
 If you change metering, tracing, storage encoding, or import restrictions, run
-the relevant `tests/security/` and `tests/integration/` paths explicitly.
+the relevant `tests/security/` and `tests/integration/` paths explicitly too.
+
+## Related Docs
+
+- [AGENTS.md](AGENTS.md)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/BACKLOG.md](docs/BACKLOG.md)
+- [docs/README.md](docs/README.md)
+
+## Installation
+
+```bash
+pip install xian-contracting
+```
 
 ## Core Interfaces
 
@@ -66,13 +77,9 @@ value = driver.get("example.key")
 
 ## Runtime Notes
 
-- Contracts use Python syntax with Xian-specific decorators such as `@construct`
-  and `@export`.
-- Instruction metering is driven by `sys.monitoring`, so opcode costs are tied
-  to the active CPython minor version and validators must stay version-aligned.
-- State storage is LMDB-backed and exposed through the `Driver` API; storage
-  semantics are consensus-sensitive.
-- Restricted imports are part of the runtime contract and should not change
-  casually.
-- Built-in contracts and runtime helpers should stay aligned with the execution
-  model rather than growing into general convenience utilities.
+- contracts use Python syntax with Xian-specific decorators such as
+  `@construct` and `@export`
+- metering is tied to the active CPython minor version, so validators must stay
+  version-aligned
+- restricted imports, storage semantics, and encoding behavior are
+  consensus-sensitive and should not change casually
