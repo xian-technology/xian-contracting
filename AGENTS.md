@@ -5,6 +5,10 @@
 - Keep node orchestration, genesis distribution, and operator workflow out of this repo.
 - This repo is security-sensitive. Favor small, well-tested changes.
 
+## Shared Convention
+- Follow the shared repo convention in `xian-meta/docs/REPO_CONVENTIONS.md`.
+- Keep this repo aligned with that standard for stable root docs, backlog notes, and folder-level entrypoints.
+
 ## Project Layout
 - `src/contracting/compilation/`: parser, compiler, linter, and whitelist logic.
 - `src/contracting/execution/`: runtime, executor, module loading, and tracing.
