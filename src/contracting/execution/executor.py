@@ -66,9 +66,7 @@ class Executor:
         # parallelism uses separate worker processes, so this does not reduce
         # node-side speculative parallel execution.
         with runtime.rt.execution_lock:
-            current_driver_pending_writes = deepcopy(
-                self.driver.pending_writes
-            )
+            current_driver_pending_writes = deepcopy(self.driver.pending_writes)
             self.driver.clear_transaction_reads()
             self.driver.clear_transaction_writes()
             self.driver.clear_events()
@@ -132,8 +130,7 @@ class Executor:
 
                 if (
                     runtime.rt.context.owner is not None
-                    and runtime.rt.context.owner
-                    != runtime.rt.context.caller
+                    and runtime.rt.context.owner != runtime.rt.context.caller
                 ):
                     raise Exception(
                         f"Caller {runtime.rt.context.caller} is not the owner {runtime.rt.context.owner}!"

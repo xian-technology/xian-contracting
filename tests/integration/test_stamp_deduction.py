@@ -1,7 +1,7 @@
 import os
 from unittest import TestCase
 
-from contracting.constants import STAMPS_PER_TAU
+from contracting.constants import STAMPS_PER_T
 from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 
@@ -77,7 +77,7 @@ class TestMetering(TestCase):
 
         self.assertEqual(
             float(prior_balance - new_balance - 100),
-            output["stamps_used"] / STAMPS_PER_TAU,
+            output["stamps_used"] / STAMPS_PER_T,
         )
 
     def test_too_few_stamps_fails_and_deducts_properly(self):
@@ -100,12 +100,12 @@ class TestMetering(TestCase):
 
         self.assertEqual(
             float(prior_balance - new_balance),
-            output["stamps_used"] / STAMPS_PER_TAU,
+            output["stamps_used"] / STAMPS_PER_T,
         )
 
     def test_adding_too_many_stamps_throws_error(self):
         prior_balance = self.d.get("con_currency.balances:stu")
-        too_many_stamps = (prior_balance + 1000) * STAMPS_PER_TAU
+        too_many_stamps = (prior_balance + 1000) * STAMPS_PER_T
 
         output = self.e.execute(
             "stu",
@@ -124,7 +124,7 @@ class TestMetering(TestCase):
 
         prior_balance = self.d.get("con_currency.balances:stu")
 
-        prior_balance *= STAMPS_PER_TAU
+        prior_balance *= STAMPS_PER_T
 
         inf_loop_path = os.path.join(
             os.path.dirname(__file__), "test_contracts", "inf_loop.s.py"
@@ -165,7 +165,7 @@ class TestMetering(TestCase):
 
         self.assertEqual(
             float(prior_balance - new_balance),
-            output["stamps_used"] / STAMPS_PER_TAU,
+            output["stamps_used"] / STAMPS_PER_T,
         )
 
     def test_pending_writes_has_deducted_stamp_amount_prior_to_auto_commit(
