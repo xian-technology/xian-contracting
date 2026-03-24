@@ -83,3 +83,5 @@ value = driver.get("example.key")
   version-aligned
 - restricted imports, storage semantics, and encoding behavior are
   consensus-sensitive and should not change casually
+- built-in contracts and runtime helpers should stay aligned with the execution
+  model rather than growing into general convenience utilities

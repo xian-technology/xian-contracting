@@ -7,7 +7,6 @@ import sys
 
 import contracting
 from contracting.client import ContractingClient
-from contracting.constants import STAMPS_PER_T
 from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 

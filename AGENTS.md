@@ -8,6 +8,8 @@
 ## Shared Convention
 - Follow the shared repo convention in `xian-meta/docs/REPO_CONVENTIONS.md`.
 - Keep this repo aligned with that standard for stable root docs, backlog notes, and folder-level entrypoints.
+- Follow the shared change workflow in `xian-meta/docs/CHANGE_WORKFLOW.md`.
+- Before push, review downstream impact on `xian-abci`, `xian-py`, and `xian-docs-web`, and run the local validation path from this file.
 
 ## Project Layout
 - `src/contracting/compilation/`: parser, compiler, linter, and whitelist logic.
