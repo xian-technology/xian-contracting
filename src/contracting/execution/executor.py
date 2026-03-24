@@ -48,6 +48,18 @@ class Executor:
         uninstall_builtins()
         install_database_loader()
 
+    @staticmethod
+    def _coerce_balance_value(balance):
+        if isinstance(balance, ContractingDecimal):
+            return balance
+        if isinstance(balance, dict):
+            return ContractingDecimal(balance.get("__fixed__"))
+        if balance is None:
+            return 0
+        if isinstance(balance, str | float | decimal.Decimal):
+            return ContractingDecimal(str(balance))
+        return balance
+
     def execute(
         self,
         sender,
@@ -101,15 +113,9 @@ class Executor:
                         balance = 9999999
 
                     else:
-                        balance = driver.get(balances_key)
-
-                        if isinstance(balance, dict):
-                            balance = ContractingDecimal(
-                                balance.get("__fixed__")
-                            )
-
-                        if balance is None:
-                            balance = 0
+                        balance = self._coerce_balance_value(
+                            driver.get(balances_key)
+                        )
 
                     assert balance * stamp_cost >= stamps, (
                         f"Sender does not have enough stamps for the transaction. "
@@ -195,9 +201,7 @@ class Executor:
                 to_deduct /= stamp_cost
                 to_deduct = ContractingDecimal(to_deduct)
 
-                balance = driver.get(balances_key)
-                if balance is None:
-                    balance = 0
+                balance = self._coerce_balance_value(driver.get(balances_key))
 
                 balance = max(balance - to_deduct, 0)
 

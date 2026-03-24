@@ -168,6 +168,49 @@ class TestMetering(TestCase):
             output["stamps_used"] / STAMPS_PER_T,
         )
 
+    def test_string_balance_value_is_metered_correctly(self):
+        small_code = """@export
+def get():
+    return 'a'
+"""
+        self.e.execute(
+            **TEST_SUBMISSION_KWARGS,
+            kwargs={"name": "con_string_balance_probe", "code": small_code},
+            metering=False,
+            auto_commit=True,
+        )
+
+        self.d.set("con_currency.balances:stu", "100000")
+        self.d.commit()
+
+        output = self.e.execute(
+            "stu",
+            "con_string_balance_probe",
+            "get",
+            kwargs={},
+            auto_commit=True,
+        )
+
+        new_balance = self.d.get("con_currency.balances:stu")
+
+        self.assertEqual(output["status_code"], 0)
+        self.assertLess(new_balance, 100000)
+
+    def test_string_balance_value_allows_contract_submission(self):
+        self.d.set("con_currency.balances:stu", "100000")
+        self.d.commit()
+
+        erc20_clone_path = os.path.join(
+            os.path.dirname(__file__), "test_contracts", "erc20_clone.s.py"
+        )
+        output = self.e.execute(
+            **TEST_SUBMISSION_KWARGS,
+            kwargs=submission_kwargs_for_file(erc20_clone_path),
+            auto_commit=True,
+        )
+
+        self.assertEqual(output["status_code"], 0)
+
     def test_pending_writes_has_deducted_stamp_amount_prior_to_auto_commit(
         self,
     ):
