@@ -6,7 +6,14 @@ from types import FunctionType, ModuleType
 from contracting.constants import PRIVATE_METHOD_PREFIX
 from contracting.execution.runtime import rt
 from contracting.stdlib.bridge.access import __export
-from contracting.storage.driver import OWNER_KEY, Driver
+from contracting.storage.driver import (
+    DEPLOYER_KEY,
+    DEVELOPER_KEY,
+    INITIATOR_KEY,
+    OWNER_KEY,
+    TIME_KEY,
+    Driver,
+)
 from contracting.storage.orm import Datum
 
 
@@ -105,6 +112,19 @@ def _resolve_contract_module(contract):
         )
 
     return contract
+
+
+def _contract_name_from_target(contract):
+    module = (
+        _resolve_contract_module(contract)
+        if isinstance(contract, str)
+        else contract
+    )
+    if not isinstance(module, ModuleType):
+        raise AssertionError(
+            "Contract target must be a contract name or imported contract module!"
+        )
+    return module.__name__
 
 
 def exists(contract):
@@ -268,18 +288,23 @@ def enforce_interface(contract, interface: list):
 
 
 def owner_of(contract):
-    module = (
-        _resolve_contract_module(contract)
-        if isinstance(contract, str)
-        else contract
-    )
-    if not isinstance(module, ModuleType):
-        raise AssertionError(
-            "Contract target must be a contract name or imported contract module!"
-        )
+    contract_name = _contract_name_from_target(contract)
     _driver = rt.env.get("__Driver") or Driver()
-    owner = _driver.get_var(module.__name__, OWNER_KEY)
+    owner = _driver.get_var(contract_name, OWNER_KEY)
     return owner
+
+
+def contract_info(contract):
+    contract_name = _contract_name_from_target(contract)
+    _driver = rt.env.get("__Driver") or Driver()
+    return {
+        "name": contract_name,
+        "owner": _driver.get_var(contract_name, OWNER_KEY),
+        "developer": _driver.get_var(contract_name, DEVELOPER_KEY),
+        "deployer": _driver.get_var(contract_name, DEPLOYER_KEY),
+        "initiator": _driver.get_var(contract_name, INITIATOR_KEY),
+        "submitted": _driver.get_var(contract_name, TIME_KEY),
+    }
 
 
 imports_module = ModuleType("importlib")
@@ -291,6 +316,7 @@ imports_module.enforce_interface = enforce_interface
 imports_module.Func = Func
 imports_module.Var = Var
 imports_module.owner_of = owner_of
+imports_module.contract_info = contract_info
 
 exports = {
     "importlib": imports_module,

@@ -362,6 +362,40 @@ class TestDynamicImports(TestCase):
             "poo",
         )
 
+    def test_contract_info_returns_runtime_metadata(self):
+        owner_stuff_path = os.path.join(
+            os.path.dirname(__file__), "test_contracts", "owner_stuff.s.py"
+        )
+
+        with open(owner_stuff_path) as f:
+            code = f.read()
+            self.c.submit(code, name="con_owner_stuff", owner="poo")
+
+        owner_stuff = self.c.get_contract("con_owner_stuff")
+        expected = {
+            "name": "con_owner_stuff",
+            "owner": "poo",
+            "developer": self.c.get_var("con_owner_stuff", "__developer__"),
+            "deployer": self.c.get_var("con_owner_stuff", "__deployer__"),
+            "initiator": self.c.get_var("con_owner_stuff", "__initiator__"),
+            "submitted": self.c.get_var("con_owner_stuff", "__submitted__"),
+        }
+
+        self.assertEqual(
+            owner_stuff.get_contract_info(
+                s="con_owner_stuff",
+                signer="poo",
+            ),
+            expected,
+        )
+        self.assertEqual(
+            owner_stuff.get_contract_info_by_name(
+                s="con_owner_stuff",
+                signer="poo",
+            ),
+            expected,
+        )
+
     def test_ctx_owner_works(self):
         owner_stuff_path = os.path.join(
             os.path.dirname(__file__), "test_contracts", "owner_stuff.s.py"

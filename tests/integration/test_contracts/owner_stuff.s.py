@@ -10,5 +10,16 @@ def get_owner_by_name(s: str):
 
 
 @export
+def get_contract_info(s: str):
+    m = importlib.import_module(s)
+    return importlib.contract_info(m)
+
+
+@export
+def get_contract_info_by_name(s: str):
+    return importlib.contract_info(s)
+
+
+@export
 def owner_of_this():
     return ctx.owner
