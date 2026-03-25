@@ -212,11 +212,30 @@ def import_submission():
     @export
     def haha():
         code = '''
+factory_caller = Variable()
+
+@construct
+def seed():
+    factory_caller.set(ctx.caller)
+
 @export
-def something():
-    pass
+def get_factory_caller():
+    return factory_caller.get()
 '''
-        submission.submit_contract(name='something123', code=code)
+        submission.submit_contract(name='con_something123', code=code)
+
+
+def bad_submission_factory():
+    import submission
+
+    @export
+    def deploy_bad():
+        code = '''
+@construct
+def seed():
+    assert False, "boom"
+'''
+        submission.submit_contract(name='con_bad_child', code=code)
 
 
 class TestDeveloperSubmission(TestCase):
@@ -237,8 +256,12 @@ class TestDeveloperSubmission(TestCase):
         self.c.submit(some_test_contract, name="con_some_test_contract")
 
         dev = self.c.get_var('con_some_test_contract', '__developer__')
+        deployer = self.c.get_var('con_some_test_contract', '__deployer__')
+        initiator = self.c.get_var('con_some_test_contract', '__initiator__')
 
         self.assertEqual(dev, 'stu')
+        self.assertEqual(deployer, 'stu')
+        self.assertEqual(initiator, 'stu')
 
     def test_change_developer_if_developer_works(self):
         self.c.submit(some_test_contract, name="con_some_test_contract")
@@ -261,13 +284,45 @@ class TestDeveloperSubmission(TestCase):
         with self.assertRaises(AssertionError):
             submission.change_developer(contract='con_some_test_contract', new_developer='woohoo')
 
-    def test_cannot_import_submission(self):
+    def test_can_import_submission_for_factory_deploy(self):
         self.c.submit(import_submission, name="con_import_submission")
 
         imp_con = self.c.get_contract('con_import_submission')
+        imp_con.haha()
 
-        with self.assertRaises(AssertionError):
-            imp_con.haha()
+        self.assertEqual(
+            self.c.get_var('con_something123', 'factory_caller'),
+            'con_import_submission',
+        )
+        self.assertEqual(
+            self.c.get_var('con_something123', '__developer__'),
+            'con_import_submission',
+        )
+        self.assertEqual(
+            self.c.get_var('con_something123', '__deployer__'),
+            'con_import_submission',
+        )
+        self.assertEqual(
+            self.c.get_var('con_something123', '__initiator__'),
+            'stu',
+        )
+
+    def test_factory_deploy_rolls_back_on_child_constructor_failure(self):
+        self.c.submit(bad_submission_factory, name='con_bad_submission_factory')
+
+        output = self.c.executor.execute(
+            sender='stu',
+            contract_name='con_bad_submission_factory',
+            function_name='deploy_bad',
+            kwargs={},
+            auto_commit=True,
+        )
+
+        self.assertEqual(output['status_code'], 1)
+        self.assertIsNone(self.c.raw_driver.get_contract('con_bad_child'))
+        self.assertIsNone(self.c.raw_driver.get_contract_source('con_bad_child'))
+        self.assertIsNone(self.c.get_var('con_bad_child', '__deployer__'))
+        self.assertIsNone(self.c.get_var('con_bad_child', '__initiator__'))
 
 
 def con_float_thing():

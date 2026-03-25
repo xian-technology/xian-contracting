@@ -1,6 +1,7 @@
 import sys
 import threading
 from collections.abc import MutableMapping
+from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 
@@ -290,6 +291,21 @@ class Runtime:
             "Return value exceeds the maximum allowed size."
         )
         self.tracer.add_cost(size * constants.RETURN_VALUE_COST_PER_BYTE)
+
+    def deduct_execution_cost(self, cost: int):
+        if cost <= 0 or not self.tracer.is_started():
+            return
+        self.tracer.add_cost(cost)
+
+    @contextmanager
+    def push_context_state(self, state: dict):
+        added = self.context._add_state(state)
+        if not added:
+            self.context._ins_state()
+        try:
+            yield
+        finally:
+            self.context._pop_state()
 
 
 rt = Runtime()

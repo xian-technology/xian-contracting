@@ -1,9 +1,20 @@
+__ContractDeployedEvent = LogEvent(
+    event="ContractDeployed",
+    params={
+        "name": {"type": str, "idx": True},
+        "owner": {"type": str},
+        "developer": {"type": str, "idx": True},
+    },
+    contract="submission",
+    name="ContractDeployedEvent",
+)
+
+
 @__export('submission')
 def submit_contract(name: str, code: str, owner: Any=None, constructor_args: dict={}):
     if ctx.caller != 'sys':
         assert name.startswith('con_'), 'Contract must start with con_!'
 
-    assert ctx.caller == ctx.signer, 'Contract cannot be called from another contract!'
     assert len(name) <= 64, 'Contract name length exceeds 64 characters!'
     assert name.islower(), 'Contract name must be lowercase!'
 
@@ -12,8 +23,15 @@ def submit_contract(name: str, code: str, owner: Any=None, constructor_args: dic
         code=code,
         owner=owner,
         constructor_args=constructor_args,
-        developer=ctx.caller
+        developer=ctx.caller,
+        deployer=ctx.caller,
+        initiator=ctx.signer,
     )
+    __ContractDeployedEvent({
+        "name": name,
+        "owner": owner or "",
+        "developer": ctx.caller,
+    })
 
 
 @__export('submission')

@@ -300,3 +300,96 @@ def reenter_root():
 
         self.assertEqual("con_submission_name_test", details.get('entry_contract'))
         self.assertEqual("get_entry_context", details.get('entry_function'))
+
+    def test_factory_deployment_sets_child_context_and_provenance(self):
+        factory_code = '''
+import submission
+
+@export
+def deploy_child(name: str, owner: str):
+    code = """
+module_ctx = Hash()
+construct_ctx = Hash()
+
+module_ctx['this'] = ctx.this
+module_ctx['caller'] = ctx.caller
+module_ctx['signer'] = ctx.signer
+module_ctx['owner'] = ctx.owner
+module_ctx['entry_contract'] = ctx.entry[0]
+module_ctx['entry_function'] = ctx.entry[1]
+module_ctx['submission_name'] = ctx.submission_name
+
+@construct
+def seed():
+    construct_ctx['this'] = ctx.this
+    construct_ctx['caller'] = ctx.caller
+    construct_ctx['signer'] = ctx.signer
+    construct_ctx['owner'] = ctx.owner
+    construct_ctx['entry_contract'] = ctx.entry[0]
+    construct_ctx['entry_function'] = ctx.entry[1]
+    construct_ctx['submission_name'] = ctx.submission_name
+
+@export
+def ready():
+    return True
+"""
+
+    submission.submit_contract(name=name, code=code, owner=owner)
+'''
+
+        self.c.submit(factory_code, name='con_factory')
+
+        output = self.c.executor.execute(
+            sender='stu',
+            contract_name='con_factory',
+            function_name='deploy_child',
+            kwargs={'name': 'con_factory_child', 'owner': 'carol'},
+            auto_commit=True,
+        )
+
+        self.assertEqual(output['status_code'], 0)
+        self.assertTrue(
+            any(
+                event['event'] == 'ContractDeployed'
+                and event['data_indexed']['name'] == 'con_factory_child'
+                and event['caller'] == 'con_factory'
+                and event['signer'] == 'stu'
+                for event in output['events']
+            )
+        )
+
+        self.assertEqual(
+            self.c.get_var('con_factory_child', '__developer__'),
+            'con_factory',
+        )
+        self.assertEqual(
+            self.c.get_var('con_factory_child', '__deployer__'),
+            'con_factory',
+        )
+        self.assertEqual(
+            self.c.get_var('con_factory_child', '__initiator__'),
+            'stu',
+        )
+        self.assertEqual(
+            self.c.get_var('con_factory_child', '__owner__'),
+            'carol',
+        )
+
+        expected_ctx = {
+            'this': 'con_factory_child',
+            'caller': 'con_factory',
+            'signer': 'stu',
+            'owner': 'carol',
+            'entry_contract': 'con_factory',
+            'entry_function': 'deploy_child',
+            'submission_name': 'con_factory_child',
+        }
+        for key, value in expected_ctx.items():
+            self.assertEqual(
+                self.c.get_var('con_factory_child', 'module_ctx', [key]),
+                value,
+            )
+            self.assertEqual(
+                self.c.get_var('con_factory_child', 'construct_ctx', [key]),
+                value,
+            )

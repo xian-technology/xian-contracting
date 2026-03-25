@@ -24,6 +24,8 @@ AUTHOR_KEY = "__author__"
 OWNER_KEY = "__owner__"
 TIME_KEY = "__submitted__"
 DEVELOPER_KEY = "__developer__"
+DEPLOYER_KEY = "__deployer__"
+INITIATOR_KEY = "__initiator__"
 
 
 class Driver:
@@ -152,6 +154,15 @@ class Driver:
     def get_contract_source(self, name):
         return self.get_var(name, SOURCE_KEY)
 
+    def get_contract_developer(self, name):
+        return self.get_var(name, DEVELOPER_KEY)
+
+    def get_contract_deployer(self, name):
+        return self.get_var(name, DEPLOYER_KEY)
+
+    def get_contract_initiator(self, name):
+        return self.get_var(name, INITIATOR_KEY)
+
     def get_contract(self, name):
         return self.get_var(name, CODE_KEY)
 
@@ -163,6 +174,8 @@ class Driver:
         overwrite=False,
         timestamp=None,
         developer=None,
+        deployer=None,
+        initiator=None,
         lint=True,
     ):
         compiler = ContractingCompiler(module_name=name)
@@ -176,6 +189,8 @@ class Driver:
             overwrite=overwrite,
             timestamp=timestamp,
             developer=developer,
+            deployer=deployer,
+            initiator=initiator,
         )
 
     def set_contract(
@@ -187,6 +202,8 @@ class Driver:
         overwrite=False,
         timestamp=None,
         developer=None,
+        deployer=None,
+        initiator=None,
     ):
         if self.get_contract(name) is not None and not overwrite:
             return
@@ -202,6 +219,8 @@ class Driver:
         self.set_var(name, OWNER_KEY, value=owner)
         self.set_var(name, TIME_KEY, value=timestamp)
         self.set_var(name, DEVELOPER_KEY, value=developer)
+        self.set_var(name, DEPLOYER_KEY, value=deployer)
+        self.set_var(name, INITIATOR_KEY, value=initiator)
 
     def delete_contract(self, name):
         for key in self.keys(name):
