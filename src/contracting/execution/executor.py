@@ -12,7 +12,7 @@ from contracting.execution.module import (
     install_database_loader,
     uninstall_builtins,
 )
-from contracting.stdlib.bridge.random import Seeded
+from contracting.stdlib.bridge.random import clear_random_state
 from contracting.storage.driver import Driver
 
 
@@ -94,6 +94,7 @@ class Executor:
 
             driver = driver or self.driver
             runtime.rt.env.update({"__Driver": driver})
+            clear_random_state()
 
             install_database_loader(driver=driver)
 
@@ -211,7 +212,7 @@ class Executor:
                 if auto_commit:
                     driver.commit()
 
-            Seeded.s = False
+            clear_random_state()
             runtime.rt.clean_up()
 
             output = {

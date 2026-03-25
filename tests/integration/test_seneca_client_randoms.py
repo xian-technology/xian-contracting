@@ -1,6 +1,5 @@
 from unittest import TestCase
 from contracting.client import ContractingClient
-import random
 
 def con_random_contract():
     random.seed()
@@ -60,6 +59,13 @@ def con_random_contract():
     def pick_cities(k: int):
         return random.choices(cities, k)
 
+    @export
+    def shuffle_cards_salted(salt: str):
+        random.seed(salt)
+        salted_cards = [1, 2, 3, 4, 5, 6, 7, 8]
+        random.shuffle(salted_cards)
+        return salted_cards
+
 
 class TestRandomsContract(TestCase):
     def setUp(self):
@@ -90,56 +96,31 @@ class TestRandomsContract(TestCase):
 
         self.assertNotEqual(k, k2)
 
-        random.seed('000')
+    def test_random_getrandbits_is_deterministic_for_same_environment(self):
+        first = self.random_contract.random_bits(k=20)
+        second = self.random_contract.random_bits(k=20)
 
-        self.assertEqual(k, random.randrange(1000))
-
-        random.seed('000')
-        cards = [1, 2, 3, 4, 5, 6, 7, 8]
-        random.shuffle(cards)
-
-        self.assertEqual(k2, random.randrange(1000))
-    '''' TEST CASE IS IRRELEVANT as getrandbits will never sync with system random.
-    def test_random_getrandbits(self):
-        b = self.random_contract.random_bits(k=20)
-
-        random.seed('000')
-
-        cards = [1, 2, 3, 4, 5, 6, 7, 8]
-        random.shuffle(cards)
-        random.shuffle(cards)
-        random.shuffle(cards)
-
-        self.assertEqual(b, random.getrandbits(20))
-    '''
+        self.assertEqual(first, second)
 
     def test_random_range_int(self):
         a = self.random_contract.int_in_range(a=100, b=50000)
+        b = self.random_contract.int_in_range(a=100, b=50000)
 
-        random.seed('000')
-
-        cards = [1, 2, 3, 4, 5, 6, 7, 8]
-        random.shuffle(cards)
-        random.shuffle(cards)
-
-        self.assertEqual(a, random.randint(a=100, b=50000))
+        self.assertEqual(a, b)
+        self.assertGreaterEqual(a, 100)
+        self.assertLessEqual(a, 50000)
 
     def test_random_choice(self):
-        cities = self.random_contract.pick_cities(k=2)
+        first = self.random_contract.pick_cities(k=2)
+        second = self.random_contract.pick_cities(k=2)
 
-        random.seed('000')
-        c = ['Cleveland', 'Detroit', 'Chicago', 'New York', 'San Francisco']
-        cc = random.choices(c, k=2)
+        self.assertListEqual(first, second)
+        self.assertEqual(len(first), 2)
 
-        self.assertListEqual(cities, cc)
-
-    def test_auxiliary_salt(self):
-        cards_1 = self.random_contract.shuffle_cards(environment={
-            'AUXILIARY_SALT': 'ffd8ded9ced929a41dae83b1f22a6a31b52f79bbf4cdabe6a27d9646dd2bd725fc29c8bc122cb9e37a2904da00e34df499ee7a897505d1de3f0511f9f9c1150c'})
-        cards_2 = self.random_contract.shuffle_cards(environment={
-            'AUXILIARY_SALT': 'ffd8ded9ced929a41dae83b1f22a6a31b52f79bbf4cdabe6a27d9646dd2bd725fc29c8bc122cb9e37a2904da00e34df499ee7a897505d1de3f0511f9f9c1150c'})
-        cards_3 = self.random_contract.shuffle_cards(environment={
-            'AUXILIARY_SALT': 'f79bbded9ced929a41dae83b1f22a6a31b52f79bbf4cdabe6a27d9646dd2bd725fc29c8bc122cb9e37a2904da00e34df499ee7a897505d1de3f0511f9f9c1150c'})
+    def test_literal_seed_salt_changes_sequence(self):
+        cards_1 = self.random_contract.shuffle_cards_salted(salt="round-a")
+        cards_2 = self.random_contract.shuffle_cards_salted(salt="round-a")
+        cards_3 = self.random_contract.shuffle_cards_salted(salt="round-b")
 
         self.assertEqual(cards_1, cards_2)
         self.assertNotEqual(cards_1, cards_3)

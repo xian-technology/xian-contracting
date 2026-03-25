@@ -1,87 +1,121 @@
-"""
-This module wraps and exposes the Python stdlib random functions that can be made deterministic with a random seed
-and return fixed point precision where possible. This allows some psuedorandom behavior when it is nice to have, but
-with the caveat that it's based on environmental constants such as the last block hash and public information such
-as the sender's address to seed the random state so it's not *really* random.
-
-It's most likely 'random enough' for most cases, but people can always theoretically reproduce the seed and try to
-front-run a smart contract by testing the seeded randoms for a preferable outcome and submitting a transaction
-before the next block is minted. While this is extremely unlikely and hard to pull off, it's a valid hole in the
-security and needs to be accepted as a flaw when using random numbers on a reproducible transaction log such as a
-blockchain.
-"""
-
-import random
+import hashlib
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from types import ModuleType
 
 from contracting.execution.runtime import rt
 
 
-class Seeded:
-    s = False
+@dataclass
+class DeterministicRandom:
+    seed_material: str
+    counter: int = 0
+    buffer: bytearray = field(default_factory=bytearray)
+
+    def _refill(self) -> None:
+        digest = hashlib.sha3_256(
+            f"{self.seed_material}|{self.counter}".encode("utf-8")
+        ).digest()
+        self.counter += 1
+        self.buffer.extend(digest)
+
+    def getrandbits(self, k: int) -> int:
+        if k < 0:
+            raise ValueError("number of bits must be non-negative")
+        if k == 0:
+            return 0
+
+        byte_count = (k + 7) // 8
+        while len(self.buffer) < byte_count:
+            self._refill()
+
+        chunk = bytes(self.buffer[:byte_count])
+        del self.buffer[:byte_count]
+
+        value = int.from_bytes(chunk, "big")
+        extra_bits = (byte_count * 8) - k
+        if extra_bits:
+            value >>= extra_bits
+        return value
+
+    def randbelow(self, upper: int) -> int:
+        if upper <= 0:
+            raise ValueError("upper bound must be positive")
+
+        bit_count = (upper - 1).bit_length()
+        while True:
+            candidate = self.getrandbits(bit_count)
+            if candidate < upper:
+                return candidate
+
+
+_RANDOM_STATE: ContextVar[DeterministicRandom | None] = ContextVar(
+    "contracting_random_state",
+    default=None,
+)
+
+
+def clear_random_state() -> None:
+    _RANDOM_STATE.set(None)
+
+
+def _current_random() -> DeterministicRandom:
+    state = _RANDOM_STATE.get()
+    assert state is not None, "Random state not seeded. Call seed()."
+    return state
+
+
+def _seed_material(aux_salt=None) -> str:
+    parts = [
+        f"chain_id={rt.env.get('chain_id') or ''}",
+        f"block_num={rt.env.get('block_num') or 0}",
+        f"block_hash={rt.env.get('block_hash') or '0'}",
+        f"input_hash={rt.env.get('__input_hash') or '0'}",
+    ]
+
+    if aux_salt is not None:
+        parts.append(f"aux_salt={aux_salt}")
+
+    return "|".join(parts)
 
 
 def seed(aux_salt=None):
-    block_height = "0"
-    if rt.env.get("block_num") is not None:
-        block_height = str(rt.env.get("block_num"))
-
-    block_hash = rt.env.get("block_hash") or "0"
-    __input_hash = rt.env.get("__input_hash") or "0"
-
-    # Auxiliary salt is used to create completely unique random seeds based on some other properties (optional)
-    auxiliary_salt = ""
-    if aux_salt is not None and rt.env.get(aux_salt):
-        auxiliary_salt = str(rt.env.get(aux_salt))
-    else:
-        if rt.env.get("AUXILIARY_SALT"):
-            auxiliary_salt = str(rt.env.get("AUXILIARY_SALT"))
-
-    s = block_height + block_hash + __input_hash + auxiliary_salt
-
-    random.seed(s)
-    Seeded.s = True
+    _RANDOM_STATE.set(DeterministicRandom(_seed_material(aux_salt)))
 
 
 def getrandbits(k):
-    assert Seeded.s, "Random state not seeded. Call seed()."
-
-    b_str = ""
-    for i in range(k):
-        if random.random() > 0.5:
-            b_str += "1"
-        else:
-            b_str += "0"
-
-    return int(b_str, 2)
+    return _current_random().getrandbits(k)
 
 
 def shuffle(items):
-    assert Seeded.s, "Random state not seeded. Call seed()."
-    random.shuffle(items)
+    rng = _current_random()
+    for idx in range(len(items) - 1, 0, -1):
+        swap_idx = rng.randbelow(idx + 1)
+        items[idx], items[swap_idx] = items[swap_idx], items[idx]
 
 
 def randrange(k):
-    assert Seeded.s, "Random state not seeded. Call seed()."
-    return random.randrange(k)
+    return _current_random().randbelow(k)
 
 
 def randint(a, b):
-    assert Seeded.s, "Random state not seeded. Call seed()."
-    return random.randint(a, b)
+    if a > b:
+        raise ValueError("empty range for randint()")
+    return a + _current_random().randbelow((b - a) + 1)
 
 
 def choice(items):
-    assert Seeded.s, "Random state not seeded. Call seed()."
-    return random.choice(items)
+    if len(items) == 0:
+        raise IndexError("Cannot choose from an empty sequence")
+    return items[_current_random().randbelow(len(items))]
 
 
 def choices(items, k):
-    assert Seeded.s, "Random state not seeded. Call seed()."
-    return random.choices(items, k=k)
+    if k < 0:
+        raise ValueError("number of choices must be non-negative")
+    return [choice(items) for _ in range(k)]
 
 
-# Construct module for exposure in the contract runtime
 random_module = ModuleType("random")
 random_module.seed = seed
 random_module.shuffle = shuffle
@@ -91,5 +125,4 @@ random_module.randint = randint
 random_module.choice = choice
 random_module.choices = choices
 
-# Add it to the export object and it's good to go
 exports = {"random": random_module}
