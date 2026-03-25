@@ -9,14 +9,27 @@ __ContractDeployedEvent = LogEvent(
     name="ContractDeployedEvent",
 )
 
+__ContractOwnerChangedEvent = LogEvent(
+    event="ContractOwnerChanged",
+    params={
+        "contract": {"type": str, "idx": True},
+        "previous_owner": {"type": str},
+        "new_owner": {"type": str, "idx": True},
+    },
+    contract="submission",
+    name="ContractOwnerChangedEvent",
+)
 
-@__export('submission')
-def submit_contract(name: str, code: str, owner: Any=None, constructor_args: dict={}):
-    if ctx.caller != 'sys':
-        assert name.startswith('con_'), 'Contract must start with con_!'
 
-    assert len(name) <= 64, 'Contract name length exceeds 64 characters!'
-    assert name.islower(), 'Contract name must be lowercase!'
+@__export("submission")
+def submit_contract(
+    name: str, code: str, owner: Any = None, constructor_args: dict = {}
+):
+    if ctx.caller != "sys":
+        assert name.startswith("con_"), "Contract must start with con_!"
+
+    assert len(name) <= 64, "Contract name length exceeds 64 characters!"
+    assert name.islower(), "Contract name must be lowercase!"
 
     __Contract().submit(
         name=name,
@@ -27,20 +40,45 @@ def submit_contract(name: str, code: str, owner: Any=None, constructor_args: dic
         deployer=ctx.caller,
         initiator=ctx.signer,
     )
-    __ContractDeployedEvent({
-        "name": name,
-        "owner": owner or "",
-        "developer": ctx.caller,
-    })
+    __ContractDeployedEvent(
+        {
+            "name": name,
+            "owner": owner or "",
+            "developer": ctx.caller,
+        }
+    )
 
 
-@__export('submission')
+@__export("submission")
 def change_developer(contract: str, new_developer: str):
-    d = __Contract()._driver.get_var(contract=contract, variable='__developer__')
-    assert ctx.caller == d, 'Sender is not current developer !!!!!!!!'
+    d = __Contract()._driver.get_var(
+        contract=contract, variable="__developer__"
+    )
+    assert ctx.caller == d, "Sender is not current developer !!!!!!!!"
 
     __Contract()._driver.set_var(
-        contract=contract,
-        variable='__developer__',
-        value=new_developer
+        contract=contract, variable="__developer__", value=new_developer
+    )
+
+
+@__export("submission")
+def change_owner(contract: str, new_owner: str):
+    current_owner = __Contract()._driver.get_var(
+        contract=contract, variable="__owner__"
+    )
+    assert current_owner not in (None, ""), "Contract has no runtime owner!"
+    assert ctx.caller == current_owner, "Sender is not current owner!"
+    assert isinstance(new_owner, str) and new_owner != "", (
+        "New owner must be a non-empty string!"
+    )
+
+    __Contract()._driver.set_var(
+        contract=contract, variable="__owner__", value=new_owner
+    )
+    __ContractOwnerChangedEvent(
+        {
+            "contract": contract,
+            "previous_owner": current_owner,
+            "new_owner": new_owner,
+        }
     )
