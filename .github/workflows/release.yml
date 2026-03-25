@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "contracting-v*"
+      - "contract-tools-v*"
       - "runtime-types-v*"
       - "native-tracer-v*"
 
@@ -36,6 +37,13 @@ jobs:
               package_dir="."
               project_name="xian-contracting"
               pypi_environment="pypi-xian-contracting"
+              needs_rust="false"
+              ;;
+            contract-tools-v*)
+              version="${tag#contract-tools-v}"
+              package_dir="packages/xian-contract-tools"
+              project_name="xian-contract-tools"
+              pypi_environment="pypi-xian-contract-tools"
               needs_rust="false"
               ;;
             runtime-types-v*)

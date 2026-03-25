@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xian-contract-tools"
+version = "0.1.0"
+description = "Shared contract-source tooling for the Xian stack"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Xian Network", email = "info@xian.org" }]
+requires-python = ">=3.11"
+dependencies = [
+    "astor>=0.8.1,<0.9",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
