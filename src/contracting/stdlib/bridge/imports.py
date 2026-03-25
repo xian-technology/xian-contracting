@@ -238,8 +238,17 @@ def has_export(contract, function):
     return True
 
 
-def enforce_interface(m: ModuleType, interface: list):
-    implemented = vars(m)
+def enforce_interface(contract, interface: list):
+    module = (
+        _resolve_contract_module(contract)
+        if isinstance(contract, str)
+        else contract
+    )
+    if not isinstance(module, ModuleType):
+        raise AssertionError(
+            "Contract target must be a contract name or imported contract module!"
+        )
+    implemented = vars(module)
 
     for i in interface:
         attribute = implemented.get(i.name)
@@ -258,9 +267,18 @@ def enforce_interface(m: ModuleType, interface: list):
     return True
 
 
-def owner_of(m: ModuleType):
+def owner_of(contract):
+    module = (
+        _resolve_contract_module(contract)
+        if isinstance(contract, str)
+        else contract
+    )
+    if not isinstance(module, ModuleType):
+        raise AssertionError(
+            "Contract target must be a contract name or imported contract module!"
+        )
     _driver = rt.env.get("__Driver") or Driver()
-    owner = _driver.get_var(m.__name__, OWNER_KEY)
+    owner = _driver.get_var(module.__name__, OWNER_KEY)
     return owner
 
 

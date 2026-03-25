@@ -294,6 +294,23 @@ class TestDynamicImports(TestCase):
             self.dynamic_importing.is_erc20_compatible(tok="con_bastardcoin")
         )
 
+    def test_is_erc20_by_contract_name(self):
+        self.assertTrue(
+            self.dynamic_importing.is_erc20_compatible_name(
+                tok="con_stubucks"
+            )
+        )
+        self.assertTrue(
+            self.dynamic_importing.is_erc20_compatible_name(
+                tok="con_tejastokens"
+            )
+        )
+        self.assertFalse(
+            self.dynamic_importing.is_erc20_compatible_name(
+                tok="con_bastardcoin"
+            )
+        )
+
     def test_get_balances_erc20_enforced_stubucks(self):
         stu = self.dynamic_importing.only_erc20(
             tok="con_stubucks", account="stu"
@@ -336,6 +353,13 @@ class TestDynamicImports(TestCase):
         self.assertIsNone(owner_stuff.get_owner(s="con_stubucks", signer="poo"))
         self.assertEqual(
             owner_stuff.get_owner(s="con_owner_stuff", signer="poo"), "poo"
+        )
+        self.assertIsNone(
+            owner_stuff.get_owner_by_name(s="con_stubucks", signer="poo")
+        )
+        self.assertEqual(
+            owner_stuff.get_owner_by_name(s="con_owner_stuff", signer="poo"),
+            "poo",
         )
 
     def test_ctx_owner_works(self):
