@@ -14,6 +14,28 @@ def dynamic_balance_for_token(tok: str, function_name: str, account: str):
 
 
 @export
+def contract_exists(tok: str):
+    return importlib.exists(tok)
+
+
+@export
+def contract_exists_module(tok: str):
+    t = importlib.import_module(tok)
+    return importlib.exists(t)
+
+
+@export
+def contract_has_export(tok: str, function_name: str):
+    return importlib.has_export(tok, function_name)
+
+
+@export
+def contract_has_export_module(tok: str, function_name: str):
+    t = importlib.import_module(tok)
+    return importlib.has_export(t, function_name)
+
+
+@export
 def dynamic_balance_for_token_module(
     tok: str, function_name: str, account: str
 ):

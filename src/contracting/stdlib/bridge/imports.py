@@ -54,23 +54,36 @@ class Var:
         return False
 
 
-def import_module(name):
-    assert not name.isdigit() and all(c.isalnum() or c == "_" for c in name), (
-        "Invalid contract name!"
-    )
-    assert name.islower(), "Name must be lowercase!"
-
-    _driver = rt.env.get("__Driver") or Driver()
-
+def _contract_name_is_valid(name):
+    if not isinstance(name, str):
+        return False
+    if name.isdigit():
+        return False
+    if not all(c.isalnum() or c == "_" for c in name):
+        return False
+    if not name.islower():
+        return False
     if name in set(
         list(sys.stdlib_module_names) + list(sys.builtin_module_names)
     ):
-        raise ImportError
-
+        return False
     if name.startswith("_"):
-        raise ImportError
+        return False
+    return True
 
-    if _driver.get_contract(name) is None:
+
+def _contract_exists_by_name(name):
+    if not _contract_name_is_valid(name):
+        return False
+
+    _driver = rt.env.get("__Driver") or Driver()
+    return _driver.get_contract(name) is not None
+
+
+def import_module(name):
+    assert _contract_name_is_valid(name), "Invalid contract name!"
+
+    if not _contract_exists_by_name(name):
         raise ImportError
 
     return importlib.import_module(name, package=None)
@@ -92,6 +105,19 @@ def _resolve_contract_module(contract):
         )
 
     return contract
+
+
+def exists(contract):
+    if isinstance(contract, str):
+        return _contract_exists_by_name(contract)
+
+    if not isinstance(contract, ModuleType):
+        raise AssertionError(
+            "Contract target must be a contract name or imported contract module!"
+        )
+
+    _driver = rt.env.get("__Driver") or Driver()
+    return _driver.get_contract(contract.__name__) is not None
 
 
 def _validate_function_name(name):
@@ -186,6 +212,32 @@ def call(contract, function, kwargs=None):
     return wrapper(**kwargs)
 
 
+def has_export(contract, function):
+    try:
+        module = _resolve_contract_module(contract)
+    except (AssertionError, ImportError):
+        return False
+
+    if not isinstance(function, str):
+        raise AssertionError("Function name must be a string!")
+
+    if (
+        function == ""
+        or not function.isidentifier()
+        or function.startswith(PRIVATE_METHOD_PREFIX)
+        or function.startswith("_")
+        or function.endswith("_")
+    ):
+        return False
+
+    try:
+        _resolve_exported_function(module, function)
+    except AssertionError:
+        return False
+
+    return True
+
+
 def enforce_interface(m: ModuleType, interface: list):
     implemented = vars(m)
 
@@ -214,6 +266,8 @@ def owner_of(m: ModuleType):
 
 imports_module = ModuleType("importlib")
 imports_module.import_module = import_module
+imports_module.exists = exists
+imports_module.has_export = has_export
 imports_module.call = call
 imports_module.enforce_interface = enforce_interface
 imports_module.Func = Func

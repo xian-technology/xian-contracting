@@ -110,6 +110,73 @@ class TestDynamicImports(TestCase):
         self.assertEqual(stu, 123)
         self.assertEqual(colin, 321)
 
+    def test_exists_by_contract_name(self):
+        self.assertTrue(
+            self.dynamic_importing.contract_exists(tok="con_stubucks")
+        )
+        self.assertTrue(
+            self.dynamic_importing.contract_exists(tok="con_dynamic_importing")
+        )
+
+    def test_exists_by_module_object(self):
+        self.assertTrue(
+            self.dynamic_importing.contract_exists_module(tok="con_stubucks")
+        )
+        self.assertTrue(
+            self.dynamic_importing.contract_exists_module(
+                tok="con_dynamic_importing"
+            )
+        )
+
+    def test_exists_returns_false_for_missing_or_invalid_contract(self):
+        self.assertFalse(
+            self.dynamic_importing.contract_exists(tok="con_missing")
+        )
+        self.assertFalse(self.dynamic_importing.contract_exists(tok="con-bad"))
+        self.assertFalse(self.dynamic_importing.contract_exists(tok="hashlib"))
+
+    def test_has_export_by_contract_name(self):
+        self.assertTrue(
+            self.dynamic_importing.contract_has_export(
+                tok="con_stubucks", function_name="balance_of"
+            )
+        )
+        self.assertTrue(
+            self.dynamic_importing.contract_has_export(
+                tok="con_dynamic_importing",
+                function_name="dynamic_balance_for_token",
+            )
+        )
+
+    def test_has_export_by_module_object(self):
+        self.assertTrue(
+            self.dynamic_importing.contract_has_export_module(
+                tok="con_tejastokens", function_name="balance_of"
+            )
+        )
+
+    def test_has_export_returns_false_for_missing_or_invalid_targets(self):
+        self.assertFalse(
+            self.dynamic_importing.contract_has_export(
+                tok="con_missing", function_name="balance_of"
+            )
+        )
+        self.assertFalse(
+            self.dynamic_importing.contract_has_export(
+                tok="con_stubucks", function_name="balance-of"
+            )
+        )
+        self.assertFalse(
+            self.dynamic_importing.contract_has_export(
+                tok="con_stubucks", function_name="__balances"
+            )
+        )
+        self.assertFalse(
+            self.dynamic_importing.contract_has_export(
+                tok="con_dynamic_importing", function_name="enforce_erc20"
+            )
+        )
+
     def test_dynamic_call_by_module_object(self):
         stu = self.dynamic_importing.dynamic_balance_for_token_module(
             tok="con_tejastokens",
