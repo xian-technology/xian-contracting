@@ -1,4 +1,5 @@
 from unittest import TestCase
+import hashlib
 from xian_runtime_types.time import Datetime
 from contracting.client import ContractingClient
 import os
@@ -388,13 +389,76 @@ class TestDynamicImports(TestCase):
             ),
             expected,
         )
+
+    def test_code_hash_returns_runtime_and_source_hashes(self):
+        owner_stuff_path = os.path.join(
+            os.path.dirname(__file__), "test_contracts", "owner_stuff.s.py"
+        )
+
+        with open(owner_stuff_path) as f:
+            code = f.read()
+            self.c.submit(code, name="con_owner_stuff", owner="poo")
+
+        owner_stuff = self.c.get_contract("con_owner_stuff")
+        runtime_code = self.c.get_var("con_owner_stuff", "__code__")
+        source_code = self.c.get_var("con_owner_stuff", "__source__")
+        expected_runtime_hash = hashlib.sha3_256(
+            runtime_code.encode("utf-8")
+        ).hexdigest()
+        expected_source_hash = hashlib.sha3_256(
+            source_code.encode("utf-8")
+        ).hexdigest()
+
         self.assertEqual(
-            owner_stuff.get_contract_info_by_name(
+            owner_stuff.get_code_hash(
                 s="con_owner_stuff",
+                kind="runtime",
                 signer="poo",
             ),
-            expected,
+            expected_runtime_hash,
         )
+        self.assertEqual(
+            owner_stuff.get_code_hash_by_name(
+                s="con_owner_stuff",
+                kind="runtime",
+                signer="poo",
+            ),
+            expected_runtime_hash,
+        )
+        self.assertEqual(
+            owner_stuff.get_code_hash(
+                s="con_owner_stuff",
+                kind="source",
+                signer="poo",
+            ),
+            expected_source_hash,
+        )
+        self.assertEqual(
+            owner_stuff.get_code_hash_by_name(
+                s="con_owner_stuff",
+                kind="source",
+                signer="poo",
+            ),
+            expected_source_hash,
+        )
+
+    def test_code_hash_rejects_invalid_kind(self):
+        owner_stuff_path = os.path.join(
+            os.path.dirname(__file__), "test_contracts", "owner_stuff.s.py"
+        )
+
+        with open(owner_stuff_path) as f:
+            code = f.read()
+            self.c.submit(code, name="con_owner_stuff", owner="poo")
+
+        owner_stuff = self.c.get_contract("con_owner_stuff")
+
+        with self.assertRaises(AssertionError):
+            owner_stuff.get_code_hash_by_name(
+                s="con_owner_stuff",
+                kind="compiled",
+                signer="poo",
+            )
 
     def test_ctx_owner_works(self):
         owner_stuff_path = os.path.join(

@@ -1,3 +1,4 @@
+import hashlib
 import importlib
 import inspect
 import sys
@@ -7,10 +8,12 @@ from contracting.constants import PRIVATE_METHOD_PREFIX
 from contracting.execution.runtime import rt
 from contracting.stdlib.bridge.access import __export
 from contracting.storage.driver import (
+    CODE_KEY,
     DEPLOYER_KEY,
     DEVELOPER_KEY,
     INITIATOR_KEY,
     OWNER_KEY,
+    SOURCE_KEY,
     TIME_KEY,
     Driver,
 )
@@ -307,6 +310,19 @@ def contract_info(contract):
     }
 
 
+def code_hash(contract, kind="runtime"):
+    if kind not in {"runtime", "source"}:
+        raise AssertionError("Hash kind must be 'runtime' or 'source'!")
+
+    contract_name = _contract_name_from_target(contract)
+    _driver = rt.env.get("__Driver") or Driver()
+    code_key = CODE_KEY if kind == "runtime" else SOURCE_KEY
+    contract_text = _driver.get_var(contract_name, code_key)
+    if contract_text is None:
+        return None
+    return hashlib.sha3_256(contract_text.encode("utf-8")).hexdigest()
+
+
 imports_module = ModuleType("importlib")
 imports_module.import_module = import_module
 imports_module.exists = exists
@@ -317,6 +333,7 @@ imports_module.Func = Func
 imports_module.Var = Var
 imports_module.owner_of = owner_of
 imports_module.contract_info = contract_info
+imports_module.code_hash = code_hash
 
 exports = {
     "importlib": imports_module,
