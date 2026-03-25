@@ -18,6 +18,7 @@ class Contract:
 
             c = ContractingCompiler(module_name=name)
 
+            source_obj = c.normalize_source(code, lint=False)
             code_obj = c.parse_to_code(code, lint=True)
 
             scope = env.gather()
@@ -38,6 +39,7 @@ class Contract:
                 self._driver.set_contract(
                     name=name,
                     code=code_obj,
+                    source=source_obj,
                     owner=owner,
                     overwrite=False,
                     timestamp=now,
@@ -47,6 +49,7 @@ class Contract:
                 self._driver.set_contract(
                     name=name,
                     code=code_obj,
+                    source=source_obj,
                     owner=owner,
                     overwrite=False,
                     developer=developer,

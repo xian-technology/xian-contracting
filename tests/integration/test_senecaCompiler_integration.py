@@ -83,7 +83,7 @@ fv = ForeignHash(foreign_contract='scoob', foreign_name='kumbucha')
 #
 #         c = ContractingCompiler()
 #         comp = c.parse(code, lint=False)
-#         code_str = astor.to_source(comp)
+#         code_str = ast.unparse(comp)
 #
 #         self.assertNotIn('@export', code_str)
 

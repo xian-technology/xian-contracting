@@ -1,11 +1,13 @@
 import builtins
+import hashlib
 import importlib.util
-import marshal
 import sys
 from contextvars import ContextVar
 from importlib import __import__, invalidate_caches
 from importlib.abc import Loader
 from importlib.machinery import ModuleSpec
+
+from cachetools import LRUCache
 
 from contracting.execution.runtime import rt
 from contracting.stdlib import env
@@ -114,7 +116,21 @@ _DATABASE_DRIVER: ContextVar[Driver | None] = ContextVar(
 )
 
 
-MODULE_CACHE = {}
+COMPILED_CODE_CACHE = LRUCache(maxsize=512)
+
+
+def _compiled_code_cache_key(name: str, code: str) -> tuple[str, str]:
+    code_hash = hashlib.sha3_256(code.encode("utf-8")).hexdigest()
+    return name, code_hash
+
+
+def _compile_contract_code(name: str, code: str):
+    cache_key = _compiled_code_cache_key(name, code)
+    compiled = COMPILED_CODE_CACHE.get(cache_key)
+    if compiled is None:
+        compiled = compile(code, name, "exec")
+        COMPILED_CODE_CACHE[cache_key] = compiled
+    return compiled
 
 
 class DatabaseLoader(Loader):
@@ -126,19 +142,13 @@ class DatabaseLoader(Loader):
 
     def exec_module(self, module):
         # fetch the individual contract
-        code = self.d.get_compiled(module.__name__)
+        code = self.d.get_contract(module.__name__)
         if code is None:
             raise ImportError("Module {} not found".format(module.__name__))
 
-        if not isinstance(code, bytes):
-            code = bytes.fromhex(code)
+        compiled = _compile_contract_code(module.__name__, code)
 
-        code = marshal.loads(code)
-
-        if code is None:
-            raise ImportError("Module {} not found".format(module.__name__))
-
-        rt.tracer.register_code(code)
+        rt.tracer.register_code(compiled)
 
         scope = env.gather()
         scope.update(rt.env)
@@ -146,7 +156,7 @@ class DatabaseLoader(Loader):
         scope.update({"__contract__": True})
 
         # execute the module with the std env and update the module to pass forward
-        exec(code, scope)
+        exec(compiled, scope)
 
         # Update the module's attributes with the new scope
         vars(module).update(scope)

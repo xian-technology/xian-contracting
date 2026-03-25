@@ -62,6 +62,17 @@ class ContractingCompiler(ast.NodeTransformer):
 
         return compiled_code
 
+    def normalize_source(self, source: str, lint=True):
+        tree = ast.parse(source)
+
+        if lint:
+            lint_alerts = self.linter.check(tree)
+            if lint_alerts is not None:
+                raise LintingError(lint_alerts)
+
+        ast.fix_missing_locations(tree)
+        return ast.unparse(tree)
+
     def parse_to_code(self, source, lint=True):
         tree = self.parse(source, lint=lint)
         return ast.unparse(tree)

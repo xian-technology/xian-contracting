@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import decimal
-import marshal
 from datetime import datetime
 from pathlib import Path
 
@@ -11,18 +10,19 @@ from xian_runtime_types.encoding import encode_kv
 from xian_runtime_types.time import Datetime
 
 from contracting import constants
+from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution.runtime import rt
 from contracting.storage.lmdb_store import LMDBStore
 
 INDEX_SEPARATOR = constants.INDEX_SEPARATOR
 HASH_DELIMITER = constants.DELIMITER
 
+SOURCE_KEY = "__source__"
 CODE_KEY = "__code__"
 TYPE_KEY = "__type__"
 AUTHOR_KEY = "__author__"
 OWNER_KEY = "__owner__"
 TIME_KEY = "__submitted__"
-COMPILED_KEY = "__compiled__"
 DEVELOPER_KEY = "__developer__"
 
 
@@ -149,16 +149,40 @@ class Driver:
     def get_time_submitted(self, name):
         return self.get_var(name, TIME_KEY)
 
-    def get_compiled(self, name):
-        return self.get_var(name, COMPILED_KEY)
+    def get_contract_source(self, name):
+        return self.get_var(name, SOURCE_KEY)
 
     def get_contract(self, name):
         return self.get_var(name, CODE_KEY)
+
+    def set_contract_from_source(
+        self,
+        name,
+        source,
+        owner=None,
+        overwrite=False,
+        timestamp=None,
+        developer=None,
+        lint=True,
+    ):
+        compiler = ContractingCompiler(module_name=name)
+        normalized_source = compiler.normalize_source(source, lint=lint)
+        runtime_code = compiler.parse_to_code(source, lint=lint)
+        self.set_contract(
+            name=name,
+            code=runtime_code,
+            source=normalized_source,
+            owner=owner,
+            overwrite=overwrite,
+            timestamp=timestamp,
+            developer=developer,
+        )
 
     def set_contract(
         self,
         name,
         code,
+        source=None,
         owner=None,
         overwrite=False,
         timestamp=None,
@@ -170,11 +194,11 @@ class Driver:
         if timestamp is None:
             timestamp = Datetime._from_datetime(datetime.now())
 
-        code_obj = compile(code, name, "exec")
-        code_blob = marshal.dumps(code_obj)
+        compile(code, name, "exec")
 
+        if source is not None:
+            self.set_var(name, SOURCE_KEY, value=source)
         self.set_var(name, CODE_KEY, value=code)
-        self.set_var(name, COMPILED_KEY, value=code_blob)
         self.set_var(name, OWNER_KEY, value=owner)
         self.set_var(name, TIME_KEY, value=timestamp)
         self.set_var(name, DEVELOPER_KEY, value=developer)

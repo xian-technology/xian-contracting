@@ -1,8 +1,8 @@
+import os
 from unittest import TestCase
+
 from contracting.client import ContractingClient
 from contracting.storage.driver import Driver
-import os
-from pathlib import Path
 
 class TestClient(TestCase):
     def setUp(self):
@@ -99,5 +99,4 @@ class TestClient(TestCase):
 
         with self.assertRaises(AssertionError):
             self.client.submit(f="")
-
 
