@@ -4,28 +4,60 @@
 compilation, secure execution, storage semantics, metering, and the runtime
 rules that contracts must obey.
 
-## Scope
+## Quick Start
 
-This repo owns:
+Install the runtime:
 
-- compilation and linting
-- runtime execution, tracing, and metering
-- storage drivers, encoding, and contract-side runtime helpers
-- packaged shared runtime types and the optional native tracer backend
+```bash
+pip install xian-contracting
+```
 
-This repo does not own:
+Submit and call a contract:
 
-- node orchestration or Compose flows
-- operator lifecycle commands
-- ABCI request handling
+```python
+from contracting.client import ContractingClient
+
+client = ContractingClient()
+client.submit(name="con_token", code=contract_source)
+token = client.get_contract("con_token")
+token.transfer(amount=100, to="bob")
+```
+
+Access storage directly:
+
+```python
+from contracting.storage.driver import Driver
+
+driver = Driver()
+driver.set("example.key", "value")
+print(driver.get("example.key"))
+```
+
+## Principles
+
+- Contracts use Python syntax, but execution rules are consensus-sensitive and
+  intentionally narrower than general Python.
+- Metering, storage encoding, import restrictions, and runtime helpers must
+  stay version-aligned across validators.
+- Optional native tracing is an implementation detail. The contract model and
+  runtime rules should remain understandable without it.
+- Built-in helpers should serve the execution model, not grow into a general
+  convenience framework.
 
 ## Key Directories
 
-- `src/contracting/`: main runtime, storage, compilation, and stdlib bridge code
-- `packages/`: shared runtime packages such as `xian-runtime-types` and the
-  optional native tracer
+- `src/contracting/`: runtime, storage, compilation, and stdlib bridge code
+- `packages/`: shared runtime packages such as `xian-runtime-types` and the native tracer
 - `tests/`: unit, integration, and security coverage
 - `docs/`: architecture, backlog, and execution notes
+
+## What It Covers
+
+- compilation and linting
+- runtime execution and metering
+- storage drivers and encoding
+- contract-side runtime helpers
+- optional native tracing backend
 
 ## Validation
 
@@ -45,43 +77,3 @@ the relevant `tests/security/` and `tests/integration/` paths explicitly too.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - [docs/BACKLOG.md](docs/BACKLOG.md)
 - [docs/README.md](docs/README.md)
-
-## Installation
-
-```bash
-pip install xian-contracting
-```
-
-## Core Interfaces
-
-Minimal client example:
-
-```python
-from contracting.client import ContractingClient
-
-client = ContractingClient()
-client.submit(name="con_token", code=contract_source)
-token = client.get_contract("con_token")
-token.transfer(amount=100, to="bob")
-```
-
-Direct storage access:
-
-```python
-from contracting.storage.driver import Driver
-
-driver = Driver()
-driver.set("example.key", "value")
-value = driver.get("example.key")
-```
-
-## Runtime Notes
-
-- contracts use Python syntax with Xian-specific decorators such as
-  `@construct` and `@export`
-- metering is tied to the active CPython minor version, so validators must stay
-  version-aligned
-- restricted imports, storage semantics, and encoding behavior are
-  consensus-sensitive and should not change casually
-- built-in contracts and runtime helpers should stay aligned with the execution
-  model rather than growing into general convenience utilities
