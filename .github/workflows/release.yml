@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags:
+      - "accounts-v*"
       - "contracting-v*"
       - "contract-tools-v*"
       - "runtime-types-v*"
@@ -32,6 +33,13 @@ jobs:
           tag="${GITHUB_REF_NAME}"
 
           case "${tag}" in
+            accounts-v*)
+              version="${tag#accounts-v}"
+              package_dir="packages/xian-accounts"
+              project_name="xian-accounts"
+              pypi_environment="pypi-xian-accounts"
+              needs_rust="false"
+              ;;
             contracting-v*)
               version="${tag#contracting-v}"
               package_dir="."
