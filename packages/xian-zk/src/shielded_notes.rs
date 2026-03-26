@@ -6,7 +6,6 @@ use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
-use ark_r1cs_std::R1CSVar;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_snark::SNARK;
@@ -17,12 +16,17 @@ use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 use std::error::Error;
 
-pub const SHIELDED_NOTE_TREE_DEPTH: usize = 5;
+pub const SHIELDED_NOTE_TREE_DEPTH: usize = 20;
 pub const SHIELDED_NOTE_TREE_LEAF_COUNT: usize = 1 << SHIELDED_NOTE_TREE_DEPTH;
 pub const SHIELDED_NOTE_MAX_INPUTS: usize = 4;
 pub const SHIELDED_NOTE_MAX_OUTPUTS: usize = 4;
 pub const SHIELDED_NOTE_AMOUNT_BITS: usize = 64;
 const MIMC_ROUNDS: usize = 91;
+const SHIELDED_NOTE_CIRCUIT_FAMILY: &str = "shielded_note_v2";
+const SHIELDED_NOTE_DEPOSIT_CIRCUIT_NAME: &str = "shielded_note_deposit_v2";
+const SHIELDED_NOTE_TRANSFER_CIRCUIT_NAME: &str = "shielded_note_transfer_v2";
+const SHIELDED_NOTE_WITHDRAW_CIRCUIT_NAME: &str = "shielded_note_withdraw_v2";
+const SHIELDED_NOTE_CIRCUIT_VERSION: &str = "2";
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ShieldedVkFixture {
@@ -86,10 +90,17 @@ pub struct ShieldedProverBundle {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ShieldedOutputRequest {
-    pub owner_secret: String,
+    pub owner_public: String,
     pub amount: u64,
     pub rho: String,
     pub blind: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ShieldedTreeState {
+    pub root: String,
+    pub note_count: usize,
+    pub filled_subtrees: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -99,12 +110,14 @@ pub struct ShieldedInputRequest {
     pub rho: String,
     pub blind: String,
     pub leaf_index: usize,
+    pub merkle_path: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ShieldedDepositRequest {
     pub asset_id: String,
-    pub old_commitments: Vec<String>,
+    pub old_root: String,
+    pub append_state: ShieldedTreeState,
     pub amount: u64,
     pub outputs: Vec<ShieldedOutputRequest>,
 }
@@ -112,7 +125,8 @@ pub struct ShieldedDepositRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ShieldedTransferRequest {
     pub asset_id: String,
-    pub old_commitments: Vec<String>,
+    pub old_root: String,
+    pub append_state: ShieldedTreeState,
     pub inputs: Vec<ShieldedInputRequest>,
     pub outputs: Vec<ShieldedOutputRequest>,
 }
@@ -120,7 +134,8 @@ pub struct ShieldedTransferRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ShieldedWithdrawRequest {
     pub asset_id: String,
-    pub old_commitments: Vec<String>,
+    pub old_root: String,
+    pub append_state: ShieldedTreeState,
     pub amount: u64,
     pub recipient: String,
     pub inputs: Vec<ShieldedInputRequest>,
@@ -149,13 +164,17 @@ struct NoteWitness {
 struct InputWitness {
     enabled: bool,
     note: NoteWitness,
-    leaf_index: usize,
+    merkle_path: Vec<Fr>,
+    path_directions: Vec<bool>,
 }
 
 #[derive(Clone)]
 struct OutputWitness {
     enabled: bool,
-    note: NoteWitness,
+    owner_public: Fr,
+    amount: u64,
+    rho: Fr,
+    blind: Fr,
 }
 
 #[derive(Clone)]
@@ -165,7 +184,6 @@ struct DepositCircuit {
     amount: u64,
     output_count: usize,
     output_commitments: Vec<Fr>,
-    old_leaves: Vec<Fr>,
     outputs: Vec<OutputWitness>,
 }
 
@@ -177,7 +195,6 @@ struct TransferCircuit {
     output_count: usize,
     input_nullifiers: Vec<Fr>,
     output_commitments: Vec<Fr>,
-    old_leaves: Vec<Fr>,
     inputs: Vec<InputWitness>,
     outputs: Vec<OutputWitness>,
 }
@@ -192,9 +209,15 @@ struct WithdrawCircuit {
     output_count: usize,
     input_nullifiers: Vec<Fr>,
     output_commitments: Vec<Fr>,
-    old_leaves: Vec<Fr>,
     inputs: Vec<InputWitness>,
     outputs: Vec<OutputWitness>,
+}
+
+#[derive(Clone)]
+struct FrontierState {
+    root: Fr,
+    note_count: usize,
+    filled_subtrees: Vec<Fr>,
 }
 
 fn mimc_round_constant(round: usize) -> Fr {
@@ -259,14 +282,18 @@ fn owner_public(owner_secret: Fr) -> Fr {
     mimc_hash_many_native(&[owner_secret])
 }
 
+fn output_commitment(asset_id: Fr, owner_public: Fr, amount: u64, rho: Fr, blind: Fr) -> Fr {
+    mimc_hash_many_native(&[asset_id, owner_public, Fr::from(amount), rho, blind])
+}
+
 fn note_commitment(asset_id: Fr, note: &NoteWitness) -> Fr {
-    mimc_hash_many_native(&[
+    output_commitment(
         asset_id,
         owner_public(note.owner_secret),
-        Fr::from(note.amount),
+        note.amount,
         note.rho,
         note.blind,
-    ])
+    )
 }
 
 fn note_nullifier(asset_id: Fr, note: &NoteWitness) -> Fr {
@@ -277,25 +304,40 @@ fn merkle_parent(left: Fr, right: Fr) -> Fr {
     mimc_hash_many_native(&[left, right])
 }
 
-fn merkle_root(leaves: &[Fr]) -> Fr {
-    assert_eq!(leaves.len(), SHIELDED_NOTE_TREE_LEAF_COUNT);
-    let mut level = leaves.to_vec();
-    while level.len() > 1 {
-        let mut next = Vec::with_capacity(level.len() / 2);
-        for pair in level.chunks(2) {
-            next.push(merkle_parent(pair[0], pair[1]));
-        }
-        level = next;
+fn zero_hashes() -> Vec<Fr> {
+    let mut values = Vec::with_capacity(SHIELDED_NOTE_TREE_DEPTH + 1);
+    let mut current = Fr::zero();
+    values.push(current);
+    for _ in 0..SHIELDED_NOTE_TREE_DEPTH {
+        current = merkle_parent(current, current);
+        values.push(current);
     }
-    level[0]
+    values
 }
 
-fn leaves_from_commitments(commitments: &[String]) -> Result<Vec<Fr>, Box<dyn Error>> {
+fn zero_root() -> Fr {
+    zero_hashes()[SHIELDED_NOTE_TREE_DEPTH]
+}
+
+fn frontier_state_to_public(state: &FrontierState) -> ShieldedTreeState {
+    ShieldedTreeState {
+        root: field_hex(state.root),
+        note_count: state.note_count,
+        filled_subtrees: state
+            .filled_subtrees
+            .iter()
+            .copied()
+            .map(field_hex)
+            .collect(),
+    }
+}
+
+fn leaf_fields_from_commitments(commitments: &[String]) -> Result<Vec<Fr>, Box<dyn Error>> {
     if commitments.len() > SHIELDED_NOTE_TREE_LEAF_COUNT {
-        return Err("too many commitments for fixed tree".into());
+        return Err("too many commitments for shielded tree".into());
     }
 
-    let mut leaves = Vec::with_capacity(SHIELDED_NOTE_TREE_LEAF_COUNT);
+    let mut leaves = Vec::with_capacity(commitments.len());
     for commitment in commitments {
         let field = parse_field_hex(commitment)?;
         if field.is_zero() {
@@ -303,15 +345,164 @@ fn leaves_from_commitments(commitments: &[String]) -> Result<Vec<Fr>, Box<dyn Er
         }
         leaves.push(field);
     }
-    while leaves.len() < SHIELDED_NOTE_TREE_LEAF_COUNT {
-        leaves.push(Fr::zero());
-    }
     Ok(leaves)
 }
 
-fn note_from_output_request(output: &ShieldedOutputRequest) -> Result<NoteWitness, Box<dyn Error>> {
-    Ok(NoteWitness {
-        owner_secret: parse_field_hex(&output.owner_secret)?,
+fn root_from_frontier(note_count: usize, filled_subtrees: &[Fr]) -> Result<Fr, Box<dyn Error>> {
+    if note_count > SHIELDED_NOTE_TREE_LEAF_COUNT {
+        return Err("note_count exceeds shielded tree capacity".into());
+    }
+    if filled_subtrees.len() != SHIELDED_NOTE_TREE_DEPTH {
+        return Err("filled_subtrees length does not match tree depth".into());
+    }
+
+    let zeroes = zero_hashes();
+    let mut current = Fr::zero();
+    let mut index = note_count;
+
+    for level in 0..SHIELDED_NOTE_TREE_DEPTH {
+        current = if index & 1 == 1 {
+            merkle_parent(filled_subtrees[level], current)
+        } else {
+            merkle_parent(current, zeroes[level])
+        };
+        index >>= 1;
+    }
+
+    Ok(current)
+}
+
+fn empty_frontier_state() -> FrontierState {
+    FrontierState {
+        root: zero_root(),
+        note_count: 0,
+        filled_subtrees: vec![Fr::zero(); SHIELDED_NOTE_TREE_DEPTH],
+    }
+}
+
+fn append_commitment_to_state(
+    state: &mut FrontierState,
+    commitment: Fr,
+) -> Result<(), Box<dyn Error>> {
+    if commitment.is_zero() {
+        return Err("output commitments must be non-zero".into());
+    }
+    if state.note_count >= SHIELDED_NOTE_TREE_LEAF_COUNT {
+        return Err("shielded tree is full".into());
+    }
+
+    let zeroes = zero_hashes();
+    let mut current_hash = commitment;
+    let mut index = state.note_count;
+
+    for level in 0..SHIELDED_NOTE_TREE_DEPTH {
+        if index & 1 == 0 {
+            state.filled_subtrees[level] = current_hash;
+            current_hash = merkle_parent(current_hash, zeroes[level]);
+        } else {
+            current_hash = merkle_parent(state.filled_subtrees[level], current_hash);
+        }
+        index >>= 1;
+    }
+
+    state.note_count += 1;
+    state.root = current_hash;
+    Ok(())
+}
+
+fn append_commitments_to_state(
+    state: &FrontierState,
+    commitments: &[Fr],
+) -> Result<FrontierState, Box<dyn Error>> {
+    let mut next = state.clone();
+    for commitment in commitments {
+        append_commitment_to_state(&mut next, *commitment)?;
+    }
+    Ok(next)
+}
+
+fn tree_state_from_commitments(commitments: &[String]) -> Result<FrontierState, Box<dyn Error>> {
+    let leaves = leaf_fields_from_commitments(commitments)?;
+    let mut state = empty_frontier_state();
+    for leaf in leaves {
+        append_commitment_to_state(&mut state, leaf)?;
+    }
+    Ok(state)
+}
+
+fn parse_tree_state(state: &ShieldedTreeState) -> Result<FrontierState, Box<dyn Error>> {
+    if state.filled_subtrees.len() != SHIELDED_NOTE_TREE_DEPTH {
+        return Err("filled_subtrees length does not match tree depth".into());
+    }
+
+    let parsed_root = parse_field_hex(&state.root)?;
+    let mut filled_subtrees = Vec::with_capacity(SHIELDED_NOTE_TREE_DEPTH);
+    for value in &state.filled_subtrees {
+        filled_subtrees.push(parse_field_hex(value)?);
+    }
+
+    let derived_root = root_from_frontier(state.note_count, &filled_subtrees)?;
+    if derived_root != parsed_root {
+        return Err("append_state root does not match filled_subtrees".into());
+    }
+
+    Ok(FrontierState {
+        root: parsed_root,
+        note_count: state.note_count,
+        filled_subtrees,
+    })
+}
+
+fn auth_path_from_leaves(leaves: &[Fr], leaf_index: usize) -> Result<Vec<Fr>, Box<dyn Error>> {
+    if leaf_index >= leaves.len() {
+        return Err("leaf_index is out of range".into());
+    }
+
+    let zeroes = zero_hashes();
+    let mut level = leaves.to_vec();
+    let mut index = leaf_index;
+    let mut path = Vec::with_capacity(SHIELDED_NOTE_TREE_DEPTH);
+
+    for depth in 0..SHIELDED_NOTE_TREE_DEPTH {
+        let sibling = if index & 1 == 0 {
+            if index + 1 < level.len() {
+                level[index + 1]
+            } else {
+                zeroes[depth]
+            }
+        } else {
+            level[index - 1]
+        };
+        path.push(sibling);
+
+        let mut next = Vec::with_capacity(level.len().div_ceil(2));
+        for pair_start in (0..level.len()).step_by(2) {
+            let left = level[pair_start];
+            let right = if pair_start + 1 < level.len() {
+                level[pair_start + 1]
+            } else {
+                zeroes[depth]
+            };
+            next.push(merkle_parent(left, right));
+        }
+
+        if next.is_empty() {
+            next.push(zeroes[depth + 1]);
+        }
+
+        level = next;
+        index >>= 1;
+    }
+
+    Ok(path)
+}
+
+fn output_witness_from_request(
+    output: &ShieldedOutputRequest,
+) -> Result<OutputWitness, Box<dyn Error>> {
+    Ok(OutputWitness {
+        enabled: true,
+        owner_public: parse_field_hex(&output.owner_public)?,
         amount: output.amount,
         rho: parse_field_hex(&output.rho)?,
         blind: parse_field_hex(&output.blind)?,
@@ -327,25 +518,6 @@ fn note_from_input_request(input: &ShieldedInputRequest) -> Result<NoteWitness, 
     })
 }
 
-fn append_commitments(mut leaves: Vec<Fr>, commitments: &[Fr]) -> Vec<Fr> {
-    let start = leaves
-        .iter()
-        .position(|leaf| leaf.is_zero())
-        .unwrap_or(leaves.len());
-    assert!(
-        start + commitments.len() <= SHIELDED_NOTE_TREE_LEAF_COUNT,
-        "too many commitments for fixed tree",
-    );
-    for (offset, commitment) in commitments.iter().enumerate() {
-        leaves[start + offset] = *commitment;
-    }
-    leaves
-}
-
-fn zero_root() -> Fr {
-    merkle_root(&vec![Fr::zero(); SHIELDED_NOTE_TREE_LEAF_COUNT])
-}
-
 pub fn shielded_note_zero_root_hex() -> String {
     field_hex(zero_root())
 }
@@ -356,6 +528,10 @@ pub fn shielded_note_asset_id_hex(contract_name: &str) -> String {
 
 pub fn shielded_note_recipient_digest_hex(recipient: &str) -> String {
     field_hex(recipient_digest(recipient))
+}
+
+pub fn shielded_note_owner_public_hex(owner_secret_hex: &str) -> Result<String, Box<dyn Error>> {
+    Ok(field_hex(owner_public(parse_field_hex(owner_secret_hex)?)))
 }
 
 pub fn shielded_note_commitment_hex(
@@ -377,6 +553,22 @@ pub fn shielded_note_commitment_hex(
     )))
 }
 
+pub fn shielded_note_output_commitment_hex(
+    asset_id_hex: &str,
+    owner_public_hex: &str,
+    amount: u64,
+    rho_hex: &str,
+    blind_hex: &str,
+) -> Result<String, Box<dyn Error>> {
+    Ok(field_hex(output_commitment(
+        parse_field_hex(asset_id_hex)?,
+        parse_field_hex(owner_public_hex)?,
+        amount,
+        parse_field_hex(rho_hex)?,
+        parse_field_hex(blind_hex)?,
+    )))
+}
+
 pub fn shielded_note_nullifier_hex(
     asset_id_hex: &str,
     owner_secret_hex: &str,
@@ -395,9 +587,27 @@ pub fn shielded_note_nullifier_hex(
 }
 
 pub fn shielded_note_root_hex(commitments: &[String]) -> Result<String, Box<dyn Error>> {
-    Ok(field_hex(merkle_root(&leaves_from_commitments(
+    Ok(field_hex(tree_state_from_commitments(commitments)?.root))
+}
+
+pub fn shielded_note_tree_state(
+    commitments: &[String],
+) -> Result<ShieldedTreeState, Box<dyn Error>> {
+    Ok(frontier_state_to_public(&tree_state_from_commitments(
         commitments,
-    )?)))
+    )?))
+}
+
+pub fn shielded_note_auth_path_hex(
+    commitments: &[String],
+    leaf_index: usize,
+) -> Result<Vec<String>, Box<dyn Error>> {
+    Ok(
+        auth_path_from_leaves(&leaf_fields_from_commitments(commitments)?, leaf_index)?
+            .into_iter()
+            .map(field_hex)
+            .collect(),
+    )
 }
 
 fn serialize_hex<T: CanonicalSerialize>(value: &T) -> Result<String, Box<dyn Error>> {
@@ -462,6 +672,22 @@ fn owner_public_var(owner_secret: &FpVar<Fr>) -> FpVar<Fr> {
     mimc_hash_many_var(std::slice::from_ref(owner_secret))
 }
 
+fn output_commitment_var(
+    asset_id: &FpVar<Fr>,
+    owner_public: &FpVar<Fr>,
+    amount: &FpVar<Fr>,
+    rho: &FpVar<Fr>,
+    blind: &FpVar<Fr>,
+) -> FpVar<Fr> {
+    mimc_hash_many_var(&[
+        asset_id.clone(),
+        owner_public.clone(),
+        amount.clone(),
+        rho.clone(),
+        blind.clone(),
+    ])
+}
+
 fn note_commitment_var(
     asset_id: &FpVar<Fr>,
     owner_secret: &FpVar<Fr>,
@@ -470,13 +696,7 @@ fn note_commitment_var(
     blind: &FpVar<Fr>,
 ) -> FpVar<Fr> {
     let owner_public = owner_public_var(owner_secret);
-    mimc_hash_many_var(&[
-        asset_id.clone(),
-        owner_public,
-        amount.clone(),
-        rho.clone(),
-        blind.clone(),
-    ])
+    output_commitment_var(asset_id, &owner_public, amount, rho, blind)
 }
 
 fn note_nullifier_var(
@@ -491,38 +711,20 @@ fn merkle_parent_var(left: &FpVar<Fr>, right: &FpVar<Fr>) -> FpVar<Fr> {
     mimc_hash_many_var(&[left.clone(), right.clone()])
 }
 
-fn merkle_root_var(leaves: &[FpVar<Fr>]) -> FpVar<Fr> {
-    let mut level = leaves.to_vec();
-    while level.len() > 1 {
-        let mut next = Vec::with_capacity(level.len() / 2);
-        for pair in level.chunks(2) {
-            next.push(merkle_parent_var(&pair[0], &pair[1]));
-        }
-        level = next;
-    }
-    level.remove(0)
-}
-
-fn select_leaf(
+fn merkle_root_from_auth_path_var(
     cs: ConstraintSystemRef<Fr>,
-    leaves: &[FpVar<Fr>],
-    enabled: &Boolean<Fr>,
-    index: usize,
+    leaf: &FpVar<Fr>,
+    auth_path: &[FpVar<Fr>],
+    path_directions: &[bool],
 ) -> Result<FpVar<Fr>, SynthesisError> {
-    let enabled_fp = bool_to_fp(enabled)?;
-    let mut selector_sum = FpVar::constant(Fr::zero());
-    let mut selected = FpVar::constant(Fr::zero());
-
-    for (leaf_index, leaf) in leaves.iter().enumerate() {
-        let is_selected =
-            Boolean::new_witness(cs.clone(), || Ok(enabled.value()? && leaf_index == index))?;
-        let selector_fp = bool_to_fp(&is_selected)?;
-        selector_sum += selector_fp.clone();
-        selected += leaf.clone() * selector_fp;
+    let mut current = leaf.clone();
+    for (level, sibling) in auth_path.iter().enumerate() {
+        let is_right = Boolean::new_witness(cs.clone(), || Ok(path_directions[level]))?;
+        let left = is_right.select(sibling, &current)?;
+        let right = is_right.select(&current, sibling)?;
+        current = merkle_parent_var(&left, &right);
     }
-
-    selector_sum.enforce_equal(&enabled_fp)?;
-    Ok(selected)
+    Ok(current)
 }
 
 fn public_inputs_var(
@@ -535,12 +737,11 @@ fn public_inputs_var(
         .collect()
 }
 
-fn witness_leaves_var(
+fn witness_path_var(
     cs: ConstraintSystemRef<Fr>,
-    leaves: &[Fr],
+    path: &[Fr],
 ) -> Result<Vec<FpVar<Fr>>, SynthesisError> {
-    leaves
-        .iter()
+    path.iter()
         .map(|value| FpVar::<Fr>::new_witness(cs.clone(), || Ok(*value)))
         .collect()
 }
@@ -553,17 +754,8 @@ impl DepositCircuit {
             amount: 0,
             output_count: 0,
             output_commitments: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
-            old_leaves: vec![Fr::zero(); SHIELDED_NOTE_TREE_LEAF_COUNT],
             outputs: (0..SHIELDED_NOTE_MAX_OUTPUTS)
-                .map(|_| OutputWitness {
-                    enabled: false,
-                    note: NoteWitness {
-                        owner_secret: Fr::zero(),
-                        amount: 0,
-                        rho: Fr::zero(),
-                        blind: Fr::zero(),
-                    },
-                })
+                .map(|_| blank_output_witness())
                 .collect(),
         }
     }
@@ -584,13 +776,10 @@ impl ConstraintSynthesizer<Fr> for DepositCircuit {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
         let public = public_inputs_var(cs.clone(), &self.public_inputs())?;
         let asset_id = &public[0];
-        let old_root = &public[1];
+        let _old_root = &public[1];
         let amount = &public[2];
         let output_count = &public[3];
         let public_commitments = &public[4..];
-
-        let old_leaves = witness_leaves_var(cs.clone(), &self.old_leaves)?;
-        merkle_root_var(&old_leaves).enforce_equal(old_root)?;
 
         let mut enabled_sum = FpVar::constant(Fr::zero());
         let mut output_sum = FpVar::constant(Fr::zero());
@@ -600,13 +789,13 @@ impl ConstraintSynthesizer<Fr> for DepositCircuit {
             let enabled_fp = bool_to_fp(&enabled)?;
             enabled_sum += enabled_fp.clone();
 
-            let owner_secret =
-                FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.note.owner_secret))?;
-            let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.note.rho))?;
-            let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.note.blind))?;
-            let note_amount = amount_bits_to_var(cs.clone(), output.note.amount)?;
+            let owner_public =
+                FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
+            let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.rho))?;
+            let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.blind))?;
+            let note_amount = amount_bits_to_var(cs.clone(), output.amount)?;
             let commitment =
-                note_commitment_var(asset_id, &owner_secret, &note_amount, &rho, &blind);
+                output_commitment_var(asset_id, &owner_public, &note_amount, &rho, &blind);
 
             public_commitments[index].enforce_equal(&(commitment * enabled_fp.clone()))?;
             output_sum += note_amount * enabled_fp;
@@ -627,7 +816,6 @@ impl TransferCircuit {
             output_count: 0,
             input_nullifiers: vec![Fr::zero(); SHIELDED_NOTE_MAX_INPUTS],
             output_commitments: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
-            old_leaves: vec![Fr::zero(); SHIELDED_NOTE_TREE_LEAF_COUNT],
             inputs: (0..SHIELDED_NOTE_MAX_INPUTS)
                 .map(|_| InputWitness {
                     enabled: false,
@@ -637,19 +825,12 @@ impl TransferCircuit {
                         rho: Fr::zero(),
                         blind: Fr::zero(),
                     },
-                    leaf_index: 0,
+                    merkle_path: vec![Fr::zero(); SHIELDED_NOTE_TREE_DEPTH],
+                    path_directions: vec![false; SHIELDED_NOTE_TREE_DEPTH],
                 })
                 .collect(),
             outputs: (0..SHIELDED_NOTE_MAX_OUTPUTS)
-                .map(|_| OutputWitness {
-                    enabled: false,
-                    note: NoteWitness {
-                        owner_secret: Fr::zero(),
-                        amount: 0,
-                        rho: Fr::zero(),
-                        blind: Fr::zero(),
-                    },
-                })
+                .map(|_| blank_output_witness())
                 .collect(),
         }
     }
@@ -678,9 +859,6 @@ impl ConstraintSynthesizer<Fr> for TransferCircuit {
         let public_commitments = &public[4 + SHIELDED_NOTE_MAX_INPUTS
             ..4 + SHIELDED_NOTE_MAX_INPUTS + SHIELDED_NOTE_MAX_OUTPUTS];
 
-        let old_leaves = witness_leaves_var(cs.clone(), &self.old_leaves)?;
-        merkle_root_var(&old_leaves).enforce_equal(old_root)?;
-
         let mut input_enabled_sum = FpVar::constant(Fr::zero());
         let mut output_enabled_sum = FpVar::constant(Fr::zero());
         let mut input_sum = FpVar::constant(Fr::zero());
@@ -698,8 +876,15 @@ impl ConstraintSynthesizer<Fr> for TransferCircuit {
             let note_amount = amount_bits_to_var(cs.clone(), input.note.amount)?;
             let commitment =
                 note_commitment_var(asset_id, &owner_secret, &note_amount, &rho, &blind);
-            let selected_leaf = select_leaf(cs.clone(), &old_leaves, &enabled, input.leaf_index)?;
-            selected_leaf.enforce_equal(&(commitment.clone() * enabled_fp.clone()))?;
+            let auth_path = witness_path_var(cs.clone(), &input.merkle_path)?;
+            let membership_root = merkle_root_from_auth_path_var(
+                cs.clone(),
+                &commitment,
+                &auth_path,
+                &input.path_directions,
+            )?;
+            ((membership_root - old_root.clone()) * enabled_fp.clone())
+                .enforce_equal(&FpVar::constant(Fr::zero()))?;
 
             let nullifier = note_nullifier_var(asset_id, &owner_secret, &rho) * enabled_fp.clone();
             public_nullifiers[index].enforce_equal(&nullifier)?;
@@ -711,13 +896,13 @@ impl ConstraintSynthesizer<Fr> for TransferCircuit {
             let enabled_fp = bool_to_fp(&enabled)?;
             output_enabled_sum += enabled_fp.clone();
 
-            let owner_secret =
-                FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.note.owner_secret))?;
-            let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.note.rho))?;
-            let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.note.blind))?;
-            let note_amount = amount_bits_to_var(cs.clone(), output.note.amount)?;
+            let owner_public =
+                FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
+            let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.rho))?;
+            let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.blind))?;
+            let note_amount = amount_bits_to_var(cs.clone(), output.amount)?;
             let commitment =
-                note_commitment_var(asset_id, &owner_secret, &note_amount, &rho, &blind);
+                output_commitment_var(asset_id, &owner_public, &note_amount, &rho, &blind);
             public_commitments[index].enforce_equal(&(commitment * enabled_fp.clone()))?;
             output_sum += note_amount * enabled_fp;
         }
@@ -740,7 +925,6 @@ impl WithdrawCircuit {
             output_count: 0,
             input_nullifiers: vec![Fr::zero(); SHIELDED_NOTE_MAX_INPUTS],
             output_commitments: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
-            old_leaves: vec![Fr::zero(); SHIELDED_NOTE_TREE_LEAF_COUNT],
             inputs: (0..SHIELDED_NOTE_MAX_INPUTS)
                 .map(|_| InputWitness {
                     enabled: false,
@@ -750,19 +934,12 @@ impl WithdrawCircuit {
                         rho: Fr::zero(),
                         blind: Fr::zero(),
                     },
-                    leaf_index: 0,
+                    merkle_path: vec![Fr::zero(); SHIELDED_NOTE_TREE_DEPTH],
+                    path_directions: vec![false; SHIELDED_NOTE_TREE_DEPTH],
                 })
                 .collect(),
             outputs: (0..SHIELDED_NOTE_MAX_OUTPUTS)
-                .map(|_| OutputWitness {
-                    enabled: false,
-                    note: NoteWitness {
-                        owner_secret: Fr::zero(),
-                        amount: 0,
-                        rho: Fr::zero(),
-                        blind: Fr::zero(),
-                    },
-                })
+                .map(|_| blank_output_witness())
                 .collect(),
         }
     }
@@ -795,9 +972,6 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
         let public_commitments = &public[6 + SHIELDED_NOTE_MAX_INPUTS
             ..6 + SHIELDED_NOTE_MAX_INPUTS + SHIELDED_NOTE_MAX_OUTPUTS];
 
-        let old_leaves = witness_leaves_var(cs.clone(), &self.old_leaves)?;
-        merkle_root_var(&old_leaves).enforce_equal(old_root)?;
-
         let mut input_enabled_sum = FpVar::constant(Fr::zero());
         let mut output_enabled_sum = FpVar::constant(Fr::zero());
         let mut input_sum = FpVar::constant(Fr::zero());
@@ -815,8 +989,15 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
             let note_amount = amount_bits_to_var(cs.clone(), input.note.amount)?;
             let commitment =
                 note_commitment_var(asset_id, &owner_secret, &note_amount, &rho, &blind);
-            let selected_leaf = select_leaf(cs.clone(), &old_leaves, &enabled, input.leaf_index)?;
-            selected_leaf.enforce_equal(&(commitment.clone() * enabled_fp.clone()))?;
+            let auth_path = witness_path_var(cs.clone(), &input.merkle_path)?;
+            let membership_root = merkle_root_from_auth_path_var(
+                cs.clone(),
+                &commitment,
+                &auth_path,
+                &input.path_directions,
+            )?;
+            ((membership_root - old_root.clone()) * enabled_fp.clone())
+                .enforce_equal(&FpVar::constant(Fr::zero()))?;
 
             let nullifier = note_nullifier_var(asset_id, &owner_secret, &rho) * enabled_fp.clone();
             public_nullifiers[index].enforce_equal(&nullifier)?;
@@ -828,13 +1009,13 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
             let enabled_fp = bool_to_fp(&enabled)?;
             output_enabled_sum += enabled_fp.clone();
 
-            let owner_secret =
-                FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.note.owner_secret))?;
-            let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.note.rho))?;
-            let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.note.blind))?;
-            let note_amount = amount_bits_to_var(cs.clone(), output.note.amount)?;
+            let owner_public =
+                FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
+            let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.rho))?;
+            let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.blind))?;
+            let note_amount = amount_bits_to_var(cs.clone(), output.amount)?;
             let commitment =
-                note_commitment_var(asset_id, &owner_secret, &note_amount, &rho, &blind);
+                output_commitment_var(asset_id, &owner_public, &note_amount, &rho, &blind);
             public_commitments[index].enforce_equal(&(commitment * enabled_fp.clone()))?;
             output_sum += note_amount * enabled_fp;
         }
@@ -856,10 +1037,102 @@ fn prove_circuit<C: ConstraintSynthesizer<Fr> + Clone>(
     Ok((pk, vk, proof))
 }
 
+fn prove_with_pk<C: ConstraintSynthesizer<Fr>>(
+    proving_key_hex: &str,
+    circuit: C,
+) -> Result<Proof<Bn254>, Box<dyn Error>> {
+    let proving_key: ProvingKey<Bn254> = deserialize_hex(proving_key_hex)?;
+    let mut rng = OsRng;
+    Ok(Groth16::<Bn254>::prove(&proving_key, circuit, &mut rng)?)
+}
+
+fn blank_output_witness() -> OutputWitness {
+    OutputWitness {
+        enabled: false,
+        owner_public: Fr::zero(),
+        amount: 0,
+        rho: Fr::zero(),
+        blind: Fr::zero(),
+    }
+}
+
+fn blank_input_witness() -> InputWitness {
+    InputWitness {
+        enabled: false,
+        note: NoteWitness {
+            owner_secret: Fr::zero(),
+            amount: 0,
+            rho: Fr::zero(),
+            blind: Fr::zero(),
+        },
+        merkle_path: vec![Fr::zero(); SHIELDED_NOTE_TREE_DEPTH],
+        path_directions: vec![false; SHIELDED_NOTE_TREE_DEPTH],
+    }
+}
+
+fn pad_fields(mut values: Vec<Fr>, size: usize) -> Vec<Fr> {
+    while values.len() < size {
+        values.push(Fr::zero());
+    }
+    values
+}
+
+fn parse_merkle_path(path: &[String]) -> Result<Vec<Fr>, Box<dyn Error>> {
+    if path.len() != SHIELDED_NOTE_TREE_DEPTH {
+        return Err("merkle_path length does not match tree depth".into());
+    }
+    path.iter().map(|value| parse_field_hex(value)).collect()
+}
+
+fn path_directions_for_leaf_index(leaf_index: usize) -> Vec<bool> {
+    let mut directions = Vec::with_capacity(SHIELDED_NOTE_TREE_DEPTH);
+    for level in 0..SHIELDED_NOTE_TREE_DEPTH {
+        directions.push(((leaf_index >> level) & 1) == 1);
+    }
+    directions
+}
+
+fn input_witness_from_request(
+    input: &ShieldedInputRequest,
+) -> Result<InputWitness, Box<dyn Error>> {
+    if input.leaf_index >= SHIELDED_NOTE_TREE_LEAF_COUNT {
+        return Err("leaf_index exceeds tree capacity".into());
+    }
+    Ok(InputWitness {
+        enabled: true,
+        note: note_from_input_request(input)?,
+        merkle_path: parse_merkle_path(&input.merkle_path)?,
+        path_directions: path_directions_for_leaf_index(input.leaf_index),
+    })
+}
+
+fn build_output_witnesses(
+    asset_id: Fr,
+    outputs: &[ShieldedOutputRequest],
+) -> Result<(Vec<OutputWitness>, Vec<Fr>), Box<dyn Error>> {
+    let mut output_witnesses = Vec::new();
+    let mut output_commitments = Vec::new();
+    for output in outputs {
+        let witness = output_witness_from_request(output)?;
+        output_commitments.push(output_commitment(
+            asset_id,
+            witness.owner_public,
+            witness.amount,
+            witness.rho,
+            witness.blind,
+        ));
+        output_witnesses.push(witness);
+    }
+    while output_witnesses.len() < SHIELDED_NOTE_MAX_OUTPUTS {
+        output_witnesses.push(blank_output_witness());
+    }
+    Ok((output_witnesses, output_commitments))
+}
+
 pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> {
     let contract_name = "con_shielded_note_token";
     let asset_id = asset_id_for_contract(contract_name);
-    let zero_root = zero_root();
+    let zero_state = empty_frontier_state();
 
     let alice_secret = hash_to_field("shielded-note:alice");
     let bob_secret = hash_to_field("shielded-note:bob");
@@ -905,201 +1178,133 @@ pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> 
     let nullifier_a2 = note_nullifier(asset_id, &note_a2);
     let nullifier_a3 = note_nullifier(asset_id, &note_a3);
 
-    let leaves0 = vec![Fr::zero(); SHIELDED_NOTE_TREE_LEAF_COUNT];
-    let root0 = merkle_root(&leaves0);
-    let leaves1 = append_commitments(leaves0.clone(), &[commitment_a1, commitment_a2]);
-    let root1 = merkle_root(&leaves1);
-    let leaves2 = append_commitments(leaves1.clone(), &[commitment_b1, commitment_a3]);
-    let root2 = merkle_root(&leaves2);
-    let leaves3 = append_commitments(leaves2.clone(), &[commitment_a4]);
-    let root3 = merkle_root(&leaves3);
+    let commitments1 = vec![field_hex(commitment_a1), field_hex(commitment_a2)];
+    let commitments2 = vec![
+        field_hex(commitment_a1),
+        field_hex(commitment_a2),
+        field_hex(commitment_b1),
+        field_hex(commitment_a3),
+    ];
+    let commitments3 = vec![
+        field_hex(commitment_a1),
+        field_hex(commitment_a2),
+        field_hex(commitment_b1),
+        field_hex(commitment_a3),
+        field_hex(commitment_a4),
+    ];
+
+    let state1 = tree_state_from_commitments(&commitments1)?;
+    let state2 = tree_state_from_commitments(&commitments2)?;
+    let state3 = tree_state_from_commitments(&commitments3)?;
+    let leaves1 = leaf_fields_from_commitments(&commitments1)?;
+    let leaves2 = leaf_fields_from_commitments(&commitments2)?;
 
     let deposit_circuit = DepositCircuit {
         asset_id,
-        old_root: root0,
+        old_root: zero_state.root,
         amount: 70,
         output_count: 2,
-        output_commitments: vec![commitment_a1, commitment_a2, Fr::zero(), Fr::zero()],
-        old_leaves: leaves0.clone(),
+        output_commitments: pad_fields(
+            vec![commitment_a1, commitment_a2],
+            SHIELDED_NOTE_MAX_OUTPUTS,
+        ),
         outputs: vec![
             OutputWitness {
                 enabled: true,
-                note: note_a1.clone(),
+                owner_public: owner_public(note_a1.owner_secret),
+                amount: note_a1.amount,
+                rho: note_a1.rho,
+                blind: note_a1.blind,
             },
             OutputWitness {
                 enabled: true,
-                note: note_a2.clone(),
+                owner_public: owner_public(note_a2.owner_secret),
+                amount: note_a2.amount,
+                rho: note_a2.rho,
+                blind: note_a2.blind,
             },
-            OutputWitness {
-                enabled: false,
-                note: NoteWitness {
-                    owner_secret: Fr::zero(),
-                    amount: 0,
-                    rho: Fr::zero(),
-                    blind: Fr::zero(),
-                },
-            },
-            OutputWitness {
-                enabled: false,
-                note: NoteWitness {
-                    owner_secret: Fr::zero(),
-                    amount: 0,
-                    rho: Fr::zero(),
-                    blind: Fr::zero(),
-                },
-            },
+            blank_output_witness(),
+            blank_output_witness(),
         ],
     };
 
     let transfer_circuit = TransferCircuit {
         asset_id,
-        old_root: root1,
+        old_root: state1.root,
         input_count: 2,
         output_count: 2,
-        input_nullifiers: vec![nullifier_a1, nullifier_a2, Fr::zero(), Fr::zero()],
-        output_commitments: vec![commitment_b1, commitment_a3, Fr::zero(), Fr::zero()],
-        old_leaves: leaves1.clone(),
+        input_nullifiers: pad_fields(vec![nullifier_a1, nullifier_a2], SHIELDED_NOTE_MAX_INPUTS),
+        output_commitments: pad_fields(
+            vec![commitment_b1, commitment_a3],
+            SHIELDED_NOTE_MAX_OUTPUTS,
+        ),
         inputs: vec![
             InputWitness {
                 enabled: true,
                 note: note_a1.clone(),
-                leaf_index: 0,
+                merkle_path: auth_path_from_leaves(&leaves1, 0)?,
+                path_directions: path_directions_for_leaf_index(0),
             },
             InputWitness {
                 enabled: true,
                 note: note_a2.clone(),
-                leaf_index: 1,
+                merkle_path: auth_path_from_leaves(&leaves1, 1)?,
+                path_directions: path_directions_for_leaf_index(1),
             },
-            InputWitness {
-                enabled: false,
-                note: NoteWitness {
-                    owner_secret: Fr::zero(),
-                    amount: 0,
-                    rho: Fr::zero(),
-                    blind: Fr::zero(),
-                },
-                leaf_index: 0,
-            },
-            InputWitness {
-                enabled: false,
-                note: NoteWitness {
-                    owner_secret: Fr::zero(),
-                    amount: 0,
-                    rho: Fr::zero(),
-                    blind: Fr::zero(),
-                },
-                leaf_index: 0,
-            },
+            blank_input_witness(),
+            blank_input_witness(),
         ],
         outputs: vec![
             OutputWitness {
                 enabled: true,
-                note: note_b1.clone(),
+                owner_public: owner_public(note_b1.owner_secret),
+                amount: note_b1.amount,
+                rho: note_b1.rho,
+                blind: note_b1.blind,
             },
             OutputWitness {
                 enabled: true,
-                note: note_a3.clone(),
+                owner_public: owner_public(note_a3.owner_secret),
+                amount: note_a3.amount,
+                rho: note_a3.rho,
+                blind: note_a3.blind,
             },
-            OutputWitness {
-                enabled: false,
-                note: NoteWitness {
-                    owner_secret: Fr::zero(),
-                    amount: 0,
-                    rho: Fr::zero(),
-                    blind: Fr::zero(),
-                },
-            },
-            OutputWitness {
-                enabled: false,
-                note: NoteWitness {
-                    owner_secret: Fr::zero(),
-                    amount: 0,
-                    rho: Fr::zero(),
-                    blind: Fr::zero(),
-                },
-            },
+            blank_output_witness(),
+            blank_output_witness(),
         ],
     };
 
     let withdraw_circuit = WithdrawCircuit {
         asset_id,
-        old_root: root2,
+        old_root: state2.root,
         amount: 20,
         recipient_digest: recipient_digest("bob"),
         input_count: 1,
         output_count: 1,
-        input_nullifiers: vec![nullifier_a3, Fr::zero(), Fr::zero(), Fr::zero()],
-        output_commitments: vec![commitment_a4, Fr::zero(), Fr::zero(), Fr::zero()],
-        old_leaves: leaves2.clone(),
+        input_nullifiers: pad_fields(vec![nullifier_a3], SHIELDED_NOTE_MAX_INPUTS),
+        output_commitments: pad_fields(vec![commitment_a4], SHIELDED_NOTE_MAX_OUTPUTS),
         inputs: vec![
             InputWitness {
                 enabled: true,
                 note: note_a3.clone(),
-                leaf_index: 3,
+                merkle_path: auth_path_from_leaves(&leaves2, 3)?,
+                path_directions: path_directions_for_leaf_index(3),
             },
-            InputWitness {
-                enabled: false,
-                note: NoteWitness {
-                    owner_secret: Fr::zero(),
-                    amount: 0,
-                    rho: Fr::zero(),
-                    blind: Fr::zero(),
-                },
-                leaf_index: 0,
-            },
-            InputWitness {
-                enabled: false,
-                note: NoteWitness {
-                    owner_secret: Fr::zero(),
-                    amount: 0,
-                    rho: Fr::zero(),
-                    blind: Fr::zero(),
-                },
-                leaf_index: 0,
-            },
-            InputWitness {
-                enabled: false,
-                note: NoteWitness {
-                    owner_secret: Fr::zero(),
-                    amount: 0,
-                    rho: Fr::zero(),
-                    blind: Fr::zero(),
-                },
-                leaf_index: 0,
-            },
+            blank_input_witness(),
+            blank_input_witness(),
+            blank_input_witness(),
         ],
         outputs: vec![
             OutputWitness {
                 enabled: true,
-                note: note_a4.clone(),
+                owner_public: owner_public(note_a4.owner_secret),
+                amount: note_a4.amount,
+                rho: note_a4.rho,
+                blind: note_a4.blind,
             },
-            OutputWitness {
-                enabled: false,
-                note: NoteWitness {
-                    owner_secret: Fr::zero(),
-                    amount: 0,
-                    rho: Fr::zero(),
-                    blind: Fr::zero(),
-                },
-            },
-            OutputWitness {
-                enabled: false,
-                note: NoteWitness {
-                    owner_secret: Fr::zero(),
-                    amount: 0,
-                    rho: Fr::zero(),
-                    blind: Fr::zero(),
-                },
-            },
-            OutputWitness {
-                enabled: false,
-                note: NoteWitness {
-                    owner_secret: Fr::zero(),
-                    amount: 0,
-                    rho: Fr::zero(),
-                    blind: Fr::zero(),
-                },
-            },
+            blank_output_witness(),
+            blank_output_witness(),
+            blank_output_witness(),
         ],
     };
 
@@ -1114,35 +1319,35 @@ pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> 
     Ok(ShieldedFixture {
         contract_name: contract_name.to_string(),
         asset_id: field_hex(asset_id),
-        zero_root: field_hex(zero_root),
+        zero_root: field_hex(zero_state.root),
         tree_depth: SHIELDED_NOTE_TREE_DEPTH,
         leaf_capacity: SHIELDED_NOTE_TREE_LEAF_COUNT,
         max_inputs: SHIELDED_NOTE_MAX_INPUTS,
         max_outputs: SHIELDED_NOTE_MAX_OUTPUTS,
         verifying_keys: vec![
             ShieldedVkFixture {
-                vk_id: "shielded-deposit-v1".to_string(),
-                circuit_name: "shielded_note_deposit_v1".to_string(),
-                version: "1".to_string(),
+                vk_id: "shielded-deposit-v2".to_string(),
+                circuit_name: "shielded_note_deposit_v2".to_string(),
+                version: "2".to_string(),
                 vk_hex: serialize_hex(&deposit_vk)?,
             },
             ShieldedVkFixture {
-                vk_id: "shielded-transfer-v1".to_string(),
-                circuit_name: "shielded_note_transfer_v1".to_string(),
-                version: "1".to_string(),
+                vk_id: "shielded-transfer-v2".to_string(),
+                circuit_name: "shielded_note_transfer_v2".to_string(),
+                version: "2".to_string(),
                 vk_hex: serialize_hex(&transfer_vk)?,
             },
             ShieldedVkFixture {
-                vk_id: "shielded-withdraw-v1".to_string(),
-                circuit_name: "shielded_note_withdraw_v1".to_string(),
-                version: "1".to_string(),
+                vk_id: "shielded-withdraw-v2".to_string(),
+                circuit_name: "shielded_note_withdraw_v2".to_string(),
+                version: "2".to_string(),
                 vk_hex: serialize_hex(&withdraw_vk)?,
             },
         ],
         deposit: ShieldedActionFixture {
             proof_hex: serialize_hex(&deposit_proof)?,
-            old_root: field_hex(root0),
-            expected_new_root: field_hex(root1),
+            old_root: field_hex(zero_state.root),
+            expected_new_root: field_hex(state1.root),
             public_inputs: deposit_circuit
                 .public_inputs()
                 .into_iter()
@@ -1157,8 +1362,8 @@ pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> 
         },
         transfer: ShieldedActionFixture {
             proof_hex: serialize_hex(&transfer_proof)?,
-            old_root: field_hex(root1),
-            expected_new_root: field_hex(root2),
+            old_root: field_hex(state1.root),
+            expected_new_root: field_hex(state2.root),
             public_inputs: transfer_circuit
                 .public_inputs()
                 .into_iter()
@@ -1173,8 +1378,8 @@ pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> 
         },
         withdraw: ShieldedActionFixture {
             proof_hex: serialize_hex(&withdraw_proof)?,
-            old_root: field_hex(root2),
-            expected_new_root: field_hex(root3),
+            old_root: field_hex(state2.root),
+            expected_new_root: field_hex(state3.root),
             public_inputs: withdraw_circuit
                 .public_inputs()
                 .into_iter()
@@ -1190,124 +1395,116 @@ pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> 
     })
 }
 
-pub fn build_insecure_dev_shielded_note_bundle() -> Result<ShieldedProverBundle, Box<dyn Error>> {
-    let mut rng = StdRng::seed_from_u64(20260326);
-    let (_deposit_pk, deposit_vk, _deposit_proof) =
-        prove_circuit(&mut rng, DepositCircuit::blank(), DepositCircuit::blank())?;
-    let (_transfer_pk, transfer_vk, _transfer_proof) =
-        prove_circuit(&mut rng, TransferCircuit::blank(), TransferCircuit::blank())?;
-    let (_withdraw_pk, withdraw_vk, _withdraw_proof) =
-        prove_circuit(&mut rng, WithdrawCircuit::blank(), WithdrawCircuit::blank())?;
+struct ShieldedBundleDescriptor<'a> {
+    contract_name: &'a str,
+    warning: &'a str,
+    deposit_vk_id: &'a str,
+    transfer_vk_id: &'a str,
+    withdraw_vk_id: &'a str,
+}
 
-    let mut rng = StdRng::seed_from_u64(20260326);
-    let (deposit_pk, _deposit_vk, _) =
-        prove_circuit(&mut rng, DepositCircuit::blank(), DepositCircuit::blank())?;
-    let (transfer_pk, _transfer_vk, _) =
-        prove_circuit(&mut rng, TransferCircuit::blank(), TransferCircuit::blank())?;
-    let (withdraw_pk, _withdraw_vk, _) =
-        prove_circuit(&mut rng, WithdrawCircuit::blank(), WithdrawCircuit::blank())?;
+fn build_shielded_note_bundle_with_rng(
+    rng: &mut StdRng,
+    descriptor: &ShieldedBundleDescriptor<'_>,
+) -> Result<ShieldedProverBundle, Box<dyn Error>> {
+    let (deposit_pk, deposit_vk, _) =
+        prove_circuit(rng, DepositCircuit::blank(), DepositCircuit::blank())?;
+    let (transfer_pk, transfer_vk, _) =
+        prove_circuit(rng, TransferCircuit::blank(), TransferCircuit::blank())?;
+    let (withdraw_pk, withdraw_vk, _) =
+        prove_circuit(rng, WithdrawCircuit::blank(), WithdrawCircuit::blank())?;
 
     Ok(ShieldedProverBundle {
-        circuit_family: "shielded_note_v1".to_string(),
-        warning: "INSECURE DEV BUNDLE: deterministic setup seed exposes toxic waste and must never be used on a real network.".to_string(),
-        contract_name: "con_shielded_note_token".to_string(),
+        circuit_family: SHIELDED_NOTE_CIRCUIT_FAMILY.to_string(),
+        warning: descriptor.warning.to_string(),
+        contract_name: descriptor.contract_name.to_string(),
         tree_depth: SHIELDED_NOTE_TREE_DEPTH,
         leaf_capacity: SHIELDED_NOTE_TREE_LEAF_COUNT,
         max_inputs: SHIELDED_NOTE_MAX_INPUTS,
         max_outputs: SHIELDED_NOTE_MAX_OUTPUTS,
         deposit: ShieldedCircuitBundle {
-            vk_id: "shielded-deposit-v1".to_string(),
-            circuit_name: "shielded_note_deposit_v1".to_string(),
-            version: "1".to_string(),
+            vk_id: descriptor.deposit_vk_id.to_string(),
+            circuit_name: SHIELDED_NOTE_DEPOSIT_CIRCUIT_NAME.to_string(),
+            version: SHIELDED_NOTE_CIRCUIT_VERSION.to_string(),
             vk_hex: serialize_hex(&deposit_vk)?,
             pk_hex: serialize_hex(&deposit_pk)?,
         },
         transfer: ShieldedCircuitBundle {
-            vk_id: "shielded-transfer-v1".to_string(),
-            circuit_name: "shielded_note_transfer_v1".to_string(),
-            version: "1".to_string(),
+            vk_id: descriptor.transfer_vk_id.to_string(),
+            circuit_name: SHIELDED_NOTE_TRANSFER_CIRCUIT_NAME.to_string(),
+            version: SHIELDED_NOTE_CIRCUIT_VERSION.to_string(),
             vk_hex: serialize_hex(&transfer_vk)?,
             pk_hex: serialize_hex(&transfer_pk)?,
         },
         withdraw: ShieldedCircuitBundle {
-            vk_id: "shielded-withdraw-v1".to_string(),
-            circuit_name: "shielded_note_withdraw_v1".to_string(),
-            version: "1".to_string(),
+            vk_id: descriptor.withdraw_vk_id.to_string(),
+            circuit_name: SHIELDED_NOTE_WITHDRAW_CIRCUIT_NAME.to_string(),
+            version: SHIELDED_NOTE_CIRCUIT_VERSION.to_string(),
             vk_hex: serialize_hex(&withdraw_vk)?,
             pk_hex: serialize_hex(&withdraw_pk)?,
         },
     })
 }
 
-fn prove_with_pk<C: ConstraintSynthesizer<Fr>>(
-    proving_key_hex: &str,
-    circuit: C,
-) -> Result<Proof<Bn254>, Box<dyn Error>> {
-    let proving_key: ProvingKey<Bn254> = deserialize_hex(proving_key_hex)?;
-    let mut rng = OsRng;
-    Ok(Groth16::<Bn254>::prove(&proving_key, circuit, &mut rng)?)
+pub fn build_random_shielded_note_bundle(
+    contract_name: &str,
+    vk_id_prefix: &str,
+) -> Result<ShieldedProverBundle, Box<dyn Error>> {
+    if contract_name.is_empty() {
+        return Err("contract_name must be non-empty".into());
+    }
+    if vk_id_prefix.is_empty() {
+        return Err("vk_id_prefix must be non-empty".into());
+    }
+
+    let deposit_vk_id = format!("{vk_id_prefix}-deposit");
+    let transfer_vk_id = format!("{vk_id_prefix}-transfer");
+    let withdraw_vk_id = format!("{vk_id_prefix}-withdraw");
+    let descriptor = ShieldedBundleDescriptor {
+        contract_name,
+        warning: "SINGLE-PARTY RANDOM BUNDLE: generated from OS randomness for deployment use. This replaces the deterministic dev setup but is still not an MPC ceremony.",
+        deposit_vk_id: &deposit_vk_id,
+        transfer_vk_id: &transfer_vk_id,
+        withdraw_vk_id: &withdraw_vk_id,
+    };
+
+    let mut rng = StdRng::from_rng(OsRng)
+        .map_err(|error| format!("failed to seed random setup rng: {error}"))?;
+    build_shielded_note_bundle_with_rng(&mut rng, &descriptor)
 }
 
-fn blank_output_witness() -> OutputWitness {
-    OutputWitness {
-        enabled: false,
-        note: NoteWitness {
-            owner_secret: Fr::zero(),
-            amount: 0,
-            rho: Fr::zero(),
-            blind: Fr::zero(),
-        },
-    }
-}
-
-fn blank_input_witness() -> InputWitness {
-    InputWitness {
-        enabled: false,
-        note: NoteWitness {
-            owner_secret: Fr::zero(),
-            amount: 0,
-            rho: Fr::zero(),
-            blind: Fr::zero(),
-        },
-        leaf_index: 0,
-    }
+pub fn build_insecure_dev_shielded_note_bundle() -> Result<ShieldedProverBundle, Box<dyn Error>> {
+    let mut rng = StdRng::seed_from_u64(20260326);
+    let descriptor = ShieldedBundleDescriptor {
+        contract_name: "con_shielded_note_token",
+        warning: "INSECURE DEV BUNDLE: deterministic setup seed exposes toxic waste and must never be used on a real network.",
+        deposit_vk_id: "shielded-deposit-v2",
+        transfer_vk_id: "shielded-transfer-v2",
+        withdraw_vk_id: "shielded-withdraw-v2",
+    };
+    build_shielded_note_bundle_with_rng(&mut rng, &descriptor)
 }
 
 pub fn prove_shielded_deposit(
     bundle: &ShieldedProverBundle,
     request: &ShieldedDepositRequest,
 ) -> Result<ShieldedProofResult, Box<dyn Error>> {
+    if request.outputs.is_empty() || request.outputs.len() > SHIELDED_NOTE_MAX_OUTPUTS {
+        return Err("invalid output count".into());
+    }
+
     let asset_id = parse_field_hex(&request.asset_id)?;
-    let old_leaves = leaves_from_commitments(&request.old_commitments)?;
-    let old_root = merkle_root(&old_leaves);
-    let mut output_witnesses = Vec::new();
-    let mut output_commitments = Vec::new();
-    for output in &request.outputs {
-        let note = note_from_output_request(output)?;
-        output_commitments.push(note_commitment(asset_id, &note));
-        output_witnesses.push(OutputWitness {
-            enabled: true,
-            note,
-        });
-    }
-    while output_witnesses.len() < SHIELDED_NOTE_MAX_OUTPUTS {
-        output_witnesses.push(blank_output_witness());
-    }
-    let new_leaves = append_commitments(old_leaves.clone(), &output_commitments);
-    let expected_new_root = merkle_root(&new_leaves);
+    let old_root = parse_field_hex(&request.old_root)?;
+    let append_state = parse_tree_state(&request.append_state)?;
+    let (output_witnesses, output_commitments) =
+        build_output_witnesses(asset_id, &request.outputs)?;
+    let expected_new_root = append_commitments_to_state(&append_state, &output_commitments)?.root;
     let circuit = DepositCircuit {
         asset_id,
         old_root,
         amount: request.amount,
         output_count: request.outputs.len(),
-        output_commitments: {
-            let mut values = output_commitments.clone();
-            while values.len() < SHIELDED_NOTE_MAX_OUTPUTS {
-                values.push(Fr::zero());
-            }
-            values
-        },
-        old_leaves,
+        output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
         outputs: output_witnesses,
     };
     let proof = prove_with_pk(&bundle.deposit.pk_hex, circuit.clone())?;
@@ -1325,10 +1522,6 @@ pub fn prove_shielded_transfer(
     bundle: &ShieldedProverBundle,
     request: &ShieldedTransferRequest,
 ) -> Result<ShieldedProofResult, Box<dyn Error>> {
-    let asset_id = parse_field_hex(&request.asset_id)?;
-    let old_leaves = leaves_from_commitments(&request.old_commitments)?;
-    let old_root = merkle_root(&old_leaves);
-
     if request.inputs.is_empty() || request.inputs.len() > SHIELDED_NOTE_MAX_INPUTS {
         return Err("invalid input count".into());
     }
@@ -1336,57 +1529,31 @@ pub fn prove_shielded_transfer(
         return Err("invalid output count".into());
     }
 
+    let asset_id = parse_field_hex(&request.asset_id)?;
+    let old_root = parse_field_hex(&request.old_root)?;
+    let append_state = parse_tree_state(&request.append_state)?;
+
     let mut input_witnesses = Vec::new();
     let mut input_nullifiers = Vec::new();
     for input in &request.inputs {
-        let note = note_from_input_request(input)?;
-        input_nullifiers.push(note_nullifier(asset_id, &note));
-        input_witnesses.push(InputWitness {
-            enabled: true,
-            note,
-            leaf_index: input.leaf_index,
-        });
+        let witness = input_witness_from_request(input)?;
+        input_nullifiers.push(note_nullifier(asset_id, &witness.note));
+        input_witnesses.push(witness);
     }
     while input_witnesses.len() < SHIELDED_NOTE_MAX_INPUTS {
         input_witnesses.push(blank_input_witness());
     }
 
-    let mut output_witnesses = Vec::new();
-    let mut output_commitments = Vec::new();
-    for output in &request.outputs {
-        let note = note_from_output_request(output)?;
-        output_commitments.push(note_commitment(asset_id, &note));
-        output_witnesses.push(OutputWitness {
-            enabled: true,
-            note,
-        });
-    }
-    while output_witnesses.len() < SHIELDED_NOTE_MAX_OUTPUTS {
-        output_witnesses.push(blank_output_witness());
-    }
-
-    let new_leaves = append_commitments(old_leaves.clone(), &output_commitments);
-    let expected_new_root = merkle_root(&new_leaves);
+    let (output_witnesses, output_commitments) =
+        build_output_witnesses(asset_id, &request.outputs)?;
+    let expected_new_root = append_commitments_to_state(&append_state, &output_commitments)?.root;
     let circuit = TransferCircuit {
         asset_id,
         old_root,
         input_count: request.inputs.len(),
         output_count: request.outputs.len(),
-        input_nullifiers: {
-            let mut values = input_nullifiers.clone();
-            while values.len() < SHIELDED_NOTE_MAX_INPUTS {
-                values.push(Fr::zero());
-            }
-            values
-        },
-        output_commitments: {
-            let mut values = output_commitments.clone();
-            while values.len() < SHIELDED_NOTE_MAX_OUTPUTS {
-                values.push(Fr::zero());
-            }
-            values
-        },
-        old_leaves,
+        input_nullifiers: pad_fields(input_nullifiers.clone(), SHIELDED_NOTE_MAX_INPUTS),
+        output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
         inputs: input_witnesses,
         outputs: output_witnesses,
     };
@@ -1405,48 +1572,31 @@ pub fn prove_shielded_withdraw(
     bundle: &ShieldedProverBundle,
     request: &ShieldedWithdrawRequest,
 ) -> Result<ShieldedProofResult, Box<dyn Error>> {
-    let asset_id = parse_field_hex(&request.asset_id)?;
-    let old_leaves = leaves_from_commitments(&request.old_commitments)?;
-    let old_root = merkle_root(&old_leaves);
-
     if request.inputs.is_empty() || request.inputs.len() > SHIELDED_NOTE_MAX_INPUTS {
         return Err("invalid input count".into());
     }
-    if request.outputs.is_empty() || request.outputs.len() > SHIELDED_NOTE_MAX_OUTPUTS {
+    if request.outputs.len() > SHIELDED_NOTE_MAX_OUTPUTS {
         return Err("invalid output count".into());
     }
+
+    let asset_id = parse_field_hex(&request.asset_id)?;
+    let old_root = parse_field_hex(&request.old_root)?;
+    let append_state = parse_tree_state(&request.append_state)?;
 
     let mut input_witnesses = Vec::new();
     let mut input_nullifiers = Vec::new();
     for input in &request.inputs {
-        let note = note_from_input_request(input)?;
-        input_nullifiers.push(note_nullifier(asset_id, &note));
-        input_witnesses.push(InputWitness {
-            enabled: true,
-            note,
-            leaf_index: input.leaf_index,
-        });
+        let witness = input_witness_from_request(input)?;
+        input_nullifiers.push(note_nullifier(asset_id, &witness.note));
+        input_witnesses.push(witness);
     }
     while input_witnesses.len() < SHIELDED_NOTE_MAX_INPUTS {
         input_witnesses.push(blank_input_witness());
     }
 
-    let mut output_witnesses = Vec::new();
-    let mut output_commitments = Vec::new();
-    for output in &request.outputs {
-        let note = note_from_output_request(output)?;
-        output_commitments.push(note_commitment(asset_id, &note));
-        output_witnesses.push(OutputWitness {
-            enabled: true,
-            note,
-        });
-    }
-    while output_witnesses.len() < SHIELDED_NOTE_MAX_OUTPUTS {
-        output_witnesses.push(blank_output_witness());
-    }
-
-    let new_leaves = append_commitments(old_leaves.clone(), &output_commitments);
-    let expected_new_root = merkle_root(&new_leaves);
+    let (output_witnesses, output_commitments) =
+        build_output_witnesses(asset_id, &request.outputs)?;
+    let expected_new_root = append_commitments_to_state(&append_state, &output_commitments)?.root;
     let circuit = WithdrawCircuit {
         asset_id,
         old_root,
@@ -1454,21 +1604,8 @@ pub fn prove_shielded_withdraw(
         recipient_digest: recipient_digest(&request.recipient),
         input_count: request.inputs.len(),
         output_count: request.outputs.len(),
-        input_nullifiers: {
-            let mut values = input_nullifiers.clone();
-            while values.len() < SHIELDED_NOTE_MAX_INPUTS {
-                values.push(Fr::zero());
-            }
-            values
-        },
-        output_commitments: {
-            let mut values = output_commitments.clone();
-            while values.len() < SHIELDED_NOTE_MAX_OUTPUTS {
-                values.push(Fr::zero());
-            }
-            values
-        },
-        old_leaves,
+        input_nullifiers: pad_fields(input_nullifiers.clone(), SHIELDED_NOTE_MAX_INPUTS),
+        output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
         inputs: input_witnesses,
         outputs: output_witnesses,
     };
@@ -1487,6 +1624,12 @@ pub fn prove_shielded_withdraw(
 mod tests {
     use super::*;
     use crate::core::verify_groth16_bn254;
+
+    #[test]
+    fn random_bundle_requires_non_empty_names() {
+        assert!(build_random_shielded_note_bundle("", "bundle-id").is_err());
+        assert!(build_random_shielded_note_bundle("con_private_usd", "").is_err());
+    }
 
     #[test]
     fn shielded_fixture_vectors_verify() {

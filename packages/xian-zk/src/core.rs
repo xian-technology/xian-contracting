@@ -90,7 +90,10 @@ fn left_pad_to_32(mut bytes: Vec<u8>) -> Result<Vec<u8>, VerifierError> {
 }
 
 fn parse_public_input(hex_value: &str) -> Result<Fr, VerifierError> {
-    let bytes = left_pad_to_32(decode_hex_payload(hex_value)?)?;
+    let bytes = decode_hex_payload(hex_value)?;
+    if bytes.len() != EXPECTED_FIELD_ELEMENT_BYTES {
+        return Err(encoding_error("public inputs must be exactly 32 bytes"));
+    }
     let value = BigUint::from_bytes_be(&bytes);
     let modulus = BigUint::parse_bytes(FIELD_MODULUS_DECIMAL.as_bytes(), 10).unwrap();
     if value >= modulus {

@@ -6,13 +6,16 @@ import pytest
 
 from xian_zk import (
     ShieldedDepositRequest,
+    ShieldedKeyBundle,
     ShieldedNote,
     ShieldedNoteProver,
+    ShieldedOutput,
     ShieldedTransferRequest,
     ShieldedWithdrawRequest,
     asset_id_for_contract,
     merkle_root,
     scan_notes,
+    tree_state,
     verify_groth16_bn254,
     zero_root,
 )
@@ -43,9 +46,9 @@ def test_insecure_dev_bundle_matches_existing_shielded_fixture_keys():
     prover = load_dev_prover()
     by_id = {vk["vk_id"]: vk["vk_hex"] for vk in fixture["verifying_keys"]}
 
-    assert prover.bundle["deposit"]["vk_hex"] == by_id["shielded-deposit-v1"]
-    assert prover.bundle["transfer"]["vk_hex"] == by_id["shielded-transfer-v1"]
-    assert prover.bundle["withdraw"]["vk_hex"] == by_id["shielded-withdraw-v1"]
+    assert prover.bundle["deposit"]["vk_hex"] == by_id["shielded-deposit-v2"]
+    assert prover.bundle["transfer"]["vk_hex"] == by_id["shielded-transfer-v2"]
+    assert prover.bundle["withdraw"]["vk_hex"] == by_id["shielded-withdraw-v2"]
 
 
 def test_prover_can_generate_and_verify_shielded_note_flow():
@@ -64,8 +67,12 @@ def test_prover_can_generate_and_verify_shielded_note_flow():
         rho=field(1002),
         blind=field(2002),
     )
-    bob_note_1 = ShieldedNote(
+    bob_keys = ShieldedKeyBundle.from_parts(
         owner_secret=field(202),
+        viewing_private_key="22" * 32,
+    )
+    bob_note_1 = ShieldedNote(
+        owner_secret=bob_keys.owner_secret,
         amount=25,
         rho=field(1003),
         blind=field(2003),
@@ -85,7 +92,8 @@ def test_prover_can_generate_and_verify_shielded_note_flow():
 
     deposit_request = ShieldedDepositRequest(
         asset_id=asset_id,
-        old_commitments=[],
+        old_root=zero_root(),
+        append_state=tree_state([]),
         amount=70,
         outputs=[alice_note_1.to_output(), alice_note_2.to_output()],
     )
@@ -107,9 +115,18 @@ def test_prover_can_generate_and_verify_shielded_note_flow():
 
     transfer_request = ShieldedTransferRequest(
         asset_id=asset_id,
-        old_commitments=deposit.output_commitments,
+        old_root=deposit.expected_new_root,
+        append_state=tree_state(deposit.output_commitments),
         inputs=[match.to_input() for match in discovered_inputs],
-        outputs=[bob_note_1.to_output(), alice_note_3.to_output()],
+        outputs=[
+            ShieldedOutput.for_recipient(
+                bob_keys.recipient,
+                amount=bob_note_1.amount,
+                rho=bob_note_1.rho,
+                blind=bob_note_1.blind,
+            ),
+            alice_note_3.to_output(),
+        ],
     )
     transfer = prover.prove_transfer(transfer_request)
     transfer_commitments = deposit.output_commitments + transfer.output_commitments
@@ -130,7 +147,8 @@ def test_prover_can_generate_and_verify_shielded_note_flow():
 
     withdraw_request = ShieldedWithdrawRequest(
         asset_id=asset_id,
-        old_commitments=transfer_commitments,
+        old_root=transfer.expected_new_root,
+        append_state=tree_state(transfer_commitments),
         amount=20,
         recipient="bob",
         inputs=[discovered_withdraw[0].to_input()],
@@ -140,6 +158,59 @@ def test_prover_can_generate_and_verify_shielded_note_flow():
     withdraw_commitments = transfer_commitments + withdraw.output_commitments
     assert withdraw.old_root == transfer.expected_new_root
     assert merkle_root(withdraw_commitments) == withdraw.expected_new_root
+    assert verify_groth16_bn254(
+        prover.bundle["withdraw"]["vk_hex"],
+        withdraw.proof_hex,
+        withdraw.public_inputs,
+    )
+
+
+def test_prover_can_generate_exact_withdraw_without_outputs():
+    prover = load_dev_prover()
+    asset_id = asset_id_for_contract("con_shielded_note_token")
+
+    alice_note_1 = ShieldedNote(
+        owner_secret=field(303),
+        amount=40,
+        rho=field(3001),
+        blind=field(4001),
+    )
+    alice_note_2 = ShieldedNote(
+        owner_secret=field(303),
+        amount=30,
+        rho=field(3002),
+        blind=field(4002),
+    )
+
+    deposit = prover.prove_deposit(
+        ShieldedDepositRequest(
+            asset_id=asset_id,
+            old_root=zero_root(),
+            append_state=tree_state([]),
+            amount=70,
+            outputs=[alice_note_1.to_output(), alice_note_2.to_output()],
+        )
+    )
+    discovered = scan_notes(
+        asset_id=asset_id,
+        commitments=deposit.output_commitments,
+        notes=[alice_note_1, alice_note_2],
+    )
+
+    withdraw = prover.prove_withdraw(
+        ShieldedWithdrawRequest(
+            asset_id=asset_id,
+            old_root=deposit.expected_new_root,
+            append_state=tree_state(deposit.output_commitments),
+            amount=70,
+            recipient="alice",
+            inputs=[note.to_input() for note in discovered],
+            outputs=[],
+        )
+    )
+
+    assert withdraw.output_commitments == []
+    assert withdraw.expected_new_root == deposit.expected_new_root
     assert verify_groth16_bn254(
         prover.bundle["withdraw"]["vk_hex"],
         withdraw.proof_hex,

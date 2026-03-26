@@ -33,6 +33,15 @@ def _require_vk_id(vk_id: str):
     assert len(vk_id) <= 128, "vk_id is too long!"
 
 
+def _require_hex_blob(name: str, value: str):
+    assert isinstance(value, str), name + " must be a string!"
+    assert value.startswith("0x"), name + " must be 0x-prefixed!"
+    assert len(value) > 2 and len(value) % 2 == 0, (
+        name + " must contain whole bytes!"
+    )
+    int(value[2:], 16)
+
+
 @export
 def seed(owner: str = None):
     assert registry_owner.get() is None, "Registry already seeded!"
@@ -62,6 +71,7 @@ def register_vk(
 ):
     _require_owner()
     _require_vk_id(vk_id)
+    assert verifying_keys[vk_id, "vk_hex"] is None, "vk_id already registered!"
     if scheme is None:
         scheme = "groth16"
     if curve is None:
@@ -74,9 +84,7 @@ def register_vk(
         active = True
     assert scheme == "groth16", "Only Groth16 is supported!"
     assert curve == "bn254", "Only BN254 is supported!"
-    assert isinstance(vk_hex, str) and vk_hex.startswith("0x"), (
-        "vk_hex must be 0x-prefixed!"
-    )
+    _require_hex_blob("vk_hex", vk_hex)
     assert isinstance(circuit_name, str), "circuit_name must be a string!"
     assert isinstance(version, str), "version must be a string!"
 

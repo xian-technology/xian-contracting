@@ -111,6 +111,14 @@ class TestZkBridge(TestCase):
                 public_inputs=self.fixture["public_inputs"],
             )
 
+    def test_contract_rejects_short_public_inputs(self):
+        with self.assertRaises(AssertionError):
+            self.contract.verify(
+                vk_hex=self.fixture["vk_hex"],
+                proof_hex=self.fixture["proof_hex"],
+                public_inputs=["0x02"],
+            )
+
     def test_registered_verifying_key_path(self):
         self.assertTrue(self.contract.has_vk(vk_id="demo-square"))
         self.assertTrue(
@@ -128,4 +136,13 @@ class TestZkBridge(TestCase):
                 vk_id="missing",
                 proof_hex=self.fixture["proof_hex"],
                 public_inputs=self.fixture["public_inputs"],
+            )
+
+    def test_registry_rejects_duplicate_vk_id_registration(self):
+        with self.assertRaises(AssertionError):
+            self.registry.register_vk(
+                vk_id="demo-square",
+                vk_hex=self.fixture["vk_hex"],
+                circuit_name="square-demo",
+                version="2",
             )

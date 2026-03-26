@@ -33,20 +33,29 @@ def _native_verifier_bindings():
 PREPARED_VK_CACHE = LRUCache(maxsize=128)
 
 
+def _hex_payload_bytes(value: str) -> int:
+    return (len(value) - 2) // 2
+
+
 def _payload_metering_cost(
     vk_hex: str,
     proof_hex: str,
     public_inputs: list[str],
 ) -> int:
-    payload_chars = len(vk_hex) + len(proof_hex)
-    payload_chars += sum(len(value) for value in public_inputs)
+    payload_bytes = _hex_payload_bytes(vk_hex) + _hex_payload_bytes(
+        proof_hex
+    )
+    payload_bytes += sum(_hex_payload_bytes(value) for value in public_inputs)
     return (
         constants.ZK_VERIFY_GROTH16_BASE_COST
         + (
             len(public_inputs)
             * constants.ZK_VERIFY_GROTH16_PER_PUBLIC_INPUT_COST
         )
-        + (payload_chars * constants.ZK_VERIFY_GROTH16_PER_PAYLOAD_BYTE_COST)
+        + (
+            payload_bytes
+            * constants.ZK_VERIFY_GROTH16_PER_PAYLOAD_BYTE_COST
+        )
     )
 
 
@@ -55,8 +64,9 @@ def _registry_metering_cost(
     proof_hex: str,
     public_inputs: list[str],
 ) -> int:
-    payload_chars = len(vk_id) + len(proof_hex)
-    payload_chars += sum(len(value) for value in public_inputs)
+    payload_bytes = len(vk_id.encode("utf-8"))
+    payload_bytes += _hex_payload_bytes(proof_hex)
+    payload_bytes += sum(_hex_payload_bytes(value) for value in public_inputs)
     return (
         constants.ZK_VERIFY_GROTH16_REGISTRY_BASE_COST
         + constants.ZK_VERIFY_GROTH16_REGISTRY_PREPARE_COST
@@ -65,7 +75,7 @@ def _registry_metering_cost(
             * constants.ZK_VERIFY_GROTH16_REGISTRY_PER_PUBLIC_INPUT_COST
         )
         + (
-            payload_chars
+            payload_bytes
             * constants.ZK_VERIFY_GROTH16_REGISTRY_PER_PAYLOAD_BYTE_COST
         )
     )
@@ -74,8 +84,12 @@ def _registry_metering_cost(
 def _validate_hex_payload(name: str, value: str, max_chars: int):
     assert isinstance(value, str), f"{name} must be a string!"
     assert value.startswith("0x"), f"{name} must be 0x-prefixed hex!"
+    assert len(value) > 2, f"{name} must not be empty!"
     assert len(value) <= max_chars, f"{name} exceeds the maximum size!"
     assert len(value) % 2 == 0, f"{name} must contain whole bytes of hex!"
+    assert all(char in "0123456789abcdefABCDEF" for char in value[2:]), (
+        f"{name} must be valid hex!"
+    )
 
 
 def _validate_public_inputs(public_inputs):
@@ -88,6 +102,9 @@ def _validate_public_inputs(public_inputs):
             f"public_inputs[{index}]",
             value,
             66,
+        )
+        assert len(value) == 66, (
+            f"public_inputs[{index}] must be exactly 32 bytes!"
         )
 
 

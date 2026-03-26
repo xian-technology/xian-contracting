@@ -68,7 +68,11 @@ class TestZkStdlib(TestCase):
                 * constants.ZK_VERIFY_GROTH16_PER_PUBLIC_INPUT_COST
             )
             + (
-                (len(vk_hex) + len(proof_hex) + sum(len(v) for v in public_inputs))
+                (
+                    ((len(vk_hex) - 2) // 2)
+                    + ((len(proof_hex) - 2) // 2)
+                    + sum((len(v) - 2) // 2 for v in public_inputs)
+                )
                 * constants.ZK_VERIFY_GROTH16_PER_PAYLOAD_BYTE_COST
             )
         )
@@ -123,6 +127,24 @@ class TestZkStdlib(TestCase):
                     "0xabcd",
                     ["0x" + "00" * 32]
                     * (constants.MAX_ZK_PUBLIC_INPUTS + 1),
+                )
+
+    def test_verify_rejects_non_canonical_public_input_width(self):
+        bindings = {
+            "verify_groth16_bn254": lambda *_args: True,
+            "ZkEncodingError": FakeEncodingError,
+            "ZkVerifierError": FakeVerifierError,
+        }
+
+        with patch(
+            "contracting.stdlib.bridge.zk._native_verifier_bindings",
+            return_value=bindings,
+        ):
+            with self.assertRaises(AssertionError):
+                zk.verify_groth16_bn254(
+                    "0x1234",
+                    "0xabcd",
+                    ["0x02"],
                 )
 
     def test_has_verifying_key_uses_registry_state(self):
