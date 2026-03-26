@@ -14,10 +14,17 @@ from xian_zk import (
 FIXTURE_PATH = (
     Path(__file__).parent / "fixtures" / "groth16_bn254_demo.json"
 )
+SHIELDED_FIXTURE_PATH = (
+    Path(__file__).parent / "fixtures" / "shielded_note_flow.json"
+)
 
 
 def load_fixture():
     return json.loads(FIXTURE_PATH.read_text())
+
+
+def load_shielded_fixture():
+    return json.loads(SHIELDED_FIXTURE_PATH.read_text())
 
 
 def test_demo_vector_verifies():
@@ -71,3 +78,24 @@ def test_non_canonical_public_inputs_are_rejected():
             fixture["proof_hex"],
             [over_modulus],
         )
+
+
+def test_shielded_note_flow_vectors_verify():
+    fixture = load_shielded_fixture()
+    by_id = {vk["vk_id"]: vk["vk_hex"] for vk in fixture["verifying_keys"]}
+
+    assert verify_groth16_bn254(
+        by_id["shielded-deposit-v1"],
+        fixture["deposit"]["proof_hex"],
+        fixture["deposit"]["public_inputs"],
+    )
+    assert verify_groth16_bn254(
+        by_id["shielded-transfer-v1"],
+        fixture["transfer"]["proof_hex"],
+        fixture["transfer"]["public_inputs"],
+    )
+    assert verify_groth16_bn254(
+        by_id["shielded-withdraw-v1"],
+        fixture["withdraw"]["proof_hex"],
+        fixture["withdraw"]["public_inputs"],
+    )

@@ -11,6 +11,7 @@ Small native zero-knowledge verification primitives for the Xian workspace.
 - BN254
 - Python bindings for runtime integration
 - A pure Rust verifier core for cargo-level testing and fixtures
+- Deterministic shielded-note proving fixtures for end-to-end contract tests
 
 ## API
 - Python:
@@ -22,6 +23,7 @@ Small native zero-knowledge verification primitives for the Xian workspace.
   - `verify_groth16_bn254(...)`
   - `verify_groth16_bn254_prepared(...)`
   - `build_demo_vector()`
+  - `build_shielded_note_fixture()`
 
 ## Encoding
 - Verifying keys: compressed canonical bytes as `0x`-prefixed hex
@@ -31,6 +33,7 @@ Small native zero-knowledge verification primitives for the Xian workspace.
 ## Validation
 - `cargo test --manifest-path packages/xian-zk/Cargo.toml --no-default-features`
 - `cargo run --manifest-path packages/xian-zk/Cargo.toml --no-default-features --example generate_test_vector`
+- `cargo run --manifest-path packages/xian-zk/Cargo.toml --no-default-features --example generate_shielded_note_fixture`
 - `cd packages/xian-zk && uv sync --group dev && uv run maturin develop && uv run pytest -q`
 
 ## Notes
@@ -39,3 +42,6 @@ Small native zero-knowledge verification primitives for the Xian workspace.
 - The contract runtime prefers registry-backed verification by `vk_id`; this
   package exposes the lower-level raw and prepared-key verifier primitives that
   runtime builds on.
+- The shielded-note fixture flow exists to validate the first real note-based
+  privacy contract end to end. It is deterministic test tooling, not a wallet
+  or proving UX.
