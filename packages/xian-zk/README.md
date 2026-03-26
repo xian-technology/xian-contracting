@@ -14,9 +14,13 @@ Small native zero-knowledge verification primitives for the Xian workspace.
 
 ## API
 - Python:
+  - `xian_zk.prepare_groth16_bn254_vk(vk_hex) -> PreparedGroth16Bn254Key`
   - `xian_zk.verify_groth16_bn254(vk_hex, proof_hex, public_inputs) -> bool`
+  - `xian_zk.verify_groth16_bn254_prepared(prepared_vk, proof_hex, public_inputs) -> bool`
 - Rust:
+  - `prepare_groth16_bn254_vk(...)`
   - `verify_groth16_bn254(...)`
+  - `verify_groth16_bn254_prepared(...)`
   - `build_demo_vector()`
 
 ## Encoding
@@ -27,8 +31,11 @@ Small native zero-knowledge verification primitives for the Xian workspace.
 ## Validation
 - `cargo test --manifest-path packages/xian-zk/Cargo.toml --no-default-features`
 - `cargo run --manifest-path packages/xian-zk/Cargo.toml --no-default-features --example generate_test_vector`
-- `uv run --project packages/xian-zk pytest -q`
+- `cd packages/xian-zk && uv sync --group dev && uv run maturin develop && uv run pytest -q`
 
 ## Notes
 - The package is intentionally narrow.
 - It is not a proving toolkit and it is not a general-purpose zk framework.
+- The contract runtime prefers registry-backed verification by `vk_id`; this
+  package exposes the lower-level raw and prepared-key verifier primitives that
+  runtime builds on.

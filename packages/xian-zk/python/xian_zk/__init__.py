@@ -1,11 +1,17 @@
 from xian_zk._native import (
+    PreparedGroth16Bn254Key,
     ZkEncodingError,
     ZkVerifierError,
+    prepare_groth16_bn254_vk,
     verify_groth16_bn254,
+    verify_groth16_bn254_prepared,
 )
 
 __all__ = [
+    "PreparedGroth16Bn254Key",
     "ZkEncodingError",
     "ZkVerifierError",
+    "prepare_groth16_bn254_vk",
     "verify_groth16_bn254",
+    "verify_groth16_bn254_prepared",
 ]

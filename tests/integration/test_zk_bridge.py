@@ -26,6 +26,24 @@ class TestZkBridge(TestCase):
             )
         self.c.raw_driver.commit()
 
+        registry_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "src",
+            "contracting",
+            "contracts",
+            "zk_registry.s.py",
+        )
+        registry_path = os.path.abspath(registry_path)
+        with open(registry_path) as registry_file:
+            self.c.raw_driver.set_contract_from_source(
+                name="zk_registry",
+                source=registry_file.read(),
+                lint=False,
+            )
+        self.c.raw_driver.commit()
+
         contract_path = os.path.join(
             os.path.dirname(__file__),
             "test_contracts",
@@ -48,6 +66,14 @@ class TestZkBridge(TestCase):
             self.fixture = json.load(fixture_file)
 
         self.contract = self.c.get_contract("con_zk_probe")
+        self.registry = self.c.get_contract("zk_registry")
+        self.registry.seed(owner="stu")
+        self.registry.register_vk(
+            vk_id="demo-square",
+            vk_hex=self.fixture["vk_hex"],
+            circuit_name="square-demo",
+            version="1",
+        )
 
     def tearDown(self):
         self.c.raw_driver.flush_full()
@@ -81,6 +107,25 @@ class TestZkBridge(TestCase):
         with self.assertRaises(AssertionError):
             self.contract.verify(
                 vk_hex=self.fixture["vk_hex"][2:],
+                proof_hex=self.fixture["proof_hex"],
+                public_inputs=self.fixture["public_inputs"],
+            )
+
+    def test_registered_verifying_key_path(self):
+        self.assertTrue(self.contract.has_vk(vk_id="demo-square"))
+        self.assertTrue(
+            self.contract.verify_registered(
+                vk_id="demo-square",
+                proof_hex=self.fixture["proof_hex"],
+                public_inputs=self.fixture["public_inputs"],
+            )
+        )
+
+    def test_registered_verifying_key_path_rejects_unknown_id(self):
+        self.assertFalse(self.contract.has_vk(vk_id="missing"))
+        with self.assertRaises(AssertionError):
+            self.contract.verify_registered(
+                vk_id="missing",
                 proof_hex=self.fixture["proof_hex"],
                 public_inputs=self.fixture["public_inputs"],
             )

@@ -81,6 +81,7 @@ If you change the zk runtime surface or the native verifier package, run:
 ```bash
 uv sync --group dev --extra zk
 uv run --extra zk pytest -q tests/unit/test_zk_stdlib.py tests/integration/test_zk_bridge.py
+cd packages/xian-zk && uv sync --group dev && uv run maturin develop && uv run pytest -q
 ```
 
 If you change metering, tracing, storage encoding, or import restrictions, run

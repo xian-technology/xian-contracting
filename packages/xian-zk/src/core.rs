@@ -1,6 +1,12 @@
 use ark_bn254::{Bn254, Fr};
 use ark_ff::{BigInteger, PrimeField, UniformRand};
-use ark_groth16::{prepare_verifying_key, Groth16, Proof, VerifyingKey};
+use ark_groth16::{
+    prepare_verifying_key,
+    Groth16,
+    PreparedVerifyingKey,
+    Proof,
+    VerifyingKey,
+};
 use ark_relations::lc;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
@@ -61,6 +67,10 @@ pub struct DemoVector {
     pub vk_hex: String,
     pub proof_hex: String,
     pub public_inputs: Vec<String>,
+}
+
+pub struct PreparedGroth16Bn254Key {
+    prepared_vk: PreparedVerifyingKey<Bn254>,
 }
 
 fn encoding_error(message: impl Into<String>) -> VerifierError {
@@ -138,16 +148,36 @@ fn parse_public_inputs(values: &[String]) -> Result<Vec<Fr>, VerifierError> {
     values.iter().map(|value| parse_public_input(value)).collect()
 }
 
+pub fn prepare_groth16_bn254_vk(
+    vk_hex: &str,
+) -> Result<PreparedGroth16Bn254Key, VerifierError> {
+    let vk = decode_verifying_key(vk_hex)?;
+    Ok(PreparedGroth16Bn254Key {
+        prepared_vk: prepare_verifying_key(&vk),
+    })
+}
+
 pub fn verify_groth16_bn254(
     vk_hex: &str,
     proof_hex: &str,
     public_inputs: &[String],
 ) -> Result<bool, VerifierError> {
-    let vk = decode_verifying_key(vk_hex)?;
+    let prepared = prepare_groth16_bn254_vk(vk_hex)?;
+    verify_groth16_bn254_prepared(&prepared, proof_hex, public_inputs)
+}
+
+pub fn verify_groth16_bn254_prepared(
+    prepared: &PreparedGroth16Bn254Key,
+    proof_hex: &str,
+    public_inputs: &[String],
+) -> Result<bool, VerifierError> {
     let proof = decode_proof(proof_hex)?;
     let inputs = parse_public_inputs(public_inputs)?;
-    let prepared_vk = prepare_verifying_key(&vk);
-    Groth16::<Bn254>::verify_with_processed_vk(&prepared_vk, &inputs, &proof)
+    Groth16::<Bn254>::verify_with_processed_vk(
+        &prepared.prepared_vk,
+        &inputs,
+        &proof,
+    )
         .map_err(|error| verification_error(format!("verification failed: {error}")))
 }
 
@@ -224,6 +254,20 @@ mod tests {
         )
         .expect("verification should not error");
         assert!(!result);
+    }
+
+    #[test]
+    fn prepared_key_verification_reuses_prepared_vk() {
+        let vector = build_demo_vector().expect("demo vector should build");
+        let prepared = prepare_groth16_bn254_vk(&vector.vk_hex)
+            .expect("prepared key should build");
+        let result = verify_groth16_bn254_prepared(
+            &prepared,
+            &vector.proof_hex,
+            &vector.public_inputs,
+        )
+        .expect("verification should not error");
+        assert!(result);
     }
 
     #[test]

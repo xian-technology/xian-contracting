@@ -3,7 +3,12 @@ from pathlib import Path
 
 import pytest
 
-from xian_zk import ZkEncodingError, verify_groth16_bn254
+from xian_zk import (
+    ZkEncodingError,
+    prepare_groth16_bn254_vk,
+    verify_groth16_bn254,
+    verify_groth16_bn254_prepared,
+)
 
 
 FIXTURE_PATH = (
@@ -34,6 +39,16 @@ def test_tampered_public_input_fails_without_error():
         fixture["vk_hex"],
         fixture["proof_hex"],
         tampered_inputs,
+    )
+
+
+def test_prepared_vk_verifies_demo_vector():
+    fixture = load_fixture()
+    prepared = prepare_groth16_bn254_vk(fixture["vk_hex"])
+    assert verify_groth16_bn254_prepared(
+        prepared,
+        fixture["proof_hex"],
+        fixture["public_inputs"],
     )
 
 
