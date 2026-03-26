@@ -7,6 +7,7 @@ on:
       - "contracting-v*"
       - "runtime-types-v*"
       - "native-tracer-v*"
+      - "zk-v*"
 
 concurrency:
   group: release-${{ github.ref }}
@@ -58,6 +59,13 @@ jobs:
               package_dir="packages/xian-native-tracer"
               project_name="xian-native-tracer"
               pypi_environment="pypi-xian-native-tracer"
+              needs_rust="true"
+              ;;
+            zk-v*)
+              version="${tag#zk-v}"
+              package_dir="packages/xian-zk"
+              project_name="xian-zk"
+              pypi_environment="pypi-xian-zk"
               needs_rust="true"
               ;;
             *)

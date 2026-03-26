@@ -67,5 +67,16 @@ jobs:
       - name: Build native tracer crate
         run: cargo check --manifest-path packages/xian-native-tracer/Cargo.toml
 
+      - name: Check zk verifier binding crate
+        run: cargo check --manifest-path packages/xian-zk/Cargo.toml --features python-extension
+
+      - name: Run zk verifier Rust tests
+        run: cargo test --manifest-path packages/xian-zk/Cargo.toml --no-default-features
+
+      - name: Run zk verifier Python tests
+        run: |
+          cd packages/xian-zk
+          uv run pytest -q
+
       - name: Run native tracer tests
         run: uv run pytest -q tests/unit/test_tracer.py tests/unit/test_native_tracer.py tests/unit/test_runtime.py tests/integration/test_stamp_deduction.py

@@ -1,0 +1,30 @@
+[package]
+name = "xian-zk"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Native Groth16 BN254 verification primitives for Xian"
+repository = "https://github.com/xian-technology/xian-contracting"
+homepage = "https://github.com/xian-technology/xian-contracting"
+
+[lib]
+name = "_native"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+python-extension = ["dep:pyo3", "pyo3/extension-module"]
+
+[dependencies]
+ark-bn254 = "0.5"
+ark-ff = "0.5"
+ark-groth16 = "0.5"
+ark-relations = "0.5"
+ark-serialize = "0.5"
+ark-snark = "0.5"
+ark-std = { version = "0.5", features = ["std"] }
+hex = "0.4"
+num-bigint = "0.4"
+pyo3 = { version = "0.23.5", optional = true, features = ["abi3-py312"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

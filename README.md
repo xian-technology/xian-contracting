@@ -47,7 +47,7 @@ print(driver.get("example.key"))
 ## Key Directories
 
 - `src/contracting/`: runtime, storage, compilation, and stdlib bridge code
-- `packages/`: shared packages such as `xian-runtime-types`, `xian-accounts`, and the native tracer
+- `packages/`: shared packages such as `xian-runtime-types`, `xian-accounts`, the native tracer, and `xian-zk`
 - `tests/`: unit, integration, and security coverage
 - `docs/`: architecture, backlog, and execution notes
 
@@ -58,6 +58,7 @@ print(driver.get("example.key"))
 - storage drivers and encoding
 - contract-side runtime helpers
 - optional native tracing backend
+- native zero-knowledge verifier building blocks
 
 ## Validation
 
