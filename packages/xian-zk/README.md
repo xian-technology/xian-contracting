@@ -51,11 +51,14 @@ workspace.
 - `cargo run --manifest-path packages/xian-zk/Cargo.toml --no-default-features --example generate_test_vector`
 - `cargo run --manifest-path packages/xian-zk/Cargo.toml --no-default-features --example generate_shielded_note_fixture`
 - `cd packages/xian-zk && uv sync --group dev && uv run maturin develop && uv run pytest -q`
+- `cd packages/xian-zk && uv run pytest -q -m slow`
 
 ## Notes
 - The runtime-facing verifier surface is still intentionally narrow.
 - The shielded-note proving helpers are the first external proving toolkit
   slice, not a broad proving framework.
+- Python `pytest` now excludes the slow proof-generation tests by default.
+  Run `pytest -m slow` explicitly when you want the proving-toolkit path.
 - The contract runtime prefers registry-backed verification by `vk_id`; this
   package exposes the lower-level raw and prepared-key verifier primitives that
   runtime builds on.

@@ -2,6 +2,8 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
+import pytest
+
 from xian_zk import (
     ShieldedDepositRequest,
     ShieldedNote,
@@ -19,6 +21,8 @@ from xian_zk import (
 SHIELDED_FIXTURE_PATH = (
     Path(__file__).parent / "fixtures" / "shielded_note_flow.json"
 )
+
+pytestmark = pytest.mark.slow
 
 
 def load_shielded_fixture():

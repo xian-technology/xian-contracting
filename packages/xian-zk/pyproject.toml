@@ -30,3 +30,9 @@ dev = [
 module-name = "xian_zk._native"
 python-source = "python"
 features = ["python-extension"]
+
+[tool.pytest.ini_options]
+addopts = "-m \"not slow\""
+markers = [
+    "slow: proof-generation and end-to-end proving flows",
+]
