@@ -1,12 +1,6 @@
 use ark_bn254::{Bn254, Fr};
 use ark_ff::{BigInteger, PrimeField, UniformRand};
-use ark_groth16::{
-    prepare_verifying_key,
-    Groth16,
-    PreparedVerifyingKey,
-    Proof,
-    VerifyingKey,
-};
+use ark_groth16::{prepare_verifying_key, Groth16, PreparedVerifyingKey, Proof, VerifyingKey};
 use ark_relations::lc;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
@@ -31,9 +25,7 @@ pub enum VerifierError {
 impl Display for VerifierError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Encoding(message) | Self::Verification(message) => {
-                formatter.write_str(message)
-            }
+            Self::Encoding(message) | Self::Verification(message) => formatter.write_str(message),
         }
     }
 }
@@ -47,16 +39,9 @@ struct SquareCircuit {
 }
 
 impl ConstraintSynthesizer<Fr> for SquareCircuit {
-    fn generate_constraints(
-        self,
-        cs: ConstraintSystemRef<Fr>,
-    ) -> Result<(), SynthesisError> {
-        let x = cs.new_witness_variable(|| {
-            self.x.ok_or(SynthesisError::AssignmentMissing)
-        })?;
-        let y = cs.new_input_variable(|| {
-            self.y.ok_or(SynthesisError::AssignmentMissing)
-        })?;
+    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+        let x = cs.new_witness_variable(|| self.x.ok_or(SynthesisError::AssignmentMissing))?;
+        let y = cs.new_input_variable(|| self.y.ok_or(SynthesisError::AssignmentMissing))?;
         cs.enforce_constraint(lc!() + x, lc!() + x, lc!() + y)?;
         Ok(())
     }
@@ -97,8 +82,7 @@ fn left_pad_to_32(mut bytes: Vec<u8>) -> Result<Vec<u8>, VerifierError> {
         return Err(encoding_error("field elements must be exactly 32 bytes"));
     }
     if bytes.len() < EXPECTED_FIELD_ELEMENT_BYTES {
-        let mut padded =
-            vec![0_u8; EXPECTED_FIELD_ELEMENT_BYTES - bytes.len()];
+        let mut padded = vec![0_u8; EXPECTED_FIELD_ELEMENT_BYTES - bytes.len()];
         padded.append(&mut bytes);
         return Ok(padded);
     }
@@ -108,8 +92,7 @@ fn left_pad_to_32(mut bytes: Vec<u8>) -> Result<Vec<u8>, VerifierError> {
 fn parse_public_input(hex_value: &str) -> Result<Fr, VerifierError> {
     let bytes = left_pad_to_32(decode_hex_payload(hex_value)?)?;
     let value = BigUint::from_bytes_be(&bytes);
-    let modulus =
-        BigUint::parse_bytes(FIELD_MODULUS_DECIMAL.as_bytes(), 10).unwrap();
+    let modulus = BigUint::parse_bytes(FIELD_MODULUS_DECIMAL.as_bytes(), 10).unwrap();
     if value >= modulus {
         return Err(encoding_error(
             "public input is not a canonical BN254 field element",
@@ -128,29 +111,26 @@ fn parse_public_input(hex_value: &str) -> Result<Fr, VerifierError> {
     Ok(field)
 }
 
-fn decode_verifying_key(
-    vk_hex: &str,
-) -> Result<VerifyingKey<Bn254>, VerifierError> {
+fn decode_verifying_key(vk_hex: &str) -> Result<VerifyingKey<Bn254>, VerifierError> {
     let bytes = decode_hex_payload(vk_hex)?;
-    VerifyingKey::<Bn254>::deserialize_compressed(&mut &bytes[..]).map_err(
-        |error| encoding_error(format!("invalid verifying key bytes: {error}")),
-    )
+    VerifyingKey::<Bn254>::deserialize_compressed(&mut &bytes[..])
+        .map_err(|error| encoding_error(format!("invalid verifying key bytes: {error}")))
 }
 
 fn decode_proof(proof_hex: &str) -> Result<Proof<Bn254>, VerifierError> {
     let bytes = decode_hex_payload(proof_hex)?;
-    Proof::<Bn254>::deserialize_compressed(&mut &bytes[..]).map_err(|error| {
-        encoding_error(format!("invalid proof bytes: {error}"))
-    })
+    Proof::<Bn254>::deserialize_compressed(&mut &bytes[..])
+        .map_err(|error| encoding_error(format!("invalid proof bytes: {error}")))
 }
 
 fn parse_public_inputs(values: &[String]) -> Result<Vec<Fr>, VerifierError> {
-    values.iter().map(|value| parse_public_input(value)).collect()
+    values
+        .iter()
+        .map(|value| parse_public_input(value))
+        .collect()
 }
 
-pub fn prepare_groth16_bn254_vk(
-    vk_hex: &str,
-) -> Result<PreparedGroth16Bn254Key, VerifierError> {
+pub fn prepare_groth16_bn254_vk(vk_hex: &str) -> Result<PreparedGroth16Bn254Key, VerifierError> {
     let vk = decode_verifying_key(vk_hex)?;
     Ok(PreparedGroth16Bn254Key {
         prepared_vk: prepare_verifying_key(&vk),
@@ -173,11 +153,7 @@ pub fn verify_groth16_bn254_prepared(
 ) -> Result<bool, VerifierError> {
     let proof = decode_proof(proof_hex)?;
     let inputs = parse_public_inputs(public_inputs)?;
-    Groth16::<Bn254>::verify_with_processed_vk(
-        &prepared.prepared_vk,
-        &inputs,
-        &proof,
-    )
+    Groth16::<Bn254>::verify_with_processed_vk(&prepared.prepared_vk, &inputs, &proof)
         .map_err(|error| verification_error(format!("verification failed: {error}")))
 }
 
@@ -185,9 +161,7 @@ fn hex_encode(bytes: &[u8]) -> String {
     format!("0x{}", hex::encode(bytes))
 }
 
-fn serialize_compressed_hex<T: CanonicalSerialize>(
-    value: &T,
-) -> Result<String, Box<dyn Error>> {
+fn serialize_compressed_hex<T: CanonicalSerialize>(value: &T) -> Result<String, Box<dyn Error>> {
     let mut bytes = Vec::new();
     value.serialize_compressed(&mut bytes)?;
     Ok(hex_encode(&bytes))
@@ -203,12 +177,8 @@ pub fn build_demo_vector() -> Result<DemoVector, Box<dyn Error>> {
     let mut rng = StdRng::seed_from_u64(42);
     let x = Fr::rand(&mut rng);
     let y = x * x;
-    let setup_circuit = SquareCircuit {
-        x: None,
-        y: None,
-    };
-    let (pk, vk) =
-        Groth16::<Bn254>::circuit_specific_setup(setup_circuit, &mut rng)?;
+    let setup_circuit = SquareCircuit { x: None, y: None };
+    let (pk, vk) = Groth16::<Bn254>::circuit_specific_setup(setup_circuit, &mut rng)?;
     let proof = Groth16::<Bn254>::prove(
         &pk,
         SquareCircuit {
@@ -232,12 +202,8 @@ mod tests {
     #[test]
     fn demo_vector_verifies_successfully() {
         let vector = build_demo_vector().expect("demo vector should build");
-        let result = verify_groth16_bn254(
-            &vector.vk_hex,
-            &vector.proof_hex,
-            &vector.public_inputs,
-        )
-        .expect("verification should not error");
+        let result = verify_groth16_bn254(&vector.vk_hex, &vector.proof_hex, &vector.public_inputs)
+            .expect("verification should not error");
         assert!(result);
     }
 
@@ -245,36 +211,26 @@ mod tests {
     fn tampered_public_input_fails_verification() {
         let mut vector = build_demo_vector().expect("demo vector should build");
         vector.public_inputs[0] =
-            "0x0000000000000000000000000000000000000000000000000000000000000001"
-                .to_string();
-        let result = verify_groth16_bn254(
-            &vector.vk_hex,
-            &vector.proof_hex,
-            &vector.public_inputs,
-        )
-        .expect("verification should not error");
+            "0x0000000000000000000000000000000000000000000000000000000000000001".to_string();
+        let result = verify_groth16_bn254(&vector.vk_hex, &vector.proof_hex, &vector.public_inputs)
+            .expect("verification should not error");
         assert!(!result);
     }
 
     #[test]
     fn prepared_key_verification_reuses_prepared_vk() {
         let vector = build_demo_vector().expect("demo vector should build");
-        let prepared = prepare_groth16_bn254_vk(&vector.vk_hex)
-            .expect("prepared key should build");
-        let result = verify_groth16_bn254_prepared(
-            &prepared,
-            &vector.proof_hex,
-            &vector.public_inputs,
-        )
-        .expect("verification should not error");
+        let prepared = prepare_groth16_bn254_vk(&vector.vk_hex).expect("prepared key should build");
+        let result =
+            verify_groth16_bn254_prepared(&prepared, &vector.proof_hex, &vector.public_inputs)
+                .expect("verification should not error");
         assert!(result);
     }
 
     #[test]
     fn zero_x_prefixed_public_input_over_field_modulus_is_rejected() {
         let over_modulus = format!("0x{}", "ff".repeat(32));
-        let error = parse_public_input(&over_modulus)
-            .expect_err("input should be rejected");
+        let error = parse_public_input(&over_modulus).expect_err("input should be rejected");
         assert!(error.to_string().contains("canonical BN254 field element"));
     }
 }
