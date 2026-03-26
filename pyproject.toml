@@ -32,6 +32,9 @@ Repository = "https://github.com/xian-technology/xian-contracting"
 native = [
     "xian-native-tracer>=0.1.0,<0.2",
 ]
+zk = [
+    "xian-zk>=0.1.0,<0.2",
+]
 
 [dependency-groups]
 dev = [
@@ -75,3 +78,4 @@ ignore = ["E501"]
 [tool.uv.sources]
 xian-runtime-types = { path = "packages/xian-runtime-types", editable = true }
 xian-native-tracer = { path = "packages/xian-native-tracer", editable = true }
+xian-zk = { path = "packages/xian-zk", editable = true }

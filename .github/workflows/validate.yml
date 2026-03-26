@@ -62,7 +62,7 @@ jobs:
         run: python -m pip install uv
 
       - name: Sync dependencies with native tracer
-        run: uv sync --group dev --extra native
+        run: uv sync --group dev --extra native --extra zk
 
       - name: Build native tracer crate
         run: cargo check --manifest-path packages/xian-native-tracer/Cargo.toml
@@ -79,4 +79,4 @@ jobs:
           uv run pytest -q
 
       - name: Run native tracer tests
-        run: uv run pytest -q tests/unit/test_tracer.py tests/unit/test_native_tracer.py tests/unit/test_runtime.py tests/integration/test_stamp_deduction.py
+        run: uv run pytest -q tests/unit/test_tracer.py tests/unit/test_native_tracer.py tests/unit/test_runtime.py tests/unit/test_zk_stdlib.py tests/integration/test_stamp_deduction.py tests/integration/test_zk_bridge.py

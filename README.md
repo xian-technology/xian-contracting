@@ -12,6 +12,13 @@ Install the runtime:
 pip install xian-contracting
 ```
 
+If you want contract-side zk proof verification, install the optional zk
+backend too:
+
+```bash
+pip install 'xian-contracting[zk]'
+```
+
 Submit and call a contract:
 
 ```python
@@ -67,6 +74,13 @@ uv sync --group dev
 uv run ruff check .
 uv run ruff format --check .
 uv run pytest
+```
+
+If you change the zk runtime surface or the native verifier package, run:
+
+```bash
+uv sync --group dev --extra zk
+uv run --extra zk pytest -q tests/unit/test_zk_stdlib.py tests/integration/test_zk_bridge.py
 ```
 
 If you change metering, tracing, storage encoding, or import restrictions, run

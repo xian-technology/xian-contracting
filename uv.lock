@@ -375,6 +375,9 @@ dependencies = [
 native = [
     { name = "xian-native-tracer" },
 ]
+zk = [
+    { name = "xian-zk" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -391,8 +394,9 @@ requires-dist = [
     { name = "pynacl", specifier = ">=1.5.0,<2" },
     { name = "xian-native-tracer", marker = "extra == 'native'", editable = "packages/xian-native-tracer" },
     { name = "xian-runtime-types", editable = "packages/xian-runtime-types" },
+    { name = "xian-zk", marker = "extra == 'zk'", editable = "packages/xian-zk" },
 ]
-provides-extras = ["native"]
+provides-extras = ["native", "zk"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -410,3 +414,13 @@ source = { editable = "packages/xian-native-tracer" }
 name = "xian-runtime-types"
 version = "0.1.0"
 source = { editable = "packages/xian-runtime-types" }
+
+[[package]]
+name = "xian-zk"
+version = "0.1.0"
+source = { editable = "packages/xian-zk" }
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.0.2,<10" }]
