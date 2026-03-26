@@ -8,3 +8,4 @@ python/xian_zk/*.pyd
 python/xian_zk/__pycache__/
 tests/__pycache__/
 src/*.egg-info/
+uv.lock
