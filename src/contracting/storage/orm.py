@@ -7,6 +7,14 @@ from contracting import constants
 from contracting.execution.runtime import rt
 from contracting.storage.driver import Driver
 
+_MISSING = object()
+
+
+def _copy_mutable(value):
+    if isinstance(value, (list, dict)):
+        return deepcopy(value)
+    return value
+
 
 class Datum:
     def __init__(self, contract, name, driver: Driver):
@@ -45,11 +53,110 @@ class Variable(Datum):
     def get(self):
         value = self._driver.get(self._key)
         if value is None:
-            dv = self._default_value
-            if isinstance(dv, (list, dict)):
-                return deepcopy(dv)
-            return dv
+            return _copy_mutable(self._default_value)
+        return _copy_mutable(value)
+
+    def _get_mutable_value(self, method_name: str):
+        value = self.get()
+        assert isinstance(value, (list, dict)), (
+            f"Variable.{method_name}() requires the stored value "
+            f"to be a list or dict."
+        )
         return value
+
+    def _get_list_value(self, method_name: str):
+        value = self.get()
+        assert isinstance(value, list), (
+            f"Variable.{method_name}() requires the stored value to be a list."
+        )
+        return value
+
+    def _get_dict_value(self, method_name: str):
+        value = self.get()
+        assert isinstance(value, dict), (
+            f"Variable.{method_name}() requires the stored value to be a dict."
+        )
+        return value
+
+    def __getitem__(self, key):
+        value = self._get_mutable_value("__getitem__")
+        return _copy_mutable(value[key])
+
+    def __setitem__(self, key, value):
+        current = self._get_mutable_value("__setitem__")
+        current[key] = value
+        self.set(current)
+
+    def __delitem__(self, key):
+        current = self._get_mutable_value("__delitem__")
+        del current[key]
+        self.set(current)
+
+    def __contains__(self, item):
+        current = self._get_mutable_value("__contains__")
+        return item in current
+
+    def __len__(self):
+        current = self._get_mutable_value("__len__")
+        return len(current)
+
+    def update(self, other: dict):
+        current = self._get_dict_value("update")
+        assert isinstance(other, dict), (
+            "Variable.update() requires a dict argument."
+        )
+        current.update(other)
+        self.set(current)
+
+    def append(self, value):
+        current = self._get_list_value("append")
+        current.append(value)
+        self.set(current)
+
+    def extend(self, values):
+        current = self._get_list_value("extend")
+        assert isinstance(values, list), (
+            "Variable.extend() requires a list argument."
+        )
+        current.extend(values)
+        self.set(current)
+
+    def insert(self, index: int, value):
+        current = self._get_list_value("insert")
+        current.insert(index, value)
+        self.set(current)
+
+    def remove(self, value):
+        current = self._get_list_value("remove")
+        current.remove(value)
+        self.set(current)
+
+    def clear(self):
+        current = self._get_mutable_value("clear")
+        current.clear()
+        self.set(current)
+
+    def pop(self, key=_MISSING, default=_MISSING):
+        current = self._get_mutable_value("pop")
+
+        if isinstance(current, dict):
+            assert key is not _MISSING, (
+                "Variable.pop() requires a key for dict values."
+            )
+            if default is _MISSING:
+                value = current.pop(key)
+            else:
+                value = current.pop(key, default)
+        else:
+            assert default is _MISSING, (
+                "Variable.pop() does not accept a default for list values."
+            )
+            if key is _MISSING:
+                key = -1
+            value = current.pop(key)
+
+        self.set(current)
+        return _copy_mutable(value)
 
 
 class Hash(Datum):
