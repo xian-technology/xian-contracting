@@ -124,6 +124,21 @@ class TestMiscContracts(TestCase):
         output = self.foreign_thing.read_V()
         self.assertEqual(output, "hi")
 
+    def test_hash_clone_from_foreign_hash_snapshots_values(self):
+        self.c.submit(con_clone_source, name="con_clone_source")
+        self.c.submit(con_clone_target, name="con_clone_target")
+
+        cloned = self.c.get_contract("con_clone_target")
+        source = self.c.get_contract("con_clone_source")
+
+        self.assertEqual(cloned.read(key="alice"), 100)
+        self.assertEqual(cloned.read(key="settings"), {"limit": 7})
+
+        cloned.mutate_limit(limit=99)
+
+        self.assertEqual(cloned.read(key="settings"), {"limit": 99})
+        self.assertEqual(source.read(key="settings"), {"limit": 7})
+
     def test_single_too_many_writes_fails(self):
         tmwc = self.c.get_contract("con_too_many_writes")
         self.c.executor.metering = True
@@ -679,6 +694,42 @@ def con_test_two():
     @export
     def clear():
         f.clear()
+
+
+def con_clone_source():
+    h = Hash()
+
+    @construct
+    def seed():
+        h["alice"] = 100
+        h["settings"] = {"limit": 7}
+
+    @export
+    def read(key: str):
+        return h[key]
+
+
+def con_clone_target():
+    source = ForeignHash(
+        foreign_contract="con_clone_source",
+        foreign_name="h",
+    )
+    snapshot = Hash()
+
+    @construct
+    def seed():
+        snapshot["stale"] = 999
+        snapshot.clone_from(source)
+
+    @export
+    def read(key: str):
+        return snapshot[key]
+
+    @export
+    def mutate_limit(limit: int):
+        settings = snapshot["settings"]
+        settings["limit"] = limit
+        snapshot["settings"] = settings
 
 
 def test_closure():

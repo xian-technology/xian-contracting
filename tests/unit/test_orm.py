@@ -681,6 +681,38 @@ class TestHash(TestCase):
 
         self.assertDictEqual({}, got)
 
+    def test_clone_from_hash_replaces_existing_contents(self):
+        source = Hash("source", "balances", driver=driver, default_value=0)
+        target = Hash("target", "balances", driver=driver, default_value=0)
+
+        source["alice"] = 100
+        source["bob"] = 200
+        target["stale"] = 999
+
+        target.clone_from(source)
+
+        self.assertEqual(target["alice"], 100)
+        self.assertEqual(target["bob"], 200)
+        self.assertEqual(target._items(), {
+            "target.balances:alice": 100,
+            "target.balances:bob": 200,
+        })
+
+    def test_clone_from_hash_copies_mutable_values(self):
+        source = Hash("source", "settings", driver=driver, default_value={})
+        target = Hash("target", "settings", driver=driver, default_value={})
+
+        source["limits"] = {"daily": 7}
+
+        target.clone_from(source)
+
+        cloned = target["limits"]
+        cloned["daily"] = 99
+        target["limits"] = cloned
+
+        self.assertEqual(source["limits"], {"daily": 7})
+        self.assertEqual(target["limits"], {"daily": 99})
+
 
 class TestForeignVariable(TestCase):
     def setUp(self):
@@ -797,6 +829,43 @@ class TestForeignHash(TestCase):
         value["limit"] = 99
 
         self.assertEqual(f["settings"], {"limit": 7})
+
+    def test_clone_from_foreign_hash(self):
+        source = Hash("colinbucks", "balances", driver=driver, default_value=0)
+        source["howdy"] = 555
+        source["there"] = 777
+
+        foreign = ForeignHash(
+            "stustu",
+            "balance",
+            "colinbucks",
+            "balances",
+            driver=driver,
+        )
+        target = Hash("stustu", "snapshot", driver=driver, default_value=0)
+        target["stale"] = 123
+
+        target.clone_from(foreign)
+
+        self.assertEqual(target["howdy"], 555)
+        self.assertEqual(target["there"], 777)
+        self.assertEqual(target._items(), {
+            "stustu.snapshot:howdy": 555,
+            "stustu.snapshot:there": 777,
+        })
+
+    def test_clone_from_raises_for_foreign_hash_target(self):
+        foreign = ForeignHash(
+            "stustu",
+            "balance",
+            "colinbucks",
+            "balances",
+            driver=driver,
+        )
+        source = Hash("source", "balances", driver=driver, default_value=0)
+
+        with self.assertRaises(ReferenceError):
+            foreign.clone_from(source)
 
 
 class TestLogEvent(TestCase):
