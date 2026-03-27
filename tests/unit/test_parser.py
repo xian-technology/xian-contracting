@@ -250,3 +250,28 @@ def amount() -> float:
             "decimal('0.123456789012345678901234567890')",
             compiled,
         )
+
+    def test_float_default_literals_are_decimalized(self):
+        code = """
+@export
+def configure(rate: float = 0.1) -> float:
+    assert rate >= 0.0 and rate <= 1.0
+    return rate
+"""
+
+        compiled = self.compiler.parse_to_code(code)
+
+        self.assertIn("rate: float=decimal('0.1')", compiled)
+        self.assertIn("rate >= decimal('0.0')", compiled)
+        self.assertIn("rate <= decimal('1.0')", compiled)
+
+    def test_kwonly_float_default_literals_are_decimalized(self):
+        code = """
+@export
+def configure(*, rate: float = 0.1) -> float:
+    return rate
+"""
+
+        compiled = self.compiler.parse_to_code(code)
+
+        self.assertIn("*, rate: float=decimal('0.1')", compiled)
