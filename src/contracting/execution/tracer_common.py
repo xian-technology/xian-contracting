@@ -6,7 +6,9 @@ from dataclasses import dataclass
 
 DEFAULT_COST = 4
 MIN_OPCODE_COST = 2
-MAX_STAMPS = 6_500_000
+MAX_STAMPS = 50_000_000_000
+PYTHON_MAX_EVENTS = 800_000
+NATIVE_MAX_EVENTS = 3_250_000
 
 DEFAULT_TRACER_MODE = "python_line_v1"
 SUPPORTED_TRACER_MODES = {
@@ -27,13 +29,13 @@ TRACER_POLICIES: dict[str, TracerPolicy] = {
     "python_line_v1": TracerPolicy(
         mode="python_line_v1",
         max_stamps=MAX_STAMPS,
-        max_events=800_000,
+        max_events=PYTHON_MAX_EVENTS,
         event_name="line",
     ),
     "native_instruction_v1": TracerPolicy(
         mode="native_instruction_v1",
         max_stamps=MAX_STAMPS,
-        max_events=MAX_STAMPS // MIN_OPCODE_COST,
+        max_events=NATIVE_MAX_EVENTS,
         event_name="instruction",
     ),
 }

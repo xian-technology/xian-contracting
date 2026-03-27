@@ -88,6 +88,7 @@ class TestTracerSelection(TestCase):
         self.assertEqual(python_policy.max_events, MAX_CALL_COUNT)
         self.assertGreater(native_policy.max_events, python_policy.max_events)
         self.assertEqual(native_policy.max_stamps, MAX_STAMPS)
+        self.assertGreater(native_policy.max_stamps, 6_500_000)
 
     def test_factory_returns_python_tracer_by_default(self):
         tracer = create_tracer()

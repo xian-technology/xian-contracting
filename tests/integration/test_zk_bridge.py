@@ -7,6 +7,7 @@ import pytest
 pytest.importorskip("xian_zk")
 
 from contracting.client import ContractingClient
+from contracting.storage.contract import Contract
 
 
 class TestZkBridge(TestCase):
@@ -37,10 +38,10 @@ class TestZkBridge(TestCase):
         )
         registry_path = os.path.abspath(registry_path)
         with open(registry_path) as registry_file:
-            self.c.raw_driver.set_contract_from_source(
+            Contract(driver=self.c.raw_driver).submit(
                 name="zk_registry",
-                source=registry_file.read(),
-                lint=False,
+                code=registry_file.read(),
+                constructor_args={"owner": "stu"},
             )
         self.c.raw_driver.commit()
 
@@ -67,7 +68,6 @@ class TestZkBridge(TestCase):
 
         self.contract = self.c.get_contract("con_zk_probe")
         self.registry = self.c.get_contract("zk_registry")
-        self.registry.seed(owner="stu")
         self.registry.register_vk(
             vk_id="demo-square",
             vk_hex=self.fixture["vk_hex"],
@@ -80,6 +80,9 @@ class TestZkBridge(TestCase):
 
     def test_runtime_reports_zk_availability(self):
         self.assertTrue(self.contract.available())
+
+    def test_registry_can_be_seeded_at_deployment(self):
+        self.assertEqual(self.registry.owner(), "stu")
 
     def test_contract_verifies_demo_vector(self):
         self.assertTrue(

@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -6,6 +7,7 @@ import pytest
 from xian_zk import (
     ZkEncodingError,
     prepare_groth16_bn254_vk,
+    recipient_digest,
     verify_groth16_bn254,
     verify_groth16_bn254_prepared,
 )
@@ -16,6 +18,9 @@ FIXTURE_PATH = (
 )
 SHIELDED_FIXTURE_PATH = (
     Path(__file__).parent / "fixtures" / "shielded_note_flow.json"
+)
+FIELD_MODULUS = (
+    21888242871839275222246405745257275088548364400416034343698204186575808495617
 )
 
 
@@ -109,3 +114,10 @@ def test_shielded_note_flow_vectors_verify():
         fixture["withdraw"]["proof_hex"],
         fixture["withdraw"]["public_inputs"],
     )
+
+
+def test_recipient_digest_matches_contract_hashing_for_hex_like_values():
+    recipient = "ab" * 32
+    digest = hashlib.sha3_256(bytes.fromhex(recipient)).hexdigest()
+    expected = f"0x{(int(digest, 16) % FIELD_MODULUS):064x}"
+    assert recipient_digest(recipient) == expected

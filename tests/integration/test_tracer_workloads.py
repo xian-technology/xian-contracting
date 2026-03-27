@@ -2,13 +2,13 @@ import sys
 import textwrap
 from unittest import TestCase
 
-from contracting.execution.tracer import create_tracer
+from contracting.execution.tracer import MAX_STAMPS, create_tracer
 
 
 def _meter(mode: str, source: str) -> int:
     tracer = create_tracer(mode)
     code = compile(textwrap.dedent(source), "<workload>", "exec")
-    tracer.set_stamp(6_500_000)
+    tracer.set_stamp(MAX_STAMPS)
     tracer.start()
     tracer.register_code(code)
     exec(code, {})

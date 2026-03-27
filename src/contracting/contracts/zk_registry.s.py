@@ -21,19 +21,19 @@ registry_owner = Variable()
 verifying_keys = Hash()
 
 
-def _require_owner():
+def require_owner():
     owner = registry_owner.get()
     assert owner is not None, "Registry is not seeded!"
     assert ctx.caller == owner, "Only registry owner!"
     return owner
 
 
-def _require_vk_id(vk_id: str):
+def require_vk_id(vk_id: str):
     assert isinstance(vk_id, str) and vk_id != "", "vk_id must be non-empty!"
     assert len(vk_id) <= 128, "vk_id is too long!"
 
 
-def _require_hex_blob(name: str, value: str):
+def require_hex_blob(name: str, value: str):
     assert isinstance(value, str), name + " must be a string!"
     assert value.startswith("0x"), name + " must be 0x-prefixed!"
     assert len(value) > 2 and len(value) % 2 == 0, (
@@ -42,8 +42,7 @@ def _require_hex_blob(name: str, value: str):
     int(value[2:], 16)
 
 
-@export
-def seed(owner: str = None):
+def seed_registry(owner: str = None):
     assert registry_owner.get() is None, "Registry already seeded!"
     if owner is None or owner == "":
         owner = ctx.caller
@@ -52,6 +51,16 @@ def seed(owner: str = None):
     )
     registry_owner.set(owner)
     return owner
+
+
+@construct
+def init_registry(owner: str = None):
+    return seed_registry(owner)
+
+
+@export
+def seed(owner: str = None):
+    return seed_registry(owner)
 
 
 @export
@@ -69,8 +78,8 @@ def register_vk(
     version: str = "",
     active: bool = True,
 ):
-    _require_owner()
-    _require_vk_id(vk_id)
+    require_owner()
+    require_vk_id(vk_id)
     assert verifying_keys[vk_id, "vk_hex"] is None, "vk_id already registered!"
     if scheme is None:
         scheme = "groth16"
@@ -84,7 +93,7 @@ def register_vk(
         active = True
     assert scheme == "groth16", "Only Groth16 is supported!"
     assert curve == "bn254", "Only BN254 is supported!"
-    _require_hex_blob("vk_hex", vk_hex)
+    require_hex_blob("vk_hex", vk_hex)
     assert isinstance(circuit_name, str), "circuit_name must be a string!"
     assert isinstance(version, str), "version must be a string!"
 
@@ -117,8 +126,8 @@ def register_vk(
 
 @export
 def set_active(vk_id: str, active: bool):
-    _require_owner()
-    _require_vk_id(vk_id)
+    require_owner()
+    require_vk_id(vk_id)
     assert verifying_keys[vk_id, "vk_hex"] is not None, "Unknown vk_id!"
     verifying_keys[vk_id, "active"] = active
     VkStatusChanged({"vk_id": vk_id, "active": active})
@@ -127,7 +136,7 @@ def set_active(vk_id: str, active: bool):
 
 @export
 def get_vk_info(vk_id: str):
-    _require_vk_id(vk_id)
+    require_vk_id(vk_id)
     vk_hex = verifying_keys[vk_id, "vk_hex"]
     if vk_hex is None:
         return None

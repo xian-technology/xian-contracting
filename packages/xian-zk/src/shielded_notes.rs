@@ -251,12 +251,20 @@ fn hash_to_field(label: &str) -> Fr {
     Fr::from_be_bytes_mod_order(&digest)
 }
 
+fn contract_sha3_to_field(value: &str) -> Fr {
+    let digest = match hex::decode(value) {
+        Ok(raw) => Sha3_256::digest(&raw),
+        Err(_) => Sha3_256::digest(value.as_bytes()),
+    };
+    Fr::from_be_bytes_mod_order(&digest)
+}
+
 fn asset_id_for_contract(contract_name: &str) -> Fr {
     hash_to_field(contract_name)
 }
 
 fn recipient_digest(recipient: &str) -> Fr {
-    hash_to_field(recipient)
+    contract_sha3_to_field(recipient)
 }
 
 fn mimc_permute_native(mut state: Fr) -> Fr {
@@ -1624,6 +1632,18 @@ pub fn prove_shielded_withdraw(
 mod tests {
     use super::*;
     use crate::core::verify_groth16_bn254;
+
+    #[test]
+    fn recipient_digest_matches_contract_hashing_for_hex_like_values() {
+        let recipient = "ab".repeat(32);
+        let expected = {
+            let decoded = hex::decode(&recipient).expect("hex recipient");
+            let digest = Sha3_256::digest(&decoded);
+            field_hex(Fr::from_be_bytes_mod_order(&digest))
+        };
+
+        assert_eq!(shielded_note_recipient_digest_hex(&recipient), expected);
+    }
 
     #[test]
     fn random_bundle_requires_non_empty_names() {
