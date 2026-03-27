@@ -89,6 +89,28 @@ def d():
         self.assertEqual(output["result"], 1)
         self.assertEqual(output["status_code"], 0)
 
+    def test_submission_rejects_special_characters_in_contract_name(self):
+        e = Executor(metering=False)
+
+        code = """@export
+def d():
+    return 1
+"""
+
+        for bad_name in ("con_bad-name", "con_bad.name", "con_bad:name"):
+            output = e.execute(
+                **TEST_SUBMISSION_KWARGS,
+                kwargs={"name": bad_name, "code": code},
+                auto_commit=True,
+            )
+
+            self.assertEqual(output["status_code"], 1)
+            self.assertIn(
+                "lowercase ASCII letters, digits, and underscores",
+                str(output["result"]),
+            )
+            self.assertIsNone(self.d.get_contract(bad_name))
+
     def test_kwarg_helper(self):
         test_orm_variable_contract_path = os.path.join(
             os.path.dirname(__file__),

@@ -12,6 +12,7 @@ from xian_runtime_types.time import Datetime
 from contracting import constants
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution.runtime import rt
+from contracting.names import validate_contract_name
 from contracting.storage.lmdb_store import LMDBStore
 
 INDEX_SEPARATOR = constants.INDEX_SEPARATOR
@@ -185,6 +186,7 @@ class Driver:
         initiator=None,
         lint=True,
     ):
+        validate_contract_name(name)
         compiler = ContractingCompiler(module_name=name)
         normalized_source = compiler.normalize_source(source, lint=lint)
         runtime_code = compiler.parse_to_code(source, lint=lint)
@@ -212,6 +214,8 @@ class Driver:
         deployer=None,
         initiator=None,
     ):
+        validate_contract_name(name)
+
         if self.get_contract(name) is not None and not overwrite:
             return
 

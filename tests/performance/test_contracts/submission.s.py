@@ -21,6 +21,25 @@ __ContractOwnerChangedEvent = LogEvent(
 )
 
 
+def _assert_valid_contract_name(name: str):
+    assert isinstance(name, str), "Contract name must be a string!"
+    assert len(name) > 0, "Contract name must not be empty!"
+    assert len(name) <= 64, "Contract name length exceeds 64 characters!"
+    assert "a" <= name[0] <= "z", (
+        "Contract name must start with a lowercase ASCII letter!"
+    )
+
+    for char in name:
+        assert (
+            ("a" <= char <= "z")
+            or ("0" <= char <= "9")
+            or char == "_"
+        ), (
+            "Contract name must contain only lowercase ASCII letters, "
+            "digits, and underscores!"
+        )
+
+
 @__export("submission")
 def submit_contract(
     name: str, code: str, owner: Any = None, constructor_args: dict = {}
@@ -28,8 +47,7 @@ def submit_contract(
     if ctx.caller != "sys":
         assert name.startswith("con_"), "Contract must start with con_!"
 
-    assert len(name) <= 64, "Contract name length exceeds 64 characters!"
-    assert name.islower(), "Contract name must be lowercase!"
+    _assert_valid_contract_name(name)
 
     __Contract().submit(
         name=name,

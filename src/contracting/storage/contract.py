@@ -1,6 +1,7 @@
 from contracting import constants
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution.runtime import rt
+from contracting.names import validate_contract_name
 from contracting.stdlib import env
 from contracting.storage.driver import Driver
 
@@ -19,6 +20,8 @@ class Contract:
         deployer=None,
         initiator=None,
     ):
+        validate_contract_name(name)
+
         with rt.execution_lock:
             if self._driver.get_contract(name) is not None:
                 raise Exception("Contract already exists.")

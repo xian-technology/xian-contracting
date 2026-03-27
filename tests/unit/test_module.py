@@ -160,6 +160,8 @@ class TestModuleLoadingIntegration(TestCase):
         )
         for contract in contracts:
             name = contract.split("/")[-1].split(".")[0]
+            if name.startswith("__"):
+                continue
 
             with open(contract) as f:
                 code = f.read()
