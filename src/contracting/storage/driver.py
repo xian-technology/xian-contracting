@@ -38,6 +38,7 @@ class Driver:
         self.pending_writes = {}
         self.pending_reads = {}
         self.transaction_reads = {}
+        self.transaction_read_prefixes = set()
         self.transaction_writes = {}
         self.log_events = []
         self.track_transaction_reads = True
@@ -82,12 +83,16 @@ class Driver:
         return value
 
     def keys_from_disk(self, prefix: str | None = None, length: int = 0):
+        if self.track_transaction_reads:
+            self.transaction_read_prefixes.add(prefix or "")
         keys = self._store.keys(prefix or "")
         if length > 0:
             return keys[:length]
         return keys
 
     def iter_from_disk(self, prefix: str = "", length: int = 0):
+        if self.track_transaction_reads:
+            self.transaction_read_prefixes.add(prefix)
         keys = self._store.keys(prefix)
         if length > 0:
             return keys[:length]
@@ -97,6 +102,8 @@ class Driver:
         return self._store.get(key)
 
     def items(self, prefix: str = ""):
+        if self.track_transaction_reads:
+            self.transaction_read_prefixes.add(prefix)
         items = {}
         seen = set()
 
@@ -244,6 +251,7 @@ class Driver:
         self.pending_reads.clear()
         self.pending_deltas.clear()
         self.transaction_reads.clear()
+        self.transaction_read_prefixes.clear()
         self.transaction_writes.clear()
         self.log_events.clear()
         self.cache.clear()
@@ -271,6 +279,7 @@ class Driver:
             self.pending_writes.clear()
             self.pending_deltas.clear()
             self.transaction_reads.clear()
+            self.transaction_read_prefixes.clear()
             self.transaction_writes.clear()
             self.log_events.clear()
             return
@@ -297,6 +306,7 @@ class Driver:
         self.pending_writes.clear()
         self.pending_reads.clear()
         self.transaction_reads.clear()
+        self.transaction_read_prefixes.clear()
         self.transaction_writes.clear()
         self.log_events.clear()
 
@@ -347,11 +357,13 @@ class Driver:
 
     def clear_transaction_reads(self):
         self.transaction_reads.clear()
+        self.transaction_read_prefixes.clear()
 
     def set_transaction_read_tracking(self, enabled: bool) -> None:
         self.track_transaction_reads = enabled
         if not enabled:
             self.transaction_reads.clear()
+            self.transaction_read_prefixes.clear()
 
     def clear_events(self):
         self.log_events.clear()
