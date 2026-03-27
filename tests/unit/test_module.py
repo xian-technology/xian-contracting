@@ -12,6 +12,7 @@ from contracting.execution.module import (
     install_database_loader,
     uninstall_database_loader,
 )
+from contracting.names import is_safe_contract_name
 from contracting.storage.driver import Driver
 
 
@@ -160,6 +161,8 @@ class TestModuleLoadingIntegration(TestCase):
         )
         for contract in contracts:
             name = contract.split("/")[-1].split(".")[0]
+            if not is_safe_contract_name(name):
+                continue
 
             with open(contract) as f:
                 code = f.read()

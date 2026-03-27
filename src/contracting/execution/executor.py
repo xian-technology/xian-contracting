@@ -1,5 +1,4 @@
 import decimal
-import importlib
 from copy import deepcopy
 
 from xian_runtime_types.decimal import CONTEXT, ContractingDecimal
@@ -9,6 +8,7 @@ from contracting.execution import runtime
 from contracting.execution.module import (
     disable_restricted_imports,
     enable_restricted_imports,
+    import_database_contract,
     install_database_loader,
     uninstall_builtins,
 )
@@ -154,7 +154,7 @@ class Executor:
                 enable_restricted_imports()
                 runtime.rt.begin_contract_metering(contract_name)
 
-                module = importlib.import_module(contract_name)
+                module = import_database_contract(contract_name)
                 func = getattr(module, function_name)
 
                 if contract_name == constants.SUBMISSION_CONTRACT_NAME:

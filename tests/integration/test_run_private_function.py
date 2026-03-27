@@ -49,3 +49,15 @@ class TestRunPrivateFunction(TestCase):
                 function_name='__private',
                 kwargs={}
             )
+
+    def test_failed_run_private_function_restores_private_guard(self):
+        with self.assertRaises(Exception):
+            self.private_methods.run_private_function('missing_private')
+
+        with self.assertRaises(AssertionError):
+            self.private_methods.executor.execute(
+                sender='sys',
+                contract_name='private_methods',
+                function_name='__private',
+                kwargs={}
+            )

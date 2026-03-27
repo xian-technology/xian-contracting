@@ -454,6 +454,18 @@ class TestHash(TestCase):
         # we care about whats included, not order
         self.assertSetEqual(set(hsh.all()), set(l))
 
+    def test_get_all_returns_defensive_copies_for_mutable_values(self):
+        contract = "blah"
+        name = "scoob"
+
+        hsh = Hash(contract, name, driver=driver, default_value={})
+        hsh["1"] = {"count": 1}
+
+        values = hsh.all()
+        values[0]["count"] = 99
+
+        self.assertEqual(hsh["1"], {"count": 1})
+
     def test_items_returns_kv_pairs(self):
         contract = "blah"
         name = "scoob"
@@ -471,6 +483,18 @@ class TestHash(TestCase):
         got = hsh._items()
 
         self.assertDictEqual(kvs, got)
+
+    def test_items_returns_defensive_copies_for_mutable_values(self):
+        contract = "blah"
+        name = "scoob"
+
+        hsh = Hash(contract, name, driver=driver, default_value={})
+        hsh["1"] = {"count": 1}
+
+        items = hsh._items()
+        items["blah.scoob:1"]["count"] = 77
+
+        self.assertEqual(hsh["1"], {"count": 1})
 
     def test_items_multi_hash_returns_kv_pairs(self):
         contract = "blah"
@@ -757,6 +781,22 @@ class TestForeignHash(TestCase):
         h["howdy"] = 555
 
         self.assertEqual(f["howdy"], 555)
+
+    def test_getitem_returns_copy_for_mutable_values(self):
+        contract = "stustu"
+        name = "balance"
+        f_contract = "colinbucks"
+        f_name = "balances"
+
+        f = ForeignHash(contract, name, f_contract, f_name, driver=driver)
+
+        h = Hash(f_contract, f_name, driver=driver)
+        h["settings"] = {"limit": 7}
+
+        value = f["settings"]
+        value["limit"] = 99
+
+        self.assertEqual(f["settings"], {"limit": 7})
 
 
 class TestLogEvent(TestCase):

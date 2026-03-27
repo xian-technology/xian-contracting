@@ -1,10 +1,10 @@
 import hashlib
-import importlib
 import inspect
 import sys
 from types import FunctionType, ModuleType
 
 from contracting.constants import PRIVATE_METHOD_PREFIX
+from contracting.names import is_safe_contract_name
 from contracting.execution.runtime import rt
 from contracting.stdlib.bridge.access import __export
 from contracting.storage.driver import (
@@ -68,19 +68,11 @@ class Var:
 
 
 def _contract_name_is_valid(name):
-    if not isinstance(name, str):
-        return False
-    if name.isdigit():
-        return False
-    if not all(c.isalnum() or c == "_" for c in name):
-        return False
-    if not name.islower():
+    if not is_safe_contract_name(name):
         return False
     if name in set(
         list(sys.stdlib_module_names) + list(sys.builtin_module_names)
     ):
-        return False
-    if name.startswith("_"):
         return False
     return True
 
@@ -99,7 +91,9 @@ def import_module(name):
     if not _contract_exists_by_name(name):
         raise ImportError
 
-    return importlib.import_module(name, package=None)
+    from contracting.execution.module import import_database_contract
+
+    return import_database_contract(name)
 
 
 def _resolve_contract_module(contract):
