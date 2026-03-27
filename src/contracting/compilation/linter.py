@@ -37,6 +37,7 @@ class ErrorCode(str, Enum):
     E018 = "E018"
     E019 = "E019"
     E020 = "E020"
+    E021 = "E021"
 
 
 _MESSAGES = {
@@ -60,6 +61,7 @@ _MESSAGES = {
     ErrorCode.E018: "Return type annotation '{annotation}' is not allowed; use one of: {allowed}",
     ErrorCode.E019: "Nested function definitions are not allowed",
     ErrorCode.E020: "Syntax error: {detail}",
+    ErrorCode.E021: "Invalid decorator arguments for '{name}': {detail}",
 }
 
 
@@ -197,6 +199,8 @@ class _LintVisitor(ast.NodeVisitor):
                     name=decorator_name or "<complex>",
                 )
                 decorator_name = None
+            elif isinstance(decorator, ast.Call):
+                self._check_decorator_args(decorator, decorator_name)
 
         if decorator_name == constants.INIT_DECORATOR_STRING:
             if self.has_construct:
@@ -210,6 +214,51 @@ class _LintVisitor(ast.NodeVisitor):
         self.in_function = True
         ast.NodeVisitor.generic_visit(self, node)
         self.in_function = False
+
+    def _check_decorator_args(
+        self, decorator: ast.Call, decorator_name: str
+    ) -> None:
+        if decorator_name == constants.INIT_DECORATOR_STRING:
+            if decorator.args or decorator.keywords:
+                self.add(
+                    ErrorCode.E021,
+                    decorator,
+                    name=decorator_name,
+                    detail="@construct does not accept arguments",
+                )
+            return
+
+        if decorator_name != constants.EXPORT_DECORATOR_STRING:
+            return
+
+        if decorator.args:
+            self.add(
+                ErrorCode.E021,
+                decorator,
+                name=decorator_name,
+                detail="@export accepts keyword arguments only",
+            )
+
+        for keyword in decorator.keywords:
+            if keyword.arg != "typecheck":
+                self.add(
+                    ErrorCode.E021,
+                    keyword,
+                    name=decorator_name,
+                    detail="only 'typecheck' is supported",
+                )
+                continue
+
+            if not (
+                isinstance(keyword.value, ast.Constant)
+                and isinstance(keyword.value.value, bool)
+            ):
+                self.add(
+                    ErrorCode.E021,
+                    keyword.value,
+                    name=decorator_name,
+                    detail="'typecheck' must be True or False",
+                )
 
     def _check_export_args(self, node: ast.FunctionDef) -> None:
         for arg in node.args.args:

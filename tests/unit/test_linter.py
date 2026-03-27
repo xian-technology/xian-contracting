@@ -49,6 +49,14 @@ def hello(name: str) -> str:
 """
         self.assertIsNone(self.linter.check(code))
 
+    def test_export_with_typecheck_keyword(self):
+        code = """
+@export(typecheck=True)
+def hello(name: str) -> str:
+    return "Hello " + name
+"""
+        self.assertIsNone(self.linter.check(code))
+
     def test_export_with_subscripted_container_annotations(self):
         code = """
 @export
@@ -333,6 +341,42 @@ def f():
 
     def test_e020_syntax_error(self):
         self.assertIn(ErrorCode.E020, self._codes("def ("))
+
+    def test_e021_export_rejects_positional_decorator_args(self):
+        code = """
+@export(True)
+def f(x: int):
+    return x
+"""
+        self.assertIn(ErrorCode.E021, self._codes(code))
+
+    def test_e021_export_rejects_unknown_decorator_kwargs(self):
+        code = """
+@export(strict=True)
+def f(x: int):
+    return x
+"""
+        self.assertIn(ErrorCode.E021, self._codes(code))
+
+    def test_e021_export_rejects_non_bool_typecheck(self):
+        code = """
+@export(typecheck=1)
+def f(x: int):
+    return x
+"""
+        self.assertIn(ErrorCode.E021, self._codes(code))
+
+    def test_e021_construct_rejects_arguments(self):
+        code = """
+@construct(typecheck=True)
+def seed():
+    pass
+
+@export
+def f(x: int):
+    return x
+"""
+        self.assertIn(ErrorCode.E021, self._codes(code))
 
 
 class TestLintErrorFormat(TestCase):
