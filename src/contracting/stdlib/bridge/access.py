@@ -31,7 +31,10 @@ class __export(ContextDecorator):
         else:
             rt.context._ins_state()
 
+        rt.enter_contract_metering(self.contract)
+
     def __exit__(self, *args, **kwargs):
+        rt.exit_contract_metering()
         rt.context._pop_state()
 
 

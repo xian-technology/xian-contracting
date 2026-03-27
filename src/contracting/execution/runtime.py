@@ -136,6 +136,11 @@ class RuntimeState:
     writes: int = 0
     signer: str | None = None
     loaded_modules: list[str] = field(default_factory=list)
+    contract_meter_frames: list[dict[str, int | str]] = field(
+        default_factory=list
+    )
+    contract_meter_markers: list[bool] = field(default_factory=list)
+    contract_costs: dict[str, int] = field(default_factory=dict)
     context: Context = field(
         default_factory=lambda: Context(dict(DEFAULT_BASE_STATE))
     )
@@ -306,6 +311,91 @@ class Runtime:
             yield
         finally:
             self.context._pop_state()
+
+    def begin_contract_metering(self, contract: str) -> None:
+        state = self._state()
+        state.contract_meter_frames = [
+            {
+                "contract": contract,
+                "start_cost": self.tracer.get_stamp_used(),
+                "child_cost": 0,
+            }
+        ]
+        state.contract_meter_markers = []
+        state.contract_costs = {}
+
+    def enter_contract_metering(self, contract: str) -> None:
+        state = self._state()
+        if not state.contract_meter_frames:
+            state.contract_meter_frames.append(
+                {
+                    "contract": contract,
+                    "start_cost": self.tracer.get_stamp_used(),
+                    "child_cost": 0,
+                }
+            )
+            state.contract_meter_markers.append(True)
+            return
+
+        pushed = state.contract_meter_frames[-1]["contract"] != contract
+        if pushed:
+            state.contract_meter_frames.append(
+                {
+                    "contract": contract,
+                    "start_cost": self.tracer.get_stamp_used(),
+                    "child_cost": 0,
+                }
+            )
+        state.contract_meter_markers.append(pushed)
+
+    def exit_contract_metering(self) -> None:
+        state = self._state()
+        if not state.contract_meter_markers:
+            return
+        if state.contract_meter_markers.pop():
+            self._finalize_contract_meter_frame()
+
+    def _finalize_contract_meter_frame(self) -> None:
+        state = self._state()
+        if not state.contract_meter_frames:
+            return
+
+        frame = state.contract_meter_frames.pop()
+        current_cost = self.tracer.get_stamp_used()
+        total_cost = max(current_cost - int(frame["start_cost"]), 0)
+        exclusive_cost = max(total_cost - int(frame["child_cost"]), 0)
+        contract = str(frame["contract"])
+        state.contract_costs[contract] = (
+            state.contract_costs.get(contract, 0) + exclusive_cost
+        )
+
+        if state.contract_meter_frames:
+            parent = state.contract_meter_frames[-1]
+            parent["child_cost"] = int(parent["child_cost"]) + total_cost
+
+    def finalize_contract_metering(
+        self,
+        *,
+        fixed_overhead_contract: str | None = None,
+        fixed_overhead_units: int = 0,
+    ) -> dict[str, int]:
+        state = self._state()
+        while state.contract_meter_frames:
+            self._finalize_contract_meter_frame()
+
+        if (
+            fixed_overhead_contract is not None
+            and fixed_overhead_units > 0
+        ):
+            state.contract_costs[fixed_overhead_contract] = (
+                state.contract_costs.get(fixed_overhead_contract, 0)
+                + fixed_overhead_units
+            )
+
+        result = dict(state.contract_costs)
+        state.contract_meter_markers = []
+        state.contract_costs = {}
+        return result
 
 
 rt = Runtime()

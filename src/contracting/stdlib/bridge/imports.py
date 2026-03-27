@@ -21,8 +21,11 @@ from contracting.storage.orm import Datum
 
 
 def extract_closure(fn):
-    closure = fn.__closure__[0]
-    return closure.cell_contents
+    for closure in fn.__closure__ or ():
+        value = closure.cell_contents
+        if isinstance(value, FunctionType):
+            return value
+    return fn
 
 
 class Func:
