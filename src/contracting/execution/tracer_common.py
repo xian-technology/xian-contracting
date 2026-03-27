@@ -188,6 +188,9 @@ if len(CU_COSTS) < 256:
 APPROVED_DEFAULT_COST_OPCODES = frozenset(
     {
         "ANNOTATIONS_PLACEHOLDER",
+        "BEFORE_ASYNC_WITH",
+        "BEFORE_WITH",
+        "BUILD_CONST_KEY_MAP",
         "CHECK_EG_MATCH",
         "CHECK_EXC_MATCH",
         "CLEANUP_THROW",
@@ -214,6 +217,7 @@ APPROVED_DEFAULT_COST_OPCODES = frozenset(
         "INSTRUMENTED_NOT_TAKEN",
         "INSTRUMENTED_POP_ITER",
         "INSTRUMENTED_YIELD_VALUE",
+        "KW_NAMES",
         "LOAD_DEREF",
         "LOAD_FROM_DICT_OR_DEREF",
         "LOAD_FROM_DICT_OR_GLOBALS",
@@ -226,6 +230,7 @@ APPROVED_DEFAULT_COST_OPCODES = frozenset(
         "POP_JUMP_IF_NOT_NONE",
         "POP_JUMP_IF_NONE",
         "RESERVED",
+        "RETURN_CONST",
         "RETURN_GENERATOR",
         "SEND",
         "SETUP_CLEANUP",
