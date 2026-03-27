@@ -232,9 +232,18 @@ class _LintVisitor(ast.NodeVisitor):
             return node.id
         if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
             return f"{node.value.id}.{node.attr}"
+        if isinstance(node, ast.Subscript):
+            base = _LintVisitor._resolve_annotation(node.value)
+            if base is None:
+                return None
+            return f"{base}[{ast.unparse(node.slice).replace(' ', '')}]"
         if isinstance(node, ast.Constant):
             return str(node.value)
         return None
+
+    @staticmethod
+    def _annotation_base(annotation: str) -> str:
+        return annotation.split("[", 1)[0]
 
     def visit_Assign(self, node: ast.Assign) -> None:
         if isinstance(node.value, ast.Call) and isinstance(
@@ -334,7 +343,10 @@ class Linter:
         for annotation_name, arg_node in visitor.arg_annotations:
             if annotation_name is None:
                 visitor.add(ErrorCode.E017, arg_node)
-            elif annotation_name not in ALLOWED_ANNOTATION_TYPES:
+            elif (
+                visitor._annotation_base(annotation_name)
+                not in ALLOWED_ANNOTATION_TYPES
+            ):
                 visitor.add(
                     ErrorCode.E016,
                     arg_node,
@@ -345,7 +357,8 @@ class Linter:
         for annotation_name, func_node in visitor.return_annotations:
             if (
                 annotation_name is not None
-                and annotation_name not in ALLOWED_ANNOTATION_TYPES
+                and visitor._annotation_base(annotation_name)
+                not in ALLOWED_ANNOTATION_TYPES
             ):
                 visitor.add(
                     ErrorCode.E018,

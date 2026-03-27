@@ -49,6 +49,17 @@ def hello(name: str) -> str:
 """
         self.assertIsNone(self.linter.check(code))
 
+    def test_export_with_subscripted_container_annotations(self):
+        code = """
+@export
+def normalize(
+    items: list[int],
+    metadata: dict[str, list[int]],
+) -> dict[str, int]:
+    return {"count": len(items)}
+"""
+        self.assertIsNone(self.linter.check(code))
+
     def test_hash_and_variable(self):
         code = """
 balances = Hash(default_value=0)
@@ -278,6 +289,14 @@ def f(x: mytype):
 """
         self.assertIn(ErrorCode.E016, self._codes(code))
 
+    def test_e016_bad_subscripted_annotation_base(self):
+        code = """
+@export
+def f(x: tuple[int]):
+    pass
+"""
+        self.assertIn(ErrorCode.E016, self._codes(code))
+
     def test_e017_missing_annotation(self):
         code = """
 @export
@@ -291,6 +310,14 @@ def f(x):
 @export
 def f(x: int) -> mytype:
     return x
+"""
+        self.assertIn(ErrorCode.E018, self._codes(code))
+
+    def test_e018_bad_subscripted_return_annotation_base(self):
+        code = """
+@export
+def f(x: int) -> tuple[int]:
+    return (x,)
 """
         self.assertIn(ErrorCode.E018, self._codes(code))
 
