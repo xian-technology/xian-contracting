@@ -13,8 +13,8 @@ from nacl.public import PrivateKey, PublicKey, SealedBox
 from nacl.signing import SigningKey
 
 from xian_zk._native import (
-    build_random_shielded_note_bundle_json,
     build_insecure_dev_shielded_note_bundle_json,
+    build_random_shielded_note_bundle_json,
     load_shielded_note_prover_bundle,
     prove_shielded_note_deposit,
     prove_shielded_note_transfer,
@@ -31,9 +31,7 @@ from xian_zk._native import (
     shielded_note_zero_root,
 )
 
-_FIELD_MODULUS = (
-    21888242871839275222246405745257275088548364400416034343698204186575808495617
-)
+_FIELD_MODULUS = 21888242871839275222246405745257275088548364400416034343698204186575808495617
 _PAYLOAD_VERSION = 1
 _SHIELDED_NOTE_MAX_INPUTS = 4
 _SHIELDED_NOTE_MAX_OUTPUTS = 4
@@ -47,7 +45,9 @@ def _canonical_hex(raw: bytes) -> str:
     return "0x" + raw.hex()
 
 
-def _normalize_hex_bytes(value: str, *, expected_len: int | None = None) -> bytes:
+def _normalize_hex_bytes(
+    value: str, *, expected_len: int | None = None
+) -> bytes:
     if not isinstance(value, str):
         raise ValueError("hex value must be a string")
     trimmed = value[2:] if value.startswith("0x") else value
@@ -103,7 +103,9 @@ def _resolve_viewing_public_key(
     return _public_key_from_private_key(viewing_private_key)
 
 
-def _normalize_viewer(viewer: "ShieldedViewer | ShieldedRecipient | str") -> "ShieldedViewer":
+def _normalize_viewer(
+    viewer: "ShieldedViewer | ShieldedRecipient | str",
+) -> "ShieldedViewer":
     if isinstance(viewer, ShieldedViewer):
         return viewer
     if isinstance(viewer, ShieldedRecipient):
@@ -113,7 +115,9 @@ def _normalize_viewer(viewer: "ShieldedViewer | ShieldedRecipient | str") -> "Sh
         )
     if isinstance(viewer, str):
         return ShieldedViewer(viewing_public_key=viewer)
-    raise TypeError("viewer must be a ShieldedViewer, ShieldedRecipient, or hex key")
+    raise TypeError(
+        "viewer must be a ShieldedViewer, ShieldedRecipient, or hex key"
+    )
 
 
 def _encrypt_message_for_public_key(
@@ -188,10 +192,14 @@ class ShieldedViewingKeyBundle:
         )
 
     @classmethod
-    def from_private_key(cls, viewing_private_key: str) -> "ShieldedViewingKeyBundle":
+    def from_private_key(
+        cls, viewing_private_key: str
+    ) -> "ShieldedViewingKeyBundle":
         return cls(
             viewing_private_key=viewing_private_key,
-            viewing_public_key=_public_key_from_private_key(viewing_private_key),
+            viewing_public_key=_public_key_from_private_key(
+                viewing_private_key
+            ),
         )
 
     @property
@@ -403,7 +411,9 @@ class ShieldedNoteMessage:
             blind=self.blind,
         )
         if note.commitment(self.asset_id) != self.commitment:
-            raise ValueError("note message commitment does not match note fields")
+            raise ValueError(
+                "note message commitment does not match note fields"
+            )
         return note
 
 
@@ -586,7 +596,9 @@ class ShieldedNoteRecord:
         if isinstance(value, cls):
             return value
         if not isinstance(value, dict):
-            raise TypeError("note record must be a ShieldedNoteRecord or mapping")
+            raise TypeError(
+                "note record must be a ShieldedNoteRecord or mapping"
+            )
 
         index = value.get("index")
         commitment = value.get("commitment")
@@ -626,7 +638,9 @@ class ShieldedWalletNote:
         if self.leaf_index >= len(commitment_list):
             raise ValueError("wallet note leaf_index is out of range")
         if commitment_list[self.leaf_index] != self.commitment:
-            raise ValueError("wallet note commitment does not match membership set")
+            raise ValueError(
+                "wallet note commitment does not match membership set"
+            )
         return ShieldedInput.from_note(
             self.note,
             self.leaf_index,
@@ -750,8 +764,12 @@ class ShieldedWallet:
                 viewing_private_key=decoded["viewing_private_key"],
             ),
             commitments=commitments,
-            notes=[ShieldedWalletNote.from_dict(note) for note in notes_payload],
-            last_scanned_index=decoded.get("last_scanned_index", len(commitments)),
+            notes=[
+                ShieldedWalletNote.from_dict(note) for note in notes_payload
+            ],
+            last_scanned_index=decoded.get(
+                "last_scanned_index", len(commitments)
+            ),
         )
 
     @classmethod
@@ -807,7 +825,9 @@ class ShieldedWallet:
                 "viewing_private_key": self.viewing_private_key,
                 "last_scanned_index": self.last_scanned_index,
                 "commitments": list(self._commitments),
-                "notes": [note.to_dict() for note in self.notes(include_spent=True)],
+                "notes": [
+                    note.to_dict() for note in self.notes(include_spent=True)
+                ],
             },
             sort_keys=True,
         )
@@ -816,7 +836,9 @@ class ShieldedWallet:
         return list(self._commitments)
 
     def current_root(self) -> str:
-        return merkle_root(self._commitments) if self._commitments else zero_root()
+        return (
+            merkle_root(self._commitments) if self._commitments else zero_root()
+        )
 
     def tree_state(self) -> ShieldedTreeState:
         return tree_state(self._commitments)
@@ -849,11 +871,15 @@ class ShieldedWallet:
 
             if record.index < len(self._commitments):
                 if self._commitments[record.index] != record.commitment:
-                    raise ValueError("wallet commitment history does not match record")
+                    raise ValueError(
+                        "wallet commitment history does not match record"
+                    )
             elif record.index == len(self._commitments):
                 self._commitments.append(record.commitment)
             else:
-                raise ValueError("note records must be synced without index gaps")
+                raise ValueError(
+                    "note records must be synced without index gaps"
+                )
 
             if record.index + 1 > self.last_scanned_index:
                 self.last_scanned_index = record.index + 1
@@ -894,7 +920,9 @@ class ShieldedWallet:
             last_scanned_index=self.last_scanned_index,
         )
 
-    def apply_spent_nullifiers(self, spent_nullifiers: Sequence[str]) -> list[str]:
+    def apply_spent_nullifiers(
+        self, spent_nullifiers: Sequence[str]
+    ) -> list[str]:
         spent_set = set(spent_nullifiers)
         updated: list[str] = []
         for commitment, note in list(self._notes.items()):
@@ -967,7 +995,10 @@ class ShieldedWallet:
                 return
             if best_key is not None and len(selection) >= best_key[0]:
                 return
-            if total + max_reachable(start, max_inputs - len(selection)) < amount:
+            if (
+                total + max_reachable(start, max_inputs - len(selection))
+                < amount
+            ):
                 return
 
             for index in range(start, len(candidates)):
@@ -993,7 +1024,9 @@ class ShieldedWallet:
         old_root: str,
         membership_commitments: Sequence[str] | None,
     ) -> list[str]:
-        commitments = self._default_membership_commitments(membership_commitments)
+        commitments = self._default_membership_commitments(
+            membership_commitments
+        )
         derived_root = merkle_root(commitments) if commitments else zero_root()
         if derived_root != old_root:
             raise ValueError("membership commitments do not match old_root")
@@ -1337,14 +1370,18 @@ def decrypt_note_message(
         viewing_private_key,
         viewing_public_key,
     )
-    sealed_box = SealedBox(_x25519_private_key_from_ed25519(viewing_private_key))
+    sealed_box = SealedBox(
+        _x25519_private_key_from_ed25519(viewing_private_key)
+    )
 
     payload = ShieldedNotePayload.from_hex(payload_hex)
     if payload is not None:
         for ciphertext in payload.ciphertexts:
             if ciphertext.viewing_public_key != public_key:
                 continue
-            plaintext = sealed_box.decrypt(_normalize_hex_bytes(ciphertext.ciphertext))
+            plaintext = sealed_box.decrypt(
+                _normalize_hex_bytes(ciphertext.ciphertext)
+            )
             return ShieldedNoteMessage.from_json(plaintext.decode("utf-8"))
         raise ValueError("no ciphertext for the provided viewing key")
 
@@ -1370,7 +1407,9 @@ def scan_notes(
                 note=note,
                 commitment=commitment,
                 leaf_index=leaf_index,
-                merkle_path=shielded_note_auth_path(commitment_list, leaf_index),
+                merkle_path=shielded_note_auth_path(
+                    commitment_list, leaf_index
+                ),
             )
         )
     return discovered

@@ -21,7 +21,9 @@ def _default_vk_id_prefix(contract_name: str) -> str:
 
 def _write_text(path: Path, content: str, *, overwrite: bool) -> None:
     if path.exists() and not overwrite:
-        raise FileExistsError(f"{path} already exists; pass --overwrite to replace it")
+        raise FileExistsError(
+            f"{path} already exists; pass --overwrite to replace it"
+        )
     path.write_text(content)
 
 
@@ -41,26 +43,26 @@ def _deployment_instructions(manifest: dict[str, object]) -> str:
         "## Register Verifying Keys",
         "",
         "```python",
-        "manifest = json.loads(Path(\"shielded-note-registry-manifest.json\").read_text())",
-        "for entry in manifest[\"registry_entries\"]:",
+        'manifest = json.loads(Path("shielded-note-registry-manifest.json").read_text())',
+        'for entry in manifest["registry_entries"]:',
         "    zk_registry.register_vk(",
-        "        vk_id=entry[\"vk_id\"],",
-        "        vk_hex=entry[\"vk_hex\"],",
-        "        circuit_name=entry[\"circuit_name\"],",
-        "        version=entry[\"version\"],",
-        "        signer=\"sys\",",
+        '        vk_id=entry["vk_id"],',
+        '        vk_hex=entry["vk_hex"],',
+        '        circuit_name=entry["circuit_name"],',
+        '        version=entry["version"],',
+        '        signer="sys",',
         "    )",
         "```",
         "",
         "## Bind The Token",
         "",
         "```python",
-        "manifest = json.loads(Path(\"shielded-note-registry-manifest.json\").read_text())",
-        "for binding in manifest[\"configure_actions\"]:",
+        'manifest = json.loads(Path("shielded-note-registry-manifest.json").read_text())',
+        'for binding in manifest["configure_actions"]:',
         "    token.configure_vk(",
-        "        action=binding[\"action\"],",
-        "        vk_id=binding[\"vk_id\"],",
-        "        signer=\"sys\",",
+        '        action=binding["action"],',
+        '        vk_id=binding["vk_id"],',
+        '        signer="sys",',
         "    )",
         "```",
         "",
@@ -74,7 +76,9 @@ def _deployment_instructions(manifest: dict[str, object]) -> str:
         "treating this output as a substitute for an MPC transcript.",
     ]
 
-    if isinstance(registry_entries, list) and isinstance(configure_actions, list):
+    if isinstance(registry_entries, list) and isinstance(
+        configure_actions, list
+    ):
         lines.extend(
             [
                 "",
@@ -85,9 +89,7 @@ def _deployment_instructions(manifest: dict[str, object]) -> str:
         for entry in registry_entries:
             if not isinstance(entry, dict):
                 continue
-            lines.append(
-                f"- `{entry['vk_id']}` for `{entry['circuit_name']}`"
-            )
+            lines.append(f"- `{entry['vk_id']}` for `{entry['circuit_name']}`")
 
     return "\n".join(lines) + "\n"
 
@@ -132,7 +134,9 @@ def main(argv: list[str] | None = None) -> int:
     output_dir = Path(args.output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    vk_id_prefix = args.vk_id_prefix or _default_vk_id_prefix(args.contract_name)
+    vk_id_prefix = args.vk_id_prefix or _default_vk_id_prefix(
+        args.contract_name
+    )
     prover = ShieldedNoteProver.build_random_bundle(
         contract_name=args.contract_name,
         vk_id_prefix=vk_id_prefix,

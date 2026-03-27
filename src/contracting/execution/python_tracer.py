@@ -16,8 +16,8 @@ from contracting.execution.tracer_common import (
     DEFAULT_COST,
     CallLimitExceededError,
     StampExceededError,
-    get_tracer_policy,
     _opcode_cost,
+    get_tracer_policy,
 )
 
 TOOL_ID = sys.monitoring.PROFILER_ID

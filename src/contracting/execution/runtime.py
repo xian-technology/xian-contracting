@@ -413,10 +413,7 @@ class Runtime:
         while state.contract_meter_frames:
             self._finalize_contract_meter_frame()
 
-        if (
-            fixed_overhead_contract is not None
-            and fixed_overhead_units > 0
-        ):
+        if fixed_overhead_contract is not None and fixed_overhead_units > 0:
             state.contract_costs[fixed_overhead_contract] = (
                 state.contract_costs.get(fixed_overhead_contract, 0)
                 + fixed_overhead_units

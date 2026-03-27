@@ -190,9 +190,7 @@ class Executor:
             raw_stamps_used = runtime.rt.tracer.get_stamp_used()
             contract_costs = runtime.rt.finalize_contract_metering(
                 fixed_overhead_contract=contract_name,
-                fixed_overhead_units=(
-                    constants.TRANSACTION_BASE_STAMPS * 1000
-                ),
+                fixed_overhead_units=(constants.TRANSACTION_BASE_STAMPS * 1000),
             )
 
             stamps_used = raw_stamps_used // 1000

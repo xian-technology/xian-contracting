@@ -42,9 +42,7 @@ def _payload_metering_cost(
     proof_hex: str,
     public_inputs: list[str],
 ) -> int:
-    payload_bytes = _hex_payload_bytes(vk_hex) + _hex_payload_bytes(
-        proof_hex
-    )
+    payload_bytes = _hex_payload_bytes(vk_hex) + _hex_payload_bytes(proof_hex)
     payload_bytes += sum(_hex_payload_bytes(value) for value in public_inputs)
     return (
         constants.ZK_VERIFY_GROTH16_BASE_COST
@@ -52,10 +50,7 @@ def _payload_metering_cost(
             len(public_inputs)
             * constants.ZK_VERIFY_GROTH16_PER_PUBLIC_INPUT_COST
         )
-        + (
-            payload_bytes
-            * constants.ZK_VERIFY_GROTH16_PER_PAYLOAD_BYTE_COST
-        )
+        + (payload_bytes * constants.ZK_VERIFY_GROTH16_PER_PAYLOAD_BYTE_COST)
     )
 
 

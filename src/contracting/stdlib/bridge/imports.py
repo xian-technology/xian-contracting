@@ -4,8 +4,8 @@ import sys
 from types import FunctionType, ModuleType
 
 from contracting.constants import PRIVATE_METHOD_PREFIX
-from contracting.names import is_safe_contract_name
 from contracting.execution.runtime import rt
+from contracting.names import is_safe_contract_name
 from contracting.stdlib.bridge.access import __export
 from contracting.storage.driver import (
     CODE_KEY,
