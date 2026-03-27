@@ -6,8 +6,6 @@ use std::collections::HashMap;
 
 const DEFAULT_COST: u64 = 4;
 const DEFAULT_OPCODE_COST: u16 = DEFAULT_COST as u16;
-const MAX_STAMPS: u64 = 6_500_000;
-const MAX_CALL_COUNT: u64 = 800_000;
 
 create_exception!(
     xian_native_tracer,
@@ -26,6 +24,8 @@ struct InstructionMeter {
     stamp_supplied: u64,
     call_count: u64,
     started: bool,
+    max_stamps: u64,
+    max_events: u64,
     opcode_costs: [u16; 256],
     instruction_costs: HashMap<usize, Box<[u16]>>,
     stamp_exceeded_type: Py<PyType>,
@@ -48,7 +48,7 @@ impl InstructionMeter {
     }
 
     fn ensure_cost_limit(&mut self, py: Python<'_>) -> PyResult<()> {
-        if self.cost > self.stamp_supplied || self.cost > MAX_STAMPS {
+        if self.cost > self.stamp_supplied || self.cost > self.max_stamps {
             self.started = false;
             return Err(self.stamp_exceeded_error(py));
         }
@@ -75,6 +75,8 @@ impl InstructionMeter {
     #[new]
     fn new(
         opcode_costs: Vec<u16>,
+        max_stamps: u64,
+        max_events: u64,
         stamp_exceeded_type: Py<PyType>,
         call_limit_type: Py<PyType>,
     ) -> PyResult<Self> {
@@ -91,6 +93,8 @@ impl InstructionMeter {
             stamp_supplied: 0,
             call_count: 0,
             started: false,
+            max_stamps,
+            max_events,
             opcode_costs: opcode_cost_table,
             instruction_costs: HashMap::new(),
             stamp_exceeded_type,
@@ -108,16 +112,22 @@ impl InstructionMeter {
         self.started = false;
     }
 
-    fn reset(&mut self) {
+    #[pyo3(signature = (clear_metadata = true))]
+    fn reset(&mut self, clear_metadata: bool) {
         self.stop();
         self.cost = 0;
         self.stamp_supplied = 0;
         self.call_count = 0;
-        self.instruction_costs.clear();
+        if clear_metadata {
+            self.instruction_costs.clear();
+        }
     }
 
     fn register_code(&mut self, code: &Bound<'_, PyAny>) -> PyResult<()> {
         let key = code.as_ptr() as usize;
+        if self.instruction_costs.contains_key(&key) {
+            return Ok(());
+        }
         let co_code: Vec<u8> = code.getattr("co_code")?.extract()?;
         let parsed = self.build_instruction_costs(&co_code);
         self.instruction_costs.insert(key, parsed);
@@ -143,7 +153,7 @@ impl InstructionMeter {
         }
 
         self.call_count = self.call_count.saturating_add(1);
-        if self.call_count > MAX_CALL_COUNT {
+        if self.call_count > self.max_events {
             self.started = false;
             return Err(self.call_limit_error(code.py()));
         }

@@ -44,3 +44,17 @@ class TestNativeTracer(TestCase):
         self.tracer.set_stamp(1)
         with self.assertRaises(StampExceededError):
             self.tracer.add_cost(2)
+
+    def test_native_tracer_reset_can_preserve_registered_metadata(self):
+        code = compile("x = max([i for i in range(5)])", "<test>", "exec")
+        self.tracer.register_code(code)
+        known_count = len(self.tracer._known_codes)
+
+        with patch(
+            "contracting.execution.native_tracer.sys.monitoring.set_local_events"
+        ) as set_local_events:
+            self.tracer.reset(clear_metadata=False)
+            self.tracer.start()
+
+        self.assertEqual(len(self.tracer._known_codes), known_count)
+        self.assertEqual(set_local_events.call_count, known_count)

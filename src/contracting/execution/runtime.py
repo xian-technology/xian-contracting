@@ -243,12 +243,38 @@ class Runtime:
         state.tracer = create_tracer(selected)
         self._default_tracer_mode = selected
 
-    def set_up(self, stmps, meter):
-        state = self._state()
-        state.tracer.reset()
-        state.context._reset()
+    def _reset_execution_state(
+        self,
+        state: RuntimeState,
+        *,
+        preserve_tracer_metadata: bool,
+        preserve_context_base_state: bool,
+        preserve_env: bool,
+    ) -> None:
+        state.tracer.reset(clear_metadata=not preserve_tracer_metadata)
+        env = dict(state.env) if preserve_env else {}
+        state.env = env
         state.stamps = 0
         state.writes = 0
+        state.signer = None
+        state.loaded_modules = []
+        state.contract_meter_frames = []
+        state.contract_meter_markers = []
+        state.contract_costs = {}
+        if preserve_context_base_state:
+            base_state = dict(state.context._base_state)
+        else:
+            base_state = dict(DEFAULT_BASE_STATE)
+        state.context = Context(base_state)
+
+    def set_up(self, stmps, meter):
+        state = self._state()
+        self._reset_execution_state(
+            state,
+            preserve_tracer_metadata=True,
+            preserve_context_base_state=True,
+            preserve_env=True,
+        )
 
         if meter:
             state.stamps = stmps
@@ -259,13 +285,17 @@ class Runtime:
         state = self._state()
 
         state.tracer.stop()
-        state.tracer.reset()
 
         for mod in state.loaded_modules:
             if sys.modules.get(mod) is not None:
                 del sys.modules[mod]
 
-        self._state_var.set(self._new_state(state.tracer_mode))
+        self._reset_execution_state(
+            state,
+            preserve_tracer_metadata=True,
+            preserve_context_base_state=False,
+            preserve_env=False,
+        )
 
     def deduct_read(self, key, value):
         if self.tracer.is_started():

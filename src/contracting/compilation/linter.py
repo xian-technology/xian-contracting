@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import ast
 import sys
+import tokenize
 from dataclasses import dataclass
 from enum import Enum
+from io import StringIO
 from typing import Any
 
 from contracting import constants
@@ -207,9 +209,22 @@ class _LintVisitor(ast.NodeVisitor):
             self.has_export = True
             self._check_export_args(node)
 
+        self._check_single_line_body(node, node.body)
         self.in_function = True
         ast.NodeVisitor.generic_visit(self, node)
         self.in_function = False
+
+    def visit_If(self, node: ast.If) -> None:
+        self._check_single_line_body(node, node.body, node.orelse)
+        ast.NodeVisitor.generic_visit(self, node)
+
+    def visit_For(self, node: ast.For) -> None:
+        self._check_single_line_body(node, node.body, node.orelse)
+        ast.NodeVisitor.generic_visit(self, node)
+
+    def visit_While(self, node: ast.While) -> None:
+        self._check_single_line_body(node, node.body, node.orelse)
+        ast.NodeVisitor.generic_visit(self, node)
 
     def _check_export_args(self, node: ast.FunctionDef) -> None:
         for arg in node.args.args:
@@ -244,6 +259,27 @@ class _LintVisitor(ast.NodeVisitor):
     @staticmethod
     def _annotation_base(annotation: str) -> str:
         return annotation.split("[", 1)[0]
+
+    def _check_single_line_body(
+        self,
+        node: ast.AST,
+        *body_groups: list[ast.stmt],
+    ) -> None:
+        node_line = getattr(node, "lineno", None)
+        if node_line is None:
+            return
+
+        for group in body_groups:
+            if not group:
+                continue
+            first_stmt = group[0]
+            if getattr(first_stmt, "lineno", None) == node_line:
+                self.add(
+                    ErrorCode.E001,
+                    first_stmt,
+                    detail="Single-line compound statements are not allowed",
+                )
+                return
 
     def visit_Assign(self, node: ast.Assign) -> None:
         if isinstance(node.value, ast.Call) and isinstance(
@@ -310,6 +346,8 @@ class Linter:
 
         visitor = _LintVisitor()
         visitor.visit(tree)
+        if isinstance(source_or_tree, str):
+            self._scan_source_tokens(visitor, source_or_tree)
         self._final_checks(visitor, tree)
 
         if not visitor.errors:
@@ -365,4 +403,17 @@ class Linter:
                     func_node,
                     annotation=annotation_name,
                     allowed=allowed,
+                )
+
+    @staticmethod
+    def _scan_source_tokens(visitor: _LintVisitor, source: str) -> None:
+        for token in tokenize.generate_tokens(StringIO(source).readline):
+            if token.type == tokenize.OP and token.string == ";":
+                visitor.add(
+                    ErrorCode.E001,
+                    line=token.start[0],
+                    col=token.start[1],
+                    end_line=token.end[0],
+                    end_col=token.end[1],
+                    detail="Semicolon",
                 )

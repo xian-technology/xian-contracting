@@ -152,6 +152,32 @@ def f(x: int):
 """
         self.assertIn(ErrorCode.E001, self._codes(code))
 
+    def test_e001_ternary_expression(self):
+        code = """
+@export
+def f(x: bool):
+    return 1 if x else 0
+"""
+        self.assertIn(ErrorCode.E001, self._codes(code))
+
+    def test_e001_semicolon(self):
+        code = """
+@export
+def f():
+    x = 1; y = 2
+    return x + y
+"""
+        self.assertIn(ErrorCode.E001, self._codes(code))
+
+    def test_e001_single_line_compound_statement(self):
+        code = """
+@export
+def f(x: bool):
+    if x: return 1
+    return 0
+"""
+        self.assertIn(ErrorCode.E001, self._codes(code))
+
     def test_e002_dunder_attribute_blocked(self):
         code = """
 @export

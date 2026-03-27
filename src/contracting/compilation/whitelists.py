@@ -122,6 +122,7 @@ ILLEGAL_AST_TYPES = {
     ast.GeneratorExp,
     ast.ImportFrom,
     ast.Interactive,
+    ast.IfExp,
     ast.Lambda,
     ast.MatMult,
     ast.Nonlocal,
