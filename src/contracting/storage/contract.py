@@ -49,6 +49,7 @@ class Contract:
             scope = env.gather()
             scope.update({"__contract__": True})
             scope.update(rt.env)
+            scope.update({"__Driver": self._driver})
 
             compiled = compile(code_obj, name, "exec")
             rt.tracer.register_code(compiled)
@@ -72,13 +73,21 @@ class Contract:
                 "submission_name": name,
             }
 
-            with rt.push_context_state(deployment_state):
-                exec(compiled, scope)
+            previous_driver = rt.env.get("__Driver")
+            rt.env.update({"__Driver": self._driver})
+            try:
+                with rt.push_context_state(deployment_state):
+                    exec(compiled, scope)
 
-                if scope.get(constants.INIT_FUNC_NAME) is not None:
-                    if constructor_args is None:
-                        constructor_args = {}
-                    scope[constants.INIT_FUNC_NAME](**constructor_args)
+                    if scope.get(constants.INIT_FUNC_NAME) is not None:
+                        if constructor_args is None:
+                            constructor_args = {}
+                        scope[constants.INIT_FUNC_NAME](**constructor_args)
+            finally:
+                if previous_driver is None:
+                    rt.env.pop("__Driver", None)
+                else:
+                    rt.env.update({"__Driver": previous_driver})
 
             now = scope.get("now")
             if now is not None:
