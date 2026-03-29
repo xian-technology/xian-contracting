@@ -407,7 +407,7 @@ dev = [
 
 [[package]]
 name = "xian-tech-native-tracer"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/xian-native-tracer" }
 
 [[package]]
@@ -417,7 +417,7 @@ source = { editable = "packages/xian-runtime-types" }
 
 [[package]]
 name = "xian-tech-zk"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/xian-zk" }
 dependencies = [
     { name = "pynacl" },
