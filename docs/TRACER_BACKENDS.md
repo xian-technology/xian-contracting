@@ -19,7 +19,7 @@ This keeps `xian-contracting`:
 ## Native Backend
 
 `native_instruction_v1` is provided by the optional
-`xian-native-tracer` package in `packages/xian-native-tracer`.
+`xian-tech-native-tracer` package in `packages/xian-native-tracer`.
 
 Characteristics:
 
@@ -38,7 +38,7 @@ uv sync --group dev --extra native
 or
 
 ```bash
-python -m pip install "xian-contracting[native]"
+python -m pip install "xian-tech-contracting[native]"
 ```
 
 ## Selection
@@ -66,9 +66,15 @@ The two backends do not have identical gas semantics:
 
 - `python_line_v1` charges deterministic precomputed line buckets
 - `native_instruction_v1` charges exact executed instruction buckets
+- `python_line_v1` uses an `800_000` line-event ceiling
+- `native_instruction_v1` uses a `3_250_000` instruction-event ceiling
 
 Because of that, tracer mode is execution policy. A network should choose one
 mode and keep it consistent across validators.
+
+The pure-Python backend is also paired with source restrictions that reduce
+line-bucket blind spots, including rejected ternary expressions, semicolons,
+and one-line compound statements.
 
 ## Validation
 

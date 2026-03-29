@@ -14,14 +14,29 @@ import types
 
 from contracting.execution.tracer_common import (
     DEFAULT_COST,
-    MAX_CALL_COUNT,
-    MAX_STAMPS,
     CallLimitExceededError,
     StampExceededError,
     _opcode_cost,
+    get_tracer_policy,
 )
 
 TOOL_ID = sys.monitoring.PROFILER_ID
+_POLICY = get_tracer_policy("python_line_v1")
+
+
+def _instruction_line_number(instruction: dis.Instruction) -> int | None:
+    positions = instruction.positions
+    if positions is not None:
+        lineno = getattr(positions, "lineno", None)
+        if isinstance(lineno, int) and lineno > 0:
+            return lineno
+
+    starts_line = instruction.starts_line
+    if isinstance(starts_line, int) and not isinstance(starts_line, bool):
+        if starts_line > 0:
+            return starts_line
+
+    return None
 
 
 class PythonLineTracer:
@@ -32,9 +47,11 @@ class PythonLineTracer:
         "stamp_supplied",
         "started",
         "call_count",
-        "_pending_codes",
-        "_registered_codes",
+        "_enabled_codes",
+        "_known_codes",
         "_line_costs",
+        "_max_events",
+        "_max_stamps",
     )
 
     def __init__(self) -> None:
@@ -42,9 +59,11 @@ class PythonLineTracer:
         self.stamp_supplied = 0
         self.started = False
         self.call_count = 0
-        self._pending_codes: list[types.CodeType] = []
-        self._registered_codes: set[int] = set()
+        self._enabled_codes: set[int] = set()
+        self._known_codes: dict[int, types.CodeType] = {}
         self._line_costs: dict[int, dict[int, int]] = {}
+        self._max_events = _POLICY.max_events
+        self._max_stamps = _POLICY.max_stamps
 
     def start(self) -> None:
         self.cost = 0
@@ -62,9 +81,9 @@ class PythonLineTracer:
             self._line_callback,
         )
 
-        for code in self._pending_codes:
+        self._enabled_codes.clear()
+        for code in self._known_codes.values():
             self._enable_local_events(code)
-        self._pending_codes.clear()
 
     def stop(self) -> None:
         if not self.started:
@@ -82,29 +101,30 @@ class PythonLineTracer:
             pass
 
         self.started = False
+        self._enabled_codes.clear()
 
-    def reset(self) -> None:
+    def reset(self, *, clear_metadata: bool = True) -> None:
         self.stop()
         self.cost = 0
         self.stamp_supplied = 0
         self.call_count = 0
-        self._pending_codes.clear()
-        self._registered_codes.clear()
-        self._line_costs.clear()
+        self._enabled_codes.clear()
+        if clear_metadata:
+            self._known_codes.clear()
+            self._line_costs.clear()
 
     def register_code(self, code: types.CodeType) -> None:
-        if not self.started:
-            self._pending_codes.append(code)
-            return
-
-        self._enable_local_events(code)
+        code_id = id(code)
+        self._known_codes.setdefault(code_id, code)
+        if self.started:
+            self._enable_local_events(code)
 
     def _enable_local_events(self, code: types.CodeType) -> None:
         code_id = id(code)
-        if code_id in self._registered_codes:
+        if code_id in self._enabled_codes:
             return
 
-        self._registered_codes.add(code_id)
+        self._enabled_codes.add(code_id)
         sys.monitoring.set_local_events(
             TOOL_ID,
             code,
@@ -120,7 +140,7 @@ class PythonLineTracer:
 
     def add_cost(self, new_cost: int) -> None:
         self.cost += new_cost
-        if self.cost > self.stamp_supplied or self.cost > MAX_STAMPS:
+        if self.cost > self.stamp_supplied or self.cost > self._max_stamps:
             self.stop()
             raise StampExceededError(
                 "The cost has exceeded the stamp supplied!"
@@ -138,14 +158,14 @@ class PythonLineTracer:
         line_number: int,
     ) -> None:
         self.call_count += 1
-        if self.call_count > MAX_CALL_COUNT:
+        if self.call_count > self._max_events:
             self.stop()
             raise CallLimitExceededError(
                 "Call count exceeded threshold! Infinite Loop?"
             )
 
         self.cost += self._line_cost(code, line_number)
-        if self.cost > self.stamp_supplied or self.cost > MAX_STAMPS:
+        if self.cost > self.stamp_supplied or self.cost > self._max_stamps:
             self.stop()
             raise StampExceededError(
                 "The cost has exceeded the stamp supplied!"
@@ -157,9 +177,7 @@ class PythonLineTracer:
         if line_costs is None:
             line_costs = {}
             for instruction in dis.get_instructions(code):
-                lineno = instruction.starts_line
-                if instruction.positions is not None:
-                    lineno = instruction.positions.lineno or lineno
+                lineno = _instruction_line_number(instruction)
                 if lineno is None:
                     continue
                 line_costs[lineno] = line_costs.get(lineno, 0) + _opcode_cost(

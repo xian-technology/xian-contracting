@@ -246,6 +246,26 @@ class Hash(Datum):
         for k in kvs.keys():
             self._driver.delete(k)
 
+    def clone_from(self, source):
+        assert isinstance(source, Hash), (
+            "Hash.clone_from() requires a Hash or ForeignHash source."
+        )
+
+        source_items = source._items()
+        source_prefix = f"{source._key}{self._delimiter}"
+        target_prefix = f"{self._key}{self._delimiter}"
+
+        self.clear()
+
+        for source_key, value in source_items.items():
+            rt.deduct_read(*encode_kv(source_key, value))
+            suffix = source_key.removeprefix(source_prefix)
+            self._driver.set(
+                f"{target_prefix}{suffix}",
+                _copy_mutable(value),
+                True,
+            )
+
     def __setitem__(self, key, value):
         # handle multiple hashes differently
         key = self._validate_key(key)
@@ -298,6 +318,9 @@ class ForeignHash(Hash):
 
     def clear(self, *args):
         raise Exception("Cannot write with a ForeignHash.")
+
+    def clone_from(self, source):
+        raise ReferenceError
 
 
 class LogEvent(Datum):

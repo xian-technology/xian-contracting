@@ -89,6 +89,65 @@ def d():
         self.assertEqual(output["result"], 1)
         self.assertEqual(output["status_code"], 0)
 
+    def test_submission_rejects_unsafe_contract_name(self):
+        e = Executor(metering=False)
+
+        code = """@export
+def ping():
+    return 1
+"""
+
+        output = e.execute(
+            **TEST_SUBMISSION_KWARGS,
+            kwargs={"name": "con.bad", "code": code},
+        )
+
+        self.assertEqual(output["status_code"], 1)
+        self.assertIsNone(self.d.get_contract("con.bad"))
+
+    def test_submission_rejects_invalid_owner_type(self):
+        e = Executor(metering=False)
+
+        code = """@export
+def ping():
+    return 1
+"""
+
+        output = e.execute(
+            **TEST_SUBMISSION_KWARGS,
+            kwargs={"name": "con_valid_name", "code": code, "owner": 7},
+        )
+
+        self.assertEqual(output["status_code"], 1)
+        self.assertIsNone(self.d.get_contract("con_valid_name"))
+
+    def test_change_developer_rejects_empty_string(self):
+        e = Executor(metering=False)
+
+        code = """@export
+def ping():
+    return 1
+"""
+
+        e.execute(
+            **TEST_SUBMISSION_KWARGS,
+            kwargs={"name": "con_valid_name", "code": code},
+            auto_commit=True,
+        )
+
+        output = e.execute(
+            sender="stu",
+            contract_name="submission",
+            function_name="change_developer",
+            kwargs={"contract": "con_valid_name", "new_developer": ""},
+        )
+
+        self.assertEqual(output["status_code"], 1)
+        self.assertEqual(
+            self.d.get_var("con_valid_name", "__developer__"),
+            "stu",
+        )
+
     def test_kwarg_helper(self):
         test_orm_variable_contract_path = os.path.join(
             os.path.dirname(__file__),

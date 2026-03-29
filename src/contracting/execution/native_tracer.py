@@ -7,9 +7,11 @@ from contracting.execution.tracer_common import (
     CU_COSTS,
     CallLimitExceededError,
     StampExceededError,
+    get_tracer_policy,
 )
 
 TOOL_ID = sys.monitoring.PROFILER_ID
+_POLICY = get_tracer_policy("native_instruction_v1")
 
 _NATIVE_IMPORT_ERROR: Exception | None = None
 
@@ -26,8 +28,8 @@ class NativeInstructionTracer:
     __slots__ = (
         "_backend",
         "_instruction_callback",
-        "_pending_codes",
-        "_registered_codes",
+        "_enabled_codes",
+        "_known_codes",
     )
 
     def __init__(self) -> None:
@@ -39,12 +41,14 @@ class NativeInstructionTracer:
 
         self._backend = InstructionMeter(
             CU_COSTS,
+            _POLICY.max_stamps,
+            _POLICY.max_events,
             StampExceededError,
             CallLimitExceededError,
         )
         self._instruction_callback = self._backend.instruction_callback
-        self._pending_codes: list[types.CodeType] = []
-        self._registered_codes: set[int] = set()
+        self._enabled_codes: set[int] = set()
+        self._known_codes: dict[int, types.CodeType] = {}
 
     def start(self) -> None:
         self._backend.start()
@@ -60,9 +64,9 @@ class NativeInstructionTracer:
             self._instruction_callback,
         )
 
-        for code in self._pending_codes:
+        self._enabled_codes.clear()
+        for code in self._known_codes.values():
             self._enable_local_events(code)
-        self._pending_codes.clear()
 
     def stop(self) -> None:
         if not self._backend.is_started():
@@ -80,27 +84,38 @@ class NativeInstructionTracer:
             pass
 
         self._backend.stop()
+        self._enabled_codes.clear()
 
-    def reset(self) -> None:
+    def reset(self, *, clear_metadata: bool = True) -> None:
         self.stop()
-        self._backend.reset()
-        self._pending_codes.clear()
-        self._registered_codes.clear()
+        self._backend.reset(clear_metadata=clear_metadata)
+        self._enabled_codes.clear()
+        if clear_metadata:
+            self._known_codes.clear()
 
     def register_code(self, code: types.CodeType) -> None:
-        if not self.is_started():
-            self._pending_codes.append(code)
+        self._register_known_code(code)
+        if self.is_started():
+            self._enable_local_events(code)
+
+    def _register_known_code(self, code: types.CodeType) -> None:
+        code_id = id(code)
+        if code_id in self._known_codes:
             return
 
-        self._enable_local_events(code)
+        self._known_codes[code_id] = code
+        self._backend.register_code(code)
+
+        for const in code.co_consts:
+            if isinstance(const, types.CodeType):
+                self._register_known_code(const)
 
     def _enable_local_events(self, code: types.CodeType) -> None:
         code_id = id(code)
-        if code_id in self._registered_codes:
+        if code_id in self._enabled_codes:
             return
 
-        self._registered_codes.add(code_id)
-        self._backend.register_code(code)
+        self._enabled_codes.add(code_id)
         sys.monitoring.set_local_events(
             TOOL_ID,
             code,

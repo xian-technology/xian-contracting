@@ -107,26 +107,24 @@ class AbstractContract:
         # Let executor access private functions
         self.executor.bypass_privates = True
 
-        # Append private method prefix to function name if it isn't there already
-        if not f.startswith(constants.PRIVATE_METHOD_PREFIX):
-            f = "{}{}".format(constants.PRIVATE_METHOD_PREFIX, f)
+        try:
+            # Append private method prefix to function name if it isn't there already
+            if not f.startswith(constants.PRIVATE_METHOD_PREFIX):
+                f = "{}{}".format(constants.PRIVATE_METHOD_PREFIX, f)
 
-        # Execute
-        result = self._abstract_function_call(
-            signer=signer,
-            executor=self.executor,
-            contract_name=self.name,
-            environment=environment,
-            func=f,
-            metering=None,
-            now=None,
-            **kwargs,
-        )
-
-        # Set executor back to restricted mode
-        self.executor.bypass_privates = False
-
-        return result
+            return self._abstract_function_call(
+                signer=signer,
+                executor=self.executor,
+                contract_name=self.name,
+                environment=environment,
+                func=f,
+                metering=None,
+                now=None,
+                **kwargs,
+            )
+        finally:
+            # Always restore restricted mode, even if the private call fails.
+            self.executor.bypass_privates = False
 
     def __getattr__(self, item):
         try:

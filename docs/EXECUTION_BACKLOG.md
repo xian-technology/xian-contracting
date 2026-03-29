@@ -16,18 +16,26 @@ Future execution backends must not compromise that default.
 The current Python tracer is deterministic and protects the runtime from the
 worst instruction-callback DoS paths, but it still has precision limits.
 
-Potential hardening steps for the current tracer:
+Recent hardening already landed:
 
-- forbid multiple statements per line in contract source
-- forbid ternary expressions
+- fixed Python 3.14 line metadata handling
+- kept per-code tracer metadata warm across executions
+- split tracer event ceilings by backend semantics
+- made the opcode default-cost set explicit and test-guarded
+- added workload tests for branch-heavy and loop-heavy tracer cases
+- forbade ternary expressions, semicolons, and one-line compound statements
+  in contract source
+
+Remaining useful hardening steps:
+
 - forbid lambdas
 - restrict or forbid complex comprehensions if they create poor line-cost
   precision
 - reject lines whose compiled bytecode bucket exceeds a configured threshold
-- add explicit metering and limits for returned payloads
-- keep gas schedule changes versioned and explicit
-- extend workload tests to include contracts designed to probe tracer blind
-  spots
+- keep gas schedule changes versioned and explicit across supported CPython
+  minors
+- extend workload tests further with contracts designed to probe tracer blind
+  spots beyond the current branch-heavy coverage
 
 These changes are intended to reduce opportunities to game line-based charging
 without changing the pure-Python default execution model.
@@ -46,7 +54,7 @@ This should remain deterministic and versioned as part of the execution policy.
 ## Future Native Tracer
 
 `native_instruction_v1` now exists as an optional Rust-backed backend via the
-`xian-native-tracer` package.
+`xian-tech-native-tracer` package.
 
 What remains true:
 
@@ -131,8 +139,9 @@ Required safeguards:
 ## Rollout Order
 
 1. Keep the pure-Python tracer as the stable default.
-2. Harden the current tracer with language restrictions and workload coverage.
-3. Define a tracer backend abstraction.
-4. Add an optional Rust native tracer backend later.
+2. Keep tightening the current tracer with targeted language restrictions and
+   workload coverage.
+3. Keep the tracer backend abstraction explicit and policy-versioned.
+4. Harden the optional Rust native tracer further for long-term network use.
 5. Prototype speculative parallel execution only after the execution model and
    workload harness are stronger.

@@ -1,5 +1,6 @@
 import builtins
 import hashlib
+import importlib
 import importlib.util
 import sys
 from contextvars import ContextVar
@@ -32,11 +33,12 @@ def is_valid_import(name):
 
 def restricted_import(name, globals=None, locals=None, fromlist=(), level=0):
     if globals is not None and globals.get("__contract__") is True:
-        spec = importlib.util.find_spec(name)
-        if spec is None or not isinstance(spec.loader, DatabaseLoader):
+        driver = DatabaseFinder.current_driver()
+        if driver.get_contract(name) is None:
             raise ImportError(
                 "module {} cannot be imported in a smart contract.".format(name)
             )
+        purge_contract_module(name)
 
     return __import__(name, globals, locals, fromlist, level)
 
@@ -83,6 +85,24 @@ def uninstall_database_loader():
 
 def install_system_contracts(directory=""):
     pass
+
+
+def purge_contract_module(name: str) -> None:
+    sys.modules.pop(name, None)
+
+
+def import_database_contract(name: str):
+    driver = DatabaseFinder.current_driver()
+    if driver.get_contract(name) is None:
+        raise ImportError("Module {} not found".format(name))
+
+    purge_contract_module(name)
+    spec = importlib.util.find_spec(name)
+    if spec is None or not isinstance(spec.loader, DatabaseLoader):
+        raise ImportError(
+            "module {} cannot be imported in a smart contract.".format(name)
+        )
+    return importlib.import_module(name)
 
 
 """

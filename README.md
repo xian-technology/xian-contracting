@@ -9,15 +9,18 @@ rules that contracts must obey.
 Install the runtime:
 
 ```bash
-pip install xian-contracting
+pip install xian-tech-contracting
 ```
 
 If you want contract-side zk proof verification, install the optional zk
 backend too:
 
 ```bash
-pip install 'xian-contracting[zk]'
+pip install 'xian-tech-contracting[zk]'
 ```
+
+The published PyPI package name is `xian-tech-contracting`. The repo name
+remains `xian-contracting`, and the import surface remains `contracting`.
 
 Submit and call a contract:
 
@@ -54,7 +57,8 @@ print(driver.get("example.key"))
 ## Key Directories
 
 - `src/contracting/`: runtime, storage, compilation, and stdlib bridge code
-- `packages/`: shared packages such as `xian-runtime-types`, `xian-accounts`, the native tracer, and `xian-zk`
+- `packages/`: shared packages such as `xian-runtime-types`, `xian-accounts`,
+  the native tracer, and `xian-zk`
 - `tests/`: unit, integration, and security coverage
 - `docs/`: architecture, backlog, and execution notes
 

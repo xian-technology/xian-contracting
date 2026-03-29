@@ -18,8 +18,8 @@ class TestDynamicImports(TestCase):
             contract = f.read()
 
         self.c.raw_driver.set_contract(name="submission", code=contract)
-
         self.c.raw_driver.commit()
+        self.c.submission_contract = self.c.get_contract("submission")
 
         # submit erc20 clone
         stubucks_path = os.path.join(
@@ -260,6 +260,31 @@ class TestDynamicImports(TestCase):
                 "entry": "con_dynamic_importing.dynamic_ctx_call",
                 "account": "stu",
             },
+        )
+
+    def test_executor_reports_nested_contract_costs(self):
+        self.c.executor.bypass_balance_amount = True
+        output = self.c.executor.execute(
+            sender="stu",
+            contract_name="con_dynamic_importing",
+            function_name="dynamic_balance_for_token",
+            kwargs={
+                "tok": "con_stubucks",
+                "function_name": "balance_of",
+                "account": "stu",
+            },
+            metering=True,
+        )
+
+        self.assertEqual(output["status_code"], 0)
+        self.assertEqual(output["result"], 123)
+        self.assertIn("con_dynamic_importing", output["contract_costs"])
+        self.assertIn("con_stubucks", output["contract_costs"])
+        self.assertGreater(output["contract_costs"]["con_dynamic_importing"], 0)
+        self.assertGreater(output["contract_costs"]["con_stubucks"], 0)
+        self.assertEqual(
+            sum(output["contract_costs"].values()) // 1000,
+            output["stamps_used"],
         )
 
     def test_get_tejastokens_balances(self):

@@ -25,11 +25,26 @@ __ContractOwnerChangedEvent = LogEvent(
 def submit_contract(
     name: str, code: str, owner: Any = None, constructor_args: dict = {}
 ):
+    assert isinstance(name, str) and name != "", (
+        "Contract name must be a non-empty string!"
+    )
     if ctx.caller != "sys":
         assert name.startswith("con_"), "Contract must start with con_!"
 
     assert len(name) <= 64, "Contract name length exceeds 64 characters!"
-    assert name.islower(), "Contract name must be lowercase!"
+    assert name[0].isascii() and name[0].isalpha() and name[0].islower(), (
+        "Contract name must start with a lowercase ASCII letter!"
+    )
+    assert all(
+        c.isascii() and (c.islower() or c.isdigit() or c == "_")
+        for c in name
+    ), (
+        "Contract name must contain only lowercase ASCII letters, digits, "
+        "and underscores!"
+    )
+    assert owner is None or (
+        isinstance(owner, str) and owner != ""
+    ), "Owner must be None or a non-empty string!"
 
     __Contract().submit(
         name=name,
@@ -51,6 +66,12 @@ def submit_contract(
 
 @__export("submission")
 def change_developer(contract: str, new_developer: str):
+    assert isinstance(contract, str) and contract != "", (
+        "Contract must be a non-empty string!"
+    )
+    assert isinstance(new_developer, str) and new_developer != "", (
+        "New developer must be a non-empty string!"
+    )
     d = __Contract()._driver.get_var(
         contract=contract, variable="__developer__"
     )
@@ -63,6 +84,9 @@ def change_developer(contract: str, new_developer: str):
 
 @__export("submission")
 def change_owner(contract: str, new_owner: str):
+    assert isinstance(contract, str) and contract != "", (
+        "Contract must be a non-empty string!"
+    )
     current_owner = __Contract()._driver.get_var(
         contract=contract, variable="__owner__"
     )

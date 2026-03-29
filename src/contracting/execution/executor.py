@@ -1,5 +1,4 @@
 import decimal
-import importlib
 from copy import deepcopy
 
 from xian_runtime_types.decimal import CONTEXT, ContractingDecimal
@@ -9,6 +8,7 @@ from contracting.execution import runtime
 from contracting.execution.module import (
     disable_restricted_imports,
     enable_restricted_imports,
+    import_database_contract,
     install_database_loader,
     uninstall_builtins,
 )
@@ -99,6 +99,7 @@ class Executor:
             install_database_loader(driver=driver)
 
             balances_key = None
+            contract_costs = {}
 
             try:
                 if metering:
@@ -151,8 +152,9 @@ class Executor:
 
                 runtime.rt.set_up(stmps=stamps * 1000, meter=metering)
                 enable_restricted_imports()
+                runtime.rt.begin_contract_metering(contract_name)
 
-                module = importlib.import_module(contract_name)
+                module = import_database_contract(contract_name)
                 func = getattr(module, function_name)
 
                 if contract_name == constants.SUBMISSION_CONTRACT_NAME:
@@ -185,10 +187,14 @@ class Executor:
                 runtime.rt.tracer.stop()
                 disable_restricted_imports()
 
-            stamps_used = runtime.rt.tracer.get_stamp_used()
+            raw_stamps_used = runtime.rt.tracer.get_stamp_used()
+            contract_costs = runtime.rt.finalize_contract_metering(
+                fixed_overhead_contract=contract_name,
+                fixed_overhead_units=(constants.TRANSACTION_BASE_STAMPS * 1000),
+            )
 
-            stamps_used = stamps_used // 1000
-            stamps_used += 5
+            stamps_used = raw_stamps_used // 1000
+            stamps_used += constants.TRANSACTION_BASE_STAMPS
 
             if stamps_used > stamps:
                 stamps_used = stamps
@@ -222,6 +228,7 @@ class Executor:
                 "writes": transaction_writes,
                 "reads": driver.transaction_reads,
                 "events": events,
+                "contract_costs": contract_costs,
             }
 
             disable_restricted_imports()

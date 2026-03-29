@@ -136,6 +136,11 @@ class RuntimeState:
     writes: int = 0
     signer: str | None = None
     loaded_modules: list[str] = field(default_factory=list)
+    contract_meter_frames: list[dict[str, int | str]] = field(
+        default_factory=list
+    )
+    contract_meter_markers: list[bool] = field(default_factory=list)
+    contract_costs: dict[str, int] = field(default_factory=dict)
     context: Context = field(
         default_factory=lambda: Context(dict(DEFAULT_BASE_STATE))
     )
@@ -238,12 +243,38 @@ class Runtime:
         state.tracer = create_tracer(selected)
         self._default_tracer_mode = selected
 
-    def set_up(self, stmps, meter):
-        state = self._state()
-        state.tracer.reset()
-        state.context._reset()
+    def _reset_execution_state(
+        self,
+        state: RuntimeState,
+        *,
+        preserve_tracer_metadata: bool,
+        preserve_context_base_state: bool,
+        preserve_env: bool,
+    ) -> None:
+        state.tracer.reset(clear_metadata=not preserve_tracer_metadata)
+        env = dict(state.env) if preserve_env else {}
+        state.env = env
         state.stamps = 0
         state.writes = 0
+        state.signer = None
+        state.loaded_modules = []
+        state.contract_meter_frames = []
+        state.contract_meter_markers = []
+        state.contract_costs = {}
+        if preserve_context_base_state:
+            base_state = dict(state.context._base_state)
+        else:
+            base_state = dict(DEFAULT_BASE_STATE)
+        state.context = Context(base_state)
+
+    def set_up(self, stmps, meter):
+        state = self._state()
+        self._reset_execution_state(
+            state,
+            preserve_tracer_metadata=True,
+            preserve_context_base_state=True,
+            preserve_env=True,
+        )
 
         if meter:
             state.stamps = stmps
@@ -254,13 +285,17 @@ class Runtime:
         state = self._state()
 
         state.tracer.stop()
-        state.tracer.reset()
 
         for mod in state.loaded_modules:
             if sys.modules.get(mod) is not None:
                 del sys.modules[mod]
 
-        self._state_var.set(self._new_state(state.tracer_mode))
+        self._reset_execution_state(
+            state,
+            preserve_tracer_metadata=True,
+            preserve_context_base_state=False,
+            preserve_env=False,
+        )
 
     def deduct_read(self, key, value):
         if self.tracer.is_started():
@@ -306,6 +341,88 @@ class Runtime:
             yield
         finally:
             self.context._pop_state()
+
+    def begin_contract_metering(self, contract: str) -> None:
+        state = self._state()
+        state.contract_meter_frames = [
+            {
+                "contract": contract,
+                "start_cost": self.tracer.get_stamp_used(),
+                "child_cost": 0,
+            }
+        ]
+        state.contract_meter_markers = []
+        state.contract_costs = {}
+
+    def enter_contract_metering(self, contract: str) -> None:
+        state = self._state()
+        if not state.contract_meter_frames:
+            state.contract_meter_frames.append(
+                {
+                    "contract": contract,
+                    "start_cost": self.tracer.get_stamp_used(),
+                    "child_cost": 0,
+                }
+            )
+            state.contract_meter_markers.append(True)
+            return
+
+        pushed = state.contract_meter_frames[-1]["contract"] != contract
+        if pushed:
+            state.contract_meter_frames.append(
+                {
+                    "contract": contract,
+                    "start_cost": self.tracer.get_stamp_used(),
+                    "child_cost": 0,
+                }
+            )
+        state.contract_meter_markers.append(pushed)
+
+    def exit_contract_metering(self) -> None:
+        state = self._state()
+        if not state.contract_meter_markers:
+            return
+        if state.contract_meter_markers.pop():
+            self._finalize_contract_meter_frame()
+
+    def _finalize_contract_meter_frame(self) -> None:
+        state = self._state()
+        if not state.contract_meter_frames:
+            return
+
+        frame = state.contract_meter_frames.pop()
+        current_cost = self.tracer.get_stamp_used()
+        total_cost = max(current_cost - int(frame["start_cost"]), 0)
+        exclusive_cost = max(total_cost - int(frame["child_cost"]), 0)
+        contract = str(frame["contract"])
+        state.contract_costs[contract] = (
+            state.contract_costs.get(contract, 0) + exclusive_cost
+        )
+
+        if state.contract_meter_frames:
+            parent = state.contract_meter_frames[-1]
+            parent["child_cost"] = int(parent["child_cost"]) + total_cost
+
+    def finalize_contract_metering(
+        self,
+        *,
+        fixed_overhead_contract: str | None = None,
+        fixed_overhead_units: int = 0,
+    ) -> dict[str, int]:
+        state = self._state()
+        while state.contract_meter_frames:
+            self._finalize_contract_meter_frame()
+
+        if fixed_overhead_contract is not None and fixed_overhead_units > 0:
+            state.contract_costs[fixed_overhead_contract] = (
+                state.contract_costs.get(fixed_overhead_contract, 0)
+                + fixed_overhead_units
+            )
+
+        result = dict(state.contract_costs)
+        state.contract_meter_markers = []
+        state.contract_costs = {}
+        return result
 
 
 rt = Runtime()

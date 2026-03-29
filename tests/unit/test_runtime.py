@@ -26,6 +26,13 @@ class TestRuntimeLifecycle(TestCase):
         runtime.rt.clean_up()
         self.assertFalse(runtime.rt.tracer.is_started())
 
+    def test_clean_up_preserves_tracer_instance_for_warm_metadata(self):
+        runtime.rt.set_up(stmps=1000, meter=True)
+        tracer = runtime.rt.tracer
+        runtime.rt.clean_up()
+        runtime.rt.set_up(stmps=1000, meter=True)
+        self.assertIs(runtime.rt.tracer, tracer)
+
     def test_set_tracer_mode_switches_backend(self):
         runtime.rt.set_tracer_mode("python_line_v1")
         self.assertEqual(runtime.rt.tracer_mode, "python_line_v1")
@@ -92,6 +99,19 @@ class TestTracerMetering(TestCase):
         runtime.rt.tracer.add_cost(900)
         runtime.rt.tracer.stop()
         self.assertEqual(runtime.rt.tracer.get_stamp_used(), 900)
+
+    def test_python_line_metadata_survives_runtime_cleanup(self):
+        runtime.rt.set_tracer_mode("python_line_v1")
+        runtime.rt.set_up(stmps=1_000_000, meter=True)
+        code = compile("x = 1\ny = x + 1\n", "<test>", "exec")
+        runtime.rt.tracer.register_code(code)
+        exec(code)
+        runtime.rt.tracer.stop()
+        cached_costs = dict(runtime.rt.tracer._line_costs)
+        runtime.rt.clean_up()
+
+        runtime.rt.set_up(stmps=1_000_000, meter=True)
+        self.assertEqual(runtime.rt.tracer._line_costs, cached_costs)
 
 
 class TestWriteDeduction(TestCase):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import decimal
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from xian_runtime_types.time import Datetime
 from contracting import constants
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution.runtime import rt
+from contracting.names import assert_safe_contract_name
 from contracting.storage.lmdb_store import LMDBStore
 
 INDEX_SEPARATOR = constants.INDEX_SEPARATOR
@@ -26,6 +28,12 @@ TIME_KEY = "__submitted__"
 DEVELOPER_KEY = "__developer__"
 DEPLOYER_KEY = "__deployer__"
 INITIATOR_KEY = "__initiator__"
+
+
+def _copy_mutable_value(value):
+    if isinstance(value, (list, dict)):
+        return deepcopy(value)
+    return value
 
 
 class Driver:
@@ -111,17 +119,17 @@ class Driver:
             if key.startswith(prefix):
                 seen.add(key)
                 if value is not None:
-                    items[key] = value
+                    items[key] = _copy_mutable_value(value)
 
         for key, value in self.cache.items():
             if key.startswith(prefix):
                 seen.add(key)
                 if value is not None:
-                    items[key] = value
+                    items[key] = _copy_mutable_value(value)
 
         for key, value in self._store.items(prefix).items():
             if key not in seen:
-                items[key] = value
+                items[key] = _copy_mutable_value(value)
 
         return items
 
@@ -212,6 +220,8 @@ class Driver:
         deployer=None,
         initiator=None,
     ):
+        assert_safe_contract_name(name)
+
         if self.get_contract(name) is not None and not overwrite:
             return
 
