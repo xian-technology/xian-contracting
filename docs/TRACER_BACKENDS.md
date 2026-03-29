@@ -38,7 +38,7 @@ uv sync --group dev --extra native
 or
 
 ```bash
-python -m pip install "xian-contracting[native]"
+python -m pip install "xian-tech-contracting[native]"
 ```
 
 ## Selection

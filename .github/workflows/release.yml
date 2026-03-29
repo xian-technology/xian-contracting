@@ -43,7 +43,7 @@ jobs:
             contracting-v*)
               version="${tag#contracting-v}"
               package_dir="."
-              project_name="xian-contracting"
+              project_name="xian-tech-contracting"
               pypi_environment="pypi-xian-contracting"
               needs_rust="false"
               ;;
