@@ -16,18 +16,26 @@ Future execution backends must not compromise that default.
 The current Python tracer is deterministic and protects the runtime from the
 worst instruction-callback DoS paths, but it still has precision limits.
 
-Potential hardening steps for the current tracer:
+Recent hardening already landed:
 
-- forbid multiple statements per line in contract source
-- forbid ternary expressions
+- fixed Python 3.14 line metadata handling
+- kept per-code tracer metadata warm across executions
+- split tracer event ceilings by backend semantics
+- made the opcode default-cost set explicit and test-guarded
+- added workload tests for branch-heavy and loop-heavy tracer cases
+- forbade ternary expressions, semicolons, and one-line compound statements
+  in contract source
+
+Remaining useful hardening steps:
+
 - forbid lambdas
 - restrict or forbid complex comprehensions if they create poor line-cost
   precision
 - reject lines whose compiled bytecode bucket exceeds a configured threshold
-- add explicit metering and limits for returned payloads
-- keep gas schedule changes versioned and explicit
-- extend workload tests to include contracts designed to probe tracer blind
-  spots
+- keep gas schedule changes versioned and explicit across supported CPython
+  minors
+- extend workload tests further with contracts designed to probe tracer blind
+  spots beyond the current branch-heavy coverage
 
 These changes are intended to reduce opportunities to game line-based charging
 without changing the pure-Python default execution model.
@@ -45,9 +53,20 @@ This should remain deterministic and versioned as part of the execution policy.
 
 ## Future Native Tracer
 
-If we add a higher-performance tracer, it should be optional and versioned.
+`native_instruction_v1` now exists as an optional Rust-backed backend via the
+`xian-tech-native-tracer` package.
 
-Recommended direction:
+What remains true:
+
+- the pure-Python tracer remains the default
+- `xian-contracting` keeps working without native extensions
+- the native backend is optional and must be selected explicitly
+- startup must fail loudly if a caller selects `native_instruction_v1` without
+  the package installed
+
+The remaining native-tracer backlog is about hardening, packaging, and policy.
+
+Design direction:
 
 - language: Rust
 - Python binding layer: PyO3/maturin
@@ -59,14 +78,6 @@ Why Rust:
 - good performance
 - mature Linux/macOS packaging story for Python extensions
 - simpler long-term maintenance than a niche toolchain
-
-What must remain true:
-
-- the pure-Python tracer remains the default
-- `xian-contracting` must keep working without native extensions
-- the native backend is an optional extra, not a required dependency
-- startup must fail loudly if a network requires a native backend and it is not
-  available
 
 ## Tracer Backend Policy
 
@@ -128,8 +139,9 @@ Required safeguards:
 ## Rollout Order
 
 1. Keep the pure-Python tracer as the stable default.
-2. Harden the current tracer with language restrictions and workload coverage.
-3. Define a tracer backend abstraction.
-4. Add an optional Rust native tracer backend later.
+2. Keep tightening the current tracer with targeted language restrictions and
+   workload coverage.
+3. Keep the tracer backend abstraction explicit and policy-versioned.
+4. Harden the optional Rust native tracer further for long-term network use.
 5. Prototype speculative parallel execution only after the execution model and
    workload harness are stronger.

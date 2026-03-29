@@ -1,7 +1,10 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from unittest import TestCase
 
 from contracting import constants
 from contracting.execution import runtime
+from contracting.execution.runtime import Context
 from contracting.execution.tracer import StampExceededError
 
 
@@ -22,6 +25,42 @@ class TestRuntimeLifecycle(TestCase):
         runtime.rt.set_up(stmps=1000, meter=True)
         runtime.rt.clean_up()
         self.assertFalse(runtime.rt.tracer.is_started())
+
+    def test_clean_up_preserves_tracer_instance_for_warm_metadata(self):
+        runtime.rt.set_up(stmps=1000, meter=True)
+        tracer = runtime.rt.tracer
+        runtime.rt.clean_up()
+        runtime.rt.set_up(stmps=1000, meter=True)
+        self.assertIs(runtime.rt.tracer, tracer)
+
+    def test_set_tracer_mode_switches_backend(self):
+        runtime.rt.set_tracer_mode("python_line_v1")
+        self.assertEqual(runtime.rt.tracer_mode, "python_line_v1")
+
+    def test_runtime_state_is_isolated_per_thread(self):
+        barrier = Barrier(2)
+
+        def worker(tag):
+            runtime.rt.env = {"tag": tag}
+            runtime.rt.context = Context(
+                base_state={
+                    "caller": tag,
+                    "signer": tag,
+                    "this": f"con_{tag}",
+                    "owner": None,
+                    "entry": (f"con_{tag}", "run"),
+                    "submission_name": None,
+                }
+            )
+            barrier.wait()
+            return runtime.rt.env["tag"], runtime.rt.context.signer
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            result_a = executor.submit(worker, "alpha")
+            result_b = executor.submit(worker, "beta")
+
+        self.assertEqual(result_a.result(), ("alpha", "alpha"))
+        self.assertEqual(result_b.result(), ("beta", "beta"))
 
 
 class TestTracerMetering(TestCase):
@@ -60,6 +99,19 @@ class TestTracerMetering(TestCase):
         runtime.rt.tracer.add_cost(900)
         runtime.rt.tracer.stop()
         self.assertEqual(runtime.rt.tracer.get_stamp_used(), 900)
+
+    def test_python_line_metadata_survives_runtime_cleanup(self):
+        runtime.rt.set_tracer_mode("python_line_v1")
+        runtime.rt.set_up(stmps=1_000_000, meter=True)
+        code = compile("x = 1\ny = x + 1\n", "<test>", "exec")
+        runtime.rt.tracer.register_code(code)
+        exec(code)
+        runtime.rt.tracer.stop()
+        cached_costs = dict(runtime.rt.tracer._line_costs)
+        runtime.rt.clean_up()
+
+        runtime.rt.set_up(stmps=1_000_000, meter=True)
+        self.assertEqual(runtime.rt.tracer._line_costs, cached_costs)
 
 
 class TestWriteDeduction(TestCase):

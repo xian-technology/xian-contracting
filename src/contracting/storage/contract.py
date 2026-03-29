@@ -1,54 +1,115 @@
 from contracting import constants
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution.runtime import rt
+from contracting.names import assert_safe_contract_name
 from contracting.stdlib import env
 from contracting.storage.driver import Driver
 
-_driver = rt.env.get("__Driver") or Driver()
-
 
 class Contract:
-    def __init__(self, driver: Driver = _driver):
-        self._driver = driver
+    def __init__(self, driver: Driver | None = None):
+        self._driver = driver or rt.env.get("__Driver") or Driver()
 
     def submit(
-        self, name, code, owner=None, constructor_args=None, developer=None
+        self,
+        name,
+        code,
+        owner=None,
+        constructor_args=None,
+        developer=None,
+        deployer=None,
+        initiator=None,
     ):
-        if self._driver.get_contract(name) is not None:
-            raise Exception("Contract already exists.")
+        with rt.execution_lock:
+            assert_safe_contract_name(name)
 
-        c = ContractingCompiler(module_name=name)
+            if self._driver.get_contract(name) is not None:
+                raise Exception("Contract already exists.")
 
-        code_obj = c.parse_to_code(code, lint=True)
+            if not isinstance(code, str):
+                raise TypeError("Contract code must be a string.")
 
-        scope = env.gather()
-        scope.update({"__contract__": True})
-        scope.update(rt.env)
+            raw_source_bytes = len(code.encode("utf-8"))
+            assert (
+                raw_source_bytes <= constants.MAX_CONTRACT_SUBMISSION_BYTES
+            ), "Contract source exceeds the maximum allowed size."
 
-        compiled = compile(code_obj, name, "exec")
-        rt.tracer.register_code(compiled)
-        exec(compiled, scope)
+            c = ContractingCompiler(module_name=name)
 
-        if scope.get(constants.INIT_FUNC_NAME) is not None:
-            if constructor_args is None:
-                constructor_args = {}
-            scope[constants.INIT_FUNC_NAME](**constructor_args)
-
-        now = scope.get("now")
-        if now is not None:
-            self._driver.set_contract(
-                name=name,
-                code=code_obj,
-                owner=owner,
-                overwrite=False,
-                timestamp=now,
-                developer=developer,
+            source_obj = c.normalize_source(code, lint=False)
+            rt.deduct_execution_cost(
+                constants.DEPLOYMENT_BASE_COST
+                + (
+                    len(source_obj.encode("utf-8"))
+                    * constants.DEPLOYMENT_COST_PER_SOURCE_BYTE
+                )
             )
-        else:
-            self._driver.set_contract(
-                name=name,
-                code=code_obj,
-                owner=owner,
-                overwrite=False,
-                developer=developer,
+            code_obj = c.parse_to_code(code, lint=True)
+
+            scope = env.gather()
+            scope.update({"__contract__": True})
+            scope.update(rt.env)
+            scope.update({"__Driver": self._driver})
+
+            compiled = compile(code_obj, name, "exec")
+            rt.tracer.register_code(compiled)
+            current_state = rt.context._get_state()
+            deployment_owner = owner
+            deployment_developer = (
+                current_state["caller"] if developer is None else developer
             )
+            deployment_deployer = (
+                current_state["caller"] if deployer is None else deployer
+            )
+            deployment_initiator = (
+                current_state["signer"] if initiator is None else initiator
+            )
+            deployment_state = {
+                "owner": deployment_owner,
+                "caller": deployment_deployer,
+                "signer": deployment_initiator,
+                "this": name,
+                "entry": current_state["entry"],
+                "submission_name": name,
+            }
+
+            previous_driver = rt.env.get("__Driver")
+            rt.env.update({"__Driver": self._driver})
+            try:
+                with rt.push_context_state(deployment_state):
+                    exec(compiled, scope)
+
+                    if scope.get(constants.INIT_FUNC_NAME) is not None:
+                        if constructor_args is None:
+                            constructor_args = {}
+                        scope[constants.INIT_FUNC_NAME](**constructor_args)
+            finally:
+                if previous_driver is None:
+                    rt.env.pop("__Driver", None)
+                else:
+                    rt.env.update({"__Driver": previous_driver})
+
+            now = scope.get("now")
+            if now is not None:
+                self._driver.set_contract(
+                    name=name,
+                    code=code_obj,
+                    source=source_obj,
+                    owner=owner,
+                    overwrite=False,
+                    timestamp=now,
+                    developer=deployment_developer,
+                    deployer=deployment_deployer,
+                    initiator=deployment_initiator,
+                )
+            else:
+                self._driver.set_contract(
+                    name=name,
+                    code=code_obj,
+                    source=source_obj,
+                    owner=owner,
+                    overwrite=False,
+                    developer=deployment_developer,
+                    deployer=deployment_deployer,
+                    initiator=deployment_initiator,
+                )

@@ -1,0 +1,44 @@
+[build-system]
+requires = ["maturin>=1.8,<2"]
+build-backend = "maturin"
+
+[project]
+name = "xian-tech-zk"
+version = "0.1.1"
+description = "Native Groth16 BN254 verification primitives for the Xian stack"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Xian Network", email = "info@xian.org" }]
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Rust",
+]
+dependencies = [
+    "pynacl>=1.5.0,<2",
+]
+
+[project.urls]
+Repository = "https://github.com/xian-technology/xian-contracting"
+
+[project.scripts]
+xian-zk-shielded-bundle = "xian_zk.cli:main"
+
+[dependency-groups]
+dev = [
+    "maturin>=1.8,<2",
+    "pytest>=9.0.2,<10",
+]
+
+[tool.maturin]
+module-name = "xian_zk._native"
+python-source = "python"
+features = ["python-extension"]
+
+[tool.pytest.ini_options]
+addopts = "-m \"not slow\""
+markers = [
+    "slow: proof-generation and end-to-end proving flows",
+]

@@ -1,13 +1,19 @@
 from copy import deepcopy
 
 from xian_runtime_types.decimal import ContractingDecimal
+from xian_runtime_types.encoding import encode_kv
 
 from contracting import constants
 from contracting.execution.runtime import rt
 from contracting.storage.driver import Driver
-from contracting.storage.encoder import encode_kv
 
-driver = rt.env.get("__Driver") or Driver()
+_MISSING = object()
+
+
+def _copy_mutable(value):
+    if isinstance(value, (list, dict)):
+        return deepcopy(value)
+    return value
 
 
 class Datum:
@@ -21,7 +27,7 @@ class Variable(Datum):
         self,
         contract,
         name,
-        driver: Driver = driver,
+        driver: Driver | None = None,
         t=None,
         default_value=None,
     ):
@@ -32,7 +38,8 @@ class Variable(Datum):
 
         self._default_value = default_value
 
-        super().__init__(contract, name, driver=driver)
+        resolved_driver = driver or rt.env.get("__Driver") or Driver()
+        super().__init__(contract, name, driver=resolved_driver)
 
     def set(self, value):
         if self._type is not None and value is not None:
@@ -46,18 +53,122 @@ class Variable(Datum):
     def get(self):
         value = self._driver.get(self._key)
         if value is None:
-            dv = self._default_value
-            if isinstance(dv, (list, dict)):
-                return deepcopy(dv)
-            return dv
+            return _copy_mutable(self._default_value)
+        return _copy_mutable(value)
+
+    def _get_mutable_value(self, method_name: str):
+        value = self.get()
+        assert isinstance(value, (list, dict)), (
+            f"Variable.{method_name}() requires the stored value "
+            f"to be a list or dict."
+        )
         return value
+
+    def _get_list_value(self, method_name: str):
+        value = self.get()
+        assert isinstance(value, list), (
+            f"Variable.{method_name}() requires the stored value to be a list."
+        )
+        return value
+
+    def _get_dict_value(self, method_name: str):
+        value = self.get()
+        assert isinstance(value, dict), (
+            f"Variable.{method_name}() requires the stored value to be a dict."
+        )
+        return value
+
+    def __getitem__(self, key):
+        value = self._get_mutable_value("__getitem__")
+        return _copy_mutable(value[key])
+
+    def __setitem__(self, key, value):
+        current = self._get_mutable_value("__setitem__")
+        current[key] = value
+        self.set(current)
+
+    def __delitem__(self, key):
+        current = self._get_mutable_value("__delitem__")
+        del current[key]
+        self.set(current)
+
+    def __contains__(self, item):
+        current = self._get_mutable_value("__contains__")
+        return item in current
+
+    def __len__(self):
+        current = self._get_mutable_value("__len__")
+        return len(current)
+
+    def update(self, other: dict):
+        current = self._get_dict_value("update")
+        assert isinstance(other, dict), (
+            "Variable.update() requires a dict argument."
+        )
+        current.update(other)
+        self.set(current)
+
+    def append(self, value):
+        current = self._get_list_value("append")
+        current.append(value)
+        self.set(current)
+
+    def extend(self, values):
+        current = self._get_list_value("extend")
+        assert isinstance(values, list), (
+            "Variable.extend() requires a list argument."
+        )
+        current.extend(values)
+        self.set(current)
+
+    def insert(self, index: int, value):
+        current = self._get_list_value("insert")
+        current.insert(index, value)
+        self.set(current)
+
+    def remove(self, value):
+        current = self._get_list_value("remove")
+        current.remove(value)
+        self.set(current)
+
+    def clear(self):
+        current = self._get_mutable_value("clear")
+        current.clear()
+        self.set(current)
+
+    def pop(self, key=_MISSING, default=_MISSING):
+        current = self._get_mutable_value("pop")
+
+        if isinstance(current, dict):
+            assert key is not _MISSING, (
+                "Variable.pop() requires a key for dict values."
+            )
+            if default is _MISSING:
+                value = current.pop(key)
+            else:
+                value = current.pop(key, default)
+        else:
+            assert default is _MISSING, (
+                "Variable.pop() does not accept a default for list values."
+            )
+            if key is _MISSING:
+                key = -1
+            value = current.pop(key)
+
+        self.set(current)
+        return _copy_mutable(value)
 
 
 class Hash(Datum):
     def __init__(
-        self, contract, name, driver: Driver = driver, default_value=None
+        self,
+        contract,
+        name,
+        driver: Driver | None = None,
+        default_value=None,
     ):
-        super().__init__(contract, name, driver=driver)
+        resolved_driver = driver or rt.env.get("__Driver") or Driver()
+        super().__init__(contract, name, driver=resolved_driver)
         self._delimiter = constants.DELIMITER
         self._default_value = default_value
 
@@ -135,6 +246,26 @@ class Hash(Datum):
         for k in kvs.keys():
             self._driver.delete(k)
 
+    def clone_from(self, source):
+        assert isinstance(source, Hash), (
+            "Hash.clone_from() requires a Hash or ForeignHash source."
+        )
+
+        source_items = source._items()
+        source_prefix = f"{source._key}{self._delimiter}"
+        target_prefix = f"{self._key}{self._delimiter}"
+
+        self.clear()
+
+        for source_key, value in source_items.items():
+            rt.deduct_read(*encode_kv(source_key, value))
+            suffix = source_key.removeprefix(source_prefix)
+            self._driver.set(
+                f"{target_prefix}{suffix}",
+                _copy_mutable(value),
+                True,
+            )
+
     def __setitem__(self, key, value):
         # handle multiple hashes differently
         key = self._validate_key(key)
@@ -155,7 +286,7 @@ class ForeignVariable(Variable):
         name,
         foreign_contract,
         foreign_name,
-        driver: Driver = driver,
+        driver: Driver | None = None,
     ):
         super().__init__(contract, name, driver=driver)
         self._key = self._driver.make_key(foreign_contract, foreign_name)
@@ -171,7 +302,7 @@ class ForeignHash(Hash):
         name,
         foreign_contract,
         foreign_name,
-        driver: Driver = driver,
+        driver: Driver | None = None,
     ):
         super().__init__(contract, name, driver=driver)
         self._key = self._driver.make_key(foreign_contract, foreign_name)
@@ -188,6 +319,9 @@ class ForeignHash(Hash):
     def clear(self, *args):
         raise Exception("Cannot write with a ForeignHash.")
 
+    def clone_from(self, source):
+        raise ReferenceError
+
 
 class LogEvent(Datum):
     """
@@ -196,8 +330,15 @@ class LogEvent(Datum):
     - Add checks for use of illegal types and argument names (See Hash checks.)
     """
 
-    def __init__(self, contract, name, event, params, driver: Driver = driver):
-        self._driver = driver
+    def __init__(
+        self,
+        contract,
+        name,
+        event,
+        params,
+        driver: Driver | None = None,
+    ):
+        self._driver = driver or rt.env.get("__Driver") or Driver()
         self._params = params
         self._event = event
         self._signer = rt.context.signer

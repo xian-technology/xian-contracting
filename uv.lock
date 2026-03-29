@@ -360,7 +360,7 @@ wheels = [
 ]
 
 [[package]]
-name = "xian-contracting"
+name = "xian-tech-contracting"
 version = "1.0.1"
 source = { editable = "." }
 dependencies = [
@@ -368,7 +368,15 @@ dependencies = [
     { name = "cachetools" },
     { name = "lmdb" },
     { name = "pynacl" },
-    { name = "xian-runtime-types" },
+    { name = "xian-tech-runtime-types" },
+]
+
+[package.optional-dependencies]
+native = [
+    { name = "xian-tech-native-tracer" },
+]
+zk = [
+    { name = "xian-tech-zk" },
 ]
 
 [package.dev-dependencies]
@@ -384,8 +392,11 @@ requires-dist = [
     { name = "cachetools", specifier = ">=5,<8" },
     { name = "lmdb", specifier = ">=1.6,<2" },
     { name = "pynacl", specifier = ">=1.5.0,<2" },
-    { name = "xian-runtime-types", editable = "packages/xian-runtime-types" },
+    { name = "xian-tech-native-tracer", marker = "extra == 'native'", editable = "packages/xian-native-tracer" },
+    { name = "xian-tech-runtime-types", editable = "packages/xian-runtime-types" },
+    { name = "xian-tech-zk", marker = "extra == 'zk'", editable = "packages/xian-zk" },
 ]
+provides-extras = ["native", "zk"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -395,6 +406,28 @@ dev = [
 ]
 
 [[package]]
-name = "xian-runtime-types"
+name = "xian-tech-native-tracer"
+version = "0.1.1"
+source = { editable = "packages/xian-native-tracer" }
+
+[[package]]
+name = "xian-tech-runtime-types"
 version = "0.1.0"
 source = { editable = "packages/xian-runtime-types" }
+
+[[package]]
+name = "xian-tech-zk"
+version = "0.1.1"
+source = { editable = "packages/xian-zk" }
+dependencies = [
+    { name = "pynacl" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pynacl", specifier = ">=1.5.0,<2" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "maturin", specifier = ">=1.8,<2" },
+    { name = "pytest", specifier = ">=9.0.2,<10" },
+]

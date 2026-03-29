@@ -2,9 +2,10 @@ from datetime import datetime
 from decimal import Decimal
 from unittest import TestCase
 
-from contracting.storage.encoder import (
-    MONGO_MAX_INT,
-    MONGO_MIN_INT,
+from xian_runtime_types.decimal import ContractingDecimal
+from xian_runtime_types.encoding import (
+    MAX_INT,
+    MIN_INT,
     as_object,
     convert,
     convert_dict,
@@ -12,11 +13,18 @@ from contracting.storage.encoder import (
     decode_kv,
     encode,
     encode_kv,
-    make_key,
     safe_repr,
 )
-from contracting.stdlib.bridge.time import Datetime, Timedelta
-from xian_runtime_types.decimal import ContractingDecimal
+from xian_runtime_types.time import Datetime, Timedelta
+
+from contracting.constants import DELIMITER, INDEX_SEPARATOR
+
+
+def make_key(contract, variable, args=None):
+    contract_variable = INDEX_SEPARATOR.join((contract, variable))
+    if args:
+        return DELIMITER.join((contract_variable, *args))
+    return contract_variable
 
 
 class TestEncode(TestCase):
@@ -101,48 +109,48 @@ class TestEncode(TestCase):
         self.assertEqual(10, decode(i))
 
     def test_bigint_encode(self):
-        si = MONGO_MIN_INT - 1
-        bi = MONGO_MAX_INT + 1
+        si = MIN_INT - 1
+        bi = MAX_INT + 1
 
         self.assertEqual('{"__big_int__":"' + str(bi) + '"}', encode(bi))
         self.assertEqual('{"__big_int__":"' + str(si) + '"}', encode(si))
 
     def test_bigint_decode(self):
-        _bi = '{"__big_int__":' + str(MONGO_MAX_INT + 1) + "}"
+        _bi = '{"__big_int__":' + str(MAX_INT + 1) + "}"
 
-        self.assertEqual(decode(_bi), MONGO_MAX_INT + 1)
+        self.assertEqual(decode(_bi), MAX_INT + 1)
 
     def test_encode_ints_nested_list(self):
-        d = {"lists": [{"i": 123, "bi": MONGO_MAX_INT}]}
+        d = {"lists": [{"i": 123, "bi": MAX_INT}]}
         expected = (
             '{"lists":[{"i":123,"bi":{"__big_int__":"'
-            + str(MONGO_MAX_INT)
+            + str(MAX_INT)
             + '"}}]}'
         )
 
         self.assertEqual(encode(d), expected)
 
     def test_encode_dict_with_list_containing_different_types(self):
-        d = {"lists": [{"i": 123, "bi": MONGO_MAX_INT}, "hello"]}
+        d = {"lists": [{"i": 123, "bi": MAX_INT}, "hello"]}
         expected = (
             '{"lists":[{"i":123,"bi":{"__big_int__":"'
-            + str(MONGO_MAX_INT)
+            + str(MAX_INT)
             + '"}},"hello"]}'
         )
 
         self.assertEqual(encode(d), expected)
 
     def test_encode_dict_with_list_containing_big_int(self):
-        d = {"lists": [MONGO_MAX_INT]}
-        expected = '{"lists":[{"__big_int__":"' + str(MONGO_MAX_INT) + '"}]}'
+        d = {"lists": [MAX_INT]}
+        expected = '{"lists":[{"__big_int__":"' + str(MAX_INT) + '"}]}'
 
         self.assertEqual(encode(d), expected)
 
     def test_encode_ints_nested_dict(self):
-        d = {"d": {"bi": MONGO_MAX_INT, "str": "hello"}}
+        d = {"d": {"bi": MAX_INT, "str": "hello"}}
         expected = (
             '{"d":{"bi":{"__big_int__":"'
-            + str(MONGO_MAX_INT)
+            + str(MAX_INT)
             + '"},"str":"hello"}}'
         )
 

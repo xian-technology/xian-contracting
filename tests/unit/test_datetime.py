@@ -1,7 +1,8 @@
-from unittest import TestCase
-from contracting.stdlib.bridge.time import Datetime, Timedelta
 from datetime import datetime as dt
 from datetime import timedelta
+from unittest import TestCase
+
+from xian_runtime_types.time import Datetime, Timedelta
 
 
 class TestDatetime(TestCase):
@@ -188,4 +189,3 @@ class TestDatetime(TestCase):
     def test_datetime_returns_correct_datetime_cls(self):
         d = dt(2019, 1, 1)
         self.assertEqual(Datetime.strptime(str(d), '%Y-%m-%d %H:%M:%S'), Datetime(2019, 1, 1))
-

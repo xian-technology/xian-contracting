@@ -1,29 +1,39 @@
 from __future__ import annotations
 
 import decimal
-import marshal
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
 from cachetools import TTLCache
 from xian_runtime_types.decimal import ContractingDecimal
+from xian_runtime_types.encoding import encode_kv
+from xian_runtime_types.time import Datetime
 
 from contracting import constants
+from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution.runtime import rt
-from contracting.stdlib.bridge.time import Datetime
-from contracting.storage.encoder import encode_kv
+from contracting.names import assert_safe_contract_name
 from contracting.storage.lmdb_store import LMDBStore
 
 INDEX_SEPARATOR = constants.INDEX_SEPARATOR
 HASH_DELIMITER = constants.DELIMITER
 
+SOURCE_KEY = "__source__"
 CODE_KEY = "__code__"
 TYPE_KEY = "__type__"
 AUTHOR_KEY = "__author__"
 OWNER_KEY = "__owner__"
 TIME_KEY = "__submitted__"
-COMPILED_KEY = "__compiled__"
 DEVELOPER_KEY = "__developer__"
+DEPLOYER_KEY = "__deployer__"
+INITIATOR_KEY = "__initiator__"
+
+
+def _copy_mutable_value(value):
+    if isinstance(value, (list, dict)):
+        return deepcopy(value)
+    return value
 
 
 class Driver:
@@ -36,8 +46,10 @@ class Driver:
         self.pending_writes = {}
         self.pending_reads = {}
         self.transaction_reads = {}
+        self.transaction_read_prefixes = set()
         self.transaction_writes = {}
         self.log_events = []
+        self.track_transaction_reads = True
         self.cache = TTLCache(maxsize=1000, ttl=6 * 3600)
         self.bypass_cache = bypass_cache
         self.storage_home = Path(storage_home)
@@ -50,7 +62,10 @@ class Driver:
         if save:
             if self.pending_reads.get(key) is None:
                 self.pending_reads[key] = value
-            if self.transaction_reads.get(key) is None:
+            if (
+                self.track_transaction_reads
+                and self.transaction_reads.get(key) is None
+            ):
                 self.transaction_reads[key] = value
         return value
 
@@ -76,12 +91,16 @@ class Driver:
         return value
 
     def keys_from_disk(self, prefix: str | None = None, length: int = 0):
+        if self.track_transaction_reads:
+            self.transaction_read_prefixes.add(prefix or "")
         keys = self._store.keys(prefix or "")
         if length > 0:
             return keys[:length]
         return keys
 
     def iter_from_disk(self, prefix: str = "", length: int = 0):
+        if self.track_transaction_reads:
+            self.transaction_read_prefixes.add(prefix)
         keys = self._store.keys(prefix)
         if length > 0:
             return keys[:length]
@@ -91,6 +110,8 @@ class Driver:
         return self._store.get(key)
 
     def items(self, prefix: str = ""):
+        if self.track_transaction_reads:
+            self.transaction_read_prefixes.add(prefix)
         items = {}
         seen = set()
 
@@ -98,17 +119,17 @@ class Driver:
             if key.startswith(prefix):
                 seen.add(key)
                 if value is not None:
-                    items[key] = value
+                    items[key] = _copy_mutable_value(value)
 
         for key, value in self.cache.items():
             if key.startswith(prefix):
                 seen.add(key)
                 if value is not None:
-                    items[key] = value
+                    items[key] = _copy_mutable_value(value)
 
         for key, value in self._store.items(prefix).items():
             if key not in seen:
-                items[key] = value
+                items[key] = _copy_mutable_value(value)
 
         return items
 
@@ -145,35 +166,78 @@ class Driver:
     def get_time_submitted(self, name):
         return self.get_var(name, TIME_KEY)
 
-    def get_compiled(self, name):
-        return self.get_var(name, COMPILED_KEY)
+    def get_contract_source(self, name):
+        return self.get_var(name, SOURCE_KEY)
+
+    def get_contract_developer(self, name):
+        return self.get_var(name, DEVELOPER_KEY)
+
+    def get_contract_deployer(self, name):
+        return self.get_var(name, DEPLOYER_KEY)
+
+    def get_contract_initiator(self, name):
+        return self.get_var(name, INITIATOR_KEY)
 
     def get_contract(self, name):
         return self.get_var(name, CODE_KEY)
+
+    def set_contract_from_source(
+        self,
+        name,
+        source,
+        owner=None,
+        overwrite=False,
+        timestamp=None,
+        developer=None,
+        deployer=None,
+        initiator=None,
+        lint=True,
+    ):
+        compiler = ContractingCompiler(module_name=name)
+        normalized_source = compiler.normalize_source(source, lint=lint)
+        runtime_code = compiler.parse_to_code(source, lint=lint)
+        self.set_contract(
+            name=name,
+            code=runtime_code,
+            source=normalized_source,
+            owner=owner,
+            overwrite=overwrite,
+            timestamp=timestamp,
+            developer=developer,
+            deployer=deployer,
+            initiator=initiator,
+        )
 
     def set_contract(
         self,
         name,
         code,
+        source=None,
         owner=None,
         overwrite=False,
         timestamp=None,
         developer=None,
+        deployer=None,
+        initiator=None,
     ):
+        assert_safe_contract_name(name)
+
         if self.get_contract(name) is not None and not overwrite:
             return
 
         if timestamp is None:
             timestamp = Datetime._from_datetime(datetime.now())
 
-        code_obj = compile(code, name, "exec")
-        code_blob = marshal.dumps(code_obj)
+        compile(code, name, "exec")
 
+        if source is not None:
+            self.set_var(name, SOURCE_KEY, value=source)
         self.set_var(name, CODE_KEY, value=code)
-        self.set_var(name, COMPILED_KEY, value=code_blob)
         self.set_var(name, OWNER_KEY, value=owner)
         self.set_var(name, TIME_KEY, value=timestamp)
         self.set_var(name, DEVELOPER_KEY, value=developer)
+        self.set_var(name, DEPLOYER_KEY, value=deployer)
+        self.set_var(name, INITIATOR_KEY, value=initiator)
 
     def delete_contract(self, name):
         for key in self.keys(name):
@@ -197,6 +261,7 @@ class Driver:
         self.pending_reads.clear()
         self.pending_deltas.clear()
         self.transaction_reads.clear()
+        self.transaction_read_prefixes.clear()
         self.transaction_writes.clear()
         self.log_events.clear()
         self.cache.clear()
@@ -224,6 +289,7 @@ class Driver:
             self.pending_writes.clear()
             self.pending_deltas.clear()
             self.transaction_reads.clear()
+            self.transaction_read_prefixes.clear()
             self.transaction_writes.clear()
             self.log_events.clear()
             return
@@ -250,6 +316,7 @@ class Driver:
         self.pending_writes.clear()
         self.pending_reads.clear()
         self.transaction_reads.clear()
+        self.transaction_read_prefixes.clear()
         self.transaction_writes.clear()
         self.log_events.clear()
 
@@ -300,6 +367,13 @@ class Driver:
 
     def clear_transaction_reads(self):
         self.transaction_reads.clear()
+        self.transaction_read_prefixes.clear()
+
+    def set_transaction_read_tracking(self, enabled: bool) -> None:
+        self.track_transaction_reads = enabled
+        if not enabled:
+            self.transaction_reads.clear()
+            self.transaction_read_prefixes.clear()
 
     def clear_events(self):
         self.log_events.clear()

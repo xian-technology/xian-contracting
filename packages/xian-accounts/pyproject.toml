@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xian-tech-accounts"
+version = "0.1.0"
+description = "Shared Ed25519 account and signing primitives for the Xian stack"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Xian Network", email = "info@xian.org" }]
+requires-python = ">=3.11"
+dependencies = [
+    "pynacl>=1.5.0,<2",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

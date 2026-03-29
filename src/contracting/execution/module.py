@@ -1,10 +1,14 @@
 import builtins
+import hashlib
+import importlib
 import importlib.util
-import marshal
 import sys
+from contextvars import ContextVar
 from importlib import __import__, invalidate_caches
 from importlib.abc import Loader
 from importlib.machinery import ModuleSpec
+
+from cachetools import LRUCache
 
 from contracting.execution.runtime import rt
 from contracting.stdlib import env
@@ -29,11 +33,12 @@ def is_valid_import(name):
 
 def restricted_import(name, globals=None, locals=None, fromlist=(), level=0):
     if globals is not None and globals.get("__contract__") is True:
-        spec = importlib.util.find_spec(name)
-        if spec is None or not isinstance(spec.loader, DatabaseLoader):
+        driver = DatabaseFinder.current_driver()
+        if driver.get_contract(name) is None:
             raise ImportError(
                 "module {} cannot be imported in a smart contract.".format(name)
             )
+        purge_contract_module(name)
 
     return __import__(name, globals, locals, fromlist, level)
 
@@ -65,8 +70,9 @@ def _remove_database_finders():
 
 def install_database_loader(driver=None):
     if driver is None:
-        driver = DatabaseFinder.driver or Driver()
-    DatabaseFinder.driver = driver
+        driver = DatabaseFinder.current_driver() or Driver()
+    _DATABASE_DRIVER.set(driver)
+    DatabaseFinder.default_driver = driver
     _remove_database_finders()
     sys.meta_path.insert(0, DatabaseFinder)
     invalidate_caches()
@@ -81,6 +87,24 @@ def install_system_contracts(directory=""):
     pass
 
 
+def purge_contract_module(name: str) -> None:
+    sys.modules.pop(name, None)
+
+
+def import_database_contract(name: str):
+    driver = DatabaseFinder.current_driver()
+    if driver.get_contract(name) is None:
+        raise ImportError("Module {} not found".format(name))
+
+    purge_contract_module(name)
+    spec = importlib.util.find_spec(name)
+    if spec is None or not isinstance(spec.loader, DatabaseLoader):
+        raise ImportError(
+            "module {} cannot be imported in a smart contract.".format(name)
+        )
+    return importlib.import_module(name)
+
+
 """
     Is this where interaction with the database occurs with the interface of code strings, etc?
     IE: pushing a contract does sanity checks here?
@@ -88,40 +112,63 @@ def install_system_contracts(directory=""):
 
 
 class DatabaseFinder:
-    driver = Driver()
+    default_driver = Driver()
+
+    @classmethod
+    def current_driver(cls):
+        return (
+            rt.env.get("__Driver")
+            or _DATABASE_DRIVER.get()
+            or cls.default_driver
+        )
 
     @classmethod
     def find_spec(cls, fullname, path=None, target=None):
-        if cls.driver.get_contract(fullname) is None:
+        driver = cls.current_driver()
+        if driver.get_contract(fullname) is None:
             return None
-        return ModuleSpec(fullname, DatabaseLoader(cls.driver))
+        return ModuleSpec(fullname, DatabaseLoader(driver))
 
 
-MODULE_CACHE = {}
+_DATABASE_DRIVER: ContextVar[Driver | None] = ContextVar(
+    "contracting_database_driver",
+    default=None,
+)
+
+
+COMPILED_CODE_CACHE = LRUCache(maxsize=512)
+
+
+def _compiled_code_cache_key(name: str, code: str) -> tuple[str, str]:
+    code_hash = hashlib.sha3_256(code.encode("utf-8")).hexdigest()
+    return name, code_hash
+
+
+def _compile_contract_code(name: str, code: str):
+    cache_key = _compiled_code_cache_key(name, code)
+    compiled = COMPILED_CODE_CACHE.get(cache_key)
+    if compiled is None:
+        compiled = compile(code, name, "exec")
+        COMPILED_CODE_CACHE[cache_key] = compiled
+    return compiled
 
 
 class DatabaseLoader(Loader):
     def __init__(self, d=None):
-        self.d = d or Driver()
+        self.d = d or DatabaseFinder.current_driver()
 
     def create_module(self, spec):
         return None
 
     def exec_module(self, module):
         # fetch the individual contract
-        code = self.d.get_compiled(module.__name__)
+        code = self.d.get_contract(module.__name__)
         if code is None:
             raise ImportError("Module {} not found".format(module.__name__))
 
-        if not isinstance(code, bytes):
-            code = bytes.fromhex(code)
+        compiled = _compile_contract_code(module.__name__, code)
 
-        code = marshal.loads(code)
-
-        if code is None:
-            raise ImportError("Module {} not found".format(module.__name__))
-
-        rt.tracer.register_code(code)
+        rt.tracer.register_code(compiled)
 
         scope = env.gather()
         scope.update(rt.env)
@@ -129,7 +176,7 @@ class DatabaseLoader(Loader):
         scope.update({"__contract__": True})
 
         # execute the module with the std env and update the module to pass forward
-        exec(code, scope)
+        exec(compiled, scope)
 
         # Update the module's attributes with the new scope
         vars(module).update(scope)

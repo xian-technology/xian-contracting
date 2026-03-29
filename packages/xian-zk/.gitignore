@@ -1,0 +1,11 @@
+.venv/
+build/
+dist/
+target/
+python/xian_zk/*.so
+python/xian_zk/*.dylib
+python/xian_zk/*.pyd
+python/xian_zk/__pycache__/
+tests/__pycache__/
+src/*.egg-info/
+uv.lock

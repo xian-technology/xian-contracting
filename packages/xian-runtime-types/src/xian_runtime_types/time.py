@@ -2,9 +2,6 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from types import ModuleType
 
-# Redefine a controlled datetime object that feels like a regular Python datetime object but is restricted so that we
-# can regulate the user interaction with it to prevent security attack vectors. It may seem redundant, but it guarantees
-# security.
 SECONDS_IN_MINUTE = 60
 SECONDS_IN_HOUR = 3600
 SECONDS_IN_DAY = 86400
@@ -16,10 +13,27 @@ def get_raw_seconds(weeks, days, hours, minutes, seconds):
     h_sec = hours * SECONDS_IN_HOUR
     d_sec = days * SECONDS_IN_DAY
     w_sec = weeks * SECONDS_IN_WEEK
+    return seconds + m_sec + h_sec + d_sec + w_sec
 
-    raw_seconds = seconds + m_sec + h_sec + d_sec + w_sec
 
-    return raw_seconds
+def to_contract_time(py_dt):
+    if isinstance(py_dt, Datetime):
+        dt_obj = py_dt
+    elif isinstance(py_dt, dt):
+        dt_obj = py_dt
+    else:
+        raise TypeError("Expected datetime.datetime or Datetime")
+
+    return {
+        "__time__": [
+            dt_obj.year,
+            dt_obj.month,
+            dt_obj.day,
+            dt_obj.hour,
+            dt_obj.minute,
+            dt_obj.second,
+        ]
+    }
 
 
 class Datetime:
@@ -35,7 +49,6 @@ class Datetime:
             second=second,
             microsecond=microsecond,
         )
-
         self.year = self._datetime.year
         self.month = self._datetime.month
         self.day = self._datetime.day
@@ -92,26 +105,24 @@ class Datetime:
         return self.__str__()
 
     @classmethod
-    def _from_datetime(cls, d: dt):
+    def _from_datetime(cls, value: dt):
         return cls(
-            year=d.year,
-            month=d.month,
-            day=d.day,
-            hour=d.hour,
-            minute=d.minute,
-            second=d.second,
-            microsecond=d.microsecond,
+            year=value.year,
+            month=value.month,
+            day=value.day,
+            hour=value.hour,
+            minute=value.minute,
+            second=value.second,
+            microsecond=value.microsecond,
         )
 
     @classmethod
     def strptime(cls, date_string, format):
-        d = dt.strptime(date_string, format)
-        return cls._from_datetime(d)
+        return cls._from_datetime(dt.strptime(date_string, format))
 
 
 class Timedelta:
     def __init__(self, weeks=0, days=0, hours=0, minutes=0, seconds=0):
-
         self._timedelta = td(
             weeks=int(weeks),
             days=int(days),
@@ -119,8 +130,6 @@ class Timedelta:
             minutes=int(minutes),
             seconds=int(seconds),
         )
-
-        # For fast access to how many hours are in a timedelta.
         self.__raw_seconds = get_raw_seconds(
             weeks=int(weeks),
             days=int(days),
@@ -159,7 +168,6 @@ class Timedelta:
             raise TypeError(f"{type(other)} is not a Timedelta!")
         return self._timedelta != other._timedelta
 
-    # Operator implementations inspired by CPython implementations
     def __add__(self, other):
         if isinstance(other, Timedelta):
             return Timedelta(
@@ -168,8 +176,7 @@ class Timedelta:
             )
 
         if isinstance(other, Datetime):
-            d = other._datetime + self._timedelta
-            return Datetime._from_datetime(d)
+            return Datetime._from_datetime(other._datetime + self._timedelta)
 
         return NotImplemented
 
@@ -181,8 +188,7 @@ class Timedelta:
             )
 
         if isinstance(other, Datetime):
-            d = other._datetime - self._timedelta
-            return Datetime._from_datetime(d)
+            return Datetime._from_datetime(other._datetime - self._timedelta)
 
         return NotImplemented
 
@@ -192,7 +198,7 @@ class Timedelta:
                 days=self._timedelta.days * other._timedelta.days,
                 seconds=self._timedelta.seconds * other._timedelta.seconds,
             )
-        elif isinstance(other, int):
+        if isinstance(other, int):
             return Timedelta(
                 days=self._timedelta.days * other,
                 seconds=self._timedelta.seconds * other,
@@ -206,7 +212,6 @@ class Timedelta:
     def __repr__(self):
         return self.__str__()
 
-    # Accesses raw seconds and does a simple modulo to get the number of the component in the total seconds
     @property
     def seconds(self):
         return self.__raw_seconds

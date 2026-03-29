@@ -1,7 +1,7 @@
 import os
 from unittest import TestCase
 
-from contracting.constants import STAMPS_PER_TAU
+from contracting.constants import STAMPS_PER_T
 from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 
@@ -77,7 +77,7 @@ class TestMetering(TestCase):
 
         self.assertEqual(
             float(prior_balance - new_balance - 100),
-            output["stamps_used"] / STAMPS_PER_TAU,
+            output["stamps_used"] / STAMPS_PER_T,
         )
 
     def test_too_few_stamps_fails_and_deducts_properly(self):
@@ -100,12 +100,12 @@ class TestMetering(TestCase):
 
         self.assertEqual(
             float(prior_balance - new_balance),
-            output["stamps_used"] / STAMPS_PER_TAU,
+            output["stamps_used"] / STAMPS_PER_T,
         )
 
     def test_adding_too_many_stamps_throws_error(self):
         prior_balance = self.d.get("con_currency.balances:stu")
-        too_many_stamps = (prior_balance + 1000) * STAMPS_PER_TAU
+        too_many_stamps = (prior_balance + 1000) * STAMPS_PER_T
 
         output = self.e.execute(
             "stu",
@@ -124,7 +124,7 @@ class TestMetering(TestCase):
 
         prior_balance = self.d.get("con_currency.balances:stu")
 
-        prior_balance *= STAMPS_PER_TAU
+        prior_balance *= STAMPS_PER_T
 
         inf_loop_path = os.path.join(
             os.path.dirname(__file__), "test_contracts", "inf_loop.s.py"
@@ -165,8 +165,51 @@ class TestMetering(TestCase):
 
         self.assertEqual(
             float(prior_balance - new_balance),
-            output["stamps_used"] / STAMPS_PER_TAU,
+            output["stamps_used"] / STAMPS_PER_T,
         )
+
+    def test_string_balance_value_is_metered_correctly(self):
+        small_code = """@export
+def get():
+    return 'a'
+"""
+        self.e.execute(
+            **TEST_SUBMISSION_KWARGS,
+            kwargs={"name": "con_string_balance_probe", "code": small_code},
+            metering=False,
+            auto_commit=True,
+        )
+
+        self.d.set("con_currency.balances:stu", "100000")
+        self.d.commit()
+
+        output = self.e.execute(
+            "stu",
+            "con_string_balance_probe",
+            "get",
+            kwargs={},
+            auto_commit=True,
+        )
+
+        new_balance = self.d.get("con_currency.balances:stu")
+
+        self.assertEqual(output["status_code"], 0)
+        self.assertLess(new_balance, 100000)
+
+    def test_string_balance_value_allows_contract_submission(self):
+        self.d.set("con_currency.balances:stu", "100000")
+        self.d.commit()
+
+        erc20_clone_path = os.path.join(
+            os.path.dirname(__file__), "test_contracts", "erc20_clone.s.py"
+        )
+        output = self.e.execute(
+            **TEST_SUBMISSION_KWARGS,
+            kwargs=submission_kwargs_for_file(erc20_clone_path),
+            auto_commit=True,
+        )
+
+        self.assertEqual(output["status_code"], 0)
 
     def test_pending_writes_has_deducted_stamp_amount_prior_to_auto_commit(
         self,

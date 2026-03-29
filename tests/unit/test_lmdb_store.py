@@ -4,9 +4,9 @@ import tempfile
 from pathlib import Path
 from unittest import TestCase
 
-from contracting.stdlib.bridge.time import Datetime
 from contracting.storage.lmdb_store import LMDBStore
 from xian_runtime_types.decimal import ContractingDecimal
+from xian_runtime_types.time import Datetime
 
 
 class TestLMDBStoreBasic(TestCase):
@@ -124,17 +124,20 @@ class TestDriverWithLMDB(TestCase):
         )
 
     def test_set_contract(self):
-        code = (
+        source = (
             "balances = Hash(default_value=0)\n\n"
             "@export\ndef transfer(amount: float, to: str):\n    pass\n"
         )
-        self.driver.set_contract("con_test", code)
+        self.driver.set_contract_from_source("con_test", source)
         self.driver.commit()
-        self.assertEqual(self.driver.get_contract("con_test"), code)
-        self.assertIsNotNone(self.driver.get_compiled("con_test"))
+        stored_source = self.driver.get_contract_source("con_test")
+        self.assertIn("@export", stored_source)
+        self.assertIn("def transfer(amount: float, to: str):", stored_source)
+        self.assertIn("@__export('con_test')", self.driver.get_contract("con_test"))
 
     def test_delete_contract(self):
         self.driver.set_contract("con_test", "x = 1")
         self.driver.commit()
         self.driver.delete_contract("con_test")
         self.assertIsNone(self.driver.get_contract("con_test"))
+        self.assertIsNone(self.driver.get_contract_source("con_test"))

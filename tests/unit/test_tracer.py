@@ -4,12 +4,20 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from contracting.execution.tracer import (
+    DEFAULT_COST,
     CU_COSTS,
+    DEFAULT_TRACER_MODE,
     MAX_CALL_COUNT,
     MAX_STAMPS,
+    SUPPORTED_TRACER_MODES,
     CallLimitExceededError,
     StampExceededError,
     Tracer,
+    create_tracer,
+    get_default_cost_opcodes,
+    get_tracer_policy,
+    get_uncategorized_default_cost_opcodes,
+    resolve_tracer_mode,
 )
 
 
@@ -66,6 +74,26 @@ class TestOpcodeCosts(TestCase):
         call = opcode.opmap.get("CALL")
         if inst_call is not None and call is not None and inst_call < 256:
             self.assertEqual(CU_COSTS[inst_call], CU_COSTS[call])
+
+
+class TestTracerSelection(TestCase):
+    def test_default_mode_is_supported(self):
+        self.assertIn(DEFAULT_TRACER_MODE, SUPPORTED_TRACER_MODES)
+        self.assertEqual(resolve_tracer_mode(None), DEFAULT_TRACER_MODE)
+
+    def test_backend_policies_use_backend_specific_event_limits(self):
+        python_policy = get_tracer_policy("python_line_v1")
+        native_policy = get_tracer_policy("native_instruction_v1")
+
+        self.assertEqual(python_policy.max_events, MAX_CALL_COUNT)
+        self.assertGreater(native_policy.max_events, python_policy.max_events)
+        self.assertEqual(native_policy.max_stamps, MAX_STAMPS)
+        self.assertGreater(native_policy.max_stamps, 6_500_000)
+
+    def test_factory_returns_python_tracer_by_default(self):
+        tracer = create_tracer()
+        self.assertIsInstance(tracer, Tracer)
+        tracer.reset()
 
 
 class TestAddCost(TestCase):
@@ -140,13 +168,28 @@ class TestLineCallback(TestCase):
         code = make_code()
 
         with patch(
-            "contracting.execution.tracer.sys.monitoring.set_local_events"
+            "contracting.execution.python_tracer.sys.monitoring.set_local_events"
         ) as set_local_events:
             self.tracer.register_code(code)
             for _ in range(10):
                 self.tracer._line_callback(code, code.co_firstlineno)
 
         self.assertGreaterEqual(set_local_events.call_count, 1)
+
+    def test_line_cost_uses_real_line_numbers(self):
+        code = compile(
+            "def f(a, b, c):\n    return a and b and c\n",
+            "<test>",
+            "exec",
+        )
+
+        self.tracer._line_cost(code, code.co_firstlineno)
+        self.assertTrue(
+            all(
+                isinstance(key, int) and not isinstance(key, bool) and key > 0
+                for key in self.tracer._line_costs[id(code)]
+            )
+        )
 
 
 class TestCodeRegistration(TestCase):
@@ -166,7 +209,7 @@ class TestCodeRegistration(TestCase):
         self.tracer.start()
 
         with patch(
-            "contracting.execution.tracer.sys.monitoring.set_local_events"
+            "contracting.execution.python_tracer.sys.monitoring.set_local_events"
         ) as set_local_events:
             self.tracer.register_code(code)
 
@@ -174,9 +217,33 @@ class TestCodeRegistration(TestCase):
 
     def test_register_buffers_when_not_started(self):
         with patch(
-            "contracting.execution.tracer.sys.monitoring.set_local_events"
+            "contracting.execution.python_tracer.sys.monitoring.set_local_events"
         ) as set_local_events:
             self.tracer.register_code(make_code())
 
         set_local_events.assert_not_called()
-        self.assertEqual(len(self.tracer._pending_codes), 1)
+        self.assertEqual(len(self.tracer._known_codes), 1)
+
+    def test_reset_can_preserve_registered_metadata(self):
+        code = make_code()
+        self.tracer.register_code(code)
+        self.tracer._line_cost(code, code.co_firstlineno)
+
+        self.tracer.reset(clear_metadata=False)
+
+        self.assertIn(id(code), self.tracer._known_codes)
+        self.assertIn(id(code), self.tracer._line_costs)
+
+
+class TestOpcodeSchedule(TestCase):
+    def test_default_cost_opcodes_are_explicitly_approved(self):
+        self.assertEqual(get_uncategorized_default_cost_opcodes(), [])
+
+    def test_default_cost_opcode_list_is_not_empty(self):
+        self.assertGreater(len(get_default_cost_opcodes()), 0)
+
+    def test_default_cost_only_applies_to_explicit_opcode_set(self):
+        for opname in get_default_cost_opcodes():
+            code = opcode.opmap[opname]
+            if code < len(CU_COSTS):
+                self.assertEqual(CU_COSTS[code], DEFAULT_COST)

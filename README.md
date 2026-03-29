@@ -1,49 +1,28 @@
 # xian-contracting
 
 `xian-contracting` is the Python contract runtime for Xian. It owns contract
-compilation, secure execution, storage behavior, metering, and related runtime
-semantics. This repo is security-sensitive and should stay narrowly focused on
-execution correctness.
+compilation, secure execution, storage semantics, metering, and the runtime
+rules that contracts must obey.
 
-## Ownership
+## Quick Start
 
-This repo owns:
-
-- compilation and linting under `src/contracting/compilation/`
-- runtime, executor, and tracing under `src/contracting/execution/`
-- storage drivers and encoding under `src/contracting/storage/`
-- built-in contract assets under `src/contracting/contracts/`
-
-This repo does not own:
-
-- node orchestration or Compose flows
-- operator lifecycle commands
-- ABCI request handling
-
-## Installation
+Install the runtime:
 
 ```bash
-pip install xian-contracting
+pip install xian-tech-contracting
 ```
 
-## Development
+If you want contract-side zk proof verification, install the optional zk
+backend too:
 
 ```bash
-uv sync --group dev
-uv run ruff check .
-uv run ruff format --check .
-uv run pytest
+pip install 'xian-tech-contracting[zk]'
 ```
 
-The test suite uses a repo-local home directory via `tests/conftest.py`, so it
-does not require host access to `~/.cometbft`.
+The published PyPI package name is `xian-tech-contracting`. The repo name
+remains `xian-contracting`, and the import surface remains `contracting`.
 
-If you change metering, tracing, storage encoding, or import restrictions, run
-the relevant `tests/security/` and `tests/integration/` paths explicitly.
-
-## Core Interfaces
-
-Minimal client example:
+Submit and call a contract:
 
 ```python
 from contracting.client import ContractingClient
@@ -54,25 +33,67 @@ token = client.get_contract("con_token")
 token.transfer(amount=100, to="bob")
 ```
 
-Direct storage access:
+Access storage directly:
 
 ```python
 from contracting.storage.driver import Driver
 
 driver = Driver()
 driver.set("example.key", "value")
-value = driver.get("example.key")
+print(driver.get("example.key"))
 ```
 
-## Runtime Notes
+## Principles
 
-- Contracts use Python syntax with Xian-specific decorators such as `@construct`
-  and `@export`.
-- Instruction metering is driven by `sys.monitoring`, so opcode costs are tied
-  to the active CPython minor version and validators must stay version-aligned.
-- State storage is LMDB-backed and exposed through the `Driver` API; storage
-  semantics are consensus-sensitive.
-- Restricted imports are part of the runtime contract and should not change
-  casually.
-- Built-in contracts and runtime helpers should stay aligned with the execution
-  model rather than growing into general convenience utilities.
+- Contracts use Python syntax, but execution rules are consensus-sensitive and
+  intentionally narrower than general Python.
+- Metering, storage encoding, import restrictions, and runtime helpers must
+  stay version-aligned across validators.
+- Optional native tracing is an implementation detail. The contract model and
+  runtime rules should remain understandable without it.
+- Built-in helpers should serve the execution model, not grow into a general
+  convenience framework.
+
+## Key Directories
+
+- `src/contracting/`: runtime, storage, compilation, and stdlib bridge code
+- `packages/`: shared packages such as `xian-runtime-types`, `xian-accounts`,
+  the native tracer, and `xian-zk`
+- `tests/`: unit, integration, and security coverage
+- `docs/`: architecture, backlog, and execution notes
+
+## What It Covers
+
+- compilation and linting
+- runtime execution and metering
+- storage drivers and encoding
+- contract-side runtime helpers
+- optional native tracing backend
+- native zero-knowledge verifier building blocks
+
+## Validation
+
+```bash
+uv sync --group dev
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest
+```
+
+If you change the zk runtime surface or the native verifier package, run:
+
+```bash
+uv sync --group dev --extra zk
+uv run --extra zk pytest -q tests/unit/test_zk_stdlib.py tests/integration/test_zk_bridge.py
+cd packages/xian-zk && uv sync --group dev && uv run maturin develop && uv run pytest -q
+```
+
+If you change metering, tracing, storage encoding, or import restrictions, run
+the relevant `tests/security/` and `tests/integration/` paths explicitly too.
+
+## Related Docs
+
+- [AGENTS.md](AGENTS.md)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/BACKLOG.md](docs/BACKLOG.md)
+- [docs/README.md](docs/README.md)

@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "xian-contracting"
+name = "xian-tech-contracting"
 version = "1.0.1"
 description = "Xian Network Python Contracting Engine"
 readme = "README.md"
@@ -15,7 +15,7 @@ dependencies = [
     "cachetools>=5,<8",
     "lmdb>=1.6,<3",
     "pynacl>=1.5.0,<2",
-    "xian-runtime-types>=0.1.0,<0.2",
+    "xian-tech-runtime-types>=0.1.0,<0.2",
 ]
 keywords = ["blockchain", "xian", "contracting", "python"]
 classifiers = [
@@ -27,6 +27,14 @@ classifiers = [
 
 [project.urls]
 Repository = "https://github.com/xian-technology/xian-contracting"
+
+[project.optional-dependencies]
+native = [
+    "xian-tech-native-tracer>=0.1.0,<0.2",
+]
+zk = [
+    "xian-tech-zk>=0.1.0,<0.2",
+]
 
 [dependency-groups]
 dev = [
@@ -68,4 +76,6 @@ select = ["E", "F", "I"]
 ignore = ["E501"]
 
 [tool.uv.sources]
-xian-runtime-types = { path = "packages/xian-runtime-types", editable = true }
+xian-tech-runtime-types = { path = "packages/xian-runtime-types", editable = true }
+xian-tech-native-tracer = { path = "packages/xian-native-tracer", editable = true }
+xian-tech-zk = { path = "packages/xian-zk", editable = true }

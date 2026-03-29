@@ -1,8 +1,17 @@
-from unittest import TestCase
-from contracting.stdlib.bridge.time import Timedelta, WEEKS, DAYS, HOURS, MINUTES, SECONDS, Datetime
 from datetime import datetime as dt
 from datetime import timedelta
 import decimal
+from unittest import TestCase
+
+from xian_runtime_types.time import (
+    DAYS,
+    HOURS,
+    MINUTES,
+    SECONDS,
+    WEEKS,
+    Datetime,
+    Timedelta,
+)
 
 class TestTimedelta(TestCase):
     def test_implementation_mimics_actual_timedelta(self):

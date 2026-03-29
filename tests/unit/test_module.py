@@ -1,7 +1,9 @@
 import glob
 import os
 import sys
+import tempfile
 import types
+from contextvars import copy_context
 from unittest import TestCase
 
 from contracting.execution.module import (
@@ -10,6 +12,7 @@ from contracting.execution.module import (
     install_database_loader,
     uninstall_database_loader,
 )
+from contracting.names import is_safe_contract_name
 from contracting.storage.driver import Driver
 
 
@@ -106,14 +109,42 @@ class TestInstallLoader(TestCase):
 
     def test_integration_and_importing(self):
         dl = DatabaseLoader()
-        dl.d.set_contract('testing', 'a = 1234567890')
+        module_name = 'testing_integration'
+        sys.modules.pop(module_name, None)
+        dl.d.set_contract(module_name, 'a = 1234567890')
         dl.d.commit()
 
         install_database_loader(driver=dl.d)
 
-        import testing
+        imported = __import__(module_name)
 
-        self.assertEqual(testing.a, 1234567890)
+        self.assertEqual(imported.a, 1234567890)
+
+    def test_finder_uses_context_local_driver(self):
+        with tempfile.TemporaryDirectory() as storage_a, tempfile.TemporaryDirectory() as storage_b:
+            driver_a = Driver(storage_home=storage_a)
+            driver_b = Driver(storage_home=storage_b)
+
+            driver_a.flush_full()
+            driver_b.flush_full()
+            driver_a.set_contract('testing', 'a = 111')
+            driver_b.set_contract('testing', 'a = 222')
+            driver_a.commit()
+            driver_b.commit()
+
+            install_database_loader(driver=driver_a)
+
+            def resolve_contract(driver, expected):
+                install_database_loader(driver=driver)
+                spec = DatabaseFinder.find_spec('testing')
+                self.assertIsNotNone(spec)
+                return spec.loader.d.get_contract('testing') == expected
+
+            context_a = copy_context()
+            context_b = copy_context()
+
+            self.assertTrue(context_a.run(resolve_contract, driver_a, 'a = 111'))
+            self.assertTrue(context_b.run(resolve_contract, driver_b, 'a = 222'))
 
 
 driver = Driver()
@@ -121,7 +152,7 @@ driver = Driver()
 
 class TestModuleLoadingIntegration(TestCase):
     def setUp(self):
-        sys.meta_path.append(DatabaseFinder)
+        install_database_loader(driver=driver)
         driver.flush_full()
 
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -130,6 +161,8 @@ class TestModuleLoadingIntegration(TestCase):
         )
         for contract in contracts:
             name = contract.split("/")[-1].split(".")[0]
+            if not is_safe_contract_name(name):
+                continue
 
             with open(contract) as f:
                 code = f.read()
@@ -138,7 +171,10 @@ class TestModuleLoadingIntegration(TestCase):
             driver.commit()
 
     def tearDown(self):
-        sys.meta_path.remove(DatabaseFinder)
+        uninstall_database_loader()
+        for module_name in tuple(sys.modules):
+            if module_name.startswith("module"):
+                sys.modules.pop(module_name, None)
         driver.flush_full()
 
     def test_get_code_string(self):
