@@ -36,7 +36,7 @@ jobs:
             accounts-v*)
               version="${tag#accounts-v}"
               package_dir="packages/xian-accounts"
-              project_name="xian-accounts"
+              project_name="xian-tech-accounts"
               pypi_environment="pypi-xian-accounts"
               needs_rust="false"
               ;;
@@ -50,7 +50,7 @@ jobs:
             runtime-types-v*)
               version="${tag#runtime-types-v}"
               package_dir="packages/xian-runtime-types"
-              project_name="xian-runtime-types"
+              project_name="xian-tech-runtime-types"
               pypi_environment="pypi-xian-runtime-types"
               needs_rust="false"
               ;;

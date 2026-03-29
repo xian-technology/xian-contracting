@@ -1,4 +1,4 @@
-# xian-accounts
+# xian-tech-accounts
 
 Small shared account and signing primitives for the Xian workspace.
 

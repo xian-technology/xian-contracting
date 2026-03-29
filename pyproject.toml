@@ -15,7 +15,7 @@ dependencies = [
     "cachetools>=5,<8",
     "lmdb>=1.6,<2",
     "pynacl>=1.5.0,<2",
-    "xian-runtime-types>=0.1.0,<0.2",
+    "xian-tech-runtime-types>=0.1.0,<0.2",
 ]
 keywords = ["blockchain", "xian", "contracting", "python"]
 classifiers = [
@@ -76,6 +76,6 @@ select = ["E", "F", "I"]
 ignore = ["E501"]
 
 [tool.uv.sources]
-xian-runtime-types = { path = "packages/xian-runtime-types", editable = true }
+xian-tech-runtime-types = { path = "packages/xian-runtime-types", editable = true }
 xian-native-tracer = { path = "packages/xian-native-tracer", editable = true }
 xian-zk = { path = "packages/xian-zk", editable = true }
