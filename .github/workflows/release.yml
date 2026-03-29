@@ -114,7 +114,11 @@ jobs:
         run: |
           package_dir="${{ needs.release-context.outputs.package_dir }}"
           cd "${package_dir}"
-          python -m build
+          if [ "${{ needs.release-context.outputs.needs_rust }}" = "true" ]; then
+            python -m build --sdist
+          else
+            python -m build
+          fi
 
       - name: Verify built version matches tag
         run: |
