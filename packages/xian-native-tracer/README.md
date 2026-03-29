@@ -1,4 +1,4 @@
-# xian-native-tracer
+# xian-tech-native-tracer
 
 Optional Rust-backed instruction metering backend for `xian-contracting`.
 

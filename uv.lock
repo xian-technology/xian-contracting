@@ -373,10 +373,10 @@ dependencies = [
 
 [package.optional-dependencies]
 native = [
-    { name = "xian-native-tracer" },
+    { name = "xian-tech-native-tracer" },
 ]
 zk = [
-    { name = "xian-zk" },
+    { name = "xian-tech-zk" },
 ]
 
 [package.dev-dependencies]
@@ -392,9 +392,9 @@ requires-dist = [
     { name = "cachetools", specifier = ">=5,<8" },
     { name = "lmdb", specifier = ">=1.6,<2" },
     { name = "pynacl", specifier = ">=1.5.0,<2" },
-    { name = "xian-native-tracer", marker = "extra == 'native'", editable = "packages/xian-native-tracer" },
+    { name = "xian-tech-native-tracer", marker = "extra == 'native'", editable = "packages/xian-native-tracer" },
     { name = "xian-tech-runtime-types", editable = "packages/xian-runtime-types" },
-    { name = "xian-zk", marker = "extra == 'zk'", editable = "packages/xian-zk" },
+    { name = "xian-tech-zk", marker = "extra == 'zk'", editable = "packages/xian-zk" },
 ]
 provides-extras = ["native", "zk"]
 
@@ -406,7 +406,7 @@ dev = [
 ]
 
 [[package]]
-name = "xian-native-tracer"
+name = "xian-tech-native-tracer"
 version = "0.1.0"
 source = { editable = "packages/xian-native-tracer" }
 
@@ -416,7 +416,7 @@ version = "0.1.0"
 source = { editable = "packages/xian-runtime-types" }
 
 [[package]]
-name = "xian-zk"
+name = "xian-tech-zk"
 version = "0.1.0"
 source = { editable = "packages/xian-zk" }
 dependencies = [

@@ -19,7 +19,7 @@ This keeps `xian-contracting`:
 ## Native Backend
 
 `native_instruction_v1` is provided by the optional
-`xian-native-tracer` package in `packages/xian-native-tracer`.
+`xian-tech-native-tracer` package in `packages/xian-native-tracer`.
 
 Characteristics:
 

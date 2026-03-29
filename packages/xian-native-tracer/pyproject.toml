@@ -3,7 +3,7 @@ requires = ["maturin>=1.8,<2"]
 build-backend = "maturin"
 
 [project]
-name = "xian-native-tracer"
+name = "xian-tech-native-tracer"
 version = "0.1.0"
 description = "Rust-backed instruction metering for the Xian contracting engine"
 readme = "README.md"

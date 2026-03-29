@@ -54,7 +54,7 @@ This should remain deterministic and versioned as part of the execution policy.
 ## Future Native Tracer
 
 `native_instruction_v1` now exists as an optional Rust-backed backend via the
-`xian-native-tracer` package.
+`xian-tech-native-tracer` package.
 
 What remains true:
 

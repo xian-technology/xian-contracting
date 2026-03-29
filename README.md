@@ -54,7 +54,8 @@ print(driver.get("example.key"))
 ## Key Directories
 
 - `src/contracting/`: runtime, storage, compilation, and stdlib bridge code
-- `packages/`: shared packages such as `xian-runtime-types`, `xian-accounts`, the native tracer, and `xian-zk`
+- `packages/`: shared packages such as `xian-runtime-types`, `xian-accounts`,
+  the native tracer, and `xian-zk`
 - `tests/`: unit, integration, and security coverage
 - `docs/`: architecture, backlog, and execution notes
 

@@ -1,4 +1,4 @@
-# xian-zk
+# xian-tech-zk
 
 Small native zero-knowledge verification and proving primitives for the Xian
 workspace.
