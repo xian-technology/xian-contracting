@@ -170,7 +170,7 @@ jobs:
       url: ${{ needs.release-context.outputs.pypi_url }}
     steps:
       - name: Download release artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: release-dist
           path: dist
@@ -188,7 +188,7 @@ jobs:
       contents: write
     steps:
       - name: Download release artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: release-dist
           path: dist
