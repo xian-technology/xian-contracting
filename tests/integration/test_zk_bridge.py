@@ -29,11 +29,7 @@ class TestZkBridge(TestCase):
 
         registry_path = os.path.join(
             os.path.dirname(__file__),
-            "..",
-            "..",
-            "src",
-            "contracting",
-            "contracts",
+            "test_contracts",
             "zk_registry.s.py",
         )
         registry_path = os.path.abspath(registry_path)
