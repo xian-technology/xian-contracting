@@ -4,9 +4,9 @@ from contracting.storage.orm import (
     ForeignHash,
     ForeignVariable,
     Hash,
-    indexed,
     LogEvent,
     Variable,
+    indexed,
 )
 
 
