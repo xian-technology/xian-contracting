@@ -56,6 +56,32 @@ h = Hash()
 
         self.assertEqual(h._key, '__main__.h')
 
+    def test_assign_log_event_uses_clean_constructor_and_compiler_injection(self):
+        code = '''
+approve = LogEvent("Approve", {
+    "owner": indexed(str),
+    "spender": indexed(str),
+    "amount": int,
+})
+        '''
+        c = ContractingCompiler(module_name='token')
+        comp = c.parse(code, lint=False)
+        code_str = astor.to_source(comp)
+
+        scope = env.gather()
+
+        exec(code_str, scope)
+
+        approve = scope['__approve']
+
+        self.assertEqual(approve._key, 'token.approve')
+        self.assertEqual(approve._contract, 'token')
+        self.assertEqual(approve._name, 'approve')
+        self.assertEqual(approve._event, 'Approve')
+        self.assertTrue(approve._params['owner']['idx'])
+        self.assertFalse(approve._params['amount']['idx'])
+        self.assertEqual(approve._params['amount']['type'], (int,))
+
     def test_assign_foreign_hash(self):
         code = '''
 fv = ForeignHash(foreign_contract='scoob', foreign_name='kumbucha')

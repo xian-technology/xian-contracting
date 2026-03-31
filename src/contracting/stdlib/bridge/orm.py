@@ -1,4 +1,4 @@
-from contracting.storage.orm import Variable, Hash, ForeignVariable, ForeignHash, LogEvent
+from contracting.storage.orm import Variable, Hash, ForeignVariable, ForeignHash, LogEvent, indexed
 from contracting.storage.contract import Contract
 from contracting.execution.runtime import rt
 
@@ -52,5 +52,6 @@ exports = {
     'ForeignVariable': FV,
     'ForeignHash': FH,
     'LogEvent': LE,
+    'indexed': indexed,
     '__Contract': C
 }

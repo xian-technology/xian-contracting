@@ -5,6 +5,19 @@ from contracting.stdlib.bridge.decimal import ContractingDecimal
 from contracting.storage.encoder import encode_kv
 
 driver = rt.env.get("__Driver") or Driver()
+EVENT_ALLOWED_TYPES = (str, int, float, bool, ContractingDecimal)
+
+
+def indexed(*types):
+    assert len(types) > 0, "indexed() requires at least one type."
+
+    if len(types) == 1 and isinstance(types[0], tuple):
+        types = types[0]
+
+    return {
+        "type": types[0] if len(types) == 1 else tuple(types),
+        "idx": True,
+    }
 
 
 class Datum:
@@ -163,35 +176,129 @@ class LogEvent(Datum):
     - Add checks for use of illegal types and argument names (See Hash checks.)
     """
 
-    def __init__(self, contract, name, event, params, driver: Driver = driver):
-        self._driver = driver
-        self._params = params
-        self._event = event
-        self._signer = rt.context.signer
+    def __init__(
+        self,
+        *args,
+        contract=None,
+        name=None,
+        event=None,
+        params=None,
+        driver: Driver = driver,
+    ):
+        contract, name, event, params = self._resolve_init_args(
+            args=args,
+            contract=contract,
+            name=name,
+            event=event,
+            params=params,
+        )
 
+        self._contract = contract or rt.context.this or "__event__"
+        self._name = name or event
+        super().__init__(self._contract, self._name, driver=driver)
+
+        self._event = self._validate_event_name(event)
+        self._params = self._normalize_params(params)
+
+    @staticmethod
+    def _resolve_init_args(args, contract, name, event, params):
+        if len(args) == 0:
+            pass
+        elif len(args) == 1 and event is None and params is not None:
+            event = args[0]
+        elif len(args) == 2:
+            if event is None and params is None:
+                event, params = args
+            elif event is not None and params is not None and contract is None and name is None:
+                contract, name = args
+            else:
+                raise TypeError(
+                    "Invalid LogEvent arguments. Use LogEvent(event, params, *, contract=..., name=...)."
+                )
+        elif len(args) == 4 and all(value is None for value in (contract, name, event, params)):
+            contract, name, event, params = args
+        else:
+            raise TypeError(
+                "Invalid LogEvent arguments. Use LogEvent(event, params, *, contract=..., name=...)."
+            )
+
+        if event is None or params is None:
+            raise TypeError("LogEvent requires both event and params.")
+
+        return contract, name, event, params
+
+    @staticmethod
+    def _validate_event_name(event):
+        assert isinstance(event, str), "Event name must be a string."
+        assert event.strip(), "Event name must not be empty."
+        return event
+
+    @classmethod
+    def _normalize_types(cls, arg_name, type_spec):
+        if isinstance(type_spec, tuple):
+            normalized_types = type_spec
+        elif isinstance(type_spec, type):
+            normalized_types = (type_spec,)
+        else:
+            raise AssertionError(
+                f"Argument {arg_name} type spec must be a type, tuple of types, "
+                "or a dict with a 'type' field."
+            )
+
+        assert len(normalized_types) > 0, f"Argument {arg_name} must declare at least one type."
+        assert all(isinstance(t, type) for t in normalized_types), (
+            f"Argument {arg_name} type spec must contain only types."
+        )
+        assert all(issubclass(t, EVENT_ALLOWED_TYPES) for t in normalized_types), (
+            "Each type in args must be str, int, float, decimal or bool."
+        )
+
+        return normalized_types
+
+    @classmethod
+    def _normalize_param(cls, arg_name, param):
+        if isinstance(param, dict):
+            extra_keys = set(param.keys()) - {"type", "idx"}
+            assert not extra_keys, (
+                f"Argument {arg_name} has unsupported schema keys: {sorted(extra_keys)}."
+            )
+            assert "type" in param, f"Argument {arg_name} must declare a type."
+            idx = param.get("idx", False)
+            assert isinstance(idx, bool), f"Argument {arg_name} idx must be a boolean."
+            type_spec = param["type"]
+        else:
+            idx = False
+            type_spec = param
+
+        return {
+            "type": cls._normalize_types(arg_name, type_spec),
+            "idx": idx,
+        }
+
+    @classmethod
+    def _normalize_params(cls, params):
         assert isinstance(params, dict), "Args must be a dictionary."
         assert len(params) > 0, "Args must have at least one argument."
-        # Check for indexed arguments with a maximum of three
-        indexed_args_count = sum(1 for arg in params.values() if arg.get("idx", False))
-        assert (
-            indexed_args_count <= 3
-        ), "Args must have at most three indexed arguments."
-        for param in params.values():
-            if not isinstance(param["type"], tuple):
-                param["type"] = (param["type"],)
 
-            assert all(
-                issubclass(t, (str, int, float, bool, ContractingDecimal))
-                for t in param["type"]
-            ), "Each type in args must be str, int, float, decimal or bool."
+        normalized = {}
+        for arg_name, param in params.items():
+            assert isinstance(arg_name, str), "Argument names must be strings."
+            assert arg_name.strip(), "Argument names must not be empty."
+            normalized[arg_name] = cls._normalize_param(arg_name, param)
+
+        indexed_args_count = sum(1 for arg in normalized.values() if arg["idx"])
+        assert indexed_args_count <= 3, "Args must have at most three indexed arguments."
+
+        return normalized
 
 
     def write_event(self, event_data):
-        contract = rt.context.this
+        assert isinstance(event_data, dict), "Event data must be a dictionary."
         caller = rt.context.caller
+        signer = rt.context.signer
         assert len(event_data) == len(
             self._params
-        ), "Event Data must have the same number of arguments as specified in the event."
+        ), "Data must have the same number of arguments as specified in the event."
 
         # Check for unexpected arguments
         for arg in event_data:
@@ -218,9 +325,9 @@ class LogEvent(Datum):
             ), f"Argument {arg} is too large ({value_size} bytes). Max is 1024 bytes."
         
         event = {
-            "contract": contract,
+            "contract": self._contract,
             "event": self._event,
-            "signer": self._signer,
+            "signer": signer,
             "caller": caller,
             "data_indexed": {
                 arg: event_data[arg]
@@ -236,15 +343,9 @@ class LogEvent(Datum):
 
 
         for arg, value in event["data_indexed"].items():
-            assert isinstance(
-                value, self._params[arg]["type"]
-            ), f"Indexed argument {arg} is the wrong type! Expected {self._params[arg]['type']}, got {type(value)}."
             encoded = encode_kv(arg, value)
             rt.deduct_write(*encoded)
         for arg, value in event["data"].items():
-            assert isinstance(
-                value, self._params[arg]["type"]
-            ), f"Non-indexed argument {arg} is the wrong type! Expected {self._params[arg]['type']}, got {type(value)}."
             encoded = encode_kv(arg, value)
             rt.deduct_write(*encoded)
 

@@ -159,14 +159,11 @@ Contracts can emit events which can be tracked by external systems:
 
 ```python
 def token_contract():
-    transfer_event = LogEvent(
-        'transfer',
-        {
-            'sender': {'type': str, 'idx': True},
-            'receiver': {'type': str, 'idx': True},
-            'amount': {'type': float}
-        }
-    )
+    transfer_event = LogEvent("Transfer", {
+        "sender": indexed(str),
+        "receiver": indexed(str),
+        "amount": float,
+    })
 
     @export
     def transfer(amount: float, to: str):
@@ -174,9 +171,9 @@ def token_contract():
         
         # Emit event
         transfer_event({
-            'sender': ctx.caller,
-            'receiver': to,
-            'amount': amount
+            "sender": ctx.caller,
+            "receiver": to,
+            "amount": amount,
         })
 ```
 
