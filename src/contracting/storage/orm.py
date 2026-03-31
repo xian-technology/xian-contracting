@@ -377,13 +377,20 @@ class LogEvent(Datum):
         elif len(args) == 2:
             if event is None and params is None:
                 event, params = args
-            elif event is not None and params is not None and contract is None and name is None:
+            elif (
+                event is not None
+                and params is not None
+                and contract is None
+                and name is None
+            ):
                 contract, name = args
             else:
                 raise TypeError(
                     "Invalid LogEvent arguments. Use LogEvent(event, params, *, contract=..., name=...)."
                 )
-        elif len(args) == 4 and all(value is None for value in (contract, name, event, params)):
+        elif len(args) == 4 and all(
+            value is None for value in (contract, name, event, params)
+        ):
             contract, name, event, params = args
         else:
             raise TypeError(
@@ -413,13 +420,15 @@ class LogEvent(Datum):
                 "or a dict with a 'type' field."
             )
 
-        assert len(normalized_types) > 0, f"Argument {arg_name} must declare at least one type."
+        assert len(normalized_types) > 0, (
+            f"Argument {arg_name} must declare at least one type."
+        )
         assert all(isinstance(t, type) for t in normalized_types), (
             f"Argument {arg_name} type spec must contain only types."
         )
-        assert all(issubclass(t, EVENT_ALLOWED_TYPES) for t in normalized_types), (
-            "Each type in args must be str, int, float, decimal or bool."
-        )
+        assert all(
+            issubclass(t, EVENT_ALLOWED_TYPES) for t in normalized_types
+        ), "Each type in args must be str, int, float, decimal or bool."
 
         return normalized_types
 
@@ -432,7 +441,9 @@ class LogEvent(Datum):
             )
             assert "type" in param, f"Argument {arg_name} must declare a type."
             idx = param.get("idx", False)
-            assert isinstance(idx, bool), f"Argument {arg_name} idx must be a boolean."
+            assert isinstance(idx, bool), (
+                f"Argument {arg_name} idx must be a boolean."
+            )
             type_spec = param["type"]
         else:
             idx = False
@@ -455,7 +466,9 @@ class LogEvent(Datum):
             normalized[arg_name] = cls._normalize_param(arg_name, param)
 
         indexed_args_count = sum(1 for arg in normalized.values() if arg["idx"])
-        assert indexed_args_count <= 3, "Args must have at most three indexed arguments."
+        assert indexed_args_count <= 3, (
+            "Args must have at most three indexed arguments."
+        )
 
         return normalized
 
@@ -463,9 +476,9 @@ class LogEvent(Datum):
         assert isinstance(event_data, dict), "Event data must be a dictionary."
         caller = rt.context.caller
         signer = rt.context.signer
-        assert len(event_data) == len(
-            self._params
-        ), "Data must have the same number of arguments as specified in the event."
+        assert len(event_data) == len(self._params), (
+            "Data must have the same number of arguments as specified in the event."
+        )
 
         # Check for unexpected arguments
         for arg in event_data:

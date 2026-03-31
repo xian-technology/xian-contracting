@@ -390,7 +390,7 @@ dev = [
 requires-dist = [
     { name = "autopep8", specifier = ">=1.5.7,<2" },
     { name = "cachetools", specifier = ">=5,<8" },
-    { name = "lmdb", specifier = ">=1.6,<2" },
+    { name = "lmdb", specifier = ">=1.6,<3" },
     { name = "pynacl", specifier = ">=1.5.0,<2" },
     { name = "xian-tech-native-tracer", marker = "extra == 'native'", editable = "packages/xian-native-tracer" },
     { name = "xian-tech-runtime-types", editable = "packages/xian-runtime-types" },
