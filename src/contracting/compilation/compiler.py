@@ -83,21 +83,32 @@ class ContractingCompiler(ast.NodeTransformer):
         if node.decorator_list:
             # Presumes that a single decorator is passed. This is caught by the linter.
             decorator = node.decorator_list.pop()
+            decorator_name = None
+            decorator_keywords = []
+
+            if isinstance(decorator, ast.Name):
+                decorator_name = decorator.id
+            elif isinstance(decorator, ast.Call) and isinstance(
+                decorator.func, ast.Name
+            ):
+                decorator_name = decorator.func.id
+                decorator_keywords = decorator.keywords
 
             # change the name of the init function to '____' so it is uncallable except once
-            if decorator.id == constants.INIT_DECORATOR_STRING:
+            if decorator_name == constants.INIT_DECORATOR_STRING:
                 node.name = "____"
 
-            elif decorator.id == constants.EXPORT_DECORATOR_STRING:
+            elif decorator_name == constants.EXPORT_DECORATOR_STRING:
                 # Transform @export decorators to @__export(contract_name) decorators
-                decorator.id = "{}{}".format(
-                    "__", constants.EXPORT_DECORATOR_STRING
-                )
-
                 new_node = ast.Call(
-                    func=decorator,
+                    func=ast.Name(
+                        id="{}{}".format(
+                            "__", constants.EXPORT_DECORATOR_STRING
+                        ),
+                        ctx=ast.Load(),
+                    ),
                     args=[ast.Constant(value=self.module_name)],
-                    keywords=[],
+                    keywords=decorator_keywords,
                 )
 
                 node.decorator_list.append(new_node)

@@ -205,3 +205,14 @@ def test():
         comp = c.parse(code, lint=False)
         code_str = ast.unparse(comp)
         self.assertIn("@__export('__main__')", code_str)
+
+    def test_export_typecheck_keyword_is_preserved(self):
+        code = '''
+@export(typecheck=True)
+def test(limit: float) -> str:
+    return 'ok'
+        '''
+        c = ContractingCompiler()
+        comp = c.parse(code, lint=False)
+        code_str = ast.unparse(comp)
+        self.assertIn("@__export('__main__', typecheck=True)", code_str)
