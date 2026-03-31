@@ -1,5 +1,6 @@
 import glob
 import os
+import subprocess
 import sys
 import tempfile
 import types
@@ -25,8 +26,8 @@ class TestDatabase(TestCase):
         self.d.flush_full()
 
     def test_push_and_get_contract(self):
-        code = 'a = 123'
-        name = 'test'
+        code = "a = 123"
+        name = "test"
 
         self.d.set_contract(name, code)
         _code = self.d.get_contract(name)
@@ -38,8 +39,8 @@ class TestDatabase(TestCase):
         )
 
     def test_flush(self):
-        code = 'a = 123'
-        name = 'test'
+        code = "a = 123"
+        name = "test"
 
         self.d.set_contract(name, code)
         self.d.commit()
@@ -66,18 +67,18 @@ class TestDatabaseLoader(TestCase):
         )
 
     def test_exec_module(self):
-        module = types.ModuleType('test')
+        module = types.ModuleType("test")
 
-        self.dl.d.set_contract('test', 'b = 1337')
+        self.dl.d.set_contract("test", "b = 1337")
         self.dl.exec_module(module)
         self.dl.d.flush_full()
 
         self.assertEqual(module.b, 1337)
 
     def test_exec_module_nonattribute(self):
-        module = types.ModuleType('test')
+        module = types.ModuleType("test")
 
-        self.dl.d.set_contract('test', 'b = 1337')
+        self.dl.d.set_contract("test", "b = 1337")
         self.dl.exec_module(module)
         self.dl.d.flush_full()
 
@@ -85,7 +86,7 @@ class TestDatabaseLoader(TestCase):
             module.a
 
     def test_module_representation(self):
-        module = types.ModuleType('howdy')
+        module = types.ModuleType("howdy")
 
         self.assertEqual(
             self.dl.module_repr(module),
@@ -94,6 +95,31 @@ class TestDatabaseLoader(TestCase):
 
 
 class TestInstallLoader(TestCase):
+    def test_database_finder_does_not_open_default_driver_on_import(self):
+        with tempfile.TemporaryDirectory() as home_dir:
+            env = os.environ.copy()
+            env["HOME"] = home_dir
+            script = """
+from pathlib import Path
+
+from contracting.client import ContractingClient
+from contracting.execution.module import DatabaseFinder
+
+storage_home = Path.home() / ".cometbft" / "xian"
+assert DatabaseFinder.default_driver is None
+ContractingClient(storage_home=storage_home, submission_filename=None)
+print("ok")
+"""
+            result = subprocess.run(
+                [sys.executable, "-c", script],
+                capture_output=True,
+                text=True,
+                env=env,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "ok")
+
     def test_install_loader(self):
         uninstall_database_loader()
 
@@ -109,9 +135,9 @@ class TestInstallLoader(TestCase):
 
     def test_integration_and_importing(self):
         dl = DatabaseLoader()
-        module_name = 'testing_integration'
+        module_name = "testing_integration"
         sys.modules.pop(module_name, None)
-        dl.d.set_contract(module_name, 'a = 1234567890')
+        dl.d.set_contract(module_name, "a = 1234567890")
         dl.d.commit()
 
         install_database_loader(driver=dl.d)
@@ -121,14 +147,17 @@ class TestInstallLoader(TestCase):
         self.assertEqual(imported.a, 1234567890)
 
     def test_finder_uses_context_local_driver(self):
-        with tempfile.TemporaryDirectory() as storage_a, tempfile.TemporaryDirectory() as storage_b:
+        with (
+            tempfile.TemporaryDirectory() as storage_a,
+            tempfile.TemporaryDirectory() as storage_b,
+        ):
             driver_a = Driver(storage_home=storage_a)
             driver_b = Driver(storage_home=storage_b)
 
             driver_a.flush_full()
             driver_b.flush_full()
-            driver_a.set_contract('testing', 'a = 111')
-            driver_b.set_contract('testing', 'a = 222')
+            driver_a.set_contract("testing", "a = 111")
+            driver_b.set_contract("testing", "a = 222")
             driver_a.commit()
             driver_b.commit()
 
@@ -136,15 +165,19 @@ class TestInstallLoader(TestCase):
 
             def resolve_contract(driver, expected):
                 install_database_loader(driver=driver)
-                spec = DatabaseFinder.find_spec('testing')
+                spec = DatabaseFinder.find_spec("testing")
                 self.assertIsNotNone(spec)
-                return spec.loader.d.get_contract('testing') == expected
+                return spec.loader.d.get_contract("testing") == expected
 
             context_a = copy_context()
             context_b = copy_context()
 
-            self.assertTrue(context_a.run(resolve_contract, driver_a, 'a = 111'))
-            self.assertTrue(context_b.run(resolve_contract, driver_b, 'a = 222'))
+            self.assertTrue(
+                context_a.run(resolve_contract, driver_a, "a = 111")
+            )
+            self.assertTrue(
+                context_b.run(resolve_contract, driver_b, "a = 222")
+            )
 
 
 driver = Driver()
@@ -178,11 +211,11 @@ class TestModuleLoadingIntegration(TestCase):
         driver.flush_full()
 
     def test_get_code_string(self):
-        ctx = types.ModuleType('ctx')
-        code = '''import module1
+        ctx = types.ModuleType("ctx")
+        code = """import module1
 
 print("now i can run my functions!")
-'''
+"""
 
         exec(code, vars(ctx))
 

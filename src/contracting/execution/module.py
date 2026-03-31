@@ -112,15 +112,19 @@ def import_database_contract(name: str):
 
 
 class DatabaseFinder:
-    default_driver = Driver()
+    default_driver = None
 
     @classmethod
     def current_driver(cls):
-        return (
+        driver = (
             rt.env.get("__Driver")
             or _DATABASE_DRIVER.get()
             or cls.default_driver
         )
+        if driver is None:
+            driver = Driver()
+            cls.default_driver = driver
+        return driver
 
     @classmethod
     def find_spec(cls, fullname, path=None, target=None):
