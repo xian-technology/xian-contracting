@@ -8,9 +8,7 @@ from contracting.client import ContractingClient
 TYPECHECKED_CONTRACT = """
 @export(typecheck=True)
 def calculate(limit: float) -> str:
-    if limit > 0.1:
-        return 'YES'
-    return 'NO'
+    return 'YES' if limit > 0.1 else 'NO'
 
 @export(typecheck=True)
 def summarize(items: list[int], metadata: dict[str, list[int]]) -> int:

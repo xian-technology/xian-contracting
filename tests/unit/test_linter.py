@@ -57,6 +57,14 @@ def hello(name: str) -> str:
 """
         self.assertIsNone(self.linter.check(code))
 
+    def test_export_with_ternary_expression(self):
+        code = """
+@export
+def classify(limit: float):
+    return "YES" if limit > 0.1 else "NO"
+"""
+        self.assertIsNone(self.linter.check(code))
+
     def test_export_with_subscripted_container_annotations(self):
         code = """
 @export
@@ -157,14 +165,6 @@ class TestErrorCodes(TestCase):
 def f(x: int):
     g = lambda: x
     return g()
-"""
-        self.assertIn(ErrorCode.E001, self._codes(code))
-
-    def test_e001_ternary_expression(self):
-        code = """
-@export
-def f(x: bool):
-    return 1 if x else 0
 """
         self.assertIn(ErrorCode.E001, self._codes(code))
 
