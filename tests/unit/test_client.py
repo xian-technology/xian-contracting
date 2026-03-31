@@ -1,7 +1,8 @@
 import os
 from unittest import TestCase
+from unittest.mock import Mock
 
-from contracting.client import ContractingClient
+from contracting.client import AbstractContract, ContractingClient
 from contracting.storage.driver import Driver
 
 class TestClient(TestCase):
@@ -100,3 +101,55 @@ class TestClient(TestCase):
         with self.assertRaises(AssertionError):
             self.client.submit(f="")
 
+    def test_abstract_function_call_raises_result_on_error_by_default(self):
+        error = RuntimeError("boom")
+        output = {
+            "status_code": 1,
+            "result": error,
+            "stamps_used": 5,
+            "writes": {},
+            "reads": {},
+            "events": [],
+        }
+        executor = Mock()
+        executor.execute.return_value = output
+        executor.production = False
+
+        contract = AbstractContract(
+            name="test_contract",
+            signer="stu",
+            environment={},
+            executor=executor,
+            funcs=[("failing_function", [])],
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "boom"):
+            contract.failing_function()
+
+    def test_abstract_function_call_returns_full_output_on_error_when_requested(self):
+        error = RuntimeError("boom")
+        output = {
+            "status_code": 1,
+            "result": error,
+            "stamps_used": 5,
+            "writes": {},
+            "reads": {},
+            "events": [],
+        }
+        executor = Mock()
+        executor.execute.return_value = output
+        executor.production = False
+
+        contract = AbstractContract(
+            name="test_contract",
+            signer="stu",
+            environment={},
+            executor=executor,
+            funcs=[("failing_function", [])],
+        )
+
+        result = contract.failing_function(return_full_output=True)
+
+        self.assertIs(result, output)
+        self.assertEqual(result["status_code"], 1)
+        self.assertIs(result["result"], error)
