@@ -6,5 +6,5 @@ Start with:
 
 - `ARCHITECTURE.md`
 - `BACKLOG.md`
+- `COMPILE_TIME_EXTENDS.md`
 - `EXECUTION_BACKLOG.md`
-
