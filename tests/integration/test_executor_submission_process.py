@@ -1,8 +1,9 @@
-from unittest import TestCase
-from contracting.storage.driver import Driver
-from contracting.execution.executor import Executor
-from contracting.compilation.compiler import ContractingCompiler
 import os
+from unittest import TestCase
+
+from contracting.compilation.compiler import ContractingCompiler
+from contracting.execution.executor import Executor
+from contracting.storage.driver import Driver
 
 
 def submission_kwargs_for_file(f):
@@ -97,13 +98,23 @@ def ping():
     return 1
 """
 
-        output = e.execute(
-            **TEST_SUBMISSION_KWARGS,
-            kwargs={"name": "con.bad", "code": code},
-        )
+        for bad_name in (
+            "con_bad-name",
+            "con_bad.name",
+            "con_bad:name",
+            "con_bad name",
+        ):
+            output = e.execute(
+                **TEST_SUBMISSION_KWARGS,
+                kwargs={"name": bad_name, "code": code},
+            )
 
-        self.assertEqual(output["status_code"], 1)
-        self.assertIsNone(self.d.get_contract("con.bad"))
+            self.assertEqual(output["status_code"], 1)
+            self.assertIn(
+                "lowercase ASCII letters, digits, and underscores",
+                str(output["result"]),
+            )
+            self.assertIsNone(self.d.get_contract(bad_name))
 
     def test_submission_rejects_invalid_owner_type(self):
         e = Executor(metering=False)
@@ -624,7 +635,7 @@ def get_queue():
             "construct_function_works.s.py",
         )
 
-        r = e.execute(
+        e.execute(
             **TEST_SUBMISSION_KWARGS,
             kwargs=submission_kwargs_for_file(
                 test_construct_function_works_path

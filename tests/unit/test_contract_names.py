@@ -15,7 +15,9 @@ class TestContractNames(TestCase):
     def test_safe_contract_name_helper_accepts_valid_names(self):
         self.assertTrue(is_safe_contract_name("submission"))
         self.assertTrue(is_safe_contract_name("con_example_2"))
-        self.assertEqual(assert_safe_contract_name("con_example"), "con_example")
+        self.assertEqual(
+            assert_safe_contract_name("con_example"), "con_example"
+        )
 
     def test_safe_contract_name_helper_rejects_unsafe_names(self):
         for name in (
@@ -24,6 +26,7 @@ class TestContractNames(TestCase):
             "con.bad",
             "con-bad",
             "con:bad",
+            "con bad",
             "1con_bad",
             "_hidden",
         ):
@@ -36,4 +39,11 @@ class TestContractNames(TestCase):
             self.driver.set_contract(
                 name="con.bad",
                 code="@export\ndef ping():\n    return 1\n",
+            )
+
+    def test_driver_set_contract_from_source_rejects_unsafe_name(self):
+        with self.assertRaises(AssertionError):
+            self.driver.set_contract_from_source(
+                name="con:bad",
+                source="@export\ndef ping():\n    return 1\n",
             )
