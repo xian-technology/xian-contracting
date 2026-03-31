@@ -4,6 +4,7 @@ from contracting.storage.orm import (
     ForeignHash,
     ForeignVariable,
     Hash,
+    indexed,
     LogEvent,
     Variable,
 )
@@ -58,5 +59,6 @@ exports = {
     "ForeignVariable": FV,
     "ForeignHash": FH,
     "LogEvent": LE,
+    "indexed": indexed,
     "__Contract": C,
 }

@@ -11,6 +11,9 @@ dist/
 *.egg-info/
 .idea/
 .vscode/
+*.swp
+*.swo
+.DS_Store
 htmlcov/
 logs
 .ccls
