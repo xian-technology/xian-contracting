@@ -13,7 +13,8 @@ use crate::shielded_notes::{
     prove_shielded_command_withdraw as prove_command_withdraw_impl,
     prove_shielded_deposit as prove_deposit_impl, prove_shielded_transfer as prove_transfer_impl,
     prove_shielded_withdraw as prove_withdraw_impl, shielded_command_binding_hex,
-    shielded_command_execution_tag_hex, shielded_note_asset_id_hex,
+    shielded_command_execution_tag_hex, shielded_command_nullifier_digest_hex,
+    shielded_note_asset_id_hex,
     shielded_note_auth_path_hex, shielded_note_commitment_hex, shielded_note_nullifier_hex,
     shielded_note_output_commitment_hex, shielded_note_owner_public_hex,
     shielded_note_recipient_digest_hex, shielded_note_root_hex, shielded_note_tree_state,
@@ -215,20 +216,32 @@ fn shielded_note_auth_path(commitments: Vec<String>, leaf_index: usize) -> PyRes
 }
 
 #[pyfunction]
+fn shielded_command_nullifier_digest(input_nullifier_hexes: Vec<String>) -> PyResult<String> {
+    shielded_command_nullifier_digest_hex(&input_nullifier_hexes)
+        .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
 fn shielded_command_binding(
-    base_nullifier_hex: &str,
+    nullifier_digest_hex: &str,
     target_digest_hex: &str,
     payload_digest_hex: &str,
     relayer_digest_hex: &str,
     expiry_digest_hex: &str,
+    chain_digest_hex: &str,
+    entrypoint_digest_hex: &str,
+    version_digest_hex: &str,
     fee: u64,
 ) -> PyResult<String> {
     shielded_command_binding_hex(
-        base_nullifier_hex,
+        nullifier_digest_hex,
         target_digest_hex,
         payload_digest_hex,
         relayer_digest_hex,
         expiry_digest_hex,
+        chain_digest_hex,
+        entrypoint_digest_hex,
+        version_digest_hex,
         fee,
     )
     .map_err(|error| PyValueError::new_err(error.to_string()))
@@ -236,10 +249,10 @@ fn shielded_command_binding(
 
 #[pyfunction]
 fn shielded_command_execution_tag(
-    base_nullifier_hex: &str,
+    nullifier_digest_hex: &str,
     command_binding_hex_value: &str,
 ) -> PyResult<String> {
-    shielded_command_execution_tag_hex(base_nullifier_hex, command_binding_hex_value)
+    shielded_command_execution_tag_hex(nullifier_digest_hex, command_binding_hex_value)
         .map_err(|error| PyValueError::new_err(error.to_string()))
 }
 
@@ -351,6 +364,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(shielded_note_root, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_tree_state_json, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_auth_path, module)?)?;
+    module.add_function(wrap_pyfunction!(shielded_command_nullifier_digest, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_command_binding, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_command_execution_tag, module)?)?;
     module.add_function(wrap_pyfunction!(prove_shielded_note_deposit, module)?)?;

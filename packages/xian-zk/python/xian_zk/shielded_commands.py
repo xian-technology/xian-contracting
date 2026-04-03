@@ -11,12 +11,9 @@ from xian_zk._native import (
     prove_shielded_command_deposit,
     prove_shielded_command_execute,
     prove_shielded_command_withdraw,
-)
-from xian_zk._native import (
     shielded_command_binding as native_command_binding,
-)
-from xian_zk._native import (
     shielded_command_execution_tag as native_command_execution_tag,
+    shielded_command_nullifier_digest as native_command_nullifier_digest,
 )
 from xian_zk.shielded_notes import (
     ShieldedDepositRequest,
@@ -30,23 +27,47 @@ from xian_zk.shielded_notes import (
 )
 
 _FIELD_ZERO_HEX = "0x" + "00" * 32
+_COMMAND_BINDING_VERSION = "shielded-command-v2"
+_COMMAND_ENTRYPOINT = "interact"
 
 
 def _request_json(request: Any) -> str:
     return json.dumps(request, sort_keys=True)
 
 
+def _encode_payload_part(prefix: str, value: str) -> str:
+    return f"{prefix}:{len(value)}:{value}"
+
+
 def canonicalize_command_payload(value: Any) -> str:
     if value is None:
-        return "null"
+        return "n"
+    if isinstance(value, bool):
+        return "b:1" if value else "b:0"
+    if isinstance(value, int):
+        return f"i:{value}"
+    if isinstance(value, str):
+        return _encode_payload_part("s", value)
     if isinstance(value, dict):
         items = []
         for key in sorted(value.keys()):
-            items.append(f"{key}:{canonicalize_command_payload(value[key])}")
-        return "{" + ",".join(items) + "}"
+            if not isinstance(key, str):
+                raise TypeError("payload dict keys must be strings")
+            items.append(_encode_payload_part("k", key))
+            items.append(
+                _encode_payload_part(
+                    "v",
+                    canonicalize_command_payload(value[key]),
+                )
+            )
+        return f"d:{len(value)}:" + "".join(items)
     if isinstance(value, list):
-        return "[" + ",".join(canonicalize_command_payload(item) for item in value) + "]"
-    return str(value)
+        items = [
+            _encode_payload_part("e", canonicalize_command_payload(item))
+            for item in value
+        ]
+        return f"l:{len(value)}:" + "".join(items)
+    raise TypeError("unsupported payload value type")
 
 
 def command_target_digest(target_contract: str) -> str:
@@ -69,6 +90,12 @@ def command_relayer_digest(relayer: str) -> str:
     return recipient_digest(relayer)
 
 
+def command_chain_digest(chain_id: str) -> str:
+    if not isinstance(chain_id, str) or chain_id == "":
+        raise ValueError("chain_id must be a non-empty string")
+    return recipient_digest(chain_id)
+
+
 def command_expiry_digest(expires_at: Any = None) -> str:
     if expires_at is None:
         return _FIELD_ZERO_HEX
@@ -77,31 +104,52 @@ def command_expiry_digest(expires_at: Any = None) -> str:
     return recipient_digest(str(expires_at))
 
 
+def command_entrypoint_digest() -> str:
+    return recipient_digest(_COMMAND_ENTRYPOINT)
+
+
+def command_version_digest() -> str:
+    return recipient_digest(_COMMAND_BINDING_VERSION)
+
+
+def command_nullifier_digest(input_nullifiers: list[str]) -> str:
+    if not isinstance(input_nullifiers, list) or len(input_nullifiers) == 0:
+        raise ValueError("input_nullifiers must be a non-empty list")
+    return native_command_nullifier_digest(input_nullifiers)
+
+
 def command_binding(
     *,
-    input_nullifier: str,
+    input_nullifiers: list[str],
     target_contract: str,
     payload: dict[str, Any] | None,
     relayer: str,
+    chain_id: str,
     fee: int,
     expires_at: Any = None,
 ) -> str:
     return native_command_binding(
-        input_nullifier,
+        command_nullifier_digest(input_nullifiers),
         command_target_digest(target_contract),
         command_payload_digest(payload),
         command_relayer_digest(relayer),
         command_expiry_digest(expires_at),
+        command_chain_digest(chain_id),
+        command_entrypoint_digest(),
+        command_version_digest(),
         fee,
     )
 
 
 def command_execution_tag(
     *,
-    input_nullifier: str,
+    input_nullifiers: list[str],
     command_binding_value: str,
 ) -> str:
-    return native_command_execution_tag(input_nullifier, command_binding_value)
+    return native_command_execution_tag(
+        command_nullifier_digest(input_nullifiers),
+        command_binding_value,
+    )
 
 
 @dataclass(frozen=True)
@@ -110,11 +158,12 @@ class ShieldedCommandRequest:
     old_root: str
     append_state: ShieldedTreeState
     fee: int
-    input: ShieldedInput
+    inputs: list[ShieldedInput]
     outputs: list[ShieldedOutput]
     target_contract: str
     payload: dict[str, Any] | None
     relayer: str
+    chain_id: str
     expires_at: Any = None
 
 
@@ -126,7 +175,7 @@ class ShieldedCommandProofResult:
     public_inputs: list[str]
     command_binding: str
     execution_tag: str
-    input_nullifier: str
+    input_nullifiers: list[str]
     output_commitments: list[str]
 
     @classmethod
@@ -174,18 +223,25 @@ class ShieldedCommandProver:
     def prove_execute(
         self, request: ShieldedCommandRequest
     ) -> ShieldedCommandProofResult:
-        input_note = ShieldedNote(
-            owner_secret=request.input.owner_secret,
-            amount=request.input.amount,
-            rho=request.input.rho,
-            blind=request.input.blind,
-        )
-        input_nullifier = input_note.nullifier(request.asset_id)
+        if len(request.inputs) == 0:
+            raise ValueError("Shielded command execution requires at least one input")
+
+        input_nullifiers = []
+        for shielded_input in request.inputs:
+            input_note = ShieldedNote(
+                owner_secret=shielded_input.owner_secret,
+                amount=shielded_input.amount,
+                rho=shielded_input.rho,
+                blind=shielded_input.blind,
+            )
+            input_nullifiers.append(input_note.nullifier(request.asset_id))
+
         binding = command_binding(
-            input_nullifier=input_nullifier,
+            input_nullifiers=input_nullifiers,
             target_contract=request.target_contract,
             payload=request.payload,
             relayer=request.relayer,
+            chain_id=request.chain_id,
             fee=request.fee,
             expires_at=request.expires_at,
         )
@@ -194,7 +250,7 @@ class ShieldedCommandProver:
             "old_root": request.old_root,
             "append_state": asdict(request.append_state),
             "fee": request.fee,
-            "input": asdict(request.input),
+            "inputs": [asdict(shielded_input) for shielded_input in request.inputs],
             "outputs": [asdict(output) for output in request.outputs],
             "command_binding": binding,
         }
@@ -264,8 +320,10 @@ __all__ = [
     "ShieldedCommandRequest",
     "canonicalize_command_payload",
     "command_binding",
+    "command_chain_digest",
     "command_execution_tag",
     "command_expiry_digest",
+    "command_nullifier_digest",
     "command_payload_digest",
     "command_relayer_digest",
     "command_target_digest",

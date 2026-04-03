@@ -27,11 +27,11 @@ const SHIELDED_NOTE_DEPOSIT_CIRCUIT_NAME: &str = "shielded_note_deposit_v2";
 const SHIELDED_NOTE_TRANSFER_CIRCUIT_NAME: &str = "shielded_note_transfer_v2";
 const SHIELDED_NOTE_WITHDRAW_CIRCUIT_NAME: &str = "shielded_note_withdraw_v2";
 const SHIELDED_NOTE_CIRCUIT_VERSION: &str = "2";
-const SHIELDED_COMMAND_CIRCUIT_FAMILY: &str = "shielded_command_v1";
-const SHIELDED_COMMAND_DEPOSIT_CIRCUIT_NAME: &str = "shielded_command_deposit_v1";
-const SHIELDED_COMMAND_EXECUTE_CIRCUIT_NAME: &str = "shielded_command_execute_v1";
-const SHIELDED_COMMAND_WITHDRAW_CIRCUIT_NAME: &str = "shielded_command_withdraw_v1";
-const SHIELDED_COMMAND_CIRCUIT_VERSION: &str = "1";
+const SHIELDED_COMMAND_CIRCUIT_FAMILY: &str = "shielded_command_v2";
+const SHIELDED_COMMAND_DEPOSIT_CIRCUIT_NAME: &str = "shielded_command_deposit_v2";
+const SHIELDED_COMMAND_EXECUTE_CIRCUIT_NAME: &str = "shielded_command_execute_v2";
+const SHIELDED_COMMAND_WITHDRAW_CIRCUIT_NAME: &str = "shielded_command_withdraw_v2";
+const SHIELDED_COMMAND_CIRCUIT_VERSION: &str = "2";
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ShieldedVkFixture {
@@ -177,7 +177,7 @@ pub struct ShieldedCommandRequest {
     pub old_root: String,
     pub append_state: ShieldedTreeState,
     pub fee: u64,
-    pub input: ShieldedInputRequest,
+    pub inputs: Vec<ShieldedInputRequest>,
     pub outputs: Vec<ShieldedOutputRequest>,
     pub command_binding: String,
 }
@@ -190,7 +190,7 @@ pub struct ShieldedCommandProofResult {
     pub public_inputs: Vec<String>,
     pub command_binding: String,
     pub execution_tag: String,
-    pub input_nullifier: String,
+    pub input_nullifiers: Vec<String>,
     pub output_commitments: Vec<String>,
 }
 
@@ -203,7 +203,8 @@ pub struct ShieldedCommandActionFixture {
     pub fee: u64,
     pub command_binding: String,
     pub execution_tag: String,
-    pub input_nullifier: String,
+    pub input_count: usize,
+    pub input_nullifiers: Vec<String>,
     pub output_count: usize,
     pub output_commitments: Vec<String>,
     pub target_contract: String,
@@ -295,10 +296,11 @@ struct CommandCircuit {
     command_binding: Fr,
     execution_tag: Fr,
     fee: u64,
-    input_nullifier: Fr,
+    input_count: usize,
+    input_nullifiers: Vec<Fr>,
     output_count: usize,
     output_commitments: Vec<Fr>,
-    input: InputWitness,
+    inputs: Vec<InputWitness>,
     outputs: Vec<OutputWitness>,
 }
 
@@ -356,6 +358,54 @@ fn recipient_digest(recipient: &str) -> Fr {
     contract_sha3_to_field(recipient)
 }
 
+fn encode_command_payload_part(prefix: &str, value: &str) -> String {
+    format!("{prefix}:{}:{value}", value.len())
+}
+
+fn canonicalize_command_payload(
+    value: &serde_json::Value,
+) -> Result<String, Box<dyn Error>> {
+    match value {
+        serde_json::Value::Null => Ok("n".to_string()),
+        serde_json::Value::Bool(flag) => Ok(if *flag { "b:1" } else { "b:0" }.to_string()),
+        serde_json::Value::Number(number) => {
+            if let Some(value) = number.as_i64() {
+                Ok(format!("i:{value}"))
+            } else if let Some(value) = number.as_u64() {
+                Ok(format!("i:{value}"))
+            } else {
+                Err("command payload numbers must be integers".into())
+            }
+        }
+        serde_json::Value::String(text) => Ok(encode_command_payload_part("s", text)),
+        serde_json::Value::Array(items) => {
+            let mut body = String::new();
+            for item in items {
+                body.push_str(&encode_command_payload_part(
+                    "e",
+                    &canonicalize_command_payload(item)?,
+                ));
+            }
+            Ok(format!("l:{}:{body}", items.len()))
+        }
+        serde_json::Value::Object(entries) => {
+            let mut keys: Vec<&String> = entries.keys().collect();
+            keys.sort();
+            let mut body = String::new();
+            for key in keys {
+                body.push_str(&encode_command_payload_part("k", key));
+                body.push_str(&encode_command_payload_part(
+                    "v",
+                    &canonicalize_command_payload(
+                        entries.get(key).expect("sorted key must exist"),
+                    )?,
+                ));
+            }
+            Ok(format!("d:{}:{body}", entries.len()))
+        }
+    }
+}
+
 fn mimc_permute_native(mut state: Fr) -> Fr {
     for round in 0..MIMC_ROUNDS {
         state += mimc_round_constant(round);
@@ -397,26 +447,36 @@ fn note_nullifier(asset_id: Fr, note: &NoteWitness) -> Fr {
     mimc_hash_many_native(&[asset_id, note.owner_secret, note.rho])
 }
 
+fn command_nullifier_digest(input_nullifiers: &[Fr]) -> Fr {
+    mimc_hash_many_native(input_nullifiers)
+}
+
 fn command_binding(
-    base_nullifier: Fr,
+    nullifier_digest: Fr,
     target_digest: Fr,
     payload_digest: Fr,
     relayer_digest: Fr,
     expiry_digest: Fr,
+    chain_digest: Fr,
+    entrypoint_digest: Fr,
+    version_digest: Fr,
     fee: u64,
 ) -> Fr {
     mimc_hash_many_native(&[
-        base_nullifier,
+        nullifier_digest,
         target_digest,
         payload_digest,
         relayer_digest,
         expiry_digest,
+        chain_digest,
+        entrypoint_digest,
+        version_digest,
         Fr::from(fee),
     ])
 }
 
-fn command_execution_tag(base_nullifier: Fr, command_binding: Fr) -> Fr {
-    mimc_hash_many_native(&[base_nullifier, command_binding])
+fn command_execution_tag(nullifier_digest: Fr, command_binding: Fr) -> Fr {
+    mimc_hash_many_native(&[nullifier_digest, command_binding])
 }
 
 fn merkle_parent(left: Fr, right: Fr) -> Fr {
@@ -729,30 +789,51 @@ pub fn shielded_note_auth_path_hex(
     )
 }
 
+pub fn shielded_command_nullifier_digest_hex(
+    input_nullifier_hexes: &[String],
+) -> Result<String, Box<dyn Error>> {
+    if input_nullifier_hexes.is_empty() || input_nullifier_hexes.len() > SHIELDED_NOTE_MAX_INPUTS {
+        return Err("invalid input nullifier count".into());
+    }
+    let parsed = input_nullifier_hexes
+        .iter()
+        .map(|value| parse_field_hex(value))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(field_hex(command_nullifier_digest(
+        &pad_fields(parsed, SHIELDED_NOTE_MAX_INPUTS),
+    )))
+}
+
 pub fn shielded_command_binding_hex(
-    base_nullifier_hex: &str,
+    nullifier_digest_hex: &str,
     target_digest_hex: &str,
     payload_digest_hex: &str,
     relayer_digest_hex: &str,
     expiry_digest_hex: &str,
+    chain_digest_hex: &str,
+    entrypoint_digest_hex: &str,
+    version_digest_hex: &str,
     fee: u64,
 ) -> Result<String, Box<dyn Error>> {
     Ok(field_hex(command_binding(
-        parse_field_hex(base_nullifier_hex)?,
+        parse_field_hex(nullifier_digest_hex)?,
         parse_field_hex(target_digest_hex)?,
         parse_field_hex(payload_digest_hex)?,
         parse_field_hex(relayer_digest_hex)?,
         parse_field_hex(expiry_digest_hex)?,
+        parse_field_hex(chain_digest_hex)?,
+        parse_field_hex(entrypoint_digest_hex)?,
+        parse_field_hex(version_digest_hex)?,
         fee,
     )))
 }
 
 pub fn shielded_command_execution_tag_hex(
-    base_nullifier_hex: &str,
+    nullifier_digest_hex: &str,
     command_binding_hex_value: &str,
 ) -> Result<String, Box<dyn Error>> {
     Ok(field_hex(command_execution_tag(
-        parse_field_hex(base_nullifier_hex)?,
+        parse_field_hex(nullifier_digest_hex)?,
         parse_field_hex(command_binding_hex_value)?,
     )))
 }
@@ -854,11 +935,15 @@ fn note_nullifier_var(
     mimc_hash_many_var(&[asset_id.clone(), owner_secret.clone(), rho.clone()])
 }
 
+fn command_nullifier_digest_var(input_nullifiers: &[FpVar<Fr>]) -> FpVar<Fr> {
+    mimc_hash_many_var(input_nullifiers)
+}
+
 fn command_execution_tag_var(
-    base_nullifier: &FpVar<Fr>,
+    nullifier_digest: &FpVar<Fr>,
     command_binding: &FpVar<Fr>,
 ) -> FpVar<Fr> {
-    mimc_hash_many_var(&[base_nullifier.clone(), command_binding.clone()])
+    mimc_hash_many_var(&[nullifier_digest.clone(), command_binding.clone()])
 }
 
 fn merkle_parent_var(left: &FpVar<Fr>, right: &FpVar<Fr>) -> FpVar<Fr> {
@@ -1183,20 +1268,13 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
 
 impl CommandCircuit {
     fn blank() -> Self {
-        let asset_id = hash_to_field("shielded-command:blank:asset");
-        let note = NoteWitness {
-            owner_secret: hash_to_field("shielded-command:blank:owner"),
-            amount: 0,
-            rho: hash_to_field("shielded-command:blank:rho"),
-            blind: hash_to_field("shielded-command:blank:blind"),
-        };
-        let commitment = note_commitment(asset_id, &note);
-        let old_root = tree_state_from_commitments(&[field_hex(commitment)])
-            .expect("blank command root should build")
-            .root;
-        let input_nullifier = note_nullifier(asset_id, &note);
+        let input_nullifiers = vec![Fr::zero(); SHIELDED_NOTE_MAX_INPUTS];
+        let nullifier_digest = command_nullifier_digest(&input_nullifiers);
         let command_binding = command_binding(
-            input_nullifier,
+            nullifier_digest,
+            Fr::zero(),
+            Fr::zero(),
+            Fr::zero(),
             Fr::zero(),
             Fr::zero(),
             Fr::zero(),
@@ -1204,21 +1282,18 @@ impl CommandCircuit {
             0,
         );
         Self {
-            asset_id,
-            old_root,
+            asset_id: Fr::zero(),
+            old_root: zero_root(),
             command_binding,
-            execution_tag: command_execution_tag(input_nullifier, command_binding),
+            execution_tag: command_execution_tag(nullifier_digest, command_binding),
             fee: 0,
-            input_nullifier,
+            input_count: 0,
+            input_nullifiers,
             output_count: 0,
             output_commitments: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
-            input: InputWitness {
-                enabled: true,
-                note,
-                merkle_path: auth_path_from_leaves(&[commitment], 0)
-                    .expect("blank command auth path should build"),
-                path_directions: path_directions_for_leaf_index(0),
-            },
+            inputs: (0..SHIELDED_NOTE_MAX_INPUTS)
+                .map(|_| blank_input_witness())
+                .collect(),
             outputs: (0..SHIELDED_NOTE_MAX_OUTPUTS)
                 .map(|_| blank_output_witness())
                 .collect(),
@@ -1232,9 +1307,10 @@ impl CommandCircuit {
             self.command_binding,
             self.execution_tag,
             Fr::from(self.fee),
-            self.input_nullifier,
+            Fr::from(self.input_count as u64),
             Fr::from(self.output_count as u64),
         ];
+        values.extend(self.input_nullifiers.iter().copied());
         values.extend(self.output_commitments.iter().copied());
         values
     }
@@ -1248,33 +1324,47 @@ impl ConstraintSynthesizer<Fr> for CommandCircuit {
         let command_binding = &public[2];
         let public_execution_tag = &public[3];
         let fee = &public[4];
-        let public_nullifier = &public[5];
+        let input_count = &public[5];
         let output_count = &public[6];
-        let public_commitments = &public[7..7 + SHIELDED_NOTE_MAX_OUTPUTS];
+        let public_nullifiers = &public[7..7 + SHIELDED_NOTE_MAX_INPUTS];
+        let public_commitments = &public[7 + SHIELDED_NOTE_MAX_INPUTS
+            ..7 + SHIELDED_NOTE_MAX_INPUTS + SHIELDED_NOTE_MAX_OUTPUTS];
 
-        let owner_secret =
-            FpVar::<Fr>::new_witness(cs.clone(), || Ok(self.input.note.owner_secret))?;
-        let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(self.input.note.rho))?;
-        let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(self.input.note.blind))?;
-        let note_amount = amount_bits_to_var(cs.clone(), self.input.note.amount)?;
-        let commitment = note_commitment_var(asset_id, &owner_secret, &note_amount, &rho, &blind);
-        let auth_path = witness_path_var(cs.clone(), &self.input.merkle_path)?;
-        let membership_root = merkle_root_from_auth_path_var(
-            cs.clone(),
-            &commitment,
-            &auth_path,
-            &self.input.path_directions,
-        )?;
-        membership_root.enforce_equal(old_root)?;
-
-        let nullifier = note_nullifier_var(asset_id, &owner_secret, &rho);
-        public_nullifier.enforce_equal(&nullifier)?;
-
-        let execution_tag = command_execution_tag_var(&nullifier, command_binding);
-        public_execution_tag.enforce_equal(&execution_tag)?;
-
+        let mut input_enabled_sum = FpVar::constant(Fr::zero());
         let mut output_enabled_sum = FpVar::constant(Fr::zero());
+        let mut input_sum = FpVar::constant(Fr::zero());
         let mut output_sum = FpVar::constant(Fr::zero());
+
+        for (index, input) in self.inputs.iter().enumerate() {
+            let enabled = Boolean::new_witness(cs.clone(), || Ok(input.enabled))?;
+            let enabled_fp = bool_to_fp(&enabled)?;
+            input_enabled_sum += enabled_fp.clone();
+
+            let owner_secret =
+                FpVar::<Fr>::new_witness(cs.clone(), || Ok(input.note.owner_secret))?;
+            let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(input.note.rho))?;
+            let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(input.note.blind))?;
+            let note_amount = amount_bits_to_var(cs.clone(), input.note.amount)?;
+            let commitment =
+                note_commitment_var(asset_id, &owner_secret, &note_amount, &rho, &blind);
+            let auth_path = witness_path_var(cs.clone(), &input.merkle_path)?;
+            let membership_root = merkle_root_from_auth_path_var(
+                cs.clone(),
+                &commitment,
+                &auth_path,
+                &input.path_directions,
+            )?;
+            ((membership_root - old_root.clone()) * enabled_fp.clone())
+                .enforce_equal(&FpVar::constant(Fr::zero()))?;
+
+            let nullifier = note_nullifier_var(asset_id, &owner_secret, &rho) * enabled_fp.clone();
+            public_nullifiers[index].enforce_equal(&nullifier)?;
+            input_sum += note_amount * enabled_fp;
+        }
+
+        let nullifier_digest = command_nullifier_digest_var(public_nullifiers);
+        let execution_tag = command_execution_tag_var(&nullifier_digest, command_binding);
+        public_execution_tag.enforce_equal(&execution_tag)?;
 
         for (index, output) in self.outputs.iter().enumerate() {
             let enabled = Boolean::new_witness(cs.clone(), || Ok(output.enabled))?;
@@ -1292,8 +1382,9 @@ impl ConstraintSynthesizer<Fr> for CommandCircuit {
             output_sum += note_amount * enabled_fp;
         }
 
+        input_enabled_sum.enforce_equal(input_count)?;
         output_enabled_sum.enforce_equal(output_count)?;
-        note_amount.enforce_equal(&(output_sum + fee.clone()))?;
+        input_sum.enforce_equal(&(output_sum + fee.clone()))?;
         Ok(())
     }
 }
@@ -1844,9 +1935,9 @@ pub fn build_insecure_dev_shielded_command_bundle(
     let descriptor = ShieldedCommandBundleDescriptor {
         contract_name: "con_shielded_commands",
         warning: "INSECURE DEV BUNDLE: deterministic setup seed exposes toxic waste and must never be used on a real network.",
-        deposit_vk_id: "shielded-command-deposit-v1",
-        command_vk_id: "shielded-command-execute-v1",
-        withdraw_vk_id: "shielded-command-withdraw-v1",
+        deposit_vk_id: "shielded-command-deposit-v2",
+        command_vk_id: "shielded-command-execute-v2",
+        withdraw_vk_id: "shielded-command-withdraw-v2",
     };
     build_shielded_command_bundle_with_rng(&mut rng, &descriptor)
 }
@@ -2014,6 +2105,9 @@ pub fn prove_shielded_command_execute(
     bundle: &ShieldedCommandProverBundle,
     request: &ShieldedCommandRequest,
 ) -> Result<ShieldedCommandProofResult, Box<dyn Error>> {
+    if request.inputs.is_empty() || request.inputs.len() > SHIELDED_NOTE_MAX_INPUTS {
+        return Err("invalid input count".into());
+    }
     if request.outputs.len() > SHIELDED_NOTE_MAX_OUTPUTS {
         return Err("invalid output count".into());
     }
@@ -2021,10 +2115,23 @@ pub fn prove_shielded_command_execute(
     let asset_id = parse_field_hex(&request.asset_id)?;
     let old_root = parse_field_hex(&request.old_root)?;
     let append_state = parse_tree_state(&request.append_state)?;
-    let input = input_witness_from_request(&request.input)?;
-    let input_nullifier = note_nullifier(asset_id, &input.note);
+    let mut input_witnesses = Vec::new();
+    let mut input_nullifiers = Vec::new();
+    for input in &request.inputs {
+        let witness = input_witness_from_request(input)?;
+        input_nullifiers.push(note_nullifier(asset_id, &witness.note));
+        input_witnesses.push(witness);
+    }
+    while input_witnesses.len() < SHIELDED_NOTE_MAX_INPUTS {
+        input_witnesses.push(blank_input_witness());
+    }
+
+    let padded_input_nullifiers = pad_fields(input_nullifiers.clone(), SHIELDED_NOTE_MAX_INPUTS);
     let command_binding_value = parse_field_hex(&request.command_binding)?;
-    let execution_tag = command_execution_tag(input_nullifier, command_binding_value);
+    let execution_tag = command_execution_tag(
+        command_nullifier_digest(&padded_input_nullifiers),
+        command_binding_value,
+    );
     let (output_witnesses, output_commitments) =
         build_output_witnesses(asset_id, &request.outputs)?;
     let expected_new_root = append_commitments_to_state(&append_state, &output_commitments)?.root;
@@ -2034,10 +2141,11 @@ pub fn prove_shielded_command_execute(
         command_binding: command_binding_value,
         execution_tag,
         fee: request.fee,
-        input_nullifier,
+        input_count: request.inputs.len(),
+        input_nullifiers: padded_input_nullifiers,
         output_count: request.outputs.len(),
         output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
-        input,
+        inputs: input_witnesses,
         outputs: output_witnesses,
     };
     let proof = prove_with_pk(&bundle.command.pk_hex, circuit.clone())?;
@@ -2048,7 +2156,7 @@ pub fn prove_shielded_command_execute(
         public_inputs: circuit.public_inputs().into_iter().map(field_hex).collect(),
         command_binding: field_hex(command_binding_value),
         execution_tag: field_hex(execution_tag),
-        input_nullifier: field_hex(input_nullifier),
+        input_nullifiers: input_nullifiers.into_iter().map(field_hex).collect(),
         output_commitments: output_commitments.into_iter().map(field_hex).collect(),
     })
 }
@@ -2103,21 +2211,33 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
         "label": "hidden",
     });
     let relayer = "relayer";
+    let chain_id = "xian-local-1";
     let expires_at = "2026-01-01 12:30:00";
 
     let target_digest = contract_sha3_to_field(target_contract);
-    let payload_digest = contract_sha3_to_field("{increment:4,label:hidden}");
+    let payload_digest = contract_sha3_to_field(&canonicalize_command_payload(&payload)?);
     let relayer_digest = contract_sha3_to_field(relayer);
     let expiry_digest = contract_sha3_to_field(expires_at);
+    let chain_digest = contract_sha3_to_field(chain_id);
+    let entrypoint_digest = contract_sha3_to_field("interact");
+    let version_digest = contract_sha3_to_field("shielded-command-v2");
+    let padded_input_nullifiers =
+        pad_fields(vec![nullifier_a1], SHIELDED_NOTE_MAX_INPUTS);
     let command_binding_value = command_binding(
-        nullifier_a1,
+        command_nullifier_digest(&padded_input_nullifiers),
         target_digest,
         payload_digest,
         relayer_digest,
         expiry_digest,
+        chain_digest,
+        entrypoint_digest,
+        version_digest,
         7,
     );
-    let execution_tag = command_execution_tag(nullifier_a1, command_binding_value);
+    let execution_tag = command_execution_tag(
+        command_nullifier_digest(&padded_input_nullifiers),
+        command_binding_value,
+    );
 
     let bundle = build_insecure_dev_shielded_command_bundle()?;
 
@@ -2144,7 +2264,7 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
             old_root: field_hex(state1.root),
             append_state: frontier_state_to_public(&state1),
             fee: 7,
-            input: ShieldedInputRequest {
+            inputs: vec![ShieldedInputRequest {
                 owner_secret: field_hex(note_a1.owner_secret),
                 amount: note_a1.amount,
                 rho: field_hex(note_a1.rho),
@@ -2154,7 +2274,7 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
                     .into_iter()
                     .map(field_hex)
                     .collect(),
-            },
+            }],
             outputs: vec![ShieldedOutputRequest {
                 owner_public: field_hex(owner_public(note_a2.owner_secret)),
                 amount: note_a2.amount,
@@ -2241,7 +2361,8 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
             fee: 7,
             command_binding: field_hex(command_binding_value),
             execution_tag: field_hex(execution_tag),
-            input_nullifier: field_hex(nullifier_a1),
+            input_count: 1,
+            input_nullifiers: vec![field_hex(nullifier_a1)],
             output_count: 1,
             output_commitments: command.output_commitments,
             target_contract: target_contract.to_string(),
