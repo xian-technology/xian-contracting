@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xian-tech-contracting"
-version = "1.0.2"
+version = "1.0.3"
 description = "Xian Network Python Contracting Engine"
 readme = "README.md"
 license = "GPL-3.0-only"
