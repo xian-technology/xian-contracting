@@ -226,7 +226,10 @@ class Executor:
                 "result": result,
                 "stamps_used": stamps_used,
                 "writes": transaction_writes,
-                "reads": driver.transaction_reads,
+                "reads": deepcopy(driver.transaction_reads),
+                "prefix_reads": frozenset(
+                    driver.transaction_read_prefixes
+                ),
                 "events": events,
                 "contract_costs": contract_costs,
             }

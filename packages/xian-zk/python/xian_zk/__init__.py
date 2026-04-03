@@ -6,6 +6,19 @@ from xian_zk._native import (
     verify_groth16_bn254,
     verify_groth16_bn254_prepared,
 )
+from xian_zk.shielded_commands import (
+    ShieldedCommandProofResult,
+    ShieldedCommandProver,
+    ShieldedCommandRequest,
+    canonicalize_command_payload,
+    command_binding,
+    command_execution_tag,
+    command_expiry_digest,
+    command_payload_digest,
+    command_relayer_digest,
+    command_target_digest,
+    shielded_command_registry_manifest,
+)
 from xian_zk.shielded_notes import (
     ShieldedDepositRequest,
     ShieldedDiscoveredNote,
@@ -50,6 +63,9 @@ from xian_zk.shielded_notes import (
 
 __all__ = [
     "PreparedGroth16Bn254Key",
+    "ShieldedCommandProofResult",
+    "ShieldedCommandProver",
+    "ShieldedCommandRequest",
     "ShieldedDepositRequest",
     "ShieldedDiscoveredNote",
     "ShieldedInput",
@@ -77,6 +93,13 @@ __all__ = [
     "ZkEncodingError",
     "ZkVerifierError",
     "asset_id_for_contract",
+    "canonicalize_command_payload",
+    "command_binding",
+    "command_execution_tag",
+    "command_expiry_digest",
+    "command_payload_digest",
+    "command_relayer_digest",
+    "command_target_digest",
     "decrypt_note_message",
     "encrypt_note_message",
     "generate_field_hex",
@@ -89,6 +112,7 @@ __all__ = [
     "recover_viewable_notes",
     "recipient_digest",
     "scan_notes",
+    "shielded_command_registry_manifest",
     "shielded_registry_manifest",
     "tree_state",
     "verify_groth16_bn254",

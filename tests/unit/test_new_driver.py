@@ -30,6 +30,15 @@ class TestDriver(unittest.TestCase):
         retrieved_value = self.driver.find(key)
         self.assertEqual(retrieved_value, value)
 
+    def test_find_respects_pending_writes_when_cache_is_bypassed(self):
+        driver = Driver(bypass_cache=True)
+        driver.flush_full()
+        try:
+            driver.set("pending_key", "pending_value")
+            self.assertEqual(driver.find("pending_key"), "pending_value")
+        finally:
+            driver.flush_full()
+
     def test_keys_from_disk(self):
         key1 = 'test_key1'
         key2 = 'test_key2'

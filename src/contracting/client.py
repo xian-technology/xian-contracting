@@ -11,6 +11,7 @@ from xian_runtime_types.time import Datetime
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution import runtime
 from contracting.execution.executor import Executor
+from contracting.execution.parallel import ParallelBatchExecutor
 from contracting.storage.driver import Driver
 
 from . import constants
@@ -269,6 +270,22 @@ class ContractingClient:
                 self.raw_driver.commit()
 
         self.submission_contract = self.get_contract("submission")
+
+    def build_parallel_executor(
+        self,
+        *,
+        enabled: bool = True,
+        workers: int = 0,
+        min_batch_size: int = 8,
+        tracer_mode: str | None = None,
+    ) -> ParallelBatchExecutor:
+        return ParallelBatchExecutor(
+            executor=self.executor,
+            enabled=enabled,
+            workers=workers,
+            min_batch_size=min_batch_size,
+            tracer_mode=tracer_mode,
+        )
 
     def flush(self):
         # flushes storage and resubmits genesis contracts

@@ -4,14 +4,21 @@ use crate::core::{
     PreparedGroth16Bn254Key as CorePreparedGroth16Bn254Key, VerifierError,
 };
 use crate::shielded_notes::{
+    build_insecure_dev_shielded_command_bundle as build_dev_command_bundle_impl,
     build_insecure_dev_shielded_note_bundle as build_dev_bundle_impl,
+    build_random_shielded_command_bundle as build_random_command_bundle_impl,
     build_random_shielded_note_bundle as build_random_bundle_impl,
+    prove_shielded_command_deposit as prove_command_deposit_impl,
+    prove_shielded_command_execute as prove_command_execute_impl,
+    prove_shielded_command_withdraw as prove_command_withdraw_impl,
     prove_shielded_deposit as prove_deposit_impl, prove_shielded_transfer as prove_transfer_impl,
-    prove_shielded_withdraw as prove_withdraw_impl, shielded_note_asset_id_hex,
+    prove_shielded_withdraw as prove_withdraw_impl, shielded_command_binding_hex,
+    shielded_command_execution_tag_hex, shielded_note_asset_id_hex,
     shielded_note_auth_path_hex, shielded_note_commitment_hex, shielded_note_nullifier_hex,
     shielded_note_output_commitment_hex, shielded_note_owner_public_hex,
     shielded_note_recipient_digest_hex, shielded_note_root_hex, shielded_note_tree_state,
-    shielded_note_zero_root_hex, ShieldedDepositRequest,
+    shielded_note_zero_root_hex, ShieldedCommandProverBundle as CoreShieldedCommandProverBundle,
+    ShieldedCommandRequest, ShieldedDepositRequest,
     ShieldedProverBundle as CoreShieldedProverBundle, ShieldedTransferRequest,
     ShieldedWithdrawRequest,
 };
@@ -37,6 +44,11 @@ struct PreparedGroth16Bn254Key {
 #[pyclass(unsendable)]
 struct ShieldedNoteProverBundle {
     inner: CoreShieldedProverBundle,
+}
+
+#[pyclass(unsendable)]
+struct ShieldedCommandProverBundle {
+    inner: CoreShieldedCommandProverBundle,
 }
 
 #[pyfunction]
@@ -85,10 +97,40 @@ fn build_random_shielded_note_bundle_json(
 }
 
 #[pyfunction]
+fn build_insecure_dev_shielded_command_bundle_json() -> PyResult<String> {
+    serde_json::to_string_pretty(
+        &build_dev_command_bundle_impl()
+            .map_err(|error| PyValueError::new_err(error.to_string()))?,
+    )
+    .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
+fn build_random_shielded_command_bundle_json(
+    contract_name: &str,
+    vk_id_prefix: &str,
+) -> PyResult<String> {
+    serde_json::to_string_pretty(
+        &build_random_command_bundle_impl(contract_name, vk_id_prefix)
+            .map_err(|error| PyValueError::new_err(error.to_string()))?,
+    )
+    .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
 fn load_shielded_note_prover_bundle(bundle_json: &str) -> PyResult<ShieldedNoteProverBundle> {
     let inner: CoreShieldedProverBundle = serde_json::from_str(bundle_json)
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
     Ok(ShieldedNoteProverBundle { inner })
+}
+
+#[pyfunction]
+fn load_shielded_command_prover_bundle(
+    bundle_json: &str,
+) -> PyResult<ShieldedCommandProverBundle> {
+    let inner: CoreShieldedCommandProverBundle = serde_json::from_str(bundle_json)
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    Ok(ShieldedCommandProverBundle { inner })
 }
 
 #[pyfunction]
@@ -173,6 +215,35 @@ fn shielded_note_auth_path(commitments: Vec<String>, leaf_index: usize) -> PyRes
 }
 
 #[pyfunction]
+fn shielded_command_binding(
+    base_nullifier_hex: &str,
+    target_digest_hex: &str,
+    payload_digest_hex: &str,
+    relayer_digest_hex: &str,
+    expiry_digest_hex: &str,
+    fee: u64,
+) -> PyResult<String> {
+    shielded_command_binding_hex(
+        base_nullifier_hex,
+        target_digest_hex,
+        payload_digest_hex,
+        relayer_digest_hex,
+        expiry_digest_hex,
+        fee,
+    )
+    .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
+fn shielded_command_execution_tag(
+    base_nullifier_hex: &str,
+    command_binding_hex_value: &str,
+) -> PyResult<String> {
+    shielded_command_execution_tag_hex(base_nullifier_hex, command_binding_hex_value)
+        .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
 fn prove_shielded_note_deposit(
     bundle: &ShieldedNoteProverBundle,
     request_json: &str,
@@ -208,10 +279,47 @@ fn prove_shielded_note_withdraw(
     serde_json::to_string_pretty(&result).map_err(|error| PyValueError::new_err(error.to_string()))
 }
 
+#[pyfunction]
+fn prove_shielded_command_deposit(
+    bundle: &ShieldedCommandProverBundle,
+    request_json: &str,
+) -> PyResult<String> {
+    let request: ShieldedDepositRequest = serde_json::from_str(request_json)
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    let result = prove_command_deposit_impl(&bundle.inner, &request)
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    serde_json::to_string_pretty(&result).map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
+fn prove_shielded_command_execute(
+    bundle: &ShieldedCommandProverBundle,
+    request_json: &str,
+) -> PyResult<String> {
+    let request: ShieldedCommandRequest = serde_json::from_str(request_json)
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    let result = prove_command_execute_impl(&bundle.inner, &request)
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    serde_json::to_string_pretty(&result).map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
+fn prove_shielded_command_withdraw(
+    bundle: &ShieldedCommandProverBundle,
+    request_json: &str,
+) -> PyResult<String> {
+    let request: ShieldedWithdrawRequest = serde_json::from_str(request_json)
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    let result = prove_command_withdraw_impl(&bundle.inner, &request)
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    serde_json::to_string_pretty(&result).map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
 #[pymodule]
 fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PreparedGroth16Bn254Key>()?;
     module.add_class::<ShieldedNoteProverBundle>()?;
+    module.add_class::<ShieldedCommandProverBundle>()?;
     module.add_function(wrap_pyfunction!(prepare_groth16_bn254_vk, module)?)?;
     module.add_function(wrap_pyfunction!(verify_groth16_bn254, module)?)?;
     module.add_function(wrap_pyfunction!(verify_groth16_bn254_prepared, module)?)?;
@@ -223,7 +331,16 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
         build_random_shielded_note_bundle_json,
         module
     )?)?;
+    module.add_function(wrap_pyfunction!(
+        build_insecure_dev_shielded_command_bundle_json,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        build_random_shielded_command_bundle_json,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(load_shielded_note_prover_bundle, module)?)?;
+    module.add_function(wrap_pyfunction!(load_shielded_command_prover_bundle, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_zero_root, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_asset_id, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_recipient_digest, module)?)?;
@@ -234,9 +351,14 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(shielded_note_root, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_tree_state_json, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_auth_path, module)?)?;
+    module.add_function(wrap_pyfunction!(shielded_command_binding, module)?)?;
+    module.add_function(wrap_pyfunction!(shielded_command_execution_tag, module)?)?;
     module.add_function(wrap_pyfunction!(prove_shielded_note_deposit, module)?)?;
     module.add_function(wrap_pyfunction!(prove_shielded_note_transfer, module)?)?;
     module.add_function(wrap_pyfunction!(prove_shielded_note_withdraw, module)?)?;
+    module.add_function(wrap_pyfunction!(prove_shielded_command_deposit, module)?)?;
+    module.add_function(wrap_pyfunction!(prove_shielded_command_execute, module)?)?;
+    module.add_function(wrap_pyfunction!(prove_shielded_command_withdraw, module)?)?;
     module.add("ZkEncodingError", py.get_type::<ZkEncodingError>())?;
     module.add("ZkVerifierError", py.get_type::<ZkVerifierError>())?;
     Ok(())

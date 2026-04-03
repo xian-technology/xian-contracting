@@ -79,12 +79,15 @@ class Driver:
         if is_txn_write:
             self.transaction_writes[key] = value
 
-    def find(self, key: str):
-        if self.bypass_cache:
-            return self._store.get(key)
+    def apply_writes(self, writes: dict[str, object]) -> None:
+        for key, value in writes.items():
+            if isinstance(value, (decimal.Decimal, float)):
+                value = ContractingDecimal(str(value))
+            self.pending_writes[key] = value
 
+    def find(self, key: str):
         value = self.pending_writes.get(key)
-        if value is None:
+        if value is None and not self.bypass_cache:
             value = self.cache.get(key)
         if value is None:
             value = self._store.get(key)
