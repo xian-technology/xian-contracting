@@ -1,0 +1,16 @@
+[package]
+name = "xian-fastpath-core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Rust fast paths for Xian transaction validation"
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+ed25519-dalek = { version = "2.1.1", default-features = false, features = ["std"] }
+hex = "0.4.3"
+pyo3 = { version = "0.23.5", features = ["abi3-py312", "extension-module"] }
+serde_json = "1.0.145"

@@ -361,7 +361,7 @@ wheels = [
 
 [[package]]
 name = "xian-tech-contracting"
-version = "1.0.2"
+version = "1.0.3"
 source = { editable = "." }
 dependencies = [
     { name = "autopep8" },
@@ -373,6 +373,7 @@ dependencies = [
 
 [package.optional-dependencies]
 native = [
+    { name = "xian-tech-fastpath-core" },
     { name = "xian-tech-native-tracer" },
 ]
 zk = [
@@ -392,6 +393,7 @@ requires-dist = [
     { name = "cachetools", specifier = ">=5,<8" },
     { name = "lmdb", specifier = ">=1.6,<3" },
     { name = "pynacl", specifier = ">=1.5.0,<2" },
+    { name = "xian-tech-fastpath-core", marker = "extra == 'native'", editable = "packages/xian-fastpath-core" },
     { name = "xian-tech-native-tracer", marker = "extra == 'native'", editable = "packages/xian-native-tracer" },
     { name = "xian-tech-runtime-types", editable = "packages/xian-runtime-types" },
     { name = "xian-tech-zk", marker = "extra == 'zk'", editable = "packages/xian-zk" },
@@ -406,6 +408,11 @@ dev = [
 ]
 
 [[package]]
+name = "xian-tech-fastpath-core"
+version = "0.1.0"
+source = { editable = "packages/xian-fastpath-core" }
+
+[[package]]
 name = "xian-tech-native-tracer"
 version = "0.1.1"
 source = { editable = "packages/xian-native-tracer" }
@@ -417,7 +424,7 @@ source = { editable = "packages/xian-runtime-types" }
 
 [[package]]
 name = "xian-tech-zk"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/xian-zk" }
 dependencies = [
     { name = "pynacl" },

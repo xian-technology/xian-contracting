@@ -60,6 +60,26 @@ COUNTER_CONTRACT_CODE = textwrap.dedent(
 )
 
 
+READ_WRITE_CONTRACT_CODE = textwrap.dedent(
+    """
+    value = Variable()
+
+    @construct
+    def seed():
+        value.set(0)
+
+    @export
+    def set_value(new_value: int):
+        value.set(new_value)
+        return value.get()
+
+    @export
+    def get_value():
+        return value.get()
+    """
+)
+
+
 class TestParallelBatchExecutor(unittest.TestCase):
     def _build_client(self, storage_home: Path) -> ContractingClient:
         client = ContractingClient(storage_home=storage_home)
@@ -67,10 +87,11 @@ class TestParallelBatchExecutor(unittest.TestCase):
         client.submit(CONTRACT_CODE, name="con_token_b", signer="bob")
         client.submit(SCAN_CONTRACT_CODE, name="con_scan", signer="sys")
         client.submit(COUNTER_CONTRACT_CODE, name="con_counter", signer="sys")
+        client.submit(READ_WRITE_CONTRACT_CODE, name="con_rw", signer="sys")
         client.raw_driver.commit()
         return client
 
-    def test_parallel_batch_matches_serial_with_same_sender_fallback(self):
+    def test_parallel_batch_matches_serial_with_same_sender_prefilter(self):
         requests = [
             ExecutionRequest(
                 sender="sys",
@@ -127,7 +148,8 @@ class TestParallelBatchExecutor(unittest.TestCase):
             )
 
             self.assertEqual(stats.speculative_accepted, 2)
-            self.assertEqual(stats.serial_fallbacks, 1)
+            self.assertEqual(stats.serial_prefiltered, 1)
+            self.assertEqual(stats.serial_fallbacks, 0)
             self.assertEqual(
                 [output["result"] for output in parallel_outputs],
                 [output["result"] for output in serial_outputs],
@@ -141,7 +163,7 @@ class TestParallelBatchExecutor(unittest.TestCase):
                 serial_client.raw_driver.get("con_token_b.metadata:beta"),
             )
 
-    def test_parallel_batch_falls_back_for_prefix_reads(self):
+    def test_parallel_batch_defers_prefix_reads_without_serial_fallback(self):
         requests = [
             ExecutionRequest(
                 sender="alice",
@@ -171,7 +193,8 @@ class TestParallelBatchExecutor(unittest.TestCase):
             outputs, stats = executor.execute(requests=requests)
 
             self.assertEqual(stats.speculative_accepted, 1)
-            self.assertEqual(stats.serial_fallbacks, 1)
+            self.assertEqual(stats.serial_prefiltered, 1)
+            self.assertEqual(stats.serial_fallbacks, 0)
             self.assertEqual(
                 outputs[1]["prefix_reads"],
                 frozenset({"con_scan.values:"}),
@@ -200,10 +223,81 @@ class TestParallelBatchExecutor(unittest.TestCase):
             )
             outputs, stats = executor.execute(requests=requests)
 
-            self.assertTrue(outputs[0]["speculative_accepted"])
+            self.assertFalse(outputs[0]["speculative_accepted"])
             self.assertEqual(outputs[0]["result"], 11)
-            self.assertEqual(stats.speculative_accepted, 1)
+            self.assertEqual(stats.speculative_accepted, 0)
+            self.assertEqual(stats.serial_prefiltered, 1)
             self.assertEqual(client.raw_driver.get("con_counter.value"), 11)
+
+    def test_parallel_batch_respeculates_conflict_tail(self):
+        requests = [
+            ExecutionRequest(
+                sender="alice",
+                contract_name="con_rw",
+                function_name="set_value",
+                kwargs={"new_value": 7},
+                nonce=0,
+            ),
+            ExecutionRequest(
+                sender="bob",
+                contract_name="con_rw",
+                function_name="get_value",
+                kwargs={},
+                nonce=0,
+            ),
+            ExecutionRequest(
+                sender="carol",
+                contract_name="con_token_b",
+                function_name="change_metadata",
+                kwargs={"key": "gamma", "value": "three"},
+                nonce=0,
+            ),
+        ]
+
+        with (
+            tempfile.TemporaryDirectory() as serial_dir,
+            tempfile.TemporaryDirectory() as parallel_dir,
+        ):
+            serial_client = self._build_client(Path(serial_dir) / "xian")
+            parallel_client = self._build_client(Path(parallel_dir) / "xian")
+
+            serial_outputs = [
+                serial_client.executor.execute(
+                    sender=request.sender,
+                    contract_name=request.contract_name,
+                    function_name=request.function_name,
+                    kwargs=request.build_kwargs(),
+                    environment=request.build_environment(),
+                    stamps=request.stamps,
+                    stamp_cost=request.stamp_cost,
+                    metering=request.metering,
+                )
+                for request in requests
+            ]
+
+            parallel_executor = ParallelBatchExecutor(
+                executor=parallel_client.executor,
+                enabled=True,
+                workers=1,
+                min_batch_size=1,
+            )
+            parallel_outputs, stats = parallel_executor.execute(
+                requests=requests
+            )
+
+            self.assertEqual(stats.speculative_wave_count, 2)
+            self.assertEqual(stats.speculative_accepted, 3)
+            self.assertEqual(stats.serial_prefiltered, 0)
+            self.assertEqual(stats.serial_fallbacks, 0)
+            self.assertEqual(
+                [output["result"] for output in parallel_outputs],
+                [output["result"] for output in serial_outputs],
+            )
+            self.assertEqual(parallel_client.raw_driver.get("con_rw.value"), 7)
+            self.assertEqual(
+                parallel_client.raw_driver.get("con_token_b.metadata:gamma"),
+                "three",
+            )
 
 
 if __name__ == "__main__":

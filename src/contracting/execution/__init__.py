@@ -10,6 +10,7 @@ __all__ = [
     "ParallelExecutionStats",
     "ParallelPlan",
     "ParallelStage",
+    "SpeculativeExecutionController",
 ]
 
 
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
         ParallelExecutionStats,
         ParallelPlan,
         ParallelStage,
+        SpeculativeExecutionController,
     )
 
 
@@ -35,6 +37,7 @@ def __getattr__(name: str):
             ParallelExecutionStats,
             ParallelPlan,
             ParallelStage,
+            SpeculativeExecutionController,
         )
 
         exports = {
@@ -45,6 +48,9 @@ def __getattr__(name: str):
             "ParallelExecutionStats": ParallelExecutionStats,
             "ParallelPlan": ParallelPlan,
             "ParallelStage": ParallelStage,
+            "SpeculativeExecutionController": (
+                SpeculativeExecutionController
+            ),
         }
         return exports[name]
     raise AttributeError(name)
