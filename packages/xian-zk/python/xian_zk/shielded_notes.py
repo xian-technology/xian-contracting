@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import secrets
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Callable, Sequence
 
 from nacl.bindings import (
@@ -29,12 +30,18 @@ from xian_zk._native import (
     shielded_note_root,
     shielded_note_tree_state_json,
     shielded_note_zero_root,
+    shielded_output_payload_hash,
 )
 
 _FIELD_MODULUS = 21888242871839275222246405745257275088548364400416034343698204186575808495617
+_FIELD_ZERO_HEX = "0x" + "00" * 32
 _PAYLOAD_VERSION = 1
 _SHIELDED_NOTE_MAX_INPUTS = 4
 _SHIELDED_NOTE_MAX_OUTPUTS = 4
+
+
+def _sha3_hex(value: str) -> str:
+    return "0x" + hashlib.sha3_256(value.encode("utf-8")).hexdigest()
 
 
 def _canonical_field_hex(value: int) -> str:
@@ -155,6 +162,16 @@ def output_commitment(
         rho,
         blind,
     )
+
+
+def output_payload_hash(payload_hex: str | None = None) -> str:
+    if payload_hex in (None, ""):
+        return _FIELD_ZERO_HEX
+    return shielded_output_payload_hash(payload_hex)
+
+
+def output_payload_hashes(payloads: Sequence[str | None]) -> list[str]:
+    return [output_payload_hash(payload) for payload in payloads]
 
 
 @dataclass(frozen=True)
@@ -522,6 +539,7 @@ class ShieldedDepositRequest:
     append_state: ShieldedTreeState
     amount: int
     outputs: list[ShieldedOutput]
+    output_payload_hashes: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -531,6 +549,7 @@ class ShieldedTransferRequest:
     append_state: ShieldedTreeState
     inputs: list[ShieldedInput]
     outputs: list[ShieldedOutput]
+    output_payload_hashes: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -542,6 +561,7 @@ class ShieldedWithdrawRequest:
     recipient: str
     inputs: list[ShieldedInput]
     outputs: list[ShieldedOutput]
+    output_payload_hashes: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -552,6 +572,7 @@ class ShieldedProofResult:
     public_inputs: list[str]
     input_nullifiers: list[str]
     output_commitments: list[str]
+    output_payload_hashes: list[str]
 
     @classmethod
     def from_json(cls, payload: str) -> "ShieldedProofResult":
@@ -686,6 +707,7 @@ class ShieldedWalletDepositPlan:
     request: ShieldedDepositRequest
     created_notes: list[ShieldedNote]
     output_payloads: list[str]
+    output_payload_hashes: list[str]
 
 
 @dataclass(frozen=True)
@@ -695,6 +717,7 @@ class ShieldedWalletTransferPlan:
     recipient_output: ShieldedOutput
     change_note: ShieldedNote | None
     output_payloads: list[str]
+    output_payload_hashes: list[str]
 
 
 @dataclass(frozen=True)
@@ -703,6 +726,7 @@ class ShieldedWalletWithdrawPlan:
     input_notes: list[ShieldedWalletNote]
     change_note: ShieldedNote | None
     output_payloads: list[str]
+    output_payload_hashes: list[str]
 
 
 class ShieldedWallet:
@@ -1084,6 +1108,8 @@ class ShieldedWallet:
                 )
             )
 
+        payload_hashes = output_payload_hashes(payloads)
+
         return ShieldedWalletDepositPlan(
             request=ShieldedDepositRequest(
                 asset_id=self.asset_id,
@@ -1091,9 +1117,11 @@ class ShieldedWallet:
                 append_state=append_state,
                 amount=amount,
                 outputs=outputs,
+                output_payload_hashes=payload_hashes,
             ),
             created_notes=created_notes,
             output_payloads=payloads,
+            output_payload_hashes=payload_hashes,
         )
 
     def build_transfer(
@@ -1153,6 +1181,8 @@ class ShieldedWallet:
                 )
             )
 
+        payload_hashes = output_payload_hashes(payloads)
+
         return ShieldedWalletTransferPlan(
             request=ShieldedTransferRequest(
                 asset_id=self.asset_id,
@@ -1160,11 +1190,13 @@ class ShieldedWallet:
                 append_state=append_state,
                 inputs=[note.to_input(commitments) for note in input_notes],
                 outputs=outputs,
+                output_payload_hashes=payload_hashes,
             ),
             input_notes=input_notes,
             recipient_output=recipient_output,
             change_note=change_note,
             output_payloads=payloads,
+            output_payload_hashes=payload_hashes,
         )
 
     def build_withdraw(
@@ -1209,6 +1241,8 @@ class ShieldedWallet:
                 )
             )
 
+        payload_hashes = output_payload_hashes(payloads)
+
         return ShieldedWalletWithdrawPlan(
             request=ShieldedWithdrawRequest(
                 asset_id=self.asset_id,
@@ -1218,10 +1252,12 @@ class ShieldedWallet:
                 recipient=recipient,
                 inputs=[note.to_input(commitments) for note in input_notes],
                 outputs=outputs,
+                output_payload_hashes=payload_hashes,
             ),
             input_notes=input_notes,
             change_note=change_note,
             output_payloads=payloads,
+            output_payload_hashes=payload_hashes,
         )
 
 
@@ -1305,16 +1341,33 @@ def shielded_registry_manifest(
     else:
         raise TypeError("bundle must be a ShieldedNoteProver or dict")
 
+    payload_json = json.dumps(payload, sort_keys=True)
+    bundle_hash = _sha3_hex(payload_json)
     entries = []
     configure_actions = []
     for action in ("deposit", "transfer", "withdraw"):
         circuit = payload[action]
         entries.append(
             {
+                "action": action,
                 "vk_id": circuit["vk_id"],
                 "vk_hex": circuit["vk_hex"],
                 "circuit_name": circuit["circuit_name"],
                 "version": circuit["version"],
+                "artifact_contract_name": payload["contract_name"],
+                "circuit_family": payload["circuit_family"],
+                "statement_version": circuit["version"],
+                "tree_depth": payload["tree_depth"],
+                "leaf_capacity": payload["leaf_capacity"],
+                "max_inputs": payload["max_inputs"],
+                "max_outputs": payload["max_outputs"],
+                "setup_mode": payload.get("setup_mode", ""),
+                "setup_ceremony": payload.get("setup_ceremony", ""),
+                "bundle_hash": bundle_hash,
+                "artifact_hash": _sha3_hex(
+                    json.dumps(circuit, sort_keys=True)
+                ),
+                "warning": payload["warning"],
             }
         )
         configure_actions.append(
@@ -1332,6 +1385,9 @@ def shielded_registry_manifest(
         "max_inputs": payload["max_inputs"],
         "max_outputs": payload["max_outputs"],
         "warning": payload["warning"],
+        "setup_mode": payload.get("setup_mode", ""),
+        "setup_ceremony": payload.get("setup_ceremony", ""),
+        "bundle_hash": bundle_hash,
         "registry_entries": entries,
         "configure_actions": configure_actions,
     }

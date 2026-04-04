@@ -17,6 +17,7 @@ pub use crate::shielded_notes::{
     shielded_note_auth_path_hex, shielded_note_commitment_hex,
     shielded_note_nullifier_hex, shielded_note_output_commitment_hex,
     shielded_note_owner_public_hex, shielded_note_recipient_digest_hex,
+    shielded_output_payload_hash_hex,
     shielded_note_root_hex, shielded_note_tree_state, shielded_note_zero_root_hex,
     ShieldedActionFixture, ShieldedCircuitBundle, ShieldedCommandActionFixture,
     ShieldedCommandFixture, ShieldedCommandProofResult, ShieldedCommandProverBundle,

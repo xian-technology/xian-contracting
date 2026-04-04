@@ -18,7 +18,8 @@ use crate::shielded_notes::{
     shielded_note_auth_path_hex, shielded_note_commitment_hex, shielded_note_nullifier_hex,
     shielded_note_output_commitment_hex, shielded_note_owner_public_hex,
     shielded_note_recipient_digest_hex, shielded_note_root_hex, shielded_note_tree_state,
-    shielded_note_zero_root_hex, ShieldedCommandProverBundle as CoreShieldedCommandProverBundle,
+    shielded_note_zero_root_hex, shielded_output_payload_hash_hex,
+    ShieldedCommandProverBundle as CoreShieldedCommandProverBundle,
     ShieldedCommandRequest, ShieldedDepositRequest,
     ShieldedProverBundle as CoreShieldedProverBundle, ShieldedTransferRequest,
     ShieldedWithdrawRequest,
@@ -150,6 +151,11 @@ fn shielded_note_recipient_digest(recipient: &str) -> String {
 }
 
 #[pyfunction]
+fn shielded_output_payload_hash(payload_hex: &str) -> String {
+    shielded_output_payload_hash_hex(payload_hex)
+}
+
+#[pyfunction]
 fn shielded_note_owner_public(owner_secret_hex: &str) -> PyResult<String> {
     shielded_note_owner_public_hex(owner_secret_hex)
         .map_err(|error| PyValueError::new_err(error.to_string()))
@@ -232,6 +238,7 @@ fn shielded_command_binding(
     entrypoint_digest_hex: &str,
     version_digest_hex: &str,
     fee: u64,
+    public_amount: u64,
 ) -> PyResult<String> {
     shielded_command_binding_hex(
         nullifier_digest_hex,
@@ -243,6 +250,7 @@ fn shielded_command_binding(
         entrypoint_digest_hex,
         version_digest_hex,
         fee,
+        public_amount,
     )
     .map_err(|error| PyValueError::new_err(error.to_string()))
 }
@@ -357,6 +365,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(shielded_note_zero_root, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_asset_id, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_recipient_digest, module)?)?;
+    module.add_function(wrap_pyfunction!(shielded_output_payload_hash, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_owner_public, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_note_commitment, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_output_commitment, module)?)?;

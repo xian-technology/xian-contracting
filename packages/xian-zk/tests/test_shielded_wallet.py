@@ -7,6 +7,7 @@ from xian_zk import (
     ShieldedWallet,
     decrypt_note_message,
     asset_id_for_contract,
+    output_payload_hash,
     recover_encrypted_notes,
     recover_viewable_notes,
     shielded_registry_manifest,
@@ -277,6 +278,13 @@ def test_wallet_can_build_transfer_and_exact_withdraw_plans():
     assert len(transfer_plan.request.inputs) == 2
     assert len(transfer_plan.request.outputs) == 2
     assert len(transfer_plan.output_payloads) == 2
+    assert transfer_plan.request.output_payload_hashes == [
+        output_payload_hash(payload)
+        for payload in transfer_plan.output_payloads
+    ]
+    assert transfer_plan.output_payload_hashes == (
+        transfer_plan.request.output_payload_hashes
+    )
     assert transfer_plan.change_note is not None
     assert transfer_plan.change_note.amount == 20
     assert transfer_plan.recipient_output.amount == 50
@@ -286,6 +294,7 @@ def test_wallet_can_build_transfer_and_exact_withdraw_plans():
     assert len(withdraw_plan.request.inputs) == 2
     assert withdraw_plan.request.outputs == []
     assert withdraw_plan.output_payloads == []
+    assert withdraw_plan.request.output_payload_hashes == []
     assert withdraw_plan.change_note is None
 
 
@@ -293,35 +302,41 @@ def test_registry_manifest_maps_bundle_to_registry_entries():
     manifest = shielded_registry_manifest(
         {
             "contract_name": "con_private_usd",
-            "circuit_family": "shielded_note_v2",
+            "circuit_family": "shielded_note_v3",
             "tree_depth": 20,
             "leaf_capacity": 1_048_576,
             "max_inputs": 4,
             "max_outputs": 4,
             "warning": "single-party setup",
+            "setup_mode": "single-party",
+            "setup_ceremony": "",
             "deposit": {
                 "vk_id": "private-usd-deposit",
                 "vk_hex": "0x01",
-                "circuit_name": "shielded_note_deposit_v2",
-                "version": "2",
+                "circuit_name": "shielded_note_deposit_v3",
+                "version": "3",
             },
             "transfer": {
                 "vk_id": "private-usd-transfer",
                 "vk_hex": "0x02",
-                "circuit_name": "shielded_note_transfer_v2",
-                "version": "2",
+                "circuit_name": "shielded_note_transfer_v3",
+                "version": "3",
             },
             "withdraw": {
                 "vk_id": "private-usd-withdraw",
                 "vk_hex": "0x03",
-                "circuit_name": "shielded_note_withdraw_v2",
-                "version": "2",
+                "circuit_name": "shielded_note_withdraw_v3",
+                "version": "3",
             },
         }
     )
 
     assert manifest["contract_name"] == "con_private_usd"
+    assert manifest["circuit_family"] == "shielded_note_v3"
+    assert manifest["setup_mode"] == "single-party"
+    assert manifest["bundle_hash"].startswith("0x")
     assert manifest["registry_entries"][0]["vk_id"] == "private-usd-deposit"
+    assert manifest["registry_entries"][0]["statement_version"] == "3"
     assert manifest["registry_entries"][2]["vk_hex"] == "0x03"
     assert manifest["configure_actions"] == [
         {"action": "deposit", "vk_id": "private-usd-deposit"},

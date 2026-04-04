@@ -22,16 +22,16 @@ pub const SHIELDED_NOTE_MAX_INPUTS: usize = 4;
 pub const SHIELDED_NOTE_MAX_OUTPUTS: usize = 4;
 pub const SHIELDED_NOTE_AMOUNT_BITS: usize = 64;
 const MIMC_ROUNDS: usize = 91;
-const SHIELDED_NOTE_CIRCUIT_FAMILY: &str = "shielded_note_v2";
-const SHIELDED_NOTE_DEPOSIT_CIRCUIT_NAME: &str = "shielded_note_deposit_v2";
-const SHIELDED_NOTE_TRANSFER_CIRCUIT_NAME: &str = "shielded_note_transfer_v2";
-const SHIELDED_NOTE_WITHDRAW_CIRCUIT_NAME: &str = "shielded_note_withdraw_v2";
-const SHIELDED_NOTE_CIRCUIT_VERSION: &str = "2";
-const SHIELDED_COMMAND_CIRCUIT_FAMILY: &str = "shielded_command_v2";
-const SHIELDED_COMMAND_DEPOSIT_CIRCUIT_NAME: &str = "shielded_command_deposit_v2";
-const SHIELDED_COMMAND_EXECUTE_CIRCUIT_NAME: &str = "shielded_command_execute_v2";
-const SHIELDED_COMMAND_WITHDRAW_CIRCUIT_NAME: &str = "shielded_command_withdraw_v2";
-const SHIELDED_COMMAND_CIRCUIT_VERSION: &str = "2";
+const SHIELDED_NOTE_CIRCUIT_FAMILY: &str = "shielded_note_v3";
+const SHIELDED_NOTE_DEPOSIT_CIRCUIT_NAME: &str = "shielded_note_deposit_v3";
+const SHIELDED_NOTE_TRANSFER_CIRCUIT_NAME: &str = "shielded_note_transfer_v3";
+const SHIELDED_NOTE_WITHDRAW_CIRCUIT_NAME: &str = "shielded_note_withdraw_v3";
+const SHIELDED_NOTE_CIRCUIT_VERSION: &str = "3";
+const SHIELDED_COMMAND_CIRCUIT_FAMILY: &str = "shielded_command_v4";
+const SHIELDED_COMMAND_DEPOSIT_CIRCUIT_NAME: &str = "shielded_command_deposit_v4";
+const SHIELDED_COMMAND_EXECUTE_CIRCUIT_NAME: &str = "shielded_command_execute_v4";
+const SHIELDED_COMMAND_WITHDRAW_CIRCUIT_NAME: &str = "shielded_command_withdraw_v4";
+const SHIELDED_COMMAND_CIRCUIT_VERSION: &str = "4";
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ShieldedVkFixture {
@@ -53,6 +53,7 @@ pub struct ShieldedActionFixture {
     pub recipient: Option<String>,
     pub input_nullifiers: Vec<String>,
     pub output_commitments: Vec<String>,
+    pub output_payload_hashes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -83,6 +84,8 @@ pub struct ShieldedCircuitBundle {
 pub struct ShieldedProverBundle {
     pub circuit_family: String,
     pub warning: String,
+    pub setup_mode: String,
+    pub setup_ceremony: String,
     pub contract_name: String,
     pub tree_depth: usize,
     pub leaf_capacity: usize,
@@ -97,6 +100,8 @@ pub struct ShieldedProverBundle {
 pub struct ShieldedCommandProverBundle {
     pub circuit_family: String,
     pub warning: String,
+    pub setup_mode: String,
+    pub setup_ceremony: String,
     pub contract_name: String,
     pub tree_depth: usize,
     pub leaf_capacity: usize,
@@ -139,6 +144,8 @@ pub struct ShieldedDepositRequest {
     pub append_state: ShieldedTreeState,
     pub amount: u64,
     pub outputs: Vec<ShieldedOutputRequest>,
+    #[serde(default)]
+    pub output_payload_hashes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -148,6 +155,8 @@ pub struct ShieldedTransferRequest {
     pub append_state: ShieldedTreeState,
     pub inputs: Vec<ShieldedInputRequest>,
     pub outputs: Vec<ShieldedOutputRequest>,
+    #[serde(default)]
+    pub output_payload_hashes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -159,6 +168,8 @@ pub struct ShieldedWithdrawRequest {
     pub recipient: String,
     pub inputs: Vec<ShieldedInputRequest>,
     pub outputs: Vec<ShieldedOutputRequest>,
+    #[serde(default)]
+    pub output_payload_hashes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -169,6 +180,7 @@ pub struct ShieldedProofResult {
     pub public_inputs: Vec<String>,
     pub input_nullifiers: Vec<String>,
     pub output_commitments: Vec<String>,
+    pub output_payload_hashes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -177,9 +189,12 @@ pub struct ShieldedCommandRequest {
     pub old_root: String,
     pub append_state: ShieldedTreeState,
     pub fee: u64,
+    pub public_amount: u64,
     pub inputs: Vec<ShieldedInputRequest>,
     pub outputs: Vec<ShieldedOutputRequest>,
     pub command_binding: String,
+    #[serde(default)]
+    pub output_payload_hashes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -190,8 +205,10 @@ pub struct ShieldedCommandProofResult {
     pub public_inputs: Vec<String>,
     pub command_binding: String,
     pub execution_tag: String,
+    pub public_amount: u64,
     pub input_nullifiers: Vec<String>,
     pub output_commitments: Vec<String>,
+    pub output_payload_hashes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -201,12 +218,14 @@ pub struct ShieldedCommandActionFixture {
     pub expected_new_root: String,
     pub public_inputs: Vec<String>,
     pub fee: u64,
+    pub public_amount: u64,
     pub command_binding: String,
     pub execution_tag: String,
     pub input_count: usize,
     pub input_nullifiers: Vec<String>,
     pub output_count: usize,
     pub output_commitments: Vec<String>,
+    pub output_payload_hashes: Vec<String>,
     pub target_contract: String,
     pub payload: serde_json::Value,
     pub relayer: String,
@@ -260,6 +279,7 @@ struct DepositCircuit {
     amount: u64,
     output_count: usize,
     output_commitments: Vec<Fr>,
+    output_payload_hashes: Vec<Fr>,
     outputs: Vec<OutputWitness>,
 }
 
@@ -271,6 +291,7 @@ struct TransferCircuit {
     output_count: usize,
     input_nullifiers: Vec<Fr>,
     output_commitments: Vec<Fr>,
+    output_payload_hashes: Vec<Fr>,
     inputs: Vec<InputWitness>,
     outputs: Vec<OutputWitness>,
 }
@@ -285,6 +306,7 @@ struct WithdrawCircuit {
     output_count: usize,
     input_nullifiers: Vec<Fr>,
     output_commitments: Vec<Fr>,
+    output_payload_hashes: Vec<Fr>,
     inputs: Vec<InputWitness>,
     outputs: Vec<OutputWitness>,
 }
@@ -296,10 +318,12 @@ struct CommandCircuit {
     command_binding: Fr,
     execution_tag: Fr,
     fee: u64,
+    public_amount: u64,
     input_count: usize,
     input_nullifiers: Vec<Fr>,
     output_count: usize,
     output_commitments: Vec<Fr>,
+    output_payload_hashes: Vec<Fr>,
     inputs: Vec<InputWitness>,
     outputs: Vec<OutputWitness>,
 }
@@ -356,6 +380,13 @@ fn asset_id_for_contract(contract_name: &str) -> Fr {
 
 fn recipient_digest(recipient: &str) -> Fr {
     contract_sha3_to_field(recipient)
+}
+
+fn output_payload_hash(payload_hex: &str) -> Fr {
+    if payload_hex.is_empty() {
+        return Fr::zero();
+    }
+    contract_sha3_to_field(payload_hex)
 }
 
 fn encode_command_payload_part(prefix: &str, value: &str) -> String {
@@ -461,6 +492,7 @@ fn command_binding(
     entrypoint_digest: Fr,
     version_digest: Fr,
     fee: u64,
+    public_amount: u64,
 ) -> Fr {
     mimc_hash_many_native(&[
         nullifier_digest,
@@ -472,6 +504,7 @@ fn command_binding(
         entrypoint_digest,
         version_digest,
         Fr::from(fee),
+        Fr::from(public_amount),
     ])
 }
 
@@ -709,6 +742,10 @@ pub fn shielded_note_recipient_digest_hex(recipient: &str) -> String {
     field_hex(recipient_digest(recipient))
 }
 
+pub fn shielded_output_payload_hash_hex(payload_hex: &str) -> String {
+    field_hex(output_payload_hash(payload_hex))
+}
+
 pub fn shielded_note_owner_public_hex(owner_secret_hex: &str) -> Result<String, Box<dyn Error>> {
     Ok(field_hex(owner_public(parse_field_hex(owner_secret_hex)?)))
 }
@@ -814,6 +851,7 @@ pub fn shielded_command_binding_hex(
     entrypoint_digest_hex: &str,
     version_digest_hex: &str,
     fee: u64,
+    public_amount: u64,
 ) -> Result<String, Box<dyn Error>> {
     Ok(field_hex(command_binding(
         parse_field_hex(nullifier_digest_hex)?,
@@ -825,6 +863,7 @@ pub fn shielded_command_binding_hex(
         parse_field_hex(entrypoint_digest_hex)?,
         parse_field_hex(version_digest_hex)?,
         fee,
+        public_amount,
     )))
 }
 
@@ -993,6 +1032,7 @@ impl DepositCircuit {
             amount: 0,
             output_count: 0,
             output_commitments: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
+            output_payload_hashes: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
             outputs: (0..SHIELDED_NOTE_MAX_OUTPUTS)
                 .map(|_| blank_output_witness())
                 .collect(),
@@ -1007,6 +1047,7 @@ impl DepositCircuit {
             Fr::from(self.output_count as u64),
         ];
         values.extend(self.output_commitments.iter().copied());
+        values.extend(self.output_payload_hashes.iter().copied());
         values
     }
 }
@@ -1055,6 +1096,7 @@ impl TransferCircuit {
             output_count: 0,
             input_nullifiers: vec![Fr::zero(); SHIELDED_NOTE_MAX_INPUTS],
             output_commitments: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
+            output_payload_hashes: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
             inputs: (0..SHIELDED_NOTE_MAX_INPUTS)
                 .map(|_| InputWitness {
                     enabled: false,
@@ -1083,6 +1125,7 @@ impl TransferCircuit {
         ];
         values.extend(self.input_nullifiers.iter().copied());
         values.extend(self.output_commitments.iter().copied());
+        values.extend(self.output_payload_hashes.iter().copied());
         values
     }
 }
@@ -1164,6 +1207,7 @@ impl WithdrawCircuit {
             output_count: 0,
             input_nullifiers: vec![Fr::zero(); SHIELDED_NOTE_MAX_INPUTS],
             output_commitments: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
+            output_payload_hashes: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
             inputs: (0..SHIELDED_NOTE_MAX_INPUTS)
                 .map(|_| InputWitness {
                     enabled: false,
@@ -1194,6 +1238,7 @@ impl WithdrawCircuit {
         ];
         values.extend(self.input_nullifiers.iter().copied());
         values.extend(self.output_commitments.iter().copied());
+        values.extend(self.output_payload_hashes.iter().copied());
         values
     }
 }
@@ -1280,6 +1325,7 @@ impl CommandCircuit {
             Fr::zero(),
             Fr::zero(),
             0,
+            0,
         );
         Self {
             asset_id: Fr::zero(),
@@ -1287,10 +1333,12 @@ impl CommandCircuit {
             command_binding,
             execution_tag: command_execution_tag(nullifier_digest, command_binding),
             fee: 0,
+            public_amount: 0,
             input_count: 0,
             input_nullifiers,
             output_count: 0,
             output_commitments: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
+            output_payload_hashes: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
             inputs: (0..SHIELDED_NOTE_MAX_INPUTS)
                 .map(|_| blank_input_witness())
                 .collect(),
@@ -1307,11 +1355,13 @@ impl CommandCircuit {
             self.command_binding,
             self.execution_tag,
             Fr::from(self.fee),
+            Fr::from(self.public_amount),
             Fr::from(self.input_count as u64),
             Fr::from(self.output_count as u64),
         ];
         values.extend(self.input_nullifiers.iter().copied());
         values.extend(self.output_commitments.iter().copied());
+        values.extend(self.output_payload_hashes.iter().copied());
         values
     }
 }
@@ -1324,11 +1374,12 @@ impl ConstraintSynthesizer<Fr> for CommandCircuit {
         let command_binding = &public[2];
         let public_execution_tag = &public[3];
         let fee = &public[4];
-        let input_count = &public[5];
-        let output_count = &public[6];
-        let public_nullifiers = &public[7..7 + SHIELDED_NOTE_MAX_INPUTS];
-        let public_commitments = &public[7 + SHIELDED_NOTE_MAX_INPUTS
-            ..7 + SHIELDED_NOTE_MAX_INPUTS + SHIELDED_NOTE_MAX_OUTPUTS];
+        let public_amount = &public[5];
+        let input_count = &public[6];
+        let output_count = &public[7];
+        let public_nullifiers = &public[8..8 + SHIELDED_NOTE_MAX_INPUTS];
+        let public_commitments = &public[8 + SHIELDED_NOTE_MAX_INPUTS
+            ..8 + SHIELDED_NOTE_MAX_INPUTS + SHIELDED_NOTE_MAX_OUTPUTS];
 
         let mut input_enabled_sum = FpVar::constant(Fr::zero());
         let mut output_enabled_sum = FpVar::constant(Fr::zero());
@@ -1384,7 +1435,7 @@ impl ConstraintSynthesizer<Fr> for CommandCircuit {
 
         input_enabled_sum.enforce_equal(input_count)?;
         output_enabled_sum.enforce_equal(output_count)?;
-        input_sum.enforce_equal(&(output_sum + fee.clone()))?;
+        input_sum.enforce_equal(&(output_sum + fee.clone() + public_amount.clone()))?;
         Ok(())
     }
 }
@@ -1491,6 +1542,22 @@ fn build_output_witnesses(
     Ok((output_witnesses, output_commitments))
 }
 
+fn parse_output_payload_hashes(
+    payload_hashes: &[String],
+    output_count: usize,
+) -> Result<Vec<Fr>, Box<dyn Error>> {
+    if payload_hashes.is_empty() {
+        return Ok(vec![Fr::zero(); output_count]);
+    }
+    if payload_hashes.len() != output_count {
+        return Err("output_payload_hashes length must match outputs".into());
+    }
+    payload_hashes
+        .iter()
+        .map(|value| parse_field_hex(value))
+        .collect()
+}
+
 pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> {
     let contract_name = "con_shielded_note_token";
     let asset_id = asset_id_for_contract(contract_name);
@@ -1570,6 +1637,7 @@ pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> 
             vec![commitment_a1, commitment_a2],
             SHIELDED_NOTE_MAX_OUTPUTS,
         ),
+        output_payload_hashes: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
         outputs: vec![
             OutputWitness {
                 enabled: true,
@@ -1600,6 +1668,7 @@ pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> 
             vec![commitment_b1, commitment_a3],
             SHIELDED_NOTE_MAX_OUTPUTS,
         ),
+        output_payload_hashes: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
         inputs: vec![
             InputWitness {
                 enabled: true,
@@ -1645,6 +1714,7 @@ pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> 
         output_count: 1,
         input_nullifiers: pad_fields(vec![nullifier_a3], SHIELDED_NOTE_MAX_INPUTS),
         output_commitments: pad_fields(vec![commitment_a4], SHIELDED_NOTE_MAX_OUTPUTS),
+        output_payload_hashes: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
         inputs: vec![
             InputWitness {
                 enabled: true,
@@ -1688,21 +1758,21 @@ pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> 
         max_outputs: SHIELDED_NOTE_MAX_OUTPUTS,
         verifying_keys: vec![
             ShieldedVkFixture {
-                vk_id: "shielded-deposit-v2".to_string(),
-                circuit_name: "shielded_note_deposit_v2".to_string(),
-                version: "2".to_string(),
+                vk_id: "shielded-deposit-v3".to_string(),
+                circuit_name: "shielded_note_deposit_v3".to_string(),
+                version: "3".to_string(),
                 vk_hex: serialize_hex(&deposit_vk)?,
             },
             ShieldedVkFixture {
-                vk_id: "shielded-transfer-v2".to_string(),
-                circuit_name: "shielded_note_transfer_v2".to_string(),
-                version: "2".to_string(),
+                vk_id: "shielded-transfer-v3".to_string(),
+                circuit_name: "shielded_note_transfer_v3".to_string(),
+                version: "3".to_string(),
                 vk_hex: serialize_hex(&transfer_vk)?,
             },
             ShieldedVkFixture {
-                vk_id: "shielded-withdraw-v2".to_string(),
-                circuit_name: "shielded_note_withdraw_v2".to_string(),
-                version: "2".to_string(),
+                vk_id: "shielded-withdraw-v3".to_string(),
+                circuit_name: "shielded_note_withdraw_v3".to_string(),
+                version: "3".to_string(),
                 vk_hex: serialize_hex(&withdraw_vk)?,
             },
         ],
@@ -1721,6 +1791,7 @@ pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> 
             recipient: None,
             input_nullifiers: vec![],
             output_commitments: vec![field_hex(commitment_a1), field_hex(commitment_a2)],
+            output_payload_hashes: vec![field_hex(Fr::zero()), field_hex(Fr::zero())],
         },
         transfer: ShieldedActionFixture {
             proof_hex: serialize_hex(&transfer_proof)?,
@@ -1737,6 +1808,7 @@ pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> 
             recipient: None,
             input_nullifiers: vec![field_hex(nullifier_a1), field_hex(nullifier_a2)],
             output_commitments: vec![field_hex(commitment_b1), field_hex(commitment_a3)],
+            output_payload_hashes: vec![field_hex(Fr::zero()), field_hex(Fr::zero())],
         },
         withdraw: ShieldedActionFixture {
             proof_hex: serialize_hex(&withdraw_proof)?,
@@ -1753,6 +1825,7 @@ pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> 
             recipient: Some("bob".to_string()),
             input_nullifiers: vec![field_hex(nullifier_a3)],
             output_commitments: vec![field_hex(commitment_a4)],
+            output_payload_hashes: vec![field_hex(Fr::zero())],
         },
     })
 }
@@ -1760,6 +1833,8 @@ pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> 
 struct ShieldedBundleDescriptor<'a> {
     contract_name: &'a str,
     warning: &'a str,
+    setup_mode: &'a str,
+    setup_ceremony: &'a str,
     deposit_vk_id: &'a str,
     transfer_vk_id: &'a str,
     withdraw_vk_id: &'a str,
@@ -1779,6 +1854,8 @@ fn build_shielded_note_bundle_with_rng(
     Ok(ShieldedProverBundle {
         circuit_family: SHIELDED_NOTE_CIRCUIT_FAMILY.to_string(),
         warning: descriptor.warning.to_string(),
+        setup_mode: descriptor.setup_mode.to_string(),
+        setup_ceremony: descriptor.setup_ceremony.to_string(),
         contract_name: descriptor.contract_name.to_string(),
         tree_depth: SHIELDED_NOTE_TREE_DEPTH,
         leaf_capacity: SHIELDED_NOTE_TREE_LEAF_COUNT,
@@ -1825,6 +1902,8 @@ pub fn build_random_shielded_note_bundle(
     let descriptor = ShieldedBundleDescriptor {
         contract_name,
         warning: "SINGLE-PARTY RANDOM BUNDLE: generated from OS randomness for deployment use. This replaces the deterministic dev setup but is still not an MPC ceremony.",
+        setup_mode: "single-party",
+        setup_ceremony: "",
         deposit_vk_id: &deposit_vk_id,
         transfer_vk_id: &transfer_vk_id,
         withdraw_vk_id: &withdraw_vk_id,
@@ -1840,9 +1919,11 @@ pub fn build_insecure_dev_shielded_note_bundle() -> Result<ShieldedProverBundle,
     let descriptor = ShieldedBundleDescriptor {
         contract_name: "con_shielded_note_token",
         warning: "INSECURE DEV BUNDLE: deterministic setup seed exposes toxic waste and must never be used on a real network.",
-        deposit_vk_id: "shielded-deposit-v2",
-        transfer_vk_id: "shielded-transfer-v2",
-        withdraw_vk_id: "shielded-withdraw-v2",
+        setup_mode: "insecure-dev",
+        setup_ceremony: "",
+        deposit_vk_id: "shielded-deposit-v3",
+        transfer_vk_id: "shielded-transfer-v3",
+        withdraw_vk_id: "shielded-withdraw-v3",
     };
     build_shielded_note_bundle_with_rng(&mut rng, &descriptor)
 }
@@ -1850,6 +1931,8 @@ pub fn build_insecure_dev_shielded_note_bundle() -> Result<ShieldedProverBundle,
 struct ShieldedCommandBundleDescriptor<'a> {
     contract_name: &'a str,
     warning: &'a str,
+    setup_mode: &'a str,
+    setup_ceremony: &'a str,
     deposit_vk_id: &'a str,
     command_vk_id: &'a str,
     withdraw_vk_id: &'a str,
@@ -1862,6 +1945,8 @@ fn build_shielded_command_bundle_with_rng(
     let note_descriptor = ShieldedBundleDescriptor {
         contract_name: descriptor.contract_name,
         warning: descriptor.warning,
+        setup_mode: descriptor.setup_mode,
+        setup_ceremony: descriptor.setup_ceremony,
         deposit_vk_id: descriptor.deposit_vk_id,
         transfer_vk_id: "shadow-transfer-unused",
         withdraw_vk_id: descriptor.withdraw_vk_id,
@@ -1873,6 +1958,8 @@ fn build_shielded_command_bundle_with_rng(
     Ok(ShieldedCommandProverBundle {
         circuit_family: SHIELDED_COMMAND_CIRCUIT_FAMILY.to_string(),
         warning: descriptor.warning.to_string(),
+        setup_mode: descriptor.setup_mode.to_string(),
+        setup_ceremony: descriptor.setup_ceremony.to_string(),
         contract_name: descriptor.contract_name.to_string(),
         tree_depth: SHIELDED_NOTE_TREE_DEPTH,
         leaf_capacity: SHIELDED_NOTE_TREE_LEAF_COUNT,
@@ -1919,6 +2006,8 @@ pub fn build_random_shielded_command_bundle(
     let descriptor = ShieldedCommandBundleDescriptor {
         contract_name,
         warning: "SINGLE-PARTY RANDOM BUNDLE: generated from OS randomness for deployment use. This replaces the deterministic dev setup but is still not an MPC ceremony.",
+        setup_mode: "single-party",
+        setup_ceremony: "",
         deposit_vk_id: &deposit_vk_id,
         command_vk_id: &command_vk_id,
         withdraw_vk_id: &withdraw_vk_id,
@@ -1935,9 +2024,11 @@ pub fn build_insecure_dev_shielded_command_bundle(
     let descriptor = ShieldedCommandBundleDescriptor {
         contract_name: "con_shielded_commands",
         warning: "INSECURE DEV BUNDLE: deterministic setup seed exposes toxic waste and must never be used on a real network.",
-        deposit_vk_id: "shielded-command-deposit-v2",
-        command_vk_id: "shielded-command-execute-v2",
-        withdraw_vk_id: "shielded-command-withdraw-v2",
+        setup_mode: "insecure-dev",
+        setup_ceremony: "",
+        deposit_vk_id: "shielded-command-deposit-v4",
+        command_vk_id: "shielded-command-execute-v4",
+        withdraw_vk_id: "shielded-command-withdraw-v4",
     };
     build_shielded_command_bundle_with_rng(&mut rng, &descriptor)
 }
@@ -1948,6 +2039,8 @@ fn note_shadow_bundle_from_command(
     ShieldedProverBundle {
         circuit_family: SHIELDED_COMMAND_CIRCUIT_FAMILY.to_string(),
         warning: bundle.warning.clone(),
+        setup_mode: bundle.setup_mode.clone(),
+        setup_ceremony: bundle.setup_ceremony.clone(),
         contract_name: bundle.contract_name.clone(),
         tree_depth: bundle.tree_depth,
         leaf_capacity: bundle.leaf_capacity,
@@ -1972,6 +2065,8 @@ pub fn prove_shielded_deposit(
     let append_state = parse_tree_state(&request.append_state)?;
     let (output_witnesses, output_commitments) =
         build_output_witnesses(asset_id, &request.outputs)?;
+    let output_payload_hashes =
+        parse_output_payload_hashes(&request.output_payload_hashes, request.outputs.len())?;
     let expected_new_root = append_commitments_to_state(&append_state, &output_commitments)?.root;
     let circuit = DepositCircuit {
         asset_id,
@@ -1979,6 +2074,10 @@ pub fn prove_shielded_deposit(
         amount: request.amount,
         output_count: request.outputs.len(),
         output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
+        output_payload_hashes: pad_fields(
+            output_payload_hashes.clone(),
+            SHIELDED_NOTE_MAX_OUTPUTS,
+        ),
         outputs: output_witnesses,
     };
     let proof = prove_with_pk(&bundle.deposit.pk_hex, circuit.clone())?;
@@ -1989,6 +2088,10 @@ pub fn prove_shielded_deposit(
         public_inputs: circuit.public_inputs().into_iter().map(field_hex).collect(),
         input_nullifiers: vec![],
         output_commitments: output_commitments.into_iter().map(field_hex).collect(),
+        output_payload_hashes: output_payload_hashes
+            .into_iter()
+            .map(field_hex)
+            .collect(),
     })
 }
 
@@ -2020,6 +2123,8 @@ pub fn prove_shielded_transfer(
 
     let (output_witnesses, output_commitments) =
         build_output_witnesses(asset_id, &request.outputs)?;
+    let output_payload_hashes =
+        parse_output_payload_hashes(&request.output_payload_hashes, request.outputs.len())?;
     let expected_new_root = append_commitments_to_state(&append_state, &output_commitments)?.root;
     let circuit = TransferCircuit {
         asset_id,
@@ -2028,6 +2133,10 @@ pub fn prove_shielded_transfer(
         output_count: request.outputs.len(),
         input_nullifiers: pad_fields(input_nullifiers.clone(), SHIELDED_NOTE_MAX_INPUTS),
         output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
+        output_payload_hashes: pad_fields(
+            output_payload_hashes.clone(),
+            SHIELDED_NOTE_MAX_OUTPUTS,
+        ),
         inputs: input_witnesses,
         outputs: output_witnesses,
     };
@@ -2039,6 +2148,10 @@ pub fn prove_shielded_transfer(
         public_inputs: circuit.public_inputs().into_iter().map(field_hex).collect(),
         input_nullifiers: input_nullifiers.into_iter().map(field_hex).collect(),
         output_commitments: output_commitments.into_iter().map(field_hex).collect(),
+        output_payload_hashes: output_payload_hashes
+            .into_iter()
+            .map(field_hex)
+            .collect(),
     })
 }
 
@@ -2070,6 +2183,8 @@ pub fn prove_shielded_withdraw(
 
     let (output_witnesses, output_commitments) =
         build_output_witnesses(asset_id, &request.outputs)?;
+    let output_payload_hashes =
+        parse_output_payload_hashes(&request.output_payload_hashes, request.outputs.len())?;
     let expected_new_root = append_commitments_to_state(&append_state, &output_commitments)?.root;
     let circuit = WithdrawCircuit {
         asset_id,
@@ -2080,6 +2195,10 @@ pub fn prove_shielded_withdraw(
         output_count: request.outputs.len(),
         input_nullifiers: pad_fields(input_nullifiers.clone(), SHIELDED_NOTE_MAX_INPUTS),
         output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
+        output_payload_hashes: pad_fields(
+            output_payload_hashes.clone(),
+            SHIELDED_NOTE_MAX_OUTPUTS,
+        ),
         inputs: input_witnesses,
         outputs: output_witnesses,
     };
@@ -2091,6 +2210,10 @@ pub fn prove_shielded_withdraw(
         public_inputs: circuit.public_inputs().into_iter().map(field_hex).collect(),
         input_nullifiers: input_nullifiers.into_iter().map(field_hex).collect(),
         output_commitments: output_commitments.into_iter().map(field_hex).collect(),
+        output_payload_hashes: output_payload_hashes
+            .into_iter()
+            .map(field_hex)
+            .collect(),
     })
 }
 
@@ -2134,6 +2257,8 @@ pub fn prove_shielded_command_execute(
     );
     let (output_witnesses, output_commitments) =
         build_output_witnesses(asset_id, &request.outputs)?;
+    let output_payload_hashes =
+        parse_output_payload_hashes(&request.output_payload_hashes, request.outputs.len())?;
     let expected_new_root = append_commitments_to_state(&append_state, &output_commitments)?.root;
     let circuit = CommandCircuit {
         asset_id,
@@ -2141,10 +2266,15 @@ pub fn prove_shielded_command_execute(
         command_binding: command_binding_value,
         execution_tag,
         fee: request.fee,
+        public_amount: request.public_amount,
         input_count: request.inputs.len(),
         input_nullifiers: padded_input_nullifiers,
         output_count: request.outputs.len(),
         output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
+        output_payload_hashes: pad_fields(
+            output_payload_hashes.clone(),
+            SHIELDED_NOTE_MAX_OUTPUTS,
+        ),
         inputs: input_witnesses,
         outputs: output_witnesses,
     };
@@ -2156,8 +2286,13 @@ pub fn prove_shielded_command_execute(
         public_inputs: circuit.public_inputs().into_iter().map(field_hex).collect(),
         command_binding: field_hex(command_binding_value),
         execution_tag: field_hex(execution_tag),
+        public_amount: request.public_amount,
         input_nullifiers: input_nullifiers.into_iter().map(field_hex).collect(),
         output_commitments: output_commitments.into_iter().map(field_hex).collect(),
+        output_payload_hashes: output_payload_hashes
+            .into_iter()
+            .map(field_hex)
+            .collect(),
     })
 }
 
@@ -2182,13 +2317,13 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
     };
     let note_a2 = NoteWitness {
         owner_secret: alice_secret,
-        amount: 63,
+        amount: 50,
         rho: hash_to_field("shielded-command:a2:rho"),
         blind: hash_to_field("shielded-command:a2:blind"),
     };
     let note_a3 = NoteWitness {
         owner_secret: alice_secret,
-        amount: 43,
+        amount: 30,
         rho: hash_to_field("shielded-command:a3:rho"),
         blind: hash_to_field("shielded-command:a3:blind"),
     };
@@ -2220,7 +2355,7 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
     let expiry_digest = contract_sha3_to_field(expires_at);
     let chain_digest = contract_sha3_to_field(chain_id);
     let entrypoint_digest = contract_sha3_to_field("interact");
-    let version_digest = contract_sha3_to_field("shielded-command-v2");
+    let version_digest = contract_sha3_to_field("shielded-command-v4");
     let padded_input_nullifiers =
         pad_fields(vec![nullifier_a1], SHIELDED_NOTE_MAX_INPUTS);
     let command_binding_value = command_binding(
@@ -2233,6 +2368,7 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
         entrypoint_digest,
         version_digest,
         7,
+        13,
     );
     let execution_tag = command_execution_tag(
         command_nullifier_digest(&padded_input_nullifiers),
@@ -2254,6 +2390,7 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
                 rho: field_hex(note_a1.rho),
                 blind: field_hex(note_a1.blind),
             }],
+            output_payload_hashes: vec![field_hex(Fr::zero())],
         },
     )?;
 
@@ -2264,6 +2401,7 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
             old_root: field_hex(state1.root),
             append_state: frontier_state_to_public(&state1),
             fee: 7,
+            public_amount: 13,
             inputs: vec![ShieldedInputRequest {
                 owner_secret: field_hex(note_a1.owner_secret),
                 amount: note_a1.amount,
@@ -2282,6 +2420,7 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
                 blind: field_hex(note_a2.blind),
             }],
             command_binding: field_hex(command_binding_value),
+            output_payload_hashes: vec![field_hex(Fr::zero())],
         },
     )?;
 
@@ -2310,6 +2449,7 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
                 rho: field_hex(note_a3.rho),
                 blind: field_hex(note_a3.blind),
             }],
+            output_payload_hashes: vec![field_hex(Fr::zero())],
         },
     )?;
 
@@ -2352,6 +2492,7 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
             recipient: None,
             input_nullifiers: vec![],
             output_commitments: deposit.output_commitments,
+            output_payload_hashes: deposit.output_payload_hashes,
         },
         command: ShieldedCommandActionFixture {
             proof_hex: command.proof_hex,
@@ -2359,12 +2500,14 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
             expected_new_root: command.expected_new_root,
             public_inputs: command.public_inputs,
             fee: 7,
+            public_amount: 13,
             command_binding: field_hex(command_binding_value),
             execution_tag: field_hex(execution_tag),
             input_count: 1,
             input_nullifiers: vec![field_hex(nullifier_a1)],
             output_count: 1,
             output_commitments: command.output_commitments,
+            output_payload_hashes: command.output_payload_hashes,
             target_contract: target_contract.to_string(),
             payload,
             relayer: relayer.to_string(),
@@ -2381,6 +2524,7 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
             recipient: Some("bob".to_string()),
             input_nullifiers: vec![field_hex(nullifier_a2)],
             output_commitments: withdraw.output_commitments,
+            output_payload_hashes: withdraw.output_payload_hashes,
         },
     })
 }

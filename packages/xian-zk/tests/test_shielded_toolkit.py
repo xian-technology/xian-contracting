@@ -1,7 +1,5 @@
 import json
 from functools import lru_cache
-from pathlib import Path
-
 import pytest
 
 from xian_zk import (
@@ -20,16 +18,116 @@ from xian_zk import (
     zero_root,
 )
 
-
-SHIELDED_FIXTURE_PATH = (
-    Path(__file__).parent / "fixtures" / "shielded_note_flow.json"
-)
-
 pytestmark = pytest.mark.slow
 
 
 def load_shielded_fixture():
-    return json.loads(SHIELDED_FIXTURE_PATH.read_text())
+    prover = load_dev_prover()
+    asset_id = asset_id_for_contract("con_shielded_note_token")
+
+    alice_note_1 = ShieldedNote(
+        owner_secret=field(101),
+        amount=40,
+        rho=field(1001),
+        blind=field(2001),
+    )
+    alice_note_2 = ShieldedNote(
+        owner_secret=field(101),
+        amount=30,
+        rho=field(1002),
+        blind=field(2002),
+    )
+    bob_keys = ShieldedKeyBundle.from_parts(
+        owner_secret=field(202),
+        viewing_private_key="22" * 32,
+    )
+    bob_note_1 = ShieldedNote(
+        owner_secret=bob_keys.owner_secret,
+        amount=25,
+        rho=field(1003),
+        blind=field(2003),
+    )
+    alice_note_3 = ShieldedNote(
+        owner_secret=field(101),
+        amount=45,
+        rho=field(1004),
+        blind=field(2004),
+    )
+    alice_note_4 = ShieldedNote(
+        owner_secret=field(101),
+        amount=25,
+        rho=field(1005),
+        blind=field(2005),
+    )
+
+    deposit = prover.prove_deposit(
+        ShieldedDepositRequest(
+            asset_id=asset_id,
+            old_root=zero_root(),
+            append_state=tree_state([]),
+            amount=70,
+            outputs=[alice_note_1.to_output(), alice_note_2.to_output()],
+        )
+    )
+    discovered_inputs = scan_notes(
+        asset_id=asset_id,
+        commitments=deposit.output_commitments,
+        notes=[alice_note_1, alice_note_2],
+    )
+    transfer = prover.prove_transfer(
+        ShieldedTransferRequest(
+            asset_id=asset_id,
+            old_root=deposit.expected_new_root,
+            append_state=tree_state(deposit.output_commitments),
+            inputs=[note.to_input() for note in discovered_inputs],
+            outputs=[
+                ShieldedOutput.for_recipient(
+                    bob_keys.recipient,
+                    amount=bob_note_1.amount,
+                    rho=bob_note_1.rho,
+                    blind=bob_note_1.blind,
+                ),
+                alice_note_3.to_output(),
+            ],
+        )
+    )
+    transfer_commitments = deposit.output_commitments + transfer.output_commitments
+    discovered_withdraw = scan_notes(
+        asset_id=asset_id,
+        commitments=transfer_commitments,
+        notes=[alice_note_3],
+    )
+    withdraw = prover.prove_withdraw(
+        ShieldedWithdrawRequest(
+            asset_id=asset_id,
+            old_root=transfer.expected_new_root,
+            append_state=tree_state(transfer_commitments),
+            amount=20,
+            recipient="bob",
+            inputs=[discovered_withdraw[0].to_input()],
+            outputs=[alice_note_4.to_output()],
+        )
+    )
+
+    return {
+        "verifying_keys": [
+            {
+                "vk_id": prover.bundle["deposit"]["vk_id"],
+                "vk_hex": prover.bundle["deposit"]["vk_hex"],
+            },
+            {
+                "vk_id": prover.bundle["transfer"]["vk_id"],
+                "vk_hex": prover.bundle["transfer"]["vk_hex"],
+            },
+            {
+                "vk_id": prover.bundle["withdraw"]["vk_id"],
+                "vk_hex": prover.bundle["withdraw"]["vk_hex"],
+            },
+        ],
+        "deposit": {"public_inputs": deposit.public_inputs},
+        "transfer": {"public_inputs": transfer.public_inputs},
+        "withdraw": {"public_inputs": withdraw.public_inputs},
+    }
 
 
 def field(value: int) -> str:
@@ -46,9 +144,9 @@ def test_insecure_dev_bundle_matches_existing_shielded_fixture_keys():
     prover = load_dev_prover()
     by_id = {vk["vk_id"]: vk["vk_hex"] for vk in fixture["verifying_keys"]}
 
-    assert prover.bundle["deposit"]["vk_hex"] == by_id["shielded-deposit-v2"]
-    assert prover.bundle["transfer"]["vk_hex"] == by_id["shielded-transfer-v2"]
-    assert prover.bundle["withdraw"]["vk_hex"] == by_id["shielded-withdraw-v2"]
+    assert prover.bundle["deposit"]["vk_hex"] == by_id["shielded-deposit-v3"]
+    assert prover.bundle["transfer"]["vk_hex"] == by_id["shielded-transfer-v3"]
+    assert prover.bundle["withdraw"]["vk_hex"] == by_id["shielded-withdraw-v3"]
 
 
 def test_prover_can_generate_and_verify_shielded_note_flow():

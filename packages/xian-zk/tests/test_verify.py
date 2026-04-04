@@ -100,17 +100,17 @@ def test_shielded_note_flow_vectors_verify():
     by_id = {vk["vk_id"]: vk["vk_hex"] for vk in fixture["verifying_keys"]}
 
     assert verify_groth16_bn254(
-        by_id["shielded-deposit-v2"],
+        by_id["shielded-deposit-v3"],
         fixture["deposit"]["proof_hex"],
         fixture["deposit"]["public_inputs"],
     )
     assert verify_groth16_bn254(
-        by_id["shielded-transfer-v2"],
+        by_id["shielded-transfer-v3"],
         fixture["transfer"]["proof_hex"],
         fixture["transfer"]["public_inputs"],
     )
     assert verify_groth16_bn254(
-        by_id["shielded-withdraw-v2"],
+        by_id["shielded-withdraw-v3"],
         fixture["withdraw"]["proof_hex"],
         fixture["withdraw"]["public_inputs"],
     )

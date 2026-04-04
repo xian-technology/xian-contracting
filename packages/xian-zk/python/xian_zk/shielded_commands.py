@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from xian_zk._native import (
@@ -21,14 +22,22 @@ from xian_zk.shielded_notes import (
     ShieldedNote,
     ShieldedOutput,
     ShieldedProofResult,
+    ShieldedWallet,
+    ShieldedWalletNote,
     ShieldedTreeState,
     ShieldedWithdrawRequest,
+    generate_field_hex,
+    output_payload_hashes,
     recipient_digest,
 )
 
 _FIELD_ZERO_HEX = "0x" + "00" * 32
-_COMMAND_BINDING_VERSION = "shielded-command-v2"
+_COMMAND_BINDING_VERSION = "shielded-command-v4"
 _COMMAND_ENTRYPOINT = "interact"
+
+
+def _sha3_hex(value: str) -> str:
+    return "0x" + hashlib.sha3_256(value.encode("utf-8")).hexdigest()
 
 
 def _request_json(request: Any) -> str:
@@ -126,6 +135,7 @@ def command_binding(
     relayer: str,
     chain_id: str,
     fee: int,
+    public_amount: int = 0,
     expires_at: Any = None,
 ) -> str:
     return native_command_binding(
@@ -138,6 +148,7 @@ def command_binding(
         command_entrypoint_digest(),
         command_version_digest(),
         fee,
+        public_amount,
     )
 
 
@@ -158,6 +169,7 @@ class ShieldedCommandRequest:
     old_root: str
     append_state: ShieldedTreeState
     fee: int
+    public_amount: int
     inputs: list[ShieldedInput]
     outputs: list[ShieldedOutput]
     target_contract: str
@@ -165,6 +177,7 @@ class ShieldedCommandRequest:
     relayer: str
     chain_id: str
     expires_at: Any = None
+    output_payload_hashes: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -175,12 +188,135 @@ class ShieldedCommandProofResult:
     public_inputs: list[str]
     command_binding: str
     execution_tag: str
+    public_amount: int
     input_nullifiers: list[str]
     output_commitments: list[str]
+    output_payload_hashes: list[str]
 
     @classmethod
     def from_json(cls, payload: str) -> "ShieldedCommandProofResult":
         return cls(**json.loads(payload))
+
+
+@dataclass(frozen=True)
+class ShieldedCommandPlan:
+    request: ShieldedCommandRequest
+    input_notes: list[ShieldedWalletNote]
+    change_note: ShieldedNote | None
+    output_payloads: list[str]
+    output_payload_hashes: list[str]
+    command_binding: str
+    execution_tag: str
+    public_amount: int
+
+    def to_execute_args(self) -> dict[str, Any]:
+        return {
+            "target_contract": self.request.target_contract,
+            "old_root": self.request.old_root,
+            "output_payloads": list(self.output_payloads),
+            "relayer_fee": self.request.fee,
+            "public_amount": self.public_amount,
+            "payload": self.request.payload,
+            "expires_at": self.request.expires_at,
+        }
+
+
+class ShieldedCommandWallet(ShieldedWallet):
+    def build_command(
+        self,
+        *,
+        target_contract: str,
+        relayer: str,
+        chain_id: str,
+        fee: int,
+        public_amount: int = 0,
+        payload: dict[str, Any] | None = None,
+        expires_at: Any = None,
+        old_root: str | None = None,
+        append_state: ShieldedTreeState | None = None,
+        membership_commitments: list[str] | None = None,
+        change_memo: str | None = None,
+        max_inputs: int = 4,
+    ) -> "ShieldedCommandPlan":
+        if fee < 0:
+            raise ValueError("fee must be non-negative")
+        if public_amount < 0:
+            raise ValueError("public_amount must be non-negative")
+        required_amount = fee + public_amount
+        if required_amount <= 0:
+            raise ValueError("fee + public_amount must be positive")
+        if old_root is None:
+            old_root = self.current_root()
+        if append_state is None:
+            append_state = self.tree_state()
+
+        commitments = self._validated_membership_commitments(
+            old_root, membership_commitments
+        )
+        input_notes = self.select_notes(required_amount, max_inputs=max_inputs)
+        total_input = sum(note.amount for note in input_notes)
+        change_amount = total_input - required_amount
+
+        outputs: list[ShieldedOutput] = []
+        payloads: list[str] = []
+        change_note = None
+        if change_amount > 0:
+            change_note = ShieldedNote(
+                owner_secret=self.owner_secret,
+                amount=change_amount,
+                rho=generate_field_hex(),
+                blind=generate_field_hex(),
+            )
+            outputs.append(change_note.to_output())
+            payloads.append(
+                change_note.to_output().encrypt_for(
+                    asset_id=self.asset_id,
+                    viewing_public_key=self.viewing_public_key,
+                    memo=change_memo,
+                )
+            )
+
+        input_nullifiers = [note.nullifier for note in input_notes]
+        payload_hash_values = output_payload_hashes(payloads)
+        binding = command_binding(
+            input_nullifiers=input_nullifiers,
+            target_contract=target_contract,
+            payload=payload,
+            relayer=relayer,
+            chain_id=chain_id,
+            fee=fee,
+            public_amount=public_amount,
+            expires_at=expires_at,
+        )
+        execution_tag = command_execution_tag(
+            input_nullifiers=input_nullifiers,
+            command_binding_value=binding,
+        )
+        request = ShieldedCommandRequest(
+            asset_id=self.asset_id,
+            old_root=old_root,
+            append_state=append_state,
+            fee=fee,
+            public_amount=public_amount,
+            inputs=[note.to_input(commitments) for note in input_notes],
+            outputs=outputs,
+            target_contract=target_contract,
+            payload=payload,
+            relayer=relayer,
+            chain_id=chain_id,
+            expires_at=expires_at,
+            output_payload_hashes=payload_hash_values,
+        )
+        return ShieldedCommandPlan(
+            request=request,
+            input_notes=input_notes,
+            change_note=change_note,
+            output_payloads=payloads,
+            output_payload_hashes=payload_hash_values,
+            command_binding=binding,
+            execution_tag=execution_tag,
+            public_amount=public_amount,
+        )
 
 
 class ShieldedCommandProver:
@@ -243,6 +379,7 @@ class ShieldedCommandProver:
             relayer=request.relayer,
             chain_id=request.chain_id,
             fee=request.fee,
+            public_amount=request.public_amount,
             expires_at=request.expires_at,
         )
         native_request = {
@@ -250,9 +387,11 @@ class ShieldedCommandProver:
             "old_root": request.old_root,
             "append_state": asdict(request.append_state),
             "fee": request.fee,
+            "public_amount": request.public_amount,
             "inputs": [asdict(shielded_input) for shielded_input in request.inputs],
             "outputs": [asdict(output) for output in request.outputs],
             "command_binding": binding,
+            "output_payload_hashes": list(request.output_payload_hashes),
         }
         return ShieldedCommandProofResult.from_json(
             prove_shielded_command_execute(
@@ -282,16 +421,33 @@ def shielded_command_registry_manifest(
     else:
         raise TypeError("bundle must be a ShieldedCommandProver or dict")
 
+    payload_json = json.dumps(payload, sort_keys=True)
+    bundle_hash = _sha3_hex(payload_json)
     entries = []
     configure_actions = []
     for action in ("deposit", "command", "withdraw"):
         circuit = payload[action]
         entries.append(
             {
+                "action": action,
                 "vk_id": circuit["vk_id"],
                 "vk_hex": circuit["vk_hex"],
                 "circuit_name": circuit["circuit_name"],
                 "version": circuit["version"],
+                "artifact_contract_name": payload["contract_name"],
+                "circuit_family": payload["circuit_family"],
+                "statement_version": circuit["version"],
+                "tree_depth": payload["tree_depth"],
+                "leaf_capacity": payload["leaf_capacity"],
+                "max_inputs": payload["max_inputs"],
+                "max_outputs": payload["max_outputs"],
+                "setup_mode": payload.get("setup_mode", ""),
+                "setup_ceremony": payload.get("setup_ceremony", ""),
+                "bundle_hash": bundle_hash,
+                "artifact_hash": _sha3_hex(
+                    json.dumps(circuit, sort_keys=True)
+                ),
+                "warning": payload["warning"],
             }
         )
         configure_actions.append(
@@ -309,15 +465,20 @@ def shielded_command_registry_manifest(
         "max_inputs": payload["max_inputs"],
         "max_outputs": payload["max_outputs"],
         "warning": payload["warning"],
+        "setup_mode": payload.get("setup_mode", ""),
+        "setup_ceremony": payload.get("setup_ceremony", ""),
+        "bundle_hash": bundle_hash,
         "registry_entries": entries,
         "configure_actions": configure_actions,
     }
 
 
 __all__ = [
+    "ShieldedCommandPlan",
     "ShieldedCommandProofResult",
     "ShieldedCommandProver",
     "ShieldedCommandRequest",
+    "ShieldedCommandWallet",
     "canonicalize_command_payload",
     "command_binding",
     "command_chain_digest",
