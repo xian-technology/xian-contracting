@@ -48,9 +48,7 @@ def __getattr__(name: str):
             "ParallelExecutionStats": ParallelExecutionStats,
             "ParallelPlan": ParallelPlan,
             "ParallelStage": ParallelStage,
-            "SpeculativeExecutionController": (
-                SpeculativeExecutionController
-            ),
+            "SpeculativeExecutionController": (SpeculativeExecutionController),
         }
         return exports[name]
     raise AttributeError(name)

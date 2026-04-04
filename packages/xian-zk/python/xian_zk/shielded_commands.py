@@ -12,8 +12,14 @@ from xian_zk._native import (
     prove_shielded_command_deposit,
     prove_shielded_command_execute,
     prove_shielded_command_withdraw,
+)
+from xian_zk._native import (
     shielded_command_binding as native_command_binding,
+)
+from xian_zk._native import (
     shielded_command_execution_tag as native_command_execution_tag,
+)
+from xian_zk._native import (
     shielded_command_nullifier_digest as native_command_nullifier_digest,
 )
 from xian_zk.shielded_notes import (
@@ -22,9 +28,9 @@ from xian_zk.shielded_notes import (
     ShieldedNote,
     ShieldedOutput,
     ShieldedProofResult,
+    ShieldedTreeState,
     ShieldedWallet,
     ShieldedWalletNote,
-    ShieldedTreeState,
     ShieldedWithdrawRequest,
     generate_field_hex,
     output_payload_hashes,
@@ -360,7 +366,9 @@ class ShieldedCommandProver:
         self, request: ShieldedCommandRequest
     ) -> ShieldedCommandProofResult:
         if len(request.inputs) == 0:
-            raise ValueError("Shielded command execution requires at least one input")
+            raise ValueError(
+                "Shielded command execution requires at least one input"
+            )
 
         input_nullifiers = []
         for shielded_input in request.inputs:
@@ -388,7 +396,9 @@ class ShieldedCommandProver:
             "append_state": asdict(request.append_state),
             "fee": request.fee,
             "public_amount": request.public_amount,
-            "inputs": [asdict(shielded_input) for shielded_input in request.inputs],
+            "inputs": [
+                asdict(shielded_input) for shielded_input in request.inputs
+            ],
             "outputs": [asdict(output) for output in request.outputs],
             "command_binding": binding,
             "output_payload_hashes": list(request.output_payload_hashes),
@@ -444,9 +454,7 @@ def shielded_command_registry_manifest(
                 "setup_mode": payload.get("setup_mode", ""),
                 "setup_ceremony": payload.get("setup_ceremony", ""),
                 "bundle_hash": bundle_hash,
-                "artifact_hash": _sha3_hex(
-                    json.dumps(circuit, sort_keys=True)
-                ),
+                "artifact_hash": _sha3_hex(json.dumps(circuit, sort_keys=True)),
                 "warning": payload["warning"],
             }
         )
