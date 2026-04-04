@@ -394,9 +394,7 @@ class SpeculativeExecutionController:
             plan = self.planner.build(accesses) if accesses else None
             if plan is not None:
                 planned_stage_count += plan.stage_count
-                planned_parallelizable_requests += (
-                    plan.parallelizable_requests
-                )
+                planned_parallelizable_requests += plan.parallelizable_requests
 
             accepted_prefix = self._accepted_prefix_length(
                 accesses=accesses,
@@ -774,7 +772,9 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
         if self.workers == 1:
             return [_speculative_execute_request(task) for task in tasks]
 
-        return list(self._get_executor().map(_speculative_execute_request, tasks))
+        return list(
+            self._get_executor().map(_speculative_execute_request, tasks)
+        )
 
     def _get_executor(self) -> ProcessPoolExecutor:
         if self._executor is None:

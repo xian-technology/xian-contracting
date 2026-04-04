@@ -1364,9 +1364,7 @@ def shielded_registry_manifest(
                 "setup_mode": payload.get("setup_mode", ""),
                 "setup_ceremony": payload.get("setup_ceremony", ""),
                 "bundle_hash": bundle_hash,
-                "artifact_hash": _sha3_hex(
-                    json.dumps(circuit, sort_keys=True)
-                ),
+                "artifact_hash": _sha3_hex(json.dumps(circuit, sort_keys=True)),
                 "warning": payload["warning"],
             }
         )
