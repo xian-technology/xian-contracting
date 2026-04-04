@@ -30,6 +30,7 @@ Repository = "https://github.com/xian-technology/xian-contracting"
 
 [project.optional-dependencies]
 native = [
+    "xian-tech-fastpath-core>=0.1.0,<0.2",
     "xian-tech-native-tracer>=0.1.0,<0.2",
 ]
 zk = [
@@ -77,5 +78,6 @@ ignore = ["E501"]
 
 [tool.uv.sources]
 xian-tech-runtime-types = { path = "packages/xian-runtime-types", editable = true }
+xian-tech-fastpath-core = { path = "packages/xian-fastpath-core", editable = true }
 xian-tech-native-tracer = { path = "packages/xian-native-tracer", editable = true }
 xian-tech-zk = { path = "packages/xian-zk", editable = true }

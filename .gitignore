@@ -1,5 +1,6 @@
 __pycache__/
 *.so
+*.dSYM/
 .coverage
 .coverage.*
 .pytest_cache/

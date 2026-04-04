@@ -6,6 +6,8 @@
 ## Contents
 - `xian-runtime-types/`: deterministic shared value types and encoding
 - `xian-accounts/`: shared signing and account primitives
+- `xian-fastpath-core/`: optional native fast paths for transaction admission,
+  published as `xian-tech-fastpath-core`
 - `xian-native-tracer/`: optional native tracer backend, published as
   `xian-tech-native-tracer`
 - `xian-zk/`: native Groth16 BN254 verification primitives, published as
