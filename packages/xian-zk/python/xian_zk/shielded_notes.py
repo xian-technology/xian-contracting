@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Callable, Sequence
 
@@ -608,6 +609,7 @@ class ShieldedNoteRecord:
     index: int
     commitment: str
     payload: str | None = None
+    payload_hash: str | None = None
     created_at: Any = None
 
     @classmethod
@@ -624,6 +626,7 @@ class ShieldedNoteRecord:
         index = value.get("index")
         commitment = value.get("commitment")
         payload = value.get("payload")
+        payload_hash = value.get("payload_hash")
 
         if not isinstance(index, int):
             raise ValueError("note record index must be an integer")
@@ -631,13 +634,153 @@ class ShieldedNoteRecord:
             raise ValueError("note record commitment must be a string")
         if payload is not None and not isinstance(payload, str):
             raise ValueError("note record payload must be a string or None")
+        if payload_hash is not None and not isinstance(payload_hash, str):
+            raise ValueError(
+                "note record payload_hash must be a string or None"
+            )
 
         return cls(
             index=index,
             commitment=commitment,
             payload=payload,
+            payload_hash=payload_hash,
             created_at=value.get("created_at"),
         )
+
+
+def _transaction_mapping(
+    value: Any,
+) -> Mapping[str, Any]:
+    if isinstance(value, Mapping):
+        return value
+    raw = getattr(value, "raw", None)
+    if isinstance(raw, Mapping):
+        return raw
+    raise TypeError("transaction must be a mapping or have a raw mapping")
+
+
+def _transaction_json_mapping(value: Any) -> Mapping[str, Any] | None:
+    if isinstance(value, Mapping):
+        return value
+    if not isinstance(value, str) or value == "":
+        return None
+    try:
+        decoded = json.loads(value)
+    except json.JSONDecodeError:
+        return None
+    return decoded if isinstance(decoded, Mapping) else None
+
+
+def _transaction_int(raw: Mapping[str, Any], key: str) -> int:
+    value = raw.get(key)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return 0
+
+
+def _transaction_success(raw: Mapping[str, Any]) -> bool:
+    success = raw.get("success")
+    if isinstance(success, bool):
+        return success
+
+    status_code = raw.get("status_code")
+    if isinstance(status_code, int):
+        return status_code == 0
+    if isinstance(status_code, str) and status_code.isdigit():
+        return int(status_code) == 0
+
+    result = raw.get("result")
+    if isinstance(result, Mapping):
+        status = result.get("status")
+        if isinstance(status, int):
+            return status == 0
+        if isinstance(status, str) and status.isdigit():
+            return int(status) == 0
+
+    return True
+
+
+def note_records_from_transactions(
+    transactions: Sequence[Any],
+    *,
+    functions: Sequence[str] | None = None,
+    starting_index: int = 0,
+) -> list[ShieldedNoteRecord]:
+    allowed_functions = set(functions) if functions is not None else None
+    normalized = sorted(
+        (_transaction_mapping(tx) for tx in transactions),
+        key=lambda raw: (
+            _transaction_int(raw, "block_height"),
+            _transaction_int(raw, "tx_index"),
+            _transaction_int(raw, "nonce"),
+            str(raw.get("tx_hash") or raw.get("hash") or ""),
+        ),
+    )
+
+    records: list[ShieldedNoteRecord] = []
+    next_index = starting_index
+
+    for raw in normalized:
+        if not _transaction_success(raw):
+            continue
+
+        payload = _transaction_json_mapping(raw.get("payload"))
+        if payload is None:
+            envelope = _transaction_json_mapping(raw.get("envelope"))
+            if envelope is not None:
+                payload = _transaction_json_mapping(envelope.get("payload"))
+        if payload is None:
+            continue
+
+        function = payload.get("function")
+        if allowed_functions is not None and function not in allowed_functions:
+            continue
+
+        kwargs = _transaction_json_mapping(payload.get("kwargs"))
+        if kwargs is None:
+            continue
+
+        commitments = kwargs.get("output_commitments")
+        if commitments is None:
+            continue
+        if not isinstance(commitments, list):
+            raise ValueError("transaction output_commitments must be a list")
+
+        payloads = kwargs.get("output_payloads")
+        if payloads is None:
+            payloads = [""] * len(commitments)
+        elif not isinstance(payloads, list):
+            raise ValueError("transaction output_payloads must be a list")
+        elif len(payloads) != len(commitments):
+            raise ValueError(
+                "transaction output_payloads length must match commitments"
+            )
+
+        created_at = raw.get("created_at") or raw.get("created")
+        for commitment, payload_hex in zip(commitments, payloads, strict=True):
+            if not isinstance(commitment, str):
+                raise ValueError("transaction commitment must be a string")
+            if payload_hex in (None, ""):
+                normalized_payload = None
+            elif not isinstance(payload_hex, str):
+                raise ValueError("transaction output payload must be a string")
+            else:
+                normalized_payload = payload_hex
+
+            records.append(
+                ShieldedNoteRecord(
+                    index=next_index,
+                    commitment=commitment,
+                    payload=normalized_payload,
+                    payload_hash=output_payload_hash(normalized_payload),
+                    created_at=created_at,
+                )
+            )
+            next_index += 1
+
+    return records
 
 
 @dataclass(frozen=True)
@@ -942,6 +1085,21 @@ class ShieldedWallet:
             scanned_record_count=len(normalized),
             discovered_notes=discovered,
             last_scanned_index=self.last_scanned_index,
+        )
+
+    def sync_transactions(
+        self,
+        transactions: Sequence[Any],
+        *,
+        functions: Sequence[str] | None = None,
+        starting_index: int = 0,
+    ) -> ShieldedWalletSyncResult:
+        return self.sync_records(
+            note_records_from_transactions(
+                transactions,
+                functions=functions,
+                starting_index=starting_index,
+            )
         )
 
     def apply_spent_nullifiers(

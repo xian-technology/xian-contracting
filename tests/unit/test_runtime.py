@@ -149,6 +149,21 @@ class TestReadDeduction(TestCase):
         self.assertGreater(runtime.rt.tracer.get_stamp_used(), cost_before)
 
 
+class TestTransactionByteDeduction(TestCase):
+    def tearDown(self):
+        runtime.rt.tracer.stop()
+        runtime.rt.clean_up()
+
+    def test_deduct_transaction_bytes_adds_cost(self):
+        runtime.rt.set_up(stmps=100_000, meter=True)
+        cost_before = runtime.rt.tracer.get_stamp_used()
+        runtime.rt.deduct_transaction_bytes(128)
+        self.assertEqual(
+            runtime.rt.tracer.get_stamp_used() - cost_before,
+            128 * constants.TRANSACTION_BYTES_COST_PER_BYTE,
+        )
+
+
 class TestReturnValueDeduction(TestCase):
     def tearDown(self):
         runtime.rt.tracer.stop()

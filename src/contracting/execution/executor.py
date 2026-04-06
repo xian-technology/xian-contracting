@@ -72,6 +72,7 @@ class Executor:
         stamps=constants.DEFAULT_STAMPS,
         stamp_cost=constants.STAMPS_PER_T,
         metering=None,
+        transaction_size_bytes: int = 0,
     ) -> dict:
         # Execution mutates Python's process-global import hooks and module
         # cache. Keep one in-process execution active at a time; xian-abci
@@ -151,6 +152,7 @@ class Executor:
                         kwargs[k] = ContractingDecimal(str(v))
 
                 runtime.rt.set_up(stmps=stamps * 1000, meter=metering)
+                runtime.rt.deduct_transaction_bytes(transaction_size_bytes)
                 enable_restricted_imports()
                 runtime.rt.begin_contract_metering(contract_name)
 

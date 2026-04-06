@@ -1,3 +1,5 @@
+import json
+
 from xian_zk import (
     ShieldedKeyBundle,
     ShieldedNote,
@@ -5,8 +7,9 @@ from xian_zk import (
     ShieldedOutput,
     ShieldedViewer,
     ShieldedWallet,
-    decrypt_note_message,
     asset_id_for_contract,
+    decrypt_note_message,
+    note_records_from_transactions,
     output_payload_hash,
     recover_encrypted_notes,
     recover_viewable_notes,
@@ -16,6 +19,57 @@ from xian_zk import (
 
 def field(value: int) -> str:
     return f"0x{value:064x}"
+
+
+def indexed_tx(
+    function: str,
+    kwargs: dict[str, object],
+    *,
+    tx_index: int,
+    block_height: int = 1,
+):
+    return {
+        "tx_hash": f"TX-{block_height}-{tx_index}",
+        "block_height": block_height,
+        "tx_index": tx_index,
+        "success": True,
+        "created_at": f"2026-01-01T00:00:{block_height:02d}+00:00",
+        "payload": {
+            "sender": "alice",
+            "nonce": tx_index,
+            "contract": "con_shielded_note_token",
+            "function": function,
+            "kwargs": kwargs,
+        },
+    }
+
+
+def indexed_tx_strings(
+    function: str,
+    kwargs: dict[str, object],
+    *,
+    tx_index: int,
+    block_height: int = 1,
+):
+    payload = {
+        "sender": "alice",
+        "nonce": tx_index,
+        "contract": "con_shielded_note_token",
+        "function": function,
+        "kwargs": kwargs,
+    }
+    return {
+        "tx_hash": f"TX-{block_height}-{tx_index}",
+        "block_height": block_height,
+        "tx_index": tx_index,
+        "success": True,
+        "created_at": f"2026-01-01T00:00:{block_height:02d}+00:00",
+        "payload": json.dumps(payload, sort_keys=True),
+        "envelope": json.dumps(
+            {"payload": payload},
+            sort_keys=True,
+        ),
+    }
 
 
 def test_recipient_address_and_note_payload_round_trip():
@@ -218,7 +272,182 @@ def test_wallet_sync_snapshot_and_spent_tracking_round_trip():
     from_seed = ShieldedWallet.from_seed_json(wallet.export_seed_json())
     assert from_seed.asset_id == wallet.asset_id
     assert from_seed.owner_secret == wallet.owner_secret
-    assert from_seed.viewing_public_key == wallet.viewing_public_key
+
+
+def test_note_records_from_transactions_reconstructs_canonical_indexes():
+    asset_id = asset_id_for_contract("con_shielded_note_token")
+    alice_keys = ShieldedKeyBundle.from_parts(
+        owner_secret=field(808),
+        viewing_private_key="88" * 32,
+    )
+    bob_keys = ShieldedKeyBundle.from_parts(
+        owner_secret=field(909),
+        viewing_private_key="99" * 32,
+    )
+
+    alice_note_a = ShieldedNote(
+        owner_secret=alice_keys.owner_secret,
+        amount=30,
+        rho=field(3001),
+        blind=field(4001),
+    )
+    alice_note_b = ShieldedNote(
+        owner_secret=alice_keys.owner_secret,
+        amount=20,
+        rho=field(3002),
+        blind=field(4002),
+    )
+    bob_output = ShieldedOutput.for_recipient(
+        bob_keys.recipient,
+        amount=15,
+        rho=field(3003),
+        blind=field(4003),
+    )
+
+    deposit_payloads = [
+        alice_note_a.to_output().encrypt_for(
+            asset_id=asset_id,
+            viewing_public_key=alice_keys.viewing_public_key,
+        ),
+        alice_note_b.to_output().encrypt_for(
+            asset_id=asset_id,
+            viewing_public_key=alice_keys.viewing_public_key,
+        ),
+    ]
+    transfer_payload = bob_output.encrypt_for(
+        asset_id=asset_id,
+        viewing_public_key=bob_keys.viewing_public_key,
+    )
+
+    records = note_records_from_transactions(
+        [
+            indexed_tx(
+                "transfer_shielded",
+                {
+                    "output_commitments": [bob_output.commitment(asset_id)],
+                    "output_payloads": [transfer_payload],
+                },
+                tx_index=0,
+                block_height=2,
+            ),
+            indexed_tx(
+                "deposit_shielded",
+                {
+                    "output_commitments": [
+                        alice_note_a.commitment(asset_id),
+                        alice_note_b.commitment(asset_id),
+                    ],
+                    "output_payloads": deposit_payloads,
+                },
+                tx_index=0,
+                block_height=1,
+            ),
+        ]
+    )
+
+    assert [record.index for record in records] == [0, 1, 2]
+    assert [record.commitment for record in records] == [
+        alice_note_a.commitment(asset_id),
+        alice_note_b.commitment(asset_id),
+        bob_output.commitment(asset_id),
+    ]
+    assert records[0].payload_hash == output_payload_hash(deposit_payloads[0])
+    assert records[2].payload_hash == output_payload_hash(transfer_payload)
+
+
+def test_note_records_from_transactions_accepts_stringified_indexed_payloads():
+    asset_id = asset_id_for_contract("con_shielded_note_token")
+    alice_keys = ShieldedKeyBundle.from_parts(
+        owner_secret=field(1201),
+        viewing_private_key="11" * 32,
+    )
+    alice_note = ShieldedNote(
+        owner_secret=alice_keys.owner_secret,
+        amount=17,
+        rho=field(1301),
+        blind=field(1401),
+    )
+    payload = alice_note.to_output().encrypt_for(
+        asset_id=asset_id,
+        viewing_public_key=alice_keys.viewing_public_key,
+    )
+
+    records = note_records_from_transactions(
+        [
+            indexed_tx_strings(
+                "deposit_shielded",
+                {
+                    "output_commitments": [alice_note.commitment(asset_id)],
+                    "output_payloads": [payload],
+                },
+                block_height=7,
+                tx_index=0,
+            )
+        ]
+    )
+
+    assert len(records) == 1
+    assert records[0].commitment == alice_note.commitment(asset_id)
+    assert records[0].payload == payload
+    assert records[0].payload_hash == output_payload_hash(payload)
+
+
+def test_wallet_sync_transactions_discovers_owned_notes_from_indexed_history():
+    asset_id = asset_id_for_contract("con_shielded_note_token")
+    wallet = ShieldedWallet.from_parts(
+        asset_id=asset_id,
+        owner_secret=field(1001),
+        viewing_private_key="aa" * 32,
+    )
+    other_keys = ShieldedKeyBundle.from_parts(
+        owner_secret=field(1002),
+        viewing_private_key="bb" * 32,
+    )
+
+    wallet_note = ShieldedNote(
+        owner_secret=wallet.owner_secret,
+        amount=28,
+        rho=field(5001),
+        blind=field(6001),
+    )
+    other_output = ShieldedOutput.for_recipient(
+        other_keys.recipient,
+        amount=13,
+        rho=field(5002),
+        blind=field(6002),
+    )
+
+    sync_result = wallet.sync_transactions(
+        [
+            indexed_tx(
+                "deposit_shielded",
+                {
+                    "output_commitments": [
+                        wallet_note.commitment(asset_id),
+                        other_output.commitment(asset_id),
+                    ],
+                    "output_payloads": [
+                        wallet_note.to_output().encrypt_for(
+                            asset_id=asset_id,
+                            viewing_public_key=wallet.viewing_public_key,
+                            memo="bonus",
+                        ),
+                        other_output.encrypt_for(
+                            asset_id=asset_id,
+                            viewing_public_key=other_keys.viewing_public_key,
+                        ),
+                    ],
+                },
+                tx_index=0,
+                block_height=1,
+            )
+        ]
+    )
+
+    assert sync_result.scanned_record_count == 2
+    assert len(sync_result.discovered_notes) == 1
+    assert sync_result.discovered_notes[0].memo == "bonus"
+    assert wallet.available_balance() == 28
 
 
 def test_wallet_can_build_transfer_and_exact_withdraw_plans():

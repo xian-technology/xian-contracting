@@ -314,6 +314,11 @@ class Runtime:
             stamp_cost = cost * constants.WRITE_COST_PER_BYTE
             self.tracer.add_cost(stamp_cost)
 
+    def deduct_transaction_bytes(self, size: int):
+        if size <= 0 or not self.tracer.is_started():
+            return
+        self.tracer.add_cost(size * constants.TRANSACTION_BYTES_COST_PER_BYTE)
+
     def deduct_return_value(self, value):
         if not self.tracer.is_started():
             return
