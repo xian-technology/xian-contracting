@@ -8,7 +8,8 @@ use ark_snark::SNARK;
 use ark_std::rand::rngs::StdRng;
 use ark_std::rand::SeedableRng;
 use num_bigint::BigUint;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
@@ -49,6 +50,13 @@ impl ConstraintSynthesizer<Fr> for SquareCircuit {
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct DemoVector {
+    pub vk_hex: String,
+    pub proof_hex: String,
+    pub public_inputs: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct Groth16Bn254BatchItem {
     pub vk_hex: String,
     pub proof_hex: String,
     pub public_inputs: Vec<String>,
@@ -158,6 +166,36 @@ pub fn verify_groth16_bn254_prepared(
     let inputs = parse_public_inputs(public_inputs)?;
     Groth16::<Bn254>::verify_with_processed_vk(&prepared.prepared_vk, &inputs, &proof)
         .map_err(|error| verification_error(format!("verification failed: {error}")))
+}
+
+pub fn verify_groth16_bn254_grouped(
+    items: &[Groth16Bn254BatchItem],
+) -> Result<Vec<bool>, VerifierError> {
+    let mut prepared_cache: HashMap<String, PreparedVerifyingKey<Bn254>> =
+        HashMap::new();
+    let mut results = Vec::with_capacity(items.len());
+
+    for item in items {
+        let prepared = if let Some(prepared) = prepared_cache.get(&item.vk_hex) {
+            prepared
+        } else {
+            let vk = decode_verifying_key(&item.vk_hex)?;
+            prepared_cache.insert(item.vk_hex.clone(), prepare_verifying_key(&vk));
+            prepared_cache
+                .get(&item.vk_hex)
+                .expect("prepared cache must contain inserted verifying key")
+        };
+        let proof = decode_proof(&item.proof_hex)?;
+        let inputs = parse_public_inputs(&item.public_inputs)?;
+        let result =
+            Groth16::<Bn254>::verify_with_processed_vk(prepared, &inputs, &proof)
+                .map_err(|error| {
+                    verification_error(format!("verification failed: {error}"))
+                })?;
+        results.push(result);
+    }
+
+    Ok(results)
 }
 
 fn hex_encode(bytes: &[u8]) -> String {

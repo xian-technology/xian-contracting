@@ -1,6 +1,8 @@
 use crate::core::{
     prepare_groth16_bn254_vk as prepare_impl, verify_groth16_bn254 as verify_impl,
+    verify_groth16_bn254_grouped as verify_grouped_impl,
     verify_groth16_bn254_prepared as verify_prepared_impl,
+    Groth16Bn254BatchItem,
     PreparedGroth16Bn254Key as CorePreparedGroth16Bn254Key, VerifierError,
 };
 use crate::shielded_notes::{
@@ -20,6 +22,9 @@ use crate::shielded_notes::{
     shielded_note_output_commitment_hex, shielded_note_owner_public_hex,
     shielded_note_recipient_digest_hex, shielded_note_root_hex, shielded_note_tree_state,
     shielded_note_zero_root_hex, shielded_output_payload_hash_hex,
+    shielded_output_payload_hash_hexes, shielded_command_public_inputs_hex,
+    shielded_deposit_public_inputs_hex, shielded_transfer_public_inputs_hex,
+    shielded_withdraw_public_inputs_hex,
     ShieldedCommandProverBundle as CoreShieldedCommandProverBundle,
     ShieldedCommandRequest, ShieldedDepositRequest,
     ShieldedProverBundle as CoreShieldedProverBundle, ShieldedTransferRequest,
@@ -77,6 +82,14 @@ fn verify_groth16_bn254_prepared(
     public_inputs: Vec<String>,
 ) -> PyResult<bool> {
     verify_prepared_impl(&prepared.inner, proof_hex, &public_inputs).map_err(to_pyerr)
+}
+
+#[pyfunction]
+fn verify_groth16_bn254_grouped_json(items_json: &str) -> PyResult<String> {
+    let items: Vec<Groth16Bn254BatchItem> = serde_json::from_str(items_json)
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    let results = verify_grouped_impl(&items).map_err(to_pyerr)?;
+    serde_json::to_string(&results).map_err(|error| PyValueError::new_err(error.to_string()))
 }
 
 #[pyfunction]
@@ -154,6 +167,95 @@ fn shielded_note_recipient_digest(recipient: &str) -> String {
 #[pyfunction]
 fn shielded_output_payload_hash(payload_hex: &str) -> String {
     shielded_output_payload_hash_hex(payload_hex)
+}
+
+#[pyfunction]
+fn shielded_output_payload_hashes(payload_hexes: Vec<String>) -> Vec<String> {
+    shielded_output_payload_hash_hexes(&payload_hexes)
+}
+
+#[pyfunction]
+fn shielded_deposit_public_inputs(
+    contract_name: &str,
+    old_root_hex: &str,
+    amount: u64,
+    commitments: Vec<String>,
+    payload_hashes: Vec<String>,
+) -> PyResult<Vec<String>> {
+    shielded_deposit_public_inputs_hex(
+        contract_name,
+        old_root_hex,
+        amount,
+        &commitments,
+        &payload_hashes,
+    )
+    .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
+fn shielded_transfer_public_inputs(
+    contract_name: &str,
+    old_root_hex: &str,
+    input_nullifiers: Vec<String>,
+    commitments: Vec<String>,
+    payload_hashes: Vec<String>,
+) -> PyResult<Vec<String>> {
+    shielded_transfer_public_inputs_hex(
+        contract_name,
+        old_root_hex,
+        &input_nullifiers,
+        &commitments,
+        &payload_hashes,
+    )
+    .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
+fn shielded_withdraw_public_inputs(
+    contract_name: &str,
+    old_root_hex: &str,
+    amount: u64,
+    recipient: &str,
+    input_nullifiers: Vec<String>,
+    commitments: Vec<String>,
+    payload_hashes: Vec<String>,
+) -> PyResult<Vec<String>> {
+    shielded_withdraw_public_inputs_hex(
+        contract_name,
+        old_root_hex,
+        amount,
+        recipient,
+        &input_nullifiers,
+        &commitments,
+        &payload_hashes,
+    )
+    .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
+fn shielded_command_public_inputs(
+    contract_name: &str,
+    old_root_hex: &str,
+    command_binding_hex_value: &str,
+    execution_tag_hex_value: &str,
+    fee: u64,
+    public_amount: u64,
+    input_nullifiers: Vec<String>,
+    commitments: Vec<String>,
+    payload_hashes: Vec<String>,
+) -> PyResult<Vec<String>> {
+    shielded_command_public_inputs_hex(
+        contract_name,
+        old_root_hex,
+        command_binding_hex_value,
+        execution_tag_hex_value,
+        fee,
+        public_amount,
+        &input_nullifiers,
+        &commitments,
+        &payload_hashes,
+    )
+    .map_err(|error| PyValueError::new_err(error.to_string()))
 }
 
 #[pyfunction]
@@ -362,6 +464,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(prepare_groth16_bn254_vk, module)?)?;
     module.add_function(wrap_pyfunction!(verify_groth16_bn254, module)?)?;
     module.add_function(wrap_pyfunction!(verify_groth16_bn254_prepared, module)?)?;
+    module.add_function(wrap_pyfunction!(verify_groth16_bn254_grouped_json, module)?)?;
     module.add_function(wrap_pyfunction!(
         build_insecure_dev_shielded_note_bundle_json,
         module
@@ -384,6 +487,11 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(shielded_note_asset_id, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_recipient_digest, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_output_payload_hash, module)?)?;
+    module.add_function(wrap_pyfunction!(shielded_output_payload_hashes, module)?)?;
+    module.add_function(wrap_pyfunction!(shielded_deposit_public_inputs, module)?)?;
+    module.add_function(wrap_pyfunction!(shielded_transfer_public_inputs, module)?)?;
+    module.add_function(wrap_pyfunction!(shielded_withdraw_public_inputs, module)?)?;
+    module.add_function(wrap_pyfunction!(shielded_command_public_inputs, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_owner_public, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_note_commitment, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_output_commitment, module)?)?;

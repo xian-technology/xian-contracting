@@ -30,6 +30,7 @@ class TestZkStdlib(TestCase):
     def tearDown(self):
         zk._native_verifier_bindings.cache_clear()
         zk.clear_prepared_vk_cache()
+        zk.clear_verified_proof_cache()
         zk.rt.env.pop("__Driver", None)
 
     def test_is_available_false_when_native_package_missing(self):
@@ -258,7 +259,74 @@ class TestZkStdlib(TestCase):
             )
 
         self.assertEqual(prepared_calls, ["0x1234"])
-        self.assertEqual(len(verify_calls), 2)
+        self.assertEqual(len(verify_calls), 1)
+
+    def test_warm_verified_proofs_primes_verify_cache(self):
+        mapping = {
+            (
+                constants.ZK_REGISTRY_CONTRACT_NAME,
+                "verifying_keys",
+                ("demo", "scheme"),
+            ): "groth16",
+            (
+                constants.ZK_REGISTRY_CONTRACT_NAME,
+                "verifying_keys",
+                ("demo", "curve"),
+            ): "bn254",
+            (
+                constants.ZK_REGISTRY_CONTRACT_NAME,
+                "verifying_keys",
+                ("demo", "vk_hex"),
+            ): "0x1234",
+            (
+                constants.ZK_REGISTRY_CONTRACT_NAME,
+                "verifying_keys",
+                ("demo", "vk_hash"),
+            ): "vk-hash",
+            (
+                constants.ZK_REGISTRY_CONTRACT_NAME,
+                "verifying_keys",
+                ("demo", "active"),
+            ): True,
+        }
+        zk.rt.env["__Driver"] = FakeDriver(mapping)
+        prepare_calls = []
+        verify_calls = []
+
+        bindings = {
+            "prepare_groth16_bn254_vk": lambda vk_hex: prepare_calls.append(vk_hex),
+            "verify_groth16_bn254_prepared": lambda *_args: verify_calls.append(
+                _args
+            ),
+            "verify_groth16_bn254_grouped_json": lambda _payload: "[true]",
+            "verify_groth16_bn254": lambda *_args: True,
+            "ZkEncodingError": FakeEncodingError,
+            "ZkVerifierError": FakeVerifierError,
+        }
+
+        with patch(
+            "contracting.stdlib.bridge.zk._native_verifier_bindings",
+            return_value=bindings,
+        ):
+            warmed = zk.warm_verified_proofs(
+                [
+                    {
+                        "vk_id": "demo",
+                        "proof_hex": "0xabcd",
+                        "public_inputs": ["0x" + "00" * 32],
+                    }
+                ]
+            )
+            verified = zk.verify_groth16(
+                "demo",
+                "0xabcd",
+                ["0x" + "00" * 32],
+            )
+
+        self.assertEqual(warmed, [True])
+        self.assertTrue(verified)
+        self.assertEqual(prepare_calls, [])
+        self.assertEqual(verify_calls, [])
 
     def test_verify_groth16_reprepares_when_vk_hash_changes(self):
         mapping = {
@@ -454,3 +522,70 @@ class TestZkStdlib(TestCase):
 
         deduct.assert_called_once_with((len(payload) - 2) // 2)
         self.assertEqual(result, "0x" + "66" * 32)
+
+    def test_shielded_output_payload_hashes_uses_native_helper(self):
+        bindings = {
+            "shielded_output_payload_hashes": lambda payloads: [
+                "0x" + "77" * 32 for _ in payloads
+            ],
+            "ZkEncodingError": FakeEncodingError,
+            "ZkVerifierError": FakeVerifierError,
+        }
+
+        with patch(
+            "contracting.stdlib.bridge.zk._native_verifier_bindings",
+            return_value=bindings,
+        ):
+            result = zk.shielded_output_payload_hashes(["0x1234", ""])
+
+        self.assertEqual(result, ["0x" + "77" * 32, "0x" + "77" * 32])
+
+    def test_shielded_deposit_public_inputs_uses_native_helper(self):
+        bindings = {
+            "shielded_deposit_public_inputs": lambda *_args: [
+                "0x" + "88" * 32
+            ],
+            "ZkEncodingError": FakeEncodingError,
+            "ZkVerifierError": FakeVerifierError,
+        }
+
+        with patch(
+            "contracting.stdlib.bridge.zk._native_verifier_bindings",
+            return_value=bindings,
+        ):
+            result = zk.shielded_deposit_public_inputs(
+                "con_demo",
+                "0x" + "11" * 32,
+                7,
+                ["0x" + "22" * 32],
+                ["0x" + "33" * 32],
+            )
+
+        self.assertEqual(result, ["0x" + "88" * 32])
+
+    def test_shielded_command_public_inputs_uses_native_helper(self):
+        bindings = {
+            "shielded_command_public_inputs": lambda *_args: [
+                "0x" + "99" * 32
+            ],
+            "ZkEncodingError": FakeEncodingError,
+            "ZkVerifierError": FakeVerifierError,
+        }
+
+        with patch(
+            "contracting.stdlib.bridge.zk._native_verifier_bindings",
+            return_value=bindings,
+        ):
+            result = zk.shielded_command_public_inputs(
+                "con_demo",
+                "0x" + "11" * 32,
+                "0x" + "22" * 32,
+                "0x" + "33" * 32,
+                1,
+                0,
+                ["0x" + "44" * 32],
+                ["0x" + "55" * 32],
+                ["0x" + "66" * 32],
+            )
+
+        self.assertEqual(result, ["0x" + "99" * 32])
