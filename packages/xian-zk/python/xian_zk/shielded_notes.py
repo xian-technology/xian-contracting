@@ -8,6 +8,10 @@ from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Callable, Sequence
 
 from nacl.bindings import (
+    crypto_box_beforenm,
+    crypto_box_easy_afternm,
+    crypto_box_NONCEBYTES,
+    crypto_box_open_easy_afternm,
     crypto_sign_ed25519_pk_to_curve25519,
     crypto_sign_ed25519_sk_to_curve25519,
 )
@@ -36,7 +40,9 @@ from xian_zk._native import (
 
 _FIELD_MODULUS = 21888242871839275222246405745257275088548364400416034343698204186575808495617
 _FIELD_ZERO_HEX = "0x" + "00" * 32
-_PAYLOAD_VERSION = 1
+_PAYLOAD_VERSION = 2
+_DISCOVERY_TAG_BYTES = 16
+_SYNC_HINT_BYTES = 12
 _SHIELDED_NOTE_MAX_INPUTS = 4
 _SHIELDED_NOTE_MAX_OUTPUTS = 4
 
@@ -137,6 +143,62 @@ def _encrypt_message_for_public_key(
     return _canonical_hex(ciphertext)
 
 
+def _shared_key_from_public_key(
+    viewing_public_key: str, ephemeral_private_key: PrivateKey
+) -> bytes:
+    return crypto_box_beforenm(
+        bytes(_x25519_public_key_from_ed25519(viewing_public_key)),
+        bytes(ephemeral_private_key),
+    )
+
+
+def _shared_key_from_private_key(
+    viewing_private_key: str, ephemeral_public_key: str
+) -> bytes:
+    return crypto_box_beforenm(
+        _normalize_hex_bytes(ephemeral_public_key, expected_len=32),
+        bytes(_x25519_private_key_from_ed25519(viewing_private_key)),
+    )
+
+
+def _discovery_tag(shared_key: bytes) -> str:
+    return _canonical_hex(
+        hashlib.sha3_256(
+            b"xian-zk-note-discovery-v1" + shared_key
+        ).digest()[:_DISCOVERY_TAG_BYTES]
+    )
+
+
+def _sync_hint(viewing_public_key: str) -> str:
+    return _canonical_hex(
+        hashlib.sha3_256(
+            b"xian-zk-note-sync-v1"
+            + _normalize_hex_bytes(viewing_public_key, expected_len=32)
+        ).digest()[:_SYNC_HINT_BYTES]
+    )
+
+
+def _encrypt_message_for_viewer(
+    message: str, viewer: "ShieldedViewer"
+) -> "ShieldedPayloadCiphertext":
+    ephemeral_private_key = PrivateKey.generate()
+    shared_key = _shared_key_from_public_key(
+        viewer.viewing_public_key, ephemeral_private_key
+    )
+    nonce = secrets.token_bytes(crypto_box_NONCEBYTES)
+    ciphertext = crypto_box_easy_afternm(
+        message.encode("utf-8"), nonce, shared_key
+    )
+    return ShieldedPayloadCiphertext(
+        ciphertext=_canonical_hex(ciphertext),
+        label=viewer.label,
+        discovery_tag=_discovery_tag(shared_key),
+        sync_hint=_sync_hint(viewer.viewing_public_key),
+        ephemeral_public_key=_canonical_hex(bytes(ephemeral_private_key.public_key)),
+        nonce=_canonical_hex(nonce),
+    )
+
+
 def generate_owner_secret() -> str:
     return _canonical_field_hex(secrets.randbelow(_FIELD_MODULUS))
 
@@ -224,6 +286,10 @@ class ShieldedViewingKeyBundle:
     def viewer(self) -> ShieldedViewer:
         return ShieldedViewer(viewing_public_key=self.viewing_public_key)
 
+    @property
+    def sync_hint(self) -> str:
+        return _sync_hint(self.viewing_public_key)
+
 
 @dataclass(frozen=True)
 class ShieldedKeyBundle:
@@ -275,6 +341,10 @@ class ShieldedKeyBundle:
             viewing_private_key=self.viewing_private_key,
             viewing_public_key=self.viewing_public_key,
         )
+
+    @property
+    def sync_hint(self) -> str:
+        return self.viewing_bundle.sync_hint
 
 
 @dataclass(frozen=True)
@@ -437,9 +507,63 @@ class ShieldedNoteMessage:
 
 @dataclass(frozen=True)
 class ShieldedPayloadCiphertext:
-    viewing_public_key: str
     ciphertext: str
     label: str | None = None
+    discovery_tag: str | None = None
+    sync_hint: str | None = None
+    ephemeral_public_key: str | None = None
+    nonce: str | None = None
+    viewing_public_key: str | None = None
+
+    def is_v2(self) -> bool:
+        return (
+            self.discovery_tag is not None
+            and self.ephemeral_public_key is not None
+            and self.nonce is not None
+        )
+
+    def matches_viewing_key(
+        self,
+        *,
+        viewing_private_key: str,
+        viewing_public_key: str,
+    ) -> bool:
+        if self.is_v2():
+            try:
+                shared_key = _shared_key_from_private_key(
+                    viewing_private_key,
+                    self.ephemeral_public_key,
+                )
+            except Exception:
+                return False
+            return _discovery_tag(shared_key) == self.discovery_tag
+        return self.viewing_public_key == viewing_public_key
+
+    def decrypt(
+        self,
+        *,
+        viewing_private_key: str,
+        viewing_public_key: str,
+    ) -> str:
+        if self.is_v2():
+            shared_key = _shared_key_from_private_key(
+                viewing_private_key,
+                self.ephemeral_public_key,
+            )
+            plaintext = crypto_box_open_easy_afternm(
+                _normalize_hex_bytes(self.ciphertext),
+                _normalize_hex_bytes(self.nonce, expected_len=crypto_box_NONCEBYTES),
+                shared_key,
+            )
+            return plaintext.decode("utf-8")
+
+        if self.viewing_public_key != viewing_public_key:
+            raise ValueError("no ciphertext for the provided viewing key")
+        sealed_box = SealedBox(
+            _x25519_private_key_from_ed25519(viewing_private_key)
+        )
+        plaintext = sealed_box.decrypt(_normalize_hex_bytes(self.ciphertext))
+        return plaintext.decode("utf-8")
 
 
 @dataclass(frozen=True)
@@ -457,12 +581,8 @@ class ShieldedNotePayload:
         unique: dict[str, ShieldedPayloadCiphertext] = {}
         for raw_viewer in viewers:
             viewer = _normalize_viewer(raw_viewer)
-            unique[viewer.viewing_public_key] = ShieldedPayloadCiphertext(
-                viewing_public_key=viewer.viewing_public_key,
-                ciphertext=_encrypt_message_for_public_key(
-                    plaintext, viewer.viewing_public_key
-                ),
-                label=viewer.label,
+            unique[viewer.viewing_public_key] = _encrypt_message_for_viewer(
+                plaintext, viewer
             )
         return cls(ciphertexts=list(unique.values()))
 
@@ -471,7 +591,8 @@ class ShieldedNotePayload:
         decoded = _decode_payload_json(payload_hex)
         if decoded is None:
             return None
-        if decoded.get("version") != _PAYLOAD_VERSION:
+        version = decoded.get("version")
+        if version not in (1, _PAYLOAD_VERSION):
             return None
         ciphertexts = decoded.get("ciphertexts")
         if not isinstance(ciphertexts, list):
@@ -481,26 +602,90 @@ class ShieldedNotePayload:
         for item in ciphertexts:
             if not isinstance(item, dict):
                 return None
-            viewing_public_key = item.get("viewing_public_key")
             ciphertext = item.get("ciphertext")
             label = item.get("label")
-            if not isinstance(viewing_public_key, str) or not isinstance(
-                ciphertext, str
-            ):
+            if not isinstance(ciphertext, str):
                 return None
             if label is not None and not isinstance(label, str):
                 return None
-            entries.append(
-                ShieldedPayloadCiphertext(
-                    viewing_public_key=viewing_public_key,
+            if version == 1:
+                viewing_public_key = item.get("viewing_public_key")
+                if not isinstance(viewing_public_key, str):
+                    return None
+                entry = ShieldedPayloadCiphertext(
                     ciphertext=ciphertext,
                     label=label,
+                    viewing_public_key=viewing_public_key,
                 )
+            else:
+                discovery_tag = item.get("discovery_tag")
+                sync_hint = item.get("sync_hint")
+                ephemeral_public_key = item.get("ephemeral_public_key")
+                nonce = item.get("nonce")
+                if not (
+                    isinstance(discovery_tag, str)
+                    and isinstance(ephemeral_public_key, str)
+                    and isinstance(nonce, str)
+                ):
+                    return None
+                entry = ShieldedPayloadCiphertext(
+                    ciphertext=ciphertext,
+                    label=label,
+                    discovery_tag=discovery_tag,
+                    sync_hint=sync_hint if isinstance(sync_hint, str) else None,
+                    ephemeral_public_key=ephemeral_public_key,
+                    nonce=nonce,
+                )
+            entries.append(
+                entry
             )
-        return cls(ciphertexts=entries)
+        return cls(ciphertexts=entries, version=int(version))
+
+    def matching_ciphertext(
+        self,
+        *,
+        viewing_private_key: str,
+        viewing_public_key: str,
+    ) -> ShieldedPayloadCiphertext | None:
+        for ciphertext in self.ciphertexts:
+            if ciphertext.matches_viewing_key(
+                viewing_private_key=viewing_private_key,
+                viewing_public_key=viewing_public_key,
+            ):
+                return ciphertext
+        return None
+
+    def discovery_tags(self) -> list[str]:
+        return [
+            ciphertext.discovery_tag
+            for ciphertext in self.ciphertexts
+            if ciphertext.discovery_tag is not None
+        ]
+
+    def sync_hints(self) -> list[str]:
+        return [
+            ciphertext.sync_hint
+            for ciphertext in self.ciphertexts
+            if ciphertext.sync_hint is not None
+        ]
 
     def to_hex(self) -> str:
-        return _encode_payload_json(asdict(self))
+        return _encode_payload_json(
+            {
+                "version": _PAYLOAD_VERSION,
+                "ciphertexts": [
+                    {
+                        "ciphertext": item.ciphertext,
+                        "label": item.label,
+                        "discovery_tag": item.discovery_tag,
+                        "sync_hint": item.sync_hint,
+                        "ephemeral_public_key": item.ephemeral_public_key,
+                        "nonce": item.nonce,
+                    }
+                    for item in self.ciphertexts
+                ],
+            }
+        )
 
 
 @dataclass(frozen=True)
@@ -610,6 +795,7 @@ class ShieldedNoteRecord:
     commitment: str
     payload: str | None = None
     payload_hash: str | None = None
+    payload_tags: tuple[str, ...] = ()
     created_at: Any = None
 
     @classmethod
@@ -627,6 +813,7 @@ class ShieldedNoteRecord:
         commitment = value.get("commitment")
         payload = value.get("payload")
         payload_hash = value.get("payload_hash")
+        payload_tags = value.get("payload_tags", ())
 
         if not isinstance(index, int):
             raise ValueError("note record index must be an integer")
@@ -638,12 +825,20 @@ class ShieldedNoteRecord:
             raise ValueError(
                 "note record payload_hash must be a string or None"
             )
+        if not isinstance(payload_tags, (list, tuple)):
+            raise ValueError("note record payload_tags must be a list or tuple")
+        normalized_tags: list[str] = []
+        for tag in payload_tags:
+            if not isinstance(tag, str):
+                raise ValueError("note record payload_tags must contain strings")
+            normalized_tags.append(tag)
 
         return cls(
             index=index,
             commitment=commitment,
             payload=payload,
             payload_hash=payload_hash,
+            payload_tags=tuple(normalized_tags),
             created_at=value.get("created_at"),
         )
 
@@ -678,6 +873,47 @@ def _transaction_int(raw: Mapping[str, Any], key: str) -> int:
     if isinstance(value, str) and value.isdigit():
         return int(value)
     return 0
+
+
+def _mapping_optional_int(raw: Mapping[str, Any], key: str) -> int | None:
+    value = raw.get(key)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return None
+
+
+def _mapping_str(raw: Mapping[str, Any], key: str) -> str | None:
+    value = raw.get(key)
+    return value if isinstance(value, str) else None
+
+
+def _record_mapping(value: Any, *, label: str) -> Mapping[str, Any]:
+    if isinstance(value, Mapping):
+        return value
+    raw = getattr(value, "raw", None)
+    if isinstance(raw, Mapping):
+        return raw
+    raise TypeError(f"{label} must be a mapping or expose a raw mapping")
+
+
+def _tx_payload_mapping_from_receipt(receipt: Any) -> Mapping[str, Any] | None:
+    transaction = getattr(receipt, "transaction", None)
+    if isinstance(transaction, Mapping):
+        payload = _transaction_json_mapping(transaction.get("payload"))
+        if payload is not None:
+            return payload
+        return transaction if "kwargs" in transaction else None
+
+    raw_receipt = _record_mapping(receipt, label="receipt")
+    transaction = raw_receipt.get("transaction")
+    if isinstance(transaction, Mapping):
+        payload = _transaction_json_mapping(transaction.get("payload"))
+        if payload is not None:
+            return payload
+        return transaction if "kwargs" in transaction else None
+    return None
 
 
 def _transaction_success(raw: Mapping[str, Any]) -> bool:
@@ -775,6 +1011,9 @@ def note_records_from_transactions(
                     commitment=commitment,
                     payload=normalized_payload,
                     payload_hash=output_payload_hash(normalized_payload),
+                    payload_tags=tuple(
+                        payload_discovery_tags(normalized_payload)
+                    ),
                     created_at=created_at,
                 )
             )
@@ -843,6 +1082,7 @@ class ShieldedWalletSyncResult:
     scanned_record_count: int
     discovered_notes: list[ShieldedWalletNote]
     last_scanned_index: int
+    candidate_record_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -881,6 +1121,8 @@ class ShieldedWallet:
         commitments: Sequence[str] = (),
         notes: Sequence[ShieldedWalletNote] = (),
         last_scanned_index: int = 0,
+        last_output_event_id: int | None = None,
+        last_tag_id: int | None = None,
     ):
         self.asset_id = asset_id
         self.key_bundle = key_bundle
@@ -889,6 +1131,8 @@ class ShieldedWallet:
             note.commitment: note for note in notes
         }
         self.last_scanned_index = last_scanned_index
+        self.last_output_event_id = last_output_event_id
+        self.last_tag_id = last_tag_id
 
     @classmethod
     def generate(cls, asset_id: str) -> "ShieldedWallet":
@@ -937,6 +1181,8 @@ class ShieldedWallet:
             last_scanned_index=decoded.get(
                 "last_scanned_index", len(commitments)
             ),
+            last_output_event_id=decoded.get("last_output_event_id"),
+            last_tag_id=decoded.get("last_tag_id"),
         )
 
     @classmethod
@@ -967,6 +1213,10 @@ class ShieldedWallet:
         return self.key_bundle.viewing_public_key
 
     @property
+    def indexed_sync_hint(self) -> str:
+        return self.key_bundle.sync_hint
+
+    @property
     def recipient(self) -> ShieldedRecipient:
         return self.key_bundle.recipient
 
@@ -991,6 +1241,8 @@ class ShieldedWallet:
                 "owner_secret": self.owner_secret,
                 "viewing_private_key": self.viewing_private_key,
                 "last_scanned_index": self.last_scanned_index,
+                "last_output_event_id": self.last_output_event_id,
+                "last_tag_id": self.last_tag_id,
                 "commitments": list(self._commitments),
                 "notes": [
                     note.to_dict() for note in self.notes(include_spent=True)
@@ -1031,6 +1283,7 @@ class ShieldedWallet:
             key=lambda record: record.index,
         )
         discovered: list[ShieldedWalletNote] = []
+        candidate_count = 0
 
         for record in normalized:
             if record.index < 0:
@@ -1055,6 +1308,13 @@ class ShieldedWallet:
                 continue
             if record.payload in (None, ""):
                 continue
+            if not payload_matches_viewing_key(
+                record.payload,
+                viewing_private_key=self.viewing_private_key,
+                viewing_public_key=self.viewing_public_key,
+            ):
+                continue
+            candidate_count += 1
 
             try:
                 message = decrypt_note_message(
@@ -1085,7 +1345,25 @@ class ShieldedWallet:
             scanned_record_count=len(normalized),
             discovered_notes=discovered,
             last_scanned_index=self.last_scanned_index,
+            candidate_record_count=candidate_count,
         )
+
+    def candidate_records(
+        self,
+        records: Sequence[ShieldedNoteRecord | dict[str, Any]],
+    ) -> list[ShieldedNoteRecord]:
+        normalized = [
+            ShieldedNoteRecord.from_value(record) for record in records
+        ]
+        return [
+            record
+            for record in normalized
+            if payload_matches_viewing_key(
+                record.payload,
+                viewing_private_key=self.viewing_private_key,
+                viewing_public_key=self.viewing_public_key,
+            )
+        ]
 
     def sync_transactions(
         self,
@@ -1101,6 +1379,162 @@ class ShieldedWallet:
                 starting_index=starting_index,
             )
         )
+
+    def sync_indexed_client(
+        self,
+        indexed_client: Any,
+        *,
+        contract: str,
+        page_size: int = 100,
+    ) -> ShieldedWalletSyncResult:
+        if page_size <= 0:
+            raise ValueError("page_size must be positive")
+
+        output_events: list[Mapping[str, Any]] = []
+        output_cursor = self.last_output_event_id
+        while True:
+            page = indexed_client.list_events(
+                contract,
+                "ShieldedOutputsCommitted",
+                limit=page_size,
+                after_id=output_cursor,
+            )
+            if not isinstance(page, list):
+                raise TypeError("indexed client must return a list of events")
+            if len(page) == 0:
+                break
+            raw_page = [
+                _record_mapping(event, label="indexed event") for event in page
+            ]
+            output_events.extend(raw_page)
+            output_cursor = _mapping_optional_int(raw_page[-1], "id")
+            if len(raw_page) < page_size:
+                break
+
+        if len(output_events) == 0:
+            return ShieldedWalletSyncResult(
+                scanned_record_count=0,
+                discovered_notes=[],
+                last_scanned_index=self.last_scanned_index,
+                candidate_record_count=0,
+            )
+
+        records_by_index: dict[int, ShieldedNoteRecord] = {}
+        for event in output_events:
+            data = _transaction_json_mapping(event.get("data")) or {}
+            note_index_start = _mapping_optional_int(data, "note_index_start")
+            output_count = _mapping_optional_int(data, "output_count")
+            commitments_blob = _mapping_str(data, "commitments_blob")
+            if note_index_start is None or commitments_blob is None:
+                raise ValueError("shielded output event is missing note metadata")
+            commitments = [
+                item for item in commitments_blob.split("|") if item != ""
+            ]
+            if output_count is None:
+                output_count = len(commitments)
+            if len(commitments) < output_count:
+                raise ValueError(
+                    "shielded output event commitments do not match output_count"
+                )
+            for output_index in range(output_count):
+                note_index = note_index_start + output_index
+                records_by_index[note_index] = ShieldedNoteRecord(
+                    index=note_index,
+                    commitment=commitments[output_index],
+                    payload=None,
+                    payload_hash=None,
+                    payload_tags=(),
+                    created_at=event.get("created_at") or event.get("created"),
+                )
+
+        tag_matches: list[Mapping[str, Any]] = []
+        tag_cursor = self.last_tag_id
+        while True:
+            page = indexed_client.list_shielded_output_tags(
+                self.indexed_sync_hint,
+                kind="sync_hint",
+                limit=page_size,
+                after_id=tag_cursor,
+            )
+            if not isinstance(page, list):
+                raise TypeError("indexed client must return a list of tag rows")
+            if len(page) == 0:
+                break
+            raw_page = [
+                _record_mapping(row, label="shielded output tag row")
+                for row in page
+            ]
+            tag_matches.extend(raw_page)
+            tag_cursor = _mapping_optional_int(raw_page[-1], "id")
+            if len(raw_page) < page_size:
+                break
+
+        tx_payloads: dict[str, Mapping[str, Any]] = {}
+        for match in tag_matches:
+            tx_hash = _mapping_str(match, "tx_hash")
+            if tx_hash is None or tx_hash in tx_payloads:
+                continue
+            receipt = indexed_client.get_tx(tx_hash)
+            payload = _tx_payload_mapping_from_receipt(receipt)
+            if payload is None:
+                raise ValueError(
+                    f"transaction receipt for {tx_hash} is missing payload"
+                )
+            tx_payloads[tx_hash] = payload
+
+        for match in tag_matches:
+            note_index = _mapping_optional_int(match, "note_index")
+            output_index = _mapping_optional_int(match, "output_index")
+            tx_hash = _mapping_str(match, "tx_hash")
+            if note_index is None or output_index is None or tx_hash is None:
+                continue
+            record = records_by_index.get(note_index)
+            if record is None:
+                continue
+
+            payload = tx_payloads.get(tx_hash)
+            if payload is None:
+                continue
+            kwargs = _transaction_json_mapping(payload.get("kwargs"))
+            if kwargs is None:
+                continue
+            commitments = kwargs.get("output_commitments")
+            payloads = kwargs.get("output_payloads")
+            if not isinstance(commitments, list) or not isinstance(payloads, list):
+                continue
+            if output_index >= len(commitments) or output_index >= len(payloads):
+                continue
+
+            commitment = commitments[output_index]
+            output_payload = payloads[output_index]
+            if not isinstance(commitment, str) or not isinstance(output_payload, str):
+                continue
+            if commitment != record.commitment:
+                raise ValueError(
+                    "indexed shielded output tag does not match commitment history"
+                )
+
+            payload_tags = tuple(
+                dict.fromkeys(
+                    [*payload_sync_hints(output_payload), *payload_discovery_tags(output_payload)]
+                )
+            )
+            records_by_index[note_index] = replace(
+                record,
+                payload=output_payload,
+                payload_hash=output_payload_hash(output_payload),
+                payload_tags=payload_tags,
+            )
+
+        result = self.sync_records(
+            [
+                record
+                for _, record in sorted(records_by_index.items(), key=lambda item: item[0])
+            ]
+        )
+        self.last_output_event_id = output_cursor
+        self.last_tag_id = tag_cursor
+        return result
 
     def apply_spent_nullifiers(
         self, spent_nullifiers: Sequence[str]
@@ -1572,6 +2006,48 @@ def encrypt_note_message(
     return ShieldedNotePayload.encrypt(message, all_viewers).to_hex()
 
 
+def payload_discovery_tags(payload_hex: str | None) -> list[str]:
+    if payload_hex in (None, ""):
+        return []
+    payload = ShieldedNotePayload.from_hex(payload_hex)
+    if payload is None:
+        return []
+    return payload.discovery_tags()
+
+
+def payload_sync_hints(payload_hex: str | None) -> list[str]:
+    if payload_hex in (None, ""):
+        return []
+    payload = ShieldedNotePayload.from_hex(payload_hex)
+    if payload is None:
+        return []
+    return payload.sync_hints()
+
+
+def payload_matches_viewing_key(
+    payload_hex: str | None,
+    *,
+    viewing_private_key: str,
+    viewing_public_key: str | None = None,
+) -> bool:
+    if payload_hex in (None, ""):
+        return False
+    payload = ShieldedNotePayload.from_hex(payload_hex)
+    if payload is None:
+        return True
+    public_key = _resolve_viewing_public_key(
+        viewing_private_key,
+        viewing_public_key,
+    )
+    return (
+        payload.matching_ciphertext(
+            viewing_private_key=viewing_private_key,
+            viewing_public_key=public_key,
+        )
+        is not None
+    )
+
+
 def decrypt_note_message(
     payload_hex: str,
     *,
@@ -1588,13 +2064,17 @@ def decrypt_note_message(
 
     payload = ShieldedNotePayload.from_hex(payload_hex)
     if payload is not None:
-        for ciphertext in payload.ciphertexts:
-            if ciphertext.viewing_public_key != public_key:
-                continue
-            plaintext = sealed_box.decrypt(
-                _normalize_hex_bytes(ciphertext.ciphertext)
+        ciphertext = payload.matching_ciphertext(
+            viewing_private_key=viewing_private_key,
+            viewing_public_key=public_key,
+        )
+        if ciphertext is not None:
+            return ShieldedNoteMessage.from_json(
+                ciphertext.decrypt(
+                    viewing_private_key=viewing_private_key,
+                    viewing_public_key=public_key,
+                )
             )
-            return ShieldedNoteMessage.from_json(plaintext.decode("utf-8"))
         raise ValueError("no ciphertext for the provided viewing key")
 
     plaintext = sealed_box.decrypt(_normalize_hex_bytes(payload_hex))
@@ -1654,10 +2134,13 @@ def recover_viewable_notes(
         disclosure_label = None
         payload = ShieldedNotePayload.from_hex(payload_hex)
         if payload is not None:
-            for ciphertext in payload.ciphertexts:
-                if ciphertext.viewing_public_key == public_key:
-                    disclosure_label = ciphertext.label
-                    break
+            ciphertext = payload.matching_ciphertext(
+                viewing_private_key=viewing_private_key,
+                viewing_public_key=public_key,
+            )
+            if ciphertext is None:
+                continue
+            disclosure_label = ciphertext.label
 
         try:
             message = decrypt_note_message(

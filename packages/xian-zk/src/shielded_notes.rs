@@ -814,6 +814,34 @@ pub fn shielded_note_tree_state(
     )?))
 }
 
+pub fn shielded_note_append_tree_state(
+    note_count: usize,
+    filled_subtrees: &[String],
+    commitments: &[String],
+) -> Result<ShieldedTreeState, Box<dyn Error>> {
+    if filled_subtrees.len() != SHIELDED_NOTE_TREE_DEPTH {
+        return Err("filled_subtrees length does not match tree depth".into());
+    }
+
+    let mut parsed_subtrees = Vec::with_capacity(SHIELDED_NOTE_TREE_DEPTH);
+    for value in filled_subtrees {
+        parsed_subtrees.push(parse_field_hex(value)?);
+    }
+
+    let commitment_fields = leaf_fields_from_commitments(commitments)?;
+    let derived_root = root_from_frontier(note_count, &parsed_subtrees)?;
+    let current = FrontierState {
+        root: derived_root,
+        note_count,
+        filled_subtrees: parsed_subtrees,
+    };
+
+    Ok(frontier_state_to_public(&append_commitments_to_state(
+        &current,
+        &commitment_fields,
+    )?))
+}
+
 pub fn shielded_note_auth_path_hex(
     commitments: &[String],
     leaf_index: usize,

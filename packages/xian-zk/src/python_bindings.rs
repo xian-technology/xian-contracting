@@ -15,7 +15,8 @@ use crate::shielded_notes::{
     prove_shielded_withdraw as prove_withdraw_impl, shielded_command_binding_hex,
     shielded_command_execution_tag_hex, shielded_command_nullifier_digest_hex,
     shielded_note_asset_id_hex,
-    shielded_note_auth_path_hex, shielded_note_commitment_hex, shielded_note_nullifier_hex,
+    shielded_note_append_tree_state, shielded_note_auth_path_hex,
+    shielded_note_commitment_hex, shielded_note_nullifier_hex,
     shielded_note_output_commitment_hex, shielded_note_owner_public_hex,
     shielded_note_recipient_digest_hex, shielded_note_root_hex, shielded_note_tree_state,
     shielded_note_zero_root_hex, shielded_output_payload_hash_hex,
@@ -216,6 +217,23 @@ fn shielded_note_tree_state_json(commitments: Vec<String>) -> PyResult<String> {
 }
 
 #[pyfunction]
+fn shielded_note_append_tree_state_json(
+    note_count: usize,
+    filled_subtrees: Vec<String>,
+    commitments: Vec<String>,
+) -> PyResult<String> {
+    serde_json::to_string(
+        &shielded_note_append_tree_state(
+            note_count,
+            &filled_subtrees,
+            &commitments,
+        )
+        .map_err(|error| PyValueError::new_err(error.to_string()))?,
+    )
+    .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
 fn shielded_note_auth_path(commitments: Vec<String>, leaf_index: usize) -> PyResult<Vec<String>> {
     shielded_note_auth_path_hex(&commitments, leaf_index)
         .map_err(|error| PyValueError::new_err(error.to_string()))
@@ -372,6 +390,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(shielded_note_nullifier, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_root, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_tree_state_json, module)?)?;
+    module.add_function(wrap_pyfunction!(shielded_note_append_tree_state_json, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_auth_path, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_command_nullifier_digest, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_command_binding, module)?)?;

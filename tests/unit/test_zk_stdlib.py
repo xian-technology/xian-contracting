@@ -344,3 +344,94 @@ class TestZkStdlib(TestCase):
 
         self.assertEqual(prepared_calls, ["0x1234", "0x5678"])
         self.assertEqual(len(verify_calls), 2)
+
+    def test_shielded_note_append_commitments_uses_native_helper(self):
+        bindings = {
+            "shielded_note_append_tree_state_json": lambda *_args: (
+                '{"root":"0x'
+                + "11" * 32
+                + '","note_count":2,"filled_subtrees":["0x'
+                + "22" * 32
+                + '"]}'
+            ),
+            "ZkEncodingError": FakeEncodingError,
+            "ZkVerifierError": FakeVerifierError,
+        }
+
+        with patch(
+            "contracting.stdlib.bridge.zk._native_verifier_bindings",
+            return_value=bindings,
+        ), patch(
+            "contracting.stdlib.bridge.zk.rt.deduct_execution_cost"
+        ) as deduct:
+            result = zk.shielded_note_append_commitments(
+                1,
+                ["0x" + "00" * 32],
+                ["0x" + "01" * 32],
+            )
+
+        deduct.assert_called_once_with(
+            constants.ZK_SHIELDED_TREE_APPEND_BASE_COST
+            + constants.ZK_SHIELDED_TREE_APPEND_PER_COMMITMENT_COST
+        )
+        self.assertEqual(result["note_count"], 2)
+        self.assertEqual(result["root"], "0x" + "11" * 32)
+
+    def test_shielded_command_nullifier_digest_uses_native_helper(self):
+        bindings = {
+            "shielded_command_nullifier_digest": lambda values: "0x" + "33" * 32,
+            "ZkEncodingError": FakeEncodingError,
+            "ZkVerifierError": FakeVerifierError,
+        }
+
+        with patch(
+            "contracting.stdlib.bridge.zk._native_verifier_bindings",
+            return_value=bindings,
+        ), patch(
+            "contracting.stdlib.bridge.zk.rt.deduct_execution_cost"
+        ) as deduct:
+            digest = zk.shielded_command_nullifier_digest(
+                ["0x" + "01" * 32, "0x" + "02" * 32]
+            )
+
+        deduct.assert_called_once_with(
+            constants.ZK_SHIELDED_COMMAND_NULLIFIER_DIGEST_BASE_COST
+            + (2 * constants.ZK_SHIELDED_COMMAND_NULLIFIER_DIGEST_PER_INPUT_COST)
+        )
+        self.assertEqual(digest, "0x" + "33" * 32)
+
+    def test_shielded_command_binding_and_execution_tag_use_native_helpers(self):
+        bindings = {
+            "shielded_command_binding": lambda *_args: "0x" + "44" * 32,
+            "shielded_command_execution_tag": lambda *_args: "0x" + "55" * 32,
+            "ZkEncodingError": FakeEncodingError,
+            "ZkVerifierError": FakeVerifierError,
+        }
+
+        with patch(
+            "contracting.stdlib.bridge.zk._native_verifier_bindings",
+            return_value=bindings,
+        ), patch(
+            "contracting.stdlib.bridge.zk.rt.deduct_execution_cost"
+        ) as deduct:
+            binding = zk.shielded_command_binding(
+                "0x" + "01" * 32,
+                "0x" + "02" * 32,
+                "0x" + "03" * 32,
+                "0x" + "04" * 32,
+                "0x" + "05" * 32,
+                "0x" + "06" * 32,
+                "0x" + "07" * 32,
+                "0x" + "08" * 32,
+                7,
+                0,
+            )
+            tag = zk.shielded_command_execution_tag(
+                "0x" + "09" * 32,
+                "0x" + "0a" * 32,
+            )
+
+        deduct.assert_any_call(constants.ZK_SHIELDED_COMMAND_BINDING_COST)
+        deduct.assert_any_call(constants.ZK_SHIELDED_COMMAND_EXECUTION_TAG_COST)
+        self.assertEqual(binding, "0x" + "44" * 32)
+        self.assertEqual(tag, "0x" + "55" * 32)

@@ -1,3 +1,4 @@
+import json
 from functools import lru_cache
 from types import ModuleType
 
@@ -11,10 +12,14 @@ from contracting.storage.driver import Driver
 @lru_cache(maxsize=1)
 def _native_verifier_bindings():
     try:
-        from xian_zk import (
+        from xian_zk._native import (
             ZkEncodingError,
             ZkVerifierError,
             prepare_groth16_bn254_vk,
+            shielded_command_binding,
+            shielded_command_execution_tag,
+            shielded_command_nullifier_digest,
+            shielded_note_append_tree_state_json,
             verify_groth16_bn254,
             verify_groth16_bn254_prepared,
         )
@@ -23,6 +28,10 @@ def _native_verifier_bindings():
 
     return {
         "prepare_groth16_bn254_vk": prepare_groth16_bn254_vk,
+        "shielded_command_binding": shielded_command_binding,
+        "shielded_command_execution_tag": shielded_command_execution_tag,
+        "shielded_command_nullifier_digest": shielded_command_nullifier_digest,
+        "shielded_note_append_tree_state_json": shielded_note_append_tree_state_json,
         "verify_groth16_bn254": verify_groth16_bn254,
         "verify_groth16_bn254_prepared": verify_groth16_bn254_prepared,
         "ZkEncodingError": ZkEncodingError,
@@ -101,6 +110,36 @@ def _validate_public_inputs(public_inputs):
         assert len(value) == 66, (
             f"public_inputs[{index}] must be exactly 32 bytes!"
         )
+
+
+def _validate_field_values(label: str, values, *, minimum: int, maximum: int):
+    assert isinstance(values, list), f"{label} must be a list!"
+    assert minimum <= len(values) <= maximum, f"{label} has invalid length!"
+    for index, value in enumerate(values):
+        _validate_hex_payload(f"{label}[{index}]", value, 66)
+        assert len(value) == 66, f"{label}[{index}] must be exactly 32 bytes!"
+
+
+def _shielded_tree_append_metering_cost(commitments: list[str]) -> int:
+    return (
+        constants.ZK_SHIELDED_TREE_APPEND_BASE_COST
+        + (
+            len(commitments)
+            * constants.ZK_SHIELDED_TREE_APPEND_PER_COMMITMENT_COST
+        )
+    )
+
+
+def _shielded_command_nullifier_digest_cost(
+    input_nullifiers: list[str],
+) -> int:
+    return (
+        constants.ZK_SHIELDED_COMMAND_NULLIFIER_DIGEST_BASE_COST
+        + (
+            len(input_nullifiers)
+            * constants.ZK_SHIELDED_COMMAND_NULLIFIER_DIGEST_PER_INPUT_COST
+        )
+    )
 
 
 def _validate_vk_id(vk_id: str):
@@ -264,10 +303,179 @@ def clear_prepared_vk_cache():
     PREPARED_VK_CACHE.clear()
 
 
+def shielded_note_append_commitments(
+    note_count: int,
+    filled_subtrees: list[str],
+    commitments: list[str],
+):
+    assert isinstance(note_count, int), "note_count must be an integer!"
+    assert note_count >= 0, "note_count must be non-negative!"
+    _validate_field_values(
+        "filled_subtrees",
+        filled_subtrees,
+        minimum=1,
+        maximum=64,
+    )
+    _validate_field_values(
+        "commitments",
+        commitments,
+        minimum=1,
+        maximum=constants.MAX_ZK_PUBLIC_INPUTS,
+    )
+
+    rt.deduct_execution_cost(_shielded_tree_append_metering_cost(commitments))
+
+    bindings = _native_verifier_bindings()
+    assert bindings is not None, (
+        "Native zk bindings are not installed in this runtime. "
+        "Install xian-contracting[zk] or xian-zk."
+    )
+
+    try:
+        encoded = bindings["shielded_note_append_tree_state_json"](
+            note_count,
+            filled_subtrees,
+            commitments,
+        )
+    except (
+        bindings["ZkEncodingError"],
+        bindings["ZkVerifierError"],
+    ) as exc:
+        raise AssertionError(str(exc)) from exc
+
+    try:
+        decoded = json.loads(encoded)
+    except json.JSONDecodeError as exc:
+        raise AssertionError("Native shielded tree append returned invalid JSON") from exc
+    assert isinstance(decoded, dict), (
+        "Native shielded tree append returned invalid result!"
+    )
+    return decoded
+
+
+def shielded_command_nullifier_digest(input_nullifiers: list[str]):
+    _validate_field_values(
+        "input_nullifiers",
+        input_nullifiers,
+        minimum=1,
+        maximum=constants.MAX_ZK_PUBLIC_INPUTS,
+    )
+    rt.deduct_execution_cost(
+        _shielded_command_nullifier_digest_cost(input_nullifiers)
+    )
+
+    bindings = _native_verifier_bindings()
+    assert bindings is not None, (
+        "Native zk bindings are not installed in this runtime. "
+        "Install xian-contracting[zk] or xian-zk."
+    )
+
+    try:
+        return bindings["shielded_command_nullifier_digest"](input_nullifiers)
+    except (
+        bindings["ZkEncodingError"],
+        bindings["ZkVerifierError"],
+    ) as exc:
+        raise AssertionError(str(exc)) from exc
+
+
+def shielded_command_binding(
+    nullifier_digest: str,
+    target_digest: str,
+    payload_digest: str,
+    relayer_digest: str,
+    expiry_digest: str,
+    chain_digest: str,
+    entrypoint_digest: str,
+    version_digest: str,
+    fee: int,
+    public_amount: int,
+):
+    _validate_field_values(
+        "binding_fields",
+        [
+            nullifier_digest,
+            target_digest,
+            payload_digest,
+            relayer_digest,
+            expiry_digest,
+            chain_digest,
+            entrypoint_digest,
+            version_digest,
+        ],
+        minimum=8,
+        maximum=8,
+    )
+    assert isinstance(fee, int) and fee >= 0, "fee must be a non-negative integer!"
+    assert isinstance(public_amount, int) and public_amount >= 0, (
+        "public_amount must be a non-negative integer!"
+    )
+    rt.deduct_execution_cost(constants.ZK_SHIELDED_COMMAND_BINDING_COST)
+
+    bindings = _native_verifier_bindings()
+    assert bindings is not None, (
+        "Native zk bindings are not installed in this runtime. "
+        "Install xian-contracting[zk] or xian-zk."
+    )
+
+    try:
+        return bindings["shielded_command_binding"](
+            nullifier_digest,
+            target_digest,
+            payload_digest,
+            relayer_digest,
+            expiry_digest,
+            chain_digest,
+            entrypoint_digest,
+            version_digest,
+            fee,
+            public_amount,
+        )
+    except (
+        bindings["ZkEncodingError"],
+        bindings["ZkVerifierError"],
+    ) as exc:
+        raise AssertionError(str(exc)) from exc
+
+
+def shielded_command_execution_tag(
+    nullifier_digest: str,
+    command_binding: str,
+):
+    _validate_field_values(
+        "execution_tag_fields",
+        [nullifier_digest, command_binding],
+        minimum=2,
+        maximum=2,
+    )
+    rt.deduct_execution_cost(constants.ZK_SHIELDED_COMMAND_EXECUTION_TAG_COST)
+
+    bindings = _native_verifier_bindings()
+    assert bindings is not None, (
+        "Native zk bindings are not installed in this runtime. "
+        "Install xian-contracting[zk] or xian-zk."
+    )
+
+    try:
+        return bindings["shielded_command_execution_tag"](
+            nullifier_digest,
+            command_binding,
+        )
+    except (
+        bindings["ZkEncodingError"],
+        bindings["ZkVerifierError"],
+    ) as exc:
+        raise AssertionError(str(exc)) from exc
+
+
 zk_module = ModuleType("zk")
 zk_module.clear_prepared_vk_cache = clear_prepared_vk_cache
 zk_module.has_verifying_key = has_verifying_key
 zk_module.is_available = is_available
+zk_module.shielded_command_binding = shielded_command_binding
+zk_module.shielded_command_execution_tag = shielded_command_execution_tag
+zk_module.shielded_command_nullifier_digest = shielded_command_nullifier_digest
+zk_module.shielded_note_append_commitments = shielded_note_append_commitments
 zk_module.verify_groth16 = verify_groth16
 zk_module.verify_groth16_bn254 = verify_groth16_bn254
 
