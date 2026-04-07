@@ -435,3 +435,22 @@ class TestZkStdlib(TestCase):
         deduct.assert_any_call(constants.ZK_SHIELDED_COMMAND_EXECUTION_TAG_COST)
         self.assertEqual(binding, "0x" + "44" * 32)
         self.assertEqual(tag, "0x" + "55" * 32)
+
+    def test_shielded_output_payload_hash_uses_native_helper(self):
+        bindings = {
+            "shielded_output_payload_hash": lambda payload: "0x" + "66" * 32,
+            "ZkEncodingError": FakeEncodingError,
+            "ZkVerifierError": FakeVerifierError,
+        }
+        payload = "0x1234"
+
+        with patch(
+            "contracting.stdlib.bridge.zk._native_verifier_bindings",
+            return_value=bindings,
+        ), patch(
+            "contracting.stdlib.bridge.zk.rt.deduct_execution_cost"
+        ) as deduct:
+            result = zk.shielded_output_payload_hash(payload)
+
+        deduct.assert_called_once_with((len(payload) - 2) // 2)
+        self.assertEqual(result, "0x" + "66" * 32)

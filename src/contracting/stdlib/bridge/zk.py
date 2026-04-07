@@ -20,6 +20,7 @@ def _native_verifier_bindings():
             shielded_command_execution_tag,
             shielded_command_nullifier_digest,
             shielded_note_append_tree_state_json,
+            shielded_output_payload_hash,
             verify_groth16_bn254,
             verify_groth16_bn254_prepared,
         )
@@ -32,6 +33,7 @@ def _native_verifier_bindings():
         "shielded_command_execution_tag": shielded_command_execution_tag,
         "shielded_command_nullifier_digest": shielded_command_nullifier_digest,
         "shielded_note_append_tree_state_json": shielded_note_append_tree_state_json,
+        "shielded_output_payload_hash": shielded_output_payload_hash,
         "verify_groth16_bn254": verify_groth16_bn254,
         "verify_groth16_bn254_prepared": verify_groth16_bn254_prepared,
         "ZkEncodingError": ZkEncodingError,
@@ -468,6 +470,32 @@ def shielded_command_execution_tag(
         raise AssertionError(str(exc)) from exc
 
 
+def shielded_output_payload_hash(payload_hex: str):
+    if payload_hex is None or payload_hex == "":
+        return "0x" + "00" * 32
+
+    _validate_hex_payload(
+        "payload_hex",
+        payload_hex,
+        constants.MAX_ZK_PROOF_HEX_CHARS * 4,
+    )
+    rt.deduct_execution_cost(_hex_payload_bytes(payload_hex))
+
+    bindings = _native_verifier_bindings()
+    assert bindings is not None, (
+        "Native zk bindings are not installed in this runtime. "
+        "Install xian-contracting[zk] or xian-zk."
+    )
+
+    try:
+        return bindings["shielded_output_payload_hash"](payload_hex)
+    except (
+        bindings["ZkEncodingError"],
+        bindings["ZkVerifierError"],
+    ) as exc:
+        raise AssertionError(str(exc)) from exc
+
+
 zk_module = ModuleType("zk")
 zk_module.clear_prepared_vk_cache = clear_prepared_vk_cache
 zk_module.has_verifying_key = has_verifying_key
@@ -476,6 +504,7 @@ zk_module.shielded_command_binding = shielded_command_binding
 zk_module.shielded_command_execution_tag = shielded_command_execution_tag
 zk_module.shielded_command_nullifier_digest = shielded_command_nullifier_digest
 zk_module.shielded_note_append_commitments = shielded_note_append_commitments
+zk_module.shielded_output_payload_hash = shielded_output_payload_hash
 zk_module.verify_groth16 = verify_groth16
 zk_module.verify_groth16_bn254 = verify_groth16_bn254
 
