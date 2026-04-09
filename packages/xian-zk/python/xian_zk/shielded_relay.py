@@ -328,7 +328,9 @@ class ShieldedRelayTransferProver:
             "append_state": asdict(request.append_state),
             "fee": request.fee,
             "public_amount": 0,
-            "inputs": [asdict(shielded_input) for shielded_input in request.inputs],
+            "inputs": [
+                asdict(shielded_input) for shielded_input in request.inputs
+            ],
             "outputs": [asdict(output) for output in request.outputs],
             "command_binding": binding,
             "output_payload_hashes": list(request.output_payload_hashes),
@@ -401,7 +403,9 @@ def shielded_relay_registry_manifest(
         "setup_ceremony": payload.get("setup_ceremony", ""),
         "bundle_hash": bundle_hash,
         "registry_entries": [entry],
-        "configure_actions": [{"action": _RELAY_ACTION, "vk_id": circuit["vk_id"]}],
+        "configure_actions": [
+            {"action": _RELAY_ACTION, "vk_id": circuit["vk_id"]}
+        ],
     }
 
 

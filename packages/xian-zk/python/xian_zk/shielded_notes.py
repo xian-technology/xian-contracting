@@ -163,9 +163,9 @@ def _shared_key_from_private_key(
 
 def _discovery_tag(shared_key: bytes) -> str:
     return _canonical_hex(
-        hashlib.sha3_256(
-            b"xian-zk-note-discovery-v1" + shared_key
-        ).digest()[:_DISCOVERY_TAG_BYTES]
+        hashlib.sha3_256(b"xian-zk-note-discovery-v1" + shared_key).digest()[
+            :_DISCOVERY_TAG_BYTES
+        ]
     )
 
 
@@ -194,7 +194,9 @@ def _encrypt_message_for_viewer(
         label=viewer.label,
         discovery_tag=_discovery_tag(shared_key),
         sync_hint=_sync_hint(viewer.viewing_public_key),
-        ephemeral_public_key=_canonical_hex(bytes(ephemeral_private_key.public_key)),
+        ephemeral_public_key=_canonical_hex(
+            bytes(ephemeral_private_key.public_key)
+        ),
         nonce=_canonical_hex(nonce),
     )
 
@@ -552,7 +554,9 @@ class ShieldedPayloadCiphertext:
             )
             plaintext = crypto_box_open_easy_afternm(
                 _normalize_hex_bytes(self.ciphertext),
-                _normalize_hex_bytes(self.nonce, expected_len=crypto_box_NONCEBYTES),
+                _normalize_hex_bytes(
+                    self.nonce, expected_len=crypto_box_NONCEBYTES
+                ),
                 shared_key,
             )
             return plaintext.decode("utf-8")
@@ -636,9 +640,7 @@ class ShieldedNotePayload:
                     ephemeral_public_key=ephemeral_public_key,
                     nonce=nonce,
                 )
-            entries.append(
-                entry
-            )
+            entries.append(entry)
         return cls(ciphertexts=entries, version=int(version))
 
     def matching_ciphertext(
@@ -830,7 +832,9 @@ class ShieldedNoteRecord:
         normalized_tags: list[str] = []
         for tag in payload_tags:
             if not isinstance(tag, str):
-                raise ValueError("note record payload_tags must contain strings")
+                raise ValueError(
+                    "note record payload_tags must contain strings"
+                )
             normalized_tags.append(tag)
 
         return cls(
@@ -1426,7 +1430,9 @@ class ShieldedWallet:
             output_count = _mapping_optional_int(data, "output_count")
             commitments_blob = _mapping_str(data, "commitments_blob")
             if note_index_start is None or commitments_blob is None:
-                raise ValueError("shielded output event is missing note metadata")
+                raise ValueError(
+                    "shielded output event is missing note metadata"
+                )
             commitments = [
                 item for item in commitments_blob.split("|") if item != ""
             ]
@@ -1500,14 +1506,20 @@ class ShieldedWallet:
                 continue
             commitments = kwargs.get("output_commitments")
             payloads = kwargs.get("output_payloads")
-            if not isinstance(commitments, list) or not isinstance(payloads, list):
+            if not isinstance(commitments, list) or not isinstance(
+                payloads, list
+            ):
                 continue
-            if output_index >= len(commitments) or output_index >= len(payloads):
+            if output_index >= len(commitments) or output_index >= len(
+                payloads
+            ):
                 continue
 
             commitment = commitments[output_index]
             output_payload = payloads[output_index]
-            if not isinstance(commitment, str) or not isinstance(output_payload, str):
+            if not isinstance(commitment, str) or not isinstance(
+                output_payload, str
+            ):
                 continue
             if commitment != record.commitment:
                 raise ValueError(
@@ -1516,7 +1528,10 @@ class ShieldedWallet:
 
             payload_tags = tuple(
                 dict.fromkeys(
-                    [*payload_sync_hints(output_payload), *payload_discovery_tags(output_payload)]
+                    [
+                        *payload_sync_hints(output_payload),
+                        *payload_discovery_tags(output_payload),
+                    ]
                 )
             )
             records_by_index[note_index] = replace(
@@ -1529,7 +1544,9 @@ class ShieldedWallet:
         result = self.sync_records(
             [
                 record
-                for _, record in sorted(records_by_index.items(), key=lambda item: item[0])
+                for _, record in sorted(
+                    records_by_index.items(), key=lambda item: item[0]
+                )
             ]
         )
         self.last_output_event_id = output_cursor

@@ -54,7 +54,9 @@ def _read_text(path: str | None) -> str | None:
     return Path(path).expanduser().resolve().read_text()
 
 
-def _tree_state_from_value(value: ShieldedTreeState | dict[str, Any]) -> ShieldedTreeState:
+def _tree_state_from_value(
+    value: ShieldedTreeState | dict[str, Any],
+) -> ShieldedTreeState:
     if isinstance(value, ShieldedTreeState):
         return value
     return ShieldedTreeState(**value)
@@ -66,7 +68,9 @@ def _input_from_value(value: ShieldedInput | dict[str, Any]) -> ShieldedInput:
     return ShieldedInput(**value)
 
 
-def _output_from_value(value: ShieldedOutput | dict[str, Any]) -> ShieldedOutput:
+def _output_from_value(
+    value: ShieldedOutput | dict[str, Any],
+) -> ShieldedOutput:
     if isinstance(value, ShieldedOutput):
         return value
     return ShieldedOutput(**value)
@@ -165,7 +169,9 @@ class _BaseProverClient:
         self.base_url = base_url.rstrip("/")
         self.auth_token = auth_token
 
-    def _request(self, method: str, path: str, payload: Any | None = None) -> dict[str, Any]:
+    def _request(
+        self, method: str, path: str, payload: Any | None = None
+    ) -> dict[str, Any]:
         headers = {
             "Accept": "application/json",
         }
@@ -207,17 +213,23 @@ class ShieldedNoteProverClient(_BaseProverClient):
     def prove_deposit(
         self, request: ShieldedDepositRequest | dict[str, Any]
     ) -> ShieldedProofResult:
-        return ShieldedProofResult(**self._request("POST", "/v1/shielded-note/prove/deposit", request))
+        return ShieldedProofResult(
+            **self._request("POST", "/v1/shielded-note/prove/deposit", request)
+        )
 
     def prove_transfer(
         self, request: ShieldedTransferRequest | dict[str, Any]
     ) -> ShieldedProofResult:
-        return ShieldedProofResult(**self._request("POST", "/v1/shielded-note/prove/transfer", request))
+        return ShieldedProofResult(
+            **self._request("POST", "/v1/shielded-note/prove/transfer", request)
+        )
 
     def prove_withdraw(
         self, request: ShieldedWithdrawRequest | dict[str, Any]
     ) -> ShieldedProofResult:
-        return ShieldedProofResult(**self._request("POST", "/v1/shielded-note/prove/withdraw", request))
+        return ShieldedProofResult(
+            **self._request("POST", "/v1/shielded-note/prove/withdraw", request)
+        )
 
 
 class ShieldedCommandProverClient(_BaseProverClient):
@@ -227,17 +239,29 @@ class ShieldedCommandProverClient(_BaseProverClient):
     def prove_deposit(
         self, request: ShieldedDepositRequest | dict[str, Any]
     ) -> ShieldedProofResult:
-        return ShieldedProofResult(**self._request("POST", "/v1/shielded-command/prove/deposit", request))
+        return ShieldedProofResult(
+            **self._request(
+                "POST", "/v1/shielded-command/prove/deposit", request
+            )
+        )
 
     def prove_execute(
         self, request: ShieldedCommandRequest | dict[str, Any]
     ) -> ShieldedCommandProofResult:
-        return ShieldedCommandProofResult(**self._request("POST", "/v1/shielded-command/prove/execute", request))
+        return ShieldedCommandProofResult(
+            **self._request(
+                "POST", "/v1/shielded-command/prove/execute", request
+            )
+        )
 
     def prove_withdraw(
         self, request: ShieldedWithdrawRequest | dict[str, Any]
     ) -> ShieldedProofResult:
-        return ShieldedProofResult(**self._request("POST", "/v1/shielded-command/prove/withdraw", request))
+        return ShieldedProofResult(
+            **self._request(
+                "POST", "/v1/shielded-command/prove/withdraw", request
+            )
+        )
 
 
 class ShieldedRelayTransferProverClient(_BaseProverClient):
@@ -247,7 +271,11 @@ class ShieldedRelayTransferProverClient(_BaseProverClient):
     def prove_relay_transfer(
         self, request: ShieldedRelayTransferRequest | dict[str, Any]
     ) -> ShieldedRelayTransferProofResult:
-        return ShieldedRelayTransferProofResult(**self._request("POST", "/v1/shielded-relay/prove/transfer", request))
+        return ShieldedRelayTransferProofResult(
+            **self._request(
+                "POST", "/v1/shielded-relay/prove/transfer", request
+            )
+        )
 
 
 class ShieldedZkProverService:
@@ -261,7 +289,11 @@ class ShieldedZkProverService:
         port: int = 0,
         auth_token: str | None = None,
     ):
-        if note_prover is None and command_prover is None and relay_prover is None:
+        if (
+            note_prover is None
+            and command_prover is None
+            and relay_prover is None
+        ):
             raise ValueError("at least one prover must be configured")
         self._note_bundle_json = (
             None if note_prover is None else note_prover.bundle_json
@@ -369,10 +401,14 @@ class ShieldedZkProverService:
             if method == "GET":
                 payload = self._handle_get(handler.path)
             else:
-                payload = self._handle_post(handler.path, self._read_json(handler))
+                payload = self._handle_post(
+                    handler.path, self._read_json(handler)
+                )
             self._send_json(handler, 200, payload)
         except KeyError as exc:
-            self._send_json(handler, 400, {"error": f"missing field: {exc.args[0]}"})
+            self._send_json(
+                handler, 400, {"error": f"missing field: {exc.args[0]}"}
+            )
         except ValueError as exc:
             self._send_json(handler, 400, {"error": str(exc)})
         except LookupError as exc:
@@ -405,15 +441,15 @@ class ShieldedZkProverService:
             return prover.registry_manifest()
         raise LookupError("unknown endpoint")
 
-    def _handle_post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def _handle_post(
+        self, path: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
         if path == "/v1/shielded-note/prove/deposit":
             prover = self._note_prover()
             if prover is None:
                 raise LookupError("shielded note prover not configured")
             return asdict(
-                prover.prove_deposit(
-                    _note_deposit_request_from_value(payload)
-                )
+                prover.prove_deposit(_note_deposit_request_from_value(payload))
             )
         if path == "/v1/shielded-note/prove/transfer":
             prover = self._note_prover()
@@ -438,18 +474,14 @@ class ShieldedZkProverService:
             if prover is None:
                 raise LookupError("shielded command prover not configured")
             return asdict(
-                prover.prove_deposit(
-                    _note_deposit_request_from_value(payload)
-                )
+                prover.prove_deposit(_note_deposit_request_from_value(payload))
             )
         if path == "/v1/shielded-command/prove/execute":
             prover = self._command_prover()
             if prover is None:
                 raise LookupError("shielded command prover not configured")
             return asdict(
-                prover.prove_execute(
-                    _command_request_from_value(payload)
-                )
+                prover.prove_execute(_command_request_from_value(payload))
             )
         if path == "/v1/shielded-command/prove/withdraw":
             prover = self._command_prover()
@@ -465,9 +497,7 @@ class ShieldedZkProverService:
             if prover is None:
                 raise LookupError("shielded relay prover not configured")
             return asdict(
-                prover.prove_relay_transfer(
-                    _relay_request_from_value(payload)
-                )
+                prover.prove_relay_transfer(_relay_request_from_value(payload))
             )
         raise LookupError("unknown endpoint")
 

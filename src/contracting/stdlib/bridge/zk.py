@@ -136,24 +136,17 @@ def _validate_field_values(label: str, values, *, minimum: int, maximum: int):
 
 
 def _shielded_tree_append_metering_cost(commitments: list[str]) -> int:
-    return (
-        constants.ZK_SHIELDED_TREE_APPEND_BASE_COST
-        + (
-            len(commitments)
-            * constants.ZK_SHIELDED_TREE_APPEND_PER_COMMITMENT_COST
-        )
+    return constants.ZK_SHIELDED_TREE_APPEND_BASE_COST + (
+        len(commitments) * constants.ZK_SHIELDED_TREE_APPEND_PER_COMMITMENT_COST
     )
 
 
 def _shielded_command_nullifier_digest_cost(
     input_nullifiers: list[str],
 ) -> int:
-    return (
-        constants.ZK_SHIELDED_COMMAND_NULLIFIER_DIGEST_BASE_COST
-        + (
-            len(input_nullifiers)
-            * constants.ZK_SHIELDED_COMMAND_NULLIFIER_DIGEST_PER_INPUT_COST
-        )
+    return constants.ZK_SHIELDED_COMMAND_NULLIFIER_DIGEST_BASE_COST + (
+        len(input_nullifiers)
+        * constants.ZK_SHIELDED_COMMAND_NULLIFIER_DIGEST_PER_INPUT_COST
     )
 
 
@@ -467,7 +460,9 @@ def shielded_note_append_commitments(
     try:
         decoded = json.loads(encoded)
     except json.JSONDecodeError as exc:
-        raise AssertionError("Native shielded tree append returned invalid JSON") from exc
+        raise AssertionError(
+            "Native shielded tree append returned invalid JSON"
+        ) from exc
     assert isinstance(decoded, dict), (
         "Native shielded tree append returned invalid result!"
     )
@@ -527,7 +522,9 @@ def shielded_command_binding(
         minimum=8,
         maximum=8,
     )
-    assert isinstance(fee, int) and fee >= 0, "fee must be a non-negative integer!"
+    assert isinstance(fee, int) and fee >= 0, (
+        "fee must be a non-negative integer!"
+    )
     assert isinstance(public_amount, int) and public_amount >= 0, (
         "public_amount must be a non-negative integer!"
     )
@@ -843,7 +840,9 @@ def shielded_command_public_inputs(
         minimum=2,
         maximum=2,
     )
-    assert isinstance(fee, int) and fee >= 0, "fee must be a non-negative integer!"
+    assert isinstance(fee, int) and fee >= 0, (
+        "fee must be a non-negative integer!"
+    )
     assert isinstance(public_amount, int) and public_amount >= 0, (
         "public_amount must be a non-negative integer!"
     )

@@ -5,12 +5,14 @@ from xian_zk._native import (
     prepare_groth16_bn254_vk,
     shielded_command_public_inputs,
     shielded_deposit_public_inputs,
-    shielded_output_payload_hashes as native_shielded_output_payload_hashes,
     shielded_transfer_public_inputs,
     shielded_withdraw_public_inputs,
-    verify_groth16_bn254_grouped_json,
     verify_groth16_bn254,
+    verify_groth16_bn254_grouped_json,
     verify_groth16_bn254_prepared,
+)
+from xian_zk._native import (
+    shielded_output_payload_hashes as native_shielded_output_payload_hashes,
 )
 from xian_zk.prover_service import (
     ShieldedCommandProverClient,
