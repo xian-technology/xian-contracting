@@ -1394,6 +1394,80 @@ class ShieldedWallet:
         if page_size <= 0:
             raise ValueError("page_size must be positive")
 
+        history_reader = getattr(
+            indexed_client, "list_shielded_wallet_history", None
+        )
+        if callable(history_reader):
+            discovered_notes: list[ShieldedWalletNote] = []
+            scanned_record_count = 0
+            candidate_record_count = 0
+
+            while True:
+                page = history_reader(
+                    self.indexed_sync_hint,
+                    kind="sync_hint",
+                    limit=page_size,
+                    after_note_index=self.last_scanned_index,
+                )
+                if not isinstance(page, list):
+                    raise TypeError(
+                        "indexed client must return a list of shielded wallet history rows"
+                    )
+                if len(page) == 0:
+                    break
+
+                raw_page = [
+                    _record_mapping(row, label="shielded wallet history row")
+                    for row in page
+                ]
+                records: list[ShieldedNoteRecord] = []
+                for row in raw_page:
+                    note_index = _mapping_optional_int(row, "note_index")
+                    commitment = _mapping_str(row, "commitment")
+                    if note_index is None or commitment is None:
+                        raise ValueError(
+                            "shielded wallet history row is missing note metadata"
+                        )
+                    output_payload = _mapping_str(row, "output_payload")
+                    payload_tags = tuple(
+                        dict.fromkeys(
+                            [
+                                *payload_sync_hints(output_payload),
+                                *payload_discovery_tags(output_payload),
+                            ]
+                        )
+                    )
+                    records.append(
+                        ShieldedNoteRecord(
+                            index=note_index,
+                            commitment=commitment,
+                            payload=output_payload,
+                            payload_hash=output_payload_hash(output_payload),
+                            payload_tags=payload_tags,
+                            created_at=row.get("created_at")
+                            or row.get("created"),
+                        )
+                    )
+
+                page_result = self.sync_records(records)
+                scanned_record_count += page_result.scanned_record_count
+                candidate_record_count += page_result.candidate_record_count
+                discovered_notes.extend(page_result.discovered_notes)
+
+                last_event_id = _mapping_optional_int(raw_page[-1], "event_id")
+                if last_event_id is not None:
+                    self.last_output_event_id = last_event_id
+
+                if len(raw_page) < page_size:
+                    break
+
+            return ShieldedWalletSyncResult(
+                scanned_record_count=scanned_record_count,
+                discovered_notes=discovered_notes,
+                last_scanned_index=self.last_scanned_index,
+                candidate_record_count=candidate_record_count,
+            )
+
         output_events: list[Mapping[str, Any]] = []
         output_cursor = self.last_output_event_id
         while True:

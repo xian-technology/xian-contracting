@@ -128,6 +128,29 @@ class _FakeIndexedClient:
         return self._receipts[tx_hash]
 
 
+class _FakeHistoryIndexedClient(_FakeIndexedClient):
+    def __init__(self, *, history_rows):
+        super().__init__(events=[], tags=[], receipts={})
+        self._history_rows = list(history_rows)
+        self.history_calls: list[tuple[str, str, int, int]] = []
+
+    def list_shielded_wallet_history(
+        self,
+        tag_value: str,
+        *,
+        kind: str = "sync_hint",
+        limit: int = 100,
+        after_note_index: int = 0,
+    ):
+        self.history_calls.append((tag_value, kind, limit, after_note_index))
+        rows = [
+            row
+            for row in self._history_rows
+            if int(row["note_index"]) >= after_note_index
+        ]
+        return rows[:limit]
+
+
 def test_recipient_address_and_note_payload_round_trip():
     asset_id = asset_id_for_contract("con_shielded_note_token")
     recipient_keys = ShieldedKeyBundle.from_parts(
@@ -807,6 +830,93 @@ def test_wallet_can_sync_from_indexed_events_and_sync_hints():
     assert wallet.last_output_event_id == 11
     assert wallet.last_tag_id == 21
     assert client.tx_calls == ["TX-INDEXED-1"]
+
+
+def test_wallet_prefers_shielded_wallet_history_interface_when_available():
+    asset_id = asset_id_for_contract("con_shielded_note_token")
+    wallet = ShieldedWallet.from_parts(
+        asset_id=asset_id,
+        owner_secret=field(1401),
+        viewing_private_key="ef" * 32,
+    )
+    other_keys = ShieldedKeyBundle.from_parts(
+        owner_secret=field(1402),
+        viewing_private_key="fe" * 32,
+    )
+
+    wallet_note = ShieldedNote(
+        owner_secret=wallet.owner_secret,
+        amount=19,
+        rho=field(1403),
+        blind=field(1404),
+    )
+    other_note = ShieldedNote(
+        owner_secret=other_keys.owner_secret,
+        amount=4,
+        rho=field(1405),
+        blind=field(1406),
+    )
+
+    wallet_payload = wallet_note.to_output().encrypt_for(
+        asset_id=asset_id,
+        viewing_public_key=wallet.viewing_public_key,
+        memo="history-interface",
+    )
+
+    client = _FakeHistoryIndexedClient(
+        history_rows=[
+            {
+                "event_id": 31,
+                "tx_hash": "TX-HISTORY-1",
+                "block_height": 5,
+                "tx_index": 0,
+                "contract": "con_private",
+                "function": "transfer_shielded",
+                "action": "transfer",
+                "output_index": 0,
+                "note_index": 0,
+                "commitment": wallet_note.commitment(asset_id),
+                "new_root": field(1501),
+                "payload_hash": output_payload_hash(wallet_payload),
+                "output_payload": wallet_payload,
+                "tag_kind": "sync_hint",
+                "tag_value": wallet.indexed_sync_hint,
+                "created_at": "2026-01-01T00:00:05Z",
+            },
+            {
+                "event_id": 31,
+                "tx_hash": "TX-HISTORY-1",
+                "block_height": 5,
+                "tx_index": 0,
+                "contract": "con_private",
+                "function": "transfer_shielded",
+                "action": "transfer",
+                "output_index": 1,
+                "note_index": 1,
+                "commitment": other_note.commitment(asset_id),
+                "new_root": field(1501),
+                "payload_hash": None,
+                "output_payload": None,
+                "tag_kind": None,
+                "tag_value": None,
+                "created_at": "2026-01-01T00:00:05Z",
+            },
+        ]
+    )
+
+    sync_result = wallet.sync_indexed_client(client, contract="con_private")
+
+    assert sync_result.scanned_record_count == 2
+    assert sync_result.candidate_record_count == 1
+    assert len(sync_result.discovered_notes) == 1
+    assert sync_result.discovered_notes[0].memo == "history-interface"
+    assert wallet.available_balance() == 19
+    assert wallet.last_output_event_id == 31
+    assert wallet.last_scanned_index == 2
+    assert client.history_calls == [(wallet.indexed_sync_hint, "sync_hint", 100, 0)]
+    assert client.events_calls == []
+    assert client.tag_calls == []
+    assert client.tx_calls == []
 
 
 def test_wallet_can_build_transfer_and_exact_withdraw_plans():
