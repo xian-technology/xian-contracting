@@ -2,18 +2,18 @@ import sys
 import textwrap
 from unittest import TestCase
 
-from contracting.execution.tracer import MAX_STAMPS, create_tracer
+from contracting.execution.tracer import MAX_CHI, create_tracer
 
 
 def _meter(mode: str, source: str) -> int:
     tracer = create_tracer(mode)
     code = compile(textwrap.dedent(source), "<workload>", "exec")
-    tracer.set_stamp(MAX_STAMPS)
+    tracer.set_chi(MAX_CHI)
     tracer.start()
     tracer.register_code(code)
     exec(code, {})
     tracer.stop()
-    used = tracer.get_stamp_used()
+    used = tracer.get_chi_used()
     tracer.reset()
     return used
 

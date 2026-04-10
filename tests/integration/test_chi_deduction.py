@@ -1,7 +1,7 @@
 import os
 from unittest import TestCase
 
-from contracting.constants import STAMPS_PER_T
+from contracting.constants import CHI_PER_T
 from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 
@@ -62,7 +62,7 @@ class TestMetering(TestCase):
     def tearDown(self):
         self.d.flush_full()
 
-    def test_simple_execution_deducts_stamps(self):
+    def test_simple_execution_deducts_chi(self):
         prior_balance = self.d.get("con_currency.balances:stu")
 
         output = self.e.execute(
@@ -77,10 +77,10 @@ class TestMetering(TestCase):
 
         self.assertEqual(
             float(prior_balance - new_balance - 100),
-            output["stamps_used"] / STAMPS_PER_T,
+            output["chi_used"] / CHI_PER_T,
         )
 
-    def test_too_few_stamps_fails_and_deducts_properly(self):
+    def test_too_few_chi_fails_and_deducts_properly(self):
         prior_balance = self.d.get("con_currency.balances:stu")
 
         print(prior_balance)
@@ -90,7 +90,7 @@ class TestMetering(TestCase):
             "con_currency",
             "transfer",
             kwargs={"amount": 100, "to": "colin"},
-            stamps=1,
+            chi=1,
             auto_commit=True,
         )
 
@@ -100,31 +100,31 @@ class TestMetering(TestCase):
 
         self.assertEqual(
             float(prior_balance - new_balance),
-            output["stamps_used"] / STAMPS_PER_T,
+            output["chi_used"] / CHI_PER_T,
         )
 
-    def test_adding_too_many_stamps_throws_error(self):
+    def test_adding_too_many_chi_throws_error(self):
         prior_balance = self.d.get("con_currency.balances:stu")
-        too_many_stamps = (prior_balance + 1000) * STAMPS_PER_T
+        too_many_chi = (prior_balance + 1000) * CHI_PER_T
 
         output = self.e.execute(
             "stu",
             "con_currency",
             "transfer",
             kwargs={"amount": 100, "to": "colin"},
-            stamps=too_many_stamps,
+            chi=too_many_chi,
             auto_commit=True,
         )
 
         self.assertEqual(output["status_code"], 1)
 
-    def test_adding_all_stamps_with_infinate_loop_eats_all_balance(self):
+    def test_adding_all_chi_with_infinate_loop_eats_all_balance(self):
         self.d.set("con_currency.balances:stu", 500)
         self.d.commit()
 
         prior_balance = self.d.get("con_currency.balances:stu")
 
-        prior_balance *= STAMPS_PER_T
+        prior_balance *= CHI_PER_T
 
         inf_loop_path = os.path.join(
             os.path.dirname(__file__), "test_contracts", "inf_loop.s.py"
@@ -133,18 +133,18 @@ class TestMetering(TestCase):
         self.e.execute(
             **TEST_SUBMISSION_KWARGS,
             kwargs=submission_kwargs_for_file(inf_loop_path),
-            stamps=prior_balance,
+            chi=prior_balance,
             metering=True,
             auto_commit=True,
         )
 
         new_balance = self.d.get("con_currency.balances:stu")
 
-        # Not all stamps will be deducted because it will blow up in the middle of execution
+        # Not all chi will be deducted because it will blow up in the middle of execution
 
         self.assertTrue(new_balance < 500)
 
-    def test_submitting_contract_succeeds_with_enough_stamps(self):
+    def test_submitting_contract_succeeds_with_enough_chi(self):
         prior_balance = self.d.get("con_currency.balances:stu")
 
         print(prior_balance)
@@ -165,7 +165,7 @@ class TestMetering(TestCase):
 
         self.assertEqual(
             float(prior_balance - new_balance),
-            output["stamps_used"] / STAMPS_PER_T,
+            output["chi_used"] / CHI_PER_T,
         )
 
     def test_string_balance_value_is_metered_correctly(self):
@@ -229,7 +229,7 @@ def get():
             prior_balance,
         )
 
-    def test_larger_return_values_cost_more_stamps(self):
+    def test_larger_return_values_cost_more_chi(self):
         small_code = """@export
 def get():
     return 'a'
@@ -266,7 +266,7 @@ def get():
         )
 
         self.assertGreater(
-            large_output["stamps_used"], small_output["stamps_used"]
+            large_output["chi_used"], small_output["chi_used"]
         )
 
     def test_excessively_large_return_value_fails(self):

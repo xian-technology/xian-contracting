@@ -52,7 +52,7 @@ class TestTokenHacks(TestCase):
             "con_erc20", "balances", arguments=["stu"]
         )
 
-        # Assert greater because some of the balance is lost to stamps
+        # Assert greater because some of the balance is lost to chi
         self.assertGreater(pre_hack_balance, post_hack_balance)
 
     def test_orm_setattr_hack(self):
@@ -78,7 +78,7 @@ class TestTokenHacks(TestCase):
             # The balance *should not* change between these tests!
             self.assertEqual(pre_hack_balance, post_hack_balance)
 
-    def test_double_spend_if_stamps_run_out(self):
+    def test_double_spend_if_chi_run_out(self):
         token = self.c.get_contract("con_erc20")
 
         pre_hack_balance_stu = float(
@@ -90,7 +90,7 @@ class TestTokenHacks(TestCase):
 
         # Approve the "hack" contract to spend stu's tokens
         tx_amount = 10000
-        token.approve(amount=tx_amount, to="con_hack", stamps=200)
+        token.approve(amount=tx_amount, to="con_hack", chi=200)
         with open(
             os.path.join(
                 self.script_dir, "contracts", "double_spend_gas_attack.s.py"
@@ -104,7 +104,7 @@ class TestTokenHacks(TestCase):
         con_hack = self.c.get_contract("con_hack")
         self.c.raw_driver.commit()
         with self.assertRaises(AssertionError):
-            con_hack.double_spend(receiver="colin", stamps=200)
+            con_hack.double_spend(receiver="colin", chi=200)
 
         # Since the above call failed, the balance should be the same as before and NOT balance + tx_amount
 
@@ -115,11 +115,11 @@ class TestTokenHacks(TestCase):
             str(self.c.get_var("con_erc20", "balances", arguments=["colin"]))
         )
 
-        # Stu's POST balance should be less than the pre balance (less the tx_amount) because stamps were also deducted
+        # Stu's POST balance should be less than the pre balance (less the tx_amount) because chi were also deducted
         self.assertLess(post_hack_balance_stu, pre_hack_balance_stu + tx_amount)
 
         # Colin's balance will not change because the transaction failed and the state was not updated
-        # Assert greater because some of the balance is lost to stamps
+        # Assert greater because some of the balance is lost to chi
         self.assertEqual(pre_hack_balance_colin, post_hack_balance_colin)
     def test_stamp_fails_when_calling_infinate_loop_from_another_contract(self):
         with open(

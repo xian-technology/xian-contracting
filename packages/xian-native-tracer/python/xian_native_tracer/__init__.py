@@ -1,11 +1,11 @@
 from ._native import (
     InstructionMeter,
     NativeCallLimitExceededError,
-    NativeStampExceededError,
+    NativeChiExceededError,
 )
 
 __all__ = [
     "InstructionMeter",
     "NativeCallLimitExceededError",
-    "NativeStampExceededError",
+    "NativeChiExceededError",
 ]

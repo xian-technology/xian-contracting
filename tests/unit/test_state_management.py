@@ -19,7 +19,7 @@ class MyTestCase(unittest.TestCase):
         constants = Constants()
         self.c = ContractingClient(storage_home=constants.STORAGE_HOME)
         self.tx_processor = TxProcessor(client=self.c)
-        self.stamp_calculator = Simulator()
+        self.chi_calculator = Simulator()
         self.d = self.c.raw_driver
         self.d.flush_full()
 

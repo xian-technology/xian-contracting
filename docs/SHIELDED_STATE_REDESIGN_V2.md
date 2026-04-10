@@ -42,7 +42,7 @@ This redesign round does two things:
 1. removes more non-critical shielded history from consensus state
 2. adds BDS-side shielded output tag indexing for selective wallet retrieval
 3. moves shielded tree append and relay-digest hot paths into native `xian-zk`
-   bindings so stamp cost reflects native execution instead of Python MiMC loops
+   bindings so chi cost reflects native execution instead of Python MiMC loops
 
 ## Consensus Changes
 
@@ -124,18 +124,18 @@ What changes is where historical convenience data lives:
 ## Benchmark Result
 
 The first storage-only redesign slice improved architecture but barely changed
-stamp cost. The real bottleneck was Python execution inside the contracts,
+chi cost. The real bottleneck was Python execution inside the contracts,
 especially MiMC tree updates and command-binding digests.
 
 After moving those hot paths into native `xian-zk` bindings and metering them
 explicitly through the `zk` stdlib bridge, the local shielded benchmark in
-`xian-abci/scripts/benchmark_shielded_stamps.py` dropped to:
+`xian-abci/scripts/benchmark_shielded_chi.py` dropped to:
 
-- deposit with 2 outputs: `3,742` stamps
-- transfer with 2 inputs / 2 outputs: `4,062` stamps
-- withdraw with 1 input / 1 output: `3,479` stamps
-- exact withdraw with no new output note: `2,405` stamps
-- relayed hidden-sender transfer: `5,726` stamps
+- deposit with 2 outputs: `3,742` chi
+- transfer with 2 inputs / 2 outputs: `4,062` chi
+- withdraw with 1 input / 1 output: `3,479` chi
+- exact withdraw with no new output note: `2,405` chi
+- relayed hidden-sender transfer: `5,726` chi
 
 April 2026 baseline before the native tree/digest path:
 

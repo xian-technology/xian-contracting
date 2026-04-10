@@ -7,14 +7,14 @@ proof verification.
 
 Measured localnet receipts from the April 4, 2026 5-validator run:
 
-- simple public `currency.transfer`: `48` stamps
-- 2-output `deposit_shielded`: `87,622` stamps
-- 2-output `transfer_shielded`: `87,896` stamps
-- 1-output `withdraw_shielded`: `45,081` stamps
-- exact withdraw with no new output: `2,107` stamps
+- simple public `currency.transfer`: `48` chi
+- 2-output `deposit_shielded`: `87,622` chi
+- 2-output `transfer_shielded`: `87,896` chi
+- 1-output `withdraw_shielded`: `45,081` chi
+- exact withdraw with no new output: `2,107` chi
 
 That spread shows the cost explosion is not the Groth16 verifier itself. The
-verifier is roughly low-thousands of stamps. The expensive part is the current
+verifier is roughly low-thousands of chi. The expensive part is the current
 contract-side note persistence model:
 
 - encrypted note payload bytes are written into consensus state
@@ -108,8 +108,8 @@ That is acceptable because:
 The biggest expected win is removing raw payload writes from consensus state.
 
 Observed sample payloads in the localnet shielded flow were roughly `1.1 KB` per
-payload. At the current `25 stamps / byte` storage-write rate, payload storage
-alone is tens of thousands of stamps per output note.
+payload. At the current `25 chi / byte` storage-write rate, payload storage
+alone is tens of thousands of chi per output note.
 
 So V1 should materially reduce:
 
@@ -159,7 +159,7 @@ So V1 is the right first move:
 - document and harden the optional relayed hidden-sender transfer path
 - benchmark relayed shielded transfers against direct shielded transfers
 - document that shielded note delivery is off-chain indexed data
-- benchmark the new shielded stamp profile against the April 4, 2026 baseline
+- benchmark the new shielded chi profile against the April 4, 2026 baseline
 - evaluate whether note existence / note index history can also leave
   consensus state
 - evaluate a V2 root-only shielded state model

@@ -106,7 +106,7 @@ class TestClient(TestCase):
         output = {
             "status_code": 1,
             "result": error,
-            "stamps_used": 5,
+            "chi_used": 5,
             "writes": {},
             "reads": {},
             "events": [],
@@ -131,7 +131,7 @@ class TestClient(TestCase):
         output = {
             "status_code": 1,
             "result": error,
-            "stamps_used": 5,
+            "chi_used": 5,
             "writes": {},
             "reads": {},
             "events": [],

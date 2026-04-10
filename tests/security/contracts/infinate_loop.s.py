@@ -5,6 +5,6 @@ def loop():
         i += 1
 
 @export
-def eat_stamps():
+def eat_chi():
     while True:
         pass

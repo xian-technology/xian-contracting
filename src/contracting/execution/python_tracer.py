@@ -15,7 +15,7 @@ import types
 from contracting.execution.tracer_common import (
     DEFAULT_COST,
     CallLimitExceededError,
-    StampExceededError,
+    ChiExceededError,
     _opcode_cost,
     get_tracer_policy,
 )
@@ -44,26 +44,26 @@ class PythonLineTracer:
 
     __slots__ = (
         "cost",
-        "stamp_supplied",
+        "chi_supplied",
         "started",
         "call_count",
         "_enabled_codes",
         "_known_codes",
         "_line_costs",
         "_max_events",
-        "_max_stamps",
+        "_max_chi",
     )
 
     def __init__(self) -> None:
         self.cost = 0
-        self.stamp_supplied = 0
+        self.chi_supplied = 0
         self.started = False
         self.call_count = 0
         self._enabled_codes: set[int] = set()
         self._known_codes: dict[int, types.CodeType] = {}
         self._line_costs: dict[int, dict[int, int]] = {}
         self._max_events = _POLICY.max_events
-        self._max_stamps = _POLICY.max_stamps
+        self._max_chi = _POLICY.max_chi
 
     def start(self) -> None:
         self.cost = 0
@@ -106,7 +106,7 @@ class PythonLineTracer:
     def reset(self, *, clear_metadata: bool = True) -> None:
         self.stop()
         self.cost = 0
-        self.stamp_supplied = 0
+        self.chi_supplied = 0
         self.call_count = 0
         self._enabled_codes.clear()
         if clear_metadata:
@@ -135,18 +135,18 @@ class PythonLineTracer:
             if isinstance(const, types.CodeType):
                 self._enable_local_events(const)
 
-    def set_stamp(self, stamp: int) -> None:
-        self.stamp_supplied = stamp
+    def set_chi(self, chi: int) -> None:
+        self.chi_supplied = chi
 
     def add_cost(self, new_cost: int) -> None:
         self.cost += new_cost
-        if self.cost > self.stamp_supplied or self.cost > self._max_stamps:
+        if self.cost > self.chi_supplied or self.cost > self._max_chi:
             self.stop()
-            raise StampExceededError(
-                "The cost has exceeded the stamp supplied!"
+            raise ChiExceededError(
+                "The cost has exceeded the chi supplied!"
             )
 
-    def get_stamp_used(self) -> int:
+    def get_chi_used(self) -> int:
         return self.cost
 
     def is_started(self) -> bool:
@@ -165,10 +165,10 @@ class PythonLineTracer:
             )
 
         self.cost += self._line_cost(code, line_number)
-        if self.cost > self.stamp_supplied or self.cost > self._max_stamps:
+        if self.cost > self.chi_supplied or self.cost > self._max_chi:
             self.stop()
-            raise StampExceededError(
-                "The cost has exceeded the stamp supplied!"
+            raise ChiExceededError(
+                "The cost has exceeded the chi supplied!"
             )
 
     def _line_cost(self, code: types.CodeType, line_number: int) -> int:

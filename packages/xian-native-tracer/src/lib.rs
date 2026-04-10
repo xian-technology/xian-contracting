@@ -9,7 +9,7 @@ const DEFAULT_OPCODE_COST: u16 = DEFAULT_COST as u16;
 
 create_exception!(
     xian_native_tracer,
-    NativeStampExceededError,
+    NativeChiExceededError,
     PyAssertionError
 );
 create_exception!(
@@ -21,22 +21,22 @@ create_exception!(
 #[pyclass(unsendable)]
 struct InstructionMeter {
     cost: u64,
-    stamp_supplied: u64,
+    chi_supplied: u64,
     call_count: u64,
     started: bool,
-    max_stamps: u64,
+    max_chi: u64,
     max_events: u64,
     opcode_costs: [u16; 256],
     instruction_costs: HashMap<usize, Box<[u16]>>,
-    stamp_exceeded_type: Py<PyType>,
+    chi_exceeded_type: Py<PyType>,
     call_limit_type: Py<PyType>,
 }
 
 impl InstructionMeter {
-    fn stamp_exceeded_error(&self, py: Python<'_>) -> PyErr {
+    fn chi_exceeded_error(&self, py: Python<'_>) -> PyErr {
         PyErr::from_type(
-            self.stamp_exceeded_type.bind(py).clone(),
-            "The cost has exceeded the stamp supplied!",
+            self.chi_exceeded_type.bind(py).clone(),
+            "The cost has exceeded the chi supplied!",
         )
     }
 
@@ -48,9 +48,9 @@ impl InstructionMeter {
     }
 
     fn ensure_cost_limit(&mut self, py: Python<'_>) -> PyResult<()> {
-        if self.cost > self.stamp_supplied || self.cost > self.max_stamps {
+        if self.cost > self.chi_supplied || self.cost > self.max_chi {
             self.started = false;
-            return Err(self.stamp_exceeded_error(py));
+            return Err(self.chi_exceeded_error(py));
         }
         Ok(())
     }
@@ -75,9 +75,9 @@ impl InstructionMeter {
     #[new]
     fn new(
         opcode_costs: Vec<u16>,
-        max_stamps: u64,
+        max_chi: u64,
         max_events: u64,
-        stamp_exceeded_type: Py<PyType>,
+        chi_exceeded_type: Py<PyType>,
         call_limit_type: Py<PyType>,
     ) -> PyResult<Self> {
         if opcode_costs.len() != 256 {
@@ -90,14 +90,14 @@ impl InstructionMeter {
 
         Ok(Self {
             cost: 0,
-            stamp_supplied: 0,
+            chi_supplied: 0,
             call_count: 0,
             started: false,
-            max_stamps,
+            max_chi,
             max_events,
             opcode_costs: opcode_cost_table,
             instruction_costs: HashMap::new(),
-            stamp_exceeded_type,
+            chi_exceeded_type,
             call_limit_type,
         })
     }
@@ -116,7 +116,7 @@ impl InstructionMeter {
     fn reset(&mut self, clear_metadata: bool) {
         self.stop();
         self.cost = 0;
-        self.stamp_supplied = 0;
+        self.chi_supplied = 0;
         self.call_count = 0;
         if clear_metadata {
             self.instruction_costs.clear();
@@ -134,8 +134,8 @@ impl InstructionMeter {
         Ok(())
     }
 
-    fn set_stamp(&mut self, stamp: u64) {
-        self.stamp_supplied = stamp;
+    fn set_chi(&mut self, chi: u64) {
+        self.chi_supplied = chi;
     }
 
     fn add_cost(&mut self, new_cost: u64, py: Python<'_>) -> PyResult<()> {
@@ -170,7 +170,7 @@ impl InstructionMeter {
         self.ensure_cost_limit(code.py())
     }
 
-    fn get_stamp_used(&self) -> u64 {
+    fn get_chi_used(&self) -> u64 {
         self.cost
     }
 
@@ -183,8 +183,8 @@ impl InstructionMeter {
 fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<InstructionMeter>()?;
     module.add(
-        "NativeStampExceededError",
-        py.get_type::<NativeStampExceededError>(),
+        "NativeChiExceededError",
+        py.get_type::<NativeChiExceededError>(),
     )?;
     module.add(
         "NativeCallLimitExceededError",

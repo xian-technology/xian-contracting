@@ -19,8 +19,8 @@ class ExecutionRequest:
     function_name: str
     kwargs: dict = field(default_factory=dict)
     environment: dict | None = None
-    stamps: int = constants.DEFAULT_STAMPS
-    stamp_cost: int = constants.STAMPS_PER_T
+    chi: int = constants.DEFAULT_CHI
+    chi_cost: int = constants.CHI_PER_T
     metering: bool | None = None
     nonce: int = 0
 
@@ -262,8 +262,8 @@ def _speculative_execute_request(task: _SpeculativeTask) -> dict:
             kwargs=request.build_kwargs(),
             environment=request.build_environment(),
             auto_commit=False,
-            stamps=request.stamps,
-            stamp_cost=request.stamp_cost,
+            chi=request.chi,
+            chi_cost=request.chi_cost,
             metering=request.metering,
         )
     finally:
@@ -739,8 +739,8 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
             kwargs=request.build_kwargs(),
             environment=request.build_environment(),
             auto_commit=False,
-            stamps=request.stamps,
-            stamp_cost=request.stamp_cost,
+            chi=request.chi,
+            chi_cost=request.chi_cost,
             metering=request.metering,
         )
 

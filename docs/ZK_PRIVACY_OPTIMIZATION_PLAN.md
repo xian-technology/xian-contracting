@@ -93,7 +93,7 @@ optimization needed to make shielded fees usable:
 - tests that prove requests can round-trip through the service
 - native shielded tree append / relay-digest helpers exposed through the runtime
   `zk` bridge
-- benchmark harness for before/after shielded stamp comparison
+- benchmark harness for before/after shielded chi comparison
 
 It does **not** claim:
 

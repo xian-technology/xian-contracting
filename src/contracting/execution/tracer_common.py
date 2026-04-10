@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 DEFAULT_COST = 4
 MIN_OPCODE_COST = 2
-MAX_STAMPS = 50_000_000_000
+MAX_CHI = 50_000_000_000
 PYTHON_MAX_EVENTS = 800_000
 NATIVE_MAX_EVENTS = 3_250_000
 
@@ -20,7 +20,7 @@ SUPPORTED_TRACER_MODES = {
 @dataclass(frozen=True, slots=True)
 class TracerPolicy:
     mode: str
-    max_stamps: int
+    max_chi: int
     max_events: int
     event_name: str
 
@@ -28,13 +28,13 @@ class TracerPolicy:
 TRACER_POLICIES: dict[str, TracerPolicy] = {
     "python_line_v1": TracerPolicy(
         mode="python_line_v1",
-        max_stamps=MAX_STAMPS,
+        max_chi=MAX_CHI,
         max_events=PYTHON_MAX_EVENTS,
         event_name="line",
     ),
     "native_instruction_v1": TracerPolicy(
         mode="native_instruction_v1",
-        max_stamps=MAX_STAMPS,
+        max_chi=MAX_CHI,
         max_events=NATIVE_MAX_EVENTS,
         event_name="instruction",
     ),
@@ -44,8 +44,8 @@ TRACER_POLICIES: dict[str, TracerPolicy] = {
 MAX_CALL_COUNT = TRACER_POLICIES[DEFAULT_TRACER_MODE].max_events
 
 
-class StampExceededError(AssertionError):
-    """Raised when the accumulated cost exceeds the stamp budget."""
+class ChiExceededError(AssertionError):
+    """Raised when the accumulated cost exceeds the chi budget."""
 
 
 class CallLimitExceededError(AssertionError):

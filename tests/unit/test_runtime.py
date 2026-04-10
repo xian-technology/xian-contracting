@@ -5,7 +5,7 @@ from unittest import TestCase
 from contracting import constants
 from contracting.execution import runtime
 from contracting.execution.runtime import Context
-from contracting.execution.tracer import StampExceededError
+from contracting.execution.tracer import ChiExceededError
 
 
 class TestRuntimeLifecycle(TestCase):
@@ -74,7 +74,7 @@ class TestTracerMetering(TestCase):
         runtime.rt.tracer.register_code(code)
         exec(code)
         runtime.rt.tracer.stop()
-        self.assertGreater(runtime.rt.tracer.get_stamp_used(), 0)
+        self.assertGreater(runtime.rt.tracer.get_chi_used(), 0)
 
     def test_more_work_costs_more(self):
         runtime.rt.set_up(stmps=1_000_000, meter=True)
@@ -82,7 +82,7 @@ class TestTracerMetering(TestCase):
         runtime.rt.tracer.register_code(code_big)
         exec(code_big)
         runtime.rt.tracer.stop()
-        used_big = runtime.rt.tracer.get_stamp_used()
+        used_big = runtime.rt.tracer.get_chi_used()
         runtime.rt.clean_up()
 
         runtime.rt.set_up(stmps=10_000_000, meter=True)
@@ -90,7 +90,7 @@ class TestTracerMetering(TestCase):
         runtime.rt.tracer.register_code(code_small)
         exec(code_small)
         runtime.rt.tracer.stop()
-        used_small = runtime.rt.tracer.get_stamp_used()
+        used_small = runtime.rt.tracer.get_chi_used()
 
         self.assertGreater(used_big, used_small)
 
@@ -98,7 +98,7 @@ class TestTracerMetering(TestCase):
         runtime.rt.set_up(stmps=1000, meter=True)
         runtime.rt.tracer.add_cost(900)
         runtime.rt.tracer.stop()
-        self.assertEqual(runtime.rt.tracer.get_stamp_used(), 900)
+        self.assertEqual(runtime.rt.tracer.get_chi_used(), 900)
 
     def test_python_line_metadata_survives_runtime_cleanup(self):
         runtime.rt.set_tracer_mode("python_line_v1")
@@ -124,16 +124,16 @@ class TestWriteDeduction(TestCase):
         runtime.rt.deduct_write("a", "bad")
         self.assertEqual(runtime.rt.writes, 4)
 
-    def test_deduct_write_adds_stamp_cost(self):
+    def test_deduct_write_adds_chi_cost(self):
         runtime.rt.set_up(stmps=100_000, meter=True)
-        cost_before = runtime.rt.tracer.get_stamp_used()
+        cost_before = runtime.rt.tracer.get_chi_used()
         runtime.rt.deduct_write("key", "val")
-        self.assertGreater(runtime.rt.tracer.get_stamp_used(), cost_before)
+        self.assertGreater(runtime.rt.tracer.get_chi_used(), cost_before)
 
     def test_deduct_write_fails_if_too_many_writes(self):
         runtime.rt.set_up(stmps=100_000_000, meter=True)
         runtime.rt.deduct_write("a", "bad")
-        with self.assertRaises((AssertionError, StampExceededError)):
+        with self.assertRaises((AssertionError, ChiExceededError)):
             runtime.rt.deduct_write("a", "b" * 128 * 1024)
 
 
@@ -144,9 +144,9 @@ class TestReadDeduction(TestCase):
 
     def test_deduct_read_adds_cost(self):
         runtime.rt.set_up(stmps=100_000, meter=True)
-        cost_before = runtime.rt.tracer.get_stamp_used()
+        cost_before = runtime.rt.tracer.get_chi_used()
         runtime.rt.deduct_read("mykey", "myvalue")
-        self.assertGreater(runtime.rt.tracer.get_stamp_used(), cost_before)
+        self.assertGreater(runtime.rt.tracer.get_chi_used(), cost_before)
 
 
 class TestTransactionByteDeduction(TestCase):
@@ -156,10 +156,10 @@ class TestTransactionByteDeduction(TestCase):
 
     def test_deduct_transaction_bytes_adds_cost(self):
         runtime.rt.set_up(stmps=100_000, meter=True)
-        cost_before = runtime.rt.tracer.get_stamp_used()
+        cost_before = runtime.rt.tracer.get_chi_used()
         runtime.rt.deduct_transaction_bytes(128)
         self.assertEqual(
-            runtime.rt.tracer.get_stamp_used() - cost_before,
+            runtime.rt.tracer.get_chi_used() - cost_before,
             128 * constants.TRANSACTION_BYTES_COST_PER_BYTE,
         )
 
@@ -171,9 +171,9 @@ class TestReturnValueDeduction(TestCase):
 
     def test_deduct_return_value_adds_cost(self):
         runtime.rt.set_up(stmps=100_000, meter=True)
-        cost_before = runtime.rt.tracer.get_stamp_used()
+        cost_before = runtime.rt.tracer.get_chi_used()
         runtime.rt.deduct_return_value({"value": "ok"})
-        self.assertGreater(runtime.rt.tracer.get_stamp_used(), cost_before)
+        self.assertGreater(runtime.rt.tracer.get_chi_used(), cost_before)
 
     def test_deduct_return_value_fails_if_too_large(self):
         runtime.rt.set_up(stmps=10_000_000, meter=True)

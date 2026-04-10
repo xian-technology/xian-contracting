@@ -8,10 +8,10 @@ from contracting.execution.tracer import (
     CU_COSTS,
     DEFAULT_TRACER_MODE,
     MAX_CALL_COUNT,
-    MAX_STAMPS,
+    MAX_CHI,
     SUPPORTED_TRACER_MODES,
     CallLimitExceededError,
-    StampExceededError,
+    ChiExceededError,
     Tracer,
     create_tracer,
     get_default_cost_opcodes,
@@ -35,12 +35,12 @@ class TestTracerLifecycle(TestCase):
     def test_start_resets_counters(self):
         self.tracer.cost = 99
         self.tracer.call_count = 8
-        self.tracer.stamp_supplied = 123
+        self.tracer.chi_supplied = 123
 
         self.tracer.start()
 
         self.assertTrue(self.tracer.is_started())
-        self.assertEqual(self.tracer.get_stamp_used(), 0)
+        self.assertEqual(self.tracer.get_chi_used(), 0)
         self.assertEqual(self.tracer.call_count, 0)
 
     def test_stop_idempotent(self):
@@ -52,13 +52,13 @@ class TestTracerLifecycle(TestCase):
     def test_reset_clears_all_state(self):
         self.tracer.start()
         self.tracer.cost = 7
-        self.tracer.stamp_supplied = 9
+        self.tracer.chi_supplied = 9
         self.tracer.call_count = 12
 
         self.tracer.reset()
 
-        self.assertEqual(self.tracer.get_stamp_used(), 0)
-        self.assertEqual(self.tracer.stamp_supplied, 0)
+        self.assertEqual(self.tracer.get_chi_used(), 0)
+        self.assertEqual(self.tracer.chi_supplied, 0)
         self.assertEqual(self.tracer.call_count, 0)
         self.assertFalse(self.tracer.is_started())
 
@@ -87,8 +87,8 @@ class TestTracerSelection(TestCase):
 
         self.assertEqual(python_policy.max_events, MAX_CALL_COUNT)
         self.assertGreater(native_policy.max_events, python_policy.max_events)
-        self.assertEqual(native_policy.max_stamps, MAX_STAMPS)
-        self.assertGreater(native_policy.max_stamps, 6_500_000)
+        self.assertEqual(native_policy.max_chi, MAX_CHI)
+        self.assertGreater(native_policy.max_chi, 6_500_000)
 
     def test_factory_returns_python_tracer_by_default(self):
         tracer = create_tracer()
@@ -105,24 +105,24 @@ class TestAddCost(TestCase):
 
     def test_add_cost_accumulates(self):
         self.tracer.start()
-        self.tracer.set_stamp(1000)
+        self.tracer.set_chi(1000)
         self.tracer.add_cost(100)
         self.tracer.add_cost(200)
-        self.assertEqual(self.tracer.get_stamp_used(), 300)
+        self.assertEqual(self.tracer.get_chi_used(), 300)
 
     def test_add_cost_raises_on_stamp_exceeded(self):
         self.tracer.start()
-        self.tracer.set_stamp(3)
+        self.tracer.set_chi(3)
 
-        with self.assertRaises(StampExceededError):
+        with self.assertRaises(ChiExceededError):
             self.tracer.add_cost(4)
 
-    def test_add_cost_raises_on_max_stamps_exceeded(self):
+    def test_add_cost_raises_on_max_chi_exceeded(self):
         self.tracer.start()
-        self.tracer.set_stamp(MAX_STAMPS + 100)
+        self.tracer.set_chi(MAX_CHI + 100)
 
-        with self.assertRaises(StampExceededError):
-            self.tracer.add_cost(MAX_STAMPS + 1)
+        with self.assertRaises(ChiExceededError):
+            self.tracer.add_cost(MAX_CHI + 1)
 
 
 class TestLineCallback(TestCase):
@@ -133,7 +133,7 @@ class TestLineCallback(TestCase):
         self.tracer.reset()
 
     def test_callback_charges_line_cost(self):
-        self.tracer.set_stamp(MAX_STAMPS)
+        self.tracer.set_chi(MAX_CHI)
         self.tracer.start()
         code = make_code()
         line_number = code.co_firstlineno
@@ -141,14 +141,14 @@ class TestLineCallback(TestCase):
         self.tracer._line_callback(code, line_number)
 
         self.assertEqual(
-            self.tracer.get_stamp_used(),
+            self.tracer.get_chi_used(),
             self.tracer._line_cost(code, line_number),
         )
         self.assertEqual(self.tracer.call_count, 1)
 
     def test_callback_raises_on_call_limit(self):
         self.tracer.start()
-        self.tracer.set_stamp(MAX_STAMPS)
+        self.tracer.set_chi(MAX_CHI)
         self.tracer.call_count = MAX_CALL_COUNT
 
         with self.assertRaises(CallLimitExceededError):
@@ -156,15 +156,15 @@ class TestLineCallback(TestCase):
 
     def test_callback_raises_on_stamp_exceeded(self):
         self.tracer.start()
-        self.tracer.set_stamp(1)
+        self.tracer.set_chi(1)
         self.tracer.cost = 1
 
-        with self.assertRaises(StampExceededError):
+        with self.assertRaises(ChiExceededError):
             self.tracer._line_callback(make_code(), 1)
 
     def test_callback_has_no_process_side_effects(self):
         self.tracer.start()
-        self.tracer.set_stamp(MAX_STAMPS)
+        self.tracer.set_chi(MAX_CHI)
         code = make_code()
 
         with patch(

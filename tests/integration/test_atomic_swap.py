@@ -129,7 +129,7 @@ class TestAtomicSwapContract(TestCase):
         })
 
         output = self.e.execute('stu', 'con_atomic_swaps', 'redeem', kwargs={'secret': '842b65a7d48e3a3c3f0e9d37eaced0b2'})
-        # status_code, result, stamps_used
+        # status_code, result, chi_used
         self.assertEqual(output['status_code'], 1)
         self.assertIn('Incorrect sender or secret passed.', str(output['result']))
 

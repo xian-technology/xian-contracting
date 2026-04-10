@@ -6,7 +6,7 @@ import types
 from contracting.execution.tracer_common import (
     CU_COSTS,
     CallLimitExceededError,
-    StampExceededError,
+    ChiExceededError,
     get_tracer_policy,
 )
 
@@ -41,9 +41,9 @@ class NativeInstructionTracer:
 
         self._backend = InstructionMeter(
             CU_COSTS,
-            _POLICY.max_stamps,
+            _POLICY.max_chi,
             _POLICY.max_events,
-            StampExceededError,
+            ChiExceededError,
             CallLimitExceededError,
         )
         self._instruction_callback = self._backend.instruction_callback
@@ -126,14 +126,14 @@ class NativeInstructionTracer:
             if isinstance(const, types.CodeType):
                 self._enable_local_events(const)
 
-    def set_stamp(self, stamp: int) -> None:
-        self._backend.set_stamp(stamp)
+    def set_chi(self, chi: int) -> None:
+        self._backend.set_chi(chi)
 
     def add_cost(self, new_cost: int) -> None:
         self._backend.add_cost(new_cost)
 
-    def get_stamp_used(self) -> int:
-        return self._backend.get_stamp_used()
+    def get_chi_used(self) -> int:
+        return self._backend.get_chi_used()
 
     def is_started(self) -> bool:
         return self._backend.is_started()

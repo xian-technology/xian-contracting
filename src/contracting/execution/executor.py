@@ -41,7 +41,7 @@ class Executor:
 
         self.bypass_privates = bypass_privates
         self.bypass_balance_amount = (
-            bypass_balance_amount  # For Stamp Estimation
+            bypass_balance_amount  # For Chi Estimation
         )
 
     def wipe_modules(self):
@@ -69,8 +69,8 @@ class Executor:
         environment=None,
         auto_commit=False,
         driver=None,
-        stamps=constants.DEFAULT_STAMPS,
-        stamp_cost=constants.STAMPS_PER_T,
+        chi=constants.DEFAULT_CHI,
+        chi_cost=constants.CHI_PER_T,
         metering=None,
         transaction_size_bytes: int = 0,
     ) -> dict:
@@ -120,8 +120,8 @@ class Executor:
                             driver.get(balances_key)
                         )
 
-                    assert balance * stamp_cost >= stamps, (
-                        f"Sender does not have enough stamps for the transaction. "
+                    assert balance * chi_cost >= chi, (
+                        f"Sender does not have enough chi for the transaction. "
                         f"Balance at key {balances_key} is {balance}"
                     )
 
@@ -151,7 +151,7 @@ class Executor:
                     if isinstance(v, float):
                         kwargs[k] = ContractingDecimal(str(v))
 
-                runtime.rt.set_up(stmps=stamps * 1000, meter=metering)
+                runtime.rt.set_up(stmps=chi * 1000, meter=metering)
                 runtime.rt.deduct_transaction_bytes(transaction_size_bytes)
                 enable_restricted_imports()
                 runtime.rt.begin_contract_metering(contract_name)
@@ -189,25 +189,25 @@ class Executor:
                 runtime.rt.tracer.stop()
                 disable_restricted_imports()
 
-            raw_stamps_used = runtime.rt.tracer.get_stamp_used()
+            raw_chi_used = runtime.rt.tracer.get_chi_used()
             contract_costs = runtime.rt.finalize_contract_metering(
                 fixed_overhead_contract=contract_name,
-                fixed_overhead_units=(constants.TRANSACTION_BASE_STAMPS * 1000),
+                fixed_overhead_units=(constants.TRANSACTION_BASE_CHI * 1000),
             )
 
-            stamps_used = raw_stamps_used // 1000
-            stamps_used += constants.TRANSACTION_BASE_STAMPS
+            chi_used = raw_chi_used // 1000
+            chi_used += constants.TRANSACTION_BASE_CHI
 
-            if stamps_used > stamps:
-                stamps_used = stamps
+            if chi_used > chi:
+                chi_used = chi
 
             if metering:
                 assert balances_key is not None, (
-                    "Balance key was not set properly. Cannot deduct stamps."
+                    "Balance key was not set properly. Cannot deduct chi."
                 )
 
-                to_deduct = stamps_used
-                to_deduct /= stamp_cost
+                to_deduct = chi_used
+                to_deduct /= chi_cost
                 to_deduct = ContractingDecimal(to_deduct)
 
                 balance = self._coerce_balance_value(driver.get(balances_key))
@@ -226,7 +226,7 @@ class Executor:
             output = {
                 "status_code": status_code,
                 "result": result,
-                "stamps_used": stamps_used,
+                "chi_used": chi_used,
                 "writes": transaction_writes,
                 "reads": deepcopy(driver.transaction_reads),
                 "prefix_reads": frozenset(driver.transaction_read_prefixes),

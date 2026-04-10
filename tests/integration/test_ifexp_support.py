@@ -68,9 +68,9 @@ class TestIfExpSupport(TestCase):
 
                     self.assertEqual(true_output["status_code"], 0)
                     self.assertEqual(true_output["result"], "YES")
-                    self.assertGreater(true_output["stamps_used"], 0)
+                    self.assertGreater(true_output["chi_used"], 0)
                     self.assertEqual(false_output["status_code"], 0)
                     self.assertEqual(false_output["result"], "NO")
-                    self.assertGreater(false_output["stamps_used"], 0)
+                    self.assertGreater(false_output["chi_used"], 0)
                 finally:
                     client.flush()

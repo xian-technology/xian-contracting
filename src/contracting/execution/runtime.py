@@ -132,7 +132,7 @@ class RuntimeState:
     tracer_mode: str
     tracer: object
     env: dict = field(default_factory=dict)
-    stamps: int = 0
+    chi: int = 0
     writes: int = 0
     signer: str | None = None
     loaded_modules: list[str] = field(default_factory=list)
@@ -199,12 +199,12 @@ class Runtime:
         self._state().signer = value
 
     @property
-    def stamps(self):
-        return self._state().stamps
+    def chi(self):
+        return self._state().chi
 
-    @stamps.setter
-    def stamps(self, value):
-        self._state().stamps = value
+    @chi.setter
+    def chi(self, value):
+        self._state().chi = value
 
     @property
     def writes(self):
@@ -254,7 +254,7 @@ class Runtime:
         state.tracer.reset(clear_metadata=not preserve_tracer_metadata)
         env = dict(state.env) if preserve_env else {}
         state.env = env
-        state.stamps = 0
+        state.chi = 0
         state.writes = 0
         state.signer = None
         state.loaded_modules = []
@@ -277,8 +277,8 @@ class Runtime:
         )
 
         if meter:
-            state.stamps = stmps
-            state.tracer.set_stamp(stmps)
+            state.chi = stmps
+            state.tracer.set_chi(stmps)
             state.tracer.start()
 
     def clean_up(self):
@@ -311,8 +311,8 @@ class Runtime:
                 "You have exceeded the maximum write capacity per transaction!"
             )
 
-            stamp_cost = cost * constants.WRITE_COST_PER_BYTE
-            self.tracer.add_cost(stamp_cost)
+            chi_cost = cost * constants.WRITE_COST_PER_BYTE
+            self.tracer.add_cost(chi_cost)
 
     def deduct_transaction_bytes(self, size: int):
         if size <= 0 or not self.tracer.is_started():
@@ -352,7 +352,7 @@ class Runtime:
         state.contract_meter_frames = [
             {
                 "contract": contract,
-                "start_cost": self.tracer.get_stamp_used(),
+                "start_cost": self.tracer.get_chi_used(),
                 "child_cost": 0,
             }
         ]
@@ -365,7 +365,7 @@ class Runtime:
             state.contract_meter_frames.append(
                 {
                     "contract": contract,
-                    "start_cost": self.tracer.get_stamp_used(),
+                    "start_cost": self.tracer.get_chi_used(),
                     "child_cost": 0,
                 }
             )
@@ -377,7 +377,7 @@ class Runtime:
             state.contract_meter_frames.append(
                 {
                     "contract": contract,
-                    "start_cost": self.tracer.get_stamp_used(),
+                    "start_cost": self.tracer.get_chi_used(),
                     "child_cost": 0,
                 }
             )
@@ -396,7 +396,7 @@ class Runtime:
             return
 
         frame = state.contract_meter_frames.pop()
-        current_cost = self.tracer.get_stamp_used()
+        current_cost = self.tracer.get_chi_used()
         total_cost = max(current_cost - int(frame["start_cost"]), 0)
         exclusive_cost = max(total_cost - int(frame["child_cost"]), 0)
         contract = str(frame["contract"])

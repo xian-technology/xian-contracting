@@ -30,7 +30,7 @@ class TestTransactionWrites(TestCase):
             contract_name="currency",
             function_name="transfer",
             kwargs={"to": "someone", "amount": 100},
-            stamps=1000,
+            chi=1000,
             sender="bill",
         )
         self.assertEqual(res3["writes"], self.c.executor.driver.pending_writes)
@@ -38,7 +38,7 @@ class TestTransactionWrites(TestCase):
             contract_name="currency",
             function_name="transfer",
             kwargs={"to": "someone", "amount": 100},
-            stamps=1000,
+            chi=1000,
             sender="bill",
         )
         
@@ -48,7 +48,7 @@ class TestTransactionWrites(TestCase):
             contract_name="currency",
             function_name="transfer",
             kwargs={"to": "someone", "amount": 100},
-            stamps=1000,
+            chi=1000,
             sender="bill",
         )
         self.assertEqual(res3["writes"], {})

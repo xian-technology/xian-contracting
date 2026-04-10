@@ -284,7 +284,7 @@ class TestDynamicImports(TestCase):
         self.assertGreater(output["contract_costs"]["con_stubucks"], 0)
         self.assertEqual(
             sum(output["contract_costs"].values()) // 1000,
-            output["stamps_used"],
+            output["chi_used"],
         )
 
     def test_get_tejastokens_balances(self):

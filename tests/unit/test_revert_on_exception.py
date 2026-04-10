@@ -112,7 +112,7 @@ class MyTestCase(unittest.TestCase):
                     "contract": "con_exception",
                     "function": "transfer",
                     "kwargs": {"amount": 100, "to": "colin"},
-                    "stamps_supplied": 1000,
+                    "chi_supplied": 1000,
                 },
                 "metadata": {"signature": "abc"},
                 "b_meta": {
@@ -140,7 +140,7 @@ class MyTestCase(unittest.TestCase):
                     "contract": "con_currency",
                     "function": "transfer",
                     "kwargs": {"amount": 100, "to": "colin"},
-                    "stamps_supplied": 1000,
+                    "chi_supplied": 1000,
                 },
                 "metadata": {"signature": "abc"},
                 "b_meta": {

@@ -176,7 +176,7 @@ class AbstractContract:
         contract_name,
         func,
         environment=None,
-        stamps=constants.DEFAULT_STAMPS,
+        chi=constants.DEFAULT_CHI,
         metering=None,
         now=None,
         return_full_output=False,
@@ -198,7 +198,7 @@ class AbstractContract:
             contract_name=contract_name,
             function_name=func,
             kwargs=kwargs,
-            stamps=stamps,
+            chi=chi,
             environment=environment,
             metering=metering,
         )

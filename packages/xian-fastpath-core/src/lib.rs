@@ -22,7 +22,7 @@ const TX_PAYLOAD_KEYS: [&str; 7] = [
     "kwargs",
     "nonce",
     "sender",
-    "stamps_supplied",
+    "chi_supplied",
 ];
 
 #[pyfunction]
@@ -152,8 +152,8 @@ fn validate_transaction_static_impl(tx_value: &Value, chain_id: &str) -> PyResul
     ensure_non_empty_string(payload.get("contract"), "Payload key 'contract' is missing")?;
     ensure_non_empty_string(payload.get("function"), "Payload key 'function' is missing")?;
     ensure_truthy(
-        payload.get("stamps_supplied"),
-        "Payload key 'stamps_supplied' is missing",
+        payload.get("chi_supplied"),
+        "Payload key 'chi_supplied' is missing",
     )?;
     ensure_exact_keys(payload, &TX_PAYLOAD_KEYS)?;
 
@@ -188,7 +188,7 @@ fn validate_transaction_static_impl(tx_value: &Value, chain_id: &str) -> PyResul
         || !is_identifier(function)
         || !kwargs.keys().all(|key| is_identifier(key))
         || !is_non_negative_integer(payload.get("nonce"))
-        || !is_non_negative_integer(payload.get("stamps_supplied"))
+        || !is_non_negative_integer(payload.get("chi_supplied"))
     {
         return Err(validation_error(
             "Transaction has wrongly formatted dictionary",
@@ -224,7 +224,7 @@ fn build_signing_payload(payload: &Map<String, Value>) -> Value {
         "kwargs",
         "nonce",
         "sender",
-        "stamps_supplied",
+        "chi_supplied",
     ] {
         if let Some(value) = payload.get(key) {
             signing_payload.insert(key.to_string(), value.clone());

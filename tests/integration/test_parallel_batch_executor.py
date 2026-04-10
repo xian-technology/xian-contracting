@@ -130,8 +130,8 @@ class TestParallelBatchExecutor(unittest.TestCase):
                     function_name=request.function_name,
                     kwargs=request.build_kwargs(),
                     environment=request.build_environment(),
-                    stamps=request.stamps,
-                    stamp_cost=request.stamp_cost,
+                    chi=request.chi,
+                    chi_cost=request.chi_cost,
                     metering=request.metering,
                 )
                 for request in requests
@@ -268,8 +268,8 @@ class TestParallelBatchExecutor(unittest.TestCase):
                     function_name=request.function_name,
                     kwargs=request.build_kwargs(),
                     environment=request.build_environment(),
-                    stamps=request.stamps,
-                    stamp_cost=request.stamp_cost,
+                    chi=request.chi,
+                    chi_cost=request.chi_cost,
                     metering=request.metering,
                 )
                 for request in requests

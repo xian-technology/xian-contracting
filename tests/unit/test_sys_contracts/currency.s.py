@@ -22,16 +22,16 @@ def seed():
         balances[w] = seed_amount.get()
 
 
-def assert_stamps(stamps):
-    assert balances[ctx.signer] >= stamps, \
-        "Not enough funds to submit stamps"
+def assert_stamps(chi):
+    assert balances[ctx.signer] >= chi, \
+        "Not enough funds to submit chi"
 
 
-def submit_stamps(stamps):
-    stamps *= xrate
+def submit_stamps(chi):
+    chi *= xrate
 
-    balances[ctx.signer] -= stamps
-    balances['reserves'] += stamps
+    balances[ctx.signer] -= chi
+    balances['reserves'] += chi
 
 @export
 def transfer(to, amount):
