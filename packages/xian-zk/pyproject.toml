@@ -25,6 +25,7 @@ Repository = "https://github.com/xian-technology/xian-contracting"
 
 [project.scripts]
 xian-zk-shielded-bundle = "xian_zk.cli:main"
+xian-zk-prover-service = "xian_zk.prover_service:main"
 
 [dependency-groups]
 dev = [

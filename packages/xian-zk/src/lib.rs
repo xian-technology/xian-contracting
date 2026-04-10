@@ -2,8 +2,8 @@ mod core;
 mod shielded_notes;
 
 pub use crate::core::{
-    build_demo_vector, verify_groth16_bn254, DemoVector, VerifierError,
-    EXPECTED_FIELD_ELEMENT_BYTES,
+    build_demo_vector, verify_groth16_bn254, verify_groth16_bn254_grouped,
+    DemoVector, Groth16Bn254BatchItem, VerifierError, EXPECTED_FIELD_ELEMENT_BYTES,
 };
 pub use crate::shielded_notes::{
     build_insecure_dev_shielded_command_bundle, build_insecure_dev_shielded_note_bundle,
@@ -17,8 +17,11 @@ pub use crate::shielded_notes::{
     shielded_note_auth_path_hex, shielded_note_commitment_hex,
     shielded_note_nullifier_hex, shielded_note_output_commitment_hex,
     shielded_note_owner_public_hex, shielded_note_recipient_digest_hex,
-    shielded_output_payload_hash_hex,
-    shielded_note_root_hex, shielded_note_tree_state, shielded_note_zero_root_hex,
+    shielded_output_payload_hash_hex, shielded_output_payload_hash_hexes,
+    shielded_command_public_inputs_hex, shielded_deposit_public_inputs_hex,
+    shielded_note_root_hex, shielded_note_tree_state, shielded_note_append_tree_state,
+    shielded_transfer_public_inputs_hex, shielded_withdraw_public_inputs_hex,
+    shielded_note_zero_root_hex,
     ShieldedActionFixture, ShieldedCircuitBundle, ShieldedCommandActionFixture,
     ShieldedCommandFixture, ShieldedCommandProofResult, ShieldedCommandProverBundle,
     ShieldedCommandRequest, ShieldedDepositRequest, ShieldedFixture, ShieldedInputRequest,

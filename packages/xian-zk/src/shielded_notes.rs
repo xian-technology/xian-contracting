@@ -746,6 +746,19 @@ pub fn shielded_output_payload_hash_hex(payload_hex: &str) -> String {
     field_hex(output_payload_hash(payload_hex))
 }
 
+pub fn shielded_output_payload_hash_hexes(payload_hexes: &[String]) -> Vec<String> {
+    payload_hexes
+        .iter()
+        .map(|payload_hex| {
+            if payload_hex.is_empty() {
+                field_hex(Fr::zero())
+            } else {
+                field_hex(output_payload_hash(payload_hex))
+            }
+        })
+        .collect()
+}
+
 pub fn shielded_note_owner_public_hex(owner_secret_hex: &str) -> Result<String, Box<dyn Error>> {
     Ok(field_hex(owner_public(parse_field_hex(owner_secret_hex)?)))
 }
@@ -814,6 +827,34 @@ pub fn shielded_note_tree_state(
     )?))
 }
 
+pub fn shielded_note_append_tree_state(
+    note_count: usize,
+    filled_subtrees: &[String],
+    commitments: &[String],
+) -> Result<ShieldedTreeState, Box<dyn Error>> {
+    if filled_subtrees.len() != SHIELDED_NOTE_TREE_DEPTH {
+        return Err("filled_subtrees length does not match tree depth".into());
+    }
+
+    let mut parsed_subtrees = Vec::with_capacity(SHIELDED_NOTE_TREE_DEPTH);
+    for value in filled_subtrees {
+        parsed_subtrees.push(parse_field_hex(value)?);
+    }
+
+    let commitment_fields = leaf_fields_from_commitments(commitments)?;
+    let derived_root = root_from_frontier(note_count, &parsed_subtrees)?;
+    let current = FrontierState {
+        root: derived_root,
+        note_count,
+        filled_subtrees: parsed_subtrees,
+    };
+
+    Ok(frontier_state_to_public(&append_commitments_to_state(
+        &current,
+        &commitment_fields,
+    )?))
+}
+
 pub fn shielded_note_auth_path_hex(
     commitments: &[String],
     leaf_index: usize,
@@ -875,6 +916,187 @@ pub fn shielded_command_execution_tag_hex(
         parse_field_hex(nullifier_digest_hex)?,
         parse_field_hex(command_binding_hex_value)?,
     )))
+}
+
+fn parse_public_input_fields(
+    values: &[String],
+    minimum: usize,
+    maximum: usize,
+    label: &str,
+) -> Result<Vec<Fr>, Box<dyn Error>> {
+    if values.len() < minimum || values.len() > maximum {
+        return Err(format!("{label} length is invalid").into());
+    }
+    values.iter().map(|value| parse_field_hex(value)).collect()
+}
+
+pub fn shielded_deposit_public_inputs_hex(
+    contract_name: &str,
+    old_root_hex: &str,
+    amount: u64,
+    commitments: &[String],
+    payload_hashes: &[String],
+) -> Result<Vec<String>, Box<dyn Error>> {
+    let commitments = parse_public_input_fields(
+        commitments,
+        1,
+        SHIELDED_NOTE_MAX_OUTPUTS,
+        "commitments",
+    )?;
+    let payload_hashes = parse_public_input_fields(
+        payload_hashes,
+        commitments.len(),
+        SHIELDED_NOTE_MAX_OUTPUTS,
+        "payload_hashes",
+    )?;
+    if payload_hashes.len() != commitments.len() {
+        return Err("payload_hashes length must match commitments".into());
+    }
+
+    let mut values = vec![
+        asset_id_for_contract(contract_name),
+        parse_field_hex(old_root_hex)?,
+        Fr::from(amount),
+        Fr::from(commitments.len() as u64),
+    ];
+    values.extend(pad_fields(commitments, SHIELDED_NOTE_MAX_OUTPUTS));
+    values.extend(pad_fields(payload_hashes, SHIELDED_NOTE_MAX_OUTPUTS));
+    Ok(values.into_iter().map(field_hex).collect())
+}
+
+pub fn shielded_transfer_public_inputs_hex(
+    contract_name: &str,
+    old_root_hex: &str,
+    input_nullifiers: &[String],
+    commitments: &[String],
+    payload_hashes: &[String],
+) -> Result<Vec<String>, Box<dyn Error>> {
+    let input_nullifiers = parse_public_input_fields(
+        input_nullifiers,
+        1,
+        SHIELDED_NOTE_MAX_INPUTS,
+        "input_nullifiers",
+    )?;
+    let commitments = parse_public_input_fields(
+        commitments,
+        1,
+        SHIELDED_NOTE_MAX_OUTPUTS,
+        "commitments",
+    )?;
+    let payload_hashes = parse_public_input_fields(
+        payload_hashes,
+        commitments.len(),
+        SHIELDED_NOTE_MAX_OUTPUTS,
+        "payload_hashes",
+    )?;
+    if payload_hashes.len() != commitments.len() {
+        return Err("payload_hashes length must match commitments".into());
+    }
+
+    let mut values = vec![
+        asset_id_for_contract(contract_name),
+        parse_field_hex(old_root_hex)?,
+        Fr::from(input_nullifiers.len() as u64),
+        Fr::from(commitments.len() as u64),
+    ];
+    values.extend(pad_fields(input_nullifiers, SHIELDED_NOTE_MAX_INPUTS));
+    values.extend(pad_fields(commitments, SHIELDED_NOTE_MAX_OUTPUTS));
+    values.extend(pad_fields(payload_hashes, SHIELDED_NOTE_MAX_OUTPUTS));
+    Ok(values.into_iter().map(field_hex).collect())
+}
+
+pub fn shielded_withdraw_public_inputs_hex(
+    contract_name: &str,
+    old_root_hex: &str,
+    amount: u64,
+    recipient: &str,
+    input_nullifiers: &[String],
+    commitments: &[String],
+    payload_hashes: &[String],
+) -> Result<Vec<String>, Box<dyn Error>> {
+    let input_nullifiers = parse_public_input_fields(
+        input_nullifiers,
+        1,
+        SHIELDED_NOTE_MAX_INPUTS,
+        "input_nullifiers",
+    )?;
+    let commitments = parse_public_input_fields(
+        commitments,
+        0,
+        SHIELDED_NOTE_MAX_OUTPUTS,
+        "commitments",
+    )?;
+    let payload_hashes = parse_public_input_fields(
+        payload_hashes,
+        commitments.len(),
+        SHIELDED_NOTE_MAX_OUTPUTS,
+        "payload_hashes",
+    )?;
+    if payload_hashes.len() != commitments.len() {
+        return Err("payload_hashes length must match commitments".into());
+    }
+
+    let mut values = vec![
+        asset_id_for_contract(contract_name),
+        parse_field_hex(old_root_hex)?,
+        Fr::from(amount),
+        recipient_digest(recipient),
+        Fr::from(input_nullifiers.len() as u64),
+        Fr::from(commitments.len() as u64),
+    ];
+    values.extend(pad_fields(input_nullifiers, SHIELDED_NOTE_MAX_INPUTS));
+    values.extend(pad_fields(commitments, SHIELDED_NOTE_MAX_OUTPUTS));
+    values.extend(pad_fields(payload_hashes, SHIELDED_NOTE_MAX_OUTPUTS));
+    Ok(values.into_iter().map(field_hex).collect())
+}
+
+pub fn shielded_command_public_inputs_hex(
+    contract_name: &str,
+    old_root_hex: &str,
+    command_binding_hex_value: &str,
+    execution_tag_hex_value: &str,
+    fee: u64,
+    public_amount: u64,
+    input_nullifiers: &[String],
+    commitments: &[String],
+    payload_hashes: &[String],
+) -> Result<Vec<String>, Box<dyn Error>> {
+    let input_nullifiers = parse_public_input_fields(
+        input_nullifiers,
+        1,
+        SHIELDED_NOTE_MAX_INPUTS,
+        "input_nullifiers",
+    )?;
+    let commitments = parse_public_input_fields(
+        commitments,
+        0,
+        SHIELDED_NOTE_MAX_OUTPUTS,
+        "commitments",
+    )?;
+    let payload_hashes = parse_public_input_fields(
+        payload_hashes,
+        commitments.len(),
+        SHIELDED_NOTE_MAX_OUTPUTS,
+        "payload_hashes",
+    )?;
+    if payload_hashes.len() != commitments.len() {
+        return Err("payload_hashes length must match commitments".into());
+    }
+
+    let mut values = vec![
+        asset_id_for_contract(contract_name),
+        parse_field_hex(old_root_hex)?,
+        parse_field_hex(command_binding_hex_value)?,
+        parse_field_hex(execution_tag_hex_value)?,
+        Fr::from(fee),
+        Fr::from(public_amount),
+        Fr::from(input_nullifiers.len() as u64),
+        Fr::from(commitments.len() as u64),
+    ];
+    values.extend(pad_fields(input_nullifiers, SHIELDED_NOTE_MAX_INPUTS));
+    values.extend(pad_fields(commitments, SHIELDED_NOTE_MAX_OUTPUTS));
+    values.extend(pad_fields(payload_hashes, SHIELDED_NOTE_MAX_OUTPUTS));
+    Ok(values.into_iter().map(field_hex).collect())
 }
 
 fn serialize_hex<T: CanonicalSerialize>(value: &T) -> Result<String, Box<dyn Error>> {

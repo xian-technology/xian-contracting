@@ -17,6 +17,7 @@ workspace.
 - Shielded-note proving circuits and proof generation helpers
 - Deterministic dev bundle generation for local shielded-note workflows
 - Note math helpers for commitments, nullifiers, asset ids, and Merkle roots
+- Trusted local prover-service support for note, command, and relay proof generation
 
 ## API
 - Python:
@@ -35,6 +36,7 @@ workspace.
   - `xian_zk.ShieldedWallet.from_json(snapshot_json)`
   - `xian_zk.ShieldedWallet.from_seed_json(seed_json)`
   - `xian_zk.ShieldedWallet.sync_records(records) -> ShieldedWalletSyncResult`
+  - `xian_zk.ShieldedWallet.candidate_records(records) -> list[ShieldedNoteRecord]`
   - `xian_zk.ShieldedWallet.build_deposit(...)`
   - `xian_zk.ShieldedWallet.build_transfer(...)`
   - `xian_zk.ShieldedWallet.build_withdraw(...)`
@@ -45,14 +47,21 @@ workspace.
   - `xian_zk.generate_owner_secret() -> str`
   - `xian_zk.encrypt_note_message(...) -> str`
   - `xian_zk.decrypt_note_message(...) -> ShieldedNoteMessage`
+  - `xian_zk.payload_discovery_tags(payload_hex) -> list[str]`
+  - `xian_zk.payload_matches_viewing_key(payload_hex, viewing_private_key=...) -> bool`
   - `xian_zk.recover_encrypted_notes(...) -> list[ShieldedDiscoveredNote]`
   - `xian_zk.recover_viewable_notes(...) -> list[ShieldedViewableNote]`
+  - `xian_zk.ShieldedNoteProverClient(...)`
+  - `xian_zk.ShieldedCommandProverClient(...)`
+  - `xian_zk.ShieldedRelayTransferProverClient(...)`
+  - `xian_zk.ShieldedZkProverService(...)`
   - `xian_zk.shielded_registry_manifest(bundle) -> dict`
   - `xian_zk.asset_id_for_contract(contract_name) -> str`
   - `xian_zk.merkle_root(commitments) -> str`
   - `xian_zk.tree_state(commitments) -> ShieldedTreeState`
   - `xian_zk.scan_notes(asset_id=..., commitments=..., notes=...)`
   - CLI: `uv run xian-zk-shielded-bundle --output-dir ...`
+  - CLI: `uv run xian-zk-prover-service --host 127.0.0.1 --port 8787 ...`
 - Rust:
   - `prepare_groth16_bn254_vk(...)`
   - `verify_groth16_bn254(...)`
@@ -97,6 +106,15 @@ workspace.
   registration.
 - The encrypted payload format now supports owner delivery plus optional
   disclosed viewers inside a single on-chain payload blob.
+- The encrypted payload format now uses anonymous per-viewer discovery tags and
+  ephemeral keys for new payloads, so recipient viewing keys are no longer
+  embedded in cleartext. Older payloads remain readable for compatibility.
+- `ShieldedWallet.sync_records(...)` now prefilters candidate payloads before
+  full decryption, and note records now expose `payload_tags` so indexers can
+  persist discovery metadata for later selective queries.
+- `xian-zk-prover-service` is a trusted local proving companion, not a true
+  split-prover protocol. It improves deployability and wallet ergonomics, but
+  the service still sees witness material.
 - Exact withdraws no longer need a forced change note. A withdraw can spend a
   note set down to zero shielded outputs when value conservation closes exactly.
 - The proving requests separate `old_root` from `append_state`, which lets a
