@@ -56,6 +56,38 @@ def test_prover_service_rejects_missing_token():
     assert exc_info.value.status_code == 401
 
 
+def test_prover_service_rejects_remote_host_without_explicit_override():
+    with pytest.raises(ValueError, match="non-loopback host"):
+        ShieldedZkProverService(
+            note_prover=ShieldedNoteProver.build_insecure_dev_bundle(),
+            host="0.0.0.0",
+        )
+
+
+def test_prover_service_requires_auth_token_for_remote_host():
+    with pytest.raises(ValueError, match="auth-token"):
+        ShieldedZkProverService(
+            note_prover=ShieldedNoteProver.build_insecure_dev_bundle(),
+            host="0.0.0.0",
+            allow_remote_host=True,
+        )
+
+
+def test_prover_service_allows_remote_host_with_explicit_override_and_token():
+    service = ShieldedZkProverService(
+        note_prover=ShieldedNoteProver.build_insecure_dev_bundle(),
+        host="0.0.0.0",
+        auth_token="secret",
+        allow_remote_host=True,
+    )
+    try:
+        service.start_in_thread()
+        host, _port = service.server_address
+        assert host == "0.0.0.0"
+    finally:
+        service.shutdown()
+
+
 def test_relay_prover_service_round_trips_hidden_sender_request():
     wallet = ShieldedRelayTransferWallet.from_parts(
         asset_id=field(777),

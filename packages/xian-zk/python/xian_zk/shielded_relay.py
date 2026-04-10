@@ -10,6 +10,7 @@ from xian_zk._native import (
     load_shielded_command_prover_bundle,
     prove_shielded_command_execute,
 )
+from xian_zk.bundles import validate_shielded_command_bundle
 from xian_zk._native import (
     shielded_command_binding as native_command_binding,
 )
@@ -268,9 +269,12 @@ class ShieldedRelayTransferWallet(ShieldedWallet):
 
 class ShieldedRelayTransferProver:
     def __init__(self, bundle_json: str):
-        self.bundle_json = bundle_json
-        self.bundle = json.loads(bundle_json)
-        self._bundle_handle = load_shielded_command_prover_bundle(bundle_json)
+        normalized_bundle = validate_shielded_command_bundle(bundle_json)
+        self.bundle = normalized_bundle
+        self.bundle_json = json.dumps(normalized_bundle, sort_keys=True)
+        self._bundle_handle = load_shielded_command_prover_bundle(
+            self.bundle_json
+        )
 
     @classmethod
     def build_insecure_dev_bundle(cls) -> "ShieldedRelayTransferProver":
@@ -363,7 +367,9 @@ def shielded_relay_registry_manifest(
     if isinstance(bundle, ShieldedRelayTransferProver):
         payload = bundle.bundle
     elif isinstance(bundle, dict):
-        payload = bundle
+        payload = validate_shielded_command_bundle(
+            bundle, require_private_keys=False
+        )
     else:
         raise TypeError("bundle must be a ShieldedRelayTransferProver or dict")
 

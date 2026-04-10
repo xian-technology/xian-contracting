@@ -37,6 +37,7 @@ from xian_zk._native import (
     shielded_note_zero_root,
     shielded_output_payload_hash,
 )
+from xian_zk.bundles import validate_shielded_note_bundle
 
 _FIELD_MODULUS = 21888242871839275222246405745257275088548364400416034343698204186575808495617
 _FIELD_ZERO_HEX = "0x" + "00" * 32
@@ -1946,9 +1947,12 @@ class ShieldedWallet:
 
 class ShieldedNoteProver:
     def __init__(self, bundle_json: str):
-        self.bundle_json = bundle_json
-        self.bundle = json.loads(bundle_json)
-        self._bundle_handle = load_shielded_note_prover_bundle(bundle_json)
+        normalized_bundle = validate_shielded_note_bundle(bundle_json)
+        self.bundle = normalized_bundle
+        self.bundle_json = json.dumps(normalized_bundle, sort_keys=True)
+        self._bundle_handle = load_shielded_note_prover_bundle(
+            self.bundle_json
+        )
 
     @classmethod
     def build_insecure_dev_bundle(cls) -> "ShieldedNoteProver":
@@ -2020,7 +2024,9 @@ def shielded_registry_manifest(
     if isinstance(bundle, ShieldedNoteProver):
         payload = bundle.bundle
     elif isinstance(bundle, dict):
-        payload = bundle
+        payload = validate_shielded_note_bundle(
+            bundle, require_private_keys=False
+        )
     else:
         raise TypeError("bundle must be a ShieldedNoteProver or dict")
 

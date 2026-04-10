@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import threading
 import urllib.error
@@ -52,6 +53,38 @@ def _read_text(path: str | None) -> str | None:
     if path is None:
         return None
     return Path(path).expanduser().resolve().read_text()
+
+
+def _is_loopback_host(host: str) -> bool:
+    normalized = host.strip().lower()
+    if normalized == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(normalized).is_loopback
+    except ValueError:
+        return False
+
+
+def _validate_bind_configuration(
+    host: str,
+    *,
+    auth_token: str | None,
+    allow_remote_host: bool,
+) -> None:
+    normalized = host.strip()
+    if normalized == "":
+        raise ValueError("host must be non-empty")
+    if _is_loopback_host(normalized):
+        return
+    if not allow_remote_host:
+        raise ValueError(
+            "refusing to bind prover service to a non-loopback host without "
+            "--unsafe-allow-remote-host"
+        )
+    if auth_token is None or auth_token.strip() == "":
+        raise ValueError(
+            "remote prover service requires a non-empty --auth-token"
+        )
 
 
 def _tree_state_from_value(
@@ -288,6 +321,7 @@ class ShieldedZkProverService:
         host: str = "127.0.0.1",
         port: int = 0,
         auth_token: str | None = None,
+        allow_remote_host: bool = False,
     ):
         if (
             note_prover is None
@@ -295,6 +329,11 @@ class ShieldedZkProverService:
             and relay_prover is None
         ):
             raise ValueError("at least one prover must be configured")
+        _validate_bind_configuration(
+            host,
+            auth_token=auth_token,
+            allow_remote_host=allow_remote_host,
+        )
         self._note_bundle_json = (
             None if note_prover is None else note_prover.bundle_json
         )
@@ -541,9 +580,25 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8787)
-    parser.add_argument("--auth-token", default=None)
+    parser.add_argument(
+        "--auth-token",
+        default=None,
+        help=(
+            "Bearer token required by clients. Mandatory for non-loopback "
+            "binds."
+        ),
+    )
     parser.add_argument("--note-bundle", default=None)
     parser.add_argument("--command-bundle", default=None)
+    parser.add_argument(
+        "--unsafe-allow-remote-host",
+        action="store_true",
+        help=(
+            "Allow binding the prover service to a non-loopback host. "
+            "Requires --auth-token and should only be used behind trusted "
+            "network controls."
+        ),
+    )
     parser.add_argument(
         "--insecure-dev-note",
         action="store_true",
@@ -585,10 +640,15 @@ def main(argv: list[str] | None = None) -> int:
         host=args.host,
         port=args.port,
         auth_token=args.auth_token,
+        allow_remote_host=args.unsafe_allow_remote_host,
     )
     print("xian-zk prover service listening")
     print(f"base_url={service.base_url}")
     print("warning=trusted local service only; witness material is exposed")
+    if _is_loopback_host(args.host):
+        print("bind_scope=loopback-only")
+    else:
+        print("bind_scope=remote-host")
     if args.auth_token is not None:
         print("auth=enabled")
     else:

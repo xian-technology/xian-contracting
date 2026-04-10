@@ -14,6 +14,11 @@ from xian_zk._native import (
 from xian_zk._native import (
     shielded_output_payload_hashes as native_shielded_output_payload_hashes,
 )
+from xian_zk.bundles import (
+    bundle_summary,
+    validate_shielded_command_bundle,
+    validate_shielded_note_bundle,
+)
 from xian_zk.prover_service import (
     ShieldedCommandProverClient,
     ShieldedNoteProverClient,
@@ -145,6 +150,7 @@ __all__ = [
     "ZkProverClientError",
     "ZkVerifierError",
     "asset_id_for_contract",
+    "bundle_summary",
     "canonicalize_command_payload",
     "command_binding",
     "command_chain_digest",
@@ -188,6 +194,8 @@ __all__ = [
     "shielded_relay_registry_manifest",
     "shielded_registry_manifest",
     "tree_state",
+    "validate_shielded_command_bundle",
+    "validate_shielded_note_bundle",
     "verify_groth16_bn254",
     "verify_groth16_bn254_grouped_json",
     "verify_groth16_bn254_prepared",
