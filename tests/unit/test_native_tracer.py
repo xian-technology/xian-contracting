@@ -39,7 +39,7 @@ class TestNativeTracer(TestCase):
             self.tracer._instruction_callback,
         )
 
-    def test_native_tracer_raises_on_stamp_exceeded(self):
+    def test_native_tracer_raises_on_chi_exceeded(self):
         self.tracer.start()
         self.tracer.set_chi(1)
         with self.assertRaises(ChiExceededError):

@@ -110,7 +110,7 @@ class TestAddCost(TestCase):
         self.tracer.add_cost(200)
         self.assertEqual(self.tracer.get_chi_used(), 300)
 
-    def test_add_cost_raises_on_stamp_exceeded(self):
+    def test_add_cost_raises_on_chi_exceeded(self):
         self.tracer.start()
         self.tracer.set_chi(3)
 
@@ -154,7 +154,7 @@ class TestLineCallback(TestCase):
         with self.assertRaises(CallLimitExceededError):
             self.tracer._line_callback(make_code(), 1)
 
-    def test_callback_raises_on_stamp_exceeded(self):
+    def test_callback_raises_on_chi_exceeded(self):
         self.tracer.start()
         self.tracer.set_chi(1)
         self.tracer.cost = 1

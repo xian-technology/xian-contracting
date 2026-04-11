@@ -121,7 +121,7 @@ class TestTokenHacks(TestCase):
         # Colin's balance will not change because the transaction failed and the state was not updated
         # Assert greater because some of the balance is lost to chi
         self.assertEqual(pre_hack_balance_colin, post_hack_balance_colin)
-    def test_stamp_fails_when_calling_infinate_loop_from_another_contract(self):
+    def test_chi_fails_when_calling_infinate_loop_from_another_contract(self):
         with open(
             os.path.join(self.script_dir, "contracts", "infinate_loop.s.py")
         ) as f:

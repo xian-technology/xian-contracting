@@ -211,7 +211,7 @@ def get():
 
         self.assertEqual(output["status_code"], 0)
 
-    def test_pending_writes_has_deducted_stamp_amount_prior_to_auto_commit(
+    def test_pending_writes_has_deducted_chi_amount_prior_to_auto_commit(
         self,
     ):
         prior_balance = self.d.get("con_currency.balances:stu")
