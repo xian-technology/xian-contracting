@@ -13,7 +13,6 @@ from xian_zk._native import (
     prove_shielded_command_execute,
     prove_shielded_command_withdraw,
 )
-from xian_zk.bundles import validate_shielded_command_bundle
 from xian_zk._native import (
     shielded_command_binding as native_command_binding,
 )
@@ -23,6 +22,7 @@ from xian_zk._native import (
 from xian_zk._native import (
     shielded_command_nullifier_digest as native_command_nullifier_digest,
 )
+from xian_zk.bundles import validate_shielded_command_bundle
 from xian_zk.shielded_notes import (
     ShieldedDepositRequest,
     ShieldedInput,

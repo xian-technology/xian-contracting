@@ -79,4 +79,4 @@ jobs:
           uv run pytest -q
 
       - name: Run native tracer tests
-        run: uv run pytest -q tests/unit/test_tracer.py tests/unit/test_native_tracer.py tests/unit/test_runtime.py tests/unit/test_zk_stdlib.py tests/integration/test_stamp_deduction.py tests/integration/test_zk_bridge.py
+        run: uv run pytest -q tests/unit/test_tracer.py tests/unit/test_native_tracer.py tests/unit/test_runtime.py tests/unit/test_zk_stdlib.py tests/integration/test_chi_deduction.py tests/integration/test_zk_bridge.py

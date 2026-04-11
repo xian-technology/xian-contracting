@@ -333,7 +333,9 @@ def _handle_validate_note(args: argparse.Namespace) -> int:
     _, normalized = load_and_validate_bundle_text(
         args.bundle, bundle_type="note"
     )
-    print(f"valid note bundle: {bundle_summary(normalized, bundle_type='note')}")
+    print(
+        f"valid note bundle: {bundle_summary(normalized, bundle_type='note')}"
+    )
     print(f"contract_name={normalized['contract_name']}")
     print(f"setup_ceremony={normalized['setup_ceremony'] or '-'}")
     return 0

@@ -10,7 +10,6 @@ from xian_zk._native import (
     load_shielded_command_prover_bundle,
     prove_shielded_command_execute,
 )
-from xian_zk.bundles import validate_shielded_command_bundle
 from xian_zk._native import (
     shielded_command_binding as native_command_binding,
 )
@@ -20,6 +19,7 @@ from xian_zk._native import (
 from xian_zk._native import (
     shielded_command_nullifier_digest as native_command_nullifier_digest,
 )
+from xian_zk.bundles import validate_shielded_command_bundle
 from xian_zk.shielded_commands import (
     command_chain_digest,
     command_expiry_digest,

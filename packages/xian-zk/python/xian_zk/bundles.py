@@ -15,9 +15,7 @@ _BUNDLE_ACTIONS: dict[BundleType, tuple[str, str, str]] = {
 _SAFE_SINGLE_PARTY_MODES = {"insecure-dev", "single-party"}
 
 
-def _require_mapping(
-    value: Any, *, label: str
-) -> Mapping[str, Any]:
+def _require_mapping(value: Any, *, label: str) -> Mapping[str, Any]:
     if isinstance(value, Mapping):
         return value
     raise ValueError(f"{label} must be a JSON object")
@@ -125,9 +123,7 @@ def _validate_common_payload(
         if vk_id in vk_ids:
             raise ValueError(f"duplicate vk_id detected: {vk_id}")
         if circuit_name in circuit_names:
-            raise ValueError(
-                f"duplicate circuit_name detected: {circuit_name}"
-            )
+            raise ValueError(f"duplicate circuit_name detected: {circuit_name}")
         vk_ids.add(vk_id)
         circuit_names.add(circuit_name)
         versions.add(version)
@@ -215,7 +211,9 @@ def load_and_validate_bundle_text(
     )
 
 
-def bundle_summary(bundle: Mapping[str, Any], *, bundle_type: BundleType) -> str:
+def bundle_summary(
+    bundle: Mapping[str, Any], *, bundle_type: BundleType
+) -> str:
     version = bundle[_BUNDLE_ACTIONS[bundle_type][0]]["version"]
     return (
         f"{bundle['circuit_family']} v{version} "

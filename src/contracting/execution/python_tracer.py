@@ -142,9 +142,7 @@ class PythonLineTracer:
         self.cost += new_cost
         if self.cost > self.chi_supplied or self.cost > self._max_chi:
             self.stop()
-            raise ChiExceededError(
-                "The cost has exceeded the chi supplied!"
-            )
+            raise ChiExceededError("The cost has exceeded the chi supplied!")
 
     def get_chi_used(self) -> int:
         return self.cost
@@ -167,9 +165,7 @@ class PythonLineTracer:
         self.cost += self._line_cost(code, line_number)
         if self.cost > self.chi_supplied or self.cost > self._max_chi:
             self.stop()
-            raise ChiExceededError(
-                "The cost has exceeded the chi supplied!"
-            )
+            raise ChiExceededError("The cost has exceeded the chi supplied!")
 
     def _line_cost(self, code: types.CodeType, line_number: int) -> int:
         code_id = id(code)

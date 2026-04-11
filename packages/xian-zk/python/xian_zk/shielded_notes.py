@@ -1950,9 +1950,7 @@ class ShieldedNoteProver:
         normalized_bundle = validate_shielded_note_bundle(bundle_json)
         self.bundle = normalized_bundle
         self.bundle_json = json.dumps(normalized_bundle, sort_keys=True)
-        self._bundle_handle = load_shielded_note_prover_bundle(
-            self.bundle_json
-        )
+        self._bundle_handle = load_shielded_note_prover_bundle(self.bundle_json)
 
     @classmethod
     def build_insecure_dev_bundle(cls) -> "ShieldedNoteProver":

@@ -40,9 +40,7 @@ class Executor:
         self.balances_hash = balances_hash
 
         self.bypass_privates = bypass_privates
-        self.bypass_balance_amount = (
-            bypass_balance_amount  # For Chi Estimation
-        )
+        self.bypass_balance_amount = bypass_balance_amount  # For Chi Estimation
 
     def wipe_modules(self):
         uninstall_builtins()
