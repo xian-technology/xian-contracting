@@ -1,6 +1,6 @@
 __ContractDeployedEvent = LogEvent(
-    event="ContractDeployed",
-    params={
+    "ContractDeployed",
+    {
         "name": {"type": str, "idx": True},
         "owner": {"type": str},
         "developer": {"type": str, "idx": True},
@@ -10,8 +10,8 @@ __ContractDeployedEvent = LogEvent(
 )
 
 __ContractOwnerChangedEvent = LogEvent(
-    event="ContractOwnerChanged",
-    params={
+    "ContractOwnerChanged",
+    {
         "contract": {"type": str, "idx": True},
         "previous_owner": {"type": str},
         "new_owner": {"type": str, "idx": True},
