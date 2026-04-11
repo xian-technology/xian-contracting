@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "xian-tech-native-tracer"
-version = "0.1.1"
+version = "0.1.2"
 description = "Rust-backed instruction metering for the Xian contracting engine"
 readme = "README.md"
 license = "MIT"

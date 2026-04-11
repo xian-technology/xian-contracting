@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "xian-tech-zk"
-version = "0.1.3"
+version = "0.1.4"
 description = "Native Groth16 BN254 verification primitives for the Xian stack"
 readme = "README.md"
 license = "MIT"

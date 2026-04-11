@@ -361,7 +361,7 @@ wheels = [
 
 [[package]]
 name = "xian-tech-contracting"
-version = "1.0.4"
+version = "1.0.5"
 source = { editable = "." }
 dependencies = [
     { name = "autopep8" },
@@ -414,7 +414,7 @@ source = { editable = "packages/xian-fastpath-core" }
 
 [[package]]
 name = "xian-tech-native-tracer"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/xian-native-tracer" }
 
 [[package]]
@@ -424,7 +424,7 @@ source = { editable = "packages/xian-runtime-types" }
 
 [[package]]
 name = "xian-tech-zk"
-version = "0.1.3"
+version = "0.1.4"
 source = { editable = "packages/xian-zk" }
 dependencies = [
     { name = "pynacl" },
