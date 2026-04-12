@@ -1,7 +1,7 @@
-import json
 import hashlib
+import ast
+import json
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 
 from contracting import constants
@@ -72,6 +72,7 @@ class NativeVmHost:
         self.driver = driver
         self.vm_profile = vm_profile
         self._ir_cache: dict[str, str] = {}
+        self._parsed_ir_cache: dict[str, dict[str, Any]] = {}
         self._entry_contract = entry_contract
         self._meter_enabled = meter_enabled
         self._context = dict(context or {})
@@ -163,6 +164,17 @@ class NativeVmHost:
         self._ir_cache[module_name] = payload
         return payload
 
+    def load_module_ir(self, module_name: str) -> dict[str, Any] | None:
+        cached = self._parsed_ir_cache.get(module_name)
+        if cached is not None:
+            return cached
+        module_ir_json = self.load_module_ir_json(module_name)
+        if not module_ir_json:
+            return None
+        module_ir = json.loads(module_ir_json)
+        self._parsed_ir_cache[module_name] = module_ir
+        return module_ir
+
     def _contract_exists(self, contract: str) -> bool:
         pending_code = self._contract_var(contract, CODE_KEY)
         if pending_code is not None:
@@ -170,10 +182,9 @@ class NativeVmHost:
         return self.driver.get_contract(contract) is not None
 
     def _contract_has_export(self, contract: str, export_name: str) -> bool:
-        module_ir_json = self.load_module_ir_json(contract)
-        if not module_ir_json:
+        module_ir = self.load_module_ir(contract)
+        if not module_ir:
             return False
-        module_ir = json.loads(module_ir_json)
         for function in module_ir.get("functions", []):
             if (
                 function.get("name") == export_name
@@ -233,12 +244,16 @@ class NativeVmHost:
         deployment_initiator = initiator or self._context.get("signer")
         submitted_at = self._context.get("now")
         if submitted_at is None:
-            submitted_at = Datetime._from_datetime(datetime.now())
+            raise VmRuntimeExecutionError(
+                "native contract deployment requires deterministic now context"
+            )
 
         constructor_writes: dict[str, Any] = {}
         constructor_events: list[dict[str, Any]] = []
         previous_ir = self._ir_cache.get(name)
+        previous_parsed_ir = self._parsed_ir_cache.get(name)
         self._ir_cache[name] = vm_ir_json
+        self._parsed_ir_cache[name] = module_ir
         try:
             construct_name = _construct_function_name(module_ir)
             if construct_name is not None:
@@ -289,6 +304,10 @@ class NativeVmHost:
                 self._ir_cache.pop(name, None)
             else:
                 self._ir_cache[name] = previous_ir
+            if previous_parsed_ir is None:
+                self._parsed_ir_cache.pop(name, None)
+            else:
+                self._parsed_ir_cache[name] = previous_parsed_ir
             raise
 
         metadata_writes = {
@@ -423,13 +442,13 @@ def execute_contract(
         meter_enabled=meter,
         context=dict(context or {}),
     )
-    module_ir_json = host.load_module_ir_json(contract_name)
-    if module_ir_json is None:
+    module_ir = host.load_module_ir(contract_name)
+    if module_ir is None:
         raise VmRuntimeExecutionError(
             "xian_vm_v1 requires persisted __xian_ir_v1__ for contract "
             f"'{contract_name}'; stored source is inspection-only"
         )
-    bundle_payload = {contract_name: json.loads(module_ir_json)}
+    bundle_payload = {contract_name: module_ir}
     raw = execute_bundle(
         json.dumps(bundle_payload, separators=(",", ":"), sort_keys=True),
         contract_name,
@@ -442,9 +461,13 @@ def execute_contract(
         chi_budget_raw=max(int(chi_budget_raw), 0),
         transaction_size_bytes=max(int(transaction_size_bytes), 0),
     )
+    result = _coerce_native_error_result(
+        int(raw["status_code"]),
+        raw["result"],
+    )
     return NativeExecutionResult(
         status_code=int(raw["status_code"]),
-        result=raw["result"],
+        result=result,
         writes={
             **_snapshots_to_writes(driver, raw["snapshots"]),
             **host.pending_writes,
@@ -453,7 +476,6 @@ def execute_contract(
         snapshots=list(raw["snapshots"]),
         raw_cost=int(raw.get("raw_cost", 0)) + host.extra_raw_cost,
         chi_used=_combined_chi_used(
-            meter=meter,
             raw_chi_used=int(raw.get("chi_used", 0)),
             raw_cost=int(raw.get("raw_cost", 0)),
             extra_raw_cost=host.extra_raw_cost,
@@ -475,16 +497,47 @@ def _merge_contract_costs(
     return merged
 
 
+def _coerce_native_error_result(status_code: int, result: Any) -> Any:
+    if int(status_code) == 0 or not isinstance(result, str):
+        return result
+    return _native_exception_from_repr(result) or result
+
+
+def _native_exception_from_repr(result: str) -> BaseException | None:
+    exception_types: dict[str, type[BaseException]] = {
+        "AssertionError": AssertionError,
+        "TypeError": TypeError,
+        "ValueError": ValueError,
+        "RuntimeError": RuntimeError,
+        "Exception": Exception,
+        "KeyError": KeyError,
+        "IndexError": IndexError,
+    }
+    name, separator, args_repr = result.partition("(")
+    if separator != "(" or not result.endswith(")"):
+        return None
+    exception_type = exception_types.get(name)
+    if exception_type is None:
+        return None
+    inner = args_repr[:-1]
+    if inner == "":
+        return exception_type()
+    try:
+        args = ast.literal_eval(f"({inner},)")
+    except (SyntaxError, ValueError):
+        return exception_type(inner)
+    if not isinstance(args, tuple):
+        args = (args,)
+    return exception_type(*args)
+
+
 def _combined_chi_used(
     *,
-    meter: bool,
     raw_chi_used: int,
     raw_cost: int,
     extra_raw_cost: int,
     chi_budget_raw: int,
 ) -> int:
-    if not meter:
-        return 0
     combined = (
         (int(raw_cost) + int(extra_raw_cost)) // 1000
     ) + constants.TRANSACTION_BASE_CHI

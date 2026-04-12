@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from functools import lru_cache
 
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.compilation.vm import XIAN_VM_V1_PROFILE
@@ -10,6 +11,29 @@ CONTRACT_ARTIFACT_FORMAT_V1 = "xian_contract_artifact_v1"
 
 def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+@lru_cache(maxsize=256)
+def _compile_canonical_outputs(
+    *,
+    module_name: str,
+    source: str,
+    vm_profile: str,
+) -> tuple[str, str]:
+    compiler = ContractingCompiler(module_name=module_name)
+    runtime_code = compiler.parse_to_code(
+        source,
+        lint=False,
+        vm_profile=vm_profile,
+    )
+    vm_ir_json = compiler.lower_to_ir_json(
+        source,
+        lint=False,
+        vm_profile=vm_profile,
+        indent=None,
+        sort_keys=True,
+    )
+    return runtime_code, vm_ir_json
 
 
 def build_contract_artifacts(
@@ -25,17 +49,10 @@ def build_contract_artifacts(
         lint=lint,
         vm_profile=vm_profile,
     )
-    runtime_code = compiler.parse_to_code(
-        source,
-        lint=lint,
+    runtime_code, vm_ir_json = _compile_canonical_outputs(
+        module_name=module_name,
+        source=normalized_source,
         vm_profile=vm_profile,
-    )
-    vm_ir_json = compiler.lower_to_ir_json(
-        normalized_source,
-        lint=False,
-        vm_profile=vm_profile,
-        indent=None,
-        sort_keys=True,
     )
     return {
         "format": CONTRACT_ARTIFACT_FORMAT_V1,
@@ -112,6 +129,32 @@ def validate_contract_artifacts(
             raise ValueError(
                 f"deployment_artifacts hash mismatch for '{hash_name}'."
             )
+
+    compiler = ContractingCompiler(module_name=module_name)
+    canonical_source = compiler.normalize_source(
+        source,
+        lint=False,
+        vm_profile=vm_profile,
+    )
+    if canonical_source != source:
+        raise ValueError(
+            "deployment_artifacts source does not match canonical normalized source."
+        )
+
+    canonical_runtime_code, canonical_vm_ir_json = _compile_canonical_outputs(
+        module_name=module_name,
+        source=source,
+        vm_profile=vm_profile,
+    )
+    if canonical_runtime_code != runtime_code:
+        raise ValueError(
+            "deployment_artifacts runtime_code does not match canonical compiler output."
+        )
+
+    if canonical_vm_ir_json != vm_ir_json:
+        raise ValueError(
+            "deployment_artifacts vm_ir_json does not match canonical compiler output."
+        )
 
     return {
         "source": source,

@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use std::fmt;
 
 mod interpreter;
+mod metering;
 
 pub const XIAN_IR_V1: &str = "xian_ir_v1";
 pub const XIAN_VM_V1_PROFILE: &str = "xian_vm_v1";
@@ -14,6 +15,7 @@ pub const XIAN_VM_SUPPORTED_BYTECODE_VERSIONS: &[&str] = &["xvm-1"];
 pub const XIAN_VM_SUPPORTED_GAS_SCHEDULES: &[&str] = &["xvm-gas-1"];
 
 pub use interpreter::*;
+pub use metering::*;
 
 #[cfg(feature = "python-extension")]
 mod python_bindings;

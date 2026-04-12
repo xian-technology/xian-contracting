@@ -171,7 +171,8 @@ pub fn verify_groth16_bn254_prepared(
 pub fn verify_groth16_bn254_grouped(
     items: &[Groth16Bn254BatchItem],
 ) -> Result<Vec<bool>, VerifierError> {
-    let mut prepared_cache: HashMap<String, PreparedVerifyingKey<Bn254>> = HashMap::new();
+    let mut prepared_cache: HashMap<String, PreparedVerifyingKey<Bn254>> =
+        HashMap::new();
     let mut results = Vec::with_capacity(items.len());
 
     for item in items {
@@ -186,8 +187,11 @@ pub fn verify_groth16_bn254_grouped(
         };
         let proof = decode_proof(&item.proof_hex)?;
         let inputs = parse_public_inputs(&item.public_inputs)?;
-        let result = Groth16::<Bn254>::verify_with_processed_vk(prepared, &inputs, &proof)
-            .map_err(|error| verification_error(format!("verification failed: {error}")))?;
+        let result =
+            Groth16::<Bn254>::verify_with_processed_vk(prepared, &inputs, &proof)
+                .map_err(|error| {
+                    verification_error(format!("verification failed: {error}"))
+                })?;
         results.push(result);
     }
 

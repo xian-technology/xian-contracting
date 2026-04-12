@@ -66,6 +66,15 @@ Metering is no longer only a placeholder:
   requires that artifact for `xian_vm_v1` execution; stored `__source__`
   remains available for dashboards, BDS, and other inspection tooling, but it
   is no longer an execution fallback
+- deployment artifacts are now validated against canonical compiler output,
+  not only against self-declared hashes, so forged source/runtime/IR bundles
+  are rejected before they reach native deployment
+- native deployment now requires explicit deterministic `now` context from the
+  caller; the host does not fall back to local wall-clock time for submission
+  metadata
+  this hardening currently reuses the compiler frontend to recompute canonical
+  runtime/IR from source, so deploy execution stays native while artifact
+  validation is not yet fully Rust-native
 
 There is now also a calibration/audit tool:
 

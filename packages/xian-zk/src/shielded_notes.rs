@@ -393,7 +393,9 @@ fn encode_command_payload_part(prefix: &str, value: &str) -> String {
     format!("{prefix}:{}:{value}", value.len())
 }
 
-fn canonicalize_command_payload(value: &serde_json::Value) -> Result<String, Box<dyn Error>> {
+fn canonicalize_command_payload(
+    value: &serde_json::Value,
+) -> Result<String, Box<dyn Error>> {
     match value {
         serde_json::Value::Null => Ok("n".to_string()),
         serde_json::Value::Bool(flag) => Ok(if *flag { "b:1" } else { "b:0" }.to_string()),
@@ -875,10 +877,9 @@ pub fn shielded_command_nullifier_digest_hex(
         .iter()
         .map(|value| parse_field_hex(value))
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(field_hex(command_nullifier_digest(&pad_fields(
-        parsed,
-        SHIELDED_NOTE_MAX_INPUTS,
-    ))))
+    Ok(field_hex(command_nullifier_digest(
+        &pad_fields(parsed, SHIELDED_NOTE_MAX_INPUTS),
+    )))
 }
 
 pub fn shielded_command_binding_hex(
@@ -936,8 +937,12 @@ pub fn shielded_deposit_public_inputs_hex(
     commitments: &[String],
     payload_hashes: &[String],
 ) -> Result<Vec<String>, Box<dyn Error>> {
-    let commitments =
-        parse_public_input_fields(commitments, 1, SHIELDED_NOTE_MAX_OUTPUTS, "commitments")?;
+    let commitments = parse_public_input_fields(
+        commitments,
+        1,
+        SHIELDED_NOTE_MAX_OUTPUTS,
+        "commitments",
+    )?;
     let payload_hashes = parse_public_input_fields(
         payload_hashes,
         commitments.len(),
@@ -972,8 +977,12 @@ pub fn shielded_transfer_public_inputs_hex(
         SHIELDED_NOTE_MAX_INPUTS,
         "input_nullifiers",
     )?;
-    let commitments =
-        parse_public_input_fields(commitments, 1, SHIELDED_NOTE_MAX_OUTPUTS, "commitments")?;
+    let commitments = parse_public_input_fields(
+        commitments,
+        1,
+        SHIELDED_NOTE_MAX_OUTPUTS,
+        "commitments",
+    )?;
     let payload_hashes = parse_public_input_fields(
         payload_hashes,
         commitments.len(),
@@ -1011,8 +1020,12 @@ pub fn shielded_withdraw_public_inputs_hex(
         SHIELDED_NOTE_MAX_INPUTS,
         "input_nullifiers",
     )?;
-    let commitments =
-        parse_public_input_fields(commitments, 0, SHIELDED_NOTE_MAX_OUTPUTS, "commitments")?;
+    let commitments = parse_public_input_fields(
+        commitments,
+        0,
+        SHIELDED_NOTE_MAX_OUTPUTS,
+        "commitments",
+    )?;
     let payload_hashes = parse_public_input_fields(
         payload_hashes,
         commitments.len(),
@@ -1054,8 +1067,12 @@ pub fn shielded_command_public_inputs_hex(
         SHIELDED_NOTE_MAX_INPUTS,
         "input_nullifiers",
     )?;
-    let commitments =
-        parse_public_input_fields(commitments, 0, SHIELDED_NOTE_MAX_OUTPUTS, "commitments")?;
+    let commitments = parse_public_input_fields(
+        commitments,
+        0,
+        SHIELDED_NOTE_MAX_OUTPUTS,
+        "commitments",
+    )?;
     let payload_hashes = parse_public_input_fields(
         payload_hashes,
         commitments.len(),
@@ -1274,7 +1291,8 @@ impl ConstraintSynthesizer<Fr> for DepositCircuit {
             let enabled_fp = bool_to_fp(&enabled)?;
             enabled_sum += enabled_fp.clone();
 
-            let owner_public = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
+            let owner_public =
+                FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
             let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.rho))?;
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), output.amount)?;
@@ -1382,7 +1400,8 @@ impl ConstraintSynthesizer<Fr> for TransferCircuit {
             let enabled_fp = bool_to_fp(&enabled)?;
             output_enabled_sum += enabled_fp.clone();
 
-            let owner_public = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
+            let owner_public =
+                FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
             let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.rho))?;
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), output.amount)?;
@@ -1496,7 +1515,8 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
             let enabled_fp = bool_to_fp(&enabled)?;
             output_enabled_sum += enabled_fp.clone();
 
-            let owner_public = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
+            let owner_public =
+                FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
             let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.rho))?;
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), output.amount)?;
@@ -1624,7 +1644,8 @@ impl ConstraintSynthesizer<Fr> for CommandCircuit {
             let enabled_fp = bool_to_fp(&enabled)?;
             output_enabled_sum += enabled_fp.clone();
 
-            let owner_public = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
+            let owner_public =
+                FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
             let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.rho))?;
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), output.amount)?;
@@ -2234,7 +2255,9 @@ pub fn build_insecure_dev_shielded_command_bundle(
     build_shielded_command_bundle_with_rng(&mut rng, &descriptor)
 }
 
-fn note_shadow_bundle_from_command(bundle: &ShieldedCommandProverBundle) -> ShieldedProverBundle {
+fn note_shadow_bundle_from_command(
+    bundle: &ShieldedCommandProverBundle,
+) -> ShieldedProverBundle {
     ShieldedProverBundle {
         circuit_family: SHIELDED_COMMAND_CIRCUIT_FAMILY.to_string(),
         warning: bundle.warning.clone(),
@@ -2273,7 +2296,10 @@ pub fn prove_shielded_deposit(
         amount: request.amount,
         output_count: request.outputs.len(),
         output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
-        output_payload_hashes: pad_fields(output_payload_hashes.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
+        output_payload_hashes: pad_fields(
+            output_payload_hashes.clone(),
+            SHIELDED_NOTE_MAX_OUTPUTS,
+        ),
         outputs: output_witnesses,
     };
     let proof = prove_with_pk(&bundle.deposit.pk_hex, circuit.clone())?;
@@ -2284,7 +2310,10 @@ pub fn prove_shielded_deposit(
         public_inputs: circuit.public_inputs().into_iter().map(field_hex).collect(),
         input_nullifiers: vec![],
         output_commitments: output_commitments.into_iter().map(field_hex).collect(),
-        output_payload_hashes: output_payload_hashes.into_iter().map(field_hex).collect(),
+        output_payload_hashes: output_payload_hashes
+            .into_iter()
+            .map(field_hex)
+            .collect(),
     })
 }
 
@@ -2326,7 +2355,10 @@ pub fn prove_shielded_transfer(
         output_count: request.outputs.len(),
         input_nullifiers: pad_fields(input_nullifiers.clone(), SHIELDED_NOTE_MAX_INPUTS),
         output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
-        output_payload_hashes: pad_fields(output_payload_hashes.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
+        output_payload_hashes: pad_fields(
+            output_payload_hashes.clone(),
+            SHIELDED_NOTE_MAX_OUTPUTS,
+        ),
         inputs: input_witnesses,
         outputs: output_witnesses,
     };
@@ -2338,7 +2370,10 @@ pub fn prove_shielded_transfer(
         public_inputs: circuit.public_inputs().into_iter().map(field_hex).collect(),
         input_nullifiers: input_nullifiers.into_iter().map(field_hex).collect(),
         output_commitments: output_commitments.into_iter().map(field_hex).collect(),
-        output_payload_hashes: output_payload_hashes.into_iter().map(field_hex).collect(),
+        output_payload_hashes: output_payload_hashes
+            .into_iter()
+            .map(field_hex)
+            .collect(),
     })
 }
 
@@ -2382,7 +2417,10 @@ pub fn prove_shielded_withdraw(
         output_count: request.outputs.len(),
         input_nullifiers: pad_fields(input_nullifiers.clone(), SHIELDED_NOTE_MAX_INPUTS),
         output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
-        output_payload_hashes: pad_fields(output_payload_hashes.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
+        output_payload_hashes: pad_fields(
+            output_payload_hashes.clone(),
+            SHIELDED_NOTE_MAX_OUTPUTS,
+        ),
         inputs: input_witnesses,
         outputs: output_witnesses,
     };
@@ -2394,7 +2432,10 @@ pub fn prove_shielded_withdraw(
         public_inputs: circuit.public_inputs().into_iter().map(field_hex).collect(),
         input_nullifiers: input_nullifiers.into_iter().map(field_hex).collect(),
         output_commitments: output_commitments.into_iter().map(field_hex).collect(),
-        output_payload_hashes: output_payload_hashes.into_iter().map(field_hex).collect(),
+        output_payload_hashes: output_payload_hashes
+            .into_iter()
+            .map(field_hex)
+            .collect(),
     })
 }
 
@@ -2452,7 +2493,10 @@ pub fn prove_shielded_command_execute(
         input_nullifiers: padded_input_nullifiers,
         output_count: request.outputs.len(),
         output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
-        output_payload_hashes: pad_fields(output_payload_hashes.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
+        output_payload_hashes: pad_fields(
+            output_payload_hashes.clone(),
+            SHIELDED_NOTE_MAX_OUTPUTS,
+        ),
         inputs: input_witnesses,
         outputs: output_witnesses,
     };
@@ -2467,7 +2511,10 @@ pub fn prove_shielded_command_execute(
         public_amount: request.public_amount,
         input_nullifiers: input_nullifiers.into_iter().map(field_hex).collect(),
         output_commitments: output_commitments.into_iter().map(field_hex).collect(),
-        output_payload_hashes: output_payload_hashes.into_iter().map(field_hex).collect(),
+        output_payload_hashes: output_payload_hashes
+            .into_iter()
+            .map(field_hex)
+            .collect(),
     })
 }
 
@@ -2531,7 +2578,8 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
     let chain_digest = contract_sha3_to_field(chain_id);
     let entrypoint_digest = contract_sha3_to_field("interact");
     let version_digest = contract_sha3_to_field("shielded-command-v4");
-    let padded_input_nullifiers = pad_fields(vec![nullifier_a1], SHIELDED_NOTE_MAX_INPUTS);
+    let padded_input_nullifiers =
+        pad_fields(vec![nullifier_a1], SHIELDED_NOTE_MAX_INPUTS);
     let command_binding_value = command_binding(
         command_nullifier_digest(&padded_input_nullifiers),
         target_digest,
