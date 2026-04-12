@@ -1,0 +1,780 @@
+{
+  "call": {
+    "args": [],
+    "function": "summarize",
+    "kwargs": {
+      "floor": 1,
+      "values": [
+        2,
+        -1,
+        5,
+        1,
+        9
+      ]
+    }
+  },
+  "context": {
+    "block_hash": "block1",
+    "block_num": 1,
+    "caller": "alice",
+    "chain_id": "localnet",
+    "now": 1,
+    "signer": "alice"
+  },
+  "expected": {
+    "events": [],
+    "result": {
+      "positives": 3,
+      "total": 16
+    },
+    "state": {
+      "hashes": [
+        {
+          "binding": "stats",
+          "entries": [
+            {
+              "key": "runs",
+              "value": 1
+            }
+          ]
+        }
+      ],
+      "variables": [
+        {
+          "binding": "last_summary",
+          "value": {
+            "positives": 3,
+            "total": 16
+          }
+        }
+      ]
+    }
+  },
+  "initial_state": {
+    "foreign_hashes": [],
+    "foreign_variables": [],
+    "hashes": [],
+    "variables": []
+  },
+  "ir": {
+    "docstring": null,
+    "functions": [
+      {
+        "body": [
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 13,
+              "end_line": 6,
+              "line": 6
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "total",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 9,
+                  "end_line": 6,
+                  "line": 6
+                }
+              }
+            ],
+            "value": {
+              "node": "constant",
+              "span": {
+                "col": 12,
+                "end_col": 13,
+                "end_line": 6,
+                "line": 6
+              },
+              "value": 0,
+              "value_type": "int"
+            }
+          },
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 17,
+              "end_line": 7,
+              "line": 7
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "positives",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 13,
+                  "end_line": 7,
+                  "line": 7
+                }
+              }
+            ],
+            "value": {
+              "node": "constant",
+              "span": {
+                "col": 16,
+                "end_col": 17,
+                "end_line": 7,
+                "line": 7
+              },
+              "value": 0,
+              "value_type": "int"
+            }
+          },
+          {
+            "body": [
+              {
+                "node": "assign",
+                "span": {
+                  "col": 8,
+                  "end_col": 29,
+                  "end_line": 9,
+                  "line": 9
+                },
+                "targets": [
+                  {
+                    "host_binding_id": null,
+                    "id": "value",
+                    "node": "name",
+                    "span": {
+                      "col": 8,
+                      "end_col": 13,
+                      "end_line": 9,
+                      "line": 9
+                    }
+                  }
+                ],
+                "value": {
+                  "node": "subscript",
+                  "slice": {
+                    "host_binding_id": null,
+                    "id": "index",
+                    "node": "name",
+                    "span": {
+                      "col": 23,
+                      "end_col": 28,
+                      "end_line": 9,
+                      "line": 9
+                    }
+                  },
+                  "span": {
+                    "col": 16,
+                    "end_col": 29,
+                    "end_line": 9,
+                    "line": 9
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "values",
+                    "node": "name",
+                    "span": {
+                      "col": 16,
+                      "end_col": 22,
+                      "end_line": 9,
+                      "line": 9
+                    }
+                  }
+                }
+              },
+              {
+                "body": [
+                  {
+                    "node": "aug_assign",
+                    "operator": "add",
+                    "span": {
+                      "col": 12,
+                      "end_col": 26,
+                      "end_line": 11,
+                      "line": 11
+                    },
+                    "target": {
+                      "host_binding_id": null,
+                      "id": "positives",
+                      "node": "name",
+                      "span": {
+                        "col": 12,
+                        "end_col": 21,
+                        "end_line": 11,
+                        "line": 11
+                      }
+                    },
+                    "value": {
+                      "node": "constant",
+                      "span": {
+                        "col": 25,
+                        "end_col": 26,
+                        "end_line": 11,
+                        "line": 11
+                      },
+                      "value": 1,
+                      "value_type": "int"
+                    }
+                  },
+                  {
+                    "node": "aug_assign",
+                    "operator": "add",
+                    "span": {
+                      "col": 12,
+                      "end_col": 26,
+                      "end_line": 12,
+                      "line": 12
+                    },
+                    "target": {
+                      "host_binding_id": null,
+                      "id": "total",
+                      "node": "name",
+                      "span": {
+                        "col": 12,
+                        "end_col": 17,
+                        "end_line": 12,
+                        "line": 12
+                      }
+                    },
+                    "value": {
+                      "host_binding_id": null,
+                      "id": "value",
+                      "node": "name",
+                      "span": {
+                        "col": 21,
+                        "end_col": 26,
+                        "end_line": 12,
+                        "line": 12
+                      }
+                    }
+                  }
+                ],
+                "node": "if",
+                "orelse": [],
+                "span": {
+                  "col": 8,
+                  "end_col": 26,
+                  "end_line": 12,
+                  "line": 10
+                },
+                "test": {
+                  "node": "bool_op",
+                  "operator": "and",
+                  "span": {
+                    "col": 11,
+                    "end_col": 38,
+                    "end_line": 10,
+                    "line": 10
+                  },
+                  "values": [
+                    {
+                      "comparators": [
+                        {
+                          "host_binding_id": null,
+                          "id": "floor",
+                          "node": "name",
+                          "span": {
+                            "col": 19,
+                            "end_col": 24,
+                            "end_line": 10,
+                            "line": 10
+                          }
+                        }
+                      ],
+                      "left": {
+                        "host_binding_id": null,
+                        "id": "value",
+                        "node": "name",
+                        "span": {
+                          "col": 11,
+                          "end_col": 16,
+                          "end_line": 10,
+                          "line": 10
+                        }
+                      },
+                      "node": "compare",
+                      "operators": [
+                        "gt"
+                      ],
+                      "span": {
+                        "col": 11,
+                        "end_col": 24,
+                        "end_line": 10,
+                        "line": 10
+                      }
+                    },
+                    {
+                      "comparators": [
+                        {
+                          "node": "constant",
+                          "span": {
+                            "col": 37,
+                            "end_col": 38,
+                            "end_line": 10,
+                            "line": 10
+                          },
+                          "value": 0,
+                          "value_type": "int"
+                        }
+                      ],
+                      "left": {
+                        "host_binding_id": null,
+                        "id": "value",
+                        "node": "name",
+                        "span": {
+                          "col": 29,
+                          "end_col": 34,
+                          "end_line": 10,
+                          "line": 10
+                        }
+                      },
+                      "node": "compare",
+                      "operators": [
+                        "gt"
+                      ],
+                      "span": {
+                        "col": 29,
+                        "end_col": 38,
+                        "end_line": 10,
+                        "line": 10
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "iter": {
+              "args": [
+                {
+                  "node": "constant",
+                  "span": {
+                    "col": 23,
+                    "end_col": 24,
+                    "end_line": 8,
+                    "line": 8
+                  },
+                  "value": 0,
+                  "value_type": "int"
+                },
+                {
+                  "args": [
+                    {
+                      "host_binding_id": null,
+                      "id": "values",
+                      "node": "name",
+                      "span": {
+                        "col": 30,
+                        "end_col": 36,
+                        "end_line": 8,
+                        "line": 8
+                      }
+                    }
+                  ],
+                  "event_binding": null,
+                  "func": {
+                    "host_binding_id": null,
+                    "id": "len",
+                    "node": "name",
+                    "span": {
+                      "col": 26,
+                      "end_col": 29,
+                      "end_line": 8,
+                      "line": 8
+                    }
+                  },
+                  "keywords": [],
+                  "node": "call",
+                  "span": {
+                    "col": 26,
+                    "end_col": 37,
+                    "end_line": 8,
+                    "line": 8
+                  },
+                  "syscall_id": null
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "host_binding_id": null,
+                "id": "range",
+                "node": "name",
+                "span": {
+                  "col": 17,
+                  "end_col": 22,
+                  "end_line": 8,
+                  "line": 8
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 17,
+                "end_col": 38,
+                "end_line": 8,
+                "line": 8
+              },
+              "syscall_id": null
+            },
+            "node": "for",
+            "orelse": [],
+            "span": {
+              "col": 4,
+              "end_col": 26,
+              "end_line": 12,
+              "line": 8
+            },
+            "target": {
+              "host_binding_id": null,
+              "id": "index",
+              "node": "name",
+              "span": {
+                "col": 8,
+                "end_col": 13,
+                "end_line": 8,
+                "line": 8
+              }
+            }
+          },
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 54,
+              "end_line": 13,
+              "line": 13
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "summary",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 11,
+                  "end_line": 13,
+                  "line": 13
+                }
+              }
+            ],
+            "value": {
+              "entries": [
+                {
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 15,
+                      "end_col": 22,
+                      "end_line": 13,
+                      "line": 13
+                    },
+                    "value": "total",
+                    "value_type": "str"
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "total",
+                    "node": "name",
+                    "span": {
+                      "col": 24,
+                      "end_col": 29,
+                      "end_line": 13,
+                      "line": 13
+                    }
+                  }
+                },
+                {
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 31,
+                      "end_col": 42,
+                      "end_line": 13,
+                      "line": 13
+                    },
+                    "value": "positives",
+                    "value_type": "str"
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "positives",
+                    "node": "name",
+                    "span": {
+                      "col": 44,
+                      "end_col": 53,
+                      "end_line": 13,
+                      "line": 13
+                    }
+                  }
+                }
+              ],
+              "node": "dict",
+              "span": {
+                "col": 14,
+                "end_col": 54,
+                "end_line": 13,
+                "line": 13
+              }
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 29,
+              "end_line": 14,
+              "line": 14
+            },
+            "value": {
+              "args": [
+                {
+                  "host_binding_id": null,
+                  "id": "summary",
+                  "node": "name",
+                  "span": {
+                    "col": 21,
+                    "end_col": 28,
+                    "end_line": 14,
+                    "line": 14
+                  }
+                }
+              ],
+              "func": {
+                "attr": "set",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "last_summary.set",
+                "span": {
+                  "col": 4,
+                  "end_col": 20,
+                  "end_line": 14,
+                  "line": 14
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "last_summary",
+                  "node": "name",
+                  "span": {
+                    "col": 4,
+                    "end_col": 16,
+                    "end_line": 14,
+                    "line": 14
+                  }
+                }
+              },
+              "keywords": [],
+              "method": "set",
+              "node": "call",
+              "receiver_binding": "last_summary",
+              "receiver_type": "Variable",
+              "span": {
+                "col": 4,
+                "end_col": 29,
+                "end_line": 14,
+                "line": 14
+              },
+              "syscall_id": "storage.variable.set"
+            }
+          },
+          {
+            "binding": "stats",
+            "key": {
+              "node": "constant",
+              "span": {
+                "col": 10,
+                "end_col": 16,
+                "end_line": 15,
+                "line": 15
+              },
+              "value": "runs",
+              "value_type": "str"
+            },
+            "node": "storage_mutate",
+            "operator": "add",
+            "read_syscall_id": "storage.hash.get",
+            "span": {
+              "col": 4,
+              "end_col": 22,
+              "end_line": 15,
+              "line": 15
+            },
+            "storage_type": "Hash",
+            "value": {
+              "node": "constant",
+              "span": {
+                "col": 21,
+                "end_col": 22,
+                "end_line": 15,
+                "line": 15
+              },
+              "value": 1,
+              "value_type": "int"
+            },
+            "write_syscall_id": "storage.hash.set"
+          },
+          {
+            "node": "return",
+            "span": {
+              "col": 4,
+              "end_col": 18,
+              "end_line": 16,
+              "line": 16
+            },
+            "value": {
+              "host_binding_id": null,
+              "id": "summary",
+              "node": "name",
+              "span": {
+                "col": 11,
+                "end_col": 18,
+                "end_line": 16,
+                "line": 16
+              }
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 4,
+            "line": 4
+          }
+        },
+        "docstring": null,
+        "name": "summarize",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "list[int]",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "values",
+            "span": {
+              "col": 14,
+              "end_col": 31,
+              "end_line": 5,
+              "line": 5
+            }
+          },
+          {
+            "annotation": "int",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "floor",
+            "span": {
+              "col": 33,
+              "end_col": 43,
+              "end_line": 5,
+              "line": 5
+            }
+          }
+        ],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 18,
+          "end_line": 16,
+          "line": 5
+        },
+        "visibility": "export"
+      }
+    ],
+    "global_declarations": [
+      {
+        "args": [],
+        "keywords": [
+          {
+            "arg": "default_value",
+            "span": {
+              "col": 13,
+              "end_col": 28,
+              "end_line": 1,
+              "line": 1
+            },
+            "value": {
+              "node": "constant",
+              "span": {
+                "col": 27,
+                "end_col": 28,
+                "end_line": 1,
+                "line": 1
+              },
+              "value": 0,
+              "value_type": "int"
+            }
+          }
+        ],
+        "name": "stats",
+        "node": "storage_decl",
+        "span": {
+          "col": 0,
+          "end_col": 29,
+          "end_line": 1,
+          "line": 1
+        },
+        "storage_type": "Hash",
+        "syscall_id": "storage.hash.new"
+      },
+      {
+        "args": [],
+        "keywords": [],
+        "name": "last_summary",
+        "node": "storage_decl",
+        "span": {
+          "col": 0,
+          "end_col": 25,
+          "end_line": 2,
+          "line": 2
+        },
+        "storage_type": "Variable",
+        "syscall_id": "storage.variable.new"
+      }
+    ],
+    "host_catalog_version": "xian_vm_v1_host_v1",
+    "host_dependencies": [
+      {
+        "binding": "Hash.__getitem__",
+        "category": "storage",
+        "id": "storage.hash.get",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Hash",
+        "category": "storage",
+        "id": "storage.hash.new",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Hash.__setitem__",
+        "category": "storage",
+        "id": "storage.hash.set",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Variable",
+        "category": "storage",
+        "id": "storage.variable.new",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Variable.set",
+        "category": "storage",
+        "id": "storage.variable.set",
+        "kind": "syscall"
+      }
+    ],
+    "imports": [],
+    "ir_version": "xian_ir_v1",
+    "module_body": [],
+    "module_name": "con_vm_parity_range",
+    "source_hash": "4893655c998ef7d279a9d9c5d529f07b9b166d072112d2e8964e0495fe4e37a6",
+    "vm_profile": "xian_vm_v1"
+  },
+  "module_name": "con_vm_parity_range",
+  "name": "range_summary",
+  "source": "stats = Hash(default_value=0)\nlast_summary = Variable()\n\n@export\ndef summarize(values: list[int], floor: int):\n    total = 0\n    positives = 0\n    for index in range(0, len(values)):\n        value = values[index]\n        if value > floor and value > 0:\n            positives += 1\n            total += value\n    summary = {\"total\": total, \"positives\": positives}\n    last_summary.set(summary)\n    stats[\"runs\"] += 1\n    return summary"
+}

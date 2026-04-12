@@ -1,0 +1,951 @@
+{
+  "call": {
+    "args": [],
+    "function": "probe",
+    "kwargs": {
+      "message": "xian-vm-host",
+      "signature": "8077d640442eec7de4369e89a4122b11bae75faeca5123fd3d0466a2947c5783498ec1d2ff8edcbb782a8ba812d88cb73713aa1fb003db4381bd4c30df832303",
+      "vk": "d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737"
+    }
+  },
+  "context": {
+    "block_hash": "block10",
+    "block_num": 10,
+    "caller": "alice",
+    "chain_id": "localnet",
+    "now": {
+      "__vm_type__": "datetime",
+      "parts": [
+        2024,
+        1,
+        2,
+        12,
+        0,
+        0,
+        0
+      ]
+    },
+    "signer": "alice"
+  },
+  "expected": {
+    "events": [],
+    "result": {
+      "after_now": true,
+      "delta_seconds": 216005,
+      "key_ok": true,
+      "sha256": "15c5c38c338df4264d5093d0312e6b8ce47c8aa4918a30476c994a17fe526e32",
+      "sha3": "e39a9f0e9e95d826378899f724ba459e7fc42b75671b38138c9de55cc0f5d7ca",
+      "sig_ok": true
+    },
+    "state": {
+      "hashes": [],
+      "variables": [
+        {
+          "binding": "last_snapshot",
+          "value": {
+            "after_now": true,
+            "delta_seconds": 216005,
+            "key_ok": true,
+            "sha256": "15c5c38c338df4264d5093d0312e6b8ce47c8aa4918a30476c994a17fe526e32",
+            "sha3": "e39a9f0e9e95d826378899f724ba459e7fc42b75671b38138c9de55cc0f5d7ca",
+            "sig_ok": true
+          }
+        }
+      ]
+    }
+  },
+  "initial_state": {
+    "foreign_hashes": [],
+    "foreign_variables": [],
+    "hashes": [],
+    "variables": []
+  },
+  "ir": {
+    "docstring": null,
+    "functions": [
+      {
+        "body": [
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 82,
+              "end_line": 5,
+              "line": 5
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "start",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 9,
+                  "end_line": 5,
+                  "line": 5
+                }
+              }
+            ],
+            "value": {
+              "args": [
+                {
+                  "node": "constant",
+                  "span": {
+                    "col": 39,
+                    "end_col": 60,
+                    "end_line": 5,
+                    "line": 5
+                  },
+                  "value": "2024-01-01 00:00:00",
+                  "value_type": "str"
+                },
+                {
+                  "node": "constant",
+                  "span": {
+                    "col": 62,
+                    "end_col": 81,
+                    "end_line": 5,
+                    "line": 5
+                  },
+                  "value": "%Y-%m-%d %H:%M:%S",
+                  "value_type": "str"
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "attr": "strptime",
+                "host_binding_id": "time.datetime.strptime",
+                "node": "attribute",
+                "path": "datetime.datetime.strptime",
+                "span": {
+                  "col": 12,
+                  "end_col": 38,
+                  "end_line": 5,
+                  "line": 5
+                },
+                "value": {
+                  "attr": "datetime",
+                  "host_binding_id": "time.datetime.new",
+                  "node": "attribute",
+                  "path": "datetime.datetime",
+                  "span": {
+                    "col": 12,
+                    "end_col": 29,
+                    "end_line": 5,
+                    "line": 5
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "datetime",
+                    "node": "name",
+                    "span": {
+                      "col": 12,
+                      "end_col": 20,
+                      "end_line": 5,
+                      "line": 5
+                    }
+                  }
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 12,
+                "end_col": 82,
+                "end_line": 5,
+                "line": 5
+              },
+              "syscall_id": "time.datetime.strptime"
+            }
+          },
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 53,
+              "end_line": 6,
+              "line": 6
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "end",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 7,
+                  "end_line": 6,
+                  "line": 6
+                }
+              }
+            ],
+            "value": {
+              "left": {
+                "host_binding_id": "env.now",
+                "id": "now",
+                "node": "name",
+                "span": {
+                  "col": 10,
+                  "end_col": 13,
+                  "end_line": 6,
+                  "line": 6
+                }
+              },
+              "node": "bin_op",
+              "operator": "add",
+              "right": {
+                "args": [],
+                "event_binding": null,
+                "func": {
+                  "attr": "timedelta",
+                  "host_binding_id": "time.timedelta.new",
+                  "node": "attribute",
+                  "path": "datetime.timedelta",
+                  "span": {
+                    "col": 16,
+                    "end_col": 34,
+                    "end_line": 6,
+                    "line": 6
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "datetime",
+                    "node": "name",
+                    "span": {
+                      "col": 16,
+                      "end_col": 24,
+                      "end_line": 6,
+                      "line": 6
+                    }
+                  }
+                },
+                "keywords": [
+                  {
+                    "arg": "days",
+                    "span": {
+                      "col": 35,
+                      "end_col": 41,
+                      "end_line": 6,
+                      "line": 6
+                    },
+                    "value": {
+                      "node": "constant",
+                      "span": {
+                        "col": 40,
+                        "end_col": 41,
+                        "end_line": 6,
+                        "line": 6
+                      },
+                      "value": 1,
+                      "value_type": "int"
+                    }
+                  },
+                  {
+                    "arg": "seconds",
+                    "span": {
+                      "col": 43,
+                      "end_col": 52,
+                      "end_line": 6,
+                      "line": 6
+                    },
+                    "value": {
+                      "node": "constant",
+                      "span": {
+                        "col": 51,
+                        "end_col": 52,
+                        "end_line": 6,
+                        "line": 6
+                      },
+                      "value": 5,
+                      "value_type": "int"
+                    }
+                  }
+                ],
+                "node": "call",
+                "span": {
+                  "col": 16,
+                  "end_col": 53,
+                  "end_line": 6,
+                  "line": 6
+                },
+                "syscall_id": "time.timedelta.new"
+              },
+              "span": {
+                "col": 10,
+                "end_col": 53,
+                "end_line": 6,
+                "line": 6
+              }
+            }
+          },
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 23,
+              "end_line": 7,
+              "line": 7
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "delta",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 9,
+                  "end_line": 7,
+                  "line": 7
+                }
+              }
+            ],
+            "value": {
+              "left": {
+                "host_binding_id": null,
+                "id": "end",
+                "node": "name",
+                "span": {
+                  "col": 12,
+                  "end_col": 15,
+                  "end_line": 7,
+                  "line": 7
+                }
+              },
+              "node": "bin_op",
+              "operator": "sub",
+              "right": {
+                "host_binding_id": null,
+                "id": "start",
+                "node": "name",
+                "span": {
+                  "col": 18,
+                  "end_col": 23,
+                  "end_line": 7,
+                  "line": 7
+                }
+              },
+              "span": {
+                "col": 12,
+                "end_col": 23,
+                "end_line": 7,
+                "line": 7
+              }
+            }
+          },
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 5,
+              "end_line": 15,
+              "line": 8
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "snapshot",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 12,
+                  "end_line": 8,
+                  "line": 8
+                }
+              }
+            ],
+            "value": {
+              "entries": [
+                {
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 8,
+                      "end_col": 19,
+                      "end_line": 9,
+                      "line": 9
+                    },
+                    "value": "after_now",
+                    "value_type": "str"
+                  },
+                  "value": {
+                    "comparators": [
+                      {
+                        "host_binding_id": "env.now",
+                        "id": "now",
+                        "node": "name",
+                        "span": {
+                          "col": 27,
+                          "end_col": 30,
+                          "end_line": 9,
+                          "line": 9
+                        }
+                      }
+                    ],
+                    "left": {
+                      "host_binding_id": null,
+                      "id": "end",
+                      "node": "name",
+                      "span": {
+                        "col": 21,
+                        "end_col": 24,
+                        "end_line": 9,
+                        "line": 9
+                      }
+                    },
+                    "node": "compare",
+                    "operators": [
+                      "gt"
+                    ],
+                    "span": {
+                      "col": 21,
+                      "end_col": 30,
+                      "end_line": 9,
+                      "line": 9
+                    }
+                  }
+                },
+                {
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 8,
+                      "end_col": 23,
+                      "end_line": 10,
+                      "line": 10
+                    },
+                    "value": "delta_seconds",
+                    "value_type": "str"
+                  },
+                  "value": {
+                    "attr": "seconds",
+                    "host_binding_id": null,
+                    "node": "attribute",
+                    "path": "delta.seconds",
+                    "span": {
+                      "col": 25,
+                      "end_col": 38,
+                      "end_line": 10,
+                      "line": 10
+                    },
+                    "value": {
+                      "host_binding_id": null,
+                      "id": "delta",
+                      "node": "name",
+                      "span": {
+                        "col": 25,
+                        "end_col": 30,
+                        "end_line": 10,
+                        "line": 10
+                      }
+                    }
+                  }
+                },
+                {
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 8,
+                      "end_col": 14,
+                      "end_line": 11,
+                      "line": 11
+                    },
+                    "value": "sha3",
+                    "value_type": "str"
+                  },
+                  "value": {
+                    "args": [
+                      {
+                        "host_binding_id": null,
+                        "id": "message",
+                        "node": "name",
+                        "span": {
+                          "col": 29,
+                          "end_col": 36,
+                          "end_line": 11,
+                          "line": 11
+                        }
+                      }
+                    ],
+                    "event_binding": null,
+                    "func": {
+                      "attr": "sha3",
+                      "host_binding_id": "hash.sha3_256",
+                      "node": "attribute",
+                      "path": "hashlib.sha3",
+                      "span": {
+                        "col": 16,
+                        "end_col": 28,
+                        "end_line": 11,
+                        "line": 11
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "hashlib",
+                        "node": "name",
+                        "span": {
+                          "col": 16,
+                          "end_col": 23,
+                          "end_line": 11,
+                          "line": 11
+                        }
+                      }
+                    },
+                    "keywords": [],
+                    "node": "call",
+                    "span": {
+                      "col": 16,
+                      "end_col": 37,
+                      "end_line": 11,
+                      "line": 11
+                    },
+                    "syscall_id": "hash.sha3_256"
+                  }
+                },
+                {
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 8,
+                      "end_col": 16,
+                      "end_line": 12,
+                      "line": 12
+                    },
+                    "value": "sha256",
+                    "value_type": "str"
+                  },
+                  "value": {
+                    "args": [
+                      {
+                        "host_binding_id": null,
+                        "id": "message",
+                        "node": "name",
+                        "span": {
+                          "col": 33,
+                          "end_col": 40,
+                          "end_line": 12,
+                          "line": 12
+                        }
+                      }
+                    ],
+                    "event_binding": null,
+                    "func": {
+                      "attr": "sha256",
+                      "host_binding_id": "hash.sha256",
+                      "node": "attribute",
+                      "path": "hashlib.sha256",
+                      "span": {
+                        "col": 18,
+                        "end_col": 32,
+                        "end_line": 12,
+                        "line": 12
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "hashlib",
+                        "node": "name",
+                        "span": {
+                          "col": 18,
+                          "end_col": 25,
+                          "end_line": 12,
+                          "line": 12
+                        }
+                      }
+                    },
+                    "keywords": [],
+                    "node": "call",
+                    "span": {
+                      "col": 18,
+                      "end_col": 41,
+                      "end_line": 12,
+                      "line": 12
+                    },
+                    "syscall_id": "hash.sha256"
+                  }
+                },
+                {
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 8,
+                      "end_col": 16,
+                      "end_line": 13,
+                      "line": 13
+                    },
+                    "value": "key_ok",
+                    "value_type": "str"
+                  },
+                  "value": {
+                    "args": [
+                      {
+                        "host_binding_id": null,
+                        "id": "vk",
+                        "node": "name",
+                        "span": {
+                          "col": 38,
+                          "end_col": 40,
+                          "end_line": 13,
+                          "line": 13
+                        }
+                      }
+                    ],
+                    "event_binding": null,
+                    "func": {
+                      "attr": "key_is_valid",
+                      "host_binding_id": "crypto.key_is_valid",
+                      "node": "attribute",
+                      "path": "crypto.key_is_valid",
+                      "span": {
+                        "col": 18,
+                        "end_col": 37,
+                        "end_line": 13,
+                        "line": 13
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "crypto",
+                        "node": "name",
+                        "span": {
+                          "col": 18,
+                          "end_col": 24,
+                          "end_line": 13,
+                          "line": 13
+                        }
+                      }
+                    },
+                    "keywords": [],
+                    "node": "call",
+                    "span": {
+                      "col": 18,
+                      "end_col": 41,
+                      "end_line": 13,
+                      "line": 13
+                    },
+                    "syscall_id": "crypto.key_is_valid"
+                  }
+                },
+                {
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 8,
+                      "end_col": 16,
+                      "end_line": 14,
+                      "line": 14
+                    },
+                    "value": "sig_ok",
+                    "value_type": "str"
+                  },
+                  "value": {
+                    "args": [
+                      {
+                        "host_binding_id": null,
+                        "id": "vk",
+                        "node": "name",
+                        "span": {
+                          "col": 32,
+                          "end_col": 34,
+                          "end_line": 14,
+                          "line": 14
+                        }
+                      },
+                      {
+                        "host_binding_id": null,
+                        "id": "message",
+                        "node": "name",
+                        "span": {
+                          "col": 36,
+                          "end_col": 43,
+                          "end_line": 14,
+                          "line": 14
+                        }
+                      },
+                      {
+                        "host_binding_id": null,
+                        "id": "signature",
+                        "node": "name",
+                        "span": {
+                          "col": 45,
+                          "end_col": 54,
+                          "end_line": 14,
+                          "line": 14
+                        }
+                      }
+                    ],
+                    "event_binding": null,
+                    "func": {
+                      "attr": "verify",
+                      "host_binding_id": "crypto.ed25519_verify",
+                      "node": "attribute",
+                      "path": "crypto.verify",
+                      "span": {
+                        "col": 18,
+                        "end_col": 31,
+                        "end_line": 14,
+                        "line": 14
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "crypto",
+                        "node": "name",
+                        "span": {
+                          "col": 18,
+                          "end_col": 24,
+                          "end_line": 14,
+                          "line": 14
+                        }
+                      }
+                    },
+                    "keywords": [],
+                    "node": "call",
+                    "span": {
+                      "col": 18,
+                      "end_col": 55,
+                      "end_line": 14,
+                      "line": 14
+                    },
+                    "syscall_id": "crypto.ed25519_verify"
+                  }
+                }
+              ],
+              "node": "dict",
+              "span": {
+                "col": 15,
+                "end_col": 5,
+                "end_line": 15,
+                "line": 8
+              }
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 31,
+              "end_line": 16,
+              "line": 16
+            },
+            "value": {
+              "args": [
+                {
+                  "host_binding_id": null,
+                  "id": "snapshot",
+                  "node": "name",
+                  "span": {
+                    "col": 22,
+                    "end_col": 30,
+                    "end_line": 16,
+                    "line": 16
+                  }
+                }
+              ],
+              "func": {
+                "attr": "set",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "last_snapshot.set",
+                "span": {
+                  "col": 4,
+                  "end_col": 21,
+                  "end_line": 16,
+                  "line": 16
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "last_snapshot",
+                  "node": "name",
+                  "span": {
+                    "col": 4,
+                    "end_col": 17,
+                    "end_line": 16,
+                    "line": 16
+                  }
+                }
+              },
+              "keywords": [],
+              "method": "set",
+              "node": "call",
+              "receiver_binding": "last_snapshot",
+              "receiver_type": "Variable",
+              "span": {
+                "col": 4,
+                "end_col": 31,
+                "end_line": 16,
+                "line": 16
+              },
+              "syscall_id": "storage.variable.set"
+            }
+          },
+          {
+            "node": "return",
+            "span": {
+              "col": 4,
+              "end_col": 19,
+              "end_line": 17,
+              "line": 17
+            },
+            "value": {
+              "host_binding_id": null,
+              "id": "snapshot",
+              "node": "name",
+              "span": {
+                "col": 11,
+                "end_col": 19,
+                "end_line": 17,
+                "line": 17
+              }
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 3,
+            "line": 3
+          }
+        },
+        "docstring": null,
+        "name": "probe",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "str",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "vk",
+            "span": {
+              "col": 10,
+              "end_col": 17,
+              "end_line": 4,
+              "line": 4
+            }
+          },
+          {
+            "annotation": "str",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "message",
+            "span": {
+              "col": 19,
+              "end_col": 31,
+              "end_line": 4,
+              "line": 4
+            }
+          },
+          {
+            "annotation": "str",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "signature",
+            "span": {
+              "col": 33,
+              "end_col": 47,
+              "end_line": 4,
+              "line": 4
+            }
+          }
+        ],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 19,
+          "end_line": 17,
+          "line": 4
+        },
+        "visibility": "export"
+      }
+    ],
+    "global_declarations": [
+      {
+        "args": [],
+        "keywords": [],
+        "name": "last_snapshot",
+        "node": "storage_decl",
+        "span": {
+          "col": 0,
+          "end_col": 26,
+          "end_line": 1,
+          "line": 1
+        },
+        "storage_type": "Variable",
+        "syscall_id": "storage.variable.new"
+      }
+    ],
+    "host_catalog_version": "xian_vm_v1_host_v1",
+    "host_dependencies": [
+      {
+        "binding": "crypto.verify",
+        "category": "crypto",
+        "id": "crypto.ed25519_verify",
+        "kind": "syscall"
+      },
+      {
+        "binding": "crypto.key_is_valid",
+        "category": "crypto",
+        "id": "crypto.key_is_valid",
+        "kind": "syscall"
+      },
+      {
+        "binding": "now",
+        "category": "environment",
+        "id": "env.now",
+        "kind": "env_value"
+      },
+      {
+        "binding": "hashlib.sha256",
+        "category": "hashing",
+        "id": "hash.sha256",
+        "kind": "syscall"
+      },
+      {
+        "binding": "hashlib.sha3",
+        "category": "hashing",
+        "id": "hash.sha3_256",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Variable",
+        "category": "storage",
+        "id": "storage.variable.new",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Variable.set",
+        "category": "storage",
+        "id": "storage.variable.set",
+        "kind": "syscall"
+      },
+      {
+        "binding": "datetime.datetime",
+        "category": "time",
+        "id": "time.datetime.new",
+        "kind": "syscall"
+      },
+      {
+        "binding": "datetime.datetime.strptime",
+        "category": "time",
+        "id": "time.datetime.strptime",
+        "kind": "syscall"
+      },
+      {
+        "binding": "datetime.timedelta",
+        "category": "time",
+        "id": "time.timedelta.new",
+        "kind": "syscall"
+      }
+    ],
+    "imports": [],
+    "ir_version": "xian_ir_v1",
+    "module_body": [],
+    "module_name": "con_vm_parity_time_hash_crypto",
+    "source_hash": "53061c498d26d2020c0006b2d61a8538ffb90ce1e86d638370ed4ed8eaab5998",
+    "vm_profile": "xian_vm_v1"
+  },
+  "module_name": "con_vm_parity_time_hash_crypto",
+  "name": "time_hash_crypto",
+  "source": "last_snapshot = Variable()\n\n@export\ndef probe(vk: str, message: str, signature: str):\n    start = datetime.datetime.strptime(\"2024-01-01 00:00:00\", \"%Y-%m-%d %H:%M:%S\")\n    end = now + datetime.timedelta(days=1, seconds=5)\n    delta = end - start\n    snapshot = {\n        \"after_now\": end > now,\n        \"delta_seconds\": delta.seconds,\n        \"sha3\": hashlib.sha3(message),\n        \"sha256\": hashlib.sha256(message),\n        \"key_ok\": crypto.key_is_valid(vk),\n        \"sig_ok\": crypto.verify(vk, message, signature),\n    }\n    last_snapshot.set(snapshot)\n    return snapshot"
+}

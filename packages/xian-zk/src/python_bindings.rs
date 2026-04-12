@@ -1,8 +1,7 @@
 use crate::core::{
     prepare_groth16_bn254_vk as prepare_impl, verify_groth16_bn254 as verify_impl,
     verify_groth16_bn254_grouped as verify_grouped_impl,
-    verify_groth16_bn254_prepared as verify_prepared_impl,
-    Groth16Bn254BatchItem,
+    verify_groth16_bn254_prepared as verify_prepared_impl, Groth16Bn254BatchItem,
     PreparedGroth16Bn254Key as CorePreparedGroth16Bn254Key, VerifierError,
 };
 use crate::shielded_notes::{
@@ -16,19 +15,16 @@ use crate::shielded_notes::{
     prove_shielded_deposit as prove_deposit_impl, prove_shielded_transfer as prove_transfer_impl,
     prove_shielded_withdraw as prove_withdraw_impl, shielded_command_binding_hex,
     shielded_command_execution_tag_hex, shielded_command_nullifier_digest_hex,
-    shielded_note_asset_id_hex,
-    shielded_note_append_tree_state, shielded_note_auth_path_hex,
-    shielded_note_commitment_hex, shielded_note_nullifier_hex,
-    shielded_note_output_commitment_hex, shielded_note_owner_public_hex,
-    shielded_note_recipient_digest_hex, shielded_note_root_hex, shielded_note_tree_state,
-    shielded_note_zero_root_hex, shielded_output_payload_hash_hex,
-    shielded_output_payload_hash_hexes, shielded_command_public_inputs_hex,
-    shielded_deposit_public_inputs_hex, shielded_transfer_public_inputs_hex,
+    shielded_command_public_inputs_hex, shielded_deposit_public_inputs_hex,
+    shielded_note_append_tree_state, shielded_note_asset_id_hex, shielded_note_auth_path_hex,
+    shielded_note_commitment_hex, shielded_note_nullifier_hex, shielded_note_output_commitment_hex,
+    shielded_note_owner_public_hex, shielded_note_recipient_digest_hex, shielded_note_root_hex,
+    shielded_note_tree_state, shielded_note_zero_root_hex, shielded_output_payload_hash_hex,
+    shielded_output_payload_hash_hexes, shielded_transfer_public_inputs_hex,
     shielded_withdraw_public_inputs_hex,
-    ShieldedCommandProverBundle as CoreShieldedCommandProverBundle,
-    ShieldedCommandRequest, ShieldedDepositRequest,
-    ShieldedProverBundle as CoreShieldedProverBundle, ShieldedTransferRequest,
-    ShieldedWithdrawRequest,
+    ShieldedCommandProverBundle as CoreShieldedCommandProverBundle, ShieldedCommandRequest,
+    ShieldedDepositRequest, ShieldedProverBundle as CoreShieldedProverBundle,
+    ShieldedTransferRequest, ShieldedWithdrawRequest,
 };
 use pyo3::create_exception;
 use pyo3::exceptions::PyValueError;
@@ -141,9 +137,7 @@ fn load_shielded_note_prover_bundle(bundle_json: &str) -> PyResult<ShieldedNoteP
 }
 
 #[pyfunction]
-fn load_shielded_command_prover_bundle(
-    bundle_json: &str,
-) -> PyResult<ShieldedCommandProverBundle> {
+fn load_shielded_command_prover_bundle(bundle_json: &str) -> PyResult<ShieldedCommandProverBundle> {
     let inner: CoreShieldedCommandProverBundle = serde_json::from_str(bundle_json)
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
     Ok(ShieldedCommandProverBundle { inner })
@@ -284,14 +278,8 @@ fn shielded_note_output_commitment(
     rho_hex: &str,
     blind_hex: &str,
 ) -> PyResult<String> {
-    shielded_note_output_commitment_hex(
-        asset_id_hex,
-        owner_public_hex,
-        amount,
-        rho_hex,
-        blind_hex,
-    )
-    .map_err(|error| PyValueError::new_err(error.to_string()))
+    shielded_note_output_commitment_hex(asset_id_hex, owner_public_hex, amount, rho_hex, blind_hex)
+        .map_err(|error| PyValueError::new_err(error.to_string()))
 }
 
 #[pyfunction]
@@ -325,12 +313,8 @@ fn shielded_note_append_tree_state_json(
     commitments: Vec<String>,
 ) -> PyResult<String> {
     serde_json::to_string(
-        &shielded_note_append_tree_state(
-            note_count,
-            &filled_subtrees,
-            &commitments,
-        )
-        .map_err(|error| PyValueError::new_err(error.to_string()))?,
+        &shielded_note_append_tree_state(note_count, &filled_subtrees, &commitments)
+            .map_err(|error| PyValueError::new_err(error.to_string()))?,
     )
     .map_err(|error| PyValueError::new_err(error.to_string()))
 }
@@ -482,7 +466,10 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
         module
     )?)?;
     module.add_function(wrap_pyfunction!(load_shielded_note_prover_bundle, module)?)?;
-    module.add_function(wrap_pyfunction!(load_shielded_command_prover_bundle, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        load_shielded_command_prover_bundle,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(shielded_note_zero_root, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_asset_id, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_recipient_digest, module)?)?;
@@ -498,7 +485,10 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(shielded_note_nullifier, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_root, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_tree_state_json, module)?)?;
-    module.add_function(wrap_pyfunction!(shielded_note_append_tree_state_json, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        shielded_note_append_tree_state_json,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(shielded_note_auth_path, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_command_nullifier_digest, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_command_binding, module)?)?;

@@ -1,0 +1,726 @@
+{
+  "call": {
+    "args": [],
+    "function": "transfer",
+    "kwargs": {
+      "amount": 5,
+      "to": "bob"
+    }
+  },
+  "context": {
+    "block_hash": "abc123",
+    "block_num": 99,
+    "caller": "alice",
+    "chain_id": "localnet",
+    "now": 1234,
+    "signer": "alice"
+  },
+  "expected": {
+    "events": [
+      {
+        "caller": "alice",
+        "contract": "con_vm_parity_transfer",
+        "data": {
+          "amount": 5
+        },
+        "data_indexed": {
+          "from": "alice",
+          "to": "bob"
+        },
+        "event": "Transfer",
+        "signer": "alice"
+      }
+    ],
+    "result": 5,
+    "state": {
+      "hashes": [
+        {
+          "binding": "balances",
+          "entries": [
+            {
+              "key": "alice",
+              "value": 15
+            },
+            {
+              "key": "bob",
+              "value": 5
+            }
+          ]
+        }
+      ],
+      "variables": [
+        {
+          "binding": "metadata",
+          "value": 1234
+        }
+      ]
+    }
+  },
+  "initial_state": {
+    "foreign_hashes": [],
+    "foreign_variables": [],
+    "hashes": [
+      {
+        "binding": "balances",
+        "entries": [
+          {
+            "key": "alice",
+            "value": 20
+          }
+        ]
+      }
+    ],
+    "variables": []
+  },
+  "ir": {
+    "docstring": null,
+    "functions": [
+      {
+        "body": [
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 23,
+              "end_line": 14,
+              "line": 14
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "sender",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 10,
+                  "end_line": 14,
+                  "line": 14
+                }
+              }
+            ],
+            "value": {
+              "attr": "caller",
+              "host_binding_id": "context.caller",
+              "node": "attribute",
+              "path": "ctx.caller",
+              "span": {
+                "col": 13,
+                "end_col": 23,
+                "end_line": 14,
+                "line": 14
+              },
+              "value": {
+                "host_binding_id": null,
+                "id": "ctx",
+                "node": "name",
+                "span": {
+                  "col": 13,
+                  "end_col": 16,
+                  "end_line": 14,
+                  "line": 14
+                }
+              }
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 21,
+              "end_line": 15,
+              "line": 15
+            },
+            "value": {
+              "args": [
+                {
+                  "host_binding_id": "env.now",
+                  "id": "now",
+                  "node": "name",
+                  "span": {
+                    "col": 17,
+                    "end_col": 20,
+                    "end_line": 15,
+                    "line": 15
+                  }
+                }
+              ],
+              "func": {
+                "attr": "set",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "metadata.set",
+                "span": {
+                  "col": 4,
+                  "end_col": 16,
+                  "end_line": 15,
+                  "line": 15
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "metadata",
+                  "node": "name",
+                  "span": {
+                    "col": 4,
+                    "end_col": 12,
+                    "end_line": 15,
+                    "line": 15
+                  }
+                }
+              },
+              "keywords": [],
+              "method": "set",
+              "node": "call",
+              "receiver_binding": "metadata",
+              "receiver_type": "Variable",
+              "span": {
+                "col": 4,
+                "end_col": 21,
+                "end_line": 15,
+                "line": 15
+              },
+              "syscall_id": "storage.variable.set"
+            }
+          },
+          {
+            "binding": "balances",
+            "key": {
+              "host_binding_id": null,
+              "id": "sender",
+              "node": "name",
+              "span": {
+                "col": 13,
+                "end_col": 19,
+                "end_line": 16,
+                "line": 16
+              }
+            },
+            "node": "storage_mutate",
+            "operator": "sub",
+            "read_syscall_id": "storage.hash.get",
+            "span": {
+              "col": 4,
+              "end_col": 30,
+              "end_line": 16,
+              "line": 16
+            },
+            "storage_type": "Hash",
+            "value": {
+              "host_binding_id": null,
+              "id": "amount",
+              "node": "name",
+              "span": {
+                "col": 24,
+                "end_col": 30,
+                "end_line": 16,
+                "line": 16
+              }
+            },
+            "write_syscall_id": "storage.hash.set"
+          },
+          {
+            "binding": "balances",
+            "key": {
+              "host_binding_id": null,
+              "id": "to",
+              "node": "name",
+              "span": {
+                "col": 13,
+                "end_col": 15,
+                "end_line": 17,
+                "line": 17
+              }
+            },
+            "node": "storage_mutate",
+            "operator": "add",
+            "read_syscall_id": "storage.hash.get",
+            "span": {
+              "col": 4,
+              "end_col": 26,
+              "end_line": 17,
+              "line": 17
+            },
+            "storage_type": "Hash",
+            "value": {
+              "host_binding_id": null,
+              "id": "amount",
+              "node": "name",
+              "span": {
+                "col": 20,
+                "end_col": 26,
+                "end_line": 17,
+                "line": 17
+              }
+            },
+            "write_syscall_id": "storage.hash.set"
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 63,
+              "end_line": 18,
+              "line": 18
+            },
+            "value": {
+              "args": [
+                {
+                  "entries": [
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 19,
+                          "end_col": 25,
+                          "end_line": 18,
+                          "line": 18
+                        },
+                        "value": "from",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "sender",
+                        "node": "name",
+                        "span": {
+                          "col": 27,
+                          "end_col": 33,
+                          "end_line": 18,
+                          "line": 18
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 35,
+                          "end_col": 39,
+                          "end_line": 18,
+                          "line": 18
+                        },
+                        "value": "to",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "to",
+                        "node": "name",
+                        "span": {
+                          "col": 41,
+                          "end_col": 43,
+                          "end_line": 18,
+                          "line": 18
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 45,
+                          "end_col": 53,
+                          "end_line": 18,
+                          "line": 18
+                        },
+                        "value": "amount",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "amount",
+                        "node": "name",
+                        "span": {
+                          "col": 55,
+                          "end_col": 61,
+                          "end_line": 18,
+                          "line": 18
+                        }
+                      }
+                    }
+                  ],
+                  "node": "dict",
+                  "span": {
+                    "col": 18,
+                    "end_col": 62,
+                    "end_line": 18,
+                    "line": 18
+                  }
+                }
+              ],
+              "event_binding": "TransferEvent",
+              "func": {
+                "host_binding_id": null,
+                "id": "TransferEvent",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 17,
+                  "end_line": 18,
+                  "line": 18
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 63,
+                "end_line": 18,
+                "line": 18
+              },
+              "syscall_id": "event.log.emit"
+            }
+          },
+          {
+            "node": "return",
+            "span": {
+              "col": 4,
+              "end_col": 23,
+              "end_line": 19,
+              "line": 19
+            },
+            "value": {
+              "binding": "balances",
+              "key": {
+                "host_binding_id": null,
+                "id": "to",
+                "node": "name",
+                "span": {
+                  "col": 20,
+                  "end_col": 22,
+                  "end_line": 19,
+                  "line": 19
+                }
+              },
+              "node": "storage_get",
+              "span": {
+                "col": 11,
+                "end_col": 23,
+                "end_line": 19,
+                "line": 19
+              },
+              "storage_type": "Hash",
+              "syscall_id": "storage.hash.get"
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 12,
+            "line": 12
+          }
+        },
+        "docstring": null,
+        "name": "transfer",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "int",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "amount",
+            "span": {
+              "col": 13,
+              "end_col": 24,
+              "end_line": 13,
+              "line": 13
+            }
+          },
+          {
+            "annotation": "str",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "to",
+            "span": {
+              "col": 26,
+              "end_col": 33,
+              "end_line": 13,
+              "line": 13
+            }
+          }
+        ],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 23,
+          "end_line": 19,
+          "line": 13
+        },
+        "visibility": "export"
+      }
+    ],
+    "global_declarations": [
+      {
+        "args": [],
+        "keywords": [
+          {
+            "arg": "default_value",
+            "span": {
+              "col": 16,
+              "end_col": 31,
+              "end_line": 1,
+              "line": 1
+            },
+            "value": {
+              "node": "constant",
+              "span": {
+                "col": 30,
+                "end_col": 31,
+                "end_line": 1,
+                "line": 1
+              },
+              "value": 0,
+              "value_type": "int"
+            }
+          }
+        ],
+        "name": "balances",
+        "node": "storage_decl",
+        "span": {
+          "col": 0,
+          "end_col": 32,
+          "end_line": 1,
+          "line": 1
+        },
+        "storage_type": "Hash",
+        "syscall_id": "storage.hash.new"
+      },
+      {
+        "args": [],
+        "keywords": [],
+        "name": "metadata",
+        "node": "storage_decl",
+        "span": {
+          "col": 0,
+          "end_col": 21,
+          "end_line": 2,
+          "line": 2
+        },
+        "storage_type": "Variable",
+        "syscall_id": "storage.variable.new"
+      },
+      {
+        "event_name": "Transfer",
+        "name": "TransferEvent",
+        "node": "event_decl",
+        "params": {
+          "entries": [
+            {
+              "key": {
+                "node": "constant",
+                "span": {
+                  "col": 8,
+                  "end_col": 14,
+                  "end_line": 6,
+                  "line": 6
+                },
+                "value": "from",
+                "value_type": "str"
+              },
+              "value": {
+                "args": [
+                  {
+                    "host_binding_id": null,
+                    "id": "str",
+                    "node": "name",
+                    "span": {
+                      "col": 24,
+                      "end_col": 27,
+                      "end_line": 6,
+                      "line": 6
+                    }
+                  }
+                ],
+                "event_binding": null,
+                "func": {
+                  "host_binding_id": "event.indexed",
+                  "id": "indexed",
+                  "node": "name",
+                  "span": {
+                    "col": 16,
+                    "end_col": 23,
+                    "end_line": 6,
+                    "line": 6
+                  }
+                },
+                "keywords": [],
+                "node": "call",
+                "span": {
+                  "col": 16,
+                  "end_col": 28,
+                  "end_line": 6,
+                  "line": 6
+                },
+                "syscall_id": "event.indexed"
+              }
+            },
+            {
+              "key": {
+                "node": "constant",
+                "span": {
+                  "col": 8,
+                  "end_col": 12,
+                  "end_line": 7,
+                  "line": 7
+                },
+                "value": "to",
+                "value_type": "str"
+              },
+              "value": {
+                "args": [
+                  {
+                    "host_binding_id": null,
+                    "id": "str",
+                    "node": "name",
+                    "span": {
+                      "col": 22,
+                      "end_col": 25,
+                      "end_line": 7,
+                      "line": 7
+                    }
+                  }
+                ],
+                "event_binding": null,
+                "func": {
+                  "host_binding_id": "event.indexed",
+                  "id": "indexed",
+                  "node": "name",
+                  "span": {
+                    "col": 14,
+                    "end_col": 21,
+                    "end_line": 7,
+                    "line": 7
+                  }
+                },
+                "keywords": [],
+                "node": "call",
+                "span": {
+                  "col": 14,
+                  "end_col": 26,
+                  "end_line": 7,
+                  "line": 7
+                },
+                "syscall_id": "event.indexed"
+              }
+            },
+            {
+              "key": {
+                "node": "constant",
+                "span": {
+                  "col": 8,
+                  "end_col": 16,
+                  "end_line": 8,
+                  "line": 8
+                },
+                "value": "amount",
+                "value_type": "str"
+              },
+              "value": {
+                "host_binding_id": null,
+                "id": "int",
+                "node": "name",
+                "span": {
+                  "col": 18,
+                  "end_col": 21,
+                  "end_line": 8,
+                  "line": 8
+                }
+              }
+            }
+          ],
+          "node": "dict",
+          "span": {
+            "col": 4,
+            "end_col": 5,
+            "end_line": 9,
+            "line": 5
+          }
+        },
+        "span": {
+          "col": 0,
+          "end_col": 1,
+          "end_line": 10,
+          "line": 3
+        },
+        "syscall_id": "event.log.new"
+      }
+    ],
+    "host_catalog_version": "xian_vm_v1_host_v1",
+    "host_dependencies": [
+      {
+        "binding": "ctx.caller",
+        "category": "context",
+        "id": "context.caller",
+        "kind": "context_field"
+      },
+      {
+        "binding": "now",
+        "category": "environment",
+        "id": "env.now",
+        "kind": "env_value"
+      },
+      {
+        "binding": "indexed",
+        "category": "event",
+        "id": "event.indexed",
+        "kind": "syscall"
+      },
+      {
+        "binding": "LogEvent.__call__",
+        "category": "event",
+        "id": "event.log.emit",
+        "kind": "syscall"
+      },
+      {
+        "binding": "LogEvent",
+        "category": "event",
+        "id": "event.log.new",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Hash.__getitem__",
+        "category": "storage",
+        "id": "storage.hash.get",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Hash",
+        "category": "storage",
+        "id": "storage.hash.new",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Hash.__setitem__",
+        "category": "storage",
+        "id": "storage.hash.set",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Variable",
+        "category": "storage",
+        "id": "storage.variable.new",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Variable.set",
+        "category": "storage",
+        "id": "storage.variable.set",
+        "kind": "syscall"
+      }
+    ],
+    "imports": [],
+    "ir_version": "xian_ir_v1",
+    "module_body": [],
+    "module_name": "con_vm_parity_transfer",
+    "source_hash": "9554c6303a8779d7c9ed41e362189c5f2e810a5065413091cf331942d9b125a0",
+    "vm_profile": "xian_vm_v1"
+  },
+  "module_name": "con_vm_parity_transfer",
+  "name": "transfer_event",
+  "source": "balances = Hash(default_value=0)\nmetadata = Variable()\nTransferEvent = LogEvent(\n    \"Transfer\",\n    {\n        \"from\": indexed(str),\n        \"to\": indexed(str),\n        \"amount\": int,\n    },\n)\n\n@export\ndef transfer(amount: int, to: str):\n    sender = ctx.caller\n    metadata.set(now)\n    balances[sender] -= amount\n    balances[to] += amount\n    TransferEvent({\"from\": sender, \"to\": to, \"amount\": amount})\n    return balances[to]"
+}

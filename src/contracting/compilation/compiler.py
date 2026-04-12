@@ -1,13 +1,20 @@
 import ast
+import json
 
 from contracting import constants
+from contracting.compilation.lowering import XianIrLowerer
 from contracting.compilation.linter import Linter, LintingError
+from contracting.compilation.vm import (
+    XIAN_VM_V1_PROFILE,
+    VmCompatibilityChecker,
+)
 
 
 class ContractingCompiler(ast.NodeTransformer):
-    def __init__(self, module_name="__main__", linter=None):
+    def __init__(self, module_name="__main__", linter=None, vm_checker=None):
         self.module_name = module_name
         self.linter = linter or Linter()
+        self.vm_checker = vm_checker or VmCompatibilityChecker()
         self.lint_alerts = None
         self.source = None
         self.constructor_visited = False
@@ -15,7 +22,7 @@ class ContractingCompiler(ast.NodeTransformer):
         self.orm_names = set()
         self.visited_names = set()  # store the method visits
 
-    def parse(self, source: str, lint=True):
+    def parse(self, source: str, lint=True, vm_profile: str | None = None):
         self.constructor_visited = False
         self.source = source
 
@@ -25,11 +32,18 @@ class ContractingCompiler(ast.NodeTransformer):
             self.lint_alerts = self.linter.check(tree)
         else:
             self.lint_alerts = None
+        vm_report = None
+        if vm_profile is not None:
+            vm_report = self.vm_checker.check(tree, profile=vm_profile)
 
         tree = self.visit(tree)
 
         if self.lint_alerts is not None:
             raise LintingError(self.lint_alerts)
+        if vm_report is not None and not vm_report.compatible:
+            from contracting.compilation.vm import VmCompatibilityError
+
+            raise VmCompatibilityError(vm_report)
 
         # check all visited nodes and see if they are actually private
 
@@ -55,27 +69,73 @@ class ContractingCompiler(ast.NodeTransformer):
     def privatize(s):
         return "{}{}".format(constants.PRIVATE_METHOD_PREFIX, s)
 
-    def compile(self, source: str, lint=True):
-        tree = self.parse(source, lint=lint)
+    def compile(self, source: str, lint=True, vm_profile: str | None = None):
+        tree = self.parse(source, lint=lint, vm_profile=vm_profile)
 
         compiled_code = compile(tree, "<compilation>", "exec")
 
         return compiled_code
 
-    def normalize_source(self, source: str, lint=True):
+    def normalize_source(self, source: str, lint=True, vm_profile: str | None = None):
         tree = ast.parse(source)
 
         if lint:
             lint_alerts = self.linter.check(tree)
             if lint_alerts is not None:
                 raise LintingError(lint_alerts)
+        if vm_profile is not None:
+            self.vm_checker.check_raise(tree, profile=vm_profile)
 
         ast.fix_missing_locations(tree)
         return ast.unparse(tree)
 
-    def parse_to_code(self, source, lint=True):
-        tree = self.parse(source, lint=lint)
+    def parse_to_code(self, source, lint=True, vm_profile: str | None = None):
+        tree = self.parse(source, lint=lint, vm_profile=vm_profile)
         return ast.unparse(tree)
+
+    def check_vm_compatibility(self, source: str, profile: str):
+        return self.vm_checker.check(source, profile=profile)
+
+    def lower_to_ir(
+        self,
+        source: str,
+        lint=True,
+        vm_profile: str | None = XIAN_VM_V1_PROFILE,
+    ):
+        tree = ast.parse(source)
+
+        if lint:
+            lint_alerts = self.linter.check(source)
+            if lint_alerts is not None:
+                raise LintingError(lint_alerts)
+
+        selected_profile = vm_profile or XIAN_VM_V1_PROFILE
+        self.vm_checker.check_raise(source, profile=selected_profile)
+
+        lowerer = XianIrLowerer(
+            module_name=self.module_name,
+            profile=selected_profile,
+        )
+        return lowerer.lower(tree, source=source)
+
+    def lower_to_ir_json(
+        self,
+        source: str,
+        lint=True,
+        vm_profile: str | None = XIAN_VM_V1_PROFILE,
+        *,
+        indent: int | None = 2,
+        sort_keys: bool = True,
+    ) -> str:
+        return json.dumps(
+            self.lower_to_ir(
+                source,
+                lint=lint,
+                vm_profile=vm_profile,
+            ),
+            indent=indent,
+            sort_keys=sort_keys,
+        )
 
     def visit_FunctionDef(self, node):
 

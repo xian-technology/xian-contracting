@@ -1,0 +1,1158 @@
+{
+  "call": {
+    "args": [],
+    "function": "probe",
+    "kwargs": {}
+  },
+  "context": {
+    "block_hash": "block11",
+    "block_num": 11,
+    "caller": "alice",
+    "chain_id": "localnet",
+    "now": 11,
+    "signer": "alice"
+  },
+  "expected": {
+    "events": [],
+    "result": {
+      "digest": {
+        "__vm_type__": "int",
+        "value": "1769022153753117854737090383730428115676598479934872687695840569971267443044"
+      },
+      "field_modulus": {
+        "__vm_type__": "int",
+        "value": "21888242871839275222246405745257275088548364400416034343698204186575808495617"
+      },
+      "padded_len": 3,
+      "prefix_ok": true,
+      "reduced": {
+        "__vm_type__": "int",
+        "value": "12106531709749749260399155125789068189468613547829285592403576625003142589369"
+      },
+      "rendered": "0x1ac40ddad01e31e34a35be294f985528f36ab724f8becf860cff25c63a582bb9"
+    },
+    "state": {
+      "hashes": [],
+      "variables": [
+        {
+          "binding": "last_snapshot",
+          "value": {
+            "digest": {
+              "__vm_type__": "int",
+              "value": "1769022153753117854737090383730428115676598479934872687695840569971267443044"
+            },
+            "field_modulus": {
+              "__vm_type__": "int",
+              "value": "21888242871839275222246405745257275088548364400416034343698204186575808495617"
+            },
+            "padded_len": 3,
+            "prefix_ok": true,
+            "reduced": {
+              "__vm_type__": "int",
+              "value": "12106531709749749260399155125789068189468613547829285592403576625003142589369"
+            },
+            "rendered": "0x1ac40ddad01e31e34a35be294f985528f36ab724f8becf860cff25c63a582bb9"
+          }
+        }
+      ]
+    }
+  },
+  "initial_state": {
+    "foreign_hashes": [],
+    "foreign_variables": [],
+    "hashes": [],
+    "variables": []
+  },
+  "ir": {
+    "docstring": null,
+    "functions": [
+      {
+        "body": [
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 68,
+              "end_line": 7,
+              "line": 7
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "digest",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 10,
+                  "end_line": 7,
+                  "line": 7
+                }
+              }
+            ],
+            "value": {
+              "left": {
+                "args": [
+                  {
+                    "args": [
+                      {
+                        "node": "constant",
+                        "span": {
+                          "col": 30,
+                          "end_col": 46,
+                          "end_line": 7,
+                          "line": 7
+                        },
+                        "value": "xian-vm-bigint",
+                        "value_type": "str"
+                      }
+                    ],
+                    "event_binding": null,
+                    "func": {
+                      "attr": "sha3",
+                      "host_binding_id": "hash.sha3_256",
+                      "node": "attribute",
+                      "path": "hashlib.sha3",
+                      "span": {
+                        "col": 17,
+                        "end_col": 29,
+                        "end_line": 7,
+                        "line": 7
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "hashlib",
+                        "node": "name",
+                        "span": {
+                          "col": 17,
+                          "end_col": 24,
+                          "end_line": 7,
+                          "line": 7
+                        }
+                      }
+                    },
+                    "keywords": [],
+                    "node": "call",
+                    "span": {
+                      "col": 17,
+                      "end_col": 47,
+                      "end_line": 7,
+                      "line": 7
+                    },
+                    "syscall_id": "hash.sha3_256"
+                  },
+                  {
+                    "node": "constant",
+                    "span": {
+                      "col": 49,
+                      "end_col": 51,
+                      "end_line": 7,
+                      "line": 7
+                    },
+                    "value": 16,
+                    "value_type": "int"
+                  }
+                ],
+                "event_binding": null,
+                "func": {
+                  "host_binding_id": null,
+                  "id": "int",
+                  "node": "name",
+                  "span": {
+                    "col": 13,
+                    "end_col": 16,
+                    "end_line": 7,
+                    "line": 7
+                  }
+                },
+                "keywords": [],
+                "node": "call",
+                "span": {
+                  "col": 13,
+                  "end_col": 52,
+                  "end_line": 7,
+                  "line": 7
+                },
+                "syscall_id": null
+              },
+              "node": "bin_op",
+              "operator": "mod",
+              "right": {
+                "host_binding_id": null,
+                "id": "FIELD_MODULUS",
+                "node": "name",
+                "span": {
+                  "col": 55,
+                  "end_col": 68,
+                  "end_line": 7,
+                  "line": 7
+                }
+              },
+              "span": {
+                "col": 13,
+                "end_col": 68,
+                "end_line": 7,
+                "line": 7
+              }
+            }
+          },
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 47,
+              "end_line": 8,
+              "line": 8
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "reduced",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 11,
+                  "end_line": 8,
+                  "line": 8
+                }
+              }
+            ],
+            "value": {
+              "args": [
+                {
+                  "left": {
+                    "host_binding_id": null,
+                    "id": "digest",
+                    "node": "name",
+                    "span": {
+                      "col": 18,
+                      "end_col": 24,
+                      "end_line": 8,
+                      "line": 8
+                    }
+                  },
+                  "node": "bin_op",
+                  "operator": "add",
+                  "right": {
+                    "node": "constant",
+                    "span": {
+                      "col": 27,
+                      "end_col": 28,
+                      "end_line": 8,
+                      "line": 8
+                    },
+                    "value": 7,
+                    "value_type": "int"
+                  },
+                  "span": {
+                    "col": 18,
+                    "end_col": 28,
+                    "end_line": 8,
+                    "line": 8
+                  }
+                },
+                {
+                  "node": "constant",
+                  "span": {
+                    "col": 30,
+                    "end_col": 31,
+                    "end_line": 8,
+                    "line": 8
+                  },
+                  "value": 7,
+                  "value_type": "int"
+                },
+                {
+                  "host_binding_id": null,
+                  "id": "FIELD_MODULUS",
+                  "node": "name",
+                  "span": {
+                    "col": 33,
+                    "end_col": 46,
+                    "end_line": 8,
+                    "line": 8
+                  }
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "host_binding_id": null,
+                "id": "pow",
+                "node": "name",
+                "span": {
+                  "col": 14,
+                  "end_col": 17,
+                  "end_line": 8,
+                  "line": 8
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 14,
+                "end_col": 47,
+                "end_line": 8,
+                "line": 8
+              },
+              "syscall_id": null
+            }
+          },
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 23,
+              "end_line": 9,
+              "line": 9
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "rendered_parts",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 18,
+                  "end_line": 9,
+                  "line": 9
+                }
+              }
+            ],
+            "value": {
+              "elements": [],
+              "node": "list",
+              "span": {
+                "col": 21,
+                "end_col": 23,
+                "end_line": 9,
+                "line": 9
+              }
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 58,
+              "end_line": 10,
+              "line": 10
+            },
+            "value": {
+              "args": [
+                {
+                  "elements": [
+                    {
+                      "node": "constant",
+                      "span": {
+                        "col": 27,
+                        "end_col": 31,
+                        "end_line": 10,
+                        "line": 10
+                      },
+                      "value": "0x",
+                      "value_type": "str"
+                    },
+                    {
+                      "args": [
+                        {
+                          "host_binding_id": null,
+                          "id": "reduced",
+                          "node": "name",
+                          "span": {
+                            "col": 40,
+                            "end_col": 47,
+                            "end_line": 10,
+                            "line": 10
+                          }
+                        },
+                        {
+                          "node": "constant",
+                          "span": {
+                            "col": 49,
+                            "end_col": 55,
+                            "end_line": 10,
+                            "line": 10
+                          },
+                          "value": "064x",
+                          "value_type": "str"
+                        }
+                      ],
+                      "event_binding": null,
+                      "func": {
+                        "host_binding_id": null,
+                        "id": "format",
+                        "node": "name",
+                        "span": {
+                          "col": 33,
+                          "end_col": 39,
+                          "end_line": 10,
+                          "line": 10
+                        }
+                      },
+                      "keywords": [],
+                      "node": "call",
+                      "span": {
+                        "col": 33,
+                        "end_col": 56,
+                        "end_line": 10,
+                        "line": 10
+                      },
+                      "syscall_id": null
+                    }
+                  ],
+                  "node": "list",
+                  "span": {
+                    "col": 26,
+                    "end_col": 57,
+                    "end_line": 10,
+                    "line": 10
+                  }
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "attr": "extend",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "rendered_parts.extend",
+                "span": {
+                  "col": 4,
+                  "end_col": 25,
+                  "end_line": 10,
+                  "line": 10
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "rendered_parts",
+                  "node": "name",
+                  "span": {
+                    "col": 4,
+                    "end_col": 18,
+                    "end_line": 10,
+                    "line": 10
+                  }
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 58,
+                "end_line": 10,
+                "line": 10
+              },
+              "syscall_id": null
+            }
+          },
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 38,
+              "end_line": 11,
+              "line": 11
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "rendered",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 12,
+                  "end_line": 11,
+                  "line": 11
+                }
+              }
+            ],
+            "value": {
+              "args": [
+                {
+                  "host_binding_id": null,
+                  "id": "rendered_parts",
+                  "node": "name",
+                  "span": {
+                    "col": 23,
+                    "end_col": 37,
+                    "end_line": 11,
+                    "line": 11
+                  }
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "attr": "join",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": null,
+                "span": {
+                  "col": 15,
+                  "end_col": 22,
+                  "end_line": 11,
+                  "line": 11
+                },
+                "value": {
+                  "node": "constant",
+                  "span": {
+                    "col": 15,
+                    "end_col": 17,
+                    "end_line": 11,
+                    "line": 11
+                  },
+                  "value": "",
+                  "value_type": "str"
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 15,
+                "end_col": 38,
+                "end_line": 11,
+                "line": 11
+              },
+              "syscall_id": null
+            }
+          },
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 41,
+              "end_line": 12,
+              "line": 12
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "prefix_ok",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 13,
+                  "end_line": 12,
+                  "line": 12
+                }
+              }
+            ],
+            "value": {
+              "args": [
+                {
+                  "node": "constant",
+                  "span": {
+                    "col": 36,
+                    "end_col": 40,
+                    "end_line": 12,
+                    "line": 12
+                  },
+                  "value": "0x",
+                  "value_type": "str"
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "attr": "startswith",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "rendered.startswith",
+                "span": {
+                  "col": 16,
+                  "end_col": 35,
+                  "end_line": 12,
+                  "line": 12
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "rendered",
+                  "node": "name",
+                  "span": {
+                    "col": 16,
+                    "end_col": 24,
+                    "end_line": 12,
+                    "line": 12
+                  }
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 16,
+                "end_col": 41,
+                "end_line": 12,
+                "line": 12
+              },
+              "syscall_id": null
+            }
+          },
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 29,
+              "end_line": 13,
+              "line": 13
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "padded",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 10,
+                  "end_line": 13,
+                  "line": 13
+                }
+              }
+            ],
+            "value": {
+              "elements": [
+                {
+                  "host_binding_id": null,
+                  "id": "FIELD_ZERO_HEX",
+                  "node": "name",
+                  "span": {
+                    "col": 14,
+                    "end_col": 28,
+                    "end_line": 13,
+                    "line": 13
+                  }
+                }
+              ],
+              "node": "list",
+              "span": {
+                "col": 13,
+                "end_col": 29,
+                "end_line": 13,
+                "line": 13
+              }
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 39,
+              "end_line": 14,
+              "line": 14
+            },
+            "value": {
+              "args": [
+                {
+                  "left": {
+                    "elements": [
+                      {
+                        "host_binding_id": null,
+                        "id": "FIELD_ZERO_HEX",
+                        "node": "name",
+                        "span": {
+                          "col": 19,
+                          "end_col": 33,
+                          "end_line": 14,
+                          "line": 14
+                        }
+                      }
+                    ],
+                    "node": "list",
+                    "span": {
+                      "col": 18,
+                      "end_col": 34,
+                      "end_line": 14,
+                      "line": 14
+                    }
+                  },
+                  "node": "bin_op",
+                  "operator": "mul",
+                  "right": {
+                    "node": "constant",
+                    "span": {
+                      "col": 37,
+                      "end_col": 38,
+                      "end_line": 14,
+                      "line": 14
+                    },
+                    "value": 2,
+                    "value_type": "int"
+                  },
+                  "span": {
+                    "col": 18,
+                    "end_col": 38,
+                    "end_line": 14,
+                    "line": 14
+                  }
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "attr": "extend",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "padded.extend",
+                "span": {
+                  "col": 4,
+                  "end_col": 17,
+                  "end_line": 14,
+                  "line": 14
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "padded",
+                  "node": "name",
+                  "span": {
+                    "col": 4,
+                    "end_col": 10,
+                    "end_line": 14,
+                    "line": 14
+                  }
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 39,
+                "end_line": 14,
+                "line": 14
+              },
+              "syscall_id": null
+            }
+          },
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 5,
+              "end_line": 22,
+              "line": 15
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "snapshot",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 12,
+                  "end_line": 15,
+                  "line": 15
+                }
+              }
+            ],
+            "value": {
+              "entries": [
+                {
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 8,
+                      "end_col": 23,
+                      "end_line": 16,
+                      "line": 16
+                    },
+                    "value": "field_modulus",
+                    "value_type": "str"
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "FIELD_MODULUS",
+                    "node": "name",
+                    "span": {
+                      "col": 25,
+                      "end_col": 38,
+                      "end_line": 16,
+                      "line": 16
+                    }
+                  }
+                },
+                {
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 8,
+                      "end_col": 16,
+                      "end_line": 17,
+                      "line": 17
+                    },
+                    "value": "digest",
+                    "value_type": "str"
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "digest",
+                    "node": "name",
+                    "span": {
+                      "col": 18,
+                      "end_col": 24,
+                      "end_line": 17,
+                      "line": 17
+                    }
+                  }
+                },
+                {
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 8,
+                      "end_col": 17,
+                      "end_line": 18,
+                      "line": 18
+                    },
+                    "value": "reduced",
+                    "value_type": "str"
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "reduced",
+                    "node": "name",
+                    "span": {
+                      "col": 19,
+                      "end_col": 26,
+                      "end_line": 18,
+                      "line": 18
+                    }
+                  }
+                },
+                {
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 8,
+                      "end_col": 18,
+                      "end_line": 19,
+                      "line": 19
+                    },
+                    "value": "rendered",
+                    "value_type": "str"
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "rendered",
+                    "node": "name",
+                    "span": {
+                      "col": 20,
+                      "end_col": 28,
+                      "end_line": 19,
+                      "line": 19
+                    }
+                  }
+                },
+                {
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 8,
+                      "end_col": 19,
+                      "end_line": 20,
+                      "line": 20
+                    },
+                    "value": "prefix_ok",
+                    "value_type": "str"
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "prefix_ok",
+                    "node": "name",
+                    "span": {
+                      "col": 21,
+                      "end_col": 30,
+                      "end_line": 20,
+                      "line": 20
+                    }
+                  }
+                },
+                {
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 8,
+                      "end_col": 20,
+                      "end_line": 21,
+                      "line": 21
+                    },
+                    "value": "padded_len",
+                    "value_type": "str"
+                  },
+                  "value": {
+                    "args": [
+                      {
+                        "host_binding_id": null,
+                        "id": "padded",
+                        "node": "name",
+                        "span": {
+                          "col": 26,
+                          "end_col": 32,
+                          "end_line": 21,
+                          "line": 21
+                        }
+                      }
+                    ],
+                    "event_binding": null,
+                    "func": {
+                      "host_binding_id": null,
+                      "id": "len",
+                      "node": "name",
+                      "span": {
+                        "col": 22,
+                        "end_col": 25,
+                        "end_line": 21,
+                        "line": 21
+                      }
+                    },
+                    "keywords": [],
+                    "node": "call",
+                    "span": {
+                      "col": 22,
+                      "end_col": 33,
+                      "end_line": 21,
+                      "line": 21
+                    },
+                    "syscall_id": null
+                  }
+                }
+              ],
+              "node": "dict",
+              "span": {
+                "col": 15,
+                "end_col": 5,
+                "end_line": 22,
+                "line": 15
+              }
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 31,
+              "end_line": 23,
+              "line": 23
+            },
+            "value": {
+              "args": [
+                {
+                  "host_binding_id": null,
+                  "id": "snapshot",
+                  "node": "name",
+                  "span": {
+                    "col": 22,
+                    "end_col": 30,
+                    "end_line": 23,
+                    "line": 23
+                  }
+                }
+              ],
+              "func": {
+                "attr": "set",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "last_snapshot.set",
+                "span": {
+                  "col": 4,
+                  "end_col": 21,
+                  "end_line": 23,
+                  "line": 23
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "last_snapshot",
+                  "node": "name",
+                  "span": {
+                    "col": 4,
+                    "end_col": 17,
+                    "end_line": 23,
+                    "line": 23
+                  }
+                }
+              },
+              "keywords": [],
+              "method": "set",
+              "node": "call",
+              "receiver_binding": "last_snapshot",
+              "receiver_type": "Variable",
+              "span": {
+                "col": 4,
+                "end_col": 31,
+                "end_line": 23,
+                "line": 23
+              },
+              "syscall_id": "storage.variable.set"
+            }
+          },
+          {
+            "node": "return",
+            "span": {
+              "col": 4,
+              "end_col": 19,
+              "end_line": 24,
+              "line": 24
+            },
+            "value": {
+              "host_binding_id": null,
+              "id": "snapshot",
+              "node": "name",
+              "span": {
+                "col": 11,
+                "end_col": 19,
+                "end_line": 24,
+                "line": 24
+              }
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 5,
+            "line": 5
+          }
+        },
+        "docstring": null,
+        "name": "probe",
+        "node": "function",
+        "parameters": [],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 19,
+          "end_line": 24,
+          "line": 6
+        },
+        "visibility": "export"
+      }
+    ],
+    "global_declarations": [
+      {
+        "name": "FIELD_MODULUS",
+        "node": "binding_decl",
+        "span": {
+          "col": 0,
+          "end_col": 93,
+          "end_line": 1,
+          "line": 1
+        },
+        "value": {
+          "node": "constant",
+          "span": {
+            "col": 16,
+            "end_col": 93,
+            "end_line": 1,
+            "line": 1
+          },
+          "value": "21888242871839275222246405745257275088548364400416034343698204186575808495617",
+          "value_type": "int"
+        }
+      },
+      {
+        "name": "FIELD_ZERO_HEX",
+        "node": "binding_decl",
+        "span": {
+          "col": 0,
+          "end_col": 33,
+          "end_line": 2,
+          "line": 2
+        },
+        "value": {
+          "left": {
+            "node": "constant",
+            "span": {
+              "col": 17,
+              "end_col": 21,
+              "end_line": 2,
+              "line": 2
+            },
+            "value": "0x",
+            "value_type": "str"
+          },
+          "node": "bin_op",
+          "operator": "add",
+          "right": {
+            "left": {
+              "node": "constant",
+              "span": {
+                "col": 24,
+                "end_col": 28,
+                "end_line": 2,
+                "line": 2
+              },
+              "value": "00",
+              "value_type": "str"
+            },
+            "node": "bin_op",
+            "operator": "mul",
+            "right": {
+              "node": "constant",
+              "span": {
+                "col": 31,
+                "end_col": 33,
+                "end_line": 2,
+                "line": 2
+              },
+              "value": 32,
+              "value_type": "int"
+            },
+            "span": {
+              "col": 24,
+              "end_col": 33,
+              "end_line": 2,
+              "line": 2
+            }
+          },
+          "span": {
+            "col": 17,
+            "end_col": 33,
+            "end_line": 2,
+            "line": 2
+          }
+        }
+      },
+      {
+        "args": [],
+        "keywords": [],
+        "name": "last_snapshot",
+        "node": "storage_decl",
+        "span": {
+          "col": 0,
+          "end_col": 26,
+          "end_line": 3,
+          "line": 3
+        },
+        "storage_type": "Variable",
+        "syscall_id": "storage.variable.new"
+      }
+    ],
+    "host_catalog_version": "xian_vm_v1_host_v1",
+    "host_dependencies": [
+      {
+        "binding": "hashlib.sha3",
+        "category": "hashing",
+        "id": "hash.sha3_256",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Variable",
+        "category": "storage",
+        "id": "storage.variable.new",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Variable.set",
+        "category": "storage",
+        "id": "storage.variable.set",
+        "kind": "syscall"
+      }
+    ],
+    "imports": [],
+    "ir_version": "xian_ir_v1",
+    "module_body": [],
+    "module_name": "con_vm_parity_bigint_shielded",
+    "source_hash": "b04e6d2d29d9366fdda0351946131ea34d717a683190de4e96e5873a6710ed50",
+    "vm_profile": "xian_vm_v1"
+  },
+  "module_name": "con_vm_parity_bigint_shielded",
+  "name": "bigint_shielded_primitives",
+  "source": "FIELD_MODULUS = 21888242871839275222246405745257275088548364400416034343698204186575808495617\nFIELD_ZERO_HEX = \"0x\" + \"00\" * 32\nlast_snapshot = Variable()\n\n@export\ndef probe():\n    digest = int(hashlib.sha3(\"xian-vm-bigint\"), 16) % FIELD_MODULUS\n    reduced = pow(digest + 7, 7, FIELD_MODULUS)\n    rendered_parts = []\n    rendered_parts.extend([\"0x\", format(reduced, \"064x\")])\n    rendered = \"\".join(rendered_parts)\n    prefix_ok = rendered.startswith(\"0x\")\n    padded = [FIELD_ZERO_HEX]\n    padded.extend([FIELD_ZERO_HEX] * 2)\n    snapshot = {\n        \"field_modulus\": FIELD_MODULUS,\n        \"digest\": digest,\n        \"reduced\": reduced,\n        \"rendered\": rendered,\n        \"prefix_ok\": prefix_ok,\n        \"padded_len\": len(padded),\n    }\n    last_snapshot.set(snapshot)\n    return snapshot"
+}

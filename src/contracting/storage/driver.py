@@ -21,6 +21,7 @@ HASH_DELIMITER = constants.DELIMITER
 
 SOURCE_KEY = "__source__"
 CODE_KEY = "__code__"
+XIAN_VM_V1_IR_KEY = "__xian_ir_v1__"
 TYPE_KEY = "__type__"
 AUTHOR_KEY = "__author__"
 OWNER_KEY = "__owner__"
@@ -172,6 +173,11 @@ class Driver:
     def get_contract_source(self, name):
         return self.get_var(name, SOURCE_KEY)
 
+    def get_contract_ir(self, name, *, vm_profile: str = "xian_vm_v1"):
+        if vm_profile != "xian_vm_v1":
+            raise ValueError(f"unsupported vm_profile {vm_profile!r}")
+        return self.get_var(name, XIAN_VM_V1_IR_KEY)
+
     def get_contract_developer(self, name):
         return self.get_var(name, DEVELOPER_KEY)
 
@@ -199,10 +205,18 @@ class Driver:
         compiler = ContractingCompiler(module_name=name)
         normalized_source = compiler.normalize_source(source, lint=lint)
         runtime_code = compiler.parse_to_code(source, lint=lint)
+        vm_ir_json = compiler.lower_to_ir_json(
+            normalized_source,
+            lint=False,
+            vm_profile="xian_vm_v1",
+            indent=None,
+            sort_keys=True,
+        )
         self.set_contract(
             name=name,
             code=runtime_code,
             source=normalized_source,
+            vm_ir_json=vm_ir_json,
             owner=owner,
             overwrite=overwrite,
             timestamp=timestamp,
@@ -216,6 +230,7 @@ class Driver:
         name,
         code,
         source=None,
+        vm_ir_json=None,
         owner=None,
         overwrite=False,
         timestamp=None,
@@ -236,6 +251,8 @@ class Driver:
         if source is not None:
             self.set_var(name, SOURCE_KEY, value=source)
         self.set_var(name, CODE_KEY, value=code)
+        if vm_ir_json is not None:
+            self.set_var(name, XIAN_VM_V1_IR_KEY, value=vm_ir_json)
         self.set_var(name, OWNER_KEY, value=owner)
         self.set_var(name, TIME_KEY, value=timestamp)
         self.set_var(name, DEVELOPER_KEY, value=developer)

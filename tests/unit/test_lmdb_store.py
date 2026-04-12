@@ -134,6 +134,7 @@ class TestDriverWithLMDB(TestCase):
         self.assertIn("@export", stored_source)
         self.assertIn("def transfer(amount: float, to: str):", stored_source)
         self.assertIn("@__export('con_test')", self.driver.get_contract("con_test"))
+        self.assertIsNotNone(self.driver.get_contract_ir("con_test"))
 
     def test_delete_contract(self):
         self.driver.set_contract("con_test", "x = 1")
