@@ -548,6 +548,19 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
             }
             Ok(())
         }
+        "dict_comp" => {
+            validate_expression(expect_value_field(object, "key")?)?;
+            validate_expression(expect_value_field(object, "value")?)?;
+            for generator in expect_array_field(object, "generators")? {
+                let generator_obj = expect_object(generator, "dict comprehension generator")?;
+                validate_target(expect_value_field(generator_obj, "target")?)?;
+                validate_expression(expect_value_field(generator_obj, "iter")?)?;
+                for condition in expect_array_field(generator_obj, "ifs")? {
+                    validate_expression(condition)?;
+                }
+            }
+            Ok(())
+        }
         "dict" => {
             for entry in expect_array_field(object, "entries")? {
                 let entry_obj = expect_object(entry, "dict entry")?;

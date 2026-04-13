@@ -105,6 +105,7 @@ XIAN_IR_V1_EXPRESSION_NODES = frozenset(
         "constant",
         "list",
         "list_comp",
+        "dict_comp",
         "tuple",
         "dict",
         "attribute",
@@ -898,28 +899,19 @@ class XianIrLowerer:
                 elements=[self._lower_expression(element) for element in node.elts],
             )
         if isinstance(node, ast.ListComp):
-            generators = []
-            for generator in node.generators:
-                if generator.is_async:
-                    self._raise_unsupported(
-                        node,
-                        "async comprehensions are not supported in Xian IR",
-                    )
-                generators.append(
-                    {
-                        "target": self._lower_target(generator.target),
-                        "iter": self._lower_expression(generator.iter),
-                        "ifs": [
-                            self._lower_expression(condition)
-                            for condition in generator.ifs
-                        ],
-                    }
-                )
             return self._node(
                 "list_comp",
                 node,
                 element=self._lower_expression(node.elt),
-                generators=generators,
+                generators=self._lower_comprehension_generators(node.generators),
+            )
+        if isinstance(node, ast.DictComp):
+            return self._node(
+                "dict_comp",
+                node,
+                key=self._lower_expression(node.key),
+                value=self._lower_expression(node.value),
+                generators=self._lower_comprehension_generators(node.generators),
             )
         if isinstance(node, ast.Tuple):
             return self._node(
@@ -1120,6 +1112,28 @@ class XianIrLowerer:
             node,
             f"unsupported expression node '{type(node).__name__}' in Xian IR",
         )
+
+    def _lower_comprehension_generators(
+        self, generators: list[ast.comprehension]
+    ) -> list[dict[str, Any]]:
+        lowered = []
+        for generator in generators:
+            if generator.is_async:
+                self._raise_unsupported(
+                    generator,
+                    "async comprehensions are not supported in Xian IR",
+                )
+            lowered.append(
+                {
+                    "target": self._lower_target(generator.target),
+                    "iter": self._lower_expression(generator.iter),
+                    "ifs": [
+                        self._lower_expression(condition)
+                        for condition in generator.ifs
+                    ],
+                }
+            )
+        return lowered
 
     def _lower_subscript_slice(self, node: ast.AST) -> dict[str, Any]:
         if isinstance(node, ast.Slice):

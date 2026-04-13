@@ -6,6 +6,7 @@ from contracting.compilation.ir import (
     XIAN_IR_V1,
     XIAN_VM_HOST_CATALOG_V1,
 )
+from contracting.compilation.linter import LintingError
 from contracting.compilation.vm import XIAN_VM_V1_PROFILE, VmCompatibilityError
 
 
@@ -113,7 +114,7 @@ def unsupported(values: list[int]):
 """
         compiler = ContractingCompiler(module_name="bad")
 
-        with self.assertRaises(VmCompatibilityError):
+        with self.assertRaises((LintingError, VmCompatibilityError)):
             compiler.lower_to_ir(source)
 
     def test_lower_to_ir_records_decimal_runtime_usage(self):
@@ -198,6 +199,28 @@ def positives(values: list[int]) -> list[int]:
         returned = positives["body"][0]["value"]
 
         self.assertEqual(returned["node"], "list_comp")
+        self.assertEqual(len(returned["generators"]), 1)
+        self.assertEqual(returned["generators"][0]["target"]["node"], "name")
+        self.assertEqual(returned["generators"][0]["iter"]["node"], "name")
+        self.assertEqual(returned["generators"][0]["ifs"][0]["node"], "compare")
+
+    def test_lower_to_ir_supports_dict_comprehensions(self):
+        source = """
+@export
+def prices(values: list[int]):
+    return {str(value): value * 2 for value in values if value > 0}
+"""
+        compiler = ContractingCompiler(module_name="dict_comprehensions")
+
+        ir = compiler.lower_to_ir(source)
+        prices = next(
+            function for function in ir["functions"] if function["name"] == "prices"
+        )
+        returned = prices["body"][0]["value"]
+
+        self.assertEqual(returned["node"], "dict_comp")
+        self.assertEqual(returned["key"]["node"], "call")
+        self.assertEqual(returned["value"]["node"], "bin_op")
         self.assertEqual(len(returned["generators"]), 1)
         self.assertEqual(returned["generators"][0]["target"]["node"], "name")
         self.assertEqual(returned["generators"][0]["iter"]["node"], "name")

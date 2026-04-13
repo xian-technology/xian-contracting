@@ -27,26 +27,10 @@ _TRACKED_CALL_FEATURES = {
     "sum",
     "zip",
 }
-_DISALLOWED_CALLS = {
-    "frozenset",
-    "set",
-}
-_COMPREHENSION_NAMES = {
-    ast.DictComp: "dict comprehension",
-    ast.GeneratorExp: "generator expression",
-    ast.ListComp: "list comprehension",
-    ast.SetComp: "set comprehension",
-}
+_DISALLOWED_CALLS: set[str] = set()
 XIAN_VM_V1_TRACKED_CALL_FEATURES = frozenset(_TRACKED_CALL_FEATURES)
 XIAN_VM_V1_DISALLOWED_CALLS = frozenset(_DISALLOWED_CALLS)
-XIAN_VM_V1_RESTRICTED_SYNTAX = frozenset(
-    {
-        "dict comprehension",
-        "generator expression",
-        "set comprehension",
-        "set literal",
-    }
-)
+XIAN_VM_V1_RESTRICTED_SYNTAX = frozenset()
 
 
 def _build_error(
@@ -158,17 +142,14 @@ class _VmCompatibilityVisitor(ast.NodeVisitor):
 
     def visit_DictComp(self, node: ast.DictComp) -> None:
         self.feature_counts["dict_comprehensions"] += 1
-        self.add_syntax_error(node, construct="dict comprehension")
         self.generic_visit(node)
 
     def visit_SetComp(self, node: ast.SetComp) -> None:
         self.feature_counts["set_comprehensions"] += 1
-        self.add_syntax_error(node, construct="set comprehension")
         self.generic_visit(node)
 
     def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
         self.feature_counts["generator_expressions"] += 1
-        self.add_syntax_error(node, construct="generator expression")
         self.generic_visit(node)
 
     def visit_List(self, node: ast.List) -> None:
@@ -181,7 +162,6 @@ class _VmCompatibilityVisitor(ast.NodeVisitor):
 
     def visit_Set(self, node: ast.Set) -> None:
         self.feature_counts["set_literals"] += 1
-        self.add_syntax_error(node, construct="set literal")
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> None:

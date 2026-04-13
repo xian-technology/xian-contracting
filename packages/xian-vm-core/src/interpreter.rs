@@ -39,6 +39,7 @@ const VM_GAS_EXPR_NAME: u64 = 64;
 const VM_GAS_EXPR_CONSTANT: u64 = 32;
 const VM_GAS_EXPR_LIST: u64 = 128;
 const VM_GAS_EXPR_LIST_COMP: u64 = 224;
+const VM_GAS_EXPR_DICT_COMP: u64 = 288;
 const VM_GAS_EXPR_TUPLE: u64 = 128;
 const VM_GAS_EXPR_DICT: u64 = 608;
 const VM_GAS_EXPR_ATTRIBUTE: u64 = 96;
@@ -96,6 +97,7 @@ fn vm_expression_gas_cost(
         "constant" => VM_GAS_EXPR_CONSTANT,
         "list" => VM_GAS_EXPR_LIST,
         "list_comp" => VM_GAS_EXPR_LIST_COMP,
+        "dict_comp" => VM_GAS_EXPR_DICT_COMP,
         "tuple" => VM_GAS_EXPR_TUPLE,
         "dict" => VM_GAS_EXPR_DICT,
         "attribute" => VM_GAS_EXPR_ATTRIBUTE,
@@ -1280,6 +1282,7 @@ impl VmInstance {
                 Ok(VmValue::List(values))
             }
             "list_comp" => self.eval_list_comprehension(object, scope, host),
+            "dict_comp" => self.eval_dict_comprehension(object, scope, host),
             "tuple" => {
                 let mut values = Vec::new();
                 for element in required_array(object, "elements")? {
@@ -1429,6 +1432,83 @@ impl VmInstance {
                     generators,
                     index + 1,
                     element,
+                    scope,
+                    host,
+                    results,
+                )?;
+            }
+        }
+
+        restore_target_bindings(scope, previous_bindings);
+        Ok(())
+    }
+
+    fn eval_dict_comprehension(
+        &mut self,
+        object: &Map<String, Value>,
+        scope: &mut HashMap<String, VmValue>,
+        host: &mut dyn VmHost,
+    ) -> Result<VmValue, VmExecutionError> {
+        let key = required_value(object, "key")?;
+        let value = required_value(object, "value")?;
+        let generators = required_array(object, "generators")?;
+        let mut results = Vec::new();
+        self.eval_dict_comprehension_generator(
+            generators,
+            0,
+            key,
+            value,
+            scope,
+            host,
+            &mut results,
+        )?;
+        Ok(VmValue::Dict(results))
+    }
+
+    fn eval_dict_comprehension_generator(
+        &mut self,
+        generators: &[Value],
+        index: usize,
+        key: &Value,
+        value: &Value,
+        scope: &mut HashMap<String, VmValue>,
+        host: &mut dyn VmHost,
+        results: &mut Vec<(VmValue, VmValue)>,
+    ) -> Result<(), VmExecutionError> {
+        let generator = as_object(
+            generators
+                .get(index)
+                .ok_or_else(|| VmExecutionError::new("missing dict comprehension generator"))?,
+            "dict comprehension generator",
+        )?;
+        let target = required_value(generator, "target")?;
+        let iter_value = self.eval_expression(required_value(generator, "iter")?, scope, host)?;
+        let items = iterate_value(&iter_value)?;
+        let previous_bindings = capture_target_bindings(target, scope)?;
+
+        for item in items {
+            host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
+            self.assign_target(target, item, scope, false)?;
+            let mut allowed = true;
+            for condition in required_array(generator, "ifs")? {
+                if !self.eval_expression(condition, scope, host)?.truthy() {
+                    allowed = false;
+                    break;
+                }
+            }
+            if !allowed {
+                continue;
+            }
+            if index + 1 == generators.len() {
+                let dict_key = self.eval_expression(key, scope, host)?;
+                let dict_value = self.eval_expression(value, scope, host)?;
+                dict_set(results, dict_key, dict_value);
+            } else {
+                self.eval_dict_comprehension_generator(
+                    generators,
+                    index + 1,
+                    key,
+                    value,
                     scope,
                     host,
                     results,
@@ -3708,6 +3788,156 @@ mod tests {
             .expect("call should execute");
 
         assert_eq!(result, VmValue::List(vec![vm_int(3), vm_int(5)]));
+    }
+
+    #[test]
+    fn evaluates_dict_comprehensions() {
+        let span = json!({"line": 1, "col": 0, "end_line": 1, "end_col": 1});
+        let module = parse_module_ir(
+            &json!({
+                "ir_version": XIAN_IR_V1,
+                "vm_profile": XIAN_VM_V1_PROFILE,
+                "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
+                "module_name": "dict_comp_probe",
+                "source_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "docstring": null,
+                "imports": [],
+                "global_declarations": [],
+                "functions": [
+                    {
+                        "node": "function",
+                        "span": span.clone(),
+                        "name": "prices",
+                        "visibility": "export",
+                        "decorator": null,
+                        "docstring": null,
+                        "parameters": [
+                            {
+                                "name": "values",
+                                "kind": "positional_or_keyword",
+                                "annotation": "list[int]",
+                                "default": null,
+                                "span": span.clone()
+                            }
+                        ],
+                        "returns": null,
+                        "body": [
+                            {
+                                "node": "return",
+                                "span": span.clone(),
+                                "value": {
+                                    "node": "dict_comp",
+                                    "span": span.clone(),
+                                    "key": {
+                                        "node": "call",
+                                        "span": span.clone(),
+                                        "func": {
+                                            "node": "name",
+                                            "span": span.clone(),
+                                            "id": "str",
+                                            "host_binding_id": null
+                                        },
+                                        "args": [
+                                            {
+                                                "node": "name",
+                                                "span": span.clone(),
+                                                "id": "value",
+                                                "host_binding_id": null
+                                            }
+                                        ],
+                                        "keywords": []
+                                    },
+                                    "value": {
+                                        "node": "bin_op",
+                                        "span": span.clone(),
+                                        "operator": "mul",
+                                        "left": {
+                                            "node": "name",
+                                            "span": span.clone(),
+                                            "id": "value",
+                                            "host_binding_id": null
+                                        },
+                                        "right": {
+                                            "node": "constant",
+                                            "span": span.clone(),
+                                            "value_type": "int",
+                                            "value": 2
+                                        }
+                                    },
+                                    "generators": [
+                                        {
+                                            "target": {
+                                                "node": "name",
+                                                "span": span.clone(),
+                                                "id": "value",
+                                                "host_binding_id": null
+                                            },
+                                            "iter": {
+                                                "node": "name",
+                                                "span": span.clone(),
+                                                "id": "values",
+                                                "host_binding_id": null
+                                            },
+                                            "ifs": [
+                                                {
+                                                    "node": "compare",
+                                                    "span": span.clone(),
+                                                    "left": {
+                                                        "node": "name",
+                                                        "span": span.clone(),
+                                                        "id": "value",
+                                                        "host_binding_id": null
+                                                    },
+                                                    "operators": ["gt"],
+                                                    "comparators": [
+                                                        {
+                                                            "node": "constant",
+                                                            "span": span.clone(),
+                                                            "value_type": "int",
+                                                            "value": 0
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "module_body": [],
+                "host_dependencies": []
+            })
+            .to_string(),
+        )
+        .expect("module should parse");
+
+        let mut instance = VmInstance::new(module, VmExecutionContext::default())
+            .expect("instance should initialize");
+        let mut host = RecordingHost::default();
+
+        let result = instance
+            .call_function(
+                &mut host,
+                "prices",
+                vec![VmValue::List(vec![vm_int(-2), vm_int(0), vm_int(3), vm_int(5)])],
+                vec![],
+            )
+            .expect("call should execute");
+
+        let VmValue::Dict(entries) = result else {
+            panic!("expected dict result");
+        };
+        assert_eq!(
+            dict_get(&entries, &VmValue::String("3".to_owned())),
+            Some(vm_int(6))
+        );
+        assert_eq!(
+            dict_get(&entries, &VmValue::String("5".to_owned())),
+            Some(vm_int(10))
+        );
+        assert_eq!(entries.len(), 2);
     }
 
     #[test]

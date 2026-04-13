@@ -29,7 +29,14 @@ def test_manifest_tracks_public_contract_surface_only():
     assert "Exception" in CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
         "allowed_builtins"
     ]
+    assert "set" not in CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
+        "allowed_builtins"
+    ]
+    assert "frozenset" not in CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
+        "allowed_builtins"
+    ]
     assert "raise" in vm_surface["supported_ir"]["statement_nodes"]
+    assert "dict_comp" in vm_surface["supported_ir"]["expression_nodes"]
     assert "bitand" in vm_surface["supported_ir"]["binary_operators"]
     assert "invert" in vm_surface["supported_ir"]["unary_operators"]
 
@@ -43,10 +50,5 @@ def test_conformance_case_ids_are_unique():
 def test_current_vm_parity_gaps_surface_remaining_backlog():
     gaps = current_vm_parity_gaps()
 
-    assert gaps["builtins"] == ["frozenset", "set"]
-    assert gaps["syntax"] == [
-        "dict comprehension",
-        "generator expression",
-        "set comprehension",
-        "set literal",
-    ]
+    assert gaps["builtins"] == []
+    assert gaps["syntax"] == []

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from types import ModuleType
 from typing import Any
 
@@ -22,6 +23,7 @@ from contracting.compilation.whitelists import (
     ALLOWED_ANNOTATION_TYPES,
     ALLOWED_BUILTINS,
     ILLEGAL_AST_TYPES,
+    ILLEGAL_BUILTINS,
 )
 from contracting.stdlib import env as stdlib_env
 
@@ -82,13 +84,23 @@ CONTRACT_LANGUAGE_MANIFEST = build_contract_language_manifest()
 
 
 def current_vm_parity_gaps() -> dict[str, list[str]]:
+    syntax_nodes_by_name = {
+        "dict comprehension": ast.DictComp,
+        "generator expression": ast.GeneratorExp,
+        "set comprehension": ast.SetComp,
+        "set literal": ast.Set,
+    }
     return {
         "builtins": sorted(
             builtin
             for builtin in XIAN_VM_V1_DISALLOWED_CALLS
-            if builtin in ALLOWED_BUILTINS
+            if builtin in ALLOWED_BUILTINS and builtin not in ILLEGAL_BUILTINS
         ),
-        "syntax": sorted(XIAN_VM_V1_RESTRICTED_SYNTAX),
+        "syntax": sorted(
+            syntax
+            for syntax in XIAN_VM_V1_RESTRICTED_SYNTAX
+            if syntax_nodes_by_name[syntax] not in ILLEGAL_AST_TYPES
+        ),
     }
 
 CONTRACT_LANGUAGE_CONFORMANCE_CASES: tuple[dict[str, Any], ...] = (
@@ -160,5 +172,16 @@ def render():
 """,
         "function_name": "render",
         "kwargs": {},
+    },
+    {
+        "id": "dict_comprehension",
+        "description": "Dict comprehensions behave like the Python VM.",
+        "source": """
+@export
+def render(values: list[int]):
+    return {str(value): value * 2 for value in values if value > 0}
+""",
+        "function_name": "render",
+        "kwargs": {"values": [-1, 0, 2, 5]},
     },
 )
