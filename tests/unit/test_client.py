@@ -135,7 +135,7 @@ def ping():
         self.assertEqual(artifacts["module_name"], "con_bundle_probe")
         self.assertEqual(artifacts["vm_profile"], "xian_vm_v1")
         self.assertIn("source", artifacts)
-        self.assertIn("runtime_code", artifacts)
+        self.assertNotIn("runtime_code", artifacts)
         self.assertIn("vm_ir_json", artifacts)
         self.assertIn("hashes", artifacts)
 

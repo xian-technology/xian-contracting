@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from contracting import constants
-from contracting.compilation.artifacts import build_contract_artifacts
 from contracting.execution.runtime import WRITE_MAX, rt
 from contracting.names import assert_safe_contract_name
 from contracting.stdlib.bridge import zk as zk_bridge
@@ -223,10 +222,14 @@ class NativeVmHost:
         return module_ir
 
     def _contract_exists(self, contract: str) -> bool:
-        pending_code = self._contract_var(contract, CODE_KEY)
-        if pending_code is not None:
-            return True
-        return self.driver.get_contract(contract) is not None
+        for artifact_key in (XIAN_VM_V1_IR_KEY, SOURCE_KEY, CODE_KEY):
+            pending_artifact = self._contract_var(contract, artifact_key)
+            if pending_artifact is not None:
+                return True
+        has_contract = getattr(self.driver, "has_contract", None)
+        if callable(has_contract):
+            return bool(has_contract(contract))
+        return False
 
     def _contract_has_export(self, contract: str, export_name: str) -> bool:
         module_ir = self.load_module_ir(contract)
@@ -331,17 +334,11 @@ class NativeVmHost:
             vm_profile=self.vm_profile,
         )
         source = artifacts["source"]
-        runtime_code = artifacts["runtime_code"]
         vm_ir_json = artifacts["vm_ir_json"]
-        if runtime_code is None or vm_ir_json is None:
-            derived = build_contract_artifacts(
-                module_name=name,
-                source=source,
-                lint=False,
-                vm_profile=self.vm_profile,
+        if vm_ir_json is None:
+            raise VmRuntimeExecutionError(
+                "native contract deployment requires persisted vm_ir_json"
             )
-            runtime_code = derived["runtime_code"]
-            vm_ir_json = derived["vm_ir_json"]
 
         raw_source_bytes = len(source.encode("utf-8"))
         if raw_source_bytes > constants.MAX_CONTRACT_SUBMISSION_BYTES:
@@ -425,7 +422,6 @@ class NativeVmHost:
 
         metadata_writes = {
             self._make_key(name, SOURCE_KEY): source,
-            self._make_key(name, CODE_KEY): runtime_code,
             self._make_key(name, XIAN_VM_V1_IR_KEY): vm_ir_json,
             self._make_key(name, OWNER_KEY): owner,
             self._make_key(name, TIME_KEY): submitted_at,
@@ -507,8 +503,12 @@ class NativeVmHost:
             if kind is None and len(args) > 1:
                 kind = args[1]
             kind = kind or "runtime"
-            code_key = CODE_KEY if kind == "runtime" else SOURCE_KEY
-            contract_text = self._contract_var(args[0], code_key)
+            if kind == "runtime":
+                contract_text = self._contract_var(args[0], XIAN_VM_V1_IR_KEY)
+                if contract_text is None:
+                    contract_text = self._contract_var(args[0], CODE_KEY)
+            else:
+                contract_text = self._contract_var(args[0], SOURCE_KEY)
             if contract_text is None:
                 return None
             return hashlib.sha3_256(contract_text.encode("utf-8")).hexdigest()

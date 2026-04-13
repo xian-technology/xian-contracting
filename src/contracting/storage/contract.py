@@ -42,7 +42,7 @@ class Contract:
         with rt.execution_lock:
             assert_safe_contract_name(name)
 
-            if driver.get_contract(name) is not None:
+            if driver.has_contract(name):
                 raise Exception("Contract already exists.")
 
             if code is None and deployment_artifacts is None:
@@ -57,6 +57,11 @@ class Contract:
             ):
                 raise TypeError(
                     "xian_vm_v1 requires deployment_artifacts for contract deployment."
+                )
+            if rt.env.get(XIAN_EXECUTION_MODE_ENV_KEY) == "xian_vm_v1":
+                raise TypeError(
+                    "xian_vm_v1 contract deployment must execute through the "
+                    "native VM host, not the Python runtime path."
                 )
 
             if deployment_artifacts is not None:
@@ -74,18 +79,15 @@ class Contract:
                     vm_profile="xian_vm_v1",
                 )
 
-            if (
-                artifacts["runtime_code"] is None
-                or artifacts["vm_ir_json"] is None
-            ):
+            if artifacts["runtime_code"] is None:
                 derived = build_contract_artifacts(
                     module_name=name,
                     source=artifacts["source"],
                     lint=False,
                     vm_profile="xian_vm_v1",
+                    include_runtime_code=True,
                 )
                 artifacts["runtime_code"] = derived["runtime_code"]
-                artifacts["vm_ir_json"] = derived["vm_ir_json"]
 
             source_obj = artifacts["source"]
             code_obj = artifacts["runtime_code"]

@@ -21,7 +21,7 @@ def test_validate_contract_artifacts_accepts_canonical_bundle() -> None:
     )
 
     assert validated["source"] == artifacts["source"]
-    assert validated["runtime_code"] == artifacts["runtime_code"]
+    assert validated["runtime_code"] is None
     assert validated["vm_ir_json"] == artifacts["vm_ir_json"]
 
 
@@ -42,7 +42,7 @@ def test_validate_contract_artifacts_accepts_compact_bundle() -> None:
 
     assert validated["source"] == artifacts["source"]
     assert validated["runtime_code"] is None
-    assert validated["vm_ir_json"] is None
+    assert validated["vm_ir_json"] == artifacts["vm_ir_json"]
 
 
 def test_validate_contract_artifacts_rejects_mixed_source_and_runtime() -> None:
@@ -68,7 +68,7 @@ def test_validate_contract_artifacts_rejects_mixed_source_and_runtime() -> None:
 
     with pytest.raises(
         ValueError,
-        match="runtime_code does not match canonical compiler output",
+        match="vm_ir_json does not match canonical compiler output",
     ):
         validate_contract_artifacts(
             module_name="con_probe",

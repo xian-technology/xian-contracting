@@ -66,6 +66,9 @@ Metering is no longer only a placeholder:
   requires that artifact for `xian_vm_v1` execution; stored `__source__`
   remains available for dashboards, BDS, and other inspection tooling, but it
   is no longer an execution fallback
+- the VM-native artifact path treats `vm_ir_json` as the executable artifact;
+  `runtime_code` is now an optional legacy/tooling field and is not written
+  into native deployment state
 - deployment artifacts are now validated against canonical compiler output,
   not only against self-declared hashes, so forged source/runtime/IR bundles
   are rejected before they reach native deployment

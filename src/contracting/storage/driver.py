@@ -212,6 +212,15 @@ class Driver:
     def get_contract(self, name):
         return self.get_var(name, CODE_KEY)
 
+    def has_contract(self, name):
+        artifact_keys = (XIAN_VM_V1_IR_KEY, SOURCE_KEY, CODE_KEY)
+        for variable in artifact_keys:
+            key = self.make_key(name, variable)
+            value = self.find(key)
+            if value is not None:
+                return True
+        return False
+
     def set_contract_from_source(
         self,
         name,
@@ -223,10 +232,13 @@ class Driver:
         deployer=None,
         initiator=None,
         lint=True,
+        store_runtime_code=False,
     ):
         compiler = ContractingCompiler(module_name=name)
         normalized_source = compiler.normalize_source(source, lint=lint)
-        runtime_code = compiler.parse_to_code(source, lint=lint)
+        runtime_code = None
+        if store_runtime_code:
+            runtime_code = compiler.parse_to_code(source, lint=lint)
         vm_ir_json = compiler.lower_to_ir_json(
             normalized_source,
             lint=False,
@@ -250,7 +262,7 @@ class Driver:
     def set_contract(
         self,
         name,
-        code,
+        code=None,
         source=None,
         vm_ir_json=None,
         owner=None,
@@ -262,13 +274,19 @@ class Driver:
     ):
         assert_safe_contract_name(name)
 
-        if self.get_contract(name) is not None and not overwrite:
+        if self.has_contract(name) and not overwrite:
             return
 
         if timestamp is None:
             timestamp = Datetime._from_datetime(datetime.now())
 
-        compile(code, name, "exec")
+        if code is None and source is None and vm_ir_json is None:
+            raise TypeError(
+                "set_contract requires at least one contract artifact."
+            )
+
+        if code is not None:
+            compile(code, name, "exec")
 
         if source is not None:
             self.set_var(
@@ -277,7 +295,8 @@ class Driver:
                 value=source,
                 enforce_write_cap=False,
             )
-        self.set_var(name, CODE_KEY, value=code, enforce_write_cap=False)
+        if code is not None:
+            self.set_var(name, CODE_KEY, value=code, enforce_write_cap=False)
         if vm_ir_json is not None:
             self.set_var(
                 name,
@@ -454,4 +473,7 @@ class Driver:
         return self.storage_path
 
     def is_file(self, filename):
-        return self._store.exists(f"{filename}{INDEX_SEPARATOR}{CODE_KEY}")
+        return any(
+            self._store.exists(f"{filename}{INDEX_SEPARATOR}{artifact_key}")
+            for artifact_key in (XIAN_VM_V1_IR_KEY, SOURCE_KEY, CODE_KEY)
+        )

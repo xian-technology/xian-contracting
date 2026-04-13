@@ -456,11 +456,15 @@ class ContractingClient:
         )
 
     def get_contracts(self):
-        contracts = []
+        contracts = set()
         for key in self.raw_driver.keys():
-            if key.endswith(".__code__"):
-                contracts.append(key.replace(".__code__", ""))
-        return contracts
+            if key.endswith(".__source__"):
+                contracts.add(key.replace(".__source__", ""))
+            elif key.endswith(".__xian_ir_v1__"):
+                contracts.add(key.replace(".__xian_ir_v1__", ""))
+            elif key.endswith(".__code__"):
+                contracts.add(key.replace(".__code__", ""))
+        return sorted(contracts)
 
     def get_var(self, contract, variable, arguments=[], mark=False):
         return self.raw_driver.get_var(contract, variable, arguments, mark)

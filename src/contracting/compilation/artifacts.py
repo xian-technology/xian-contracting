@@ -67,6 +67,7 @@ def build_contract_artifacts(
     lint: bool = True,
     vm_profile: str = XIAN_VM_V1_PROFILE,
     compact: bool = False,
+    include_runtime_code: bool = False,
 ) -> dict[str, object]:
     compiler = ContractingCompiler(module_name=module_name)
     normalized_source = compiler.normalize_source(
@@ -84,17 +85,23 @@ def build_contract_artifacts(
             "source_sha256": _sha256_text(normalized_source),
         },
     }
-    if compact:
-        return artifacts
-    runtime_code, vm_ir_json = _compile_canonical_outputs(
+    _, vm_ir_json = _compile_canonical_outputs(
         module_name=module_name,
         source=normalized_source,
         vm_profile=vm_profile,
     )
-    artifacts["runtime_code"] = runtime_code
     artifacts["vm_ir_json"] = vm_ir_json
-    artifacts["hashes"]["runtime_code_sha256"] = _sha256_text(runtime_code)
     artifacts["hashes"]["vm_ir_sha256"] = _sha256_text(vm_ir_json)
+    if compact:
+        return artifacts
+    if include_runtime_code:
+        runtime_code, _ = _compile_canonical_outputs(
+            module_name=module_name,
+            source=normalized_source,
+            vm_profile=vm_profile,
+        )
+        artifacts["runtime_code"] = runtime_code
+        artifacts["hashes"]["runtime_code_sha256"] = _sha256_text(runtime_code)
     return artifacts
 
 
@@ -148,18 +155,17 @@ def validate_contract_artifacts(
 
     has_runtime_code = isinstance(runtime_code, str) and runtime_code != ""
     has_vm_ir_json = isinstance(vm_ir_json, str) and vm_ir_json != ""
-    if has_runtime_code != has_vm_ir_json:
+    if not has_vm_ir_json:
         raise ValueError(
-            "deployment_artifacts must include both 'runtime_code' and "
-            "'vm_ir_json', or neither."
+            "deployment_artifacts must include a non-empty 'vm_ir_json' string."
         )
 
     required_hashes = {
         "source_sha256": _sha256_text(source),
+        "vm_ir_sha256": _sha256_text(vm_ir_json),
     }
-    if has_runtime_code and has_vm_ir_json:
+    if has_runtime_code:
         required_hashes["runtime_code_sha256"] = _sha256_text(runtime_code)
-        required_hashes["vm_ir_sha256"] = _sha256_text(vm_ir_json)
     if input_source is not None:
         required_hashes["input_source_sha256"] = _sha256_text(input_source)
 
@@ -181,24 +187,18 @@ def validate_contract_artifacts(
             "deployment_artifacts source does not match canonical normalized source."
         )
 
-    if has_runtime_code and has_vm_ir_json:
-        canonical_runtime_code, canonical_vm_ir_json = _compile_canonical_outputs(
-            module_name=module_name,
-            source=source,
-            vm_profile=vm_profile,
+    _, canonical_vm_ir_json = _compile_canonical_outputs(
+        module_name=module_name,
+        source=source,
+        vm_profile=vm_profile,
+    )
+    if canonical_vm_ir_json != vm_ir_json:
+        raise ValueError(
+            "deployment_artifacts vm_ir_json does not match canonical compiler output."
         )
-        if canonical_runtime_code != runtime_code:
-            raise ValueError(
-                "deployment_artifacts runtime_code does not match canonical compiler output."
-            )
-
-        if canonical_vm_ir_json != vm_ir_json:
-            raise ValueError(
-                "deployment_artifacts vm_ir_json does not match canonical compiler output."
-            )
 
     return {
         "source": source,
         "runtime_code": runtime_code if has_runtime_code else None,
-        "vm_ir_json": vm_ir_json if has_vm_ir_json else None,
+        "vm_ir_json": vm_ir_json,
     }

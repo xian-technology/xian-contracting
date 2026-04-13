@@ -67,7 +67,7 @@ pub fn validate_contract_artifacts_json(
 
     let source = required_non_empty_string_field(object, "source")?;
     let runtime_code = optional_non_empty_string_field(object, "runtime_code")?;
-    let vm_ir_json = optional_non_empty_string_field(object, "vm_ir_json")?;
+    let vm_ir_json = required_non_empty_string_field(object, "vm_ir_json")?;
     let hashes = object
         .get("hashes")
         .and_then(Value::as_object)
@@ -75,48 +75,36 @@ pub fn validate_contract_artifacts_json(
             ArtifactValidationError::new("deployment_artifacts must include a 'hashes' dictionary.")
         })?;
 
-    if runtime_code.is_some() != vm_ir_json.is_some() {
-        return Err(ArtifactValidationError::new(
-            "deployment_artifacts must include both 'runtime_code' and 'vm_ir_json', or neither.",
-        ));
-    }
-
     validate_hash_field(hashes, "source_sha256", &sha256_hex(source))?;
+    validate_hash_field(hashes, "vm_ir_sha256", &sha256_hex(vm_ir_json))?;
     if let Some(input_source) = input_source {
         validate_hash_field(hashes, "input_source_sha256", &sha256_hex(input_source))?;
     }
-    if let (Some(runtime_code), Some(vm_ir_json)) = (runtime_code, vm_ir_json) {
+    if let Some(runtime_code) = runtime_code {
         validate_hash_field(hashes, "runtime_code_sha256", &sha256_hex(runtime_code))?;
-        validate_hash_field(hashes, "vm_ir_sha256", &sha256_hex(vm_ir_json))?;
-        let module_ir = parse_module_ir(vm_ir_json)
-            .map_err(|error| ArtifactValidationError::new(error.to_string()))?;
-        if module_ir.module_name != module_name {
-            return Err(ArtifactValidationError::new(
-                "deployment_artifacts vm_ir_json module_name does not match the target contract.",
-            ));
-        }
-        if module_ir.vm_profile != vm_profile {
-            return Err(ArtifactValidationError::new(
-                "deployment_artifacts vm_ir_json vm_profile does not match the execution profile.",
-            ));
-        }
-        if module_ir.source_hash != sha256_hex(source) {
-            return Err(ArtifactValidationError::new(
-                "deployment_artifacts vm_ir_json source_hash does not match source.",
-            ));
-        }
-
-        return Ok(ValidatedArtifactBundle {
-            source: source.to_owned(),
-            runtime_code: Some(runtime_code.to_owned()),
-            vm_ir_json: Some(vm_ir_json.to_owned()),
-        });
+    }
+    let module_ir = parse_module_ir(vm_ir_json)
+        .map_err(|error| ArtifactValidationError::new(error.to_string()))?;
+    if module_ir.module_name != module_name {
+        return Err(ArtifactValidationError::new(
+            "deployment_artifacts vm_ir_json module_name does not match the target contract.",
+        ));
+    }
+    if module_ir.vm_profile != vm_profile {
+        return Err(ArtifactValidationError::new(
+            "deployment_artifacts vm_ir_json vm_profile does not match the execution profile.",
+        ));
+    }
+    if module_ir.source_hash != sha256_hex(source) {
+        return Err(ArtifactValidationError::new(
+            "deployment_artifacts vm_ir_json source_hash does not match source.",
+        ));
     }
 
     Ok(ValidatedArtifactBundle {
         source: source.to_owned(),
-        runtime_code: None,
-        vm_ir_json: None,
+        runtime_code: runtime_code.map(ToOwned::to_owned),
+        vm_ir_json: Some(vm_ir_json.to_owned()),
     })
 }
 
@@ -250,24 +238,52 @@ mod tests {
     }
 
     #[test]
-    fn validates_compact_bundle() {
+    fn validates_ir_only_bundle() {
+        let vm_ir_json = json!({
+            "ir_version": XIAN_IR_V1,
+            "vm_profile": XIAN_VM_V1_PROFILE,
+            "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
+            "module_name": "con_probe",
+            "source_hash": sha256_hex("x = 1\n"),
+            "docstring": null,
+            "imports": [],
+            "global_declarations": [],
+            "functions": [],
+            "module_body": [],
+            "host_dependencies": [],
+        })
+        .to_string();
         let payload = json!({
             "format": CONTRACT_ARTIFACT_FORMAT_V1,
             "module_name": "con_probe",
             "vm_profile": XIAN_VM_V1_PROFILE,
             "source": "x = 1\n",
+            "vm_ir_json": vm_ir_json,
             "hashes": {
                 "source_sha256": sha256_hex("x = 1\n"),
+                "vm_ir_sha256": sha256_hex(&json!({
+                    "ir_version": XIAN_IR_V1,
+                    "vm_profile": XIAN_VM_V1_PROFILE,
+                    "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
+                    "module_name": "con_probe",
+                    "source_hash": sha256_hex("x = 1\n"),
+                    "docstring": null,
+                    "imports": [],
+                    "global_declarations": [],
+                    "functions": [],
+                    "module_body": [],
+                    "host_dependencies": [],
+                }).to_string()),
             }
         })
         .to_string();
         let validated =
             validate_contract_artifacts_json("con_probe", &payload, None, XIAN_VM_V1_PROFILE)
-                .expect("compact bundle should validate");
+                .expect("ir-only bundle should validate");
 
         assert_eq!(validated.source, "x = 1\n");
         assert_eq!(validated.runtime_code, None);
-        assert_eq!(validated.vm_ir_json, None);
+        assert!(validated.vm_ir_json.is_some());
     }
 
     #[test]
