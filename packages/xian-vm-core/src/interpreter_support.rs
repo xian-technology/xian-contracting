@@ -3,8 +3,11 @@ use super::*;
 pub(super) fn builtin_name_value(name: &str) -> Option<VmValue> {
     match name {
         "len" | "range" | "str" | "bool" | "int" | "float" | "dict" | "list" | "tuple"
-        | "isinstance" | "sorted" | "sum" | "min" | "max" | "all" | "any" | "reversed" | "zip"
-        | "pow" | "format" | "ord" | "Exception" => Some(VmValue::Builtin(name.to_owned())),
+        | "isinstance" | "issubclass" | "sorted" | "sum" | "min" | "max" | "all"
+        | "any" | "reversed" | "zip" | "pow" | "format" | "ord" | "abs" | "ascii"
+        | "bin" | "hex" | "oct" | "chr" | "divmod" | "round" | "Exception" => {
+            Some(VmValue::Builtin(name.to_owned()))
+        }
         "Any" | "decimal" => Some(VmValue::TypeMarker(name.to_owned())),
         _ => None,
     }
@@ -1408,6 +1411,112 @@ pub(super) fn type_matches_name(value: &VmValue, name: &str) -> bool {
         "tuple" => matches!(value, VmValue::Tuple(_)),
         _ => false,
     }
+}
+
+pub(super) fn issubclass_matches(
+    candidate: &VmValue,
+    target: &VmValue,
+) -> Result<bool, VmExecutionError> {
+    let candidate_names = type_marker_names(candidate)?;
+    let target_names = type_marker_names(target)?;
+    Ok(candidate_names.iter().any(|candidate_name| {
+        target_names
+            .iter()
+            .any(|target_name| subclass_matches_name(candidate_name, target_name))
+    }))
+}
+
+fn type_marker_names(value: &VmValue) -> Result<Vec<String>, VmExecutionError> {
+    match value {
+        VmValue::TypeMarker(name) | VmValue::Builtin(name) => Ok(vec![name.clone()]),
+        VmValue::Tuple(markers) => markers.iter().map(type_marker_names).collect::<Result<Vec<_>, _>>()
+            .map(|groups| groups.into_iter().flatten().collect()),
+        other => Err(VmExecutionError::new(format!(
+            "issubclass() arg 1 must be a class or tuple of classes, got {}",
+            other.type_name()
+        ))),
+    }
+}
+
+fn subclass_matches_name(candidate: &str, target: &str) -> bool {
+    candidate == target
+        || target == "Any"
+        || matches!((candidate, target), ("bool", "int"))
+}
+
+pub(super) fn ascii_render(value: &str) -> String {
+    let mut rendered = String::new();
+    for ch in value.chars() {
+        if ch.is_ascii() {
+            rendered.push(ch);
+        } else {
+            rendered.extend(ch.escape_default());
+        }
+    }
+    rendered
+}
+
+pub(super) fn format_integer_builtin(value: &BigInt, radix: u32, prefix: &str) -> String {
+    if value.sign() == Sign::Minus {
+        format!("-{prefix}{}", (-value).to_str_radix(radix))
+    } else {
+        format!("{prefix}{}", value.to_str_radix(radix))
+    }
+}
+
+pub(super) fn round_builtin_value(
+    value: &VmValue,
+    digits: Option<i32>,
+) -> Result<VmValue, VmExecutionError> {
+    match value {
+        VmValue::Int(number) => Ok(match digits {
+            Some(places) if places < 0 => {
+                let factor = BigInt::from(10u32).pow(places.unsigned_abs());
+                let rounded = round_bigint_to_factor(number, &factor)?;
+                VmValue::Int(rounded)
+            }
+            _ => VmValue::Int(number.clone()),
+        }),
+        VmValue::Float(number) => Ok(match digits {
+            Some(places) => {
+                let scale = 10f64.powi(places);
+                VmValue::Float((number * scale).round() / scale)
+            }
+            None => VmValue::Int(f64_to_bigint_trunc(number.round(), "round() input")?),
+        }),
+        VmValue::Decimal(number) => {
+            let float = number.to_f64()?;
+            round_builtin_value(&VmValue::Float(float), digits)
+        }
+        other => Err(VmExecutionError::new(format!(
+            "round() does not support {}",
+            other.type_name()
+        ))),
+    }
+}
+
+fn round_bigint_to_factor(value: &BigInt, factor: &BigInt) -> Result<BigInt, VmExecutionError> {
+    if factor.is_zero() {
+        return Err(VmExecutionError::new("round() factor cannot be zero"));
+    }
+    let quotient = value / factor;
+    let remainder = value % factor;
+    let half = factor / BigInt::from(2u32);
+    let remainder_abs = if remainder.sign() == Sign::Minus {
+        -remainder
+    } else {
+        remainder
+    };
+    let adjust = if remainder_abs >= half {
+        if value.sign() == Sign::Minus {
+            -BigInt::from(1u32)
+        } else {
+            BigInt::from(1u32)
+        }
+    } else {
+        BigInt::zero()
+    };
+    Ok((quotient + adjust) * factor)
 }
 
 pub(super) fn option_string_value(value: &Option<String>) -> VmValue {

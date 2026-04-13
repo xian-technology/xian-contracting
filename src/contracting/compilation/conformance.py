@@ -82,6 +82,18 @@ def build_contract_language_manifest() -> dict[str, Any]:
 
 CONTRACT_LANGUAGE_MANIFEST = build_contract_language_manifest()
 
+CONFORMANCE_BUILTIN_EXCLUSIONS: dict[str, str] = {
+    "True": "Boolean literal, covered as syntax rather than a callable builtin.",
+    "False": "Boolean literal, covered as syntax rather than a callable builtin.",
+    "None": "None literal, covered as syntax rather than a callable builtin.",
+    "import": "Contract imports are covered via import statements and importlib, not the raw builtin token.",
+    "bytes": "Binary value parity needs a dedicated VM value type and serialization coverage.",
+    "bytearray": "Mutable binary value parity needs a dedicated VM value type and serialization coverage.",
+    "map": "Lazy higher-order iterator semantics need dedicated VM callable/value-model support.",
+    "filter": "Lazy higher-order iterator semantics need dedicated VM callable/value-model support.",
+}
+CONFORMANCE_ENV_EXCLUSIONS: dict[str, str] = {}
+
 
 def current_vm_parity_gaps() -> dict[str, list[str]]:
     syntax_nodes_by_name = {
@@ -103,10 +115,21 @@ def current_vm_parity_gaps() -> dict[str, list[str]]:
         ),
     }
 
+
+def covered_conformance_surface() -> dict[str, set[str]]:
+    builtins: set[str] = set()
+    env: set[str] = set()
+    for case in CONTRACT_LANGUAGE_CONFORMANCE_CASES:
+        builtins.update(case.get("covers_builtins", ()))
+        env.update(case.get("covers_env", ()))
+    return {"builtins": builtins, "env": env}
+
 CONTRACT_LANGUAGE_CONFORMANCE_CASES: tuple[dict[str, Any], ...] = (
     {
         "id": "bitwise_integer_ops",
         "description": "Bitwise operators and unary invert behave like the Python VM.",
+        "covers_builtins": ("int",),
+        "covers_env": ("Hash",),
         "source": """
 flags = Hash(default_value=0)
 
@@ -132,6 +155,7 @@ def probe(value: int):
     {
         "id": "raise_exception_instance",
         "description": "Explicit Exception(...) raising matches the Python VM error path.",
+        "covers_builtins": ("Exception",),
         "source": """
 @export
 def fail(armed: bool):
@@ -145,6 +169,7 @@ def fail(armed: bool):
     {
         "id": "raise_exception_type",
         "description": "Raising the Exception type object instantiates the same error shape.",
+        "covers_builtins": ("Exception",),
         "source": """
 @export
 def fail():
@@ -156,6 +181,7 @@ def fail():
     {
         "id": "keyword_unpack_calls",
         "description": "Keyword unpacking in calls behaves like the Python VM.",
+        "covers_builtins": ("dict",),
         "source": """
 def quote(amount: int, to: str, memo: str = ""):
     return {
@@ -176,6 +202,7 @@ def render():
     {
         "id": "dict_comprehension",
         "description": "Dict comprehensions behave like the Python VM.",
+        "covers_builtins": ("str",),
         "source": """
 @export
 def render(values: list[int]):
@@ -183,5 +210,218 @@ def render(values: list[int]):
 """,
         "function_name": "render",
         "kwargs": {"values": [-1, 0, 2, 5]},
+    },
+    {
+        "id": "builtin_scalar_helpers",
+        "description": "Scalar/text builtins behave like the Python VM.",
+        "covers_builtins": (
+            "abs",
+            "ascii",
+            "bin",
+            "bool",
+            "chr",
+            "divmod",
+            "float",
+            "format",
+            "hex",
+            "int",
+            "isinstance",
+            "issubclass",
+            "oct",
+            "ord",
+            "pow",
+            "round",
+            "str",
+            "tuple",
+        ),
+        "source": """
+@export
+def probe():
+    return {
+        "abs_int": abs(-7),
+        "abs_float": abs(-2.5),
+        "ascii": ascii("Grüß"),
+        "bin": bin(13),
+        "bool": bool([]),
+        "chr": chr(65),
+        "divmod": divmod(29, 6),
+        "float": float("2.5"),
+        "format": format(255, "08b"),
+        "hex": hex(255),
+        "int": int("ff", 16),
+        "isinstance": isinstance(4, int),
+        "issubclass": issubclass(bool, (bool, int)),
+        "oct": oct(9),
+        "ord": ord("A"),
+        "pow": pow(7, 3, 13),
+        "round_int": round(3.6),
+        "round_digits": round(3.14159, 2),
+        "str": str(42),
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {},
+    },
+    {
+        "id": "builtin_iterable_helpers",
+        "description": "Iterable and aggregate builtins behave like the Python VM.",
+        "covers_builtins": (
+            "all",
+            "any",
+            "dict",
+            "len",
+            "list",
+            "max",
+            "min",
+            "range",
+            "reversed",
+            "sorted",
+            "sum",
+            "tuple",
+            "zip",
+        ),
+        "source": """
+@export
+def probe(values: list[int]):
+    return {
+        "len": len(values),
+        "range": list(range(2, 8, 2)),
+        "list": list((1, 2, 3)),
+        "tuple": tuple([4, 5]),
+        "dict": dict([("a", 1), ("b", 2)], c=3),
+        "sorted": sorted(values),
+        "sum": sum(values, 10),
+        "min": min(values),
+        "max": max(values),
+        "all": all([value > 0 for value in values]),
+        "any": any([value < 0 for value in values]),
+        "reversed": list(reversed(values)),
+        "zip": list(zip(values, range(len(values)))),
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {"values": [3, 1, 2]},
+    },
+    {
+        "id": "host_storage_event_context",
+        "description": "Storage, event, typing, and context bridge values match the Python VM.",
+        "covers_env": (
+            "Any",
+            "Hash",
+            "LogEvent",
+            "Variable",
+            "ctx",
+            "indexed",
+        ),
+        "source": """
+counter = Variable()
+balances = Hash(default_value=0)
+Seen = LogEvent(
+    "Seen",
+    {
+        "caller": indexed(str),
+        "balance": int,
+    },
+)
+
+@construct
+def seed():
+    counter.set(2)
+
+@export(typecheck=True)
+def probe(value: Any, amount: int) -> Any:
+    balances[ctx.caller] += amount
+    Seen({"caller": ctx.caller, "balance": balances[ctx.caller]})
+    return {
+        "value": value,
+        "counter": counter.get(),
+        "balance": balances[ctx.caller],
+        "caller": ctx.caller,
+        "this": ctx.this,
+        "owner": ctx.owner,
+        "entry": ctx.entry,
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {"value": {"kind": "ok"}, "amount": 4},
+    },
+    {
+        "id": "host_module_bridges",
+        "description": "Bridge modules and foreign storage behave like the Python VM.",
+        "covers_env": (
+            "Contract",
+            "ForeignHash",
+            "ForeignVariable",
+            "crypto",
+            "datetime",
+            "decimal",
+            "hashlib",
+            "importlib",
+            "random",
+            "zk",
+        ),
+        "dependencies": (
+            {
+                "name": "conformance_host_helper",
+                "source": """
+status = Variable()
+ledger = Hash(default_value=0)
+
+@construct
+def seed():
+    status.set("ready")
+    ledger["alice"] = 7
+
+@export
+def ping(name: str):
+    return {
+        "name": name,
+        "count": ledger[name],
+        "status": status.get(),
+    }
+""",
+            },
+        ),
+        "source": """
+status = ForeignVariable(contract="conformance_host_helper", name="status")
+ledger = ForeignHash(contract="conformance_host_helper", name="ledger")
+
+@export
+def probe():
+    helper = importlib.import_module("conformance_host_helper")
+    random.seed("alpha")
+    return {
+        "shadow": status.get(),
+        "ledger": ledger["alice"],
+        "exists": importlib.exists("conformance_host_helper"),
+        "has_export": importlib.has_export("conformance_host_helper", "ping"),
+        "call": importlib.call("conformance_host_helper", "ping", {"name": "alice"}),
+        "owner": importlib.owner_of("conformance_host_helper"),
+        "info": {
+            "owner": Contract.get_info("conformance_host_helper")["owner"],
+            "developer": Contract.get_info("conformance_host_helper")["developer"],
+            "deployer": Contract.get_info("conformance_host_helper")["deployer"],
+            "initiator": Contract.get_info("conformance_host_helper")["initiator"],
+        },
+        "module_ping": helper.ping(name="alice"),
+        "decimal": decimal("1.25") + decimal("2.50"),
+        "time": datetime.datetime.strptime(
+            "2026-04-13 12:34:56",
+            "%Y-%m-%d %H:%M:%S",
+        ) + datetime.DAYS,
+        "sha256": hashlib.sha256("hello"),
+        "sha3": hashlib.sha3("hello"),
+        "key_valid": crypto.key_is_valid("0" * 64),
+        "randbits": random.getrandbits(8),
+        "randrange": random.randrange(10),
+        "randint": random.randint(5, 9),
+        "choice": random.choice(["a", "b", "c"]),
+        "choices": random.choices(["x", "y"], 3),
+        "zk_available": zk.is_available(),
+        "zk_payload_hash": zk.shielded_output_payload_hash("0x1234"),
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {},
     },
 )

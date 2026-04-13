@@ -1,9 +1,12 @@
 import json
 
 from contracting.compilation.conformance import (
+    CONFORMANCE_BUILTIN_EXCLUSIONS,
+    CONFORMANCE_ENV_EXCLUSIONS,
     CONTRACT_LANGUAGE_CONFORMANCE_CASES,
     CONTRACT_LANGUAGE_MANIFEST,
     CONTRACT_LANGUAGE_MANIFEST_VERSION,
+    covered_conformance_surface,
     current_vm_parity_gaps,
 )
 
@@ -52,3 +55,19 @@ def test_current_vm_parity_gaps_surface_remaining_backlog():
 
     assert gaps["builtins"] == []
     assert gaps["syntax"] == []
+
+
+def test_callable_builtin_surface_is_covered_or_explicitly_excluded():
+    covered = covered_conformance_surface()["builtins"]
+    required = set(CONTRACT_LANGUAGE_MANIFEST["python_contracting"]["allowed_builtins"])
+    missing = sorted(required - covered - set(CONFORMANCE_BUILTIN_EXCLUSIONS))
+
+    assert missing == []
+
+
+def test_public_env_surface_is_covered_or_explicitly_excluded():
+    covered = covered_conformance_surface()["env"]
+    required = set(CONTRACT_LANGUAGE_MANIFEST["python_contracting"]["public_env_surface"])
+    missing = sorted(required - covered - set(CONFORMANCE_ENV_EXCLUSIONS))
+
+    assert missing == []

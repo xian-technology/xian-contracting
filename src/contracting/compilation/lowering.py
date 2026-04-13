@@ -79,6 +79,8 @@ _HOST_MODULE_BINDINGS = {
     "hashlib",
     "crypto",
     "datetime",
+    "random",
+    "zk",
 }
 
 XIAN_IR_V1_STATEMENT_NODES = frozenset(

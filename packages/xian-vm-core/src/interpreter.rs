@@ -1,7 +1,7 @@
 use crate::{validate_module_ir, FunctionIr, ModuleIr};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use num_bigint::{BigInt, Sign};
-use num_traits::{Num, Zero};
+use num_traits::{Num, Signed, Zero};
 use serde_json::{Map, Value};
 use sha2::Digest as Sha2Digest;
 use sha2::Sha256;
@@ -1588,6 +1588,8 @@ impl VmInstance {
             "module.hashlib" => Ok(VmValue::Builtin("hashlib".to_owned())),
             "module.crypto" => Ok(VmValue::Builtin("crypto".to_owned())),
             "module.datetime" => Ok(VmValue::Builtin("datetime".to_owned())),
+            "module.random" => Ok(VmValue::Builtin("random".to_owned())),
+            "module.zk" => Ok(VmValue::Builtin("zk".to_owned())),
             "time.datetime.new" | "time.datetime.strptime" => {
                 Ok(VmValue::TypeMarker("datetime.datetime".to_owned()))
             }
@@ -2109,6 +2111,26 @@ impl VmInstance {
                 }
                 Ok(VmValue::Bool(args[0].truthy()))
             }
+            "abs" => {
+                if !kwargs.is_empty() || args.len() != 1 {
+                    return Err(VmExecutionError::new("abs() expects one argument"));
+                }
+                match &args[0] {
+                    VmValue::Int(value) => Ok(VmValue::Int(value.abs())),
+                    VmValue::Float(value) => Ok(VmValue::Float(value.abs())),
+                    VmValue::Decimal(value) => Ok(VmValue::Decimal(VmDecimal::from_scaled(
+                        if value.scaled.sign() == Sign::Minus {
+                            -value.scaled.clone()
+                        } else {
+                            value.scaled.clone()
+                        },
+                    )?)),
+                    other => Err(VmExecutionError::new(format!(
+                        "abs() does not support {}",
+                        other.type_name()
+                    ))),
+                }
+            }
             "int" => {
                 if !kwargs.is_empty() || args.is_empty() || args.len() > 2 {
                     return Err(VmExecutionError::new(
@@ -2257,6 +2279,63 @@ impl VmInstance {
                         other.type_name()
                     ))),
                 }
+            }
+            "ascii" => {
+                if args.len() != 1 || !kwargs.is_empty() {
+                    return Err(VmExecutionError::new("ascii() expects one argument"));
+                }
+                Ok(VmValue::String(ascii_render(&args[0].python_repr())))
+            }
+            "bin" => {
+                if args.len() != 1 || !kwargs.is_empty() {
+                    return Err(VmExecutionError::new("bin() expects one argument"));
+                }
+                Ok(VmValue::String(format_integer_builtin(
+                    &args[0].as_bigint()?,
+                    2,
+                    "0b",
+                )))
+            }
+            "hex" => {
+                if args.len() != 1 || !kwargs.is_empty() {
+                    return Err(VmExecutionError::new("hex() expects one argument"));
+                }
+                Ok(VmValue::String(format_integer_builtin(
+                    &args[0].as_bigint()?,
+                    16,
+                    "0x",
+                )))
+            }
+            "oct" => {
+                if args.len() != 1 || !kwargs.is_empty() {
+                    return Err(VmExecutionError::new("oct() expects one argument"));
+                }
+                Ok(VmValue::String(format_integer_builtin(
+                    &args[0].as_bigint()?,
+                    8,
+                    "0o",
+                )))
+            }
+            "chr" => {
+                if args.len() != 1 || !kwargs.is_empty() {
+                    return Err(VmExecutionError::new("chr() expects one argument"));
+                }
+                let code_point = bigint_to_u32(&args[0].as_bigint()?, "chr() input")?;
+                let character = char::from_u32(code_point).ok_or_else(|| {
+                    VmExecutionError::new(format!(
+                        "chr() arg not in range(0x110000): {code_point}"
+                    ))
+                })?;
+                Ok(VmValue::String(character.to_string()))
+            }
+            "divmod" => {
+                if args.len() != 2 || !kwargs.is_empty() {
+                    return Err(VmExecutionError::new("divmod() expects two arguments"));
+                }
+                let quotient =
+                    apply_binary_operator("floordiv", args[0].clone(), args[1].clone())?;
+                let remainder = apply_binary_operator("mod", args[0].clone(), args[1].clone())?;
+                Ok(VmValue::Tuple(vec![quotient, remainder]))
             }
             "Exception" => {
                 if !kwargs.is_empty() {
@@ -2455,6 +2534,34 @@ impl VmInstance {
                     ));
                 }
                 Ok(VmValue::Bool(type_matches(&args[0], &args[1])))
+            }
+            "issubclass" => {
+                if args.len() != 2 || !kwargs.is_empty() {
+                    return Err(VmExecutionError::new(
+                        "issubclass() expects two positional arguments",
+                    ));
+                }
+                Ok(VmValue::Bool(issubclass_matches(&args[0], &args[1])?))
+            }
+            "round" => {
+                if args.is_empty() || args.len() > 2 || !kwargs.is_empty() {
+                    return Err(VmExecutionError::new(
+                        "round() expects one or two positional arguments",
+                    ));
+                }
+                let digits = match args.get(1) {
+                    Some(value) => Some(
+                        bigint_to_i64(&value.as_bigint()?, "round() ndigits")?
+                            .try_into()
+                            .map_err(|_| {
+                                VmExecutionError::new(
+                                    "round() ndigits is out of supported range",
+                                )
+                            })?,
+                    ),
+                    None => None,
+                };
+                round_builtin_value(&args[0], digits)
             }
             other => Err(VmExecutionError::new(format!(
                 "unsupported builtin '{other}'"

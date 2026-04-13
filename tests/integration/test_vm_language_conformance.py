@@ -50,10 +50,14 @@ def _normalize(value):
     return value
 
 
-def _run_python_case(case: dict, storage_home: Path) -> dict:
-    driver = Driver(storage_home=storage_home)
-    contract_name = f"conformance_{case['id']}"
-    driver.flush_full()
+def _deploy_case_contracts(driver: Driver, case: dict, contract_name: str) -> None:
+    for dependency in case.get("dependencies", ()):
+        driver.set_contract_from_source(
+            dependency["name"],
+            dependency["source"],
+            owner=dependency.get("owner", "alice"),
+            overwrite=True,
+        )
     driver.set_contract_from_source(
         contract_name,
         case["source"],
@@ -61,6 +65,13 @@ def _run_python_case(case: dict, storage_home: Path) -> dict:
         overwrite=True,
     )
     driver.commit()
+
+
+def _run_python_case(case: dict, storage_home: Path) -> dict:
+    driver = Driver(storage_home=storage_home)
+    contract_name = f"conformance_{case['id']}"
+    driver.flush_full()
+    _deploy_case_contracts(driver, case, contract_name)
     executor = Executor(driver=driver, metering=False)
     context = _execution_context(contract_name, case["function_name"], "alice")
     output = executor.execute(
@@ -84,13 +95,7 @@ def _run_native_case(case: dict, storage_home: Path) -> dict:
     driver = Driver(storage_home=storage_home)
     contract_name = f"conformance_{case['id']}"
     driver.flush_full()
-    driver.set_contract_from_source(
-        contract_name,
-        case["source"],
-        owner="alice",
-        overwrite=True,
-    )
-    driver.commit()
+    _deploy_case_contracts(driver, case, contract_name)
     context = _execution_context(contract_name, case["function_name"], "alice")
     output = xian_vm_core.execute_contract(
         driver=driver,

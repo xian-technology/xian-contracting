@@ -308,6 +308,18 @@ _HOST_BINDINGS = (
         category="time",
     ),
     _host_binding(
+        "random",
+        "module.random",
+        kind="value",
+        category="random",
+    ),
+    _host_binding(
+        "zk",
+        "module.zk",
+        kind="value",
+        category="zk",
+    ),
+    _host_binding(
         "__contract_export__",
         "contract.export_call",
         kind="syscall",
