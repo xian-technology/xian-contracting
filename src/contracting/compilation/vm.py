@@ -37,6 +37,16 @@ _COMPREHENSION_NAMES = {
     ast.ListComp: "list comprehension",
     ast.SetComp: "set comprehension",
 }
+XIAN_VM_V1_TRACKED_CALL_FEATURES = frozenset(_TRACKED_CALL_FEATURES)
+XIAN_VM_V1_DISALLOWED_CALLS = frozenset(_DISALLOWED_CALLS)
+XIAN_VM_V1_RESTRICTED_SYNTAX = frozenset(
+    {
+        "dict comprehension",
+        "generator expression",
+        "set comprehension",
+        "set literal",
+    }
+)
 
 
 def _build_error(
@@ -117,12 +127,33 @@ class _VmCompatibilityVisitor(ast.NodeVisitor):
 
     def visit_While(self, node: ast.While) -> None:
         self.feature_counts["while_loops"] += 1
-        self.add_syntax_error(node, construct="while")
+        self.generic_visit(node)
+
+    def visit_Raise(self, node: ast.Raise) -> None:
+        self.feature_counts["raise_statements"] += 1
+        self.generic_visit(node)
+
+    def visit_BinOp(self, node: ast.BinOp) -> None:
+        bitwise_names = {
+            ast.BitAnd: "bitand_ops",
+            ast.BitOr: "bitor_ops",
+            ast.BitXor: "bitxor_ops",
+            ast.LShift: "lshift_ops",
+            ast.RShift: "rshift_ops",
+        }
+        for operator_type, feature_name in bitwise_names.items():
+            if isinstance(node.op, operator_type):
+                self.feature_counts[feature_name] += 1
+                break
+        self.generic_visit(node)
+
+    def visit_UnaryOp(self, node: ast.UnaryOp) -> None:
+        if isinstance(node.op, ast.Invert):
+            self.feature_counts["invert_ops"] += 1
         self.generic_visit(node)
 
     def visit_ListComp(self, node: ast.ListComp) -> None:
         self.feature_counts["list_comprehensions"] += 1
-        self.add_syntax_error(node, construct="list comprehension")
         self.generic_visit(node)
 
     def visit_DictComp(self, node: ast.DictComp) -> None:
@@ -161,6 +192,8 @@ class _VmCompatibilityVisitor(ast.NodeVisitor):
             if name in _DISALLOWED_CALLS:
                 self.feature_counts[f"{name}_calls"] += 1
                 self.add_builtin_error(node, name=name)
+        if any(keyword.arg is None for keyword in node.keywords):
+            self.feature_counts["keyword_unpack_calls"] += 1
         self.generic_visit(node)
 
 

@@ -359,7 +359,20 @@ fn validate_statement(statement: &Value) -> Result<(), IrValidationError> {
             ensure_allowed(
                 "storage_mutate.operator",
                 expect_string_field(object, "operator")?,
-                &["add", "sub", "mul", "div", "floordiv", "mod", "pow"],
+                &[
+                    "add",
+                    "sub",
+                    "mul",
+                    "div",
+                    "floordiv",
+                    "mod",
+                    "pow",
+                    "bitand",
+                    "bitor",
+                    "bitxor",
+                    "lshift",
+                    "rshift",
+                ],
             )?;
             validate_expression(expect_value_field(object, "value")?)?;
         }
@@ -367,7 +380,20 @@ fn validate_statement(statement: &Value) -> Result<(), IrValidationError> {
             ensure_allowed(
                 "aug_assign.operator",
                 expect_string_field(object, "operator")?,
-                &["add", "sub", "mul", "div", "floordiv", "mod", "pow"],
+                &[
+                    "add",
+                    "sub",
+                    "mul",
+                    "div",
+                    "floordiv",
+                    "mod",
+                    "pow",
+                    "bitand",
+                    "bitor",
+                    "bitxor",
+                    "lshift",
+                    "rshift",
+                ],
             )?;
             validate_target(expect_value_field(object, "target")?)?;
             validate_expression(expect_value_field(object, "value")?)?;
@@ -387,6 +413,11 @@ fn validate_statement(statement: &Value) -> Result<(), IrValidationError> {
             validate_statement_array(expect_array_field(object, "body")?)?;
             validate_statement_array(expect_array_field(object, "orelse")?)?;
         }
+        "while" => {
+            validate_expression(expect_value_field(object, "test")?)?;
+            validate_statement_array(expect_array_field(object, "body")?)?;
+            validate_statement_array(expect_array_field(object, "orelse")?)?;
+        }
         "for" => {
             validate_target(expect_value_field(object, "target")?)?;
             validate_expression(expect_value_field(object, "iter")?)?;
@@ -400,6 +431,10 @@ fn validate_statement(statement: &Value) -> Result<(), IrValidationError> {
                     validate_expression(value)?;
                 }
             }
+        }
+        "raise" => {
+            validate_optional_expression(object.get("exception"))?;
+            validate_optional_expression(object.get("cause"))?;
         }
         "break" | "continue" | "pass" => {}
         _ => {
@@ -501,11 +536,27 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
             }
             Ok(())
         }
+        "list_comp" => {
+            validate_expression(expect_value_field(object, "element")?)?;
+            for generator in expect_array_field(object, "generators")? {
+                let generator_obj = expect_object(generator, "list comprehension generator")?;
+                validate_target(expect_value_field(generator_obj, "target")?)?;
+                validate_expression(expect_value_field(generator_obj, "iter")?)?;
+                for condition in expect_array_field(generator_obj, "ifs")? {
+                    validate_expression(condition)?;
+                }
+            }
+            Ok(())
+        }
         "dict" => {
             for entry in expect_array_field(object, "entries")? {
                 let entry_obj = expect_object(entry, "dict entry")?;
-                validate_expression(expect_value_field(entry_obj, "key")?)?;
-                validate_expression(expect_value_field(entry_obj, "value")?)?;
+                if let Some(unpack) = entry_obj.get("unpack") {
+                    validate_expression(unpack)?;
+                } else {
+                    validate_expression(expect_value_field(entry_obj, "key")?)?;
+                    validate_expression(expect_value_field(entry_obj, "value")?)?;
+                }
             }
             Ok(())
         }
@@ -635,7 +686,20 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
             ensure_allowed(
                 "bin_op.operator",
                 expect_string_field(object, "operator")?,
-                &["add", "sub", "mul", "div", "floordiv", "mod", "pow"],
+                &[
+                    "add",
+                    "sub",
+                    "mul",
+                    "div",
+                    "floordiv",
+                    "mod",
+                    "pow",
+                    "bitand",
+                    "bitor",
+                    "bitxor",
+                    "lshift",
+                    "rshift",
+                ],
             )?;
             validate_expression(expect_value_field(object, "left")?)?;
             validate_expression(expect_value_field(object, "right")?)?;
@@ -645,7 +709,7 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
             ensure_allowed(
                 "unary_op.operator",
                 expect_string_field(object, "operator")?,
-                &["not", "neg", "pos"],
+                &["not", "neg", "pos", "invert"],
             )?;
             validate_expression(expect_value_field(object, "operand")?)?;
             Ok(())
@@ -681,9 +745,18 @@ fn validate_optional_expression(value: Option<&Value>) -> Result<(), IrValidatio
 fn validate_keyword(keyword: &Value) -> Result<(), IrValidationError> {
     let object = expect_object(keyword, "keyword")?;
     validate_object_span(object)?;
-    ensure_non_empty("keyword.arg", expect_string_field(object, "arg")?)?;
-    validate_expression(expect_value_field(object, "value")?)?;
-    Ok(())
+    match object.get("node").and_then(Value::as_str).unwrap_or("keyword") {
+        "keyword" => {
+            ensure_non_empty("keyword.arg", expect_string_field(object, "arg")?)?;
+            validate_expression(expect_value_field(object, "value")?)?;
+            Ok(())
+        }
+        "keyword_unpack" => validate_expression(expect_value_field(object, "value")?),
+        other => Err(IrValidationError::new(format!(
+            "unsupported keyword node '{}'",
+            other
+        ))),
+    }
 }
 
 fn validate_optional_contract_target(value: Option<&Value>) -> Result<(), IrValidationError> {

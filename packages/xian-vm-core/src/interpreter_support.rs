@@ -4,7 +4,7 @@ pub(super) fn builtin_name_value(name: &str) -> Option<VmValue> {
     match name {
         "len" | "range" | "str" | "bool" | "int" | "float" | "dict" | "list" | "tuple"
         | "isinstance" | "sorted" | "sum" | "min" | "max" | "all" | "any" | "reversed" | "zip"
-        | "pow" | "format" => Some(VmValue::Builtin(name.to_owned())),
+        | "pow" | "format" | "ord" | "Exception" => Some(VmValue::Builtin(name.to_owned())),
         "Any" | "decimal" => Some(VmValue::TypeMarker(name.to_owned())),
         _ => None,
     }
@@ -258,6 +258,28 @@ pub(super) fn apply_binary_operator(
                 right.type_name()
             ))),
         },
+        "bitand" => match (left, right) {
+            (VmValue::Bool(left), VmValue::Bool(right)) => Ok(VmValue::Bool(left & right)),
+            (left, right) => Ok(VmValue::Int(left.as_bigint()? & right.as_bigint()?)),
+        },
+        "bitor" => match (left, right) {
+            (VmValue::Bool(left), VmValue::Bool(right)) => Ok(VmValue::Bool(left | right)),
+            (left, right) => Ok(VmValue::Int(left.as_bigint()? | right.as_bigint()?)),
+        },
+        "bitxor" => match (left, right) {
+            (VmValue::Bool(left), VmValue::Bool(right)) => Ok(VmValue::Bool(left ^ right)),
+            (left, right) => Ok(VmValue::Int(left.as_bigint()? ^ right.as_bigint()?)),
+        },
+        "lshift" => {
+            let left = left.as_bigint()?;
+            let right = bigint_to_usize(&right.as_bigint()?, "shift count")?;
+            Ok(VmValue::Int(left << right))
+        }
+        "rshift" => {
+            let left = left.as_bigint()?;
+            let right = bigint_to_usize(&right.as_bigint()?, "shift count")?;
+            Ok(VmValue::Int(left >> right))
+        }
         other => Err(VmExecutionError::new(format!(
             "unsupported binary operator '{other}'"
         ))),
@@ -286,6 +308,7 @@ pub(super) fn apply_unary_operator(operator: &str, operand: VmValue) -> Result<V
                 other.type_name()
             ))),
         },
+        "invert" => Ok(VmValue::Int(!operand.as_bigint()?)),
         other => Err(VmExecutionError::new(format!(
             "unsupported unary operator '{other}'"
         ))),

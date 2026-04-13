@@ -29,6 +29,7 @@ const VM_GAS_STMT_AUG_ASSIGN: u64 = 96;
 const VM_GAS_STMT_RETURN: u64 = 32;
 const VM_GAS_STMT_EXPR: u64 = 32;
 const VM_GAS_STMT_IF: u64 = 96;
+const VM_GAS_STMT_WHILE: u64 = 96;
 const VM_GAS_STMT_FOR: u64 = 96;
 const VM_GAS_STMT_ASSERT: u64 = 96;
 const VM_GAS_STMT_BREAK: u64 = 32;
@@ -37,6 +38,7 @@ const VM_GAS_STMT_PASS: u64 = 32;
 const VM_GAS_EXPR_NAME: u64 = 64;
 const VM_GAS_EXPR_CONSTANT: u64 = 32;
 const VM_GAS_EXPR_LIST: u64 = 128;
+const VM_GAS_EXPR_LIST_COMP: u64 = 224;
 const VM_GAS_EXPR_TUPLE: u64 = 128;
 const VM_GAS_EXPR_DICT: u64 = 608;
 const VM_GAS_EXPR_ATTRIBUTE: u64 = 96;
@@ -71,6 +73,7 @@ fn vm_statement_gas_cost(
         "return" => VM_GAS_STMT_RETURN,
         "expr" => VM_GAS_STMT_EXPR,
         "if" => VM_GAS_STMT_IF,
+        "while" => VM_GAS_STMT_WHILE,
         "for" => VM_GAS_STMT_FOR,
         "assert" => VM_GAS_STMT_ASSERT,
         "break" => VM_GAS_STMT_BREAK,
@@ -92,6 +95,7 @@ fn vm_expression_gas_cost(
         "name" => VM_GAS_EXPR_NAME,
         "constant" => VM_GAS_EXPR_CONSTANT,
         "list" => VM_GAS_EXPR_LIST,
+        "list_comp" => VM_GAS_EXPR_LIST_COMP,
         "tuple" => VM_GAS_EXPR_TUPLE,
         "dict" => VM_GAS_EXPR_DICT,
         "attribute" => VM_GAS_EXPR_ATTRIBUTE,
@@ -129,6 +133,56 @@ fn charge_storage_read(
     value: &VmValue,
 ) -> Result<(), VmExecutionError> {
     host.charge_storage_read(key, value)
+}
+
+fn collect_target_names(
+    target: &Value,
+    names: &mut Vec<String>,
+) -> Result<(), VmExecutionError> {
+    let object = as_object(target, "target")?;
+    match required_string(object, "node")? {
+        "name" => {
+            names.push(required_string(object, "id")?.to_owned());
+            Ok(())
+        }
+        "tuple_target" | "list_target" => {
+            for element in required_array(object, "elements")? {
+                collect_target_names(element, names)?;
+            }
+            Ok(())
+        }
+        other => Err(VmExecutionError::new(format!(
+            "unsupported comprehension target '{other}'"
+        ))),
+    }
+}
+
+fn capture_target_bindings(
+    target: &Value,
+    scope: &HashMap<String, VmValue>,
+) -> Result<Vec<(String, Option<VmValue>)>, VmExecutionError> {
+    let mut names = Vec::new();
+    collect_target_names(target, &mut names)?;
+    Ok(names
+        .into_iter()
+        .map(|name| {
+            let previous = scope.get(&name).cloned();
+            (name, previous)
+        })
+        .collect())
+}
+
+fn restore_target_bindings(
+    scope: &mut HashMap<String, VmValue>,
+    previous: Vec<(String, Option<VmValue>)>,
+) {
+    for (name, value) in previous {
+        if let Some(value) = value {
+            scope.insert(name, value);
+        } else {
+            scope.remove(&name);
+        }
+    }
 }
 
 fn ir_node_complexity(value: &Value) -> u64 {
@@ -996,6 +1050,7 @@ impl VmInstance {
                     self.execute_block(required_array(object, "orelse")?, scope, host)
                 }
             }
+            "while" => self.execute_while_loop(object, scope, host),
             "for" => self.execute_for_loop(object, scope, host),
             "assert" => {
                 let test = self.eval_expression(required_value(object, "test")?, scope, host)?;
@@ -1019,6 +1074,35 @@ impl VmInstance {
                     return Err(VmExecutionError::new(error_repr));
                 }
                 Ok(ControlFlow::Next)
+            }
+            "raise" => {
+                if let Some(cause) = object.get("cause") {
+                    if !cause.is_null() {
+                        let _ = self.eval_expression(cause, scope, host)?;
+                    }
+                }
+                let error_repr = match object.get("exception") {
+                    None | Some(Value::Null) => "RuntimeError('No active exception to reraise')"
+                        .to_owned(),
+                    Some(exception) => match self.eval_expression(exception, scope, host)? {
+                        VmValue::Exception(value) => value.python_repr(),
+                        VmValue::Builtin(name)
+                            if matches!(
+                                name.as_str(),
+                                "Exception" | "RuntimeError" | "ValueError" | "TypeError"
+                            ) =>
+                        {
+                            format!("{name}()")
+                        }
+                        other => {
+                            return Err(VmExecutionError::new(format!(
+                                "TypeError('exceptions must derive from BaseException, got {}')",
+                                other.type_name()
+                            )))
+                        }
+                    },
+                };
+                Err(VmExecutionError::new(error_repr))
             }
             "break" => Ok(ControlFlow::Break),
             "continue" => Ok(ControlFlow::Continue),
@@ -1044,6 +1128,39 @@ impl VmInstance {
         for item in values {
             host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
             self.assign_target(required_value(object, "target")?, item, scope, false)?;
+            match self.execute_block(body, scope, host)? {
+                ControlFlow::Next => {}
+                ControlFlow::Continue => continue,
+                ControlFlow::Break => {
+                    broke = true;
+                    break;
+                }
+                ControlFlow::Return(value) => return Ok(ControlFlow::Return(value)),
+            }
+        }
+
+        if !broke {
+            self.execute_block(orelse, scope, host)
+        } else {
+            Ok(ControlFlow::Next)
+        }
+    }
+
+    fn execute_while_loop(
+        &mut self,
+        object: &Map<String, Value>,
+        scope: &mut HashMap<String, VmValue>,
+        host: &mut dyn VmHost,
+    ) -> Result<ControlFlow, VmExecutionError> {
+        let body = required_array(object, "body")?;
+        let orelse = required_array(object, "orelse")?;
+
+        let mut broke = false;
+        while self
+            .eval_expression(required_value(object, "test")?, scope, host)?
+            .truthy()
+        {
+            host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
             match self.execute_block(body, scope, host)? {
                 ControlFlow::Next => {}
                 ControlFlow::Continue => continue,
@@ -1162,6 +1279,7 @@ impl VmInstance {
                 }
                 Ok(VmValue::List(values))
             }
+            "list_comp" => self.eval_list_comprehension(object, scope, host),
             "tuple" => {
                 let mut values = Vec::new();
                 for element in required_array(object, "elements")? {
@@ -1173,11 +1291,23 @@ impl VmInstance {
                 let mut entries = Vec::new();
                 for entry in required_array(object, "entries")? {
                     let entry_object = as_object(entry, "dict entry")?;
-                    let key =
-                        self.eval_expression(required_value(entry_object, "key")?, scope, host)?;
-                    let value =
-                        self.eval_expression(required_value(entry_object, "value")?, scope, host)?;
-                    entries.push((key, value));
+                    if let Some(unpack) = entry_object.get("unpack") {
+                        let unpacked = self.eval_expression(unpack, scope, host)?;
+                        let VmValue::Dict(unpacked_entries) = unpacked else {
+                            return Err(VmExecutionError::new(
+                                "dict unpacking requires a dict value",
+                            ));
+                        };
+                        for (key, value) in unpacked_entries {
+                            entries.push((key, value));
+                        }
+                    } else {
+                        let key =
+                            self.eval_expression(required_value(entry_object, "key")?, scope, host)?;
+                        let value =
+                            self.eval_expression(required_value(entry_object, "value")?, scope, host)?;
+                        entries.push((key, value));
+                    }
                 }
                 Ok(VmValue::Dict(entries))
             }
@@ -1237,6 +1367,77 @@ impl VmInstance {
                 "unsupported expression node '{other}'"
             ))),
         }
+    }
+
+    fn eval_list_comprehension(
+        &mut self,
+        object: &Map<String, Value>,
+        scope: &mut HashMap<String, VmValue>,
+        host: &mut dyn VmHost,
+    ) -> Result<VmValue, VmExecutionError> {
+        let element = required_value(object, "element")?;
+        let generators = required_array(object, "generators")?;
+        let mut results = Vec::new();
+        self.eval_list_comprehension_generator(
+            generators,
+            0,
+            element,
+            scope,
+            host,
+            &mut results,
+        )?;
+        Ok(VmValue::List(results))
+    }
+
+    fn eval_list_comprehension_generator(
+        &mut self,
+        generators: &[Value],
+        index: usize,
+        element: &Value,
+        scope: &mut HashMap<String, VmValue>,
+        host: &mut dyn VmHost,
+        results: &mut Vec<VmValue>,
+    ) -> Result<(), VmExecutionError> {
+        let generator = as_object(
+            generators
+                .get(index)
+                .ok_or_else(|| VmExecutionError::new("missing list comprehension generator"))?,
+            "list comprehension generator",
+        )?;
+        let target = required_value(generator, "target")?;
+        let iter_value = self.eval_expression(required_value(generator, "iter")?, scope, host)?;
+        let items = iterate_value(&iter_value)?;
+        let previous_bindings = capture_target_bindings(target, scope)?;
+
+        for item in items {
+            host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
+            self.assign_target(target, item, scope, false)?;
+            let mut allowed = true;
+            for condition in required_array(generator, "ifs")? {
+                if !self.eval_expression(condition, scope, host)?.truthy() {
+                    allowed = false;
+                    break;
+                }
+            }
+            if !allowed {
+                continue;
+            }
+            if index + 1 == generators.len() {
+                results.push(self.eval_expression(element, scope, host)?);
+            } else {
+                self.eval_list_comprehension_generator(
+                    generators,
+                    index + 1,
+                    element,
+                    scope,
+                    host,
+                    results,
+                )?;
+            }
+        }
+
+        restore_target_bindings(scope, previous_bindings);
+        Ok(())
     }
 
     fn eval_name(
@@ -1303,6 +1504,10 @@ impl VmInstance {
     fn resolve_host_binding(&self, host_binding_id: &str) -> Result<VmValue, VmExecutionError> {
         match host_binding_id {
             "numeric.decimal.new" => Ok(VmValue::TypeMarker("decimal".to_owned())),
+            "module.importlib" => Ok(VmValue::Builtin("importlib".to_owned())),
+            "module.hashlib" => Ok(VmValue::Builtin("hashlib".to_owned())),
+            "module.crypto" => Ok(VmValue::Builtin("crypto".to_owned())),
+            "module.datetime" => Ok(VmValue::Builtin("datetime".to_owned())),
             "time.datetime.new" | "time.datetime.strptime" => {
                 Ok(VmValue::TypeMarker("datetime.datetime".to_owned()))
             }
@@ -1410,10 +1615,33 @@ impl VmInstance {
         let mut values = Vec::new();
         for keyword in keywords {
             let keyword_object = as_object(keyword, "keyword")?;
-            values.push((
-                required_string(keyword_object, "arg")?.to_owned(),
-                self.eval_expression(required_value(keyword_object, "value")?, scope, host)?,
-            ));
+            match keyword_object
+                .get("node")
+                .and_then(Value::as_str)
+                .unwrap_or("keyword")
+            {
+                "keyword" => values.push((
+                    required_string(keyword_object, "arg")?.to_owned(),
+                    self.eval_expression(required_value(keyword_object, "value")?, scope, host)?,
+                )),
+                "keyword_unpack" => {
+                    let unpacked =
+                        self.eval_expression(required_value(keyword_object, "value")?, scope, host)?;
+                    let VmValue::Dict(entries) = unpacked else {
+                        return Err(VmExecutionError::new(
+                            "keyword unpacking requires a dict value",
+                        ));
+                    };
+                    for (key, value) in entries {
+                        values.push((key.as_string()?, value));
+                    }
+                }
+                other => {
+                    return Err(VmExecutionError::new(format!(
+                        "unsupported keyword node '{other}'"
+                    )))
+                }
+            }
         }
         Ok(values)
     }
@@ -1926,6 +2154,40 @@ impl VmInstance {
                         other.type_name()
                     ))),
                 }
+            }
+            "ord" => {
+                if args.len() != 1 || !kwargs.is_empty() {
+                    return Err(VmExecutionError::new("ord() expects one argument"));
+                }
+                match &args[0] {
+                    VmValue::String(value) => {
+                        let mut chars = value.chars();
+                        let first = chars.next().ok_or_else(|| {
+                            VmExecutionError::new("ord() expected a character, but string was empty")
+                        })?;
+                        if chars.next().is_some() {
+                            return Err(VmExecutionError::new(
+                                "ord() expected a character, but string of length > 1 found",
+                            ));
+                        }
+                        Ok(vm_int(u32::from(first)))
+                    }
+                    other => Err(VmExecutionError::new(format!(
+                        "ord() does not support {}",
+                        other.type_name()
+                    ))),
+                }
+            }
+            "Exception" => {
+                if !kwargs.is_empty() {
+                    return Err(VmExecutionError::new(
+                        "Exception() does not accept keyword arguments",
+                    ));
+                }
+                Ok(VmValue::Exception(VmException {
+                    name: "Exception".to_owned(),
+                    args,
+                }))
             }
             "dict" => {
                 if args.len() > 1 {
@@ -3340,6 +3602,354 @@ mod tests {
     }
 
     #[test]
+    fn evaluates_list_comprehensions() {
+        let span = json!({"line": 1, "col": 0, "end_line": 1, "end_col": 1});
+        let module = parse_module_ir(
+            &json!({
+                "ir_version": XIAN_IR_V1,
+                "vm_profile": XIAN_VM_V1_PROFILE,
+                "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
+                "module_name": "list_comp_probe",
+                "source_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "docstring": null,
+                "imports": [],
+                "global_declarations": [],
+                "functions": [
+                    {
+                        "node": "function",
+                        "span": span.clone(),
+                        "name": "positives",
+                        "visibility": "export",
+                        "decorator": null,
+                        "docstring": null,
+                        "parameters": [
+                            {
+                                "name": "values",
+                                "kind": "positional_or_keyword",
+                                "annotation": "list[int]",
+                                "default": null,
+                                "span": span.clone()
+                            }
+                        ],
+                        "returns": null,
+                        "body": [
+                            {
+                                "node": "return",
+                                "span": span.clone(),
+                                "value": {
+                                    "node": "list_comp",
+                                    "span": span.clone(),
+                                    "element": {
+                                        "node": "name",
+                                        "span": span.clone(),
+                                        "id": "value",
+                                        "host_binding_id": null
+                                    },
+                                    "generators": [
+                                        {
+                                            "target": {
+                                                "node": "name",
+                                                "span": span.clone(),
+                                                "id": "value",
+                                                "host_binding_id": null
+                                            },
+                                            "iter": {
+                                                "node": "name",
+                                                "span": span.clone(),
+                                                "id": "values",
+                                                "host_binding_id": null
+                                            },
+                                            "ifs": [
+                                                {
+                                                    "node": "compare",
+                                                    "span": span.clone(),
+                                                    "left": {
+                                                        "node": "name",
+                                                        "span": span.clone(),
+                                                        "id": "value",
+                                                        "host_binding_id": null
+                                                    },
+                                                    "operators": ["gt"],
+                                                    "comparators": [
+                                                        {
+                                                            "node": "constant",
+                                                            "span": span.clone(),
+                                                            "value_type": "int",
+                                                            "value": 0
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "module_body": [],
+                "host_dependencies": []
+            })
+            .to_string(),
+        )
+        .expect("module should parse");
+
+        let mut instance = VmInstance::new(module, VmExecutionContext::default())
+            .expect("instance should initialize");
+        let mut host = RecordingHost::default();
+
+        let result = instance
+            .call_function(
+                &mut host,
+                "positives",
+                vec![VmValue::List(vec![vm_int(-2), vm_int(0), vm_int(3), vm_int(5)])],
+                vec![],
+            )
+            .expect("call should execute");
+
+        assert_eq!(result, VmValue::List(vec![vm_int(3), vm_int(5)]));
+    }
+
+    #[test]
+    fn evaluates_dict_unpacking() {
+        let span = json!({"line": 1, "col": 0, "end_line": 1, "end_col": 1});
+        let module = parse_module_ir(
+            &json!({
+                "ir_version": XIAN_IR_V1,
+                "vm_profile": XIAN_VM_V1_PROFILE,
+                "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
+                "module_name": "dict_unpack_probe",
+                "source_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "docstring": null,
+                "imports": [],
+                "global_declarations": [],
+                "functions": [
+                    {
+                        "node": "function",
+                        "span": span.clone(),
+                        "name": "payload",
+                        "visibility": "export",
+                        "decorator": null,
+                        "docstring": null,
+                        "parameters": [
+                            {
+                                "name": "base",
+                                "kind": "positional_or_keyword",
+                                "annotation": "dict",
+                                "default": null,
+                                "span": span.clone()
+                            },
+                            {
+                                "name": "override",
+                                "kind": "positional_or_keyword",
+                                "annotation": "dict",
+                                "default": null,
+                                "span": span.clone()
+                            }
+                        ],
+                        "returns": null,
+                        "body": [
+                            {
+                                "node": "return",
+                                "span": span.clone(),
+                                "value": {
+                                    "node": "dict",
+                                    "span": span.clone(),
+                                    "entries": [
+                                        {
+                                            "unpack": {
+                                                "node": "name",
+                                                "span": span.clone(),
+                                                "id": "base",
+                                                "host_binding_id": null
+                                            }
+                                        },
+                                        {
+                                            "key": {
+                                                "node": "constant",
+                                                "span": span.clone(),
+                                                "value_type": "str",
+                                                "value": "kind"
+                                            },
+                                            "value": {
+                                                "node": "constant",
+                                                "span": span.clone(),
+                                                "value_type": "str",
+                                                "value": "price"
+                                            }
+                                        },
+                                        {
+                                            "unpack": {
+                                                "node": "name",
+                                                "span": span.clone(),
+                                                "id": "override",
+                                                "host_binding_id": null
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "module_body": [],
+                "host_dependencies": []
+            })
+            .to_string(),
+        )
+        .expect("module should parse");
+
+        let mut instance = VmInstance::new(module, VmExecutionContext::default())
+            .expect("instance should initialize");
+        let mut host = RecordingHost::default();
+
+        let result = instance
+            .call_function(
+                &mut host,
+                "payload",
+                vec![
+                    VmValue::Dict(vec![
+                        (VmValue::String("symbol".to_owned()), VmValue::String("XIAN".to_owned())),
+                        (VmValue::String("value".to_owned()), vm_int(42)),
+                    ]),
+                    VmValue::Dict(vec![
+                        (VmValue::String("value".to_owned()), vm_int(77)),
+                    ]),
+                ],
+                vec![],
+            )
+            .expect("call should execute");
+
+        assert_eq!(
+            result,
+            VmValue::Dict(vec![
+                (VmValue::String("symbol".to_owned()), VmValue::String("XIAN".to_owned())),
+                (VmValue::String("value".to_owned()), vm_int(42)),
+                (VmValue::String("kind".to_owned()), VmValue::String("price".to_owned())),
+                (VmValue::String("value".to_owned()), vm_int(77)),
+            ])
+        );
+    }
+
+    #[test]
+    fn executes_while_loops() {
+        let span = json!({"line": 1, "col": 0, "end_line": 1, "end_col": 1});
+        let module = parse_module_ir(
+            &json!({
+                "ir_version": XIAN_IR_V1,
+                "vm_profile": XIAN_VM_V1_PROFILE,
+                "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
+                "module_name": "while_probe",
+                "source_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "docstring": null,
+                "imports": [],
+                "global_declarations": [],
+                "functions": [
+                    {
+                        "node": "function",
+                        "span": span.clone(),
+                        "name": "countdown",
+                        "visibility": "export",
+                        "decorator": null,
+                        "docstring": null,
+                        "parameters": [
+                            {
+                                "name": "value",
+                                "kind": "positional_or_keyword",
+                                "annotation": "int",
+                                "default": null,
+                                "span": span.clone()
+                            }
+                        ],
+                        "returns": null,
+                        "body": [
+                            {
+                                "node": "while",
+                                "span": span.clone(),
+                                "test": {
+                                    "node": "compare",
+                                    "span": span.clone(),
+                                    "left": {
+                                        "node": "name",
+                                        "span": span.clone(),
+                                        "id": "value",
+                                        "host_binding_id": null
+                                    },
+                                    "operators": ["gt"],
+                                    "comparators": [
+                                        {
+                                            "node": "constant",
+                                            "span": span.clone(),
+                                            "value_type": "int",
+                                            "value": 0
+                                        }
+                                    ]
+                                },
+                                "body": [
+                                    {
+                                        "node": "assign",
+                                        "span": span.clone(),
+                                        "targets": [
+                                            {
+                                                "node": "name",
+                                                "span": span.clone(),
+                                                "id": "value",
+                                                "host_binding_id": null
+                                            }
+                                        ],
+                                        "value": {
+                                            "node": "bin_op",
+                                            "span": span.clone(),
+                                            "operator": "sub",
+                                            "left": {
+                                                "node": "name",
+                                                "span": span.clone(),
+                                                "id": "value",
+                                                "host_binding_id": null
+                                            },
+                                            "right": {
+                                                "node": "constant",
+                                                "span": span.clone(),
+                                                "value_type": "int",
+                                                "value": 1
+                                            }
+                                        }
+                                    }
+                                ],
+                                "orelse": []
+                            },
+                            {
+                                "node": "return",
+                                "span": span.clone(),
+                                "value": {
+                                    "node": "name",
+                                    "span": span.clone(),
+                                    "id": "value",
+                                    "host_binding_id": null
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "module_body": [],
+                "host_dependencies": []
+            })
+            .to_string(),
+        )
+        .expect("module should parse");
+
+        let mut instance = VmInstance::new(module, VmExecutionContext::default())
+            .expect("instance should initialize");
+        let mut host = RecordingHost::default();
+
+        let result = instance
+            .call_function(&mut host, "countdown", vec![vm_int(4)], vec![])
+            .expect("call should execute");
+
+        assert_eq!(result, vm_int(0));
+    }
+
+    #[test]
     fn formats_assert_failures_like_python_repr() {
         let span = json!({"line": 1, "col": 0, "end_line": 1, "end_col": 1});
         let module = parse_module_ir(
@@ -3429,5 +4039,88 @@ mod tests {
             .expect_err("call should fail");
 
         assert_eq!(error.to_string(), "AssertionError('value must be positive')");
+    }
+
+    #[test]
+    fn supports_ord_builtin() {
+        let span = json!({"line": 1, "col": 0, "end_line": 1, "end_col": 1});
+        let module = parse_module_ir(
+            &json!({
+                "ir_version": XIAN_IR_V1,
+                "vm_profile": XIAN_VM_V1_PROFILE,
+                "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
+                "module_name": "ord_probe",
+                "source_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "docstring": null,
+                "imports": [],
+                "global_declarations": [],
+                "functions": [
+                    {
+                        "node": "function",
+                        "span": span.clone(),
+                        "name": "ascii_code",
+                        "visibility": "export",
+                        "decorator": null,
+                        "docstring": null,
+                        "parameters": [
+                            {
+                                "name": "value",
+                                "kind": "positional_or_keyword",
+                                "annotation": "str",
+                                "default": null,
+                                "span": span.clone()
+                            }
+                        ],
+                        "returns": null,
+                        "body": [
+                            {
+                                "node": "return",
+                                "span": span.clone(),
+                                "value": {
+                                    "node": "call",
+                                    "span": span.clone(),
+                                    "func": {
+                                        "node": "name",
+                                        "span": span.clone(),
+                                        "id": "ord",
+                                        "host_binding_id": null
+                                    },
+                                    "args": [
+                                        {
+                                            "node": "name",
+                                            "span": span.clone(),
+                                            "id": "value",
+                                            "host_binding_id": null
+                                        }
+                                    ],
+                                    "keywords": [],
+                                    "syscall_id": null,
+                                    "event_binding": null
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "module_body": [],
+                "host_dependencies": []
+            })
+            .to_string(),
+        )
+        .expect("module should parse");
+
+        let mut instance = VmInstance::new(module, VmExecutionContext::default())
+            .expect("instance should initialize");
+        let mut host = RecordingHost::default();
+
+        let result = instance
+            .call_function(
+                &mut host,
+                "ascii_code",
+                vec![VmValue::String("A".to_owned())],
+                vec![],
+            )
+            .expect("call should execute");
+
+        assert_eq!(result, vm_int(65));
     }
 }

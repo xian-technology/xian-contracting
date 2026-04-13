@@ -224,6 +224,12 @@ _HOST_BINDINGS = (
         category="crypto",
     ),
     _host_binding(
+        "importlib",
+        "module.importlib",
+        kind="value",
+        category="import",
+    ),
+    _host_binding(
         "importlib.import_module",
         "contract.import",
         kind="syscall",
@@ -282,6 +288,24 @@ _HOST_BINDINGS = (
         "contract.interface.var",
         kind="syscall",
         category="import",
+    ),
+    _host_binding(
+        "hashlib",
+        "module.hashlib",
+        kind="value",
+        category="hashing",
+    ),
+    _host_binding(
+        "crypto",
+        "module.crypto",
+        kind="value",
+        category="crypto",
+    ),
+    _host_binding(
+        "datetime",
+        "module.datetime",
+        kind="value",
+        category="time",
     ),
     _host_binding(
         "__contract_export__",

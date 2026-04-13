@@ -108,10 +108,8 @@ def render(values: list[int]) -> int:
     def test_lower_to_ir_raises_on_vm_profile_violation(self):
         source = """
 @export
-def countdown(value: int):
-    while value > 0:
-        value -= 1
-    return value
+def unsupported(values: list[int]):
+    return {value for value in values}
 """
         compiler = ContractingCompiler(module_name="bad")
 
@@ -136,6 +134,31 @@ def quote():
         self.assertIn("numeric.decimal.new", dependency_ids)
         self.assertEqual(quote["body"][0]["value"]["operator"], "add")
 
+    def test_lower_to_ir_supports_importlib_module_aliases(self):
+        source = """
+I = importlib
+
+@export
+def load_token(token: str):
+    module = I.import_module(token)
+    return module
+"""
+        compiler = ContractingCompiler(module_name="alias_import")
+
+        ir = compiler.lower_to_ir(source)
+        load_token = next(
+            function for function in ir["functions"] if function["name"] == "load_token"
+        )
+
+        self.assertEqual(
+            ir["global_declarations"][0]["value"]["host_binding_id"],
+            "module.importlib",
+        )
+        self.assertEqual(load_token["body"][0]["value"]["syscall_id"], "contract.import")
+        dependency_ids = {item["id"] for item in ir["host_dependencies"]}
+        self.assertIn("module.importlib", dependency_ids)
+        self.assertIn("contract.import", dependency_ids)
+
     def test_lower_to_ir_records_hash_prefix_scan_runtime_usage(self):
         source = """
 values = Hash(default_value=0)
@@ -159,6 +182,107 @@ def snapshot(group: str):
         self.assertEqual(returned["receiver_type"], "Hash")
         self.assertEqual(returned["method"], "all")
         self.assertIn("storage.hash.all", dependency_ids)
+
+    def test_lower_to_ir_supports_list_comprehensions(self):
+        source = """
+@export
+def positives(values: list[int]) -> list[int]:
+    return [value for value in values if value > 0]
+"""
+        compiler = ContractingCompiler(module_name="comprehensions")
+
+        ir = compiler.lower_to_ir(source)
+        positives = next(
+            function for function in ir["functions"] if function["name"] == "positives"
+        )
+        returned = positives["body"][0]["value"]
+
+        self.assertEqual(returned["node"], "list_comp")
+        self.assertEqual(len(returned["generators"]), 1)
+        self.assertEqual(returned["generators"][0]["target"]["node"], "name")
+        self.assertEqual(returned["generators"][0]["iter"]["node"], "name")
+        self.assertEqual(returned["generators"][0]["ifs"][0]["node"], "compare")
+
+    def test_lower_to_ir_supports_dict_unpacking(self):
+        source = """
+@export
+def payload(base: dict, override: dict):
+    return {**base, "kind": "price", **override}
+"""
+        compiler = ContractingCompiler(module_name="dict_unpack")
+
+        ir = compiler.lower_to_ir(source)
+        payload = next(
+            function for function in ir["functions"] if function["name"] == "payload"
+        )
+        returned = payload["body"][0]["value"]
+
+        self.assertEqual(returned["node"], "dict")
+        self.assertEqual(returned["entries"][0]["unpack"]["node"], "name")
+        self.assertEqual(returned["entries"][1]["key"]["node"], "constant")
+        self.assertEqual(returned["entries"][2]["unpack"]["node"], "name")
+
+    def test_lower_to_ir_supports_while_loops(self):
+        source = """
+@export
+def countdown(value: int):
+    while value > 0:
+        value -= 1
+    return value
+"""
+        compiler = ContractingCompiler(module_name="while_loop")
+
+        ir = compiler.lower_to_ir(source)
+        countdown = next(
+            function for function in ir["functions"] if function["name"] == "countdown"
+        )
+
+        self.assertEqual(countdown["body"][0]["node"], "while")
+        self.assertEqual(countdown["body"][0]["test"]["node"], "compare")
+        self.assertEqual(countdown["body"][0]["body"][0]["node"], "aug_assign")
+
+    def test_lower_to_ir_supports_raise_and_bitwise_operators(self):
+        source = """
+@export
+def probe(value: int):
+    if value < 0:
+        raise Exception("negative")
+    return (~value) ^ (value & 3)
+"""
+        compiler = ContractingCompiler(module_name="bitwise_raise")
+
+        ir = compiler.lower_to_ir(source)
+        probe = next(function for function in ir["functions"] if function["name"] == "probe")
+
+        self.assertEqual(probe["body"][0]["node"], "if")
+        self.assertEqual(probe["body"][0]["body"][0]["node"], "raise")
+        returned = probe["body"][1]["value"]
+        self.assertEqual(returned["node"], "bin_op")
+        self.assertEqual(returned["operator"], "bitxor")
+        self.assertEqual(returned["left"]["node"], "unary_op")
+        self.assertEqual(returned["left"]["operator"], "invert")
+        self.assertEqual(returned["right"]["operator"], "bitand")
+
+    def test_lower_to_ir_supports_keyword_unpack_calls(self):
+        source = """
+def quote(amount: int, to: str, memo: str = ""):
+    return {"amount": amount, "to": to, "memo": memo}
+
+@export
+def render():
+    base = {"amount": 5, "to": "bob"}
+    override = {"memo": "hello"}
+    return quote(**base, **override)
+"""
+        compiler = ContractingCompiler(module_name="keyword_unpack")
+
+        ir = compiler.lower_to_ir(source)
+        render = next(function for function in ir["functions"] if function["name"] == "render")
+        returned = render["body"][2]["value"]
+
+        self.assertEqual(returned["node"], "call")
+        self.assertEqual(returned["keywords"][0]["node"], "keyword_unpack")
+        self.assertEqual(returned["keywords"][1]["node"], "keyword_unpack")
 
     def test_lower_to_ir_records_time_hash_and_crypto_runtime_usage(self):
         source = """

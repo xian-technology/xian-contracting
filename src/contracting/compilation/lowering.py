@@ -28,11 +28,17 @@ _BIN_OPS = {
     ast.FloorDiv: "floordiv",
     ast.Mod: "mod",
     ast.Pow: "pow",
+    ast.BitAnd: "bitand",
+    ast.BitOr: "bitor",
+    ast.BitXor: "bitxor",
+    ast.LShift: "lshift",
+    ast.RShift: "rshift",
 }
 _UNARY_OPS = {
     ast.Not: "not",
     ast.USub: "neg",
     ast.UAdd: "pos",
+    ast.Invert: "invert",
 }
 _COMPARE_OPS = {
     ast.Eq: "eq",
@@ -68,6 +74,55 @@ _STORAGE_SUBSCRIPT_WRITE_SYSCALLS = {
 }
 _EVENT_CONSTRUCTOR = "LogEvent"
 _CONTRACT_EXPORT_SYSCALL = "contract.export_call"
+_HOST_MODULE_BINDINGS = {
+    "importlib",
+    "hashlib",
+    "crypto",
+    "datetime",
+}
+
+XIAN_IR_V1_STATEMENT_NODES = frozenset(
+    {
+        "assign",
+        "storage_set",
+        "storage_mutate",
+        "aug_assign",
+        "return",
+        "expr",
+        "if",
+        "for",
+        "while",
+        "assert",
+        "raise",
+        "break",
+        "continue",
+        "pass",
+    }
+)
+XIAN_IR_V1_EXPRESSION_NODES = frozenset(
+    {
+        "name",
+        "constant",
+        "list",
+        "list_comp",
+        "tuple",
+        "dict",
+        "attribute",
+        "subscript",
+        "storage_get",
+        "slice",
+        "call",
+        "compare",
+        "bool_op",
+        "bin_op",
+        "unary_op",
+        "if_expr",
+        "f_string",
+        "formatted_value",
+    }
+)
+XIAN_IR_V1_BIN_OPS = frozenset(_BIN_OPS.values())
+XIAN_IR_V1_UNARY_OPS = frozenset(_UNARY_OPS.values())
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +144,7 @@ class XianIrLowerer:
         self._event_bindings: set[str] = set()
         self._storage_bindings: dict[str, str] = {}
         self._static_import_bindings: set[str] = set()
+        self._host_module_aliases: dict[str, str] = {}
         self._contract_handle_factories: set[str] = set()
         self._local_contract_handles: dict[str, ast.AST] = {}
 
@@ -98,6 +154,7 @@ class XianIrLowerer:
         self._event_bindings = set()
         self._storage_bindings = {}
         self._static_import_bindings = set()
+        self._host_module_aliases = {}
         self._contract_handle_factories = set()
         self._local_contract_handles = {}
 
@@ -155,7 +212,7 @@ class XianIrLowerer:
         self,
         node: ast.AST,
     ) -> dict[str, str] | None:
-        spec = resolve_host_binding(dotted_path(node))
+        spec = resolve_host_binding(self._canonical_dotted_path(node))
         if spec is None:
             return None
         self._host_dependencies[spec["id"]] = spec
@@ -186,6 +243,7 @@ class XianIrLowerer:
         raise IrLoweringError(detail, span["line"], span["col"])
 
     def _inspect_module_bindings(self, body: list[ast.stmt]) -> None:
+        self._discover_host_module_aliases(body)
         for node in body:
             if isinstance(node, ast.Import):
                 for alias in node.names:
@@ -203,6 +261,39 @@ class XianIrLowerer:
                     self._storage_bindings[target] = node.value.func.id
                 elif node.value.func.id == _EVENT_CONSTRUCTOR:
                     self._event_bindings.add(target)
+
+    def _discover_host_module_aliases(self, body: list[ast.stmt]) -> None:
+        pending: list[tuple[str, ast.AST]] = []
+        for node in body:
+            if (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+            ):
+                pending.append((node.targets[0].id, node.value))
+
+        changed = True
+        while changed:
+            changed = False
+            for target, value in pending:
+                if target in self._host_module_aliases:
+                    continue
+                if not isinstance(value, ast.Name):
+                    continue
+                canonical = self._host_module_aliases.get(value.id, value.id)
+                if canonical in _HOST_MODULE_BINDINGS:
+                    self._host_module_aliases[target] = canonical
+                    changed = True
+
+    def _canonical_dotted_path(self, node: ast.AST) -> str | None:
+        path = dotted_path(node)
+        if path is None:
+            return None
+        root, _, remainder = path.partition(".")
+        canonical_root = self._host_module_aliases.get(root, root)
+        if remainder:
+            return f"{canonical_root}.{remainder}"
+        return canonical_root
 
     def _discover_contract_handle_factories(
         self,
@@ -293,12 +384,7 @@ class XianIrLowerer:
         return False
 
     def _is_importlib_import_call(self, node: ast.Call) -> bool:
-        return (
-            isinstance(node.func, ast.Attribute)
-            and isinstance(node.func.value, ast.Name)
-            and node.func.value.id == "importlib"
-            and node.func.attr == "import_module"
-        )
+        return self._canonical_dotted_path(node.func) == "importlib.import_module"
 
     def _contract_target_for_expression(
         self,
@@ -612,15 +698,17 @@ class XianIrLowerer:
 
     def _lower_keyword(self, node: ast.keyword) -> dict[str, Any]:
         if node.arg is None:
-            self._raise_unsupported(
+            return self._node(
+                "keyword_unpack",
                 node,
-                "keyword unpacking is not supported in Xian IR",
+                value=self._lower_expression(node.value),
             )
-        return {
-            "arg": node.arg,
-            "value": self._lower_expression(node.value),
-            "span": source_span(node),
-        }
+        return self._node(
+            "keyword",
+            node,
+            arg=node.arg,
+            value=self._lower_expression(node.value),
+        )
 
     def _lower_statement(self, node: ast.stmt) -> dict[str, Any]:
         if isinstance(node, ast.Assign):
@@ -703,6 +791,14 @@ class XianIrLowerer:
                 body=[self._lower_statement(stmt) for stmt in node.body],
                 orelse=[self._lower_statement(stmt) for stmt in node.orelse],
             )
+        if isinstance(node, ast.While):
+            return self._node(
+                "while",
+                node,
+                test=self._lower_expression(node.test),
+                body=[self._lower_statement(stmt) for stmt in node.body],
+                orelse=[self._lower_statement(stmt) for stmt in node.orelse],
+            )
         if isinstance(node, ast.Assert):
             return self._node(
                 "assert",
@@ -711,6 +807,21 @@ class XianIrLowerer:
                 message=(
                     self._lower_expression(node.msg)
                     if node.msg is not None
+                    else None
+                ),
+            )
+        if isinstance(node, ast.Raise):
+            return self._node(
+                "raise",
+                node,
+                exception=(
+                    self._lower_expression(node.exc)
+                    if node.exc is not None
+                    else None
+                ),
+                cause=(
+                    self._lower_expression(node.cause)
+                    if node.cause is not None
                     else None
                 ),
             )
@@ -786,6 +897,30 @@ class XianIrLowerer:
                 node,
                 elements=[self._lower_expression(element) for element in node.elts],
             )
+        if isinstance(node, ast.ListComp):
+            generators = []
+            for generator in node.generators:
+                if generator.is_async:
+                    self._raise_unsupported(
+                        node,
+                        "async comprehensions are not supported in Xian IR",
+                    )
+                generators.append(
+                    {
+                        "target": self._lower_target(generator.target),
+                        "iter": self._lower_expression(generator.iter),
+                        "ifs": [
+                            self._lower_expression(condition)
+                            for condition in generator.ifs
+                        ],
+                    }
+                )
+            return self._node(
+                "list_comp",
+                node,
+                element=self._lower_expression(node.elt),
+                generators=generators,
+            )
         if isinstance(node, ast.Tuple):
             return self._node(
                 "tuple",
@@ -796,16 +931,18 @@ class XianIrLowerer:
             entries = []
             for key, value in zip(node.keys, node.values, strict=True):
                 if key is None:
-                    self._raise_unsupported(
-                        node,
-                        "dict unpacking is not supported in Xian IR",
+                    entries.append(
+                        {
+                            "unpack": self._lower_expression(value),
+                        }
                     )
-                entries.append(
-                    {
-                        "key": self._lower_expression(key),
-                        "value": self._lower_expression(value),
-                    }
-                )
+                else:
+                    entries.append(
+                        {
+                            "key": self._lower_expression(key),
+                            "value": self._lower_expression(value),
+                        }
+                    )
             return self._node("dict", node, entries=entries)
         if isinstance(node, ast.Attribute):
             host = self._record_host_dependency(node)

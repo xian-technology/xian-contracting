@@ -152,6 +152,26 @@ impl VmDecimal {
         })
     }
 
+    pub(crate) fn python_repr(&self) -> String {
+        if self.scaled.is_zero() {
+            return "0".to_owned();
+        }
+
+        let (digits, exponent) = normalized_decimal_parts(&self.scaled.abs());
+        let adjusted_exponent = exponent + digits.len() as i64 - 1;
+        let rendered = if exponent <= 0 && adjusted_exponent >= -6 {
+            render_plain_decimal(&digits, exponent)
+        } else {
+            render_engineering_decimal(&digits, adjusted_exponent)
+        };
+
+        if self.scaled.sign() == Sign::Minus {
+            format!("-{rendered}")
+        } else {
+            rendered
+        }
+    }
+
     pub(crate) fn add(&self, other: &Self) -> Result<Self, VmExecutionError> {
         Self::from_scaled(&self.scaled + &other.scaled)
     }
@@ -321,6 +341,69 @@ fn normalize_zero_bigint(value: BigInt) -> BigInt {
 
 fn trim_decimal_fraction(fraction: &str) -> String {
     fraction.trim_end_matches('0').to_owned()
+}
+
+fn normalized_decimal_parts(value: &BigInt) -> (String, i64) {
+    let mut coefficient = value.clone();
+    let mut exponent = -(DECIMAL_SCALE as i64);
+    let ten = BigInt::from(10u8);
+    while (&coefficient % &ten).is_zero() {
+        coefficient /= &ten;
+        exponent += 1;
+    }
+    (coefficient.to_str_radix(10), exponent)
+}
+
+fn render_plain_decimal(digits: &str, exponent: i64) -> String {
+    if exponent >= 0 {
+        let mut rendered = digits.to_owned();
+        rendered.push_str(&"0".repeat(exponent as usize));
+        return rendered;
+    }
+
+    let split = digits.len() as i64 + exponent;
+    if split > 0 {
+        let split = split as usize;
+        let fraction = trim_decimal_fraction(&digits[split..]);
+        if fraction.is_empty() {
+            digits[..split].to_owned()
+        } else {
+            format!("{}.{fraction}", &digits[..split])
+        }
+    } else {
+        let mut fraction = String::with_capacity((-split) as usize + digits.len());
+        fraction.push_str(&"0".repeat((-split) as usize));
+        fraction.push_str(digits);
+        format!("0.{}", trim_decimal_fraction(&fraction))
+    }
+}
+
+fn render_engineering_decimal(digits: &str, adjusted_exponent: i64) -> String {
+    let engineering_exponent = adjusted_exponent - adjusted_exponent.rem_euclid(3);
+    let integer_digits = (adjusted_exponent - engineering_exponent + 1) as usize;
+    let mut coefficient = digits.to_owned();
+    if coefficient.len() < integer_digits {
+        coefficient.push_str(&"0".repeat(integer_digits - coefficient.len()));
+    }
+
+    let mantissa = if coefficient.len() == integer_digits {
+        coefficient
+    } else {
+        let fraction = trim_decimal_fraction(&coefficient[integer_digits..]);
+        if fraction.is_empty() {
+            coefficient[..integer_digits].to_owned()
+        } else {
+            format!("{}.{fraction}", &coefficient[..integer_digits])
+        }
+    };
+
+    if engineering_exponent == 0 {
+        mantissa
+    } else if engineering_exponent > 0 {
+        format!("{mantissa}E+{engineering_exponent}")
+    } else {
+        format!("{mantissa}E{engineering_exponent}")
+    }
 }
 
 pub(crate) fn vm_int<T>(value: T) -> VmValue
@@ -603,6 +686,7 @@ pub enum VmValue {
     Builtin(String),
     FunctionRef(String),
     TypeMarker(String),
+    Exception(VmException),
 }
 
 impl VmValue {
@@ -623,7 +707,8 @@ impl VmValue {
             | Self::EventRef(_)
             | Self::Builtin(_)
             | Self::FunctionRef(_)
-            | Self::TypeMarker(_) => true,
+            | Self::TypeMarker(_)
+            | Self::Exception(_) => true,
         }
     }
 
@@ -634,7 +719,7 @@ impl VmValue {
             Self::Bool(false) => "False".to_owned(),
             Self::Int(value) => value.to_string(),
             Self::Float(value) => format!("{value:?}"),
-            Self::Decimal(value) => value.to_string(),
+            Self::Decimal(value) => value.python_repr(),
             Self::DateTime(value) => value.to_string(),
             Self::TimeDelta(value) => value.to_string(),
             Self::String(value) => value.clone(),
@@ -673,6 +758,7 @@ impl VmValue {
             Self::Builtin(name) => format!("<builtin:{name}>"),
             Self::FunctionRef(name) => format!("<function:{name}>"),
             Self::TypeMarker(name) => name.clone(),
+            Self::Exception(value) => value.python_repr(),
         }
     }
 
@@ -743,6 +829,7 @@ impl VmValue {
             Self::Builtin(_) => "builtin",
             Self::FunctionRef(_) => "function_ref",
             Self::TypeMarker(_) => "type_marker",
+            Self::Exception(_) => "exception",
         }
     }
 }
@@ -760,6 +847,27 @@ pub struct VmStorageRef {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct VmException {
+    pub name: String,
+    pub args: Vec<VmValue>,
+}
+
+impl VmException {
+    pub fn python_repr(&self) -> String {
+        if self.args.is_empty() {
+            return format!("{}()", self.name);
+        }
+        let rendered = self
+            .args
+            .iter()
+            .map(python_exception_arg_repr)
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("{}({rendered})", self.name)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct VmEventDefinition {
     pub binding: String,
     pub event_name: String,
@@ -770,6 +878,16 @@ pub struct VmEventDefinition {
 pub struct VmContractHandle {
     pub module: String,
     pub origin: String,
+}
+
+fn python_exception_arg_repr(value: &VmValue) -> String {
+    match value {
+        VmValue::String(inner) => {
+            let escaped = inner.replace('\\', "\\\\").replace('\'', "\\'");
+            format!("'{escaped}'")
+        }
+        other => other.python_repr(),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -857,6 +975,45 @@ impl VmExecutionError {
 impl fmt::Display for VmExecutionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.message)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{VmDecimal, VmValue};
+
+    #[test]
+    fn formats_decimal_python_repr_like_contracting_decimal_strings() {
+        let cases = [
+            ("1000", "1E+3"),
+            ("50000000", "50E+6"),
+            ("1234000", "1.234E+6"),
+            ("1234500", "1.2345E+6"),
+            ("0.0001", "0.0001"),
+            ("0.0000001", "100E-9"),
+            ("1234.5", "1234.5"),
+            ("12345", "12345"),
+        ];
+        for (literal, expected) in cases {
+            let value = VmDecimal::from_str_literal(literal)
+                .expect("decimal literal should parse");
+            assert_eq!(VmValue::Decimal(value.clone()).python_repr(), expected);
+        }
+    }
+
+    #[test]
+    fn preserves_plain_decimal_strings_for_state_values() {
+        let cases = [
+            ("1000", "1000"),
+            ("50000000", "50000000"),
+            ("1234500", "1234500"),
+            ("0.0000001", "0.0000001"),
+        ];
+        for (literal, expected) in cases {
+            let value = VmDecimal::from_str_literal(literal)
+                .expect("decimal literal should parse");
+            assert_eq!(value.to_string(), expected);
+        }
     }
 }
 

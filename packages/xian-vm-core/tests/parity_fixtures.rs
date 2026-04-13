@@ -869,6 +869,17 @@ fn vm_value_to_json(value: &VmValue) -> Value {
         VmValue::Builtin(name) => Value::String(name.clone()),
         VmValue::FunctionRef(name) => Value::String(name.clone()),
         VmValue::TypeMarker(name) => Value::String(name.clone()),
+        VmValue::Exception(value) => Value::Object(Map::from_iter([
+            (
+                "__vm_type__".to_owned(),
+                Value::String("exception".to_owned()),
+            ),
+            ("name".to_owned(), Value::String(value.name.clone())),
+            (
+                "args".to_owned(),
+                Value::Array(value.args.iter().map(vm_value_to_json).collect()),
+            ),
+        ])),
     }
 }
 
@@ -1003,5 +1014,6 @@ fn vm_value_type_name(value: &VmValue) -> &'static str {
         VmValue::Builtin(_) => "builtin",
         VmValue::FunctionRef(_) => "function_ref",
         VmValue::TypeMarker(_) => "type_marker",
+        VmValue::Exception(_) => "exception",
     }
 }

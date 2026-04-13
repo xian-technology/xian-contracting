@@ -32,7 +32,7 @@ def total(items: list[int]) -> int:
         self.assertEqual(report.feature_counts["range_calls"], 1)
         self.assertEqual(report.feature_counts["len_calls"], 2)
 
-    def test_vm_profile_rejects_while_loops(self):
+    def test_vm_profile_accepts_while_loops(self):
         source = """
 @export
 def countdown(value: int):
@@ -43,11 +43,10 @@ def countdown(value: int):
 
         report = self.checker.check(source, profile=XIAN_VM_V1_PROFILE)
 
-        self.assertFalse(report.compatible)
-        self.assertIn(ErrorCode.E022, {error.code for error in report.errors})
+        self.assertTrue(report.compatible)
         self.assertEqual(report.feature_counts["while_loops"], 1)
 
-    def test_vm_profile_rejects_comprehensions(self):
+    def test_vm_profile_accepts_list_comprehensions(self):
         source = """
 @export
 def compact(items: list[int]) -> list[int]:
@@ -56,9 +55,41 @@ def compact(items: list[int]) -> list[int]:
 
         report = self.checker.check(source, profile=XIAN_VM_V1_PROFILE)
 
-        self.assertFalse(report.compatible)
-        self.assertIn(ErrorCode.E022, {error.code for error in report.errors})
+        self.assertTrue(report.compatible)
         self.assertEqual(report.feature_counts["list_comprehensions"], 1)
+
+    def test_vm_profile_tracks_raise_and_bitwise_features(self):
+        source = """
+@export
+def probe(value: int):
+    if value < 0:
+        raise Exception("negative")
+    return (~value) ^ (value & 3)
+"""
+
+        report = self.checker.check(source, profile=XIAN_VM_V1_PROFILE)
+
+        self.assertTrue(report.compatible)
+        self.assertEqual(report.feature_counts["raise_statements"], 1)
+        self.assertEqual(report.feature_counts["invert_ops"], 1)
+        self.assertEqual(report.feature_counts["bitxor_ops"], 1)
+        self.assertEqual(report.feature_counts["bitand_ops"], 1)
+
+    def test_vm_profile_tracks_keyword_unpack_calls(self):
+        source = """
+def render(amount: int, to: str):
+    return {"amount": amount, "to": to}
+
+@export
+def probe():
+    payload = {"amount": 5, "to": "bob"}
+    return render(**payload)
+"""
+
+        report = self.checker.check(source, profile=XIAN_VM_V1_PROFILE)
+
+        self.assertTrue(report.compatible)
+        self.assertEqual(report.feature_counts["keyword_unpack_calls"], 1)
 
     def test_vm_profile_rejects_set_usage(self):
         source = """
@@ -108,7 +139,8 @@ def render(values: list[int]):
         source = """
 @export
 def render(values: list[int]):
-    return [value for value in values]
+    seen = set()
+    return len(seen)
 """
 
         with self.assertRaises(VmCompatibilityError):
