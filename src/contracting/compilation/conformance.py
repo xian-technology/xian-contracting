@@ -303,6 +303,103 @@ def probe(values: list[int]):
         "kwargs": {"values": [3, 1, 2]},
     },
     {
+        "id": "string_method_helpers",
+        "description": "Common deterministic string helpers behave like the Python VM.",
+        "source": """
+@export
+def probe():
+    sample = "  Alpha beta ALPHA  "
+    return {
+        "upper": sample.upper(),
+        "strip": sample.strip(),
+        "strip_chars": "xyAlpha yx".strip("xy"),
+        "startswith": sample.startswith(("  Al", "zzz"), 0, 10),
+        "endswith": sample.endswith(("PHA", "beta"), 0, 18),
+        "find": sample.find("beta"),
+        "find_window": sample.find("ALPHA", 5, 20),
+        "split_default": " a  b c ".split(None, 1),
+        "split_sep": "a--b--c".split("--", 1),
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {},
+    },
+    {
+        "id": "local_collection_methods",
+        "description": "Local list/dict helper methods behave like the Python VM.",
+        "source": """
+@export
+def probe():
+    values = [1, 2, 2, 3]
+    snapshot = values.copy()
+    count = values.count(2)
+    position = values.index(2, 2)
+    values.clear()
+
+    record = {"alpha": 1, "beta": 2}
+    record_copy = record.copy()
+    popped = record.pop("beta")
+    missing = record.pop("missing", 99)
+    record.clear()
+
+    return {
+        "snapshot": snapshot,
+        "count": count,
+        "position": position,
+        "values": values,
+        "record_copy": record_copy,
+        "popped": popped,
+        "missing": missing,
+        "record": record,
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {},
+    },
+    {
+        "id": "control_flow_and_slicing_edges",
+        "description": "Loop else blocks, chained comparisons, and negative slicing match the Python VM.",
+        "source": """
+@export
+def probe():
+    for_values = []
+    for candidate in [1, 2, 3]:
+        if candidate == 2:
+            continue
+        for_values.append(candidate)
+    else:
+        for_values.append(99)
+
+    while_values = []
+    counter = 0
+    while counter < 3:
+        counter += 1
+        if counter == 2:
+            continue
+        while_values.append(counter)
+    else:
+        while_values.append(77)
+
+    broken = []
+    for candidate in [1, 2, 3]:
+        if candidate == 2:
+            break
+        broken.append(candidate)
+    else:
+        broken.append(55)
+
+    return {
+        "for_values": for_values,
+        "while_values": while_values,
+        "broken": broken,
+        "slice": "AlphaBeta"[-7:-1:2],
+        "compare": 1 < 2 < 3 and 3 >= 3 > 1,
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {},
+    },
+    {
         "id": "host_storage_event_context",
         "description": "Storage, event, typing, and context bridge values match the Python VM.",
         "covers_env": (
@@ -383,8 +480,8 @@ def ping(name: str):
             },
         ),
         "source": """
-status = ForeignVariable(contract="conformance_host_helper", name="status")
-ledger = ForeignHash(contract="conformance_host_helper", name="ledger")
+status = ForeignVariable(foreign_contract="conformance_host_helper", foreign_name="status")
+ledger = ForeignHash(foreign_contract="conformance_host_helper", foreign_name="ledger")
 
 @export
 def probe():

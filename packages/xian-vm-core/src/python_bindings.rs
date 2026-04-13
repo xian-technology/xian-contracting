@@ -1,10 +1,9 @@
 use crate::{
     parse_module_ir, VmContractCall, VmContractTarget, VmDateTime, VmDecimal, VmEvent,
     VmExecutionContext, VmExecutionError, VmExecutionStats, VmHost, VmInstance, VmMeterConfig,
-    VmTimeDelta,
-    VmValue, XIAN_IR_V1, XIAN_VM_HOST_CATALOG_V1, XIAN_VM_SUPPORTED_BYTECODE_VERSIONS,
+    VmTimeDelta, VmValue, VM_GAS_CROSS_CONTRACT_CALL_BASE, VM_GAS_CROSS_CONTRACT_CALL_REPEAT,
+    XIAN_IR_V1, XIAN_VM_HOST_CATALOG_V1, XIAN_VM_SUPPORTED_BYTECODE_VERSIONS,
     XIAN_VM_SUPPORTED_GAS_SCHEDULES, XIAN_VM_V1_PROFILE,
-    VM_GAS_CROSS_CONTRACT_CALL_BASE, VM_GAS_CROSS_CONTRACT_CALL_REPEAT,
 };
 use num_bigint::BigInt;
 use pyo3::create_exception;
@@ -67,10 +66,10 @@ impl PythonBundleExecutor {
     ) -> PyExecutionResult {
         let execution = (|| -> Result<VmValue, VmExecutionError> {
             self.meter.charge_transaction_bytes()?;
-            self.meter.charge_execution_cost(crate::VM_GAS_CALL_DISPATCH)?;
+            self.meter
+                .charge_execution_cost(crate::VM_GAS_CALL_DISPATCH)?;
             self.meter.begin_contract_metering(entry_module);
-            let result =
-                self.execute_call(entry_module, function_name, args, kwargs, context)?;
+            let result = self.execute_call(entry_module, function_name, args, kwargs, context)?;
             self.meter.charge_return_value(&result)?;
             Ok(result)
         })();
@@ -184,19 +183,11 @@ impl VmHost for PythonBundleExecutor {
         self.meter.charge_execution_cost(cost)
     }
 
-    fn charge_storage_read(
-        &mut self,
-        key: &str,
-        value: &VmValue,
-    ) -> Result<(), VmExecutionError> {
+    fn charge_storage_read(&mut self, key: &str, value: &VmValue) -> Result<(), VmExecutionError> {
         self.meter.charge_read(key, value)
     }
 
-    fn charge_storage_write(
-        &mut self,
-        key: &str,
-        value: &VmValue,
-    ) -> Result<(), VmExecutionError> {
+    fn charge_storage_write(&mut self, key: &str, value: &VmValue) -> Result<(), VmExecutionError> {
         self.meter.charge_write(key, value)
     }
 
@@ -237,7 +228,8 @@ impl VmHost for PythonBundleExecutor {
         }
         Python::with_gil(|py| -> Result<Option<VmValue>, VmExecutionError> {
             let host = self.host.bind(py);
-            let key_py = vm_to_py(py, key).map_err(|error| VmExecutionError::new(error.to_string()))?;
+            let key_py =
+                vm_to_py(py, key).map_err(|error| VmExecutionError::new(error.to_string()))?;
             let response = host
                 .call_method1("read_hash", (contract, binding, key_py))
                 .map_err(|error| VmExecutionError::new(error.to_string()))?;
@@ -284,13 +276,12 @@ impl VmHost for PythonBundleExecutor {
             | VmContractTarget::FactoryCall { module, .. } => module.clone(),
         };
         let owner = self.load_owner(&target_module)?;
-        let caller = call
-            .caller_contract
-            .clone()
-            .or_else(|| call.signer.clone());
+        let caller = call.caller_contract.clone().or_else(|| call.signer.clone());
         if let Some(owner) = owner.as_deref() {
             if caller.as_deref() != Some(owner) {
-                return Err(VmExecutionError::new("Caller is not the owner!"));
+                return Err(VmExecutionError::new(
+                    "Exception(\"Caller is not the owner!\")",
+                ));
             }
         }
         let call_index = self.contract_call_count;
@@ -334,9 +325,10 @@ impl VmHost for PythonBundleExecutor {
             let py_args = PyList::empty(py);
             for value in &args {
                 py_args
-                    .append(vm_to_py(py, value).map_err(|error| {
-                        VmExecutionError::new(error.to_string())
-                    })?)
+                    .append(
+                        vm_to_py(py, value)
+                            .map_err(|error| VmExecutionError::new(error.to_string()))?,
+                    )
                     .map_err(|error| VmExecutionError::new(error.to_string()))?;
             }
             let py_kwargs = PyDict::new(py);
@@ -464,9 +456,7 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
             }
             ("xian_runtime_types.time", "Timedelta") | ("datetime", "timedelta") => {
                 if let Ok(seconds) = extract_i64_attr(&value, "seconds") {
-                    return Ok(VmValue::TimeDelta(VmTimeDelta::from_raw_seconds(
-                        seconds,
-                    )?));
+                    return Ok(VmValue::TimeDelta(VmTimeDelta::from_raw_seconds(seconds)?));
                 }
             }
             _ => {}
@@ -540,7 +530,10 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<PyObject> {
             let module = PyModule::import(py, "xian_runtime_types.time")?;
             let kwargs = PyDict::new(py);
             kwargs.set_item("seconds", value.seconds())?;
-            Ok(module.getattr("Timedelta")?.call((), Some(&kwargs))?.unbind())
+            Ok(module
+                .getattr("Timedelta")?
+                .call((), Some(&kwargs))?
+                .unbind())
         }
         VmValue::String(value) => Ok(value.clone().into_pyobject(py)?.into_any().unbind()),
         VmValue::List(values) => {
@@ -564,7 +557,9 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<PyObject> {
             }
             Ok(dict.into_any().unbind())
         }
-        VmValue::ContractHandle(handle) => Ok(handle.module.clone().into_pyobject(py)?.into_any().unbind()),
+        VmValue::ContractHandle(handle) => {
+            Ok(handle.module.clone().into_pyobject(py)?.into_any().unbind())
+        }
         VmValue::TypeMarker(name) => Ok(name.clone().into_pyobject(py)?.into_any().unbind()),
         other => Err(PyTypeError::new_err(format!(
             "unsupported VM value at Python boundary: {}",
@@ -858,8 +853,7 @@ fn execute_bundle(
         converted_kwargs.push((
             key.extract::<String>()
                 .map_err(|error| PyTypeError::new_err(error.to_string()))?,
-            py_to_vm(value)
-                .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?,
+            py_to_vm(value).map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?,
         ));
     }
     let context = context_from_py(context)
@@ -873,14 +867,9 @@ fn execute_bundle(
             transaction_size_bytes,
         },
     )
-        .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?;
-    let result = executor.execute_entry(
-        entry_module,
-        function_name,
-        args,
-        converted_kwargs,
-        context,
-    );
+    .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?;
+    let result =
+        executor.execute_entry(entry_module, function_name, args, converted_kwargs, context);
     execution_result_to_py(py, result)
 }
 
@@ -894,7 +883,10 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(runtime_info_json, module)?)?;
     module.add_function(wrap_pyfunction!(supports_execution_policy, module)?)?;
     module.add_function(wrap_pyfunction!(validate_module_ir_json, module)?)?;
-    module.add_function(wrap_pyfunction!(validate_deployment_artifacts_json, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        validate_deployment_artifacts_json,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(execute_bundle, module)?)?;
     Ok(())
 }

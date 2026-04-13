@@ -995,8 +995,7 @@ mod tests {
             ("12345", "12345"),
         ];
         for (literal, expected) in cases {
-            let value = VmDecimal::from_str_literal(literal)
-                .expect("decimal literal should parse");
+            let value = VmDecimal::from_str_literal(literal).expect("decimal literal should parse");
             assert_eq!(VmValue::Decimal(value.clone()).python_repr(), expected);
         }
     }
@@ -1010,8 +1009,7 @@ mod tests {
             ("0.0000001", "0.0000001"),
         ];
         for (literal, expected) in cases {
-            let value = VmDecimal::from_str_literal(literal)
-                .expect("decimal literal should parse");
+            let value = VmDecimal::from_str_literal(literal).expect("decimal literal should parse");
             assert_eq!(value.to_string(), expected);
         }
     }

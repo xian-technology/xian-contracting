@@ -32,6 +32,7 @@ const VM_GAS_STMT_IF: u64 = 96;
 const VM_GAS_STMT_WHILE: u64 = 96;
 const VM_GAS_STMT_FOR: u64 = 96;
 const VM_GAS_STMT_ASSERT: u64 = 96;
+const VM_GAS_STMT_RAISE: u64 = 96;
 const VM_GAS_STMT_BREAK: u64 = 32;
 const VM_GAS_STMT_CONTINUE: u64 = 32;
 const VM_GAS_STMT_PASS: u64 = 32;
@@ -77,6 +78,7 @@ fn vm_statement_gas_cost(
         "while" => VM_GAS_STMT_WHILE,
         "for" => VM_GAS_STMT_FOR,
         "assert" => VM_GAS_STMT_ASSERT,
+        "raise" => VM_GAS_STMT_RAISE,
         "break" => VM_GAS_STMT_BREAK,
         "continue" => VM_GAS_STMT_CONTINUE,
         "pass" => VM_GAS_STMT_PASS,
@@ -110,7 +112,10 @@ fn vm_expression_gas_cost(
             VM_GAS_EXPR_COMPARE * comparisons
         }
         "bool_op" => {
-            let branches = required_array(object, "values")?.len().saturating_sub(1).max(1) as u64;
+            let branches = required_array(object, "values")?
+                .len()
+                .saturating_sub(1)
+                .max(1) as u64;
             VM_GAS_EXPR_BOOL_OP * branches
         }
         "bin_op" => VM_GAS_EXPR_BINARY_OP,
@@ -137,10 +142,7 @@ fn charge_storage_read(
     host.charge_storage_read(key, value)
 }
 
-fn collect_target_names(
-    target: &Value,
-    names: &mut Vec<String>,
-) -> Result<(), VmExecutionError> {
+fn collect_target_names(target: &Value, names: &mut Vec<String>) -> Result<(), VmExecutionError> {
     let object = as_object(target, "target")?;
     match required_string(object, "node")? {
         "name" => {
@@ -191,11 +193,7 @@ fn ir_node_complexity(value: &Value) -> u64 {
     match value {
         Value::Object(object) => {
             let self_cost = if object.contains_key("node") { 1 } else { 0 };
-            self_cost
-                + object
-                    .values()
-                    .map(ir_node_complexity)
-                    .sum::<u64>()
+            self_cost + object.values().map(ir_node_complexity).sum::<u64>()
         }
         Value::Array(items) => items.iter().map(ir_node_complexity).sum(),
         _ => 0,
@@ -266,10 +264,7 @@ pub trait VmHost {
         Ok(Vec::new())
     }
 
-    fn load_owner(
-        &mut self,
-        _contract: &str,
-    ) -> Result<Option<String>, VmExecutionError> {
+    fn load_owner(&mut self, _contract: &str) -> Result<Option<String>, VmExecutionError> {
         Ok(None)
     }
 
@@ -340,6 +335,7 @@ enum ControlFlow {
     Continue,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 enum NativeMethodResult {
     Value(VmValue),
     Mutated { receiver: VmValue, value: VmValue },
@@ -562,7 +558,9 @@ impl VmInstance {
     }
 
     pub fn peek_variable_value(&self, binding: &str) -> Option<VmValue> {
-        self.variables.get(binding).and_then(|state| state.value.clone())
+        self.variables
+            .get(binding)
+            .and_then(|state| state.value.clone())
     }
 
     pub fn get_hash_value(
@@ -648,9 +646,7 @@ impl VmInstance {
                 ),
                 Err(err) => eprintln!(
                     "[vm-call] error {}.{} -> {}",
-                    self.module.module_name,
-                    name,
-                    err
+                    self.module.module_name, name, err
                 ),
             }
         }
@@ -705,13 +701,8 @@ impl VmInstance {
                         self.variables.insert(binding.clone(), state);
                     }
                     "Hash" | "ForeignHash" => {
-                        let state = self.build_hash_state(
-                            &binding,
-                            &storage_type,
-                            args,
-                            keywords,
-                            host,
-                        )?;
+                        let state =
+                            self.build_hash_state(&binding, &storage_type, args, keywords, host)?;
                         self.hashes.insert(binding.clone(), state);
                     }
                     other => {
@@ -878,8 +869,17 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
         host: &mut dyn VmHost,
     ) -> Result<HashMap<String, VmValue>, VmExecutionError> {
+        let type_error = |message: String| VmExecutionError::new(format!("TypeError({message:?})"));
         let mut remaining_args = args;
-        let mut remaining_kwargs = kwargs.into_iter().collect::<HashMap<_, _>>();
+        let mut remaining_kwargs = HashMap::new();
+        for (key, value) in kwargs {
+            if remaining_kwargs.insert(key.clone(), value).is_some() {
+                return Err(type_error(format!(
+                    "__{}() got multiple values for keyword argument '{}'",
+                    function.name, key
+                )));
+            }
+        }
         let mut bound = HashMap::new();
         let mut vararg_name = None;
         let mut kwarg_name = None;
@@ -888,6 +888,12 @@ impl VmInstance {
             match parameter.kind.as_str() {
                 "positional_or_keyword" => {
                     if !remaining_args.is_empty() {
+                        if remaining_kwargs.contains_key(&parameter.name) {
+                            return Err(type_error(format!(
+                                "__{}() got multiple values for keyword argument '{}'",
+                                function.name, parameter.name
+                            )));
+                        }
                         bound.insert(parameter.name.clone(), remaining_args.remove(0));
                         continue;
                     }
@@ -900,7 +906,7 @@ impl VmInstance {
                         bound.insert(parameter.name.clone(), value);
                         continue;
                     }
-                    return Err(VmExecutionError::new(format!(
+                    return Err(type_error(format!(
                         "missing required argument '{}'",
                         parameter.name
                     )));
@@ -915,7 +921,7 @@ impl VmInstance {
                         bound.insert(parameter.name.clone(), value);
                         continue;
                     }
-                    return Err(VmExecutionError::new(format!(
+                    return Err(type_error(format!(
                         "missing required keyword-only argument '{}'",
                         parameter.name
                     )));
@@ -940,7 +946,7 @@ impl VmInstance {
         }
 
         if !remaining_args.is_empty() {
-            return Err(VmExecutionError::new(format!(
+            return Err(type_error(format!(
                 "too many positional arguments for '{}'",
                 function.name
             )));
@@ -953,7 +959,7 @@ impl VmInstance {
             }
             bound.insert(name, VmValue::Dict(entries));
         } else if let Some(unexpected) = remaining_kwargs.keys().next() {
-            return Err(VmExecutionError::new(format!(
+            return Err(type_error(format!(
                 "unexpected keyword argument '{unexpected}'"
             )));
         }
@@ -1064,8 +1070,7 @@ impl VmInstance {
                         .map(|message: VmValue| {
                             let rendered = match message {
                                 VmValue::String(value) => {
-                                    let escaped =
-                                        value.replace('\\', "\\\\").replace('\'', "\\'");
+                                    let escaped = value.replace('\\', "\\\\").replace('\'', "\\'");
                                     format!("'{escaped}'")
                                 }
                                 other => other.python_repr(),
@@ -1084,8 +1089,9 @@ impl VmInstance {
                     }
                 }
                 let error_repr = match object.get("exception") {
-                    None | Some(Value::Null) => "RuntimeError('No active exception to reraise')"
-                        .to_owned(),
+                    None | Some(Value::Null) => {
+                        "RuntimeError('No active exception to reraise')".to_owned()
+                    }
                     Some(exception) => match self.eval_expression(exception, scope, host)? {
                         VmValue::Exception(value) => value.python_repr(),
                         VmValue::Builtin(name)
@@ -1305,10 +1311,16 @@ impl VmInstance {
                             entries.push((key, value));
                         }
                     } else {
-                        let key =
-                            self.eval_expression(required_value(entry_object, "key")?, scope, host)?;
-                        let value =
-                            self.eval_expression(required_value(entry_object, "value")?, scope, host)?;
+                        let key = self.eval_expression(
+                            required_value(entry_object, "key")?,
+                            scope,
+                            host,
+                        )?;
+                        let value = self.eval_expression(
+                            required_value(entry_object, "value")?,
+                            scope,
+                            host,
+                        )?;
                         entries.push((key, value));
                     }
                 }
@@ -1381,14 +1393,7 @@ impl VmInstance {
         let element = required_value(object, "element")?;
         let generators = required_array(object, "generators")?;
         let mut results = Vec::new();
-        self.eval_list_comprehension_generator(
-            generators,
-            0,
-            element,
-            scope,
-            host,
-            &mut results,
-        )?;
+        self.eval_list_comprehension_generator(generators, 0, element, scope, host, &mut results)?;
         Ok(VmValue::List(results))
     }
 
@@ -1707,8 +1712,11 @@ impl VmInstance {
                     self.eval_expression(required_value(keyword_object, "value")?, scope, host)?,
                 )),
                 "keyword_unpack" => {
-                    let unpacked =
-                        self.eval_expression(required_value(keyword_object, "value")?, scope, host)?;
+                    let unpacked = self.eval_expression(
+                        required_value(keyword_object, "value")?,
+                        scope,
+                        host,
+                    )?;
                     let VmValue::Dict(entries) = unpacked else {
                         return Err(VmExecutionError::new(
                             "keyword unpacking requires a dict value",
@@ -2265,7 +2273,9 @@ impl VmInstance {
                     VmValue::String(value) => {
                         let mut chars = value.chars();
                         let first = chars.next().ok_or_else(|| {
-                            VmExecutionError::new("ord() expected a character, but string was empty")
+                            VmExecutionError::new(
+                                "ord() expected a character, but string was empty",
+                            )
                         })?;
                         if chars.next().is_some() {
                             return Err(VmExecutionError::new(
@@ -2284,7 +2294,10 @@ impl VmInstance {
                 if args.len() != 1 || !kwargs.is_empty() {
                     return Err(VmExecutionError::new("ascii() expects one argument"));
                 }
-                Ok(VmValue::String(ascii_render(&args[0].python_repr())))
+                Ok(VmValue::String(match &args[0] {
+                    VmValue::String(value) => ascii_string_repr(value),
+                    other => ascii_render(&other.python_repr()),
+                }))
             }
             "bin" => {
                 if args.len() != 1 || !kwargs.is_empty() {
@@ -2322,9 +2335,7 @@ impl VmInstance {
                 }
                 let code_point = bigint_to_u32(&args[0].as_bigint()?, "chr() input")?;
                 let character = char::from_u32(code_point).ok_or_else(|| {
-                    VmExecutionError::new(format!(
-                        "chr() arg not in range(0x110000): {code_point}"
-                    ))
+                    VmExecutionError::new(format!("chr() arg not in range(0x110000): {code_point}"))
                 })?;
                 Ok(VmValue::String(character.to_string()))
             }
@@ -2332,8 +2343,7 @@ impl VmInstance {
                 if args.len() != 2 || !kwargs.is_empty() {
                     return Err(VmExecutionError::new("divmod() expects two arguments"));
                 }
-                let quotient =
-                    apply_binary_operator("floordiv", args[0].clone(), args[1].clone())?;
+                let quotient = apply_binary_operator("floordiv", args[0].clone(), args[1].clone())?;
                 let remainder = apply_binary_operator("mod", args[0].clone(), args[1].clone())?;
                 Ok(VmValue::Tuple(vec![quotient, remainder]))
             }
@@ -2554,9 +2564,7 @@ impl VmInstance {
                         bigint_to_i64(&value.as_bigint()?, "round() ndigits")?
                             .try_into()
                             .map_err(|_| {
-                                VmExecutionError::new(
-                                    "round() ndigits is out of supported range",
-                                )
+                                VmExecutionError::new("round() ndigits is out of supported range")
                             })?,
                     ),
                     None => None,
@@ -2586,8 +2594,7 @@ impl VmInstance {
             )
         };
         if let Some(foreign_key) = foreign_key {
-            let (foreign_contract, foreign_binding) =
-                split_foreign_storage_key(&foreign_key)?;
+            let (foreign_contract, foreign_binding) = split_foreign_storage_key(&foreign_key)?;
             let loaded = host.read_variable(&foreign_contract, &foreign_binding)?;
             let foreign = self
                 .variables
@@ -2625,11 +2632,7 @@ impl VmInstance {
                 .value
                 .clone()
                 .unwrap_or_else(|| state.default_value.clone());
-            charge_storage_read(
-                host,
-                &variable_storage_key(&module_name, binding),
-                &value,
-            )?;
+            charge_storage_read(host, &variable_storage_key(&module_name, binding), &value)?;
             return Ok(value);
         }
         let value = current_value.unwrap_or(default_value);
@@ -2660,10 +2663,9 @@ impl VmInstance {
         let storage_key = normalize_hash_key(key)?;
         let module_name = self.module.module_name.clone();
         let (foreign_key, default_value, current_entry) = {
-            let state = self
-                .hashes
-                .get(binding)
-                .ok_or_else(|| VmExecutionError::new(format!("unknown hash binding '{binding}'")))?;
+            let state = self.hashes.get(binding).ok_or_else(|| {
+                VmExecutionError::new(format!("unknown hash binding '{binding}'"))
+            })?;
             (
                 state.foreign_key.clone(),
                 state.default_value.clone(),
@@ -2671,8 +2673,7 @@ impl VmInstance {
             )
         };
         if let Some(foreign_key) = foreign_key {
-            let (foreign_contract, foreign_binding) =
-                split_foreign_storage_key(&foreign_key)?;
+            let (foreign_contract, foreign_binding) = split_foreign_storage_key(&foreign_key)?;
             let loaded = host.read_hash(&foreign_contract, &foreign_binding, key)?;
             let foreign = self.hashes.entry(foreign_key).or_insert_with(|| HashState {
                 default_value: VmValue::None,
@@ -2698,10 +2699,9 @@ impl VmInstance {
         }
         if current_entry.is_none() {
             let loaded = host.read_hash(&module_name, binding, key)?;
-            let state = self
-                .hashes
-                .get_mut(binding)
-                .ok_or_else(|| VmExecutionError::new(format!("unknown hash binding '{binding}'")))?;
+            let state = self.hashes.get_mut(binding).ok_or_else(|| {
+                VmExecutionError::new(format!("unknown hash binding '{binding}'"))
+            })?;
             if let Some(value) = loaded {
                 state.entries.insert(storage_key.clone(), value);
             }
@@ -2727,24 +2727,14 @@ impl VmInstance {
         let module_name = self.module.module_name.clone();
         let prefix = normalize_hash_prefix(prefix_args)?;
         let (scan_contract, scan_binding, state_key) = {
-            let state = self
-                .hashes
-                .get(binding)
-                .ok_or_else(|| VmExecutionError::new(format!("unknown hash binding '{binding}'")))?;
+            let state = self.hashes.get(binding).ok_or_else(|| {
+                VmExecutionError::new(format!("unknown hash binding '{binding}'"))
+            })?;
             if let Some(foreign_key) = &state.foreign_key {
-                let (foreign_contract, foreign_binding) =
-                    split_foreign_storage_key(foreign_key)?;
-                (
-                    foreign_contract,
-                    foreign_binding,
-                    foreign_key.clone(),
-                )
+                let (foreign_contract, foreign_binding) = split_foreign_storage_key(foreign_key)?;
+                (foreign_contract, foreign_binding, foreign_key.clone())
             } else {
-                (
-                    module_name.clone(),
-                    binding.to_owned(),
-                    binding.to_owned(),
-                )
+                (module_name.clone(), binding.to_owned(), binding.to_owned())
             }
         };
 
@@ -2785,11 +2775,7 @@ impl VmInstance {
             }
             charge_storage_read(
                 host,
-                &hash_storage_key_from_normalized(
-                    &scan_contract,
-                    &scan_binding,
-                    &storage_key,
-                ),
+                &hash_storage_key_from_normalized(&scan_contract, &scan_binding, &storage_key),
                 &value,
             )?;
             values.push(value);
@@ -2819,7 +2805,6 @@ impl VmInstance {
         Ok(())
     }
 }
-
 
 struct NoopHost;
 
@@ -3539,6 +3524,121 @@ mod tests {
     }
 
     #[test]
+    fn supports_common_string_helper_methods() {
+        let upper = call_native_method(
+            VmValue::String("Alpha beta".to_owned()),
+            "upper",
+            vec![],
+            vec![],
+        )
+        .expect("upper should succeed");
+        assert_eq!(
+            upper,
+            NativeMethodResult::Value(VmValue::String("ALPHA BETA".to_owned()))
+        );
+
+        let strip = call_native_method(
+            VmValue::String("  Alpha  ".to_owned()),
+            "strip",
+            vec![],
+            vec![],
+        )
+        .expect("strip should succeed");
+        assert_eq!(
+            strip,
+            NativeMethodResult::Value(VmValue::String("Alpha".to_owned()))
+        );
+
+        let endswith = call_native_method(
+            VmValue::String("Alpha beta ALPHA".to_owned()),
+            "endswith",
+            vec![
+                VmValue::Tuple(vec![
+                    VmValue::String("nope".to_owned()),
+                    VmValue::String("ALPHA".to_owned()),
+                ]),
+                vm_int(0),
+                vm_int(16),
+            ],
+            vec![],
+        )
+        .expect("endswith should succeed");
+        assert_eq!(endswith, NativeMethodResult::Value(VmValue::Bool(true)));
+
+        let split = call_native_method(
+            VmValue::String(" a  b c ".to_owned()),
+            "split",
+            vec![VmValue::None, vm_int(1)],
+            vec![],
+        )
+        .expect("split should succeed");
+        assert_eq!(
+            split,
+            NativeMethodResult::Value(VmValue::List(vec![
+                VmValue::String("a".to_owned()),
+                VmValue::String("b c ".to_owned()),
+            ]))
+        );
+    }
+
+    #[test]
+    fn supports_list_and_dict_helper_methods() {
+        let index = call_native_method(
+            VmValue::List(vec![vm_int(1), vm_int(2), vm_int(2), vm_int(3)]),
+            "index",
+            vec![vm_int(2), vm_int(2)],
+            vec![],
+        )
+        .expect("list.index should succeed");
+        assert_eq!(index, NativeMethodResult::Value(vm_int(2)));
+
+        let copied = call_native_method(
+            VmValue::List(vec![vm_int(1), vm_int(2)]),
+            "copy",
+            vec![],
+            vec![],
+        )
+        .expect("list.copy should succeed");
+        assert_eq!(
+            copied,
+            NativeMethodResult::Value(VmValue::List(vec![vm_int(1), vm_int(2)]))
+        );
+
+        let popped = call_native_method(
+            VmValue::Dict(vec![
+                (VmValue::String("alpha".to_owned()), vm_int(1)),
+                (VmValue::String("beta".to_owned()), vm_int(2)),
+            ]),
+            "pop",
+            vec![VmValue::String("beta".to_owned())],
+            vec![],
+        )
+        .expect("dict.pop should succeed");
+        assert_eq!(
+            popped,
+            NativeMethodResult::Mutated {
+                receiver: VmValue::Dict(vec![(VmValue::String("alpha".to_owned()), vm_int(1))]),
+                value: vm_int(2),
+            }
+        );
+
+        let cleared = call_native_method(
+            VmValue::Dict(vec![(VmValue::String("alpha".to_owned()), vm_int(1))]),
+            "clear",
+            vec![],
+            vec![],
+        )
+        .expect("dict.clear should succeed");
+        assert_eq!(
+            cleared,
+            NativeMethodResult::Mutated {
+                receiver: VmValue::Dict(Vec::new()),
+                value: VmValue::None,
+            }
+        );
+    }
+
+    #[test]
     fn supports_decimal_pow_for_integer_and_square_root_exponents() {
         let nine = VmDecimal::from_str_literal("9").expect("decimal literal should parse");
         let square_root = nine
@@ -3889,7 +3989,12 @@ mod tests {
             .call_function(
                 &mut host,
                 "positives",
-                vec![VmValue::List(vec![vm_int(-2), vm_int(0), vm_int(3), vm_int(5)])],
+                vec![VmValue::List(vec![
+                    vm_int(-2),
+                    vm_int(0),
+                    vm_int(3),
+                    vm_int(5),
+                ])],
                 vec![],
             )
             .expect("call should execute");
@@ -4028,7 +4133,12 @@ mod tests {
             .call_function(
                 &mut host,
                 "prices",
-                vec![VmValue::List(vec![vm_int(-2), vm_int(0), vm_int(3), vm_int(5)])],
+                vec![VmValue::List(vec![
+                    vm_int(-2),
+                    vm_int(0),
+                    vm_int(3),
+                    vm_int(5),
+                ])],
                 vec![],
             )
             .expect("call should execute");
@@ -4146,12 +4256,13 @@ mod tests {
                 "payload",
                 vec![
                     VmValue::Dict(vec![
-                        (VmValue::String("symbol".to_owned()), VmValue::String("XIAN".to_owned())),
+                        (
+                            VmValue::String("symbol".to_owned()),
+                            VmValue::String("XIAN".to_owned()),
+                        ),
                         (VmValue::String("value".to_owned()), vm_int(42)),
                     ]),
-                    VmValue::Dict(vec![
-                        (VmValue::String("value".to_owned()), vm_int(77)),
-                    ]),
+                    VmValue::Dict(vec![(VmValue::String("value".to_owned()), vm_int(77))]),
                 ],
                 vec![],
             )
@@ -4160,9 +4271,15 @@ mod tests {
         assert_eq!(
             result,
             VmValue::Dict(vec![
-                (VmValue::String("symbol".to_owned()), VmValue::String("XIAN".to_owned())),
+                (
+                    VmValue::String("symbol".to_owned()),
+                    VmValue::String("XIAN".to_owned())
+                ),
                 (VmValue::String("value".to_owned()), vm_int(42)),
-                (VmValue::String("kind".to_owned()), VmValue::String("price".to_owned())),
+                (
+                    VmValue::String("kind".to_owned()),
+                    VmValue::String("price".to_owned())
+                ),
                 (VmValue::String("value".to_owned()), vm_int(77)),
             ])
         );
@@ -4375,7 +4492,10 @@ mod tests {
             .call_function(&mut host, "must_be_positive", vec![vm_int(-1)], vec![])
             .expect_err("call should fail");
 
-        assert_eq!(error.to_string(), "AssertionError('value must be positive')");
+        assert_eq!(
+            error.to_string(),
+            "AssertionError('value must be positive')"
+        );
     }
 
     #[test]

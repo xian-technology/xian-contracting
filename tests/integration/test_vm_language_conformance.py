@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import decimal
 from pathlib import Path
 
 import pytest
@@ -37,7 +38,7 @@ def _normalize(value):
             "exception": type(value).__name__,
             "args": [_normalize(item) for item in value.args],
         }
-    if isinstance(value, ContractingDecimal):
+    if isinstance(value, ContractingDecimal | decimal.Decimal):
         return {"__decimal__": str(value)}
     if isinstance(value, Datetime):
         return {"__datetime__": str(value)}

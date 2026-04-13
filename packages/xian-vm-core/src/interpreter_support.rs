@@ -3,9 +3,9 @@ use super::*;
 pub(super) fn builtin_name_value(name: &str) -> Option<VmValue> {
     match name {
         "len" | "range" | "str" | "bool" | "int" | "float" | "dict" | "list" | "tuple"
-        | "isinstance" | "issubclass" | "sorted" | "sum" | "min" | "max" | "all"
-        | "any" | "reversed" | "zip" | "pow" | "format" | "ord" | "abs" | "ascii"
-        | "bin" | "hex" | "oct" | "chr" | "divmod" | "round" | "Exception" => {
+        | "isinstance" | "issubclass" | "sorted" | "sum" | "min" | "max" | "all" | "any"
+        | "reversed" | "zip" | "pow" | "format" | "ord" | "abs" | "ascii" | "bin" | "hex"
+        | "oct" | "chr" | "divmod" | "round" | "Exception" => {
             Some(VmValue::Builtin(name.to_owned()))
         }
         "Any" | "decimal" => Some(VmValue::TypeMarker(name.to_owned())),
@@ -289,7 +289,10 @@ pub(super) fn apply_binary_operator(
     }
 }
 
-pub(super) fn apply_unary_operator(operator: &str, operand: VmValue) -> Result<VmValue, VmExecutionError> {
+pub(super) fn apply_unary_operator(
+    operator: &str,
+    operand: VmValue,
+) -> Result<VmValue, VmExecutionError> {
     match operator {
         "not" => Ok(VmValue::Bool(!operand.truthy())),
         "neg" => match operand {
@@ -340,7 +343,11 @@ pub(super) fn apply_compare_operator(
     }
 }
 
-pub(super) fn compare_ord<F>(left: &VmValue, right: &VmValue, op: F) -> Result<bool, VmExecutionError>
+pub(super) fn compare_ord<F>(
+    left: &VmValue,
+    right: &VmValue,
+    op: F,
+) -> Result<bool, VmExecutionError>
 where
     F: Fn(f64, f64) -> bool,
 {
@@ -357,8 +364,12 @@ where
         (VmValue::DateTime(left), VmValue::DateTime(right)) => Ok(op_datetime(left, right, &op)),
         (VmValue::TimeDelta(left), VmValue::TimeDelta(right)) => Ok(op_timedelta(left, right, &op)),
         (VmValue::Decimal(left), VmValue::Decimal(right)) => Ok(op_decimal(left, right, &op)),
-        (VmValue::Decimal(left), right) => Ok(op_decimal(left, &coerce_decimal(right, "right")?, &op)),
-        (left, VmValue::Decimal(right)) => Ok(op_decimal(&coerce_decimal(left, "left")?, right, &op)),
+        (VmValue::Decimal(left), right) => {
+            Ok(op_decimal(left, &coerce_decimal(right, "right")?, &op))
+        }
+        (left, VmValue::Decimal(right)) => {
+            Ok(op_decimal(&coerce_decimal(left, "left")?, right, &op))
+        }
         (VmValue::Int(left), VmValue::Int(right)) => Ok(op_bigint(left, right, &op)),
         (VmValue::Float(left), VmValue::Float(right)) => Ok(op(*left, *right)),
         (VmValue::Int(left), VmValue::Float(right)) => {
@@ -438,7 +449,10 @@ where
     op(score, 0.0)
 }
 
-pub(super) fn native_attribute_value(value: &VmValue, attr: &str) -> Result<VmValue, VmExecutionError> {
+pub(super) fn native_attribute_value(
+    value: &VmValue,
+    attr: &str,
+) -> Result<VmValue, VmExecutionError> {
     match value {
         VmValue::DateTime(value) => match attr {
             "year" => Ok(vm_int(value.year())),
@@ -633,7 +647,10 @@ pub(super) fn optional_positional_or_keyword_i64(
     Ok(None)
 }
 
-pub(super) fn format_builtin_value(value: &VmValue, spec: &str) -> Result<String, VmExecutionError> {
+pub(super) fn format_builtin_value(
+    value: &VmValue,
+    spec: &str,
+) -> Result<String, VmExecutionError> {
     match value {
         VmValue::Int(value) => format_bigint(value, spec),
         VmValue::String(value) if spec.is_empty() => Ok(value.clone()),
@@ -669,6 +686,8 @@ pub(super) fn format_bigint(value: &BigInt, spec: &str) -> Result<String, VmExec
     };
 
     let rendered = match format_type {
+        'b' => value.to_str_radix(2),
+        'o' => value.to_str_radix(8),
         'x' => value.to_str_radix(16),
         'X' => value.to_str_radix(16).to_uppercase(),
         'd' => value.to_string(),
@@ -684,11 +703,25 @@ pub(super) fn format_bigint(value: &BigInt, spec: &str) -> Result<String, VmExec
     }
 
     let pad_char = if zero_pad { '0' } else { ' ' };
-    let padding = pad_char.to_string().repeat(width - rendered.len());
-    Ok(format!("{padding}{rendered}"))
+    let (sign, digits) = if let Some(stripped) = rendered.strip_prefix('-') {
+        ("-", stripped)
+    } else {
+        ("", rendered.as_str())
+    };
+    let padding = pad_char
+        .to_string()
+        .repeat(width.saturating_sub(sign.len() + digits.len()));
+    if zero_pad && !sign.is_empty() {
+        Ok(format!("{sign}{padding}{digits}"))
+    } else {
+        Ok(format!("{padding}{sign}{digits}"))
+    }
 }
 
-pub(super) fn repeat_values(values: &[VmValue], count: &BigInt) -> Result<Vec<VmValue>, VmExecutionError> {
+pub(super) fn repeat_values(
+    values: &[VmValue],
+    count: &BigInt,
+) -> Result<Vec<VmValue>, VmExecutionError> {
     if count.sign() == Sign::Minus {
         return Ok(Vec::new());
     }
@@ -707,7 +740,10 @@ pub(super) fn repeat_string(value: &str, count: &BigInt) -> Result<String, VmExe
     Ok(value.repeat(bigint_to_usize(count, "string repeat count")?))
 }
 
-pub(super) fn render_simple_format(template: &str, args: &[VmValue]) -> Result<String, VmExecutionError> {
+pub(super) fn render_simple_format(
+    template: &str,
+    args: &[VmValue],
+) -> Result<String, VmExecutionError> {
     let mut rendered = String::new();
     let mut chars = template.chars().peekable();
     let mut next_arg = 0usize;
@@ -840,12 +876,61 @@ pub(super) fn call_native_method(
                     value,
                 })
             }
+            "count" => {
+                if args.len() != 1 {
+                    return Err(VmExecutionError::new("list.count() expects one argument"));
+                }
+                let mut count = 0usize;
+                for value in &values {
+                    if vm_values_equal(value, &args[0])? {
+                        count += 1;
+                    }
+                }
+                Ok(NativeMethodResult::Value(vm_int(count)))
+            }
+            "index" => match args.as_slice() {
+                [needle] | [needle, ..] => {
+                    let (start, end) =
+                        normalize_search_bounds(values.len(), args.get(1), args.get(2))?;
+                    for (offset, value) in values[start..end].iter().enumerate() {
+                        if vm_values_equal(value, needle)? {
+                            return Ok(NativeMethodResult::Value(vm_int(start + offset)));
+                        }
+                    }
+                    Err(VmExecutionError::new("list.index(x): x not in list"))
+                }
+                _ => Err(VmExecutionError::new(
+                    "list.index() expects between one and three arguments",
+                )),
+            },
+            "clear" => {
+                if !args.is_empty() {
+                    return Err(VmExecutionError::new("list.clear() expects no arguments"));
+                }
+                values.clear();
+                Ok(NativeMethodResult::Mutated {
+                    receiver: VmValue::List(values),
+                    value: VmValue::None,
+                })
+            }
+            "copy" => {
+                if !args.is_empty() {
+                    return Err(VmExecutionError::new("list.copy() expects no arguments"));
+                }
+                Ok(NativeMethodResult::Value(VmValue::List(values.clone())))
+            }
             other => Err(VmExecutionError::new(format!(
                 "unsupported list method '{}()'",
                 other
             ))),
         },
         VmValue::String(value) => match method {
+            "upper" => match args.as_slice() {
+                [] => Ok(NativeMethodResult::Value(VmValue::String(
+                    value.to_uppercase(),
+                ))),
+                _ => Err(VmExecutionError::new("str.upper() expects no arguments")),
+            },
             "lower" => match args.as_slice() {
                 [] => Ok(NativeMethodResult::Value(VmValue::String(
                     value.to_lowercase(),
@@ -853,9 +938,7 @@ pub(super) fn call_native_method(
                 _ => Err(VmExecutionError::new("str.lower() expects no arguments")),
             },
             "isascii" => match args.as_slice() {
-                [] => Ok(NativeMethodResult::Value(VmValue::Bool(
-                    value.is_ascii(),
-                ))),
+                [] => Ok(NativeMethodResult::Value(VmValue::Bool(value.is_ascii()))),
                 _ => Err(VmExecutionError::new("str.isascii() expects no arguments")),
             },
             "isalpha" => match args.as_slice() {
@@ -889,11 +972,65 @@ pub(super) fn call_native_method(
                 _ => Err(VmExecutionError::new("str.isalnum() expects no arguments")),
             },
             "startswith" => match args.as_slice() {
-                [prefix] => Ok(NativeMethodResult::Value(VmValue::Bool(
-                    value.starts_with(&prefix.as_string()?),
-                ))),
+                [prefix] | [prefix, ..] => {
+                    let (start, end) =
+                        normalize_search_bounds(value.chars().count(), args.get(1), args.get(2))?;
+                    let segment = substring_by_char_bounds(&value, start, end);
+                    let prefixes = string_match_candidates(prefix)?;
+                    Ok(NativeMethodResult::Value(VmValue::Bool(
+                        prefixes.iter().any(|prefix| segment.starts_with(prefix)),
+                    )))
+                }
                 _ => Err(VmExecutionError::new(
-                    "str.startswith() expects one argument",
+                    "str.startswith() expects between one and three arguments",
+                )),
+            },
+            "endswith" => match args.as_slice() {
+                [suffix] | [suffix, ..] => {
+                    let (start, end) =
+                        normalize_search_bounds(value.chars().count(), args.get(1), args.get(2))?;
+                    let segment = substring_by_char_bounds(&value, start, end);
+                    let suffixes = string_match_candidates(suffix)?;
+                    Ok(NativeMethodResult::Value(VmValue::Bool(
+                        suffixes.iter().any(|suffix| segment.ends_with(suffix)),
+                    )))
+                }
+                _ => Err(VmExecutionError::new(
+                    "str.endswith() expects between one and three arguments",
+                )),
+            },
+            "find" => match args.as_slice() {
+                [needle] | [needle, ..] => {
+                    let needle = needle.as_string()?;
+                    let (start, end) =
+                        normalize_search_bounds(value.chars().count(), args.get(1), args.get(2))?;
+                    let segment = substring_by_char_bounds(&value, start, end);
+                    let found = segment
+                        .find(&needle)
+                        .map(|byte_index| start + segment[..byte_index].chars().count());
+                    Ok(NativeMethodResult::Value(vm_int(
+                        found.map_or(-1i64, |index| index as i64),
+                    )))
+                }
+                _ => Err(VmExecutionError::new(
+                    "str.find() expects between one and three arguments",
+                )),
+            },
+            "strip" => match args.as_slice() {
+                [] => Ok(NativeMethodResult::Value(VmValue::String(
+                    value.trim().to_owned(),
+                ))),
+                [chars] => {
+                    let chars = chars.as_string()?;
+                    let stripped = if chars.is_empty() {
+                        value.clone()
+                    } else {
+                        value.trim_matches(|ch| chars.contains(ch)).to_owned()
+                    };
+                    Ok(NativeMethodResult::Value(VmValue::String(stripped)))
+                }
+                _ => Err(VmExecutionError::new(
+                    "str.strip() expects zero or one argument",
                 )),
             },
             "replace" => match args.as_slice() {
@@ -928,6 +1065,49 @@ pub(super) fn call_native_method(
                     )))
                 }
                 _ => Err(VmExecutionError::new("str.join() expects one argument")),
+            },
+            "split" => match args.as_slice() {
+                [] => Ok(NativeMethodResult::Value(VmValue::List(
+                    split_string(value.as_str(), None, None)?
+                        .into_iter()
+                        .map(VmValue::String)
+                        .collect(),
+                ))),
+                [separator] => {
+                    let separator = if matches!(separator, VmValue::None) {
+                        None
+                    } else {
+                        Some(separator.as_string()?)
+                    };
+                    Ok(NativeMethodResult::Value(VmValue::List(
+                        split_string(value.as_str(), separator.as_deref(), None)?
+                            .into_iter()
+                            .map(VmValue::String)
+                            .collect(),
+                    )))
+                }
+                [separator, maxsplit] => {
+                    let separator = if matches!(separator, VmValue::None) {
+                        None
+                    } else {
+                        Some(separator.as_string()?)
+                    };
+                    let maxsplit = maxsplit.as_bigint()?;
+                    let limit = if maxsplit.sign() == Sign::Minus {
+                        None
+                    } else {
+                        Some(bigint_to_usize(&maxsplit, "str.split maxsplit")?)
+                    };
+                    Ok(NativeMethodResult::Value(VmValue::List(
+                        split_string(value.as_str(), separator.as_deref(), limit)?
+                            .into_iter()
+                            .map(VmValue::String)
+                            .collect(),
+                    )))
+                }
+                _ => Err(VmExecutionError::new(
+                    "str.split() expects between zero and two arguments",
+                )),
             },
             "format" => Ok(NativeMethodResult::Value(VmValue::String(
                 render_simple_format(&value, &args)?,
@@ -976,6 +1156,44 @@ pub(super) fn call_native_method(
                     "dict.get() expects one or two arguments",
                 )),
             },
+            "pop" => match args.as_slice() {
+                [key] => {
+                    let mut entries = entries;
+                    let value = dict_pop(&mut entries, key).ok_or_else(|| {
+                        VmExecutionError::new(format!("missing dict key {}", key.python_repr()))
+                    })?;
+                    Ok(NativeMethodResult::Mutated {
+                        receiver: VmValue::Dict(entries),
+                        value,
+                    })
+                }
+                [key, default] => {
+                    let mut entries = entries;
+                    let value = dict_pop(&mut entries, key).unwrap_or_else(|| default.clone());
+                    Ok(NativeMethodResult::Mutated {
+                        receiver: VmValue::Dict(entries),
+                        value,
+                    })
+                }
+                _ => Err(VmExecutionError::new(
+                    "dict.pop() expects one or two arguments",
+                )),
+            },
+            "clear" => {
+                if !args.is_empty() {
+                    return Err(VmExecutionError::new("dict.clear() expects no arguments"));
+                }
+                Ok(NativeMethodResult::Mutated {
+                    receiver: VmValue::Dict(Vec::new()),
+                    value: VmValue::None,
+                })
+            }
+            "copy" => {
+                if !args.is_empty() {
+                    return Err(VmExecutionError::new("dict.copy() expects no arguments"));
+                }
+                Ok(NativeMethodResult::Value(VmValue::Dict(entries.clone())))
+            }
             other => Err(VmExecutionError::new(format!(
                 "unsupported dict method '{}()'",
                 other
@@ -1045,8 +1263,12 @@ pub(super) fn compare_vm_values(
         (left, VmValue::Decimal(right)) => {
             Ok(VmDecimal::from_vm_value(left)?.scaled.cmp(&right.scaled))
         }
-        (VmValue::Bool(left), VmValue::Int(right)) => Ok(BigInt::from(if *left { 1 } else { 0 }).cmp(right)),
-        (VmValue::Int(left), VmValue::Bool(right)) => Ok(left.cmp(&BigInt::from(if *right { 1 } else { 0 }))),
+        (VmValue::Bool(left), VmValue::Int(right)) => {
+            Ok(BigInt::from(if *left { 1 } else { 0 }).cmp(right))
+        }
+        (VmValue::Int(left), VmValue::Bool(right)) => {
+            Ok(left.cmp(&BigInt::from(if *right { 1 } else { 0 })))
+        }
         (VmValue::Bool(left), VmValue::Float(right)) => (if *left { 1.0 } else { 0.0 })
             .partial_cmp(right)
             .ok_or_else(|| VmExecutionError::new("cannot compare NaN values")),
@@ -1141,7 +1363,10 @@ pub(super) fn vm_values_equal(left: &VmValue, right: &VmValue) -> Result<bool, V
     }
 }
 
-pub(super) fn contains_value(container: &VmValue, needle: &VmValue) -> Result<bool, VmExecutionError> {
+pub(super) fn contains_value(
+    container: &VmValue,
+    needle: &VmValue,
+) -> Result<bool, VmExecutionError> {
     match container {
         VmValue::String(value) => match needle {
             VmValue::String(needle) => Ok(value.contains(needle)),
@@ -1209,7 +1434,10 @@ pub(super) fn assign_subscript(
     }
 }
 
-pub(super) fn subscript_value(container: VmValue, index: &VmValue) -> Result<VmValue, VmExecutionError> {
+pub(super) fn subscript_value(
+    container: VmValue,
+    index: &VmValue,
+) -> Result<VmValue, VmExecutionError> {
     match container {
         VmValue::List(values) => {
             let idx = normalize_sequence_index(index, values.len())?;
@@ -1269,7 +1497,10 @@ pub(super) fn subscript_slice_value(
     }
 }
 
-pub(super) fn normalize_sequence_index(index: &VmValue, length: usize) -> Result<usize, VmExecutionError> {
+pub(super) fn normalize_sequence_index(
+    index: &VmValue,
+    length: usize,
+) -> Result<usize, VmExecutionError> {
     let raw = index.as_bigint()?;
     let length_value = BigInt::from(length);
     let adjusted = if raw.sign() == Sign::Minus {
@@ -1302,6 +1533,39 @@ pub(super) fn normalize_sequence_insert_index(
         adjusted
     };
     bigint_to_usize(&clamped, "sequence insert index")
+}
+
+pub(super) fn normalize_search_bounds(
+    length: usize,
+    start: Option<&VmValue>,
+    end: Option<&VmValue>,
+) -> Result<(usize, usize), VmExecutionError> {
+    let length_value = BigInt::from(length);
+    let normalize =
+        |value: Option<&VmValue>, default: &BigInt| -> Result<BigInt, VmExecutionError> {
+            let Some(value) = value else {
+                return Ok(default.clone());
+            };
+            let mut raw = value.as_bigint()?;
+            if raw.sign() == Sign::Minus {
+                raw += &length_value;
+            }
+            if raw.sign() == Sign::Minus {
+                raw = BigInt::zero();
+            }
+            if raw > length_value {
+                raw = length_value.clone();
+            }
+            Ok(raw)
+        };
+
+    let start = normalize(start, &BigInt::zero())?;
+    let end = normalize(end, &length_value)?;
+    let clamped_end = if start > end { start.clone() } else { end };
+    Ok((
+        bigint_to_usize(&start, "sequence search start")?,
+        bigint_to_usize(&clamped_end, "sequence search end")?,
+    ))
 }
 
 pub(super) fn slice_positions(
@@ -1387,6 +1651,103 @@ pub(super) fn dict_get(entries: &[(VmValue, VmValue)], key: &VmValue) -> Option<
         .map(|(_, value)| value.clone())
 }
 
+pub(super) fn dict_pop(entries: &mut Vec<(VmValue, VmValue)>, key: &VmValue) -> Option<VmValue> {
+    let index = entries.iter().position(|(entry_key, _)| entry_key == key)?;
+    Some(entries.remove(index).1)
+}
+
+pub(super) fn substring_by_char_bounds(value: &str, start: usize, end: usize) -> String {
+    value
+        .chars()
+        .skip(start)
+        .take(end.saturating_sub(start))
+        .collect()
+}
+
+pub(super) fn string_match_candidates(value: &VmValue) -> Result<Vec<String>, VmExecutionError> {
+    match value {
+        VmValue::String(candidate) => Ok(vec![candidate.clone()]),
+        VmValue::Tuple(values) => values
+            .iter()
+            .map(VmValue::as_string)
+            .collect::<Result<Vec<_>, _>>(),
+        other => Err(VmExecutionError::new(format!(
+            "expected str or tuple[str, ...], found {}",
+            other.type_name()
+        ))),
+    }
+}
+
+pub(super) fn split_string(
+    value: &str,
+    separator: Option<&str>,
+    maxsplit: Option<usize>,
+) -> Result<Vec<String>, VmExecutionError> {
+    match separator {
+        Some("") => Err(VmExecutionError::new("empty separator")),
+        Some(separator) => {
+            if matches!(maxsplit, Some(0)) {
+                return Ok(vec![value.to_owned()]);
+            }
+            let mut parts = Vec::new();
+            let mut remaining = value;
+            let mut splits = 0usize;
+            while maxsplit.is_none_or(|limit| splits < limit) {
+                let Some(index) = remaining.find(separator) else {
+                    break;
+                };
+                parts.push(remaining[..index].to_owned());
+                remaining = &remaining[index + separator.len()..];
+                splits += 1;
+            }
+            parts.push(remaining.to_owned());
+            Ok(parts)
+        }
+        None => {
+            let mut remaining = value.trim_start_matches(char::is_whitespace);
+            if remaining.is_empty() {
+                return Ok(Vec::new());
+            }
+            if matches!(maxsplit, Some(0)) {
+                return Ok(vec![remaining.to_owned()]);
+            }
+
+            let mut parts = Vec::new();
+            let mut splits = 0usize;
+            while !remaining.is_empty() && maxsplit.is_none_or(|limit| splits < limit) {
+                let start = remaining
+                    .char_indices()
+                    .find(|(_, ch)| !ch.is_whitespace())
+                    .map(|(index, _)| index)
+                    .unwrap_or(remaining.len());
+                remaining = &remaining[start..];
+                if remaining.is_empty() {
+                    break;
+                }
+
+                let boundary = remaining
+                    .char_indices()
+                    .find(|(_, ch)| ch.is_whitespace())
+                    .map(|(index, _)| index)
+                    .unwrap_or(remaining.len());
+                if boundary == remaining.len() {
+                    parts.push(remaining.to_owned());
+                    return Ok(parts);
+                }
+
+                parts.push(remaining[..boundary].to_owned());
+                remaining = &remaining[boundary..];
+                remaining = remaining.trim_start_matches(char::is_whitespace);
+                splits += 1;
+            }
+            if !remaining.is_empty() {
+                parts.push(remaining.to_owned());
+            }
+            Ok(parts)
+        }
+    }
+}
+
 pub(super) fn type_matches(value: &VmValue, marker: &VmValue) -> bool {
     match marker {
         VmValue::TypeMarker(name) => type_matches_name(value, name),
@@ -1429,7 +1790,10 @@ pub(super) fn issubclass_matches(
 fn type_marker_names(value: &VmValue) -> Result<Vec<String>, VmExecutionError> {
     match value {
         VmValue::TypeMarker(name) | VmValue::Builtin(name) => Ok(vec![name.clone()]),
-        VmValue::Tuple(markers) => markers.iter().map(type_marker_names).collect::<Result<Vec<_>, _>>()
+        VmValue::Tuple(markers) => markers
+            .iter()
+            .map(type_marker_names)
+            .collect::<Result<Vec<_>, _>>()
             .map(|groups| groups.into_iter().flatten().collect()),
         other => Err(VmExecutionError::new(format!(
             "issubclass() arg 1 must be a class or tuple of classes, got {}",
@@ -1439,9 +1803,7 @@ fn type_marker_names(value: &VmValue) -> Result<Vec<String>, VmExecutionError> {
 }
 
 fn subclass_matches_name(candidate: &str, target: &str) -> bool {
-    candidate == target
-        || target == "Any"
-        || matches!((candidate, target), ("bool", "int"))
+    candidate == target || target == "Any" || matches!((candidate, target), ("bool", "int"))
 }
 
 pub(super) fn ascii_render(value: &str) -> String {
@@ -1453,6 +1815,32 @@ pub(super) fn ascii_render(value: &str) -> String {
             rendered.extend(ch.escape_default());
         }
     }
+    rendered
+}
+
+pub(super) fn ascii_string_repr(value: &str) -> String {
+    let mut rendered = String::from("'");
+    for ch in value.chars() {
+        match ch {
+            '\'' => rendered.push_str("\\'"),
+            '\\' => rendered.push_str("\\\\"),
+            '\n' => rendered.push_str("\\n"),
+            '\r' => rendered.push_str("\\r"),
+            '\t' => rendered.push_str("\\t"),
+            ch if ch.is_ascii() && !ch.is_ascii_control() => rendered.push(ch),
+            ch => {
+                let code = u32::from(ch);
+                if code <= 0xff {
+                    rendered.push_str(&format!("\\x{code:02x}"));
+                } else if code <= 0xffff {
+                    rendered.push_str(&format!("\\u{code:04x}"));
+                } else {
+                    rendered.push_str(&format!("\\U{code:08x}"));
+                }
+            }
+        }
+    }
+    rendered.push('\'');
     rendered
 }
 
@@ -1485,8 +1873,23 @@ pub(super) fn round_builtin_value(
             None => VmValue::Int(f64_to_bigint_trunc(number.round(), "round() input")?),
         }),
         VmValue::Decimal(number) => {
-            let float = number.to_f64()?;
-            round_builtin_value(&VmValue::Float(float), digits)
+            const DECIMAL_PLACES: u32 = 30;
+            Ok(match digits {
+                Some(places) => {
+                    let exponent = if places >= 0 {
+                        DECIMAL_PLACES.saturating_sub(places as u32)
+                    } else {
+                        DECIMAL_PLACES.saturating_add(places.unsigned_abs())
+                    };
+                    let factor = BigInt::from(10u32).pow(exponent);
+                    let rounded = round_bigint_to_factor(&number.scaled, &factor)?;
+                    VmValue::Decimal(VmDecimal::from_scaled(rounded)?)
+                }
+                None => VmValue::Int(f64_to_bigint_trunc(
+                    number.to_f64()?.round(),
+                    "round() input",
+                )?),
+            })
         }
         other => Err(VmExecutionError::new(format!(
             "round() does not support {}",
@@ -1727,9 +2130,11 @@ pub(super) fn explicit_syscall_metering_cost(
             let vk_hex = args[0].as_string()?;
             let proof_hex = args[1].as_string()?;
             let public_inputs = as_string_list(&args[2], "public_inputs")?;
-            Ok(Some(
-                zk_payload_metering_cost(&vk_hex, &proof_hex, &public_inputs)?,
-            ))
+            Ok(Some(zk_payload_metering_cost(
+                &vk_hex,
+                &proof_hex,
+                &public_inputs,
+            )?))
         }
         "zk.verify_groth16" => {
             if !kwargs.is_empty() || args.len() != 3 {
@@ -1740,9 +2145,11 @@ pub(super) fn explicit_syscall_metering_cost(
             let vk_id = args[0].as_string()?;
             let proof_hex = args[1].as_string()?;
             let public_inputs = as_string_list(&args[2], "public_inputs")?;
-            Ok(Some(
-                zk_registry_metering_cost(&vk_id, &proof_hex, &public_inputs)?,
-            ))
+            Ok(Some(zk_registry_metering_cost(
+                &vk_id,
+                &proof_hex,
+                &public_inputs,
+            )?))
         }
         "zk.shielded_note_append_commitments" => {
             if args.len() != 3 || !kwargs.is_empty() {
@@ -1751,9 +2158,7 @@ pub(super) fn explicit_syscall_metering_cost(
                 ));
             }
             let commitments = as_string_list(&args[2], "commitments")?;
-            Ok(Some(
-                250_000 + (commitments.len() as u64 * 500_000),
-            ))
+            Ok(Some(250_000 + (commitments.len() as u64 * 500_000)))
         }
         "zk.shielded_command_nullifier_digest" => {
             if args.len() != 1 || !kwargs.is_empty() {
@@ -1762,9 +2167,7 @@ pub(super) fn explicit_syscall_metering_cost(
                 ));
             }
             let input_nullifiers = as_string_list(&args[0], "input_nullifiers")?;
-            Ok(Some(
-                100_000 + (input_nullifiers.len() as u64 * 50_000),
-            ))
+            Ok(Some(100_000 + (input_nullifiers.len() as u64 * 50_000)))
         }
         "zk.shielded_command_binding" => Ok(Some(100_000)),
         "zk.shielded_command_execution_tag" => Ok(Some(50_000)),
@@ -1784,7 +2187,10 @@ pub(super) fn explicit_syscall_metering_cost(
     }
 }
 
-pub(super) fn as_string_list(value: &VmValue, label: &str) -> Result<Vec<String>, VmExecutionError> {
+pub(super) fn as_string_list(
+    value: &VmValue,
+    label: &str,
+) -> Result<Vec<String>, VmExecutionError> {
     match value {
         VmValue::List(values) | VmValue::Tuple(values) => values
             .iter()
@@ -1882,7 +2288,11 @@ pub(super) fn keyword_value(
     };
     let keyword_object = as_object(keyword, "keyword")?;
     instance
-        .eval_expression(required_value(keyword_object, "value")?, &mut instance.globals.clone(), host)
+        .eval_expression(
+            required_value(keyword_object, "value")?,
+            &mut instance.globals.clone(),
+            host,
+        )
         .map(Some)
 }
 
@@ -1926,14 +2336,20 @@ pub(super) fn required_string_value(value: &Value) -> Result<&str, VmExecutionEr
         .ok_or_else(|| VmExecutionError::new("value must be a string"))
 }
 
-pub(super) fn required_bool(object: &Map<String, Value>, field: &str) -> Result<bool, VmExecutionError> {
+pub(super) fn required_bool(
+    object: &Map<String, Value>,
+    field: &str,
+) -> Result<bool, VmExecutionError> {
     object
         .get(field)
         .and_then(Value::as_bool)
         .ok_or_else(|| VmExecutionError::new(format!("field '{field}' must be a bool")))
 }
 
-pub(super) fn required_bigint(object: &Map<String, Value>, field: &str) -> Result<BigInt, VmExecutionError> {
+pub(super) fn required_bigint(
+    object: &Map<String, Value>,
+    field: &str,
+) -> Result<BigInt, VmExecutionError> {
     let value = object
         .get(field)
         .ok_or_else(|| VmExecutionError::new(format!("field '{field}' must be an int")))?;
@@ -1956,7 +2372,10 @@ pub(super) fn required_bigint(object: &Map<String, Value>, field: &str) -> Resul
     }
 }
 
-pub(super) fn required_f64(object: &Map<String, Value>, field: &str) -> Result<f64, VmExecutionError> {
+pub(super) fn required_f64(
+    object: &Map<String, Value>,
+    field: &str,
+) -> Result<f64, VmExecutionError> {
     object
         .get(field)
         .and_then(Value::as_f64)

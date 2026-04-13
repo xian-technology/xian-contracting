@@ -360,18 +360,8 @@ fn validate_statement(statement: &Value) -> Result<(), IrValidationError> {
                 "storage_mutate.operator",
                 expect_string_field(object, "operator")?,
                 &[
-                    "add",
-                    "sub",
-                    "mul",
-                    "div",
-                    "floordiv",
-                    "mod",
-                    "pow",
-                    "bitand",
-                    "bitor",
-                    "bitxor",
-                    "lshift",
-                    "rshift",
+                    "add", "sub", "mul", "div", "floordiv", "mod", "pow", "bitand", "bitor",
+                    "bitxor", "lshift", "rshift",
                 ],
             )?;
             validate_expression(expect_value_field(object, "value")?)?;
@@ -381,18 +371,8 @@ fn validate_statement(statement: &Value) -> Result<(), IrValidationError> {
                 "aug_assign.operator",
                 expect_string_field(object, "operator")?,
                 &[
-                    "add",
-                    "sub",
-                    "mul",
-                    "div",
-                    "floordiv",
-                    "mod",
-                    "pow",
-                    "bitand",
-                    "bitor",
-                    "bitxor",
-                    "lshift",
-                    "rshift",
+                    "add", "sub", "mul", "div", "floordiv", "mod", "pow", "bitand", "bitor",
+                    "bitxor", "lshift", "rshift",
                 ],
             )?;
             validate_target(expect_value_field(object, "target")?)?;
@@ -644,10 +624,7 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
                             expect_string_field(object, "receiver_type")?,
                             &["Hash", "ForeignHash"],
                         )?;
-                        ensure_non_empty(
-                            "call.method",
-                            expect_string_field(object, "method")?,
-                        )?;
+                        ensure_non_empty("call.method", expect_string_field(object, "method")?)?;
                     }
                     "contract.export_call" => {
                         ensure_non_empty(
@@ -700,18 +677,8 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
                 "bin_op.operator",
                 expect_string_field(object, "operator")?,
                 &[
-                    "add",
-                    "sub",
-                    "mul",
-                    "div",
-                    "floordiv",
-                    "mod",
-                    "pow",
-                    "bitand",
-                    "bitor",
-                    "bitxor",
-                    "lshift",
-                    "rshift",
+                    "add", "sub", "mul", "div", "floordiv", "mod", "pow", "bitand", "bitor",
+                    "bitxor", "lshift", "rshift",
                 ],
             )?;
             validate_expression(expect_value_field(object, "left")?)?;
@@ -758,7 +725,11 @@ fn validate_optional_expression(value: Option<&Value>) -> Result<(), IrValidatio
 fn validate_keyword(keyword: &Value) -> Result<(), IrValidationError> {
     let object = expect_object(keyword, "keyword")?;
     validate_object_span(object)?;
-    match object.get("node").and_then(Value::as_str).unwrap_or("keyword") {
+    match object
+        .get("node")
+        .and_then(Value::as_str)
+        .unwrap_or("keyword")
+    {
         "keyword" => {
             ensure_non_empty("keyword.arg", expect_string_field(object, "arg")?)?;
             validate_expression(expect_value_field(object, "value")?)?;

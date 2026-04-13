@@ -74,21 +74,14 @@ impl VmMeter {
         }
     }
 
-    pub(crate) fn charge_transaction_bytes(
-        &mut self,
-    ) -> Result<(), VmExecutionError> {
+    pub(crate) fn charge_transaction_bytes(&mut self) -> Result<(), VmExecutionError> {
         if !self.enabled || self.transaction_size_bytes == 0 {
             return Ok(());
         }
-        self.charge(
-            self.transaction_size_bytes as u64 * VM_TRANSACTION_BYTES_COST_PER_BYTE,
-        )
+        self.charge(self.transaction_size_bytes as u64 * VM_TRANSACTION_BYTES_COST_PER_BYTE)
     }
 
-    pub(crate) fn charge_execution_cost(
-        &mut self,
-        cost: u64,
-    ) -> Result<(), VmExecutionError> {
+    pub(crate) fn charge_execution_cost(&mut self, cost: u64) -> Result<(), VmExecutionError> {
         self.charge(cost)
     }
 
@@ -115,14 +108,9 @@ impl VmMeter {
         }
         let encoded = encode_vm_value(value)?;
         let written = key.len() + encoded.len();
-        self.written_bytes =
-            self.written_bytes
-                .checked_add(written)
-                .ok_or_else(|| {
-                    VmExecutionError::new(
-                        "You have exceeded the maximum write capacity per transaction!",
-                    )
-                })?;
+        self.written_bytes = self.written_bytes.checked_add(written).ok_or_else(|| {
+            VmExecutionError::new("You have exceeded the maximum write capacity per transaction!")
+        })?;
         if self.written_bytes >= VM_WRITE_MAX_BYTES {
             return Err(VmExecutionError::new(
                 "You have exceeded the maximum write capacity per transaction!",
@@ -131,10 +119,7 @@ impl VmMeter {
         self.charge((written as u64) * VM_WRITE_COST_PER_BYTE)
     }
 
-    pub(crate) fn charge_return_value(
-        &mut self,
-        value: &VmValue,
-    ) -> Result<(), VmExecutionError> {
+    pub(crate) fn charge_return_value(&mut self, value: &VmValue) -> Result<(), VmExecutionError> {
         if !self.enabled {
             return Ok(());
         }
@@ -210,10 +195,7 @@ impl VmMeter {
         result
     }
 
-    pub(crate) fn execution_stats(
-        &self,
-        contract_costs: HashMap<String, u64>,
-    ) -> VmExecutionStats {
+    pub(crate) fn execution_stats(&self, contract_costs: HashMap<String, u64>) -> VmExecutionStats {
         let mut chi_used = (self.raw_cost / 1_000) + VM_TRANSACTION_BASE_CHI;
         if self.chi_budget_raw > 0 {
             let chi_budget = self.chi_budget_raw / 1_000;
@@ -378,7 +360,10 @@ mod tests {
 
         assert_eq!(stats.raw_cost, 0);
         assert_eq!(stats.chi_used, VM_TRANSACTION_BASE_CHI);
-        assert_eq!(contract_costs.get("currency"), Some(&VM_TRANSACTION_BASE_CHI_RAW));
+        assert_eq!(
+            contract_costs.get("currency"),
+            Some(&VM_TRANSACTION_BASE_CHI_RAW)
+        );
         assert_eq!(
             stats.contract_costs.get("currency"),
             Some(&VM_TRANSACTION_BASE_CHI_RAW)

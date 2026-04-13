@@ -72,9 +72,7 @@ pub fn validate_contract_artifacts_json(
         .get("hashes")
         .and_then(Value::as_object)
         .ok_or_else(|| {
-            ArtifactValidationError::new(
-                "deployment_artifacts must include a 'hashes' dictionary.",
-            )
+            ArtifactValidationError::new("deployment_artifacts must include a 'hashes' dictionary.")
         })?;
 
     if runtime_code.is_some() != vm_ir_json.is_some() {
@@ -85,18 +83,10 @@ pub fn validate_contract_artifacts_json(
 
     validate_hash_field(hashes, "source_sha256", &sha256_hex(source))?;
     if let Some(input_source) = input_source {
-        validate_hash_field(
-            hashes,
-            "input_source_sha256",
-            &sha256_hex(input_source),
-        )?;
+        validate_hash_field(hashes, "input_source_sha256", &sha256_hex(input_source))?;
     }
     if let (Some(runtime_code), Some(vm_ir_json)) = (runtime_code, vm_ir_json) {
-        validate_hash_field(
-            hashes,
-            "runtime_code_sha256",
-            &sha256_hex(runtime_code),
-        )?;
+        validate_hash_field(hashes, "runtime_code_sha256", &sha256_hex(runtime_code))?;
         validate_hash_field(hashes, "vm_ir_sha256", &sha256_hex(vm_ir_json))?;
         let module_ir = parse_module_ir(vm_ir_json)
             .map_err(|error| ArtifactValidationError::new(error.to_string()))?;
@@ -134,14 +124,11 @@ fn required_string_field<'a>(
     object: &'a serde_json::Map<String, Value>,
     field: &str,
 ) -> Result<&'a str, ArtifactValidationError> {
-    object
-        .get(field)
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            ArtifactValidationError::new(format!(
-                "deployment_artifacts must include a string field '{field}'."
-            ))
-        })
+    object.get(field).and_then(Value::as_str).ok_or_else(|| {
+        ArtifactValidationError::new(format!(
+            "deployment_artifacts must include a string field '{field}'."
+        ))
+    })
 }
 
 fn required_non_empty_string_field<'a>(
@@ -179,9 +166,7 @@ fn validate_hash_field(
     expected: &str,
 ) -> Result<(), ArtifactValidationError> {
     let actual = hashes.get(field).and_then(Value::as_str).ok_or_else(|| {
-        ArtifactValidationError::new(format!(
-            "deployment_artifacts hash mismatch for '{field}'."
-        ))
+        ArtifactValidationError::new(format!("deployment_artifacts hash mismatch for '{field}'."))
     })?;
     if actual != expected {
         return Err(ArtifactValidationError::new(format!(
@@ -200,9 +185,7 @@ fn sha256_hex(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        sha256_hex, validate_contract_artifacts_json, CONTRACT_ARTIFACT_FORMAT_V1,
-    };
+    use super::{sha256_hex, validate_contract_artifacts_json, CONTRACT_ARTIFACT_FORMAT_V1};
     use crate::{XIAN_IR_V1, XIAN_VM_HOST_CATALOG_V1, XIAN_VM_V1_PROFILE};
     use serde_json::{json, Value};
 
@@ -278,13 +261,9 @@ mod tests {
             }
         })
         .to_string();
-        let validated = validate_contract_artifacts_json(
-            "con_probe",
-            &payload,
-            None,
-            XIAN_VM_V1_PROFILE,
-        )
-        .expect("compact bundle should validate");
+        let validated =
+            validate_contract_artifacts_json("con_probe", &payload, None, XIAN_VM_V1_PROFILE)
+                .expect("compact bundle should validate");
 
         assert_eq!(validated.source, "x = 1\n");
         assert_eq!(validated.runtime_code, None);
@@ -316,7 +295,9 @@ mod tests {
         let mut payload: Value = serde_json::from_str(&make_artifact("con_probe", "x = 1\n"))
             .expect("artifact json should parse");
         let mut module_ir: Value = serde_json::from_str(
-            payload["vm_ir_json"].as_str().expect("vm_ir_json should exist"),
+            payload["vm_ir_json"]
+                .as_str()
+                .expect("vm_ir_json should exist"),
         )
         .expect("vm ir should parse");
         module_ir["module_name"] = Value::String("con_other".to_owned());
