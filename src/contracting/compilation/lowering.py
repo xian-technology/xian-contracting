@@ -56,6 +56,8 @@ _STORAGE_METHOD_SYSCALLS = {
     ("Variable", "get"): "storage.variable.get",
     ("Variable", "set"): "storage.variable.set",
     ("ForeignVariable", "get"): "storage.foreign_variable.get",
+    ("Hash", "all"): "storage.hash.all",
+    ("ForeignHash", "all"): "storage.foreign_hash.all",
 }
 _STORAGE_SUBSCRIPT_READ_SYSCALLS = {
     "Hash": "storage.hash.get",

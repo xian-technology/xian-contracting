@@ -5,8 +5,10 @@ use serde_json::{Map, Value};
 use std::collections::HashSet;
 use std::fmt;
 
+mod artifacts;
 mod interpreter;
 mod metering;
+mod values;
 
 pub const XIAN_IR_V1: &str = "xian_ir_v1";
 pub const XIAN_VM_V1_PROFILE: &str = "xian_vm_v1";
@@ -14,8 +16,10 @@ pub const XIAN_VM_HOST_CATALOG_V1: &str = "xian_vm_v1_host_v1";
 pub const XIAN_VM_SUPPORTED_BYTECODE_VERSIONS: &[&str] = &["xvm-1"];
 pub const XIAN_VM_SUPPORTED_GAS_SCHEDULES: &[&str] = &["xvm-gas-1"];
 
+pub use artifacts::*;
 pub use interpreter::*;
 pub use metering::*;
+pub use values::*;
 
 #[cfg(feature = "python-extension")]
 mod python_bindings;
@@ -565,6 +569,21 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
                             &["Variable", "ForeignVariable"],
                         )?;
                         ensure_non_empty("call.method", expect_string_field(object, "method")?)?;
+                    }
+                    "storage.hash.all" | "storage.foreign_hash.all" => {
+                        ensure_non_empty(
+                            "call.receiver_binding",
+                            expect_string_field(object, "receiver_binding")?,
+                        )?;
+                        ensure_allowed(
+                            "call.receiver_type",
+                            expect_string_field(object, "receiver_type")?,
+                            &["Hash", "ForeignHash"],
+                        )?;
+                        ensure_non_empty(
+                            "call.method",
+                            expect_string_field(object, "method")?,
+                        )?;
                     }
                     "contract.export_call" => {
                         ensure_non_empty(

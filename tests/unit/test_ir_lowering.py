@@ -136,6 +136,30 @@ def quote():
         self.assertIn("numeric.decimal.new", dependency_ids)
         self.assertEqual(quote["body"][0]["value"]["operator"], "add")
 
+    def test_lower_to_ir_records_hash_prefix_scan_runtime_usage(self):
+        source = """
+values = Hash(default_value=0)
+
+@export
+def snapshot(group: str):
+    return values.all(group)
+"""
+        compiler = ContractingCompiler(module_name="prefix_scan")
+
+        ir = compiler.lower_to_ir(source)
+        snapshot = next(
+            function for function in ir["functions"] if function["name"] == "snapshot"
+        )
+        returned = snapshot["body"][0]["value"]
+        dependency_ids = {item["id"] for item in ir["host_dependencies"]}
+
+        self.assertEqual(returned["node"], "call")
+        self.assertEqual(returned["syscall_id"], "storage.hash.all")
+        self.assertEqual(returned["receiver_binding"], "values")
+        self.assertEqual(returned["receiver_type"], "Hash")
+        self.assertEqual(returned["method"], "all")
+        self.assertIn("storage.hash.all", dependency_ids)
+
     def test_lower_to_ir_records_time_hash_and_crypto_runtime_usage(self):
         source = """
 @export

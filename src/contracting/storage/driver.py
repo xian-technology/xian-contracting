@@ -18,6 +18,7 @@ from contracting.storage.lmdb_store import LMDBStore
 
 INDEX_SEPARATOR = constants.INDEX_SEPARATOR
 HASH_DELIMITER = constants.DELIMITER
+_MISSING = object()
 
 SOURCE_KEY = "__source__"
 CODE_KEY = "__code__"
@@ -70,8 +71,18 @@ class Driver:
                 self.transaction_reads[key] = value
         return value
 
-    def set(self, key, value, is_txn_write: bool = False):
-        rt.deduct_write(*encode_kv(key, value))
+    def set(
+        self,
+        key,
+        value,
+        is_txn_write: bool = False,
+        *,
+        enforce_write_cap: bool = True,
+    ):
+        rt.deduct_write(
+            *encode_kv(key, value),
+            enforce_write_cap=enforce_write_cap,
+        )
         if self.pending_reads.get(key) is None:
             self.get(key)
         if isinstance(value, (decimal.Decimal, float)):
@@ -87,12 +98,16 @@ class Driver:
             self.pending_writes[key] = value
 
     def find(self, key: str):
-        value = self.pending_writes.get(key)
-        if value is None and not self.bypass_cache:
-            value = self.cache.get(key)
-        if value is None:
-            value = self._store.get(key)
-        return value
+        value = self.pending_writes.get(key, _MISSING)
+        if value is not _MISSING:
+            return value
+
+        if not self.bypass_cache:
+            value = self.cache.get(key, _MISSING)
+            if value is not _MISSING:
+                return value
+
+        return self._store.get(key)
 
     def keys_from_disk(self, prefix: str | None = None, length: int = 0):
         if self.track_transaction_reads:
@@ -152,10 +167,17 @@ class Driver:
         return contract_variable
 
     def set_var(
-        self, contract, variable, arguments=None, value=None, mark=True
+        self,
+        contract,
+        variable,
+        arguments=None,
+        value=None,
+        mark=True,
+        *,
+        enforce_write_cap: bool = True,
     ):
         key = self.make_key(contract, variable, arguments)
-        self.set(key, value)
+        self.set(key, value, enforce_write_cap=enforce_write_cap)
 
     def get_var(self, contract, variable, arguments=None, mark=True):
         key = self.make_key(contract, variable, arguments)
@@ -249,15 +271,40 @@ class Driver:
         compile(code, name, "exec")
 
         if source is not None:
-            self.set_var(name, SOURCE_KEY, value=source)
-        self.set_var(name, CODE_KEY, value=code)
+            self.set_var(
+                name,
+                SOURCE_KEY,
+                value=source,
+                enforce_write_cap=False,
+            )
+        self.set_var(name, CODE_KEY, value=code, enforce_write_cap=False)
         if vm_ir_json is not None:
-            self.set_var(name, XIAN_VM_V1_IR_KEY, value=vm_ir_json)
-        self.set_var(name, OWNER_KEY, value=owner)
-        self.set_var(name, TIME_KEY, value=timestamp)
-        self.set_var(name, DEVELOPER_KEY, value=developer)
-        self.set_var(name, DEPLOYER_KEY, value=deployer)
-        self.set_var(name, INITIATOR_KEY, value=initiator)
+            self.set_var(
+                name,
+                XIAN_VM_V1_IR_KEY,
+                value=vm_ir_json,
+                enforce_write_cap=False,
+            )
+        self.set_var(name, OWNER_KEY, value=owner, enforce_write_cap=False)
+        self.set_var(name, TIME_KEY, value=timestamp, enforce_write_cap=False)
+        self.set_var(
+            name,
+            DEVELOPER_KEY,
+            value=developer,
+            enforce_write_cap=False,
+        )
+        self.set_var(
+            name,
+            DEPLOYER_KEY,
+            value=deployer,
+            enforce_write_cap=False,
+        )
+        self.set_var(
+            name,
+            INITIATOR_KEY,
+            value=initiator,
+            enforce_write_cap=False,
+        )
 
     def delete_contract(self, name):
         for key in self.keys(name):

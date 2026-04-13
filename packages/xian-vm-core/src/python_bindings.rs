@@ -210,6 +210,11 @@ impl VmHost for PythonBundleExecutor {
         contract: &str,
         binding: &str,
     ) -> Result<Option<VmValue>, VmExecutionError> {
+        if let Some(instance) = self.instances.get(contract) {
+            if let Some(value) = instance.peek_variable_value(binding) {
+                return Ok(Some(value));
+            }
+        }
         Python::with_gil(|py| -> Result<Option<VmValue>, VmExecutionError> {
             let host = self.host.bind(py);
             let response = host
@@ -225,6 +230,11 @@ impl VmHost for PythonBundleExecutor {
         binding: &str,
         key: &VmValue,
     ) -> Result<Option<VmValue>, VmExecutionError> {
+        if let Some(instance) = self.instances.get(contract) {
+            if let Some(value) = instance.peek_hash_entry(binding, key)? {
+                return Ok(Some(value));
+            }
+        }
         Python::with_gil(|py| -> Result<Option<VmValue>, VmExecutionError> {
             let host = self.host.bind(py);
             let key_py = vm_to_py(py, key).map_err(|error| VmExecutionError::new(error.to_string()))?;
@@ -232,6 +242,21 @@ impl VmHost for PythonBundleExecutor {
                 .call_method1("read_hash", (contract, binding, key_py))
                 .map_err(|error| VmExecutionError::new(error.to_string()))?;
             py_optional_to_vm(response)
+        })
+    }
+
+    fn scan_hash_entries(
+        &mut self,
+        contract: &str,
+        binding: &str,
+        prefix: &str,
+    ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
+        Python::with_gil(|py| -> Result<Vec<(String, VmValue)>, VmExecutionError> {
+            let host = self.host.bind(py);
+            let response = host
+                .call_method1("scan_hash_entries", (contract, binding, prefix))
+                .map_err(|error| VmExecutionError::new(error.to_string()))?;
+            py_hash_entries_to_vm(response)
         })
     }
 
@@ -258,6 +283,16 @@ impl VmHost for PythonBundleExecutor {
             | VmContractTarget::LocalHandle { module, .. }
             | VmContractTarget::FactoryCall { module, .. } => module.clone(),
         };
+        let owner = self.load_owner(&target_module)?;
+        let caller = call
+            .caller_contract
+            .clone()
+            .or_else(|| call.signer.clone());
+        if let Some(owner) = owner.as_deref() {
+            if caller.as_deref() != Some(owner) {
+                return Err(VmExecutionError::new("Caller is not the owner!"));
+            }
+        }
         let call_index = self.contract_call_count;
         self.contract_call_count = self.contract_call_count.saturating_add(1);
         self.meter.charge_execution_cost(
@@ -267,12 +302,9 @@ impl VmHost for PythonBundleExecutor {
         self.meter.enter_contract_metering(&target_module);
         let context = VmExecutionContext {
             this: Some(target_module.clone()),
-            caller: call
-                .caller_contract
-                .clone()
-                .or_else(|| call.signer.clone()),
+            caller,
             signer: call.signer.clone(),
-            owner: None,
+            owner,
             entry: call.entry.clone(),
             submission_name: call.submission_name.clone(),
             now: call.now.clone(),
@@ -339,6 +371,35 @@ fn py_optional_to_vm(value: Bound<'_, PyAny>) -> Result<Option<VmValue>, VmExecu
     } else {
         py_to_vm(value).map(Some)
     }
+}
+
+fn py_hash_entries_to_vm(
+    value: Bound<'_, PyAny>,
+) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
+    let sequence = value
+        .downcast::<PyList>()
+        .map_err(|_| VmExecutionError::new("expected list of hash entries"))?;
+    let mut entries = Vec::with_capacity(sequence.len());
+    for item in sequence.iter() {
+        let pair = item
+            .downcast::<PyTuple>()
+            .map_err(|_| VmExecutionError::new("hash entry must be a tuple"))?;
+        if pair.len() != 2 {
+            return Err(VmExecutionError::new(
+                "hash entry tuples must contain key and value",
+            ));
+        }
+        let key = pair
+            .get_item(0)
+            .map_err(|error| VmExecutionError::new(error.to_string()))?
+            .extract::<String>()
+            .map_err(|error| VmExecutionError::new(error.to_string()))?;
+        let item_value = pair
+            .get_item(1)
+            .map_err(|error| VmExecutionError::new(error.to_string()))?;
+        entries.push((key, py_to_vm(item_value)?));
+    }
+    Ok(entries)
 }
 
 fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
@@ -726,6 +787,34 @@ fn validate_module_ir_json(module_ir_json: &str) -> PyResult<()> {
 }
 
 #[pyfunction(signature=(
+    module_name,
+    artifacts_json,
+    *,
+    input_source=None,
+    vm_profile="xian_vm_v1"
+))]
+fn validate_deployment_artifacts_json(
+    py: Python<'_>,
+    module_name: &str,
+    artifacts_json: &str,
+    input_source: Option<&str>,
+    vm_profile: &str,
+) -> PyResult<PyObject> {
+    let bundle = crate::validate_contract_artifacts_json(
+        module_name,
+        artifacts_json,
+        input_source,
+        vm_profile,
+    )
+    .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?;
+    let payload = PyDict::new(py);
+    payload.set_item("source", bundle.source)?;
+    payload.set_item("runtime_code", bundle.runtime_code)?;
+    payload.set_item("vm_ir_json", bundle.vm_ir_json)?;
+    Ok(payload.into_any().unbind())
+}
+
+#[pyfunction(signature=(
     bundle_ir_json,
     entry_module,
     function_name,
@@ -805,6 +894,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(runtime_info_json, module)?)?;
     module.add_function(wrap_pyfunction!(supports_execution_policy, module)?)?;
     module.add_function(wrap_pyfunction!(validate_module_ir_json, module)?)?;
+    module.add_function(wrap_pyfunction!(validate_deployment_artifacts_json, module)?)?;
     module.add_function(wrap_pyfunction!(execute_bundle, module)?)?;
     Ok(())
 }

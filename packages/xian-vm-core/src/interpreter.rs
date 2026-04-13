@@ -1,28 +1,24 @@
 use crate::{validate_module_ir, FunctionIr, ModuleIr};
-use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, Timelike};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use num_bigint::{BigInt, Sign};
-use num_traits::{Num, Signed, ToPrimitive, Zero};
+use num_traits::{Num, Zero};
 use serde_json::{Map, Value};
 use sha2::Digest as Sha2Digest;
 use sha2::Sha256;
 use sha3::Sha3_256;
 use std::collections::{HashMap, HashSet};
 use std::env;
-use std::fmt;
 use std::str::FromStr;
-use std::sync::OnceLock;
 
 const STORAGE_DELIMITER: &str = ":";
 const STORAGE_INDEX_SEPARATOR: &str = ".";
 const MAX_HASH_DIMENSIONS: usize = 16;
 const MAX_STORAGE_KEY_SIZE: usize = 1024;
-const DECIMAL_SCALE: u32 = 30;
-const DECIMAL_MAX_SCALED_DIGITS: u32 = 91;
 pub(crate) const VM_GAS_CALL_DISPATCH: u64 = 5_000;
 const VM_GAS_EVENT_EMIT: u64 = 8_000;
 const VM_GAS_VARIABLE_GET: u64 = 1_280;
 const VM_GAS_VARIABLE_SET: u64 = 5_120;
+const VM_GAS_HASH_SCAN: u64 = 4_096;
 const VM_GAS_FUNCTION_ENTRY_COMPLEXITY_FLOOR: u64 = 40;
 const VM_GAS_FUNCTION_ENTRY_EXCESS_NODE: u64 = 150;
 const VM_GAS_LOOP_ITERATION: u64 = 96;
@@ -54,777 +50,14 @@ const VM_GAS_EXPR_IF_EXPR: u64 = 96;
 const VM_GAS_EXPR_F_STRING: u64 = 96;
 const VM_GAS_EXPR_FORMATTED_VALUE: u64 = 96;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct VmDecimal {
-    scaled: BigInt,
-}
-
-impl VmDecimal {
-    pub fn from_str_literal(value: &str) -> Result<Self, VmExecutionError> {
-        let trimmed = value.trim();
-        if trimmed.is_empty() {
-            return Err(VmExecutionError::new("decimal() requires a value"));
-        }
-
-        let (negative, unsigned) = if let Some(rest) = trimmed.strip_prefix('-') {
-            (true, rest)
-        } else if let Some(rest) = trimmed.strip_prefix('+') {
-            (false, rest)
-        } else {
-            (false, trimmed)
-        };
-
-        let (mantissa, exponent) =
-            if let Some((mantissa, exponent)) = unsigned.split_once(['e', 'E']) {
-                let exponent = exponent.parse::<i64>().map_err(|_| {
-                    VmExecutionError::new(format!("invalid decimal exponent '{trimmed}'"))
-                })?;
-                (mantissa, exponent)
-            } else {
-                (unsigned, 0)
-            };
-
-        let (whole, fraction) = if let Some((whole, fraction)) = mantissa.split_once('.') {
-            (whole, fraction)
-        } else {
-            (mantissa, "")
-        };
-
-        if whole.is_empty() && fraction.is_empty() {
-            return Err(VmExecutionError::new(format!(
-                "invalid decimal literal '{trimmed}'"
-            )));
-        }
-        if !whole.chars().all(|ch| ch.is_ascii_digit())
-            || !fraction.chars().all(|ch| ch.is_ascii_digit())
-        {
-            return Err(VmExecutionError::new(format!(
-                "invalid decimal literal '{trimmed}'"
-            )));
-        }
-
-        let mut digits = format!("{whole}{fraction}");
-        let mut scale = fraction.len() as i64 - exponent;
-
-        if scale < 0 {
-            digits.push_str(&"0".repeat(scale.unsigned_abs() as usize));
-            scale = 0;
-        }
-
-        if scale > DECIMAL_SCALE as i64 {
-            let trim = (scale - DECIMAL_SCALE as i64) as usize;
-            if trim >= digits.len() {
-                return Ok(Self::zero());
-            }
-            digits.truncate(digits.len() - trim);
-            scale = DECIMAL_SCALE as i64;
-        }
-
-        if scale < DECIMAL_SCALE as i64 {
-            digits.push_str(&"0".repeat((DECIMAL_SCALE as i64 - scale) as usize));
-        }
-
-        let digits = digits.trim_start_matches('0');
-        if digits.is_empty() {
-            return Ok(Self::zero());
-        }
-
-        let mut scaled = BigInt::from_str(digits)
-            .map_err(|_| VmExecutionError::new(format!("invalid decimal literal '{trimmed}'")))?;
-        if negative {
-            scaled = -scaled;
-        }
-
-        Self::from_scaled(scaled)
-    }
-
-    fn from_vm_value(value: &VmValue) -> Result<Self, VmExecutionError> {
-        match value {
-            VmValue::Decimal(value) => Ok(value.clone()),
-            VmValue::Int(value) => Self::from_str_literal(&value.to_string()),
-            VmValue::Float(value) => Self::from_str_literal(&value.to_string()),
-            VmValue::Bool(value) => Self::from_str_literal(if *value { "1" } else { "0" }),
-            VmValue::String(value) => Self::from_str_literal(value),
-            other => Err(VmExecutionError::new(format!(
-                "expected decimal-compatible value, got {}",
-                other.type_name()
-            ))),
-        }
-    }
-
-    fn from_scaled(scaled: BigInt) -> Result<Self, VmExecutionError> {
-        let scaled = normalize_zero_bigint(scaled);
-        if scaled.abs() > *decimal_max_scaled() {
-            return Err(VmExecutionError::new(format!(
-                "decimal value {} exceeds the supported decimal range",
-                Self {
-                    scaled: scaled.clone()
-                }
-            )));
-        }
-        Ok(Self { scaled })
-    }
-
-    fn zero() -> Self {
-        Self {
-            scaled: BigInt::zero(),
-        }
-    }
-
-    fn is_zero(&self) -> bool {
-        self.scaled.is_zero()
-    }
-
-    fn to_i64(&self) -> Result<i64, VmExecutionError> {
-        bigint_to_i64(&self.to_bigint(), &format!("decimal value {}", self))
-    }
-
-    fn to_bigint(&self) -> BigInt {
-        &self.scaled / decimal_scale_factor()
-    }
-
-    fn to_f64(&self) -> Result<f64, VmExecutionError> {
-        self.to_string().parse::<f64>().map_err(|_| {
-            VmExecutionError::new(format!(
-                "decimal value {} cannot be converted to float",
-                self
-            ))
-        })
-    }
-
-    fn add(&self, other: &Self) -> Result<Self, VmExecutionError> {
-        Self::from_scaled(&self.scaled + &other.scaled)
-    }
-
-    fn sub(&self, other: &Self) -> Result<Self, VmExecutionError> {
-        Self::from_scaled(&self.scaled - &other.scaled)
-    }
-
-    fn mul(&self, other: &Self) -> Result<Self, VmExecutionError> {
-        Self::from_scaled((&self.scaled * &other.scaled) / decimal_scale_factor())
-    }
-
-    fn div(&self, other: &Self) -> Result<Self, VmExecutionError> {
-        if other.is_zero() {
-            return Err(VmExecutionError::new("division by zero"));
-        }
-        Self::from_scaled((&self.scaled * decimal_scale_factor()) / &other.scaled)
-    }
-
-    fn modulo(&self, other: &Self) -> Result<Self, VmExecutionError> {
-        if other.is_zero() {
-            return Err(VmExecutionError::new("modulo by zero"));
-        }
-        Self::from_scaled(&self.scaled % &other.scaled)
-    }
-
-    fn floor_div(&self, other: &Self) -> Result<Self, VmExecutionError> {
-        if other.is_zero() {
-            return Err(VmExecutionError::new("division by zero"));
-        }
-        let quotient = &self.scaled / &other.scaled;
-        Self::from_scaled(quotient * decimal_scale_factor())
-    }
-}
-
-impl fmt::Display for VmDecimal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.scaled.is_zero() {
-            return f.write_str("0");
-        }
-
-        let negative = self.scaled.sign() == Sign::Minus;
-        let digits = self.scaled.abs().to_str_radix(10);
-        let rendered = if digits.len() <= DECIMAL_SCALE as usize {
-            let fraction = format!(
-                "{}{}",
-                "0".repeat(DECIMAL_SCALE as usize - digits.len()),
-                digits
-            );
-            format!("0.{}", trim_decimal_fraction(&fraction))
-        } else {
-            let split = digits.len() - DECIMAL_SCALE as usize;
-            let whole = &digits[..split];
-            let fraction = trim_decimal_fraction(&digits[split..]);
-            if fraction.is_empty() {
-                whole.to_owned()
-            } else {
-                format!("{whole}.{fraction}")
-            }
-        };
-
-        if negative {
-            write!(f, "-{rendered}")
-        } else {
-            f.write_str(&rendered)
-        }
-    }
-}
-
-fn decimal_scale_factor() -> &'static BigInt {
-    static SCALE_FACTOR: OnceLock<BigInt> = OnceLock::new();
-    SCALE_FACTOR.get_or_init(|| BigInt::from(10u8).pow(DECIMAL_SCALE))
-}
-
-fn decimal_max_scaled() -> &'static BigInt {
-    static MAX_SCALED: OnceLock<BigInt> = OnceLock::new();
-    MAX_SCALED.get_or_init(|| BigInt::from(10u8).pow(DECIMAL_MAX_SCALED_DIGITS) - BigInt::from(1u8))
-}
-
-fn normalize_zero_bigint(value: BigInt) -> BigInt {
-    if value.is_zero() {
-        BigInt::zero()
-    } else {
-        value
-    }
-}
-
-fn trim_decimal_fraction(fraction: &str) -> String {
-    fraction.trim_end_matches('0').to_owned()
-}
-
-fn vm_int<T>(value: T) -> VmValue
-where
-    T: Into<BigInt>,
-{
-    VmValue::Int(value.into())
-}
-
-fn bigint_to_i64(value: &BigInt, context: &str) -> Result<i64, VmExecutionError> {
-    value
-        .to_i64()
-        .ok_or_else(|| VmExecutionError::new(format!("{context} exceeds the supported i64 range")))
-}
-
-fn bigint_to_u32(value: &BigInt, context: &str) -> Result<u32, VmExecutionError> {
-    if value.sign() == Sign::Minus {
-        return Err(VmExecutionError::new(format!(
-            "{context} must be non-negative"
-        )));
-    }
-    value
-        .to_u32()
-        .ok_or_else(|| VmExecutionError::new(format!("{context} exceeds the supported u32 range")))
-}
-
-fn bigint_to_usize(value: &BigInt, context: &str) -> Result<usize, VmExecutionError> {
-    if value.sign() == Sign::Minus {
-        return Err(VmExecutionError::new(format!(
-            "{context} must be non-negative"
-        )));
-    }
-    value.to_usize().ok_or_else(|| {
-        VmExecutionError::new(format!("{context} exceeds the supported usize range"))
-    })
-}
-
-fn bigint_to_f64(value: &BigInt, context: &str) -> Result<f64, VmExecutionError> {
-    value.to_f64().ok_or_else(|| {
-        VmExecutionError::new(format!("{context} exceeds the supported float range"))
-    })
-}
-
-fn f64_to_bigint_trunc(value: f64, context: &str) -> Result<BigInt, VmExecutionError> {
-    if !value.is_finite() {
-        return Err(VmExecutionError::new(format!(
-            "{context} must be finite for integer conversion"
-        )));
-    }
-    BigInt::from_str(&format!("{:.0}", value.trunc())).map_err(|_| {
-        VmExecutionError::new(format!(
-            "{context} cannot be converted to an integer without overflow"
-        ))
-    })
-}
-
-fn bigint_floor_div(left: &BigInt, right: &BigInt) -> Result<BigInt, VmExecutionError> {
-    if right.is_zero() {
-        return Err(VmExecutionError::new("division by zero"));
-    }
-    let quotient = left / right;
-    let remainder = left % right;
-    if !remainder.is_zero() && remainder.sign() != right.sign() {
-        Ok(quotient - BigInt::from(1))
-    } else {
-        Ok(quotient)
-    }
-}
-
-fn bigint_modulo(left: &BigInt, right: &BigInt) -> Result<BigInt, VmExecutionError> {
-    let quotient = bigint_floor_div(left, right)?;
-    Ok(left - (quotient * right))
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct VmDateTime {
-    value: NaiveDateTime,
-}
-
-impl VmDateTime {
-    pub fn new(
-        year: i64,
-        month: i64,
-        day: i64,
-        hour: i64,
-        minute: i64,
-        second: i64,
-        microsecond: i64,
-    ) -> Result<Self, VmExecutionError> {
-        let date = NaiveDate::from_ymd_opt(year as i32, month as u32, day as u32)
-            .ok_or_else(|| VmExecutionError::new("invalid datetime date"))?;
-        let value = date
-            .and_hms_micro_opt(
-                hour as u32,
-                minute as u32,
-                second as u32,
-                microsecond as u32,
-            )
-            .ok_or_else(|| VmExecutionError::new("invalid datetime time"))?;
-        Ok(Self { value })
-    }
-
-    pub fn parse(date_string: &str, format: &str) -> Result<Self, VmExecutionError> {
-        NaiveDateTime::parse_from_str(date_string, format)
-            .map(|value| Self { value })
-            .map_err(|_| VmExecutionError::new("datetime.strptime() failed"))
-    }
-
-    pub fn add_timedelta(&self, delta: &VmTimeDelta) -> Result<Self, VmExecutionError> {
-        self.value
-            .checked_add_signed(delta.duration())
-            .map(|value| Self { value })
-            .ok_or_else(|| VmExecutionError::new("datetime overflow"))
-    }
-
-    pub fn sub_datetime(&self, other: &Self) -> Result<VmTimeDelta, VmExecutionError> {
-        VmTimeDelta::from_raw_seconds(self.value.signed_duration_since(other.value).num_seconds())
-    }
-
-    pub fn year(&self) -> i64 {
-        self.value.year() as i64
-    }
-
-    pub fn month(&self) -> i64 {
-        self.value.month() as i64
-    }
-
-    pub fn day(&self) -> i64 {
-        self.value.day() as i64
-    }
-
-    pub fn hour(&self) -> i64 {
-        self.value.hour() as i64
-    }
-
-    pub fn minute(&self) -> i64 {
-        self.value.minute() as i64
-    }
-
-    pub fn second(&self) -> i64 {
-        self.value.second() as i64
-    }
-
-    pub fn microsecond(&self) -> i64 {
-        self.value.and_utc().timestamp_subsec_micros() as i64
-    }
-}
-
-impl fmt::Display for VmDateTime {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.microsecond() == 0 {
-            write!(f, "{}", self.value.format("%Y-%m-%d %H:%M:%S"))
-        } else {
-            write!(f, "{}", self.value.format("%Y-%m-%d %H:%M:%S%.6f"))
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct VmTimeDelta {
-    raw_seconds: i64,
-}
-
-impl VmTimeDelta {
-    pub fn new(
-        weeks: i64,
-        days: i64,
-        hours: i64,
-        minutes: i64,
-        seconds: i64,
-    ) -> Result<Self, VmExecutionError> {
-        let raw_seconds = weeks
-            .checked_mul(604_800)
-            .and_then(|value| value.checked_add(days.checked_mul(86_400)?))
-            .and_then(|value| value.checked_add(hours.checked_mul(3_600)?))
-            .and_then(|value| value.checked_add(minutes.checked_mul(60)?))
-            .and_then(|value| value.checked_add(seconds))
-            .ok_or_else(|| VmExecutionError::new("timedelta overflow"))?;
-        Self::from_raw_seconds(raw_seconds)
-    }
-
-    pub fn from_raw_seconds(raw_seconds: i64) -> Result<Self, VmExecutionError> {
-        Ok(Self { raw_seconds })
-    }
-
-    pub fn duration(&self) -> Duration {
-        Duration::seconds(self.raw_seconds)
-    }
-
-    pub fn add(&self, other: &Self) -> Result<Self, VmExecutionError> {
-        Self::from_raw_seconds(
-            self.raw_seconds
-                .checked_add(other.raw_seconds)
-                .ok_or_else(|| VmExecutionError::new("timedelta overflow"))?,
-        )
-    }
-
-    pub fn sub(&self, other: &Self) -> Result<Self, VmExecutionError> {
-        Self::from_raw_seconds(
-            self.raw_seconds
-                .checked_sub(other.raw_seconds)
-                .ok_or_else(|| VmExecutionError::new("timedelta overflow"))?,
-        )
-    }
-
-    pub fn mul_int(&self, other: i64) -> Result<Self, VmExecutionError> {
-        Self::from_raw_seconds(
-            self.raw_seconds
-                .checked_mul(other)
-                .ok_or_else(|| VmExecutionError::new("timedelta overflow"))?,
-        )
-    }
-
-    pub fn mul_timedelta(&self, other: &Self) -> Result<Self, VmExecutionError> {
-        Self::from_raw_seconds(
-            self.raw_seconds
-                .checked_mul(other.raw_seconds)
-                .ok_or_else(|| VmExecutionError::new("timedelta overflow"))?,
-        )
-    }
-
-    pub fn seconds(&self) -> i64 {
-        self.raw_seconds
-    }
-
-    pub fn minutes(&self) -> i64 {
-        self.raw_seconds / 60
-    }
-
-    pub fn hours(&self) -> i64 {
-        self.raw_seconds / 3_600
-    }
-
-    pub fn days(&self) -> i64 {
-        self.raw_seconds / 86_400
-    }
-
-    pub fn weeks(&self) -> i64 {
-        self.raw_seconds / 604_800
-    }
-}
-
-impl fmt::Display for VmTimeDelta {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let negative = self.raw_seconds < 0;
-        let mut remaining = self.raw_seconds.abs();
-        let days = remaining / 86_400;
-        remaining %= 86_400;
-        let hours = remaining / 3_600;
-        remaining %= 3_600;
-        let minutes = remaining / 60;
-        let seconds = remaining % 60;
-        let prefix = if negative { "-" } else { "" };
-        if days == 0 {
-            write!(f, "{prefix}{hours}:{minutes:02}:{seconds:02}")
-        } else if days == 1 {
-            write!(f, "{prefix}1 day, {hours}:{minutes:02}:{seconds:02}")
-        } else {
-            write!(f, "{prefix}{days} days, {hours}:{minutes:02}:{seconds:02}")
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum VmValue {
-    None,
-    Bool(bool),
-    Int(BigInt),
-    Float(f64),
-    Decimal(VmDecimal),
-    DateTime(VmDateTime),
-    TimeDelta(VmTimeDelta),
-    String(String),
-    List(Vec<VmValue>),
-    Tuple(Vec<VmValue>),
-    Dict(Vec<(VmValue, VmValue)>),
-    ContractHandle(VmContractHandle),
-    StorageRef(VmStorageRef),
-    EventRef(Box<VmEventDefinition>),
-    Builtin(String),
-    FunctionRef(String),
-    TypeMarker(String),
-}
-
-impl VmValue {
-    fn truthy(&self) -> bool {
-        match self {
-            Self::None => false,
-            Self::Bool(value) => *value,
-            Self::Int(value) => !value.is_zero(),
-            Self::Float(value) => *value != 0.0,
-            Self::Decimal(value) => !value.is_zero(),
-            Self::DateTime(_) => true,
-            Self::TimeDelta(value) => value.seconds() != 0,
-            Self::String(value) => !value.is_empty(),
-            Self::List(values) | Self::Tuple(values) => !values.is_empty(),
-            Self::Dict(entries) => !entries.is_empty(),
-            Self::ContractHandle(_)
-            | Self::StorageRef(_)
-            | Self::EventRef(_)
-            | Self::Builtin(_)
-            | Self::FunctionRef(_)
-            | Self::TypeMarker(_) => true,
-        }
-    }
-
-    pub(crate) fn python_repr(&self) -> String {
-        match self {
-            Self::None => "None".to_owned(),
-            Self::Bool(true) => "True".to_owned(),
-            Self::Bool(false) => "False".to_owned(),
-            Self::Int(value) => value.to_string(),
-            Self::Float(value) => format!("{value:?}"),
-            Self::Decimal(value) => value.to_string(),
-            Self::DateTime(value) => value.to_string(),
-            Self::TimeDelta(value) => value.to_string(),
-            Self::String(value) => value.clone(),
-            Self::List(values) => format!(
-                "[{}]",
-                values
-                    .iter()
-                    .map(VmValue::python_repr)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            Self::Tuple(values) => {
-                let mut rendered = values
-                    .iter()
-                    .map(VmValue::python_repr)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                if values.len() == 1 {
-                    rendered.push(',');
-                }
-                format!("({rendered})")
-            }
-            Self::Dict(entries) => format!(
-                "{{{}}}",
-                entries
-                    .iter()
-                    .map(|(key, value)| {
-                        format!("{}: {}", key.python_repr(), value.python_repr())
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            Self::ContractHandle(handle) => format!("<contract:{}>", handle.module),
-            Self::StorageRef(storage) => format!("<storage:{}>", storage.binding),
-            Self::EventRef(event) => format!("<event:{}>", event.event_name),
-            Self::Builtin(name) => format!("<builtin:{name}>"),
-            Self::FunctionRef(name) => format!("<function:{name}>"),
-            Self::TypeMarker(name) => name.clone(),
-        }
-    }
-
-    fn as_i64(&self) -> Result<i64, VmExecutionError> {
-        match self {
-            Self::Int(value) => bigint_to_i64(value, "integer value"),
-            Self::Bool(value) => Ok(if *value { 1 } else { 0 }),
-            Self::Decimal(value) => value.to_i64(),
-            _ => Err(VmExecutionError::new(format!(
-                "expected int-compatible value, got {}",
-                self.type_name()
-            ))),
-        }
-    }
-
-    fn as_bigint(&self) -> Result<BigInt, VmExecutionError> {
-        match self {
-            Self::Int(value) => Ok(value.clone()),
-            Self::Bool(value) => Ok(if *value {
-                BigInt::from(1)
-            } else {
-                BigInt::zero()
-            }),
-            Self::Decimal(value) => Ok(value.to_bigint()),
-            _ => Err(VmExecutionError::new(format!(
-                "expected int-compatible value, got {}",
-                self.type_name()
-            ))),
-        }
-    }
-
-    fn as_string(&self) -> Result<String, VmExecutionError> {
-        match self {
-            Self::String(value) => Ok(value.clone()),
-            _ => Err(VmExecutionError::new(format!(
-                "expected string value, got {}",
-                self.type_name()
-            ))),
-        }
-    }
-
-    fn as_contract_handle(&self) -> Result<VmContractHandle, VmExecutionError> {
-        match self {
-            Self::ContractHandle(handle) => Ok(handle.clone()),
-            _ => Err(VmExecutionError::new(format!(
-                "expected contract handle, got {}",
-                self.type_name()
-            ))),
-        }
-    }
-
-    pub(crate) fn type_name(&self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::Bool(_) => "bool",
-            Self::Int(_) => "int",
-            Self::Float(_) => "float",
-            Self::Decimal(_) => "decimal",
-            Self::DateTime(_) => "datetime",
-            Self::TimeDelta(_) => "timedelta",
-            Self::String(_) => "str",
-            Self::List(_) => "list",
-            Self::Tuple(_) => "tuple",
-            Self::Dict(_) => "dict",
-            Self::ContractHandle(_) => "contract_handle",
-            Self::StorageRef(_) => "storage_ref",
-            Self::EventRef(_) => "event_ref",
-            Self::Builtin(_) => "builtin",
-            Self::FunctionRef(_) => "function_ref",
-            Self::TypeMarker(_) => "type_marker",
-        }
-    }
-}
+#[path = "interpreter_support.rs"]
+mod support;
+use crate::values::*;
+use support::*;
 
 fn vm_trace_enabled(flag: &str) -> bool {
     env::var_os(flag).is_some()
 }
-
-impl fmt::Display for VmValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.python_repr())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VmStorageRef {
-    pub binding: String,
-    pub storage_type: String,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct VmEventDefinition {
-    pub binding: String,
-    pub event_name: String,
-    pub params: VmValue,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VmContractHandle {
-    pub module: String,
-    pub origin: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum VmContractTarget {
-    StaticImport { binding: String, module: String },
-    DynamicImport { module: String },
-    LocalHandle { binding: String, module: String },
-    FactoryCall { factory: String, module: String },
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct VmContractCall {
-    pub target: VmContractTarget,
-    pub function: String,
-    pub args: Vec<VmValue>,
-    pub kwargs: Vec<(String, VmValue)>,
-    pub caller_contract: Option<String>,
-    pub signer: Option<String>,
-    pub entry: Option<(String, String)>,
-    pub submission_name: Option<String>,
-    pub now: VmValue,
-    pub block_num: VmValue,
-    pub block_hash: VmValue,
-    pub chain_id: VmValue,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct VmEvent {
-    pub contract: String,
-    pub event: String,
-    pub signer: VmValue,
-    pub caller: VmValue,
-    pub data_indexed: Vec<(String, VmValue)>,
-    pub data: Vec<(String, VmValue)>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct VmExecutionContext {
-    pub this: Option<String>,
-    pub caller: Option<String>,
-    pub signer: Option<String>,
-    pub owner: Option<String>,
-    pub entry: Option<(String, String)>,
-    pub submission_name: Option<String>,
-    pub now: VmValue,
-    pub block_num: VmValue,
-    pub block_hash: VmValue,
-    pub chain_id: VmValue,
-}
-
-impl Default for VmExecutionContext {
-    fn default() -> Self {
-        Self {
-            this: None,
-            caller: None,
-            signer: None,
-            owner: None,
-            entry: None,
-            submission_name: None,
-            now: VmValue::None,
-            block_num: vm_int(-1),
-            block_hash: VmValue::None,
-            chain_id: VmValue::None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VmExecutionError {
-    message: String,
-}
-
-impl VmExecutionError {
-    pub fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-        }
-    }
-
-    fn unsupported(message: impl Into<String>) -> Self {
-        Self::new(message)
-    }
-}
-
-impl fmt::Display for VmExecutionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.message)
-    }
-}
-
-impl std::error::Error for VmExecutionError {}
 
 fn vm_statement_gas_cost(
     node: &str,
@@ -966,6 +199,15 @@ pub trait VmHost {
         _key: &VmValue,
     ) -> Result<Option<VmValue>, VmExecutionError> {
         Ok(None)
+    }
+
+    fn scan_hash_entries(
+        &mut self,
+        _contract: &str,
+        _binding: &str,
+        _prefix: &str,
+    ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
+        Ok(Vec::new())
     }
 
     fn load_owner(
@@ -1263,6 +505,10 @@ impl VmInstance {
         })
     }
 
+    pub fn peek_variable_value(&self, binding: &str) -> Option<VmValue> {
+        self.variables.get(binding).and_then(|state| state.value.clone())
+    }
+
     pub fn get_hash_value(
         &self,
         binding: &str,
@@ -1276,6 +522,18 @@ impl VmInstance {
                 .cloned()
                 .unwrap_or_else(|| state.default_value.clone())
         }))
+    }
+
+    pub fn peek_hash_entry(
+        &self,
+        binding: &str,
+        key: &VmValue,
+    ) -> Result<Option<VmValue>, VmExecutionError> {
+        let normalized = normalize_hash_key(key)?;
+        Ok(self
+            .hashes
+            .get(binding)
+            .and_then(|state| state.entries.get(&normalized).cloned()))
     }
 
     pub fn set_variable_state(
@@ -1746,7 +1004,17 @@ impl VmInstance {
                         .get("message")
                         .map(|value| self.eval_expression(value, scope, host))
                         .transpose()?
-                        .map(|message| format!("AssertionError({})", message.python_repr()))
+                        .map(|message: VmValue| {
+                            let rendered = match message {
+                                VmValue::String(value) => {
+                                    let escaped =
+                                        value.replace('\\', "\\\\").replace('\'', "\\'");
+                                    format!("'{escaped}'")
+                                }
+                                other => other.python_repr(),
+                            };
+                            format!("AssertionError({rendered})")
+                        })
                         .unwrap_or_else(|| "AssertionError()".to_owned());
                     return Err(VmExecutionError::new(error_repr));
                 }
@@ -2001,7 +1269,14 @@ impl VmInstance {
             "none" => Ok(VmValue::None),
             "bool" => Ok(VmValue::Bool(required_bool(object, "value")?)),
             "int" => Ok(VmValue::Int(required_bigint(object, "value")?)),
-            "float" => Ok(VmValue::Float(required_f64(object, "value")?)),
+            "float" => {
+                let literal = if let Some(literal) = optional_string(object, "literal") {
+                    literal.to_owned()
+                } else {
+                    required_f64(object, "value")?.to_string()
+                };
+                Ok(VmValue::Decimal(VmDecimal::from_str_literal(&literal)?))
+            }
             "str" => Ok(VmValue::String(
                 required_string(object, "value")?.to_owned(),
             )),
@@ -2192,12 +1467,71 @@ impl VmInstance {
                 let binding = required_string(object, "receiver_binding")?;
                 self.variable_get(binding, host)
             }
+            "storage.hash.all" | "storage.foreign_hash.all" => {
+                host.charge_execution_cost(VM_GAS_HASH_SCAN)?;
+                let binding = required_string(object, "receiver_binding")?;
+                self.hash_all(binding, &args, host)
+            }
             "contract.import" => {
                 let module = resolve_contract_import_arg(&args, &kwargs)?;
                 Ok(VmValue::ContractHandle(VmContractHandle {
                     module,
                     origin: "dynamic_import".to_owned(),
                 }))
+            }
+            "contract.call" => {
+                if !kwargs.is_empty() || args.len() > 3 {
+                    return Err(VmExecutionError::new(
+                        "contract.call expects target, function, and optional kwargs dict",
+                    ));
+                }
+                let target = match args
+                    .first()
+                    .cloned()
+                    .ok_or_else(|| VmExecutionError::new("contract.call expects a target"))?
+                {
+                    VmValue::String(module) => VmContractTarget::DynamicImport { module },
+                    VmValue::ContractHandle(handle) => VmContractTarget::DynamicImport {
+                        module: handle.module,
+                    },
+                    other => {
+                        return Err(VmExecutionError::new(format!(
+                            "contract.call target must be a contract name or handle, got {}",
+                            other.type_name()
+                        )))
+                    }
+                };
+                let function = args
+                    .get(1)
+                    .ok_or_else(|| VmExecutionError::new("contract.call expects a function"))?
+                    .as_string()?;
+                let call_kwargs = match args.get(2) {
+                    None | Some(VmValue::None) => Vec::new(),
+                    Some(VmValue::Dict(entries)) => entries
+                        .iter()
+                        .map(|(key, value)| Ok((key.as_string()?, value.clone())))
+                        .collect::<Result<Vec<_>, VmExecutionError>>()?,
+                    Some(other) => {
+                        return Err(VmExecutionError::new(format!(
+                            "contract.call kwargs must be a dict, got {}",
+                            other.type_name()
+                        )))
+                    }
+                };
+                host.call_contract(VmContractCall {
+                    target,
+                    function,
+                    args: Vec::new(),
+                    kwargs: call_kwargs,
+                    caller_contract: self.context.this.clone(),
+                    signer: self.context.signer.clone(),
+                    entry: self.context.entry.clone(),
+                    submission_name: self.context.submission_name.clone(),
+                    now: self.context.now.clone(),
+                    block_num: self.context.block_num.clone(),
+                    block_hash: self.context.block_hash.clone(),
+                    chain_id: self.context.chain_id.clone(),
+                })
             }
             "event.log.emit" => {
                 host.charge_execution_cost(VM_GAS_EVENT_EMIT)?;
@@ -2227,10 +1561,10 @@ impl VmInstance {
                     )
                 };
                 let (data_indexed, data) = normalize_event_payload(&event.params, payload)?;
-                for (key, value) in &data_indexed {
+                for (key, value) in data_indexed.iter().map(|(key, value)| (key, value)) {
                     host.charge_storage_write(key, value)?;
                 }
-                for (key, value) in &data {
+                for (key, value) in data.iter().map(|(key, value)| (key, value)) {
                     host.charge_storage_write(key, value)?;
                 }
                 host.emit_event(VmEvent {
@@ -2533,6 +1867,15 @@ impl VmInstance {
                     (VmValue::Int(base), VmValue::Int(exponent)) => Ok(VmValue::Int(
                         base.pow(bigint_to_u32(exponent, "pow() exponent")?),
                     )),
+                    (VmValue::Decimal(base), VmValue::Decimal(exponent)) => {
+                        Ok(VmValue::Decimal(base.pow(exponent)?))
+                    }
+                    (VmValue::Decimal(base), exponent) => Ok(VmValue::Decimal(
+                        base.pow(&VmDecimal::from_vm_value(exponent)?)?,
+                    )),
+                    (base, VmValue::Decimal(exponent)) => Ok(VmValue::Decimal(
+                        VmDecimal::from_vm_value(base)?.pow(exponent)?,
+                    )),
                     (VmValue::Float(base), VmValue::Float(exponent)) => {
                         Ok(VmValue::Float(base.powf(*exponent)))
                     }
@@ -2796,43 +2139,20 @@ impl VmInstance {
         if let Some(foreign_key) = foreign_key {
             let (foreign_contract, foreign_binding) =
                 split_foreign_storage_key(&foreign_key)?;
-            if self
+            let loaded = host.read_variable(&foreign_contract, &foreign_binding)?;
+            let foreign = self
                 .variables
-                .get(&foreign_key)
-                .and_then(|state| state.value.clone())
-                .is_none()
-            {
-                let loaded = host.read_variable(&foreign_contract, &foreign_binding)?;
-                let foreign = self
-                    .variables
-                    .entry(foreign_key)
-                    .or_insert_with(|| VariableState {
-                        default_value: VmValue::None,
-                        value: None,
-                        foreign_key: None,
-                        snapshot_local: false,
-                        dirty: false,
-                    });
-                if foreign.value.is_none() {
-                    foreign.value = loaded;
-                }
-                let value = foreign
-                    .value
-                    .clone()
-                    .unwrap_or_else(|| foreign.default_value.clone());
-                charge_storage_read(
-                    host,
-                    &variable_storage_key(&foreign_contract, &foreign_binding),
-                    &value,
-                )?;
-                return Ok(value);
+                .entry(foreign_key)
+                .or_insert_with(|| VariableState {
+                    default_value: VmValue::None,
+                    value: None,
+                    foreign_key: None,
+                    snapshot_local: false,
+                    dirty: false,
+                });
+            if loaded.is_some() {
+                foreign.value = loaded;
             }
-            let foreign = self.variables.get(&foreign_storage_key(&foreign_contract, &foreign_binding)).ok_or_else(|| {
-                VmExecutionError::new(format!(
-                    "missing foreign variable backing state '{}:{}'",
-                    foreign_contract, foreign_binding
-                ))
-            })?;
             let value = foreign
                 .value
                 .clone()
@@ -2904,44 +2224,17 @@ impl VmInstance {
         if let Some(foreign_key) = foreign_key {
             let (foreign_contract, foreign_binding) =
                 split_foreign_storage_key(&foreign_key)?;
-            let has_value = self
-                .hashes
-                .get(&foreign_key)
-                .map(|state| state.entries.contains_key(&storage_key))
-                .unwrap_or(false);
-            if !has_value {
-                let loaded = host.read_hash(&foreign_contract, &foreign_binding, key)?;
-                let foreign = self.hashes.entry(foreign_key).or_insert_with(|| HashState {
-                    default_value: VmValue::None,
-                    entries: HashMap::new(),
-                    foreign_key: None,
-                    snapshot_local: false,
-                    dirty_entries: HashSet::new(),
-                });
-                if let Some(value) = loaded {
-                    foreign.entries.insert(storage_key.clone(), value);
-                }
-                let value = foreign
-                    .entries
-                    .get(&storage_key)
-                    .cloned()
-                    .unwrap_or_else(|| foreign.default_value.clone());
-                charge_storage_read(
-                    host,
-                    &hash_storage_key(&foreign_contract, &foreign_binding, key)?,
-                    &value,
-                )?;
-                return Ok(value);
+            let loaded = host.read_hash(&foreign_contract, &foreign_binding, key)?;
+            let foreign = self.hashes.entry(foreign_key).or_insert_with(|| HashState {
+                default_value: VmValue::None,
+                entries: HashMap::new(),
+                foreign_key: None,
+                snapshot_local: false,
+                dirty_entries: HashSet::new(),
+            });
+            if let Some(value) = loaded {
+                foreign.entries.insert(storage_key.clone(), value);
             }
-            let foreign = self
-                .hashes
-                .get(&foreign_storage_key(&foreign_contract, &foreign_binding))
-                .ok_or_else(|| {
-                    VmExecutionError::new(format!(
-                        "missing foreign hash backing state '{}:{}'",
-                        foreign_contract, foreign_binding
-                    ))
-                })?;
             let value = foreign
                 .entries
                 .get(&storage_key)
@@ -2976,6 +2269,86 @@ impl VmInstance {
         Ok(value)
     }
 
+    fn hash_all(
+        &mut self,
+        binding: &str,
+        prefix_args: &[VmValue],
+        host: &mut dyn VmHost,
+    ) -> Result<VmValue, VmExecutionError> {
+        let module_name = self.module.module_name.clone();
+        let prefix = normalize_hash_prefix(prefix_args)?;
+        let (scan_contract, scan_binding, state_key) = {
+            let state = self
+                .hashes
+                .get(binding)
+                .ok_or_else(|| VmExecutionError::new(format!("unknown hash binding '{binding}'")))?;
+            if let Some(foreign_key) = &state.foreign_key {
+                let (foreign_contract, foreign_binding) =
+                    split_foreign_storage_key(foreign_key)?;
+                (
+                    foreign_contract,
+                    foreign_binding,
+                    foreign_key.clone(),
+                )
+            } else {
+                (
+                    module_name.clone(),
+                    binding.to_owned(),
+                    binding.to_owned(),
+                )
+            }
+        };
+
+        let scanned = host.scan_hash_entries(&scan_contract, &scan_binding, &prefix)?;
+        let state = self.hashes.entry(state_key).or_insert_with(|| HashState {
+            default_value: VmValue::None,
+            entries: HashMap::new(),
+            foreign_key: None,
+            snapshot_local: false,
+            dirty_entries: HashSet::new(),
+        });
+
+        let mut ordered_keys = Vec::new();
+        for (storage_key, value) in scanned {
+            if !ordered_keys.iter().any(|existing| existing == &storage_key) {
+                ordered_keys.push(storage_key.clone());
+            }
+            state.entries.insert(storage_key, value);
+        }
+
+        let mut local_only_keys = state
+            .entries
+            .keys()
+            .filter(|key| prefix_matches_hash_entry(key, &prefix))
+            .filter(|key| !ordered_keys.iter().any(|existing| existing == *key))
+            .cloned()
+            .collect::<Vec<_>>();
+        local_only_keys.sort();
+        ordered_keys.extend(local_only_keys);
+
+        let mut values = Vec::new();
+        for storage_key in ordered_keys {
+            let Some(value) = state.entries.get(&storage_key).cloned() else {
+                continue;
+            };
+            if matches!(value, VmValue::None) {
+                continue;
+            }
+            charge_storage_read(
+                host,
+                &hash_storage_key_from_normalized(
+                    &scan_contract,
+                    &scan_binding,
+                    &storage_key,
+                ),
+                &value,
+            )?;
+            values.push(value);
+        }
+
+        Ok(VmValue::List(values))
+    }
+
     fn hash_set(
         &mut self,
         binding: &str,
@@ -2998,1816 +2371,6 @@ impl VmInstance {
     }
 }
 
-fn builtin_name_value(name: &str) -> Option<VmValue> {
-    match name {
-        "len" | "range" | "str" | "bool" | "int" | "float" | "dict" | "list" | "tuple"
-        | "isinstance" | "sorted" | "sum" | "min" | "max" | "all" | "any" | "reversed" | "zip"
-        | "pow" | "format" => Some(VmValue::Builtin(name.to_owned())),
-        "Any" | "decimal" => Some(VmValue::TypeMarker(name.to_owned())),
-        _ => None,
-    }
-}
-
-fn coerce_type_marker(value: VmValue) -> VmValue {
-    match value {
-        VmValue::Builtin(name)
-            if matches!(
-                name.as_str(),
-                "str" | "int" | "float" | "bool" | "list" | "dict" | "tuple"
-            ) =>
-        {
-            VmValue::TypeMarker(name)
-        }
-        other => other,
-    }
-}
-
-fn apply_binary_operator(
-    operator: &str,
-    left: VmValue,
-    right: VmValue,
-) -> Result<VmValue, VmExecutionError> {
-    let coerce_decimal = |value: &VmValue, side: &str| -> Result<VmDecimal, VmExecutionError> {
-        VmDecimal::from_vm_value(value).map_err(|err| {
-            VmExecutionError::new(format!(
-                "binary operator '{operator}' could not coerce {side} operand {} ({}) to decimal: {err}",
-                value.python_repr(),
-                value.type_name()
-            ))
-        })
-    };
-    match operator {
-        "add" => match (left, right) {
-            (VmValue::DateTime(left), VmValue::TimeDelta(right)) => {
-                Ok(VmValue::DateTime(left.add_timedelta(&right)?))
-            }
-            (VmValue::TimeDelta(left), VmValue::DateTime(right)) => {
-                Ok(VmValue::DateTime(right.add_timedelta(&left)?))
-            }
-            (VmValue::TimeDelta(left), VmValue::TimeDelta(right)) => {
-                Ok(VmValue::TimeDelta(left.add(&right)?))
-            }
-            (VmValue::Decimal(left), VmValue::Decimal(right)) => {
-                Ok(VmValue::Decimal(left.add(&right)?))
-            }
-            (VmValue::Decimal(left), right) => Ok(VmValue::Decimal(
-                left.add(&coerce_decimal(&right, "right")?)?,
-            )),
-            (left, VmValue::Decimal(right)) => Ok(VmValue::Decimal(
-                coerce_decimal(&left, "left")?.add(&right)?,
-            )),
-            (VmValue::Int(left), VmValue::Int(right)) => Ok(VmValue::Int(left + right)),
-            (VmValue::Float(left), VmValue::Float(right)) => Ok(VmValue::Float(left + right)),
-            (VmValue::Int(left), VmValue::Float(right)) => Ok(VmValue::Float(
-                bigint_to_f64(&left, "left int operand")? + right,
-            )),
-            (VmValue::Float(left), VmValue::Int(right)) => Ok(VmValue::Float(
-                left + bigint_to_f64(&right, "right int operand")?,
-            )),
-            (VmValue::String(left), VmValue::String(right)) => Ok(VmValue::String(left + &right)),
-            (VmValue::List(mut left), VmValue::List(right)) => {
-                left.extend(right);
-                Ok(VmValue::List(left))
-            }
-            (VmValue::Tuple(mut left), VmValue::Tuple(right)) => {
-                left.extend(right);
-                Ok(VmValue::Tuple(left))
-            }
-            (left, right) => Err(VmExecutionError::new(format!(
-                "unsupported add operands {} and {}",
-                left.type_name(),
-                right.type_name()
-            ))),
-        },
-        "sub" => match (left, right) {
-            (VmValue::DateTime(left), VmValue::DateTime(right)) => {
-                Ok(VmValue::TimeDelta(left.sub_datetime(&right)?))
-            }
-            (VmValue::TimeDelta(left), VmValue::TimeDelta(right)) => {
-                Ok(VmValue::TimeDelta(left.sub(&right)?))
-            }
-            (VmValue::Decimal(left), VmValue::Decimal(right)) => {
-                Ok(VmValue::Decimal(left.sub(&right)?))
-            }
-            (VmValue::Decimal(left), right) => Ok(VmValue::Decimal(
-                left.sub(&coerce_decimal(&right, "right")?)?,
-            )),
-            (left, VmValue::Decimal(right)) => Ok(VmValue::Decimal(
-                coerce_decimal(&left, "left")?.sub(&right)?,
-            )),
-            (VmValue::Int(left), VmValue::Int(right)) => Ok(VmValue::Int(left - right)),
-            (VmValue::Float(left), VmValue::Float(right)) => Ok(VmValue::Float(left - right)),
-            (VmValue::Int(left), VmValue::Float(right)) => Ok(VmValue::Float(
-                bigint_to_f64(&left, "left int operand")? - right,
-            )),
-            (VmValue::Float(left), VmValue::Int(right)) => Ok(VmValue::Float(
-                left - bigint_to_f64(&right, "right int operand")?,
-            )),
-            (left, right) => Err(VmExecutionError::new(format!(
-                "unsupported sub operands {} and {}",
-                left.type_name(),
-                right.type_name()
-            ))),
-        },
-        "mul" => match (left, right) {
-            (VmValue::TimeDelta(left), VmValue::TimeDelta(right)) => {
-                Ok(VmValue::TimeDelta(left.mul_timedelta(&right)?))
-            }
-            (VmValue::TimeDelta(left), VmValue::Int(right)) => Ok(VmValue::TimeDelta(
-                left.mul_int(bigint_to_i64(&right, "timedelta multiplier")?)?,
-            )),
-            (VmValue::Int(left), VmValue::TimeDelta(right)) => Ok(VmValue::TimeDelta(
-                right.mul_int(bigint_to_i64(&left, "timedelta multiplier")?)?,
-            )),
-            (VmValue::List(values), VmValue::Int(count)) => {
-                Ok(VmValue::List(repeat_values(&values, &count)?))
-            }
-            (VmValue::Int(count), VmValue::List(values)) => {
-                Ok(VmValue::List(repeat_values(&values, &count)?))
-            }
-            (VmValue::Tuple(values), VmValue::Int(count)) => {
-                Ok(VmValue::Tuple(repeat_values(&values, &count)?))
-            }
-            (VmValue::Int(count), VmValue::Tuple(values)) => {
-                Ok(VmValue::Tuple(repeat_values(&values, &count)?))
-            }
-            (VmValue::String(value), VmValue::Int(count)) => {
-                Ok(VmValue::String(repeat_string(&value, &count)?))
-            }
-            (VmValue::Int(count), VmValue::String(value)) => {
-                Ok(VmValue::String(repeat_string(&value, &count)?))
-            }
-            (VmValue::Decimal(left), VmValue::Decimal(right)) => {
-                Ok(VmValue::Decimal(left.mul(&right)?))
-            }
-            (VmValue::Decimal(left), right) => Ok(VmValue::Decimal(
-                left.mul(&coerce_decimal(&right, "right")?)?,
-            )),
-            (left, VmValue::Decimal(right)) => Ok(VmValue::Decimal(
-                coerce_decimal(&left, "left")?.mul(&right)?,
-            )),
-            (VmValue::Int(left), VmValue::Int(right)) => Ok(VmValue::Int(left * right)),
-            (VmValue::Float(left), VmValue::Float(right)) => Ok(VmValue::Float(left * right)),
-            (VmValue::Int(left), VmValue::Float(right)) => Ok(VmValue::Float(
-                bigint_to_f64(&left, "left int operand")? * right,
-            )),
-            (VmValue::Float(left), VmValue::Int(right)) => Ok(VmValue::Float(
-                left * bigint_to_f64(&right, "right int operand")?,
-            )),
-            (left, right) => Err(VmExecutionError::new(format!(
-                "unsupported mul operands {} and {}",
-                left.type_name(),
-                right.type_name()
-            ))),
-        },
-        "div" => match (left, right) {
-            (VmValue::Decimal(left), VmValue::Decimal(right)) => {
-                Ok(VmValue::Decimal(left.div(&right)?))
-            }
-            (VmValue::Decimal(left), right) => Ok(VmValue::Decimal(
-                left.div(&coerce_decimal(&right, "right")?)?,
-            )),
-            (left, VmValue::Decimal(right)) => Ok(VmValue::Decimal(
-                coerce_decimal(&left, "left")?.div(&right)?,
-            )),
-            (VmValue::Int(left), VmValue::Int(right)) => {
-                if right.is_zero() {
-                    return Err(VmExecutionError::new("division by zero"));
-                }
-                Ok(VmValue::Float(
-                    bigint_to_f64(&left, "left int operand")?
-                        / bigint_to_f64(&right, "right int operand")?,
-                ))
-            }
-            (VmValue::Float(left), VmValue::Float(right)) => Ok(VmValue::Float(left / right)),
-            (VmValue::Int(left), VmValue::Float(right)) => Ok(VmValue::Float(
-                bigint_to_f64(&left, "left int operand")? / right,
-            )),
-            (VmValue::Float(left), VmValue::Int(right)) => Ok(VmValue::Float(
-                left / bigint_to_f64(&right, "right int operand")?,
-            )),
-            (left, right) => Err(VmExecutionError::new(format!(
-                "unsupported div operands {} and {}",
-                left.type_name(),
-                right.type_name()
-            ))),
-        },
-        "floordiv" => match (left, right) {
-            (VmValue::Decimal(left), VmValue::Decimal(right)) => {
-                Ok(VmValue::Decimal(left.floor_div(&right)?))
-            }
-            (VmValue::Decimal(left), right) => Ok(VmValue::Decimal(
-                left.floor_div(&coerce_decimal(&right, "right")?)?,
-            )),
-            (left, VmValue::Decimal(right)) => Ok(VmValue::Decimal(
-                coerce_decimal(&left, "left")?.floor_div(&right)?,
-            )),
-            (VmValue::Int(left), VmValue::Int(right)) => {
-                Ok(VmValue::Int(bigint_floor_div(&left, &right)?))
-            }
-            (left, right) => Err(VmExecutionError::new(format!(
-                "unsupported floordiv operands {} and {}",
-                left.type_name(),
-                right.type_name()
-            ))),
-        },
-        "mod" => match (left, right) {
-            (VmValue::Decimal(left), VmValue::Decimal(right)) => {
-                Ok(VmValue::Decimal(left.modulo(&right)?))
-            }
-            (VmValue::Decimal(left), right) => Ok(VmValue::Decimal(
-                left.modulo(&coerce_decimal(&right, "right")?)?,
-            )),
-            (left, VmValue::Decimal(right)) => Ok(VmValue::Decimal(
-                coerce_decimal(&left, "left")?.modulo(&right)?,
-            )),
-            (VmValue::Int(left), VmValue::Int(right)) => {
-                Ok(VmValue::Int(bigint_modulo(&left, &right)?))
-            }
-            (left, right) => Err(VmExecutionError::new(format!(
-                "unsupported mod operands {} and {}",
-                left.type_name(),
-                right.type_name()
-            ))),
-        },
-        "pow" => match (left, right) {
-            (VmValue::Int(left), VmValue::Int(right)) => Ok(VmValue::Int(
-                left.pow(bigint_to_u32(&right, "pow exponent")?),
-            )),
-            (VmValue::Float(left), VmValue::Float(right)) => Ok(VmValue::Float(left.powf(right))),
-            (VmValue::Float(left), VmValue::Int(right)) => Ok(VmValue::Float(
-                left.powf(bigint_to_f64(&right, "pow exponent")?),
-            )),
-            (VmValue::Int(left), VmValue::Float(right)) => Ok(VmValue::Float(
-                bigint_to_f64(&left, "pow base")?.powf(right),
-            )),
-            (left, right) => Err(VmExecutionError::new(format!(
-                "unsupported pow operands {} and {}",
-                left.type_name(),
-                right.type_name()
-            ))),
-        },
-        other => Err(VmExecutionError::new(format!(
-            "unsupported binary operator '{other}'"
-        ))),
-    }
-}
-
-fn apply_unary_operator(operator: &str, operand: VmValue) -> Result<VmValue, VmExecutionError> {
-    match operator {
-        "not" => Ok(VmValue::Bool(!operand.truthy())),
-        "neg" => match operand {
-            VmValue::Int(value) => Ok(VmValue::Int(-value)),
-            VmValue::Float(value) => Ok(VmValue::Float(-value)),
-            VmValue::Decimal(value) => Ok(VmValue::Decimal(VmDecimal::from_scaled(-value.scaled)?)),
-            other => Err(VmExecutionError::new(format!(
-                "unsupported neg operand {}",
-                other.type_name()
-            ))),
-        },
-        "pos" => match operand {
-            VmValue::Int(value) => Ok(VmValue::Int(value)),
-            VmValue::Float(value) => Ok(VmValue::Float(value)),
-            VmValue::Decimal(value) => Ok(VmValue::Decimal(value)),
-            VmValue::TimeDelta(value) => Ok(VmValue::TimeDelta(value)),
-            other => Err(VmExecutionError::new(format!(
-                "unsupported pos operand {}",
-                other.type_name()
-            ))),
-        },
-        other => Err(VmExecutionError::new(format!(
-            "unsupported unary operator '{other}'"
-        ))),
-    }
-}
-
-fn apply_compare_operator(
-    operator: &str,
-    left: &VmValue,
-    right: &VmValue,
-) -> Result<bool, VmExecutionError> {
-    match operator {
-        "eq" => vm_values_equal(left, right),
-        "not_eq" => Ok(!vm_values_equal(left, right)?),
-        "gt" => compare_ord(left, right, |left, right| left > right),
-        "gt_e" => compare_ord(left, right, |left, right| left >= right),
-        "lt" => compare_ord(left, right, |left, right| left < right),
-        "lt_e" => compare_ord(left, right, |left, right| left <= right),
-        "in" => contains_value(right, left),
-        "not_in" => contains_value(right, left).map(|value| !value),
-        "is" => Ok(left == right),
-        "is_not" => Ok(left != right),
-        other => Err(VmExecutionError::new(format!(
-            "unsupported compare operator '{other}'"
-        ))),
-    }
-}
-
-fn compare_ord<F>(left: &VmValue, right: &VmValue, op: F) -> Result<bool, VmExecutionError>
-where
-    F: Fn(f64, f64) -> bool,
-{
-    let coerce_decimal = |value: &VmValue, side: &str| -> Result<VmDecimal, VmExecutionError> {
-        VmDecimal::from_vm_value(value).map_err(|err| {
-            VmExecutionError::new(format!(
-                "comparison could not coerce {side} operand {} ({}) to decimal: {err}",
-                value.python_repr(),
-                value.type_name()
-            ))
-        })
-    };
-    match (left, right) {
-        (VmValue::DateTime(left), VmValue::DateTime(right)) => Ok(op_datetime(left, right, &op)),
-        (VmValue::TimeDelta(left), VmValue::TimeDelta(right)) => Ok(op_timedelta(left, right, &op)),
-        (VmValue::Decimal(left), VmValue::Decimal(right)) => Ok(op_decimal(left, right, &op)),
-        (VmValue::Decimal(left), right) => Ok(op_decimal(left, &coerce_decimal(right, "right")?, &op)),
-        (left, VmValue::Decimal(right)) => Ok(op_decimal(&coerce_decimal(left, "left")?, right, &op)),
-        (VmValue::Int(left), VmValue::Int(right)) => Ok(op_bigint(left, right, &op)),
-        (VmValue::Float(left), VmValue::Float(right)) => Ok(op(*left, *right)),
-        (VmValue::Int(left), VmValue::Float(right)) => {
-            Ok(op(bigint_to_f64(left, "left int operand")?, *right))
-        }
-        (VmValue::Float(left), VmValue::Int(right)) => {
-            Ok(op(*left, bigint_to_f64(right, "right int operand")?))
-        }
-        (VmValue::String(left), VmValue::String(right)) => Ok(op_string(left, right, &op)),
-        (left, right) => Err(VmExecutionError::new(format!(
-            "values {} and {} are not order-comparable",
-            left.type_name(),
-            right.type_name()
-        ))),
-    }
-}
-
-fn op_string<F>(left: &str, right: &str, op: &F) -> bool
-where
-    F: Fn(f64, f64) -> bool,
-{
-    let left_score = if left > right {
-        1.0
-    } else if left == right {
-        0.0
-    } else {
-        -1.0
-    };
-    op(left_score, 0.0)
-}
-
-fn op_decimal<F>(left: &VmDecimal, right: &VmDecimal, op: &F) -> bool
-where
-    F: Fn(f64, f64) -> bool,
-{
-    let left_score = match left.scaled.cmp(&right.scaled) {
-        std::cmp::Ordering::Greater => 1.0,
-        std::cmp::Ordering::Equal => 0.0,
-        std::cmp::Ordering::Less => -1.0,
-    };
-    op(left_score, 0.0)
-}
-
-fn op_bigint<F>(left: &BigInt, right: &BigInt, op: &F) -> bool
-where
-    F: Fn(f64, f64) -> bool,
-{
-    let score = match left.cmp(right) {
-        std::cmp::Ordering::Greater => 1.0,
-        std::cmp::Ordering::Equal => 0.0,
-        std::cmp::Ordering::Less => -1.0,
-    };
-    op(score, 0.0)
-}
-
-fn op_datetime<F>(left: &VmDateTime, right: &VmDateTime, op: &F) -> bool
-where
-    F: Fn(f64, f64) -> bool,
-{
-    let score = match left.value.cmp(&right.value) {
-        std::cmp::Ordering::Greater => 1.0,
-        std::cmp::Ordering::Equal => 0.0,
-        std::cmp::Ordering::Less => -1.0,
-    };
-    op(score, 0.0)
-}
-
-fn op_timedelta<F>(left: &VmTimeDelta, right: &VmTimeDelta, op: &F) -> bool
-where
-    F: Fn(f64, f64) -> bool,
-{
-    let score = match left.raw_seconds.cmp(&right.raw_seconds) {
-        std::cmp::Ordering::Greater => 1.0,
-        std::cmp::Ordering::Equal => 0.0,
-        std::cmp::Ordering::Less => -1.0,
-    };
-    op(score, 0.0)
-}
-
-fn native_attribute_value(value: &VmValue, attr: &str) -> Result<VmValue, VmExecutionError> {
-    match value {
-        VmValue::DateTime(value) => match attr {
-            "year" => Ok(vm_int(value.year())),
-            "month" => Ok(vm_int(value.month())),
-            "day" => Ok(vm_int(value.day())),
-            "hour" => Ok(vm_int(value.hour())),
-            "minute" => Ok(vm_int(value.minute())),
-            "second" => Ok(vm_int(value.second())),
-            "microsecond" => Ok(vm_int(value.microsecond())),
-            other => Err(VmExecutionError::new(format!(
-                "datetime has no attribute '{other}'"
-            ))),
-        },
-        VmValue::TimeDelta(value) => match attr {
-            "seconds" => Ok(vm_int(value.seconds())),
-            "minutes" => Ok(vm_int(value.minutes())),
-            "hours" => Ok(vm_int(value.hours())),
-            "days" => Ok(vm_int(value.days())),
-            "weeks" => Ok(vm_int(value.weeks())),
-            other => Err(VmExecutionError::new(format!(
-                "timedelta has no attribute '{other}'"
-            ))),
-        },
-        other => Err(VmExecutionError::new(format!(
-            "value of type {} has no native attribute '{}'",
-            other.type_name(),
-            attr
-        ))),
-    }
-}
-
-fn time_datetime_new(
-    args: Vec<VmValue>,
-    kwargs: Vec<(String, VmValue)>,
-) -> Result<VmValue, VmExecutionError> {
-    let year = positional_or_keyword_i64(&args, &kwargs, 0, "year")?;
-    let month = positional_or_keyword_i64(&args, &kwargs, 1, "month")?;
-    let day = positional_or_keyword_i64(&args, &kwargs, 2, "day")?;
-    let hour = optional_positional_or_keyword_i64(&args, &kwargs, 3, "hour")?.unwrap_or(0);
-    let minute = optional_positional_or_keyword_i64(&args, &kwargs, 4, "minute")?.unwrap_or(0);
-    let second = optional_positional_or_keyword_i64(&args, &kwargs, 5, "second")?.unwrap_or(0);
-    let microsecond =
-        optional_positional_or_keyword_i64(&args, &kwargs, 6, "microsecond")?.unwrap_or(0);
-    Ok(VmValue::DateTime(VmDateTime::new(
-        year,
-        month,
-        day,
-        hour,
-        minute,
-        second,
-        microsecond,
-    )?))
-}
-
-fn time_datetime_strptime(
-    args: Vec<VmValue>,
-    kwargs: Vec<(String, VmValue)>,
-) -> Result<VmValue, VmExecutionError> {
-    if !kwargs.is_empty() || args.len() != 2 {
-        return Err(VmExecutionError::new(
-            "datetime.datetime.strptime() expects two positional arguments",
-        ));
-    }
-    let date_string = args[0].as_string()?;
-    let format = args[1].as_string()?;
-    Ok(VmValue::DateTime(VmDateTime::parse(&date_string, &format)?))
-}
-
-fn time_timedelta_new(
-    args: Vec<VmValue>,
-    kwargs: Vec<(String, VmValue)>,
-) -> Result<VmValue, VmExecutionError> {
-    let weeks = optional_positional_or_keyword_i64(&args, &kwargs, 0, "weeks")?.unwrap_or(0);
-    let days = optional_positional_or_keyword_i64(&args, &kwargs, 1, "days")?.unwrap_or(0);
-    let hours = optional_positional_or_keyword_i64(&args, &kwargs, 2, "hours")?.unwrap_or(0);
-    let minutes = optional_positional_or_keyword_i64(&args, &kwargs, 3, "minutes")?.unwrap_or(0);
-    let seconds = optional_positional_or_keyword_i64(&args, &kwargs, 4, "seconds")?.unwrap_or(0);
-    Ok(VmValue::TimeDelta(VmTimeDelta::new(
-        weeks, days, hours, minutes, seconds,
-    )?))
-}
-
-fn hash_sha3_256(
-    args: Vec<VmValue>,
-    kwargs: Vec<(String, VmValue)>,
-) -> Result<VmValue, VmExecutionError> {
-    if !kwargs.is_empty() || args.len() != 1 {
-        return Err(VmExecutionError::new("hashlib.sha3() expects one argument"));
-    }
-    let mut hasher = Sha3_256::new();
-    hasher.update(hash_bytes_from_value(&args[0])?);
-    Ok(VmValue::String(hex::encode(hasher.finalize())))
-}
-
-fn hash_sha256(
-    args: Vec<VmValue>,
-    kwargs: Vec<(String, VmValue)>,
-) -> Result<VmValue, VmExecutionError> {
-    if !kwargs.is_empty() || args.len() != 1 {
-        return Err(VmExecutionError::new(
-            "hashlib.sha256() expects one argument",
-        ));
-    }
-    let mut hasher = Sha256::new();
-    hasher.update(hash_bytes_from_value(&args[0])?);
-    Ok(VmValue::String(hex::encode(hasher.finalize())))
-}
-
-fn crypto_ed25519_verify(
-    args: Vec<VmValue>,
-    kwargs: Vec<(String, VmValue)>,
-) -> Result<VmValue, VmExecutionError> {
-    if !kwargs.is_empty() || args.len() != 3 {
-        return Err(VmExecutionError::new(
-            "crypto.verify() expects three positional arguments",
-        ));
-    }
-    let key_hex = args[0].as_string()?;
-    let message = args[1].as_string()?;
-    let signature_hex = args[2].as_string()?;
-
-    let key_bytes = match hex::decode(key_hex) {
-        Ok(bytes) => bytes,
-        Err(_) => return Ok(VmValue::Bool(false)),
-    };
-    let signature_bytes = match hex::decode(signature_hex) {
-        Ok(bytes) => bytes,
-        Err(_) => return Ok(VmValue::Bool(false)),
-    };
-    let verifying_key = match VerifyingKey::from_bytes(
-        &key_bytes
-            .try_into()
-            .map_err(|_| VmExecutionError::new("invalid verify key length"))?,
-    ) {
-        Ok(key) => key,
-        Err(_) => return Ok(VmValue::Bool(false)),
-    };
-    let signature = match Signature::try_from(signature_bytes.as_slice()) {
-        Ok(signature) => signature,
-        Err(_) => return Ok(VmValue::Bool(false)),
-    };
-    Ok(VmValue::Bool(
-        verifying_key.verify(message.as_bytes(), &signature).is_ok(),
-    ))
-}
-
-fn crypto_key_is_valid(
-    args: Vec<VmValue>,
-    kwargs: Vec<(String, VmValue)>,
-) -> Result<VmValue, VmExecutionError> {
-    if !kwargs.is_empty() || args.len() != 1 {
-        return Err(VmExecutionError::new(
-            "crypto.key_is_valid() expects one argument",
-        ));
-    }
-    let key = args[0].as_string()?;
-    Ok(VmValue::Bool(
-        key.len() == 64 && key.chars().all(|ch| ch.is_ascii_hexdigit()),
-    ))
-}
-
-fn hash_bytes_from_value(value: &VmValue) -> Result<Vec<u8>, VmExecutionError> {
-    let input = value.as_string()?;
-    match hex::decode(&input) {
-        Ok(bytes) => Ok(bytes),
-        Err(_) => Ok(input.into_bytes()),
-    }
-}
-
-fn positional_or_keyword_i64(
-    args: &[VmValue],
-    kwargs: &[(String, VmValue)],
-    index: usize,
-    name: &str,
-) -> Result<i64, VmExecutionError> {
-    optional_positional_or_keyword_i64(args, kwargs, index, name)?
-        .ok_or_else(|| VmExecutionError::new(format!("missing required argument '{name}'")))
-}
-
-fn optional_positional_or_keyword_i64(
-    args: &[VmValue],
-    kwargs: &[(String, VmValue)],
-    index: usize,
-    name: &str,
-) -> Result<Option<i64>, VmExecutionError> {
-    if let Some(value) = args.get(index) {
-        return Ok(Some(value.as_i64()?));
-    }
-    if let Some((_, value)) = kwargs.iter().find(|(key, _)| key == name) {
-        return Ok(Some(value.as_i64()?));
-    }
-    Ok(None)
-}
-
-fn format_builtin_value(value: &VmValue, spec: &str) -> Result<String, VmExecutionError> {
-    match value {
-        VmValue::Int(value) => format_bigint(value, spec),
-        VmValue::String(value) if spec.is_empty() => Ok(value.clone()),
-        VmValue::Bool(_) | VmValue::Float(_) | VmValue::Decimal(_) if spec.is_empty() => {
-            Ok(value.python_repr())
-        }
-        other => Err(VmExecutionError::new(format!(
-            "format() does not support {} with spec '{}'",
-            other.type_name(),
-            spec
-        ))),
-    }
-}
-
-fn format_bigint(value: &BigInt, spec: &str) -> Result<String, VmExecutionError> {
-    if spec.is_empty() || spec == "d" {
-        return Ok(value.to_string());
-    }
-
-    let (width_spec, format_type) = spec
-        .chars()
-        .last()
-        .map(|format_type| (&spec[..spec.len() - format_type.len_utf8()], format_type))
-        .ok_or_else(|| VmExecutionError::new("invalid format spec"))?;
-
-    let zero_pad = width_spec.starts_with('0');
-    let width = if width_spec.is_empty() {
-        0
-    } else {
-        width_spec.parse::<usize>().map_err(|_| {
-            VmExecutionError::new(format!("unsupported integer format spec '{spec}'"))
-        })?
-    };
-
-    let rendered = match format_type {
-        'x' => value.to_str_radix(16),
-        'X' => value.to_str_radix(16).to_uppercase(),
-        'd' => value.to_string(),
-        _ => {
-            return Err(VmExecutionError::new(format!(
-                "unsupported integer format spec '{spec}'"
-            )))
-        }
-    };
-
-    if width == 0 || rendered.len() >= width {
-        return Ok(rendered);
-    }
-
-    let pad_char = if zero_pad { '0' } else { ' ' };
-    let padding = pad_char.to_string().repeat(width - rendered.len());
-    Ok(format!("{padding}{rendered}"))
-}
-
-fn repeat_values(values: &[VmValue], count: &BigInt) -> Result<Vec<VmValue>, VmExecutionError> {
-    if count.sign() == Sign::Minus {
-        return Ok(Vec::new());
-    }
-    let count = bigint_to_usize(count, "sequence repeat count")?;
-    let mut repeated = Vec::with_capacity(values.len().saturating_mul(count));
-    for _ in 0..count {
-        repeated.extend(values.iter().cloned());
-    }
-    Ok(repeated)
-}
-
-fn repeat_string(value: &str, count: &BigInt) -> Result<String, VmExecutionError> {
-    if count.sign() == Sign::Minus {
-        return Ok(String::new());
-    }
-    Ok(value.repeat(bigint_to_usize(count, "string repeat count")?))
-}
-
-fn render_simple_format(template: &str, args: &[VmValue]) -> Result<String, VmExecutionError> {
-    let mut rendered = String::new();
-    let mut chars = template.chars().peekable();
-    let mut next_arg = 0usize;
-
-    while let Some(ch) = chars.next() {
-        match ch {
-            '{' => {
-                if chars.peek() == Some(&'{') {
-                    chars.next();
-                    rendered.push('{');
-                    continue;
-                }
-
-                let mut token = String::new();
-                loop {
-                    let Some(inner) = chars.next() else {
-                        return Err(VmExecutionError::new("str.format() missing closing '}'"));
-                    };
-                    if inner == '}' {
-                        break;
-                    }
-                    token.push(inner);
-                }
-
-                let index = if token.is_empty() {
-                    let index = next_arg;
-                    next_arg += 1;
-                    index
-                } else {
-                    token.parse::<usize>().map_err(|_| {
-                        VmExecutionError::new(format!("unsupported str.format() field '{token}'"))
-                    })?
-                };
-                let value = args.get(index).ok_or_else(|| {
-                    VmExecutionError::new("str.format() placeholder index out of range")
-                })?;
-                rendered.push_str(&value.python_repr());
-            }
-            '}' => {
-                if chars.peek() == Some(&'}') {
-                    chars.next();
-                    rendered.push('}');
-                } else {
-                    return Err(VmExecutionError::new("str.format() unmatched '}'"));
-                }
-            }
-            other => rendered.push(other),
-        }
-    }
-
-    Ok(rendered)
-}
-
-fn call_native_method(
-    receiver: VmValue,
-    method: &str,
-    args: Vec<VmValue>,
-    kwargs: Vec<(String, VmValue)>,
-) -> Result<NativeMethodResult, VmExecutionError> {
-    if !kwargs.is_empty() {
-        return Err(VmExecutionError::new(format!(
-            "native method '{}()' does not accept keyword arguments",
-            method
-        )));
-    }
-
-    match receiver {
-        VmValue::List(mut values) => match method {
-            "append" => {
-                if args.len() != 1 {
-                    return Err(VmExecutionError::new("list.append() expects one argument"));
-                }
-                values.push(args[0].clone());
-                Ok(NativeMethodResult::Mutated {
-                    receiver: VmValue::List(values),
-                    value: VmValue::None,
-                })
-            }
-            "remove" => {
-                if args.len() != 1 {
-                    return Err(VmExecutionError::new("list.remove() expects one argument"));
-                }
-                let index = values
-                    .iter()
-                    .position(|value| value == &args[0])
-                    .ok_or_else(|| VmExecutionError::new("list.remove(x): x not in list"))?;
-                values.remove(index);
-                Ok(NativeMethodResult::Mutated {
-                    receiver: VmValue::List(values),
-                    value: VmValue::None,
-                })
-            }
-            "extend" => {
-                if args.len() != 1 {
-                    return Err(VmExecutionError::new("list.extend() expects one argument"));
-                }
-                values.extend(iterate_value(&args[0])?);
-                Ok(NativeMethodResult::Mutated {
-                    receiver: VmValue::List(values),
-                    value: VmValue::None,
-                })
-            }
-            "insert" => {
-                if args.len() != 2 {
-                    return Err(VmExecutionError::new("list.insert() expects two arguments"));
-                }
-                let index = normalize_sequence_insert_index(&args[0], values.len())?;
-                values.insert(index, args[1].clone());
-                Ok(NativeMethodResult::Mutated {
-                    receiver: VmValue::List(values),
-                    value: VmValue::None,
-                })
-            }
-            "pop" => {
-                let index = match args.as_slice() {
-                    [] => values
-                        .len()
-                        .checked_sub(1)
-                        .ok_or_else(|| VmExecutionError::new("pop from empty list"))?,
-                    [index] => normalize_sequence_index(index, values.len())?,
-                    _ => {
-                        return Err(VmExecutionError::new(
-                            "list.pop() accepts at most one argument",
-                        ))
-                    }
-                };
-                let value = values.remove(index);
-                Ok(NativeMethodResult::Mutated {
-                    receiver: VmValue::List(values),
-                    value,
-                })
-            }
-            other => Err(VmExecutionError::new(format!(
-                "unsupported list method '{}()'",
-                other
-            ))),
-        },
-        VmValue::String(value) => match method {
-            "lower" => match args.as_slice() {
-                [] => Ok(NativeMethodResult::Value(VmValue::String(
-                    value.to_lowercase(),
-                ))),
-                _ => Err(VmExecutionError::new("str.lower() expects no arguments")),
-            },
-            "isascii" => match args.as_slice() {
-                [] => Ok(NativeMethodResult::Value(VmValue::Bool(
-                    value.is_ascii(),
-                ))),
-                _ => Err(VmExecutionError::new("str.isascii() expects no arguments")),
-            },
-            "isalpha" => match args.as_slice() {
-                [] => Ok(NativeMethodResult::Value(VmValue::Bool(
-                    !value.is_empty() && value.chars().all(char::is_alphabetic),
-                ))),
-                _ => Err(VmExecutionError::new("str.isalpha() expects no arguments")),
-            },
-            "isdigit" => match args.as_slice() {
-                [] => Ok(NativeMethodResult::Value(VmValue::Bool(
-                    !value.is_empty() && value.chars().all(char::is_numeric),
-                ))),
-                _ => Err(VmExecutionError::new("str.isdigit() expects no arguments")),
-            },
-            "islower" => match args.as_slice() {
-                [] => {
-                    let has_cased = value.chars().any(char::is_alphabetic);
-                    Ok(NativeMethodResult::Value(VmValue::Bool(
-                        has_cased
-                            && value
-                                .chars()
-                                .all(|ch| !ch.is_alphabetic() || ch.is_lowercase()),
-                    )))
-                }
-                _ => Err(VmExecutionError::new("str.islower() expects no arguments")),
-            },
-            "isalnum" => match args.as_slice() {
-                [] => Ok(NativeMethodResult::Value(VmValue::Bool(
-                    !value.is_empty() && value.chars().all(char::is_alphanumeric),
-                ))),
-                _ => Err(VmExecutionError::new("str.isalnum() expects no arguments")),
-            },
-            "startswith" => match args.as_slice() {
-                [prefix] => Ok(NativeMethodResult::Value(VmValue::Bool(
-                    value.starts_with(&prefix.as_string()?),
-                ))),
-                _ => Err(VmExecutionError::new(
-                    "str.startswith() expects one argument",
-                )),
-            },
-            "replace" => match args.as_slice() {
-                [old, new] => Ok(NativeMethodResult::Value(VmValue::String(
-                    value.replace(&old.as_string()?, &new.as_string()?),
-                ))),
-                [old, new, count] => {
-                    let count = count.as_bigint()?;
-                    let replaced = if count < BigInt::zero() {
-                        value.replace(&old.as_string()?, &new.as_string()?)
-                    } else {
-                        value.replacen(
-                            &old.as_string()?,
-                            &new.as_string()?,
-                            bigint_to_usize(&count, "str.replace count")?,
-                        )
-                    };
-                    Ok(NativeMethodResult::Value(VmValue::String(replaced)))
-                }
-                _ => Err(VmExecutionError::new(
-                    "str.replace() expects two or three arguments",
-                )),
-            },
-            "join" => match args.as_slice() {
-                [items] => {
-                    let rendered = iterate_value(items)?
-                        .into_iter()
-                        .map(|item| item.as_string())
-                        .collect::<Result<Vec<_>, _>>()?;
-                    Ok(NativeMethodResult::Value(VmValue::String(
-                        rendered.join(&value),
-                    )))
-                }
-                _ => Err(VmExecutionError::new("str.join() expects one argument")),
-            },
-            "format" => Ok(NativeMethodResult::Value(VmValue::String(
-                render_simple_format(&value, &args)?,
-            ))),
-            other => Err(VmExecutionError::new(format!(
-                "unsupported str method '{}()'",
-                other
-            ))),
-        },
-        VmValue::Dict(entries) => match method {
-            "keys" => {
-                if !args.is_empty() {
-                    return Err(VmExecutionError::new("dict.keys() expects no arguments"));
-                }
-                Ok(NativeMethodResult::Value(VmValue::List(
-                    entries.iter().map(|(key, _)| key.clone()).collect(),
-                )))
-            }
-            "values" => {
-                if !args.is_empty() {
-                    return Err(VmExecutionError::new("dict.values() expects no arguments"));
-                }
-                Ok(NativeMethodResult::Value(VmValue::List(
-                    entries.iter().map(|(_, value)| value.clone()).collect(),
-                )))
-            }
-            "items" => {
-                if !args.is_empty() {
-                    return Err(VmExecutionError::new("dict.items() expects no arguments"));
-                }
-                Ok(NativeMethodResult::Value(VmValue::List(
-                    entries
-                        .iter()
-                        .map(|(key, value)| VmValue::Tuple(vec![key.clone(), value.clone()]))
-                        .collect(),
-                )))
-            }
-            "get" => match args.as_slice() {
-                [key] => Ok(NativeMethodResult::Value(
-                    dict_get(&entries, key).unwrap_or(VmValue::None),
-                )),
-                [key, default] => Ok(NativeMethodResult::Value(
-                    dict_get(&entries, key).unwrap_or_else(|| default.clone()),
-                )),
-                _ => Err(VmExecutionError::new(
-                    "dict.get() expects one or two arguments",
-                )),
-            },
-            other => Err(VmExecutionError::new(format!(
-                "unsupported dict method '{}()'",
-                other
-            ))),
-        },
-        other => Err(VmExecutionError::new(format!(
-            "value of type {} has no native method '{}()'",
-            other.type_name(),
-            method
-        ))),
-    }
-}
-
-fn target_writes_module_scope(
-    target: &Value,
-    scope: &HashMap<String, VmValue>,
-    globals: &HashMap<String, VmValue>,
-) -> Result<bool, VmExecutionError> {
-    let object = as_object(target, "target")?;
-    match required_string(object, "node")? {
-        "name" => {
-            let id = required_string(object, "id")?;
-            Ok(!scope.contains_key(id) && globals.contains_key(id))
-        }
-        "subscript" => target_writes_module_scope(required_value(object, "value")?, scope, globals),
-        _ => Ok(false),
-    }
-}
-
-fn builtin_ordered_values(args: Vec<VmValue>) -> Result<Vec<VmValue>, VmExecutionError> {
-    if args.len() == 1 {
-        iterate_value(&args[0])
-    } else {
-        Ok(args)
-    }
-}
-
-fn sorted_values(values: Vec<VmValue>) -> Result<Vec<VmValue>, VmExecutionError> {
-    let mut ordered = Vec::with_capacity(values.len());
-    for value in values {
-        let mut insert_at = ordered.len();
-        for (index, existing) in ordered.iter().enumerate() {
-            if compare_vm_values(&value, existing)? == std::cmp::Ordering::Less {
-                insert_at = index;
-                break;
-            }
-        }
-        ordered.insert(insert_at, value);
-    }
-    Ok(ordered)
-}
-
-fn compare_vm_values(
-    left: &VmValue,
-    right: &VmValue,
-) -> Result<std::cmp::Ordering, VmExecutionError> {
-    match (left, right) {
-        (VmValue::DateTime(left), VmValue::DateTime(right)) => Ok(left.value.cmp(&right.value)),
-        (VmValue::TimeDelta(left), VmValue::TimeDelta(right)) => {
-            Ok(left.raw_seconds.cmp(&right.raw_seconds))
-        }
-        (VmValue::Bool(left), VmValue::Bool(right)) => Ok(left.cmp(right)),
-        (VmValue::Decimal(left), VmValue::Decimal(right)) => Ok(left.scaled.cmp(&right.scaled)),
-        (VmValue::Decimal(left), right) => {
-            Ok(left.scaled.cmp(&VmDecimal::from_vm_value(right)?.scaled))
-        }
-        (left, VmValue::Decimal(right)) => {
-            Ok(VmDecimal::from_vm_value(left)?.scaled.cmp(&right.scaled))
-        }
-        (VmValue::Bool(left), VmValue::Int(right)) => Ok(BigInt::from(if *left { 1 } else { 0 }).cmp(right)),
-        (VmValue::Int(left), VmValue::Bool(right)) => Ok(left.cmp(&BigInt::from(if *right { 1 } else { 0 }))),
-        (VmValue::Bool(left), VmValue::Float(right)) => (if *left { 1.0 } else { 0.0 })
-            .partial_cmp(right)
-            .ok_or_else(|| VmExecutionError::new("cannot compare NaN values")),
-        (VmValue::Float(left), VmValue::Bool(right)) => left
-            .partial_cmp(&(if *right { 1.0 } else { 0.0 }))
-            .ok_or_else(|| VmExecutionError::new("cannot compare NaN values")),
-        (VmValue::Int(left), VmValue::Int(right)) => Ok(left.cmp(right)),
-        (VmValue::Float(left), VmValue::Float(right)) => left
-            .partial_cmp(right)
-            .ok_or_else(|| VmExecutionError::new("cannot compare NaN values")),
-        (VmValue::Int(left), VmValue::Float(right)) => bigint_to_f64(left, "left int operand")?
-            .partial_cmp(right)
-            .ok_or_else(|| VmExecutionError::new("cannot compare NaN values")),
-        (VmValue::Float(left), VmValue::Int(right)) => left
-            .partial_cmp(&bigint_to_f64(right, "right int operand")?)
-            .ok_or_else(|| VmExecutionError::new("cannot compare NaN values")),
-        (VmValue::String(left), VmValue::String(right)) => Ok(left.cmp(right)),
-        (left, right) => Err(VmExecutionError::new(format!(
-            "values {} and {} are not order-comparable",
-            left.type_name(),
-            right.type_name()
-        ))),
-    }
-}
-
-fn compare_numeric_values(
-    left: &VmValue,
-    right: &VmValue,
-) -> Result<Option<std::cmp::Ordering>, VmExecutionError> {
-    let left_numeric = matches!(
-        left,
-        VmValue::Bool(_) | VmValue::Int(_) | VmValue::Float(_) | VmValue::Decimal(_)
-    );
-    let right_numeric = matches!(
-        right,
-        VmValue::Bool(_) | VmValue::Int(_) | VmValue::Float(_) | VmValue::Decimal(_)
-    );
-    if !left_numeric || !right_numeric {
-        return Ok(None);
-    }
-
-    match (left, right) {
-        (VmValue::Bool(left), VmValue::Bool(right)) => Ok(Some(left.cmp(right))),
-        (VmValue::Bool(_), _)
-        | (_, VmValue::Bool(_))
-        | (VmValue::Decimal(_), _)
-        | (_, VmValue::Decimal(_))
-        | (VmValue::Int(_), VmValue::Int(_))
-        | (VmValue::Float(_), VmValue::Float(_))
-        | (VmValue::Int(_), VmValue::Float(_))
-        | (VmValue::Float(_), VmValue::Int(_)) => Ok(Some(compare_vm_values(left, right)?)),
-        _ => Ok(None),
-    }
-}
-
-fn vm_values_equal(left: &VmValue, right: &VmValue) -> Result<bool, VmExecutionError> {
-    if let Some(ordering) = compare_numeric_values(left, right)? {
-        return Ok(ordering == std::cmp::Ordering::Equal);
-    }
-
-    match (left, right) {
-        (VmValue::List(left), VmValue::List(right))
-        | (VmValue::Tuple(left), VmValue::Tuple(right)) => {
-            if left.len() != right.len() {
-                return Ok(false);
-            }
-            for (left_item, right_item) in left.iter().zip(right.iter()) {
-                if !vm_values_equal(left_item, right_item)? {
-                    return Ok(false);
-                }
-            }
-            Ok(true)
-        }
-        (VmValue::Dict(left), VmValue::Dict(right)) => {
-            if left.len() != right.len() {
-                return Ok(false);
-            }
-            for (left_key, left_value) in left {
-                let Some((_, right_value)) = right
-                    .iter()
-                    .find(|(right_key, _)| vm_values_equal(left_key, right_key).unwrap_or(false))
-                else {
-                    return Ok(false);
-                };
-                if !vm_values_equal(left_value, right_value)? {
-                    return Ok(false);
-                }
-            }
-            Ok(true)
-        }
-        _ => Ok(left == right),
-    }
-}
-
-fn contains_value(container: &VmValue, needle: &VmValue) -> Result<bool, VmExecutionError> {
-    match container {
-        VmValue::String(value) => match needle {
-            VmValue::String(needle) => Ok(value.contains(needle)),
-            _ => Err(VmExecutionError::new(
-                "string membership requires a string needle",
-            )),
-        },
-        VmValue::List(values) | VmValue::Tuple(values) => {
-            for item in values {
-                if vm_values_equal(item, needle)? {
-                    return Ok(true);
-                }
-            }
-            Ok(false)
-        }
-        VmValue::Dict(entries) => {
-            for (key, _) in entries {
-                if vm_values_equal(key, needle)? {
-                    return Ok(true);
-                }
-            }
-            Ok(false)
-        }
-        other => Err(VmExecutionError::new(format!(
-            "membership is not supported for {}",
-            other.type_name()
-        ))),
-    }
-}
-
-fn iterate_value(value: &VmValue) -> Result<Vec<VmValue>, VmExecutionError> {
-    match value {
-        VmValue::List(values) | VmValue::Tuple(values) => Ok(values.clone()),
-        VmValue::Dict(entries) => Ok(entries.iter().map(|(key, _)| key.clone()).collect()),
-        VmValue::String(value) => Ok(value
-            .chars()
-            .map(|ch| VmValue::String(ch.to_string()))
-            .collect()),
-        other => Err(VmExecutionError::new(format!(
-            "value of type {} is not iterable",
-            other.type_name()
-        ))),
-    }
-}
-
-fn assign_subscript(
-    container: VmValue,
-    index: &VmValue,
-    value: VmValue,
-) -> Result<VmValue, VmExecutionError> {
-    match container {
-        VmValue::List(mut values) => {
-            let idx = normalize_sequence_index(index, values.len())?;
-            values[idx] = value;
-            Ok(VmValue::List(values))
-        }
-        VmValue::Dict(mut entries) => {
-            dict_set(&mut entries, index.clone(), value);
-            Ok(VmValue::Dict(entries))
-        }
-        other => Err(VmExecutionError::new(format!(
-            "subscript assignment is not supported for {}",
-            other.type_name()
-        ))),
-    }
-}
-
-fn subscript_value(container: VmValue, index: &VmValue) -> Result<VmValue, VmExecutionError> {
-    match container {
-        VmValue::List(values) => {
-            let idx = normalize_sequence_index(index, values.len())?;
-            Ok(values[idx].clone())
-        }
-        VmValue::Tuple(values) => {
-            let idx = normalize_sequence_index(index, values.len())?;
-            Ok(values[idx].clone())
-        }
-        VmValue::Dict(entries) => dict_get(&entries, index).ok_or_else(|| {
-            VmExecutionError::new(format!("missing dict key {}", index.python_repr()))
-        }),
-        VmValue::String(value) => {
-            let chars = value.chars().map(|ch| ch.to_string()).collect::<Vec<_>>();
-            let idx = normalize_sequence_index(index, chars.len())?;
-            Ok(VmValue::String(chars[idx].clone()))
-        }
-        other => Err(VmExecutionError::new(format!(
-            "subscript access is not supported for {}",
-            other.type_name()
-        ))),
-    }
-}
-
-fn subscript_slice_value(
-    container: VmValue,
-    lower: Option<BigInt>,
-    upper: Option<BigInt>,
-    step: Option<BigInt>,
-) -> Result<VmValue, VmExecutionError> {
-    match container {
-        VmValue::List(values) => Ok(VmValue::List(
-            slice_positions(values.len(), lower, upper, step)?
-                .into_iter()
-                .map(|index| values[index].clone())
-                .collect(),
-        )),
-        VmValue::Tuple(values) => Ok(VmValue::Tuple(
-            slice_positions(values.len(), lower, upper, step)?
-                .into_iter()
-                .map(|index| values[index].clone())
-                .collect(),
-        )),
-        VmValue::String(value) => {
-            let chars = value.chars().map(|ch| ch.to_string()).collect::<Vec<_>>();
-            Ok(VmValue::String(
-                slice_positions(chars.len(), lower, upper, step)?
-                    .into_iter()
-                    .map(|index| chars[index].clone())
-                    .collect::<String>(),
-            ))
-        }
-        other => Err(VmExecutionError::new(format!(
-            "slice access is not supported for {}",
-            other.type_name()
-        ))),
-    }
-}
-
-fn normalize_sequence_index(index: &VmValue, length: usize) -> Result<usize, VmExecutionError> {
-    let raw = index.as_bigint()?;
-    let length_value = BigInt::from(length);
-    let adjusted = if raw.sign() == Sign::Minus {
-        &length_value + &raw
-    } else {
-        raw
-    };
-    if adjusted.sign() == Sign::Minus || adjusted >= length_value {
-        return Err(VmExecutionError::new("sequence index out of bounds"));
-    }
-    bigint_to_usize(&adjusted, "sequence index")
-}
-
-fn normalize_sequence_insert_index(
-    index: &VmValue,
-    length: usize,
-) -> Result<usize, VmExecutionError> {
-    let raw = index.as_bigint()?;
-    let length_value = BigInt::from(length);
-    let adjusted = if raw.sign() == Sign::Minus {
-        &length_value + &raw
-    } else {
-        raw
-    };
-    let clamped = if adjusted.sign() == Sign::Minus {
-        BigInt::from(0usize)
-    } else if adjusted > length_value {
-        length_value
-    } else {
-        adjusted
-    };
-    bigint_to_usize(&clamped, "sequence insert index")
-}
-
-fn slice_positions(
-    length: usize,
-    lower: Option<BigInt>,
-    upper: Option<BigInt>,
-    step: Option<BigInt>,
-) -> Result<Vec<usize>, VmExecutionError> {
-    let length_value = i64::try_from(length)
-        .map_err(|_| VmExecutionError::new("sequence length exceeds supported range"))?;
-    let step_value = match step {
-        Some(value) => bigint_to_i64(&value, "slice step")?,
-        None => 1,
-    };
-    if step_value == 0 {
-        return Err(VmExecutionError::new("slice step cannot be zero"));
-    }
-
-    let normalize = |value: Option<BigInt>,
-                     default: i64,
-                     allow_negative_endpoint: bool|
-     -> Result<i64, VmExecutionError> {
-        let mut raw = match value {
-            Some(value) => bigint_to_i64(&value, "slice bound")?,
-            None => return Ok(default),
-        };
-        if raw < 0 {
-            raw += length_value;
-        }
-        if allow_negative_endpoint {
-            if raw < -1 {
-                raw = -1;
-            }
-        } else if raw < 0 {
-            raw = 0;
-        }
-        if raw > length_value {
-            raw = length_value;
-        }
-        Ok(raw)
-    };
-
-    let mut positions = Vec::new();
-    if step_value > 0 {
-        let start = normalize(lower, 0, false)?;
-        let stop = normalize(upper, length_value, false)?;
-        let mut index = start;
-        while index < stop {
-            positions.push(
-                usize::try_from(index)
-                    .map_err(|_| VmExecutionError::new("slice position out of bounds"))?,
-            );
-            index += step_value;
-        }
-        return Ok(positions);
-    }
-
-    let start = normalize(lower, length_value - 1, true)?;
-    let stop = normalize(upper, -1, true)?;
-    let mut index = start;
-    while index > stop {
-        positions.push(
-            usize::try_from(index)
-                .map_err(|_| VmExecutionError::new("slice position out of bounds"))?,
-        );
-        index += step_value;
-    }
-    Ok(positions)
-}
-
-fn dict_set(entries: &mut Vec<(VmValue, VmValue)>, key: VmValue, value: VmValue) {
-    if let Some(existing) = entries.iter_mut().find(|(entry_key, _)| *entry_key == key) {
-        existing.1 = value;
-        return;
-    }
-    entries.push((key, value));
-}
-
-fn dict_get(entries: &[(VmValue, VmValue)], key: &VmValue) -> Option<VmValue> {
-    entries
-        .iter()
-        .find(|(entry_key, _)| entry_key == key)
-        .map(|(_, value)| value.clone())
-}
-
-fn type_matches(value: &VmValue, marker: &VmValue) -> bool {
-    match marker {
-        VmValue::TypeMarker(name) => type_matches_name(value, name),
-        VmValue::Builtin(name) => type_matches_name(value, name),
-        VmValue::Tuple(markers) => markers.iter().any(|marker| type_matches(value, marker)),
-        _ => false,
-    }
-}
-
-fn type_matches_name(value: &VmValue, name: &str) -> bool {
-    match name {
-        "Any" => true,
-        "bool" => matches!(value, VmValue::Bool(_)),
-        "int" => matches!(value, VmValue::Int(_)),
-        "float" => matches!(value, VmValue::Float(_)),
-        "decimal" => matches!(value, VmValue::Decimal(_)),
-        "datetime.datetime" => matches!(value, VmValue::DateTime(_)),
-        "datetime.timedelta" => matches!(value, VmValue::TimeDelta(_)),
-        "str" => matches!(value, VmValue::String(_)),
-        "list" => matches!(value, VmValue::List(_)),
-        "dict" => matches!(value, VmValue::Dict(_)),
-        "tuple" => matches!(value, VmValue::Tuple(_)),
-        _ => false,
-    }
-}
-
-fn option_string_value(value: &Option<String>) -> VmValue {
-    value
-        .as_ref()
-        .map(|value| VmValue::String(value.clone()))
-        .unwrap_or(VmValue::None)
-}
-
-fn option_entry_value(value: &Option<(String, String)>) -> VmValue {
-    value
-        .as_ref()
-        .map(|(contract, function)| {
-            VmValue::Tuple(vec![
-                VmValue::String(contract.clone()),
-                VmValue::String(function.clone()),
-            ])
-        })
-        .unwrap_or(VmValue::None)
-}
-
-fn normalize_event_payload(
-    schema: &VmValue,
-    payload: VmValue,
-) -> Result<(Vec<(String, VmValue)>, Vec<(String, VmValue)>), VmExecutionError> {
-    let schema_entries = match schema {
-        VmValue::Dict(entries) => entries,
-        other => {
-            return Err(VmExecutionError::new(format!(
-                "event schema must be a dict, got {}",
-                other.type_name()
-            )))
-        }
-    };
-    let payload_entries = match payload {
-        VmValue::Dict(entries) => entries,
-        other => {
-            return Err(VmExecutionError::new(format!(
-                "event payload must be a dict, got {}",
-                other.type_name()
-            )))
-        }
-    };
-
-    let mut data_indexed = Vec::new();
-    let mut data = Vec::new();
-
-    for (schema_key, schema_value) in schema_entries {
-        let key = match schema_key {
-            VmValue::String(value) => value.clone(),
-            other => {
-                return Err(VmExecutionError::new(format!(
-                    "event schema keys must be strings, got {}",
-                    other.type_name()
-                )))
-            }
-        };
-        let value = dict_get(&payload_entries, &VmValue::String(key.clone())).ok_or_else(|| {
-            VmExecutionError::new(format!("event payload is missing key '{}'", key))
-        })?;
-        if event_param_is_indexed(schema_value) {
-            data_indexed.push((key, value));
-        } else {
-            data.push((key, value));
-        }
-    }
-
-    if payload_entries.len() != data_indexed.len() + data.len() {
-        return Err(VmExecutionError::new("event payload has unexpected keys"));
-    }
-
-    Ok((data_indexed, data))
-}
-
-fn event_param_is_indexed(schema_value: &VmValue) -> bool {
-    match schema_value {
-        VmValue::Dict(entries) => {
-            dict_get(entries, &VmValue::String("idx".to_owned())) == Some(VmValue::Bool(true))
-        }
-        _ => false,
-    }
-}
-
-fn contract_target_label(target: &VmContractTarget) -> &str {
-    match target {
-        VmContractTarget::StaticImport { module, .. }
-        | VmContractTarget::DynamicImport { module }
-        | VmContractTarget::LocalHandle { module, .. }
-        | VmContractTarget::FactoryCall { module, .. } => module,
-    }
-}
-
-fn normalize_hash_key(value: &VmValue) -> Result<String, VmExecutionError> {
-    let normalized = match value {
-        VmValue::Tuple(values) => {
-            if values.len() > MAX_HASH_DIMENSIONS {
-                return Err(VmExecutionError::new(format!(
-                    "Too many dimensions ({}) for hash. Max is {MAX_HASH_DIMENSIONS}",
-                    values.len()
-                )));
-            }
-            let mut rendered = Vec::new();
-            for item in values {
-                let part = storage_key_part(item)?;
-                rendered.push(part);
-            }
-            rendered.join(STORAGE_DELIMITER)
-        }
-        other => storage_key_part(other)?,
-    };
-
-    if normalized.len() > MAX_STORAGE_KEY_SIZE {
-        return Err(VmExecutionError::new(format!(
-            "Key is too long ({}). Max is {MAX_STORAGE_KEY_SIZE}.",
-            normalized.len()
-        )));
-    }
-
-    Ok(normalized)
-}
-
-fn storage_key_part(value: &VmValue) -> Result<String, VmExecutionError> {
-    let rendered = match value {
-        VmValue::String(value) => value.clone(),
-        VmValue::Int(value) => value.to_string(),
-        VmValue::Bool(true) => "True".to_owned(),
-        VmValue::Bool(false) => "False".to_owned(),
-        VmValue::Float(value) => format!("{value:?}"),
-        VmValue::None => "None".to_owned(),
-        VmValue::TypeMarker(name) => name.clone(),
-        other => other.python_repr(),
-    };
-
-    if rendered.contains(STORAGE_DELIMITER) {
-        return Err(VmExecutionError::new("Illegal delimiter in key."));
-    }
-    if rendered.contains(STORAGE_INDEX_SEPARATOR) {
-        return Err(VmExecutionError::new("Illegal separator in key."));
-    }
-    Ok(rendered)
-}
-
-fn foreign_storage_key(contract: &str, name: &str) -> String {
-    format!("{contract}{STORAGE_DELIMITER}{name}")
-}
-
-fn variable_storage_key(contract: &str, binding: &str) -> String {
-    format!("{contract}{STORAGE_INDEX_SEPARATOR}{binding}")
-}
-
-fn hash_storage_key(
-    contract: &str,
-    binding: &str,
-    key: &VmValue,
-) -> Result<String, VmExecutionError> {
-    Ok(format!(
-        "{}{}{}",
-        variable_storage_key(contract, binding),
-        STORAGE_DELIMITER,
-        normalize_hash_key(key)?
-    ))
-}
-
-fn split_foreign_storage_key(key: &str) -> Result<(String, String), VmExecutionError> {
-    let Some((contract, binding)) = key.split_once(STORAGE_DELIMITER) else {
-        return Err(VmExecutionError::new(format!(
-            "invalid foreign storage key '{key}'"
-        )));
-    };
-    Ok((contract.to_owned(), binding.to_owned()))
-}
-
-fn explicit_syscall_metering_cost(
-    syscall_id: &str,
-    args: &[VmValue],
-    kwargs: &[(String, VmValue)],
-) -> Result<Option<u64>, VmExecutionError> {
-    match syscall_id {
-        "zk.verify_groth16_bn254" => {
-            if !kwargs.is_empty() || args.len() != 3 {
-                return Err(VmExecutionError::new(
-                    "zk.verify_groth16_bn254() expects three positional arguments",
-                ));
-            }
-            let vk_hex = args[0].as_string()?;
-            let proof_hex = args[1].as_string()?;
-            let public_inputs = as_string_list(&args[2], "public_inputs")?;
-            Ok(Some(
-                zk_payload_metering_cost(&vk_hex, &proof_hex, &public_inputs)?,
-            ))
-        }
-        "zk.verify_groth16" => {
-            if !kwargs.is_empty() || args.len() != 3 {
-                return Err(VmExecutionError::new(
-                    "zk.verify_groth16() expects three positional arguments",
-                ));
-            }
-            let vk_id = args[0].as_string()?;
-            let proof_hex = args[1].as_string()?;
-            let public_inputs = as_string_list(&args[2], "public_inputs")?;
-            Ok(Some(
-                zk_registry_metering_cost(&vk_id, &proof_hex, &public_inputs)?,
-            ))
-        }
-        "zk.shielded_note_append_commitments" => {
-            if args.len() != 3 || !kwargs.is_empty() {
-                return Err(VmExecutionError::new(
-                    "zk.shielded_note_append_commitments() expects three positional arguments",
-                ));
-            }
-            let commitments = as_string_list(&args[2], "commitments")?;
-            Ok(Some(
-                250_000 + (commitments.len() as u64 * 500_000),
-            ))
-        }
-        "zk.shielded_command_nullifier_digest" => {
-            if args.len() != 1 || !kwargs.is_empty() {
-                return Err(VmExecutionError::new(
-                    "zk.shielded_command_nullifier_digest() expects one positional argument",
-                ));
-            }
-            let input_nullifiers = as_string_list(&args[0], "input_nullifiers")?;
-            Ok(Some(
-                100_000 + (input_nullifiers.len() as u64 * 50_000),
-            ))
-        }
-        "zk.shielded_command_binding" => Ok(Some(100_000)),
-        "zk.shielded_command_execution_tag" => Ok(Some(50_000)),
-        "zk.shielded_output_payload_hash" => {
-            if args.len() != 1 || !kwargs.is_empty() {
-                return Err(VmExecutionError::new(
-                    "zk.shielded_output_payload_hash() expects one positional argument",
-                ));
-            }
-            let payload_hex = args[0].as_string()?;
-            if payload_hex.is_empty() {
-                return Ok(Some(0));
-            }
-            Ok(Some(hex_payload_bytes(&payload_hex)?))
-        }
-        _ => Ok(None),
-    }
-}
-
-fn as_string_list(value: &VmValue, label: &str) -> Result<Vec<String>, VmExecutionError> {
-    match value {
-        VmValue::List(values) | VmValue::Tuple(values) => values
-            .iter()
-            .map(VmValue::as_string)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| VmExecutionError::new(format!("{label} must be a list of strings"))),
-        _ => Err(VmExecutionError::new(format!(
-            "{label} must be a list of strings"
-        ))),
-    }
-}
-
-fn hex_payload_bytes(value: &str) -> Result<u64, VmExecutionError> {
-    let Some(payload) = value.strip_prefix("0x") else {
-        return Ok(0);
-    };
-    if payload.len() % 2 != 0 {
-        return Ok(0);
-    }
-    Ok((payload.len() / 2) as u64)
-}
-
-fn zk_payload_metering_cost(
-    vk_hex: &str,
-    proof_hex: &str,
-    public_inputs: &[String],
-) -> Result<u64, VmExecutionError> {
-    let payload_bytes = hex_payload_bytes(vk_hex)?
-        + hex_payload_bytes(proof_hex)?
-        + public_inputs
-            .iter()
-            .map(|value| hex_payload_bytes(value))
-            .collect::<Result<Vec<_>, _>>()?
-            .iter()
-            .sum::<u64>();
-    Ok(750_000 + (public_inputs.len() as u64 * 50_000) + (payload_bytes * 50))
-}
-
-fn zk_registry_metering_cost(
-    vk_id: &str,
-    proof_hex: &str,
-    public_inputs: &[String],
-) -> Result<u64, VmExecutionError> {
-    let payload_bytes = vk_id.len() as u64
-        + hex_payload_bytes(proof_hex)?
-        + public_inputs
-            .iter()
-            .map(|value| hex_payload_bytes(value))
-            .collect::<Result<Vec<_>, _>>()?
-            .iter()
-            .sum::<u64>();
-    Ok(500_000 + 250_000 + (public_inputs.len() as u64 * 50_000) + (payload_bytes * 25))
-}
-
-fn resolve_contract_import_arg(
-    args: &[VmValue],
-    kwargs: &[(String, VmValue)],
-) -> Result<String, VmExecutionError> {
-    if let Some((_, value)) = kwargs.iter().find(|(key, _)| key == "module") {
-        return value.as_string();
-    }
-    if let Some((_, value)) = kwargs.iter().find(|(key, _)| key == "name") {
-        return value.as_string();
-    }
-    let first = args
-        .first()
-        .ok_or_else(|| VmExecutionError::new("contract.import expects a module name"))?;
-    first.as_string()
-}
-
-fn positional_value(
-    instance: &mut VmInstance,
-    args: &[Value],
-    index: usize,
-    host: &mut dyn VmHost,
-) -> Result<Option<VmValue>, VmExecutionError> {
-    args.get(index)
-        .map(|value| instance.eval_expression(value, &mut instance.globals.clone(), host))
-        .transpose()
-}
-
-fn keyword_value(
-    instance: &mut VmInstance,
-    keywords: &[Value],
-    name: &str,
-    host: &mut dyn VmHost,
-) -> Result<Option<VmValue>, VmExecutionError> {
-    let Some(keyword) = keywords.iter().find(|keyword| {
-        as_object(keyword, "keyword")
-            .ok()
-            .and_then(|object| optional_string(object, "arg"))
-            == Some(name)
-    }) else {
-        return Ok(None);
-    };
-    let keyword_object = as_object(keyword, "keyword")?;
-    instance
-        .eval_expression(required_value(keyword_object, "value")?, &mut instance.globals.clone(), host)
-        .map(Some)
-}
-
-fn required_value<'a>(
-    object: &'a Map<String, Value>,
-    field: &str,
-) -> Result<&'a Value, VmExecutionError> {
-    object
-        .get(field)
-        .ok_or_else(|| VmExecutionError::new(format!("missing field '{field}'")))
-}
-
-fn required_array<'a>(
-    object: &'a Map<String, Value>,
-    field: &str,
-) -> Result<&'a [Value], VmExecutionError> {
-    object
-        .get(field)
-        .and_then(Value::as_array)
-        .map(Vec::as_slice)
-        .ok_or_else(|| VmExecutionError::new(format!("field '{field}' must be an array")))
-}
-
-fn required_string<'a>(
-    object: &'a Map<String, Value>,
-    field: &str,
-) -> Result<&'a str, VmExecutionError> {
-    object
-        .get(field)
-        .and_then(Value::as_str)
-        .ok_or_else(|| VmExecutionError::new(format!("field '{field}' must be a string")))
-}
-
-fn optional_string<'a>(object: &'a Map<String, Value>, field: &str) -> Option<&'a str> {
-    object.get(field).and_then(Value::as_str)
-}
-
-fn required_string_value(value: &Value) -> Result<&str, VmExecutionError> {
-    value
-        .as_str()
-        .ok_or_else(|| VmExecutionError::new("value must be a string"))
-}
-
-fn required_bool(object: &Map<String, Value>, field: &str) -> Result<bool, VmExecutionError> {
-    object
-        .get(field)
-        .and_then(Value::as_bool)
-        .ok_or_else(|| VmExecutionError::new(format!("field '{field}' must be a bool")))
-}
-
-fn required_bigint(object: &Map<String, Value>, field: &str) -> Result<BigInt, VmExecutionError> {
-    let value = object
-        .get(field)
-        .ok_or_else(|| VmExecutionError::new(format!("field '{field}' must be an int")))?;
-    match value {
-        Value::Number(number) => {
-            if let Some(value) = number.as_i64() {
-                return Ok(BigInt::from(value));
-            }
-            if let Some(value) = number.as_u64() {
-                return Ok(BigInt::from(value));
-            }
-            BigInt::from_str(&number.to_string())
-                .map_err(|_| VmExecutionError::new(format!("field '{field}' must be an int")))
-        }
-        Value::String(value) => BigInt::from_str(value)
-            .map_err(|_| VmExecutionError::new(format!("field '{field}' must be an int"))),
-        _ => Err(VmExecutionError::new(format!(
-            "field '{field}' must be an int"
-        ))),
-    }
-}
-
-fn required_f64(object: &Map<String, Value>, field: &str) -> Result<f64, VmExecutionError> {
-    object
-        .get(field)
-        .and_then(Value::as_f64)
-        .ok_or_else(|| VmExecutionError::new(format!("field '{field}' must be a float")))
-}
-
-fn as_object<'a>(
-    value: &'a Value,
-    label: &str,
-) -> Result<&'a Map<String, Value>, VmExecutionError> {
-    value.as_object().ok_or_else(|| {
-        VmExecutionError::new(format!(
-            "{label} must be an object, got {}",
-            serde_json::to_string(value).unwrap_or_else(|_| "<unserializable>".to_owned())
-        ))
-    })
-}
 
 struct NoopHost;
 
@@ -5527,6 +3090,27 @@ mod tests {
     }
 
     #[test]
+    fn supports_decimal_pow_for_integer_and_square_root_exponents() {
+        let nine = VmDecimal::from_str_literal("9").expect("decimal literal should parse");
+        let square_root = nine
+            .pow(&VmDecimal::from_str_literal("0.5").expect("decimal exponent should parse"))
+            .expect("square root exponent should succeed");
+        assert_eq!(
+            square_root,
+            VmDecimal::from_str_literal("3").expect("expected decimal should parse")
+        );
+
+        let fractional = VmDecimal::from_str_literal("0.1").expect("decimal literal should parse");
+        let cubic = fractional
+            .pow(&VmDecimal::from_str_literal("3.0").expect("decimal exponent should parse"))
+            .expect("integer-like decimal exponent should succeed");
+        assert_eq!(
+            cubic,
+            VmDecimal::from_str_literal("0.001").expect("expected decimal should parse")
+        );
+    }
+
+    #[test]
     fn delegates_zk_syscalls_to_host() {
         let span = json!({"line": 1, "col": 0, "end_line": 1, "end_col": 1});
         let module = parse_module_ir(
@@ -5799,7 +3383,7 @@ mod tests {
                                         "id": "value",
                                         "host_binding_id": null
                                     },
-                                    "ops": ["gt"],
+                                    "operators": ["gt"],
                                     "comparators": [
                                         {
                                             "node": "constant",

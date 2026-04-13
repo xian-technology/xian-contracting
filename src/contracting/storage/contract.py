@@ -5,7 +5,6 @@ from contracting.compilation.artifacts import (
 )
 from contracting.execution.runtime import rt
 from contracting.names import assert_safe_contract_name
-from contracting.stdlib import env
 from contracting.storage.driver import (
     DEVELOPER_KEY,
     DEPLOYER_KEY,
@@ -14,6 +13,8 @@ from contracting.storage.driver import (
     TIME_KEY,
     Driver,
 )
+
+XIAN_EXECUTION_MODE_ENV_KEY = "__xian_execution_mode__"
 
 
 class Contract:
@@ -50,6 +51,13 @@ class Contract:
                 )
             if code is not None and not isinstance(code, str):
                 raise TypeError("Contract code must be a string.")
+            if (
+                deployment_artifacts is None
+                and rt.env.get(XIAN_EXECUTION_MODE_ENV_KEY) == "xian_vm_v1"
+            ):
+                raise TypeError(
+                    "xian_vm_v1 requires deployment_artifacts for contract deployment."
+                )
 
             if deployment_artifacts is not None:
                 artifacts = validate_contract_artifacts(
@@ -65,6 +73,19 @@ class Contract:
                     lint=True,
                     vm_profile="xian_vm_v1",
                 )
+
+            if (
+                artifacts["runtime_code"] is None
+                or artifacts["vm_ir_json"] is None
+            ):
+                derived = build_contract_artifacts(
+                    module_name=name,
+                    source=artifacts["source"],
+                    lint=False,
+                    vm_profile="xian_vm_v1",
+                )
+                artifacts["runtime_code"] = derived["runtime_code"]
+                artifacts["vm_ir_json"] = derived["vm_ir_json"]
 
             source_obj = artifacts["source"]
             code_obj = artifacts["runtime_code"]
@@ -82,6 +103,8 @@ class Contract:
                     * constants.DEPLOYMENT_COST_PER_SOURCE_BYTE
                 )
             )
+
+            from contracting.stdlib import env
 
             scope = env.gather()
             scope.update({"__contract__": True})

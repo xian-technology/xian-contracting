@@ -72,9 +72,15 @@ Metering is no longer only a placeholder:
 - native deployment now requires explicit deterministic `now` context from the
   caller; the host does not fall back to local wall-clock time for submission
   metadata
-  this hardening currently reuses the compiler frontend to recompute canonical
-  runtime/IR from source, so deploy execution stays native while artifact
-  validation is not yet fully Rust-native
+- the native deployment path now validates bundle shape, hashes, and IR/source
+  linkage in Rust before staging writes or executing constructors
+- canonical source-to-runtime recompilation still exists in the Python
+  artifact validator used by the Python deployment path and offline tooling,
+  so the native path is Rust-native for bundle validation but not yet a full
+  Rust recompiler
+- the current five-node `make localnet-vm-e2e` native-authority soak passes
+  end to end, including shielded token flows and parallel prefix-scan access
+  patterns
 
 There is now also a calibration/audit tool:
 

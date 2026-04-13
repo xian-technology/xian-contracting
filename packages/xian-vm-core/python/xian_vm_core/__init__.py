@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from contracting import constants
-from contracting.compilation.artifacts import validate_contract_artifacts
+from contracting.compilation.artifacts import build_contract_artifacts
+from contracting.execution.runtime import WRITE_MAX, rt
 from contracting.names import assert_safe_contract_name
-from contracting.stdlib.bridge import imports as contract_imports
 from contracting.stdlib.bridge import zk as zk_bridge
 from contracting.stdlib.bridge.random import seed as random_seed
 from contracting.storage.driver import (
@@ -20,8 +20,8 @@ from contracting.storage.driver import (
     TIME_KEY,
     XIAN_VM_V1_IR_KEY,
 )
-from contracting.storage.orm import ForeignHash, ForeignVariable, Hash, Variable
 from xian_runtime_types.encoding import encode_kv
+from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime
 
 from ._native import (
@@ -30,6 +30,7 @@ from ._native import (
     execute_bundle,
     runtime_info_json,
     supports_execution_policy,
+    validate_deployment_artifacts_json,
     validate_module_ir_json,
 )
 
@@ -80,6 +81,7 @@ class NativeVmHost:
         self._pending_events: list[dict[str, Any]] = []
         self._extra_raw_cost = 0
         self._extra_contract_costs: dict[str, int] = {}
+        self._written_bytes = 0
 
     @property
     def pending_writes(self) -> dict[str, Any]:
@@ -131,6 +133,26 @@ class NativeVmHost:
         encoded_key, encoded_value = encode_kv(key, value)
         return (len(encoded_key) + len(encoded_value)) * constants.WRITE_COST_PER_BYTE
 
+    def _charge_host_write(
+        self,
+        key: str,
+        value: Any,
+        *,
+        enforce_write_cap: bool = True,
+    ) -> None:
+        if not self._meter_enabled:
+            return
+        encoded_key, encoded_value = encode_kv(key, value)
+        written = len(encoded_key) + len(encoded_value)
+        if enforce_write_cap:
+            self._written_bytes += written
+            if self._written_bytes >= WRITE_MAX:
+                raise VmRuntimeExecutionError(
+                    "AssertionError('You have exceeded the maximum write capacity "
+                    "per transaction!')"
+                )
+        self._record_raw_cost(written * constants.WRITE_COST_PER_BYTE)
+
     def read_variable(self, contract: str, binding: str):
         return self._lookup_key(self._make_key(contract, binding))
 
@@ -138,6 +160,31 @@ class NativeVmHost:
         return self._lookup_key(
             self._make_key(contract, binding, _hash_key_args(key))
         )
+
+    def scan_hash_entries(
+        self, contract: str, binding: str, prefix: str
+    ) -> list[tuple[str, Any]]:
+        base_key = self._make_key(contract, binding)
+        full_prefix = f"{base_key}{constants.DELIMITER}"
+        if prefix:
+            full_prefix = f"{full_prefix}{prefix}{constants.DELIMITER}"
+
+        entries: list[tuple[str, Any]] = []
+        seen: set[str] = set()
+        suffix_offset = len(base_key) + len(constants.DELIMITER)
+
+        for key, value in self._pending_writes.items():
+            if key.startswith(full_prefix):
+                seen.add(key)
+                if value is not None:
+                    entries.append((key[suffix_offset:], value))
+
+        for key, value in self.driver.items(prefix=full_prefix).items():
+            if key in seen:
+                continue
+            entries.append((key[suffix_offset:], value))
+
+        return entries
 
     def get_owner(self, contract: str):
         return self._contract_var(contract, OWNER_KEY)
@@ -190,15 +237,68 @@ class NativeVmHost:
                 function.get("name") == export_name
                 and function.get("visibility") == "export"
             ):
-                return True
+                    return True
         return False
+
+    def _contract_enforce_interface(
+        self,
+        contract: str,
+        interface: list[dict[str, Any]],
+    ) -> bool:
+        module_ir = self.load_module_ir(contract)
+        if not module_ir:
+            return False
+
+        functions = {
+            function.get("name"): function
+            for function in module_ir.get("functions", [])
+            if isinstance(function, dict)
+        }
+        storages = {
+            declaration.get("name"): declaration.get("storage_type")
+            for declaration in module_ir.get("global_declarations", [])
+            if isinstance(declaration, dict)
+            and declaration.get("node") == "storage_decl"
+        }
+
+        for item in interface:
+            if not isinstance(item, dict):
+                raise VmRuntimeExecutionError(
+                    "contract interface entries must be dict descriptors"
+                )
+            kind = item.get("__vm_interface__")
+            if kind == "func":
+                function = functions.get(item.get("name"))
+                if function is None:
+                    return False
+                expected_visibility = "private" if item.get("private") else "export"
+                if function.get("visibility") != expected_visibility:
+                    return False
+                expected_args = tuple(item.get("args", ()))
+                actual_args = tuple(
+                    parameter.get("name")
+                    for parameter in function.get("params", [])
+                    if isinstance(parameter, dict)
+                )
+                if actual_args != expected_args:
+                    return False
+                continue
+            if kind == "var":
+                if storages.get(item.get("name")) != item.get("type"):
+                    return False
+                continue
+            raise VmRuntimeExecutionError(
+                f"unsupported interface descriptor kind '{kind}'"
+            )
+
+        return True
 
     def _stage_contract_metadata_write(
         self, contract: str, variable: str, value: Any
     ) -> None:
         key = self._make_key(contract, variable)
         self._stage_write(key, value)
-        self._record_raw_cost(self._write_raw_cost(key, value))
+        self._charge_host_write(key, value, enforce_write_cap=False)
 
     def _stage_contract_deploy(
         self,
@@ -220,15 +320,28 @@ class NativeVmHost:
                 "native contract deployment requires deployment_artifacts"
             )
 
-        artifacts = validate_contract_artifacts(
-            module_name=name,
-            artifacts=deployment_artifacts,
+        artifacts = validate_deployment_artifacts_json(
+            name,
+            json.dumps(
+                deployment_artifacts,
+                separators=(",", ":"),
+                sort_keys=True,
+            ),
             input_source=code,
             vm_profile=self.vm_profile,
         )
         source = artifacts["source"]
         runtime_code = artifacts["runtime_code"]
         vm_ir_json = artifacts["vm_ir_json"]
+        if runtime_code is None or vm_ir_json is None:
+            derived = build_contract_artifacts(
+                module_name=name,
+                source=source,
+                lint=False,
+                vm_profile=self.vm_profile,
+            )
+            runtime_code = derived["runtime_code"]
+            vm_ir_json = derived["vm_ir_json"]
 
         raw_source_bytes = len(source.encode("utf-8"))
         if raw_source_bytes > constants.MAX_CONTRACT_SUBMISSION_BYTES:
@@ -278,7 +391,7 @@ class NativeVmHost:
                     name,
                     construct_name,
                     [],
-                    dict(constructor_args or {}),
+                    _coerce_external_call_kwargs(dict(constructor_args or {})),
                     constructor_context,
                     self,
                     meter=self._meter_enabled,
@@ -324,6 +437,12 @@ class NativeVmHost:
             self._stage_write(key, value)
         for key, value in metadata_writes.items():
             self._stage_write(key, value)
+            if value is not None:
+                self._charge_host_write(
+                    key,
+                    value,
+                    enforce_write_cap=False,
+                )
 
         self._pending_events.extend(constructor_events)
         self._record_raw_cost(
@@ -333,9 +452,6 @@ class NativeVmHost:
                 * constants.DEPLOYMENT_COST_PER_SOURCE_BYTE
             )
         )
-        for key, value in metadata_writes.items():
-            if value is not None:
-                self._record_raw_cost(self._write_raw_cost(key, value))
 
     def handle_syscall(self, syscall_id: str, args, kwargs):
         kwargs = dict(kwargs or {})
@@ -413,8 +529,8 @@ class NativeVmHost:
             }
         if syscall_id == "contract.enforce_interface":
             contract = args[0]
-            interface = [_interface_descriptor_to_runtime(item) for item in args[1]]
-            return contract_imports.enforce_interface(contract, interface)
+            interface = list(args[1])
+            return self._contract_enforce_interface(contract, interface)
         if syscall_id == "random.seed":
             return random_seed(*args, **kwargs)
         if syscall_id.startswith("zk."):
@@ -436,6 +552,8 @@ def execute_contract(
     chi_budget_raw: int = 0,
     transaction_size_bytes: int = 0,
 ) -> NativeExecutionResult:
+    coerced_args = _coerce_external_call_args(args or [])
+    coerced_kwargs = _coerce_external_call_kwargs(kwargs or {})
     host = NativeVmHost(
         driver,
         entry_contract=contract_name,
@@ -449,30 +567,38 @@ def execute_contract(
             f"'{contract_name}'; stored source is inspection-only"
         )
     bundle_payload = {contract_name: module_ir}
-    raw = execute_bundle(
-        json.dumps(bundle_payload, separators=(",", ":"), sort_keys=True),
-        contract_name,
-        function_name,
-        list(args or []),
-        dict(kwargs or {}),
-        dict(context or {}),
-        host,
-        meter=meter,
-        chi_budget_raw=max(int(chi_budget_raw), 0),
-        transaction_size_bytes=max(int(transaction_size_bytes), 0),
-    )
+    previous_env = dict(rt.env)
+    rt.env = {**previous_env, "__Driver": driver}
+    try:
+        raw = execute_bundle(
+            json.dumps(bundle_payload, separators=(",", ":"), sort_keys=True),
+            contract_name,
+            function_name,
+            coerced_args,
+            coerced_kwargs,
+            dict(context or {}),
+            host,
+            meter=meter,
+            chi_budget_raw=max(int(chi_budget_raw), 0),
+            transaction_size_bytes=max(int(transaction_size_bytes), 0),
+        )
+    finally:
+        rt.env = previous_env
     result = _coerce_native_error_result(
         int(raw["status_code"]),
         raw["result"],
     )
+    status_code = int(raw["status_code"])
+    writes = _snapshots_to_writes(driver, raw["snapshots"])
+    events = list(raw["events"])
+    if status_code == 0:
+        writes = {**writes, **host.pending_writes}
+        events = host.pending_events + events
     return NativeExecutionResult(
-        status_code=int(raw["status_code"]),
+        status_code=status_code,
         result=result,
-        writes={
-            **_snapshots_to_writes(driver, raw["snapshots"]),
-            **host.pending_writes,
-        },
-        events=host.pending_events + list(raw["events"]),
+        writes=writes,
+        events=events,
         snapshots=list(raw["snapshots"]),
         raw_cost=int(raw.get("raw_cost", 0)) + host.extra_raw_cost,
         chi_used=_combined_chi_used(
@@ -486,6 +612,22 @@ def execute_contract(
             host.extra_contract_costs,
         ),
     )
+
+
+def _coerce_external_call_args(args: list[Any]) -> list[Any]:
+    return [
+        ContractingDecimal(str(value)) if isinstance(value, float) else value
+        for value in args
+    ]
+
+
+def _coerce_external_call_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: ContractingDecimal(str(value))
+        if isinstance(value, float)
+        else value
+        for key, value in kwargs.items()
+    }
 
 
 def _merge_contract_costs(
@@ -504,6 +646,14 @@ def _coerce_native_error_result(status_code: int, result: Any) -> Any:
 
 
 def _native_exception_from_repr(result: str) -> BaseException | None:
+    prefixed_name, separator, remainder = result.partition(": ")
+    if separator == ": " and prefixed_name in {
+        "VmRuntimeExecutionError",
+        "ValueError",
+    }:
+        nested = _native_exception_from_repr(remainder)
+        if nested is not None:
+            return nested
     exception_types: dict[str, type[BaseException]] = {
         "AssertionError": AssertionError,
         "TypeError": TypeError,
@@ -572,44 +722,6 @@ def _construct_function_name(module_ir: dict[str, Any]) -> str | None:
         if function.get("visibility") == "construct":
             return function.get("name")
     return None
-
-
-def _interface_type_name(value: Any) -> str:
-    if isinstance(value, str):
-        return value
-    if value in {Variable, Hash, ForeignVariable, ForeignHash}:
-        return value.__name__
-    raise VmRuntimeExecutionError(
-        f"unsupported interface type at VM boundary: {value!r}"
-    )
-
-
-def _interface_descriptor_to_runtime(item):
-    if not isinstance(item, dict) or item.get("__vm_interface__") is None:
-        raise VmRuntimeExecutionError(
-            f"invalid interface descriptor returned from native VM: {item!r}"
-        )
-    kind = item["__vm_interface__"]
-    if kind == "func":
-        return contract_imports.Func(
-            item["name"],
-            args=tuple(item.get("args", ())),
-            private=bool(item.get("private", False)),
-        )
-    if kind == "var":
-        type_name = item["type"]
-        type_map = {
-            "Variable": Variable,
-            "Hash": Hash,
-            "ForeignVariable": ForeignVariable,
-            "ForeignHash": ForeignHash,
-        }
-        return contract_imports.Var(item["name"], type_map[type_name])
-    raise VmRuntimeExecutionError(
-        f"unsupported interface descriptor kind '{kind}'"
-    )
-
-
 __all__ = [
     "NativeExecutionResult",
     "NativeVmHost",

@@ -56,6 +56,12 @@ _HOST_BINDINGS = (
         category="storage",
     ),
     _host_binding(
+        "Hash.all",
+        "storage.hash.all",
+        kind="syscall",
+        category="storage",
+    ),
+    _host_binding(
         "Hash.__setitem__",
         "storage.hash.set",
         kind="syscall",
@@ -82,6 +88,12 @@ _HOST_BINDINGS = (
     _host_binding(
         "ForeignHash.__getitem__",
         "storage.foreign_hash.get",
+        kind="syscall",
+        category="storage",
+    ),
+    _host_binding(
+        "ForeignHash.all",
+        "storage.foreign_hash.all",
         kind="syscall",
         category="storage",
     ),
@@ -328,6 +340,12 @@ _HOST_BINDINGS = (
     _host_binding(
         "zk.has_verifying_key",
         "zk.has_verifying_key",
+        kind="syscall",
+        category="zk",
+    ),
+    _host_binding(
+        "zk.get_vk_info",
+        "zk.get_vk_info",
         kind="syscall",
         category="zk",
     ),

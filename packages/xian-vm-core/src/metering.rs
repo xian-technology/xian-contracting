@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
 
-use crate::interpreter::{VmExecutionError, VmValue};
+use crate::{VmExecutionError, VmValue};
 use num_traits::ToPrimitive;
 use serde_json::{Map, Value};
 use std::collections::HashMap;

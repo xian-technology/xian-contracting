@@ -212,6 +212,49 @@ impl VmHost for ParityHarness {
         Ok(())
     }
 
+    fn read_variable(
+        &mut self,
+        contract: &str,
+        binding: &str,
+    ) -> Result<Option<VmValue>, VmExecutionError> {
+        let direct = self
+            .modules
+            .get(contract)
+            .and_then(|module| module.instance.get_variable(binding));
+        if direct.is_some() {
+            return Ok(direct);
+        }
+        let foreign_binding = format!("{contract}:{binding}");
+        Ok(self
+            .modules
+            .values()
+            .find_map(|module| module.instance.get_variable(&foreign_binding)))
+    }
+
+    fn read_hash(
+        &mut self,
+        contract: &str,
+        binding: &str,
+        key: &VmValue,
+    ) -> Result<Option<VmValue>, VmExecutionError> {
+        let direct = self
+            .modules
+            .get(contract)
+            .map(|module| module.instance.get_hash_value(binding, key))
+            .transpose()?
+            .flatten();
+        if direct.is_some() {
+            return Ok(direct);
+        }
+        let foreign_binding = format!("{contract}:{binding}");
+        for module in self.modules.values() {
+            if let Some(value) = module.instance.get_hash_value(&foreign_binding, key)? {
+                return Ok(Some(value));
+            }
+        }
+        Ok(None)
+    }
+
     fn call_contract(&mut self, call: VmContractCall) -> Result<VmValue, VmExecutionError> {
         let target_module = contract_target_module(&call.target).to_owned();
         let context_this = target_module.clone();

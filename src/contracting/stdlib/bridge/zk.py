@@ -241,6 +241,42 @@ def has_verifying_key(vk_id: str):
     return record["active"] is True
 
 
+def get_vk_info(vk_id: str):
+    _validate_vk_id(vk_id)
+
+    vk_hex = _registry_field(vk_id, "vk_hex")
+    if vk_hex is None:
+        return None
+
+    return {
+        "vk_id": vk_id,
+        "scheme": _registry_field(vk_id, "scheme"),
+        "curve": _registry_field(vk_id, "curve"),
+        "vk_hash": _registry_field(vk_id, "vk_hash"),
+        "active": _registry_field(vk_id, "active"),
+        "circuit_name": _registry_field(vk_id, "circuit_name"),
+        "version": _registry_field(vk_id, "version"),
+        "created_at": _registry_field(vk_id, "created_at"),
+        "circuit_family": _registry_field(vk_id, "circuit_family"),
+        "statement_version": _registry_field(vk_id, "statement_version"),
+        "contract_name": _registry_field(vk_id, "contract_name"),
+        "artifact_contract_name": _registry_field(vk_id, "artifact_contract_name"),
+        "tree_depth": _registry_field(vk_id, "tree_depth"),
+        "leaf_capacity": _registry_field(vk_id, "leaf_capacity"),
+        "max_inputs": _registry_field(vk_id, "max_inputs"),
+        "max_outputs": _registry_field(vk_id, "max_outputs"),
+        "setup_mode": _registry_field(vk_id, "setup_mode"),
+        "setup_ceremony": _registry_field(vk_id, "setup_ceremony"),
+        "artifact_hash": _registry_field(vk_id, "artifact_hash"),
+        "bundle_hash": _registry_field(vk_id, "bundle_hash"),
+        "warning": _registry_field(vk_id, "warning"),
+        "deprecated": _registry_field(vk_id, "deprecated") is True,
+        "deprecated_at": _registry_field(vk_id, "deprecated_at"),
+        "replacement_vk_id": _registry_field(vk_id, "replacement_vk_id"),
+        "index": _registry_field(vk_id, "index"),
+    }
+
+
 def verify_groth16_bn254(vk_hex: str, proof_hex: str, public_inputs: list[str]):
     _validate_hex_payload(
         "vk_hex",
@@ -896,6 +932,7 @@ def shielded_command_public_inputs(
 zk_module = ModuleType("zk")
 zk_module.clear_prepared_vk_cache = clear_prepared_vk_cache
 zk_module.clear_verified_proof_cache = clear_verified_proof_cache
+zk_module.get_vk_info = get_vk_info
 zk_module.has_verifying_key = has_verifying_key
 zk_module.is_available = is_available
 zk_module.shielded_command_public_inputs = shielded_command_public_inputs

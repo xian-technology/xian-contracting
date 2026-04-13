@@ -25,6 +25,26 @@ def test_validate_contract_artifacts_accepts_canonical_bundle() -> None:
     assert validated["vm_ir_json"] == artifacts["vm_ir_json"]
 
 
+def test_validate_contract_artifacts_accepts_compact_bundle() -> None:
+    source = "@export\ndef ping():\n    return 'pong'\n"
+    artifacts = build_contract_artifacts(
+        module_name="con_probe",
+        source=source,
+        vm_profile="xian_vm_v1",
+        compact=True,
+    )
+
+    validated = validate_contract_artifacts(
+        module_name="con_probe",
+        artifacts=artifacts,
+        vm_profile="xian_vm_v1",
+    )
+
+    assert validated["source"] == artifacts["source"]
+    assert validated["runtime_code"] is None
+    assert validated["vm_ir_json"] is None
+
+
 def test_validate_contract_artifacts_rejects_mixed_source_and_runtime() -> None:
     source_a = "@export\ndef ping():\n    return 'A'\n"
     source_b = "@export\ndef ping():\n    return 'B'\n"
