@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from cachetools import TTLCache
+from xian_runtime_types.collections import ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.encoding import encode_kv
 from xian_runtime_types.time import Datetime
@@ -18,9 +19,11 @@ from contracting.storage.lmdb_store import LMDBStore
 
 INDEX_SEPARATOR = constants.INDEX_SEPARATOR
 HASH_DELIMITER = constants.DELIMITER
+_MISSING = object()
 
 SOURCE_KEY = "__source__"
 CODE_KEY = "__code__"
+XIAN_VM_V1_IR_KEY = "__xian_ir_v1__"
 TYPE_KEY = "__type__"
 AUTHOR_KEY = "__author__"
 OWNER_KEY = "__owner__"
@@ -31,7 +34,7 @@ INITIATOR_KEY = "__initiator__"
 
 
 def _copy_mutable_value(value):
-    if isinstance(value, (list, dict)):
+    if isinstance(value, (list, dict, bytearray, ContractingSet)):
         return deepcopy(value)
     return value
 
@@ -69,8 +72,18 @@ class Driver:
                 self.transaction_reads[key] = value
         return value
 
-    def set(self, key, value, is_txn_write: bool = False):
-        rt.deduct_write(*encode_kv(key, value))
+    def set(
+        self,
+        key,
+        value,
+        is_txn_write: bool = False,
+        *,
+        enforce_write_cap: bool = True,
+    ):
+        rt.deduct_write(
+            *encode_kv(key, value),
+            enforce_write_cap=enforce_write_cap,
+        )
         if self.pending_reads.get(key) is None:
             self.get(key)
         if isinstance(value, (decimal.Decimal, float)):
@@ -86,12 +99,16 @@ class Driver:
             self.pending_writes[key] = value
 
     def find(self, key: str):
-        value = self.pending_writes.get(key)
-        if value is None and not self.bypass_cache:
-            value = self.cache.get(key)
-        if value is None:
-            value = self._store.get(key)
-        return value
+        value = self.pending_writes.get(key, _MISSING)
+        if value is not _MISSING:
+            return value
+
+        if not self.bypass_cache:
+            value = self.cache.get(key, _MISSING)
+            if value is not _MISSING:
+                return value
+
+        return self._store.get(key)
 
     def keys_from_disk(self, prefix: str | None = None, length: int = 0):
         if self.track_transaction_reads:
@@ -151,10 +168,17 @@ class Driver:
         return contract_variable
 
     def set_var(
-        self, contract, variable, arguments=None, value=None, mark=True
+        self,
+        contract,
+        variable,
+        arguments=None,
+        value=None,
+        mark=True,
+        *,
+        enforce_write_cap: bool = True,
     ):
         key = self.make_key(contract, variable, arguments)
-        self.set(key, value)
+        self.set(key, value, enforce_write_cap=enforce_write_cap)
 
     def get_var(self, contract, variable, arguments=None, mark=True):
         key = self.make_key(contract, variable, arguments)
@@ -172,6 +196,11 @@ class Driver:
     def get_contract_source(self, name):
         return self.get_var(name, SOURCE_KEY)
 
+    def get_contract_ir(self, name, *, vm_profile: str = "xian_vm_v1"):
+        if vm_profile != "xian_vm_v1":
+            raise ValueError(f"unsupported vm_profile {vm_profile!r}")
+        return self.get_var(name, XIAN_VM_V1_IR_KEY)
+
     def get_contract_developer(self, name):
         return self.get_var(name, DEVELOPER_KEY)
 
@@ -184,6 +213,15 @@ class Driver:
     def get_contract(self, name):
         return self.get_var(name, CODE_KEY)
 
+    def has_contract(self, name):
+        artifact_keys = (XIAN_VM_V1_IR_KEY, SOURCE_KEY, CODE_KEY)
+        for variable in artifact_keys:
+            key = self.make_key(name, variable)
+            value = self.find(key)
+            if value is not None:
+                return True
+        return False
+
     def set_contract_from_source(
         self,
         name,
@@ -195,14 +233,25 @@ class Driver:
         deployer=None,
         initiator=None,
         lint=True,
+        store_runtime_code=True,
     ):
         compiler = ContractingCompiler(module_name=name)
         normalized_source = compiler.normalize_source(source, lint=lint)
-        runtime_code = compiler.parse_to_code(source, lint=lint)
+        runtime_code = None
+        if store_runtime_code:
+            runtime_code = compiler.parse_to_code(source, lint=lint)
+        vm_ir_json = compiler.lower_to_ir_json(
+            normalized_source,
+            lint=False,
+            vm_profile="xian_vm_v1",
+            indent=None,
+            sort_keys=True,
+        )
         self.set_contract(
             name=name,
             code=runtime_code,
             source=normalized_source,
+            vm_ir_json=vm_ir_json,
             owner=owner,
             overwrite=overwrite,
             timestamp=timestamp,
@@ -214,8 +263,9 @@ class Driver:
     def set_contract(
         self,
         name,
-        code,
+        code=None,
         source=None,
+        vm_ir_json=None,
         owner=None,
         overwrite=False,
         timestamp=None,
@@ -225,22 +275,56 @@ class Driver:
     ):
         assert_safe_contract_name(name)
 
-        if self.get_contract(name) is not None and not overwrite:
+        if self.has_contract(name) and not overwrite:
             return
 
         if timestamp is None:
             timestamp = Datetime._from_datetime(datetime.now())
 
-        compile(code, name, "exec")
+        if code is None and source is None and vm_ir_json is None:
+            raise TypeError(
+                "set_contract requires at least one contract artifact."
+            )
+
+        if code is not None:
+            compile(code, name, "exec")
 
         if source is not None:
-            self.set_var(name, SOURCE_KEY, value=source)
-        self.set_var(name, CODE_KEY, value=code)
-        self.set_var(name, OWNER_KEY, value=owner)
-        self.set_var(name, TIME_KEY, value=timestamp)
-        self.set_var(name, DEVELOPER_KEY, value=developer)
-        self.set_var(name, DEPLOYER_KEY, value=deployer)
-        self.set_var(name, INITIATOR_KEY, value=initiator)
+            self.set_var(
+                name,
+                SOURCE_KEY,
+                value=source,
+                enforce_write_cap=False,
+            )
+        if code is not None:
+            self.set_var(name, CODE_KEY, value=code, enforce_write_cap=False)
+        if vm_ir_json is not None:
+            self.set_var(
+                name,
+                XIAN_VM_V1_IR_KEY,
+                value=vm_ir_json,
+                enforce_write_cap=False,
+            )
+        self.set_var(name, OWNER_KEY, value=owner, enforce_write_cap=False)
+        self.set_var(name, TIME_KEY, value=timestamp, enforce_write_cap=False)
+        self.set_var(
+            name,
+            DEVELOPER_KEY,
+            value=developer,
+            enforce_write_cap=False,
+        )
+        self.set_var(
+            name,
+            DEPLOYER_KEY,
+            value=deployer,
+            enforce_write_cap=False,
+        )
+        self.set_var(
+            name,
+            INITIATOR_KEY,
+            value=initiator,
+            enforce_write_cap=False,
+        )
 
     def delete_contract(self, name):
         for key in self.keys(name):
@@ -390,4 +474,7 @@ class Driver:
         return self.storage_path
 
     def is_file(self, filename):
-        return self._store.exists(f"{filename}{INDEX_SEPARATOR}{CODE_KEY}")
+        return any(
+            self._store.exists(f"{filename}{INDEX_SEPARATOR}{artifact_key}")
+            for artifact_key in (XIAN_VM_V1_IR_KEY, SOURCE_KEY, CODE_KEY)
+        )

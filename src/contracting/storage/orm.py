@@ -1,5 +1,6 @@
 from copy import deepcopy
 
+from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.encoding import encode_kv
 
@@ -8,11 +9,21 @@ from contracting.execution.runtime import rt
 from contracting.storage.driver import Driver
 
 _MISSING = object()
-EVENT_ALLOWED_TYPES = (str, int, float, bool, ContractingDecimal)
+EVENT_ALLOWED_TYPES = (
+    str,
+    int,
+    float,
+    bool,
+    bytes,
+    bytearray,
+    ContractingSet,
+    ContractingFrozenSet,
+    ContractingDecimal,
+)
 
 
 def _copy_mutable(value):
-    if isinstance(value, (list, dict)):
+    if isinstance(value, (list, dict, bytearray, ContractingSet)):
         return deepcopy(value)
     return value
 
@@ -199,7 +210,7 @@ class Hash(Datum):
             return ContractingDecimal(str(value))
         # Return a defensive copy for mutable structures to prevent in-place
         # mutations from affecting cached objects in the driver.
-        if isinstance(value, (list, dict)):
+        if isinstance(value, (list, dict, bytearray, ContractingSet)):
             return deepcopy(value)
         return value
 

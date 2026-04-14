@@ -15,6 +15,7 @@ from contracting.storage.driver import (
     OWNER_KEY,
     SOURCE_KEY,
     TIME_KEY,
+    XIAN_VM_V1_IR_KEY,
     Driver,
 )
 from contracting.storage.orm import Datum
@@ -313,8 +314,12 @@ def code_hash(contract, kind="runtime"):
 
     contract_name = _contract_name_from_target(contract)
     _driver = rt.env.get("__Driver") or Driver()
-    code_key = CODE_KEY if kind == "runtime" else SOURCE_KEY
-    contract_text = _driver.get_var(contract_name, code_key)
+    if kind == "runtime":
+        contract_text = _driver.get_var(contract_name, CODE_KEY)
+        if contract_text is None:
+            contract_text = _driver.get_var(contract_name, XIAN_VM_V1_IR_KEY)
+    else:
+        contract_text = _driver.get_var(contract_name, SOURCE_KEY)
     if contract_text is None:
         return None
     return hashlib.sha3_256(contract_text.encode("utf-8")).hexdigest()

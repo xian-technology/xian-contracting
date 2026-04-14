@@ -303,13 +303,14 @@ class Runtime:
             cost *= constants.READ_COST_PER_BYTE
             self.tracer.add_cost(cost)
 
-    def deduct_write(self, key, value):
+    def deduct_write(self, key, value, *, enforce_write_cap: bool = True):
         if key is not None and self.tracer.is_started():
             cost = len(key) + len(value)
-            self.writes += cost
-            assert self.writes < WRITE_MAX, (
-                "You have exceeded the maximum write capacity per transaction!"
-            )
+            if enforce_write_cap:
+                self.writes += cost
+                assert self.writes < WRITE_MAX, (
+                    "You have exceeded the maximum write capacity per transaction!"
+                )
 
             chi_cost = cost * constants.WRITE_COST_PER_BYTE
             self.tracer.add_cost(chi_cost)

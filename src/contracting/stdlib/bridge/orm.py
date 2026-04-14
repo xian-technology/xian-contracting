@@ -60,5 +60,6 @@ exports = {
     "ForeignHash": FH,
     "LogEvent": LE,
     "indexed": indexed,
+    "Contract": C,
     "__Contract": C,
 }

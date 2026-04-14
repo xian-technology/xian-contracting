@@ -3,6 +3,7 @@ from contextlib import ContextDecorator
 from functools import wraps
 from typing import Any, get_args, get_origin
 
+from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime, Timedelta
 
@@ -17,6 +18,10 @@ def _annotation_label(annotation):
         return "datetime.datetime"
     if annotation is Timedelta:
         return "datetime.timedelta"
+    if annotation is ContractingSet:
+        return "set"
+    if annotation is ContractingFrozenSet:
+        return "frozenset"
     return str(annotation)
 
 
@@ -65,6 +70,26 @@ def _check_typed_value(value, annotation, label):
                 )
         return
 
+    if origin is ContractingSet:
+        if not isinstance(value, ContractingSet):
+            _raise_type_error(label, annotation, value)
+        args = get_args(annotation)
+        if args:
+            item_annotation = args[0]
+            for index, item in enumerate(value):
+                _check_typed_value(item, item_annotation, f"{label}[{index}]")
+        return
+
+    if origin is ContractingFrozenSet:
+        if not isinstance(value, ContractingFrozenSet):
+            _raise_type_error(label, annotation, value)
+        args = get_args(annotation)
+        if args:
+            item_annotation = args[0]
+            for index, item in enumerate(value):
+                _check_typed_value(item, item_annotation, f"{label}[{index}]")
+        return
+
     if annotation is bool:
         if type(value) is not bool:
             _raise_type_error(label, annotation, value)
@@ -89,6 +114,16 @@ def _check_typed_value(value, annotation, label):
 
     if annotation is dict:
         if not isinstance(value, dict):
+            _raise_type_error(label, annotation, value)
+        return
+
+    if annotation is ContractingSet:
+        if not isinstance(value, ContractingSet):
+            _raise_type_error(label, annotation, value)
+        return
+
+    if annotation is ContractingFrozenSet:
+        if not isinstance(value, ContractingFrozenSet):
             _raise_type_error(label, annotation, value)
         return
 

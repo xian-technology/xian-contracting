@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest import TestCase
 
 from contracting.storage.lmdb_store import LMDBStore
+from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime
 
@@ -31,6 +32,9 @@ class TestLMDBStoreBasic(TestCase):
             "decimal": ContractingDecimal("123.456"),
             "datetime": Datetime(2025, 3, 15, 12, 30, 0, 0),
             "bytes": b"\xde\xad\xbe\xef",
+            "bytearray": bytearray(b"\xde\xad\xbe\xef"),
+            "set": ContractingSet([3, 1, 3]),
+            "frozenset": ContractingFrozenSet([3, 1, 3]),
         }
         self.store.batch_set(data)
 
@@ -133,7 +137,8 @@ class TestDriverWithLMDB(TestCase):
         stored_source = self.driver.get_contract_source("con_test")
         self.assertIn("@export", stored_source)
         self.assertIn("def transfer(amount: float, to: str):", stored_source)
-        self.assertIn("@__export('con_test')", self.driver.get_contract("con_test"))
+        self.assertIsNotNone(self.driver.get_contract("con_test"))
+        self.assertIsNotNone(self.driver.get_contract_ir("con_test"))
 
     def test_delete_contract(self):
         self.driver.set_contract("con_test", "x = 1")

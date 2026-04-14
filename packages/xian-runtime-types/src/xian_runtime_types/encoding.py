@@ -1,12 +1,22 @@
 import decimal
 import json
 
+from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal, fix_precision
 from xian_runtime_types.time import Datetime, Timedelta
 
 MIN_INT = -(2**63)
 MAX_INT = 2**63 - 1
-TYPES = {"__fixed__", "__delta__", "__bytes__", "__time__", "__big_int__"}
+TYPES = {
+    "__fixed__",
+    "__delta__",
+    "__frozenset__",
+    "__bytes__",
+    "__bytearray__",
+    "__set__",
+    "__time__",
+    "__big_int__",
+}
 
 
 def safe_repr(obj, max_len=1024):
@@ -47,8 +57,14 @@ class Encoder(json.JSONEncoder):
                     value._timedelta.seconds,
                 ]
             }
+        if isinstance(value, ContractingSet):
+            return {"__set__": list(value)}
+        if isinstance(value, ContractingFrozenSet):
+            return {"__frozenset__": list(value)}
         if isinstance(value, bytes):
             return {"__bytes__": value.hex()}
+        if isinstance(value, bytearray):
+            return {"__bytearray__": value.hex()}
         if (
             isinstance(value, decimal.Decimal)
             or value.__class__.__name__ == decimal.Decimal.__name__
@@ -104,8 +120,14 @@ def as_object(value):
         return Timedelta(
             days=value["__delta__"][0], seconds=value["__delta__"][1]
         )
+    if "__set__" in value:
+        return ContractingSet(value["__set__"])
+    if "__frozenset__" in value:
+        return ContractingFrozenSet(value["__frozenset__"])
     if "__bytes__" in value:
         return bytes.fromhex(value["__bytes__"])
+    if "__bytearray__" in value:
+        return bytearray.fromhex(value["__bytearray__"])
     if "__fixed__" in value:
         return ContractingDecimal(value["__fixed__"])
     if "__big_int__" in value:
@@ -137,8 +159,14 @@ def convert(key, value):
         return ContractingDecimal(value)
     if key == "__delta__":
         return Timedelta(days=value[0], seconds=value[1])
+    if key == "__set__":
+        return ContractingSet(convert_dict(item) for item in value)
+    if key == "__frozenset__":
+        return ContractingFrozenSet(convert_dict(item) for item in value)
     if key == "__bytes__":
         return bytes.fromhex(value)
+    if key == "__bytearray__":
+        return bytearray.fromhex(value)
     if key == "__time__":
         return Datetime(*value)
     if key == "__big_int__":

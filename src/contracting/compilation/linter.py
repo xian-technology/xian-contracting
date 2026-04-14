@@ -40,6 +40,8 @@ class ErrorCode(str, Enum):
     E019 = "E019"
     E020 = "E020"
     E021 = "E021"
+    E022 = "E022"
+    E023 = "E023"
 
 
 _MESSAGES = {
@@ -64,6 +66,8 @@ _MESSAGES = {
     ErrorCode.E019: "Nested function definitions are not allowed",
     ErrorCode.E020: "Syntax error: {detail}",
     ErrorCode.E021: "Invalid decorator arguments for '{name}': {detail}",
+    ErrorCode.E022: "Syntax '{construct}' is not supported by validation profile '{profile}'",
+    ErrorCode.E023: "Built-in '{name}' is not supported by validation profile '{profile}'",
 }
 
 

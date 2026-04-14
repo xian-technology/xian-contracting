@@ -52,7 +52,7 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-contracting = ["contracts/submission.s.py"]
+contracting = ["contracts/submission.s.py", "contracts/submission_source.s.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

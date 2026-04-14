@@ -136,6 +136,17 @@ class TestWriteDeduction(TestCase):
         with self.assertRaises((AssertionError, ChiExceededError)):
             runtime.rt.deduct_write("a", "b" * 128 * 1024)
 
+    def test_deduct_write_can_skip_write_cap_for_deployment_metadata(self):
+        runtime.rt.set_up(stmps=100_000_000, meter=True)
+        cost_before = runtime.rt.tracer.get_chi_used()
+        runtime.rt.deduct_write(
+            "contract.__xian_ir_v1__",
+            "x" * (128 * 1024),
+            enforce_write_cap=False,
+        )
+        self.assertEqual(runtime.rt.writes, 0)
+        self.assertGreater(runtime.rt.tracer.get_chi_used(), cost_before)
+
 
 class TestReadDeduction(TestCase):
     def tearDown(self):

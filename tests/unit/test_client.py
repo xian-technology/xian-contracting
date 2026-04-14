@@ -3,7 +3,9 @@ from unittest import TestCase
 from unittest.mock import Mock
 
 from contracting.client import AbstractContract, ContractingClient
+from contracting.compilation.artifacts import CONTRACT_ARTIFACT_FORMAT_V1
 from contracting.storage.driver import Driver
+
 
 class TestClient(TestCase):
     def setUp(self):
@@ -36,6 +38,16 @@ class TestClient(TestCase):
         submission_2_code = self.client.raw_driver.get('submission.__code__')
 
         self.assertNotEqual(submission_1_code, submission_2_code)
+
+    def test_default_submission_seeds_source_and_ir(self):
+        self.client = ContractingClient(driver=self.driver)
+
+        self.assertIsNotNone(
+            self.client.raw_driver.get("submission.__source__")
+        )
+        self.assertIsNotNone(
+            self.client.raw_driver.get("submission.__xian_ir_v1__")
+        )
 
     def test_can_create_instance_without_submission_contract(self):
         self.client = ContractingClient(submission_filename=None, driver=self.driver)
@@ -100,6 +112,62 @@ class TestClient(TestCase):
 
         with self.assertRaises(AssertionError):
             self.client.submit(f="")
+
+    def test_build_deployment_artifacts_returns_canonical_bundle(self):
+        self.client = ContractingClient(submission_filename=None, driver=self.driver)
+
+        artifacts = self.client.build_deployment_artifacts(
+            """
+v = Variable()
+
+@construct
+def seed(value: int = 1):
+    v.set(value)
+
+@export
+def ping():
+    return v.get()
+""",
+            name="con_bundle_probe",
+        )
+
+        self.assertEqual(artifacts["format"], CONTRACT_ARTIFACT_FORMAT_V1)
+        self.assertEqual(artifacts["module_name"], "con_bundle_probe")
+        self.assertEqual(artifacts["vm_profile"], "xian_vm_v1")
+        self.assertIn("source", artifacts)
+        self.assertNotIn("runtime_code", artifacts)
+        self.assertIn("vm_ir_json", artifacts)
+        self.assertIn("hashes", artifacts)
+
+    def test_submit_includes_deployment_artifacts(self):
+        self.client = ContractingClient(submission_filename=None, driver=self.driver)
+        self.client.submission_contract = Mock()
+
+        code = """
+v = Variable()
+
+@construct
+def seed(value: int = 1):
+    v.set(value)
+
+@export
+def ping():
+    return v.get()
+"""
+        self.client.submit(f=code, name="con_submit_probe")
+
+        self.client.submission_contract.submit_contract.assert_called_once()
+        kwargs = self.client.submission_contract.submit_contract.call_args.kwargs
+        self.assertEqual(kwargs["name"], "con_submit_probe")
+        self.assertEqual(kwargs["code"], code)
+        self.assertEqual(
+            kwargs["deployment_artifacts"]["module_name"],
+            "con_submit_probe",
+        )
+        self.assertEqual(
+            kwargs["deployment_artifacts"]["format"],
+            CONTRACT_ARTIFACT_FORMAT_V1,
+        )
 
     def test_abstract_function_call_raises_result_on_error_by_default(self):
         error = RuntimeError("boom")

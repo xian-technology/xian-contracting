@@ -2,6 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from unittest import TestCase
 
+from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.encoding import (
     MAX_INT,
@@ -213,6 +214,24 @@ class TestEncode(TestCase):
         self.assertEqual(encoded, '{"__bytes__":"616263"}')
         self.assertEqual(decode(encoded), b"abc")
 
+    def test_bytearray_encode_and_decode(self):
+        encoded = encode(bytearray(b"abc"))
+
+        self.assertEqual(encoded, '{"__bytearray__":"616263"}')
+        self.assertEqual(decode(encoded), bytearray(b"abc"))
+
+    def test_contracting_set_encode_and_decode(self):
+        encoded = encode(ContractingSet([3, 1, 3]))
+
+        self.assertEqual(encoded, '{"__set__":[1,3]}')
+        self.assertEqual(decode(encoded), ContractingSet([1, 3]))
+
+    def test_contracting_frozenset_encode_and_decode(self):
+        encoded = encode(ContractingFrozenSet([3, 1, 3]))
+
+        self.assertEqual(encoded, '{"__frozenset__":[1,3]}')
+        self.assertEqual(decode(encoded), ContractingFrozenSet([1, 3]))
+
     def test_encode_unsupported_object_raises_type_error(self):
         with self.assertRaises(TypeError):
             encode(object())
@@ -269,6 +288,27 @@ class TestEncode(TestCase):
 
         self.assertEqual(expected, convert_dict(d))
 
+    def test_convert_contracting_bytearray(self):
+        d = {"kwargs": {"__bytearray__": "123456"}}
+
+        expected = {"kwargs": bytearray(b"\x124V")}
+
+        self.assertEqual(expected, convert_dict(d))
+
+    def test_convert_contracting_set(self):
+        d = {"kwargs": {"__set__": [3, 1, 3]}}
+
+        expected = {"kwargs": ContractingSet([1, 3])}
+
+        self.assertEqual(expected, convert_dict(d))
+
+    def test_convert_contracting_frozenset(self):
+        d = {"kwargs": {"__frozenset__": [3, 1, 3]}}
+
+        expected = {"kwargs": ContractingFrozenSet([1, 3])}
+
+        self.assertEqual(expected, convert_dict(d))
+
     def test_multiple_conversions(self):
         d = {
             "kwargs": {"__fixed__": "0.1234"},
@@ -282,6 +322,23 @@ class TestEncode(TestCase):
             "kwargs2": Datetime(2021, 4, 29, 21, 30, 54, 0),
             "kwargs3": Timedelta(days=8, seconds=0),
             "kwargs4": b"\x124V",
+        }
+
+        self.assertEqual(expected, convert_dict(d))
+
+    def test_multiple_conversions_with_bytearray(self):
+        d = {
+            "kwargs": {"__fixed__": "0.1234"},
+            "kwargs2": {"__time__": [2021, 4, 29, 21, 30, 54, 0]},
+            "kwargs3": {"__delta__": [8, 0]},
+            "kwargs4": {"__bytearray__": "123456"},
+        }
+
+        expected = {
+            "kwargs": ContractingDecimal("0.1234"),
+            "kwargs2": Datetime(2021, 4, 29, 21, 30, 54, 0),
+            "kwargs3": Timedelta(days=8, seconds=0),
+            "kwargs4": bytearray(b"\x124V"),
         }
 
         self.assertEqual(expected, convert_dict(d))

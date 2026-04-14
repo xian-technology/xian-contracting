@@ -3,11 +3,13 @@ import inspect
 import os
 from datetime import datetime
 from functools import partial
+from pathlib import Path
 from types import FunctionType
 
 import autopep8
 from xian_runtime_types.time import Datetime
 
+from contracting.compilation.artifacts import build_contract_artifacts
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution import runtime
 from contracting.execution.executor import Executor
@@ -16,6 +18,13 @@ from contracting.storage.driver import Driver
 
 from . import constants
 from .storage.orm import Hash, Variable
+
+BUILTIN_SUBMISSION_RUNTIME_PATH = (
+    Path(__file__).resolve().parent / "contracts" / "submission.s.py"
+)
+BUILTIN_SUBMISSION_SOURCE_PATH = (
+    Path(__file__).resolve().parent / "contracts" / "submission_source.s.py"
+)
 
 
 class AbstractContract:
@@ -238,11 +247,15 @@ class ContractingClient:
         self.environment = environment
         # Get submission contract from file
         if submission_filename is not None:
-            # Seed the genesis contracts into the instance
-            with open(self.submission_filename) as f:
-                contract = f.read()
-
-            self.raw_driver.set_contract(name="submission", code=contract)
+            runtime_code, source_code, vm_ir_json = (
+                self._load_submission_artifacts(self.submission_filename)
+            )
+            self.raw_driver.set_contract(
+                name="submission",
+                code=runtime_code,
+                source=source_code,
+                vm_ir_json=vm_ir_json,
+            )
             self.raw_driver.commit()
 
         # Get submission contract from state
@@ -260,16 +273,49 @@ class ContractingClient:
             )
 
         if filename is not None:
-            with open(filename) as f:
-                contract = f.read()
-
+            runtime_code, source_code, vm_ir_json = (
+                self._load_submission_artifacts(filename)
+            )
             self.raw_driver.delete_contract(name="submission")
-            self.raw_driver.set_contract(name="submission", code=contract)
+            self.raw_driver.set_contract(
+                name="submission",
+                code=runtime_code,
+                source=source_code,
+                vm_ir_json=vm_ir_json,
+            )
 
             if commit:
                 self.raw_driver.commit()
 
         self.submission_contract = self.get_contract("submission")
+
+    def _load_submission_artifacts(
+        self,
+        filename: str | os.PathLike[str],
+    ) -> tuple[str, str | None, str | None]:
+        runtime_path = Path(filename).resolve()
+        runtime_code = runtime_path.read_text(encoding="utf-8")
+
+        source_code = None
+        vm_ir_json = None
+        if runtime_path == BUILTIN_SUBMISSION_RUNTIME_PATH:
+            source_code = BUILTIN_SUBMISSION_SOURCE_PATH.read_text(
+                encoding="utf-8"
+            )
+            previous_module_name = self.compiler.module_name
+            self.compiler.module_name = "submission"
+            try:
+                vm_ir_json = self.compiler.lower_to_ir_json(
+                    source_code,
+                    lint=False,
+                    vm_profile="xian_vm_v1",
+                    indent=None,
+                    sort_keys=True,
+                )
+            finally:
+                self.compiler.module_name = previous_module_name
+
+        return runtime_code, source_code, vm_ir_json
 
     def build_parallel_executor(
         self,
@@ -359,6 +405,21 @@ class ContractingClient:
         code = self.compiler.parse_to_code(f)
         return code
 
+    def build_deployment_artifacts(self, f, *, name=None):
+        if isinstance(f, FunctionType):
+            f, inferred_name = self.closure_to_code_string(f)
+            if name is None:
+                name = inferred_name
+
+        assert name is not None, "No name provided."
+
+        return build_contract_artifacts(
+            module_name=name,
+            source=f,
+            lint=True,
+            vm_profile="xian_vm_v1",
+        )
+
     def submit(
         self,
         f,
@@ -368,6 +429,9 @@ class ContractingClient:
         constructor_args={},
         signer=None,
     ):
+
+        if self.raw_driver.has_contract("submission"):
+            self.submission_contract = self.get_contract("submission")
 
         assert self.submission_contract is not None, (
             "No submission contract set. Try set_submission_contract first."
@@ -383,6 +447,48 @@ class ContractingClient:
         if signer is None:
             signer = self.signer
 
+        submit_keywords = getattr(
+            self.submission_contract.submit_contract,
+            "keywords",
+            {},
+        )
+        supports_deployment_artifacts = True
+        if isinstance(submit_keywords, dict):
+            supports_deployment_artifacts = (
+                "deployment_artifacts" in submit_keywords
+            )
+
+        if supports_deployment_artifacts:
+            try:
+                deployment_artifacts = self.build_deployment_artifacts(
+                    f,
+                    name=name,
+                )
+            except Exception:
+                deployment_artifacts = None
+
+            if deployment_artifacts is not None:
+                self.submission_contract.submit_contract(
+                    name=name,
+                    code=f,
+                    deployment_artifacts=deployment_artifacts,
+                    owner=owner,
+                    constructor_args=constructor_args,
+                    metering=metering,
+                    signer=signer,
+                )
+                return
+
+            self.submission_contract.submit_contract(
+                name=name,
+                code=f,
+                owner=owner,
+                constructor_args=constructor_args,
+                metering=metering,
+                signer=signer,
+            )
+            return
+
         self.submission_contract.submit_contract(
             name=name,
             code=f,
@@ -393,11 +499,15 @@ class ContractingClient:
         )
 
     def get_contracts(self):
-        contracts = []
+        contracts = set()
         for key in self.raw_driver.keys():
-            if key.endswith(".__code__"):
-                contracts.append(key.replace(".__code__", ""))
-        return contracts
+            if key.endswith(".__source__"):
+                contracts.add(key.replace(".__source__", ""))
+            elif key.endswith(".__xian_ir_v1__"):
+                contracts.add(key.replace(".__xian_ir_v1__", ""))
+            elif key.endswith(".__code__"):
+                contracts.add(key.replace(".__code__", ""))
+        return sorted(contracts)
 
     def get_var(self, contract, variable, arguments=[], mark=False):
         return self.raw_driver.get_var(contract, variable, arguments, mark)

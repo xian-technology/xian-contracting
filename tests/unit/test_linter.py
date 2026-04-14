@@ -305,6 +305,22 @@ def f():
 """
         self.assertIn(ErrorCode.E014, self._codes(code))
 
+    def test_set_builtin_is_allowed(self):
+        code = """
+@export
+def f():
+    return set([1, 2, 3])
+"""
+        self.assertNotIn(ErrorCode.E014, self._codes(code))
+
+    def test_frozenset_builtin_is_allowed(self):
+        code = """
+@export
+def f():
+    return frozenset([1, 2, 3])
+"""
+        self.assertNotIn(ErrorCode.E014, self._codes(code))
+
     def test_e015_orm_shadow(self):
         code = """
 v = Variable()
@@ -367,6 +383,22 @@ def f():
 
     def test_e020_syntax_error(self):
         self.assertIn(ErrorCode.E020, self._codes("def ("))
+
+    def test_e001_set_literal(self):
+        code = """
+@export
+def f():
+    return {1, 2, 3}
+"""
+        self.assertIn(ErrorCode.E001, self._codes(code))
+
+    def test_e001_set_comprehension(self):
+        code = """
+@export
+def f(values: list[int]):
+    return {value for value in values}
+"""
+        self.assertIn(ErrorCode.E001, self._codes(code))
 
     def test_e021_export_rejects_positional_decorator_args(self):
         code = """

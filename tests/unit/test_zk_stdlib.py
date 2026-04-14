@@ -40,6 +40,45 @@ class TestZkStdlib(TestCase):
         ):
             self.assertFalse(zk.is_available())
 
+    def test_get_vk_info_returns_registered_metadata(self):
+        zk.rt.env["__Driver"] = FakeDriver(
+            {
+                ("zk_registry", "verifying_keys", ("demo", "vk_hex")): "0x1234",
+                ("zk_registry", "verifying_keys", ("demo", "scheme")): "groth16",
+                ("zk_registry", "verifying_keys", ("demo", "curve")): "bn254",
+                ("zk_registry", "verifying_keys", ("demo", "vk_hash")): "0x56",
+                ("zk_registry", "verifying_keys", ("demo", "active")): True,
+                ("zk_registry", "verifying_keys", ("demo", "circuit_name")): "demo",
+                ("zk_registry", "verifying_keys", ("demo", "version")): "1",
+                ("zk_registry", "verifying_keys", ("demo", "created_at")): 123,
+                ("zk_registry", "verifying_keys", ("demo", "circuit_family")): "shielded_note_v3",
+                ("zk_registry", "verifying_keys", ("demo", "statement_version")): "3",
+                ("zk_registry", "verifying_keys", ("demo", "contract_name")): "artifact",
+                ("zk_registry", "verifying_keys", ("demo", "artifact_contract_name")): "artifact",
+                ("zk_registry", "verifying_keys", ("demo", "tree_depth")): 20,
+                ("zk_registry", "verifying_keys", ("demo", "leaf_capacity")): 2**20,
+                ("zk_registry", "verifying_keys", ("demo", "max_inputs")): 4,
+                ("zk_registry", "verifying_keys", ("demo", "max_outputs")): 4,
+                ("zk_registry", "verifying_keys", ("demo", "setup_mode")): "dev",
+                ("zk_registry", "verifying_keys", ("demo", "setup_ceremony")): "test",
+                ("zk_registry", "verifying_keys", ("demo", "artifact_hash")): "0x12",
+                ("zk_registry", "verifying_keys", ("demo", "bundle_hash")): "0x34",
+                ("zk_registry", "verifying_keys", ("demo", "warning")): "",
+                ("zk_registry", "verifying_keys", ("demo", "deprecated")): False,
+                ("zk_registry", "verifying_keys", ("demo", "deprecated_at")): None,
+                ("zk_registry", "verifying_keys", ("demo", "replacement_vk_id")): "",
+                ("zk_registry", "verifying_keys", ("demo", "index")): 0,
+            }
+        )
+
+        info = zk.get_vk_info("demo")
+
+        self.assertEqual(info["vk_id"], "demo")
+        self.assertEqual(info["vk_hash"], "0x56")
+        self.assertEqual(info["circuit_family"], "shielded_note_v3")
+        self.assertEqual(info["max_outputs"], 4)
+        self.assertFalse(info["deprecated"])
+
     def test_verify_rejects_missing_native_package(self):
         with patch(
             "contracting.stdlib.bridge.zk._native_verifier_bindings",
