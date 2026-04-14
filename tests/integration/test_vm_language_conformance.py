@@ -60,6 +60,27 @@ def _normalize(value):
     return value
 
 
+def _filter_case_writes(writes, case: dict):
+    ignore_suffixes = tuple(case.get("ignore_write_suffixes", ()))
+    if not ignore_suffixes:
+        return writes
+    if isinstance(writes, dict):
+        return {
+            key: value
+            for key, value in writes.items()
+            if not any(str(key).endswith(suffix) for suffix in ignore_suffixes)
+        }
+    if isinstance(writes, list):
+        filtered = []
+        for item in writes:
+            if isinstance(item, dict) and "key" in item:
+                if any(str(item["key"]).endswith(suffix) for suffix in ignore_suffixes):
+                    continue
+            filtered.append(item)
+        return filtered
+    return writes
+
+
 def _deploy_case_contracts(driver: Driver, case: dict, contract_name: str) -> None:
     for dependency in case.get("dependencies", ()):
         driver.set_contract_from_source(
@@ -96,7 +117,7 @@ def _run_python_case(case: dict, storage_home: Path) -> dict:
     return {
         "status_code": output["status_code"],
         "result": _normalize(output["result"]),
-        "writes": _normalize(output["writes"]),
+        "writes": _normalize(_filter_case_writes(output["writes"], case)),
         "events": _normalize(output["events"]),
     }
 
@@ -118,7 +139,7 @@ def _run_native_case(case: dict, storage_home: Path) -> dict:
     return {
         "status_code": output.status_code,
         "result": _normalize(output.result),
-        "writes": _normalize(output.writes),
+        "writes": _normalize(_filter_case_writes(output.writes, case)),
         "events": _normalize(output.events),
     }
 

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import ast
+from functools import lru_cache
 from types import ModuleType
 from typing import Any
 
 from xian_runtime_types.collections import ContractingFrozenSet
 
+from contracting.compilation.artifacts import build_contract_artifacts
 from contracting.compilation.ir import HOST_BINDINGS, XIAN_VM_HOST_CATALOG_V1
 from contracting.compilation.lowering import (
     XIAN_IR_V1_BIN_OPS,
@@ -91,6 +93,94 @@ CONFORMANCE_BUILTIN_EXCLUSIONS: dict[str, str] = {
     "import": "Contract imports are covered via import statements and importlib, not the raw builtin token.",
 }
 CONFORMANCE_ENV_EXCLUSIONS: dict[str, str] = {}
+
+
+@lru_cache(maxsize=32)
+def _compact_artifacts(module_name: str, source: str) -> dict[str, object]:
+    return build_contract_artifacts(
+        module_name=module_name,
+        source=source,
+        lint=True,
+        compact=True,
+    )
+
+
+def _replay_submission_deploy_source() -> str:
+    artifacts = _compact_artifacts(
+        "con_replay_submission_child",
+        """
+value = Variable()
+
+@construct
+def seed(label: str):
+    value.set(label)
+
+@export
+def read():
+    return value.get()
+""",
+    )
+    return f"""
+ContractDeployedEvent = LogEvent(
+    "ContractDeployed",
+    {{
+        "name": {{"type": str, "idx": True}},
+        "owner": {{"type": str}},
+        "developer": {{"type": str, "idx": True}},
+    }},
+)
+ContractOwnerChangedEvent = LogEvent(
+    "ContractOwnerChanged",
+    {{
+        "contract": {{"type": str, "idx": True}},
+        "previous_owner": {{"type": str}},
+        "new_owner": {{"type": str, "idx": True}},
+    }},
+)
+
+ARTIFACTS = {artifacts!r}
+
+@export
+def probe():
+    Contract.deploy(
+        name="con_replay_submission_child",
+        code=None,
+        deployment_artifacts=ARTIFACTS,
+        owner="owner_a",
+        constructor_args={{"label": "ready"}},
+        developer=ctx.caller,
+        deployer=ctx.caller,
+        initiator=ctx.signer,
+    )
+    ContractDeployedEvent(
+        {{
+            "name": "con_replay_submission_child",
+            "owner": "owner_a",
+            "developer": ctx.caller,
+        }}
+    )
+    before = Contract.get_info("con_replay_submission_child")
+    Contract.set_developer("con_replay_submission_child", "developer_b")
+    Contract.set_owner("con_replay_submission_child", "owner_b")
+    ContractOwnerChangedEvent(
+        {{
+            "contract": "con_replay_submission_child",
+            "previous_owner": before["owner"],
+            "new_owner": "owner_b",
+        }}
+    )
+    child = importlib.import_module("con_replay_submission_child")
+    return {{
+        "before": before,
+        "after": Contract.get_info("con_replay_submission_child"),
+        "value": child.read(),
+        "exists": importlib.exists("con_replay_submission_child"),
+        "has_export": importlib.has_export(
+            "con_replay_submission_child",
+            "read",
+        ),
+    }}
+"""
 
 
 def current_vm_parity_gaps() -> dict[str, list[str]]:
@@ -888,6 +978,105 @@ def probe():
         "allowance": approvals[ctx.caller, "broker"],
         "caller_balance": balances[ctx.caller],
         "vault_balance": balances["vault"],
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {},
+    },
+    {
+        "id": "replay_submission_deploy_flow",
+        "description": "Submission-style deployment and contract metadata changes match the Python VM.",
+        "covers_env": (
+            "Contract",
+            "importlib",
+        ),
+        "covers_features": (
+            "events.log",
+            "modules.contract",
+            "modules.importlib",
+        ),
+        "source": _replay_submission_deploy_source(),
+        "function_name": "probe",
+        "kwargs": {},
+        "ignore_write_suffixes": ("__code__",),
+    },
+    {
+        "id": "replay_imported_token_event_sequence",
+        "description": "Imported token-like approval and transfer flows preserve state and event ordering like historical workloads.",
+        "covers_features": (
+            "events.log",
+            "imports.static",
+            "storage.hash",
+        ),
+        "dependencies": (
+            {
+                "name": "conformance_replay_token",
+                "source": """
+balances = Hash(default_value=0)
+approvals = Hash(default_value=0)
+
+ApproveEvent = LogEvent(
+    "Approve",
+    {
+        "from": indexed(str),
+        "to": indexed(str),
+        "amount": int,
+    },
+)
+TransferEvent = LogEvent(
+    "Transfer",
+    {
+        "from": indexed(str),
+        "to": indexed(str),
+        "amount": int,
+    },
+)
+
+@construct
+def seed():
+    balances["alice"] = 10
+
+@export
+def approve_for(owner: str, spender: str, amount: int):
+    approvals[owner, spender] = amount
+    ApproveEvent({"from": owner, "to": spender, "amount": amount})
+    return approvals[owner, spender]
+
+@export
+def transfer_from_for(spender: str, main_account: str, to: str, amount: int):
+    assert approvals[main_account, spender] >= amount
+    assert balances[main_account] >= amount
+    approvals[main_account, spender] -= amount
+    balances[main_account] -= amount
+    balances[to] += amount
+    TransferEvent({"from": main_account, "to": to, "amount": amount})
+    return {
+        "allowance": approvals[main_account, spender],
+        "main": balances[main_account],
+        "to": balances[to],
+    }
+""",
+            },
+        ),
+        "source": """
+import conformance_replay_token
+
+@export
+def probe():
+    approved = conformance_replay_token.approve_for(
+        owner="alice",
+        spender="broker",
+        amount=4,
+    )
+    moved = conformance_replay_token.transfer_from_for(
+        spender="broker",
+        main_account="alice",
+        to="vault",
+        amount=3,
+    )
+    return {
+        "approved": approved,
+        "moved": moved,
     }
 """,
         "function_name": "probe",
