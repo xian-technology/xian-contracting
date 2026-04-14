@@ -927,6 +927,32 @@ def probe(account: str):
         "kwargs": {"account": "alice"},
     },
     {
+        "id": "dynamic_private_call_rejected",
+        "description": "Dynamic importlib.call rejects private contract functions like the Python VM.",
+        "covers_env": ("importlib",),
+        "covers_features": ("imports.dynamic",),
+        "dependencies": (
+            {
+                "name": "conformance_private_child",
+                "source": """
+@export
+def ping():
+    return "ok"
+
+def internal_secret():
+    return "nope"
+""",
+            },
+        ),
+        "source": """
+@export
+def probe():
+    return importlib.call("conformance_private_child", "internal_secret", {})
+""",
+        "function_name": "probe",
+        "kwargs": {},
+    },
+    {
         "id": "token_allowance_event_flow",
         "description": "Token-like approval and transfer event flows match the Python VM.",
         "covers_features": (

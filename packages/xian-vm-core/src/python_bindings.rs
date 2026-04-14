@@ -176,6 +176,33 @@ impl PythonBundleExecutor {
         self.instances.insert(module_name.to_owned(), instance);
         Ok(())
     }
+
+    fn ensure_exported_function(
+        &mut self,
+        module_name: &str,
+        function_name: &str,
+    ) -> Result<(), VmExecutionError> {
+        self.ensure_module(module_name)?;
+        let module = self
+            .modules
+            .get(module_name)
+            .ok_or_else(|| VmExecutionError::new(format!("unknown module '{module_name}'")))?;
+        let function = module
+            .functions
+            .iter()
+            .find(|candidate| candidate.name == function_name)
+            .ok_or_else(|| {
+                VmExecutionError::new(format!(
+                    "AssertionError(\"Exported function '{function_name}' does not exist on contract '{module_name}'!\")"
+                ))
+            })?;
+        if function.visibility != "export" {
+            return Err(VmExecutionError::new(
+                "AssertionError(\"Dynamic calls may only target exported contract functions!\")",
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl VmHost for PythonBundleExecutor {
@@ -275,6 +302,7 @@ impl VmHost for PythonBundleExecutor {
             | VmContractTarget::LocalHandle { module, .. }
             | VmContractTarget::FactoryCall { module, .. } => module.clone(),
         };
+        self.ensure_exported_function(&target_module, &call.function)?;
         let owner = self.load_owner(&target_module)?;
         let caller = call.caller_contract.clone().or_else(|| call.signer.clone());
         if let Some(owner) = owner.as_deref() {
@@ -442,7 +470,7 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
         let bytes = value
             .downcast::<PyByteArray>()
             .map_err(|error| VmExecutionError::new(error.to_string()))?;
-        return Ok(VmValue::ByteArray(bytes.to_vec()?));
+        return Ok(VmValue::ByteArray(bytes.to_vec()));
     }
     if let Some((module, name)) = python_class_path(&value) {
         match (module.as_str(), name.as_str()) {
