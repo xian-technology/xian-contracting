@@ -20,6 +20,28 @@ from contracting.compilation.python_compatibility import (
 
 
 AUTHORED_CONFORMANCE_FEATURE_EXCLUSIONS: dict[str, str] = {}
+_EXACT_STRING_METHOD_FEATURES = {
+    "endswith": "methods.string.endswith",
+    "find": "methods.string.find",
+    "isalnum": "methods.string.isalnum",
+    "join": "methods.string.join",
+    "lower": "methods.string.lower",
+    "replace": "methods.string.replace",
+    "split": "methods.string.split",
+    "startswith": "methods.string.startswith",
+    "strip": "methods.string.strip",
+    "upper": "methods.string.upper",
+}
+_EXACT_LIST_METHOD_FEATURES = {
+    "append": "methods.list.append",
+    "clear": "methods.list.clear",
+    "copy": "methods.list.copy",
+    "count": "methods.list.count",
+    "extend": "methods.list.extend",
+    "index": "methods.list.index",
+    "insert": "methods.list.insert",
+    "remove": "methods.list.remove",
+}
 
 
 def _root_name(node: ast.AST) -> str | None:
@@ -158,24 +180,13 @@ class _AuthoredConformanceVisitor(ast.NodeVisitor):
             elif root == "zk":
                 self.used_features.add("modules.zk")
 
-            if isinstance(node.func, ast.Attribute) and node.func.attr in {
-                "append",
-                "clear",
-                "copy",
-                "count",
-                "find",
-                "index",
-                "pop",
-                "split",
-                "startswith",
-                "strip",
-                "upper",
-                "endswith",
-            }:
-                if node.func.attr in {"find", "split", "startswith", "strip", "upper", "endswith"}:
+            if isinstance(node.func, ast.Attribute):
+                if exact := _EXACT_STRING_METHOD_FEATURES.get(node.func.attr):
                     self.used_features.add("methods.string")
-                else:
+                    self.used_features.add(exact)
+                elif exact := _EXACT_LIST_METHOD_FEATURES.get(node.func.attr):
                     self.used_features.add("methods.collection")
+                    self.used_features.add(exact)
 
         self.generic_visit(node)
 

@@ -463,7 +463,15 @@ def probe(values: list[int]):
     {
         "id": "string_method_helpers",
         "description": "Common deterministic string helpers behave like the Python VM.",
-        "covers_features": ("methods.string",),
+        "covers_features": (
+            "methods.string",
+            "methods.string.endswith",
+            "methods.string.find",
+            "methods.string.split",
+            "methods.string.startswith",
+            "methods.string.strip",
+            "methods.string.upper",
+        ),
         "source": """
 @export
 def probe():
@@ -486,7 +494,13 @@ def probe():
     {
         "id": "local_collection_methods",
         "description": "Local list/dict helper methods behave like the Python VM.",
-        "covers_features": ("methods.collection",),
+        "covers_features": (
+            "methods.collection",
+            "methods.list.clear",
+            "methods.list.copy",
+            "methods.list.count",
+            "methods.list.index",
+        ),
         "source": """
 @export
 def probe():
@@ -511,6 +525,43 @@ def probe():
         "popped": popped,
         "missing": missing,
         "record": record,
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {},
+    },
+    {
+        "id": "authored_string_and_list_methods",
+        "description": "String and list helper methods used by authored contracts behave like the Python VM.",
+        "covers_features": (
+            "methods.collection",
+            "methods.list.append",
+            "methods.list.extend",
+            "methods.list.insert",
+            "methods.list.remove",
+            "methods.string.isalnum",
+            "methods.string.join",
+            "methods.string.lower",
+            "methods.string.replace",
+        ),
+        "source": """
+@export
+def probe():
+    labels = ["Alpha", "BETA"]
+    labels.append("gamma")
+    labels.extend(["delta"])
+    labels.insert(1, "inserted")
+    labels.remove("BETA")
+
+    lowered = "MiXeD42".lower()
+    joined = "|".join(labels)
+    return {
+        "lower": lowered,
+        "isalnum_true": lowered.isalnum(),
+        "isalnum_false": "node-42".isalnum(),
+        "join": joined,
+        "replace": joined.replace("gamma", "omega"),
+        "labels": labels,
     }
 """,
         "function_name": "probe",
@@ -706,6 +757,53 @@ def probe():
         "kwargs": {},
     },
     {
+        "id": "authored_reward_change_flow",
+        "description": "Authored-style reward change flows through a statically imported module like the Python VM.",
+        "covers_builtins": (
+            "len",
+            "sum",
+        ),
+        "covers_features": ("imports.static",),
+        "dependencies": (
+            {
+                "name": "conformance_rewards_state",
+                "source": """
+state = Hash(default_value=None)
+
+@construct
+def seed():
+    state["value"] = [0.88, 0.01, 0.01, 0.10]
+
+@export
+def set_value(value: list[float]):
+    state["value"] = value
+    return state["value"]
+
+@export
+def get_value():
+    return state["value"]
+""",
+            },
+        ),
+        "source": """
+import conformance_rewards_state
+
+@export
+def probe(change: list[float]):
+    assert len(change) == 4
+    assert sum(change) == 1
+    before = conformance_rewards_state.get_value()
+    after = conformance_rewards_state.set_value(change)
+    return {
+        "before": before,
+        "after": after,
+        "stored": conformance_rewards_state.get_value(),
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {"change": [0.25, 0.25, 0.25, 0.25]},
+    },
+    {
         "id": "static_import_contract_calls",
         "description": "Static contract imports behave like the Python VM.",
         "covers_builtins": ("dict",),
@@ -737,5 +835,62 @@ def probe(account: str):
 """,
         "function_name": "probe",
         "kwargs": {"account": "alice"},
+    },
+    {
+        "id": "token_allowance_event_flow",
+        "description": "Token-like approval and transfer event flows match the Python VM.",
+        "covers_features": (
+            "events.log",
+            "storage.hash",
+        ),
+        "source": """
+balances = Hash(default_value=0)
+approvals = Hash(default_value=0)
+
+TransferEvent = LogEvent(
+    "Transfer",
+    {
+        "from": indexed(str),
+        "to": indexed(str),
+        "amount": int,
+    },
+)
+ApproveEvent = LogEvent(
+    "Approve",
+    {
+        "from": indexed(str),
+        "to": indexed(str),
+        "amount": int,
+    },
+)
+
+@construct
+def seed():
+    balances["alice"] = 10
+
+def approve_for(owner: str, spender: str, amount: int):
+    approvals[owner, spender] = amount
+    ApproveEvent({"from": owner, "to": spender, "amount": amount})
+
+def transfer_from_for(spender: str, main_account: str, to: str, amount: int):
+    assert approvals[main_account, spender] >= amount
+    assert balances[main_account] >= amount
+    approvals[main_account, spender] -= amount
+    balances[main_account] -= amount
+    balances[to] += amount
+    TransferEvent({"from": main_account, "to": to, "amount": amount})
+
+@export
+def probe():
+    approve_for(ctx.caller, "broker", 4)
+    transfer_from_for("broker", ctx.caller, "vault", 3)
+    return {
+        "allowance": approvals[ctx.caller, "broker"],
+        "caller_balance": balances[ctx.caller],
+        "vault_balance": balances["vault"],
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {},
     },
 )

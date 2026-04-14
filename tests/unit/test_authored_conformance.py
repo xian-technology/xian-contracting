@@ -61,6 +61,28 @@ def probe():
     )
 
 
+def test_authored_conformance_tracks_exact_method_features() -> None:
+    auditor = AuthoredConformanceAuditor()
+    report = auditor.check(
+        """
+@export
+def probe():
+    values = ["Alpha"]
+    values.append("Beta")
+    return {
+        "lower": "MIXED".lower(),
+        "joined": "-".join(values),
+    }
+""",
+        module_name="con_probe",
+    )
+
+    assert report.compatible
+    assert "methods.list.append" in report.used_features
+    assert "methods.string.lower" in report.used_features
+    assert "methods.string.join" in report.used_features
+
+
 def test_audit_authored_conformance_main_returns_success_for_covered_contract(
     tmp_path: Path,
 ) -> None:
