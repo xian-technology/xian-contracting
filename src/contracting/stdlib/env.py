@@ -1,3 +1,4 @@
+from contracting.stdlib.builtins import exports as builtin_exports
 from xian_runtime_types.collections import exports as collection_exports
 from xian_runtime_types.decimal import exports as decimal_exports
 from xian_runtime_types.time import exports as time_exports
@@ -21,6 +22,7 @@ from contracting.stdlib.bridge.zk import exports as zk_exports
 def gather():
     env = {}
 
+    env.update(builtin_exports)
     env.update(orm_exports)
     env.update(hash_exports)
     env.update(time_exports)

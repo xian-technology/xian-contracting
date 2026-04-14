@@ -89,8 +89,6 @@ CONFORMANCE_BUILTIN_EXCLUSIONS: dict[str, str] = {
     "False": "Boolean literal, covered as syntax rather than a callable builtin.",
     "None": "None literal, covered as syntax rather than a callable builtin.",
     "import": "Contract imports are covered via import statements and importlib, not the raw builtin token.",
-    "map": "Lazy higher-order iterator semantics need dedicated VM callable/value-model support.",
-    "filter": "Lazy higher-order iterator semantics need dedicated VM callable/value-model support.",
 }
 CONFORMANCE_ENV_EXCLUSIONS: dict[str, str] = {}
 
@@ -406,6 +404,39 @@ def probe(values: list[int]):
 """,
         "function_name": "probe",
         "kwargs": {"values": [3, 1, 2]},
+    },
+    {
+        "id": "eager_higher_order_helpers",
+        "description": "map() and filter() use eager deterministic list semantics in both engines.",
+        "covers_builtins": (
+            "filter",
+            "list",
+            "map",
+            "range",
+        ),
+        "covers_env": ("filter", "map"),
+        "source": """
+def double(value: int) -> int:
+    return value * 2
+
+def add_pair(left: int, right: int) -> int:
+    return left + right
+
+def keep_even(value: int) -> bool:
+    return value % 2 == 0
+
+@export
+def probe(values: list[int]):
+    return {
+        "mapped": map(double, values),
+        "paired": map(add_pair, values, range(10, 20)),
+        "filtered": filter(keep_even, values),
+        "truthy": filter(None, [0, 1, "", "hi", False, True]),
+        "empty": map(double, []),
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {"values": [3, 1, 2, 4]},
     },
     {
         "id": "string_method_helpers",

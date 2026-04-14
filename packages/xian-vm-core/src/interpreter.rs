@@ -862,6 +862,23 @@ impl VmInstance {
         }
     }
 
+    fn call_callable_value(
+        &mut self,
+        host: &mut dyn VmHost,
+        callee: VmValue,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+    ) -> Result<VmValue, VmExecutionError> {
+        match callee {
+            VmValue::Builtin(name) => self.call_builtin(host, &name, args, kwargs),
+            VmValue::FunctionRef(name) => self.call_named_function(host, &name, args, kwargs),
+            other => Err(VmExecutionError::new(format!(
+                "value of type {} is not callable",
+                other.type_name()
+            ))),
+        }
+    }
+
     fn bind_function_arguments(
         &mut self,
         function: &FunctionIr,
@@ -1646,14 +1663,7 @@ impl VmInstance {
         }
 
         let callee = self.eval_expression(func, scope, host)?;
-        match callee {
-            VmValue::Builtin(name) => self.call_builtin(&name, args, kwargs),
-            VmValue::FunctionRef(name) => self.call_named_function(host, &name, args, kwargs),
-            other => Err(VmExecutionError::new(format!(
-                "value of type {} is not callable",
-                other.type_name()
-            ))),
-        }
+        self.call_callable_value(host, callee, args, kwargs)
     }
 
     fn eval_native_attribute_call(
@@ -2058,7 +2068,8 @@ impl VmInstance {
     }
 
     fn call_builtin(
-        &self,
+        &mut self,
+        host: &mut dyn VmHost,
         name: &str,
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
@@ -2653,6 +2664,80 @@ impl VmInstance {
                 Ok(VmValue::Bool(
                     iterate_value(&args[0])?.iter().any(VmValue::truthy),
                 ))
+            }
+            "map" => {
+                if !kwargs.is_empty() || args.len() < 2 {
+                    return Err(VmExecutionError::new(
+                        "map() must have at least two arguments",
+                    ));
+                }
+                let function = args[0].clone();
+                if function == VmValue::None {
+                    return Err(VmExecutionError::new(
+                        "map() must have a callable first argument",
+                    ));
+                }
+                if !matches!(function, VmValue::Builtin(_) | VmValue::FunctionRef(_)) {
+                    return Err(VmExecutionError::new(
+                        "map() must have a callable first argument",
+                    ));
+                }
+                let iterables = args[1..]
+                    .iter()
+                    .map(iterate_value)
+                    .collect::<Result<Vec<_>, _>>()?;
+                let length = iterables.iter().map(Vec::len).min().unwrap_or(0);
+                let mut mapped = Vec::with_capacity(length);
+                for index in 0..length {
+                    let call_args = iterables
+                        .iter()
+                        .map(|values| values[index].clone())
+                        .collect::<Vec<_>>();
+                    mapped.push(self.call_callable_value(
+                        host,
+                        function.clone(),
+                        call_args,
+                        Vec::new(),
+                    )?);
+                }
+                Ok(VmValue::List(mapped))
+            }
+            "filter" => {
+                if !kwargs.is_empty() || args.len() != 2 {
+                    return Err(VmExecutionError::new(
+                        "filter() expects two positional arguments",
+                    ));
+                }
+                let function = args[0].clone();
+                let values = iterate_value(&args[1])?;
+                let mut filtered = Vec::new();
+                if function == VmValue::None {
+                    for value in values {
+                        if value.truthy() {
+                            filtered.push(value);
+                        }
+                    }
+                    return Ok(VmValue::List(filtered));
+                }
+                if !matches!(function, VmValue::Builtin(_) | VmValue::FunctionRef(_)) {
+                    return Err(VmExecutionError::new(
+                        "filter() must have a callable first argument or None",
+                    ));
+                }
+                for value in values {
+                    if self
+                        .call_callable_value(
+                            host,
+                            function.clone(),
+                            vec![value.clone()],
+                            Vec::new(),
+                        )?
+                        .truthy()
+                    {
+                        filtered.push(value);
+                    }
+                }
+                Ok(VmValue::List(filtered))
             }
             "reversed" => {
                 if args.len() != 1 || !kwargs.is_empty() {
