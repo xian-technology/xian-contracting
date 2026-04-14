@@ -46,6 +46,8 @@ ALLOWED_BUILTINS = {
     "sorted",
     "str",
     "sum",
+    "frozenset",
+    "set",
     "tuple",
     "zip",
 }
@@ -75,11 +77,15 @@ ILLEGAL_AST_TYPES = {
 ALLOWED_ANNOTATION_TYPES = {
     "Any",
     "bool",
+    "bytearray",
+    "bytes",
     "datetime.datetime",
     "datetime.timedelta",
     "dict",
     "float",
+    "frozenset",
     "int",
     "list",
+    "set",
     "str",
 }

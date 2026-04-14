@@ -677,6 +677,10 @@ pub enum VmValue {
     DateTime(VmDateTime),
     TimeDelta(VmTimeDelta),
     String(String),
+    Bytes(Vec<u8>),
+    ByteArray(Vec<u8>),
+    Set(Vec<VmValue>),
+    FrozenSet(Vec<VmValue>),
     List(Vec<VmValue>),
     Tuple(Vec<VmValue>),
     Dict(Vec<(VmValue, VmValue)>),
@@ -700,6 +704,8 @@ impl VmValue {
             Self::DateTime(_) => true,
             Self::TimeDelta(value) => value.seconds() != 0,
             Self::String(value) => !value.is_empty(),
+            Self::Bytes(value) | Self::ByteArray(value) => !value.is_empty(),
+            Self::Set(values) | Self::FrozenSet(values) => !values.is_empty(),
             Self::List(values) | Self::Tuple(values) => !values.is_empty(),
             Self::Dict(entries) => !entries.is_empty(),
             Self::ContractHandle(_)
@@ -723,6 +729,10 @@ impl VmValue {
             Self::DateTime(value) => value.to_string(),
             Self::TimeDelta(value) => value.to_string(),
             Self::String(value) => value.clone(),
+            Self::Bytes(value) => python_bytes_repr(value),
+            Self::ByteArray(value) => python_bytearray_repr(value),
+            Self::Set(values) => python_set_repr(values),
+            Self::FrozenSet(values) => python_frozenset_repr(values),
             Self::List(values) => format!(
                 "[{}]",
                 values
@@ -820,6 +830,10 @@ impl VmValue {
             Self::DateTime(_) => "datetime",
             Self::TimeDelta(_) => "timedelta",
             Self::String(_) => "str",
+            Self::Bytes(_) => "bytes",
+            Self::ByteArray(_) => "bytearray",
+            Self::Set(_) => "set",
+            Self::FrozenSet(_) => "frozenset",
             Self::List(_) => "list",
             Self::Tuple(_) => "tuple",
             Self::Dict(_) => "dict",
@@ -888,6 +902,51 @@ fn python_exception_arg_repr(value: &VmValue) -> String {
         }
         other => other.python_repr(),
     }
+}
+
+fn python_bytes_repr(value: &[u8]) -> String {
+    format!("b'{}'", escape_python_bytes_body(value))
+}
+
+fn python_bytearray_repr(value: &[u8]) -> String {
+    format!("bytearray({})", python_bytes_repr(value))
+}
+
+fn python_set_repr(values: &[VmValue]) -> String {
+    if values.is_empty() {
+        return "set()".to_owned();
+    }
+    format!(
+        "{{{}}}",
+        values
+            .iter()
+            .map(VmValue::python_repr)
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn python_frozenset_repr(values: &[VmValue]) -> String {
+    if values.is_empty() {
+        return "frozenset()".to_owned();
+    }
+    format!("frozenset({})", python_set_repr(values))
+}
+
+fn escape_python_bytes_body(value: &[u8]) -> String {
+    let mut rendered = String::new();
+    for byte in value {
+        match byte {
+            b'\\' => rendered.push_str("\\\\"),
+            b'\'' => rendered.push_str("\\'"),
+            b'\n' => rendered.push_str("\\n"),
+            b'\r' => rendered.push_str("\\r"),
+            b'\t' => rendered.push_str("\\t"),
+            0x20..=0x7e => rendered.push(char::from(*byte)),
+            other => rendered.push_str(&format!("\\x{other:02x}")),
+        }
+    }
+    rendered
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

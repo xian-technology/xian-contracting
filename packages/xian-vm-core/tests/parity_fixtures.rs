@@ -790,6 +790,20 @@ fn json_to_vm_value(value: &Value) -> VmValue {
                         .expect("timedelta fixture value should parse"),
                 );
             }
+            if let Some(value) = values.get("__bytes__").and_then(Value::as_str) {
+                return VmValue::Bytes(hex::decode(value).expect("bytes fixture should decode"));
+            }
+            if let Some(value) = values.get("__bytearray__").and_then(Value::as_str) {
+                return VmValue::ByteArray(
+                    hex::decode(value).expect("bytearray fixture should decode"),
+                );
+            }
+            if let Some(value) = values.get("__set__").and_then(Value::as_array) {
+                return VmValue::Set(value.iter().map(json_to_vm_value).collect());
+            }
+            if let Some(value) = values.get("__frozenset__").and_then(Value::as_array) {
+                return VmValue::FrozenSet(value.iter().map(json_to_vm_value).collect());
+            }
             VmValue::Dict(
                 values
                     .iter()
@@ -852,6 +866,22 @@ fn vm_value_to_json(value: &VmValue) -> Value {
             ("seconds".to_owned(), Value::Number(value.seconds().into())),
         ])),
         VmValue::String(value) => Value::String(value.clone()),
+        VmValue::Bytes(value) => Value::Object(Map::from_iter([(
+            "__bytes__".to_owned(),
+            Value::String(hex::encode(value)),
+        )])),
+        VmValue::ByteArray(value) => Value::Object(Map::from_iter([(
+            "__bytearray__".to_owned(),
+            Value::String(hex::encode(value)),
+        )])),
+        VmValue::Set(values) => Value::Object(Map::from_iter([(
+            "__set__".to_owned(),
+            Value::Array(values.iter().map(vm_value_to_json).collect()),
+        )])),
+        VmValue::FrozenSet(values) => Value::Object(Map::from_iter([(
+            "__frozenset__".to_owned(),
+            Value::Array(values.iter().map(vm_value_to_json).collect()),
+        )])),
         VmValue::List(values) => Value::Array(values.iter().map(vm_value_to_json).collect()),
         VmValue::Tuple(values) => Value::Array(values.iter().map(vm_value_to_json).collect()),
         VmValue::Dict(entries) => {
@@ -1005,6 +1035,10 @@ fn vm_value_type_name(value: &VmValue) -> &'static str {
         VmValue::DateTime(_) => "datetime",
         VmValue::TimeDelta(_) => "timedelta",
         VmValue::String(_) => "str",
+        VmValue::Bytes(_) => "bytes",
+        VmValue::ByteArray(_) => "bytearray",
+        VmValue::Set(_) => "set",
+        VmValue::FrozenSet(_) => "frozenset",
         VmValue::List(_) => "list",
         VmValue::Tuple(_) => "tuple",
         VmValue::Dict(_) => "dict",

@@ -498,12 +498,18 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
             ensure_allowed(
                 "expression.constant.value_type",
                 expect_string_field(object, "value_type")?,
-                &["none", "bool", "int", "float", "str"],
+                &["none", "bool", "int", "float", "str", "bytes"],
             )?;
             if object.get("value_type").and_then(Value::as_str) == Some("float") {
                 ensure_non_empty(
                     "expression.constant.literal",
                     expect_string_field(object, "literal")?,
+                )?;
+            }
+            if object.get("value_type").and_then(Value::as_str) == Some("bytes") {
+                ensure_hex_string(
+                    "expression.constant.value",
+                    expect_string_field(object, "value")?,
                 )?;
             }
             Ok(())
@@ -838,6 +844,16 @@ fn ensure_hex_hash(label: &str, value: &str) -> Result<(), IrValidationError> {
     if value.len() != 64 || !value.chars().all(|ch| ch.is_ascii_hexdigit()) {
         return Err(IrValidationError::new(format!(
             "{} must be a 64-character hex string",
+            label
+        )));
+    }
+    Ok(())
+}
+
+fn ensure_hex_string(label: &str, value: &str) -> Result<(), IrValidationError> {
+    if value.len() % 2 != 0 || !value.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        return Err(IrValidationError::new(format!(
+            "{} must be an even-length hex string",
             label
         )));
     }

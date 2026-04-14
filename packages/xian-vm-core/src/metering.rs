@@ -295,6 +295,45 @@ fn vm_value_to_json(value: &VmValue) -> Result<Value, VmExecutionError> {
             Value::Object(object)
         }
         VmValue::String(value) => Value::String(value.clone()),
+        VmValue::Bytes(value) => {
+            let mut object = Map::new();
+            object.insert("__bytes__".to_owned(), Value::String(hex::encode(value)));
+            Value::Object(object)
+        }
+        VmValue::ByteArray(value) => {
+            let mut object = Map::new();
+            object.insert(
+                "__bytearray__".to_owned(),
+                Value::String(hex::encode(value)),
+            );
+            Value::Object(object)
+        }
+        VmValue::Set(values) => {
+            let mut object = Map::new();
+            object.insert(
+                "__set__".to_owned(),
+                Value::Array(
+                    values
+                        .iter()
+                        .map(vm_value_to_json)
+                        .collect::<Result<Vec<_>, _>>()?,
+                ),
+            );
+            Value::Object(object)
+        }
+        VmValue::FrozenSet(values) => {
+            let mut object = Map::new();
+            object.insert(
+                "__frozenset__".to_owned(),
+                Value::Array(
+                    values
+                        .iter()
+                        .map(vm_value_to_json)
+                        .collect::<Result<Vec<_>, _>>()?,
+                ),
+            );
+            Value::Object(object)
+        }
         VmValue::List(values) | VmValue::Tuple(values) => Value::Array(
             values
                 .iter()

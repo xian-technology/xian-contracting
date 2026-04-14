@@ -9,7 +9,7 @@ use num_bigint::BigInt;
 use pyo3::create_exception;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyDict, PyList, PyModule, PyTuple};
+use pyo3::types::{PyAny, PyByteArray, PyBytes, PyDict, PyList, PyModule, PyTuple};
 use serde_json::{json, Value as JsonValue};
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -432,8 +432,42 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
         }
         return Ok(VmValue::Dict(entries));
     }
+    if value.is_instance_of::<PyBytes>() {
+        let bytes = value
+            .downcast::<PyBytes>()
+            .map_err(|error| VmExecutionError::new(error.to_string()))?;
+        return Ok(VmValue::Bytes(bytes.as_bytes().to_vec()));
+    }
+    if value.is_instance_of::<PyByteArray>() {
+        let bytes = value
+            .downcast::<PyByteArray>()
+            .map_err(|error| VmExecutionError::new(error.to_string()))?;
+        return Ok(VmValue::ByteArray(bytes.to_vec()?));
+    }
     if let Some((module, name)) = python_class_path(&value) {
         match (module.as_str(), name.as_str()) {
+            ("xian_runtime_types.collections", "ContractingSet") => {
+                let values = value
+                    .try_iter()
+                    .map_err(|error| VmExecutionError::new(error.to_string()))?
+                    .map(|item| {
+                        item.map_err(|error| VmExecutionError::new(error.to_string()))
+                            .and_then(py_to_vm)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                return Ok(VmValue::Set(values));
+            }
+            ("xian_runtime_types.collections", "ContractingFrozenSet") => {
+                let values = value
+                    .try_iter()
+                    .map_err(|error| VmExecutionError::new(error.to_string()))?
+                    .map(|item| {
+                        item.map_err(|error| VmExecutionError::new(error.to_string()))
+                            .and_then(py_to_vm)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                return Ok(VmValue::FrozenSet(values));
+            }
             ("xian_runtime_types.decimal", "ContractingDecimal") => {
                 return Ok(VmValue::Decimal(VmDecimal::from_str_literal(
                     value
@@ -536,6 +570,27 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<PyObject> {
                 .unbind())
         }
         VmValue::String(value) => Ok(value.clone().into_pyobject(py)?.into_any().unbind()),
+        VmValue::Bytes(value) => Ok(PyBytes::new(py, value).into_any().unbind()),
+        VmValue::ByteArray(value) => Ok(PyByteArray::new(py, value).into_any().unbind()),
+        VmValue::Set(values) => {
+            let module = PyModule::import(py, "xian_runtime_types.collections")?;
+            let list = PyList::empty(py);
+            for item in values {
+                list.append(vm_to_py(py, item)?)?;
+            }
+            Ok(module.getattr("ContractingSet")?.call1((list,))?.unbind())
+        }
+        VmValue::FrozenSet(values) => {
+            let module = PyModule::import(py, "xian_runtime_types.collections")?;
+            let list = PyList::empty(py);
+            for item in values {
+                list.append(vm_to_py(py, item)?)?;
+            }
+            Ok(module
+                .getattr("ContractingFrozenSet")?
+                .call1((list,))?
+                .unbind())
+        }
         VmValue::List(values) => {
             let list = PyList::empty(py);
             for item in values {

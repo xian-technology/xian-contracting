@@ -4,6 +4,7 @@ import decimal
 from pathlib import Path
 
 import pytest
+from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime, Timedelta
 
@@ -44,6 +45,14 @@ def _normalize(value):
         return {"__datetime__": str(value)}
     if isinstance(value, Timedelta):
         return {"__timedelta__": str(value)}
+    if isinstance(value, bytes):
+        return {"__bytes__": value.hex()}
+    if isinstance(value, bytearray):
+        return {"__bytearray__": value.hex()}
+    if isinstance(value, ContractingSet):
+        return {"__set__": [_normalize(item) for item in value]}
+    if isinstance(value, ContractingFrozenSet):
+        return {"__frozenset__": [_normalize(item) for item in value]}
     if isinstance(value, dict):
         return {str(key): _normalize(item) for key, item in sorted(value.items())}
     if isinstance(value, (list, tuple)):

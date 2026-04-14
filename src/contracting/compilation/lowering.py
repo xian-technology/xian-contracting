@@ -1181,6 +1181,13 @@ class XianIrLowerer:
             )
         if isinstance(value, str):
             return self._node("constant", node, value_type="str", value=value)
+        if isinstance(value, bytes):
+            return self._node(
+                "constant",
+                node,
+                value_type="bytes",
+                value=value.hex(),
+            )
         self._raise_unsupported(
             node,
             f"unsupported constant '{type(value).__name__}' in Xian IR",

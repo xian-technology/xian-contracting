@@ -1,3 +1,4 @@
+from xian_runtime_types.collections import exports as collection_exports
 from xian_runtime_types.decimal import exports as decimal_exports
 from xian_runtime_types.time import exports as time_exports
 
@@ -27,6 +28,7 @@ def gather():
     env.update(imports_exports)
     env.update(access_exports)
     env.update(decimal_exports)
+    env.update(collection_exports)
     env.update(crypto_exports)
     env.update(zk_exports)
 

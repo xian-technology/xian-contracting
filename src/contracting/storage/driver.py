@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from cachetools import TTLCache
+from xian_runtime_types.collections import ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.encoding import encode_kv
 from xian_runtime_types.time import Datetime
@@ -33,7 +34,7 @@ INITIATOR_KEY = "__initiator__"
 
 
 def _copy_mutable_value(value):
-    if isinstance(value, (list, dict)):
+    if isinstance(value, (list, dict, bytearray, ContractingSet)):
         return deepcopy(value)
     return value
 

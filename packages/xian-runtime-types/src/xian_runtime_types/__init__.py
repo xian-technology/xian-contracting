@@ -1,3 +1,7 @@
+from xian_runtime_types.collections import (
+    ContractingFrozenSet,
+    ContractingSet,
+)
 from xian_runtime_types.decimal import (
     CONTEXT,
     MAX_DECIMAL,
@@ -38,6 +42,8 @@ from xian_runtime_types.time import (
 
 __all__ = [
     "CONTEXT",
+    "ContractingFrozenSet",
+    "ContractingSet",
     "MAX_DECIMAL",
     "MAX_LOWER_PRECISION",
     "MAX_UPPER_PRECISION",

@@ -25,6 +25,8 @@ _TRACKED_CALL_FEATURES = {
     "reversed",
     "sorted",
     "sum",
+    "set",
+    "frozenset",
     "zip",
 }
 _DISALLOWED_CALLS: set[str] = set()

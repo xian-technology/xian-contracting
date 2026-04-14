@@ -1566,6 +1566,11 @@ impl VmInstance {
             "str" => Ok(VmValue::String(
                 required_string(object, "value")?.to_owned(),
             )),
+            "bytes" => Ok(VmValue::Bytes(
+                hex::decode(required_string(object, "value")?).map_err(|error| {
+                    VmExecutionError::new(format!("invalid bytes constant: {error}"))
+                })?,
+            )),
             other => Err(VmExecutionError::new(format!(
                 "unsupported constant value_type '{other}'"
             ))),
@@ -2065,7 +2070,11 @@ impl VmInstance {
                 }
                 match &args[0] {
                     VmValue::String(value) => Ok(vm_int(value.chars().count())),
-                    VmValue::List(values) | VmValue::Tuple(values) => Ok(vm_int(values.len())),
+                    VmValue::Bytes(value) | VmValue::ByteArray(value) => Ok(vm_int(value.len())),
+                    VmValue::List(values)
+                    | VmValue::Tuple(values)
+                    | VmValue::Set(values)
+                    | VmValue::FrozenSet(values) => Ok(vm_int(values.len())),
                     VmValue::Dict(entries) => Ok(vm_int(entries.len())),
                     other => Err(VmExecutionError::new(format!(
                         "len() does not support {}",
@@ -2112,6 +2121,115 @@ impl VmInstance {
                     return Err(VmExecutionError::new("str() expects one argument"));
                 }
                 Ok(VmValue::String(args[0].python_repr()))
+            }
+            "bytes" => {
+                if !kwargs.is_empty() || args.len() > 3 {
+                    return Err(VmExecutionError::new(
+                        "bytes() expects between zero and three positional arguments",
+                    ));
+                }
+                match args.as_slice() {
+                    [] => Ok(VmValue::Bytes(Vec::new())),
+                    [VmValue::String(_value)] => {
+                        Err(VmExecutionError::new("string argument without an encoding"))
+                    }
+                    [VmValue::String(value), encoding] | [VmValue::String(value), encoding, _] => {
+                        let encoding = encoding.as_string()?.to_lowercase();
+                        match encoding.as_str() {
+                            "utf-8" | "utf8" => Ok(VmValue::Bytes(value.as_bytes().to_vec())),
+                            "ascii" => {
+                                if !value.is_ascii() {
+                                    return Err(VmExecutionError::new(
+                                        "'ascii' codec can't encode characters outside ASCII range",
+                                    ));
+                                }
+                                Ok(VmValue::Bytes(value.as_bytes().to_vec()))
+                            }
+                            other => Err(VmExecutionError::new(format!(
+                                "unsupported bytes() encoding '{other}'",
+                            ))),
+                        }
+                    }
+                    [VmValue::Int(size)] => {
+                        if size.sign() == Sign::Minus {
+                            return Err(VmExecutionError::new("negative count"));
+                        }
+                        Ok(VmValue::Bytes(vec![
+                            0;
+                            bigint_to_usize(size, "bytes() size")?
+                        ]))
+                    }
+                    [value] => Ok(VmValue::Bytes(clone_as_bytes_like(value)?)),
+                    _ => Err(VmExecutionError::new("encoding without a string argument")),
+                }
+            }
+            "bytearray" => {
+                if !kwargs.is_empty() || args.len() > 3 {
+                    return Err(VmExecutionError::new(
+                        "bytearray() expects between zero and three positional arguments",
+                    ));
+                }
+                match args.as_slice() {
+                    [] => Ok(VmValue::ByteArray(Vec::new())),
+                    [VmValue::String(_value)] => {
+                        Err(VmExecutionError::new("string argument without an encoding"))
+                    }
+                    [VmValue::String(value), encoding] | [VmValue::String(value), encoding, _] => {
+                        let encoding = encoding.as_string()?.to_lowercase();
+                        match encoding.as_str() {
+                            "utf-8" | "utf8" => Ok(VmValue::ByteArray(value.as_bytes().to_vec())),
+                            "ascii" => {
+                                if !value.is_ascii() {
+                                    return Err(VmExecutionError::new(
+                                        "'ascii' codec can't encode characters outside ASCII range",
+                                    ));
+                                }
+                                Ok(VmValue::ByteArray(value.as_bytes().to_vec()))
+                            }
+                            other => Err(VmExecutionError::new(format!(
+                                "unsupported bytearray() encoding '{other}'",
+                            ))),
+                        }
+                    }
+                    [VmValue::Int(size)] => {
+                        if size.sign() == Sign::Minus {
+                            return Err(VmExecutionError::new("negative count"));
+                        }
+                        Ok(VmValue::ByteArray(vec![
+                            0;
+                            bigint_to_usize(
+                                size,
+                                "bytearray() size"
+                            )?
+                        ]))
+                    }
+                    [value] => Ok(VmValue::ByteArray(clone_as_bytes_like(value)?)),
+                    _ => Err(VmExecutionError::new("encoding without a string argument")),
+                }
+            }
+            "set" => {
+                if !kwargs.is_empty() || args.len() > 1 {
+                    return Err(VmExecutionError::new("set() expects at most one argument"));
+                }
+                let values = match args.as_slice() {
+                    [] => Vec::new(),
+                    [value] => iterate_value(value)?,
+                    _ => unreachable!(),
+                };
+                Ok(VmValue::Set(normalize_set_items(values)?))
+            }
+            "frozenset" => {
+                if !kwargs.is_empty() || args.len() > 1 {
+                    return Err(VmExecutionError::new(
+                        "frozenset() expects at most one argument",
+                    ));
+                }
+                let values = match args.as_slice() {
+                    [] => Vec::new(),
+                    [value] => iterate_value(value)?,
+                    _ => unreachable!(),
+                };
+                Ok(VmValue::FrozenSet(normalize_set_items(values)?))
             }
             "bool" => {
                 if !kwargs.is_empty() || args.len() != 1 {
@@ -2173,6 +2291,17 @@ impl VmInstance {
                     (VmValue::String(value), None) => {
                         BigInt::from_str(value).map(VmValue::Int).map_err(|_| {
                             VmExecutionError::new(format!("cannot convert '{value}' to int"))
+                        })
+                    }
+                    (VmValue::Bytes(value), None) | (VmValue::ByteArray(value), None) => {
+                        let rendered = String::from_utf8(value.clone()).map_err(|_| {
+                            VmExecutionError::new("cannot convert non-text bytes to int")
+                        })?;
+                        BigInt::from_str(&rendered).map(VmValue::Int).map_err(|_| {
+                            VmExecutionError::new(format!(
+                                "cannot convert '{}' to int",
+                                String::from_utf8_lossy(value)
+                            ))
                         })
                     }
                     (other, None) => Err(VmExecutionError::new(format!(
@@ -2259,6 +2388,17 @@ impl VmInstance {
                             VmExecutionError::new(format!("cannot convert '{value}' to float"))
                         })
                     }
+                    VmValue::Bytes(value) | VmValue::ByteArray(value) => {
+                        let rendered = String::from_utf8(value.clone()).map_err(|_| {
+                            VmExecutionError::new("cannot convert non-text bytes to float")
+                        })?;
+                        rendered.parse::<f64>().map(VmValue::Float).map_err(|_| {
+                            VmExecutionError::new(format!(
+                                "cannot convert '{}' to float",
+                                String::from_utf8_lossy(value)
+                            ))
+                        })
+                    }
                     other => Err(VmExecutionError::new(format!(
                         "float() does not support {}",
                         other.type_name()
@@ -2284,6 +2424,15 @@ impl VmInstance {
                         }
                         Ok(vm_int(u32::from(first)))
                     }
+                    VmValue::Bytes(value) | VmValue::ByteArray(value) => match value.as_slice() {
+                        [byte] => Ok(vm_int(*byte)),
+                        [] => Err(VmExecutionError::new(
+                            "ord() expected a character, but string was empty",
+                        )),
+                        _ => Err(VmExecutionError::new(
+                            "ord() expected a character, but string of length > 1 found",
+                        )),
+                    },
                     other => Err(VmExecutionError::new(format!(
                         "ord() does not support {}",
                         other.type_name()

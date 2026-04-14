@@ -6,6 +6,8 @@ import ast
 from types import ModuleType
 from typing import Any
 
+from xian_runtime_types.collections import ContractingFrozenSet
+
 from contracting.compilation.ir import HOST_BINDINGS, XIAN_VM_HOST_CATALOG_V1
 from contracting.compilation.lowering import (
     XIAN_IR_V1_BIN_OPS,
@@ -87,8 +89,6 @@ CONFORMANCE_BUILTIN_EXCLUSIONS: dict[str, str] = {
     "False": "Boolean literal, covered as syntax rather than a callable builtin.",
     "None": "None literal, covered as syntax rather than a callable builtin.",
     "import": "Contract imports are covered via import statements and importlib, not the raw builtin token.",
-    "bytes": "Binary value parity needs a dedicated VM value type and serialization coverage.",
-    "bytearray": "Mutable binary value parity needs a dedicated VM value type and serialization coverage.",
     "map": "Lazy higher-order iterator semantics need dedicated VM callable/value-model support.",
     "filter": "Lazy higher-order iterator semantics need dedicated VM callable/value-model support.",
 }
@@ -125,6 +125,111 @@ def covered_conformance_surface() -> dict[str, set[str]]:
     return {"builtins": builtins, "env": env}
 
 CONTRACT_LANGUAGE_CONFORMANCE_CASES: tuple[dict[str, Any], ...] = (
+    {
+        "id": "binary_values",
+        "description": "bytes/bytearray values behave like the Python VM and round-trip through storage.",
+        "covers_builtins": (
+            "bytearray",
+            "bytes",
+            "dict",
+            "format",
+            "isinstance",
+            "len",
+            "list",
+            "ord",
+        ),
+        "covers_env": ("Variable",),
+        "source": """
+payload = Variable()
+
+def mutate(value: bytearray) -> bytearray:
+    value.append(100)
+    value[1] = 122
+    value.extend([101, 102])
+    tail = value.pop()
+    assert tail == 102
+    return value
+
+@export
+def probe(seed: bytes) -> dict:
+    literal = b"abc"
+    frozen = bytes(seed)
+    zeros = bytes(3)
+    mutable = mutate(bytearray(frozen))
+    payload.set(mutable.copy())
+    stored = payload.get()
+    return {
+        "literal": literal,
+        "frozen": frozen,
+        "zeros": zeros,
+        "stored": stored,
+        "index": literal[1],
+        "slice": literal[1:],
+        "contains_int": 122 in stored,
+        "contains_seq": b"zc" in stored,
+        "is_bytes": isinstance(frozen, bytes),
+        "is_bytearray": isinstance(stored, bytearray),
+        "repeat": bytearray(b"ab") * 2,
+        "iter": list(literal),
+        "ord": ord(b"A"),
+        "format": format(b"A"),
+        "hex": stored.hex(),
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {"seed": b"abc"},
+    },
+    {
+        "id": "deterministic_sets",
+        "description": "Deterministic set/frozenset values behave like the Python VM contract surface.",
+        "covers_builtins": (
+            "frozenset",
+            "isinstance",
+            "list",
+            "set",
+        ),
+        "covers_env": ("Variable", "frozenset", "set"),
+        "source": """
+payload = Variable()
+
+@export(typecheck=True)
+def probe(seed: list[int], markers: frozenset[int]) -> dict:
+    mutable = set(seed)
+    mutable.add(7)
+    mutable.remove(7)
+    mutable.add(7)
+    mutable.discard(99)
+    removed = mutable.pop()
+    mutable.add(removed)
+    payload.set(mutable.copy())
+    stored = payload.get()
+    frozen = frozenset(stored)
+    return {
+        "stored": stored,
+        "frozen": frozen,
+        "union": stored.union((9, 1)),
+        "intersection": stored.intersection((1, 7, 11)),
+        "difference": stored.difference((1,)),
+        "symmetric_difference": stored.symmetric_difference((7, 11)),
+        "issubset": set((1, 3)) <= stored,
+        "strict_subset": set((1,)) < stored,
+        "issuperset": stored >= set((1,)),
+        "isdisjoint": stored.isdisjoint((42,)),
+        "contains": 7 in stored,
+        "iter": list(stored),
+        "copy": stored.copy(),
+        "is_set": isinstance(stored, set),
+        "is_frozenset": isinstance(frozen, frozenset),
+        "marker_copy": markers.copy(),
+        "marker_union": markers.union((9,)),
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {
+            "seed": [5, 1, 3],
+            "markers": ContractingFrozenSet((1, 3)),
+        },
+    },
     {
         "id": "bitwise_integer_ops",
         "description": "Bitwise operators and unary invert behave like the Python VM.",

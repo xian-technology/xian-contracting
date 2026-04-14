@@ -2,10 +2,10 @@ use super::*;
 
 pub(super) fn builtin_name_value(name: &str) -> Option<VmValue> {
     match name {
-        "len" | "range" | "str" | "bool" | "int" | "float" | "dict" | "list" | "tuple"
-        | "isinstance" | "issubclass" | "sorted" | "sum" | "min" | "max" | "all" | "any"
-        | "reversed" | "zip" | "pow" | "format" | "ord" | "abs" | "ascii" | "bin" | "hex"
-        | "oct" | "chr" | "divmod" | "round" | "Exception" => {
+        "len" | "range" | "str" | "bool" | "int" | "float" | "bytes" | "bytearray" | "dict"
+        | "list" | "tuple" | "set" | "frozenset" | "isinstance" | "issubclass" | "sorted"
+        | "sum" | "min" | "max" | "all" | "any" | "reversed" | "zip" | "pow" | "format" | "ord"
+        | "abs" | "ascii" | "bin" | "hex" | "oct" | "chr" | "divmod" | "round" | "Exception" => {
             Some(VmValue::Builtin(name.to_owned()))
         }
         "Any" | "decimal" => Some(VmValue::TypeMarker(name.to_owned())),
@@ -18,13 +18,265 @@ pub(super) fn coerce_type_marker(value: VmValue) -> VmValue {
         VmValue::Builtin(name)
             if matches!(
                 name.as_str(),
-                "str" | "int" | "float" | "bool" | "list" | "dict" | "tuple"
+                "str"
+                    | "int"
+                    | "float"
+                    | "bool"
+                    | "bytes"
+                    | "bytearray"
+                    | "list"
+                    | "dict"
+                    | "tuple"
+                    | "set"
+                    | "frozenset"
             ) =>
         {
             VmValue::TypeMarker(name)
         }
         other => other,
     }
+}
+
+pub(super) fn bytes_like_data(value: &VmValue) -> Option<&[u8]> {
+    match value {
+        VmValue::Bytes(bytes) | VmValue::ByteArray(bytes) => Some(bytes.as_slice()),
+        _ => None,
+    }
+}
+
+pub(super) fn clone_as_bytes_like(value: &VmValue) -> Result<Vec<u8>, VmExecutionError> {
+    match value {
+        VmValue::Bytes(bytes) | VmValue::ByteArray(bytes) => Ok(bytes.clone()),
+        VmValue::String(value) => Ok(value.as_bytes().to_vec()),
+        VmValue::List(values) | VmValue::Tuple(values) => values
+            .iter()
+            .map(byte_from_value)
+            .collect::<Result<Vec<_>, _>>(),
+        other => Err(VmExecutionError::new(format!(
+            "{} is not bytes-like",
+            other.type_name()
+        ))),
+    }
+}
+
+fn byte_from_value(value: &VmValue) -> Result<u8, VmExecutionError> {
+    let bigint = match value {
+        VmValue::Int(value) => value.clone(),
+        VmValue::Bool(value) => {
+            if *value {
+                BigInt::from(1u8)
+            } else {
+                BigInt::from(0u8)
+            }
+        }
+        other => {
+            return Err(VmExecutionError::new(format!(
+                "a bytes-like object is required, not '{}'",
+                other.type_name()
+            )))
+        }
+    };
+    if bigint.sign() == Sign::Minus || bigint > BigInt::from(255u16) {
+        return Err(VmExecutionError::new("byte must be in range(0, 256)"));
+    }
+    bigint_to_u32(&bigint, "byte value").map(|value| value as u8)
+}
+
+fn bytes_like_index_value(bytes: &[u8], index: &VmValue) -> Result<VmValue, VmExecutionError> {
+    let idx = normalize_sequence_index(index, bytes.len())?;
+    Ok(vm_int(bytes[idx]))
+}
+
+fn slice_bytes_like(
+    bytes: Vec<u8>,
+    lower: Option<BigInt>,
+    upper: Option<BigInt>,
+    step: Option<BigInt>,
+    mutable: bool,
+) -> Result<VmValue, VmExecutionError> {
+    let sliced = slice_positions(bytes.len(), lower, upper, step)?
+        .into_iter()
+        .map(|index| bytes[index])
+        .collect::<Vec<_>>();
+    if mutable {
+        Ok(VmValue::ByteArray(sliced))
+    } else {
+        Ok(VmValue::Bytes(sliced))
+    }
+}
+
+fn repeat_bytes_like(bytes: &[u8], count: &BigInt) -> Result<Vec<u8>, VmExecutionError> {
+    if count.sign() == Sign::Minus {
+        return Ok(Vec::new());
+    }
+    let count = bigint_to_usize(count, "repeat count")?;
+    let mut repeated = Vec::with_capacity(bytes.len().saturating_mul(count));
+    for _ in 0..count {
+        repeated.extend_from_slice(bytes);
+    }
+    Ok(repeated)
+}
+
+fn compare_bytes_like(left: &[u8], right: &[u8]) -> std::cmp::Ordering {
+    left.cmp(right)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum VmSetKey {
+    None,
+    Bool(bool),
+    Int(BigInt),
+    Decimal(BigInt),
+    Float(String),
+    DateTime((i64, i64, i64, i64, i64, i64, i64)),
+    TimeDelta(i64),
+    String(String),
+    Bytes(Vec<u8>),
+    Tuple(Vec<VmSetKey>),
+    FrozenSet(Vec<VmSetKey>),
+}
+
+pub(super) fn set_like_values(value: &VmValue) -> Option<&[VmValue]> {
+    match value {
+        VmValue::Set(values) | VmValue::FrozenSet(values) => Some(values.as_slice()),
+        _ => None,
+    }
+}
+
+pub(super) fn normalize_set_items(values: Vec<VmValue>) -> Result<Vec<VmValue>, VmExecutionError> {
+    let mut normalized: Vec<(VmValue, VmSetKey)> = Vec::new();
+    for value in values {
+        let key = vm_set_key(&value)?;
+        let mut matched_index = None;
+        for (index, (existing, _)) in normalized.iter().enumerate() {
+            if vm_values_equal(existing, &value)? {
+                matched_index = Some(index);
+                break;
+            }
+        }
+        if let Some(index) = matched_index {
+            if key < normalized[index].1 {
+                normalized[index] = (value, key);
+            }
+        } else {
+            normalized.push((value, key));
+        }
+    }
+    normalized.sort_by(|left, right| left.1.cmp(&right.1));
+    Ok(normalized.into_iter().map(|(value, _)| value).collect())
+}
+
+fn vm_set_key(value: &VmValue) -> Result<VmSetKey, VmExecutionError> {
+    match value {
+        VmValue::None => Ok(VmSetKey::None),
+        VmValue::Bool(value) => Ok(VmSetKey::Bool(*value)),
+        VmValue::Int(value) => Ok(VmSetKey::Int(value.clone())),
+        VmValue::Decimal(value) => Ok(VmSetKey::Decimal(value.scaled.clone())),
+        VmValue::Float(value) => Ok(VmSetKey::Float(format!("{value:?}"))),
+        VmValue::DateTime(value) => Ok(VmSetKey::DateTime((
+            value.year(),
+            value.month(),
+            value.day(),
+            value.hour(),
+            value.minute(),
+            value.second(),
+            value.microsecond(),
+        ))),
+        VmValue::TimeDelta(value) => Ok(VmSetKey::TimeDelta(value.seconds())),
+        VmValue::String(value) => Ok(VmSetKey::String(value.clone())),
+        VmValue::Bytes(value) => Ok(VmSetKey::Bytes(value.clone())),
+        VmValue::Tuple(values) => Ok(VmSetKey::Tuple(
+            values
+                .iter()
+                .map(vm_set_key)
+                .collect::<Result<Vec<_>, _>>()?,
+        )),
+        VmValue::FrozenSet(values) => Ok(VmSetKey::FrozenSet(
+            values
+                .iter()
+                .map(vm_set_key)
+                .collect::<Result<Vec<_>, _>>()?,
+        )),
+        other => Err(VmExecutionError::new(format!(
+            "unhashable type: '{}'",
+            other.type_name()
+        ))),
+    }
+}
+
+fn set_contains_value(values: &[VmValue], needle: &VmValue) -> Result<bool, VmExecutionError> {
+    for value in values {
+        if vm_values_equal(value, needle)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn set_values_equal(left: &[VmValue], right: &[VmValue]) -> Result<bool, VmExecutionError> {
+    if left.len() != right.len() {
+        return Ok(false);
+    }
+    for value in left {
+        if !set_contains_value(right, value)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn set_is_subset(left: &[VmValue], right: &[VmValue]) -> Result<bool, VmExecutionError> {
+    for value in left {
+        if !set_contains_value(right, value)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn set_union_values(left: &[VmValue], right: &[VmValue]) -> Vec<VmValue> {
+    let mut values = left.to_vec();
+    values.extend(right.iter().cloned());
+    values
+}
+
+fn set_intersection_values(
+    left: &[VmValue],
+    right: &[VmValue],
+) -> Result<Vec<VmValue>, VmExecutionError> {
+    let mut values = Vec::new();
+    for value in left {
+        if set_contains_value(right, value)? {
+            values.push(value.clone());
+        }
+    }
+    Ok(values)
+}
+
+fn set_difference_values(
+    left: &[VmValue],
+    right: &[VmValue],
+) -> Result<Vec<VmValue>, VmExecutionError> {
+    let mut values = Vec::new();
+    for value in left {
+        if !set_contains_value(right, value)? {
+            values.push(value.clone());
+        }
+    }
+    Ok(values)
+}
+
+fn set_symmetric_difference_values(
+    left: &[VmValue],
+    right: &[VmValue],
+) -> Result<Vec<VmValue>, VmExecutionError> {
+    let mut values = set_difference_values(left, right)?;
+    for value in right {
+        if !set_contains_value(left, value)? {
+            values.push(value.clone());
+        }
+    }
+    Ok(values)
 }
 
 pub(super) fn apply_binary_operator(
@@ -69,6 +321,22 @@ pub(super) fn apply_binary_operator(
             (VmValue::Float(left), VmValue::Int(right)) => Ok(VmValue::Float(
                 left + bigint_to_f64(&right, "right int operand")?,
             )),
+            (VmValue::Bytes(mut left), VmValue::Bytes(right)) => {
+                left.extend(right);
+                Ok(VmValue::Bytes(left))
+            }
+            (VmValue::Bytes(mut left), VmValue::ByteArray(right)) => {
+                left.extend(right);
+                Ok(VmValue::Bytes(left))
+            }
+            (VmValue::ByteArray(mut left), VmValue::Bytes(right)) => {
+                left.extend(right);
+                Ok(VmValue::ByteArray(left))
+            }
+            (VmValue::ByteArray(mut left), VmValue::ByteArray(right)) => {
+                left.extend(right);
+                Ok(VmValue::ByteArray(left))
+            }
             (VmValue::String(left), VmValue::String(right)) => Ok(VmValue::String(left + &right)),
             (VmValue::List(mut left), VmValue::List(right)) => {
                 left.extend(right);
@@ -108,6 +376,18 @@ pub(super) fn apply_binary_operator(
             (VmValue::Float(left), VmValue::Int(right)) => Ok(VmValue::Float(
                 left - bigint_to_f64(&right, "right int operand")?,
             )),
+            (VmValue::Set(values), right) if set_like_values(&right).is_some() => {
+                let right = set_like_values(&right).expect("checked above");
+                Ok(VmValue::Set(normalize_set_items(set_difference_values(
+                    &values, right,
+                )?)?))
+            }
+            (VmValue::FrozenSet(values), right) if set_like_values(&right).is_some() => {
+                let right = set_like_values(&right).expect("checked above");
+                Ok(VmValue::FrozenSet(normalize_set_items(
+                    set_difference_values(&values, right)?,
+                )?))
+            }
             (left, right) => Err(VmExecutionError::new(format!(
                 "unsupported sub operands {} and {}",
                 left.type_name(),
@@ -141,6 +421,14 @@ pub(super) fn apply_binary_operator(
             }
             (VmValue::Int(count), VmValue::String(value)) => {
                 Ok(VmValue::String(repeat_string(&value, &count)?))
+            }
+            (VmValue::Bytes(bytes), VmValue::Int(count))
+            | (VmValue::Int(count), VmValue::Bytes(bytes)) => {
+                Ok(VmValue::Bytes(repeat_bytes_like(&bytes, &count)?))
+            }
+            (VmValue::ByteArray(bytes), VmValue::Int(count))
+            | (VmValue::Int(count), VmValue::ByteArray(bytes)) => {
+                Ok(VmValue::ByteArray(repeat_bytes_like(&bytes, &count)?))
             }
             (VmValue::Decimal(left), VmValue::Decimal(right)) => {
                 Ok(VmValue::Decimal(left.mul(&right)?))
@@ -263,14 +551,50 @@ pub(super) fn apply_binary_operator(
         },
         "bitand" => match (left, right) {
             (VmValue::Bool(left), VmValue::Bool(right)) => Ok(VmValue::Bool(left & right)),
+            (VmValue::Set(values), right) if set_like_values(&right).is_some() => {
+                let right = set_like_values(&right).expect("checked above");
+                Ok(VmValue::Set(normalize_set_items(set_intersection_values(
+                    &values, right,
+                )?)?))
+            }
+            (VmValue::FrozenSet(values), right) if set_like_values(&right).is_some() => {
+                let right = set_like_values(&right).expect("checked above");
+                Ok(VmValue::FrozenSet(normalize_set_items(
+                    set_intersection_values(&values, right)?,
+                )?))
+            }
             (left, right) => Ok(VmValue::Int(left.as_bigint()? & right.as_bigint()?)),
         },
         "bitor" => match (left, right) {
             (VmValue::Bool(left), VmValue::Bool(right)) => Ok(VmValue::Bool(left | right)),
+            (VmValue::Set(values), right) if set_like_values(&right).is_some() => {
+                let right = set_like_values(&right).expect("checked above");
+                Ok(VmValue::Set(normalize_set_items(set_union_values(
+                    &values, right,
+                ))?))
+            }
+            (VmValue::FrozenSet(values), right) if set_like_values(&right).is_some() => {
+                let right = set_like_values(&right).expect("checked above");
+                Ok(VmValue::FrozenSet(normalize_set_items(set_union_values(
+                    &values, right,
+                ))?))
+            }
             (left, right) => Ok(VmValue::Int(left.as_bigint()? | right.as_bigint()?)),
         },
         "bitxor" => match (left, right) {
             (VmValue::Bool(left), VmValue::Bool(right)) => Ok(VmValue::Bool(left ^ right)),
+            (VmValue::Set(values), right) if set_like_values(&right).is_some() => {
+                let right = set_like_values(&right).expect("checked above");
+                Ok(VmValue::Set(normalize_set_items(
+                    set_symmetric_difference_values(&values, right)?,
+                )?))
+            }
+            (VmValue::FrozenSet(values), right) if set_like_values(&right).is_some() => {
+                let right = set_like_values(&right).expect("checked above");
+                Ok(VmValue::FrozenSet(normalize_set_items(
+                    set_symmetric_difference_values(&values, right)?,
+                )?))
+            }
             (left, right) => Ok(VmValue::Int(left.as_bigint()? ^ right.as_bigint()?)),
         },
         "lshift" => {
@@ -329,6 +653,26 @@ pub(super) fn apply_compare_operator(
     match operator {
         "eq" => vm_values_equal(left, right),
         "not_eq" => Ok(!vm_values_equal(left, right)?),
+        "gt" if set_like_values(left).is_some() && set_like_values(right).is_some() => {
+            let left = set_like_values(left).expect("checked above");
+            let right = set_like_values(right).expect("checked above");
+            Ok(left.len() > right.len() && set_is_subset(right, left)?)
+        }
+        "gt_e" if set_like_values(left).is_some() && set_like_values(right).is_some() => {
+            let left = set_like_values(left).expect("checked above");
+            let right = set_like_values(right).expect("checked above");
+            set_is_subset(right, left)
+        }
+        "lt" if set_like_values(left).is_some() && set_like_values(right).is_some() => {
+            let left = set_like_values(left).expect("checked above");
+            let right = set_like_values(right).expect("checked above");
+            Ok(left.len() < right.len() && set_is_subset(left, right)?)
+        }
+        "lt_e" if set_like_values(left).is_some() && set_like_values(right).is_some() => {
+            let left = set_like_values(left).expect("checked above");
+            let right = set_like_values(right).expect("checked above");
+            set_is_subset(left, right)
+        }
         "gt" => compare_ord(left, right, |left, right| left > right),
         "gt_e" => compare_ord(left, right, |left, right| left >= right),
         "lt" => compare_ord(left, right, |left, right| left < right),
@@ -379,6 +723,16 @@ where
             Ok(op(*left, bigint_to_f64(right, "right int operand")?))
         }
         (VmValue::String(left), VmValue::String(right)) => Ok(op_string(left, right, &op)),
+        (left, right) if bytes_like_data(left).is_some() && bytes_like_data(right).is_some() => {
+            let left = bytes_like_data(left).expect("checked above");
+            let right = bytes_like_data(right).expect("checked above");
+            let score = match compare_bytes_like(left, right) {
+                std::cmp::Ordering::Greater => 1.0,
+                std::cmp::Ordering::Equal => 0.0,
+                std::cmp::Ordering::Less => -1.0,
+            };
+            Ok(op(score, 0.0))
+        }
         (left, right) => Err(VmExecutionError::new(format!(
             "values {} and {} are not order-comparable",
             left.type_name(),
@@ -615,6 +969,9 @@ pub(super) fn crypto_key_is_valid(
 }
 
 pub(super) fn hash_bytes_from_value(value: &VmValue) -> Result<Vec<u8>, VmExecutionError> {
+    if let Some(bytes) = bytes_like_data(value) {
+        return Ok(bytes.to_vec());
+    }
     let input = value.as_string()?;
     match hex::decode(&input) {
         Ok(bytes) => Ok(bytes),
@@ -654,7 +1011,13 @@ pub(super) fn format_builtin_value(
     match value {
         VmValue::Int(value) => format_bigint(value, spec),
         VmValue::String(value) if spec.is_empty() => Ok(value.clone()),
-        VmValue::Bool(_) | VmValue::Float(_) | VmValue::Decimal(_) if spec.is_empty() => {
+        VmValue::Bool(_)
+        | VmValue::Float(_)
+        | VmValue::Decimal(_)
+        | VmValue::Bytes(_)
+        | VmValue::ByteArray(_)
+            if spec.is_empty() =>
+        {
             Ok(value.python_repr())
         }
         other => Err(VmExecutionError::new(format!(
@@ -1117,6 +1480,316 @@ pub(super) fn call_native_method(
                 other
             ))),
         },
+        VmValue::Bytes(value) => match method {
+            "hex" => match args.as_slice() {
+                [] => Ok(NativeMethodResult::Value(VmValue::String(hex::encode(
+                    value,
+                )))),
+                _ => Err(VmExecutionError::new("bytes.hex() expects no arguments")),
+            },
+            other => Err(VmExecutionError::new(format!(
+                "unsupported bytes method '{}()'",
+                other
+            ))),
+        },
+        VmValue::ByteArray(mut value) => match method {
+            "hex" => match args.as_slice() {
+                [] => Ok(NativeMethodResult::Value(VmValue::String(hex::encode(
+                    &value,
+                )))),
+                _ => Err(VmExecutionError::new(
+                    "bytearray.hex() expects no arguments",
+                )),
+            },
+            "append" => {
+                if args.len() != 1 {
+                    return Err(VmExecutionError::new(
+                        "bytearray.append() expects one argument",
+                    ));
+                }
+                value.push(byte_from_value(&args[0])?);
+                Ok(NativeMethodResult::Mutated {
+                    receiver: VmValue::ByteArray(value),
+                    value: VmValue::None,
+                })
+            }
+            "extend" => {
+                if args.len() != 1 {
+                    return Err(VmExecutionError::new(
+                        "bytearray.extend() expects one argument",
+                    ));
+                }
+                let bytes = iterate_value(&args[0])?
+                    .iter()
+                    .map(byte_from_value)
+                    .collect::<Result<Vec<_>, _>>()?;
+                value.extend(bytes);
+                Ok(NativeMethodResult::Mutated {
+                    receiver: VmValue::ByteArray(value),
+                    value: VmValue::None,
+                })
+            }
+            "pop" => {
+                let index = match args.as_slice() {
+                    [] => value
+                        .len()
+                        .checked_sub(1)
+                        .ok_or_else(|| VmExecutionError::new("pop from empty bytearray"))?,
+                    [index] => normalize_sequence_index(index, value.len())?,
+                    _ => {
+                        return Err(VmExecutionError::new(
+                            "bytearray.pop() accepts at most one argument",
+                        ))
+                    }
+                };
+                let popped = value.remove(index);
+                Ok(NativeMethodResult::Mutated {
+                    receiver: VmValue::ByteArray(value),
+                    value: vm_int(popped),
+                })
+            }
+            "clear" => {
+                if !args.is_empty() {
+                    return Err(VmExecutionError::new(
+                        "bytearray.clear() expects no arguments",
+                    ));
+                }
+                value.clear();
+                Ok(NativeMethodResult::Mutated {
+                    receiver: VmValue::ByteArray(value),
+                    value: VmValue::None,
+                })
+            }
+            "copy" => {
+                if !args.is_empty() {
+                    return Err(VmExecutionError::new(
+                        "bytearray.copy() expects no arguments",
+                    ));
+                }
+                Ok(NativeMethodResult::Value(VmValue::ByteArray(value.clone())))
+            }
+            other => Err(VmExecutionError::new(format!(
+                "unsupported bytearray method '{}()'",
+                other
+            ))),
+        },
+        VmValue::Set(mut values) => match method {
+            "add" => {
+                if args.len() != 1 {
+                    return Err(VmExecutionError::new("set.add() expects one argument"));
+                }
+                values.push(args[0].clone());
+                Ok(NativeMethodResult::Mutated {
+                    receiver: VmValue::Set(normalize_set_items(values)?),
+                    value: VmValue::None,
+                })
+            }
+            "remove" => {
+                if args.len() != 1 {
+                    return Err(VmExecutionError::new("set.remove() expects one argument"));
+                }
+                let remaining = set_difference_values(&values, &args)?;
+                if remaining.len() == values.len() {
+                    return Err(VmExecutionError::new(args[0].python_repr()));
+                }
+                Ok(NativeMethodResult::Mutated {
+                    receiver: VmValue::Set(remaining),
+                    value: VmValue::None,
+                })
+            }
+            "discard" => {
+                if args.len() != 1 {
+                    return Err(VmExecutionError::new("set.discard() expects one argument"));
+                }
+                Ok(NativeMethodResult::Mutated {
+                    receiver: VmValue::Set(set_difference_values(&values, &args)?),
+                    value: VmValue::None,
+                })
+            }
+            "pop" => {
+                if !args.is_empty() {
+                    return Err(VmExecutionError::new("set.pop() expects no arguments"));
+                }
+                let value = values
+                    .first()
+                    .cloned()
+                    .ok_or_else(|| VmExecutionError::new("pop from an empty set"))?;
+                values.remove(0);
+                Ok(NativeMethodResult::Mutated {
+                    receiver: VmValue::Set(values),
+                    value,
+                })
+            }
+            "clear" => {
+                if !args.is_empty() {
+                    return Err(VmExecutionError::new("set.clear() expects no arguments"));
+                }
+                Ok(NativeMethodResult::Mutated {
+                    receiver: VmValue::Set(Vec::new()),
+                    value: VmValue::None,
+                })
+            }
+            "copy" => {
+                if !args.is_empty() {
+                    return Err(VmExecutionError::new("set.copy() expects no arguments"));
+                }
+                Ok(NativeMethodResult::Value(VmValue::Set(values.clone())))
+            }
+            "issubset" => {
+                if args.len() != 1 {
+                    return Err(VmExecutionError::new("set.issubset() expects one argument"));
+                }
+                let other = normalize_set_items(iterate_value(&args[0])?)?;
+                Ok(NativeMethodResult::Value(VmValue::Bool(set_is_subset(
+                    &values, &other,
+                )?)))
+            }
+            "issuperset" => {
+                if args.len() != 1 {
+                    return Err(VmExecutionError::new(
+                        "set.issuperset() expects one argument",
+                    ));
+                }
+                let other = normalize_set_items(iterate_value(&args[0])?)?;
+                Ok(NativeMethodResult::Value(VmValue::Bool(set_is_subset(
+                    &other, &values,
+                )?)))
+            }
+            "isdisjoint" => {
+                if args.len() != 1 {
+                    return Err(VmExecutionError::new(
+                        "set.isdisjoint() expects one argument",
+                    ));
+                }
+                let other = normalize_set_items(iterate_value(&args[0])?)?;
+                Ok(NativeMethodResult::Value(VmValue::Bool(
+                    set_intersection_values(&values, &other)?.is_empty(),
+                )))
+            }
+            "union" => {
+                let mut merged = values.clone();
+                for other in &args {
+                    merged.extend(iterate_value(other)?);
+                }
+                Ok(NativeMethodResult::Value(VmValue::Set(
+                    normalize_set_items(merged)?,
+                )))
+            }
+            "intersection" => {
+                let mut result = values.clone();
+                for other in &args {
+                    let other = normalize_set_items(iterate_value(other)?)?;
+                    result = set_intersection_values(&result, &other)?;
+                }
+                Ok(NativeMethodResult::Value(VmValue::Set(result)))
+            }
+            "difference" => {
+                let mut result = values.clone();
+                for other in &args {
+                    let other = normalize_set_items(iterate_value(other)?)?;
+                    result = set_difference_values(&result, &other)?;
+                }
+                Ok(NativeMethodResult::Value(VmValue::Set(result)))
+            }
+            "symmetric_difference" => {
+                if args.len() != 1 {
+                    return Err(VmExecutionError::new(
+                        "set.symmetric_difference() expects one argument",
+                    ));
+                }
+                let other = normalize_set_items(iterate_value(&args[0])?)?;
+                Ok(NativeMethodResult::Value(VmValue::Set(
+                    normalize_set_items(set_symmetric_difference_values(&values, &other)?)?,
+                )))
+            }
+            other => Err(VmExecutionError::new(format!(
+                "unsupported set method '{}()'",
+                other
+            ))),
+        },
+        VmValue::FrozenSet(values) => match method {
+            "copy" => {
+                if !args.is_empty() {
+                    return Err(VmExecutionError::new(
+                        "frozenset.copy() expects no arguments",
+                    ));
+                }
+                Ok(NativeMethodResult::Value(VmValue::FrozenSet(values)))
+            }
+            "issubset" => {
+                if args.len() != 1 {
+                    return Err(VmExecutionError::new(
+                        "frozenset.issubset() expects one argument",
+                    ));
+                }
+                let other = normalize_set_items(iterate_value(&args[0])?)?;
+                Ok(NativeMethodResult::Value(VmValue::Bool(set_is_subset(
+                    &values, &other,
+                )?)))
+            }
+            "issuperset" => {
+                if args.len() != 1 {
+                    return Err(VmExecutionError::new(
+                        "frozenset.issuperset() expects one argument",
+                    ));
+                }
+                let other = normalize_set_items(iterate_value(&args[0])?)?;
+                Ok(NativeMethodResult::Value(VmValue::Bool(set_is_subset(
+                    &other, &values,
+                )?)))
+            }
+            "isdisjoint" => {
+                if args.len() != 1 {
+                    return Err(VmExecutionError::new(
+                        "frozenset.isdisjoint() expects one argument",
+                    ));
+                }
+                let other = normalize_set_items(iterate_value(&args[0])?)?;
+                Ok(NativeMethodResult::Value(VmValue::Bool(
+                    set_intersection_values(&values, &other)?.is_empty(),
+                )))
+            }
+            "union" => {
+                let mut merged = values.clone();
+                for other in &args {
+                    merged.extend(iterate_value(other)?);
+                }
+                Ok(NativeMethodResult::Value(VmValue::FrozenSet(
+                    normalize_set_items(merged)?,
+                )))
+            }
+            "intersection" => {
+                let mut result = values.clone();
+                for other in &args {
+                    let other = normalize_set_items(iterate_value(other)?)?;
+                    result = set_intersection_values(&result, &other)?;
+                }
+                Ok(NativeMethodResult::Value(VmValue::FrozenSet(result)))
+            }
+            "difference" => {
+                let mut result = values.clone();
+                for other in &args {
+                    let other = normalize_set_items(iterate_value(other)?)?;
+                    result = set_difference_values(&result, &other)?;
+                }
+                Ok(NativeMethodResult::Value(VmValue::FrozenSet(result)))
+            }
+            "symmetric_difference" => {
+                if args.len() != 1 {
+                    return Err(VmExecutionError::new(
+                        "frozenset.symmetric_difference() expects one argument",
+                    ));
+                }
+                let other = normalize_set_items(iterate_value(&args[0])?)?;
+                Ok(NativeMethodResult::Value(VmValue::FrozenSet(
+                    normalize_set_items(set_symmetric_difference_values(&values, &other)?)?,
+                )))
+            }
+            other => Err(VmExecutionError::new(format!(
+                "unsupported frozenset method '{}()'",
+                other
+            ))),
+        },
         VmValue::Dict(entries) => match method {
             "keys" => {
                 if !args.is_empty() {
@@ -1286,6 +1959,12 @@ pub(super) fn compare_vm_values(
             .partial_cmp(&bigint_to_f64(right, "right int operand")?)
             .ok_or_else(|| VmExecutionError::new("cannot compare NaN values")),
         (VmValue::String(left), VmValue::String(right)) => Ok(left.cmp(right)),
+        (left, right) if bytes_like_data(left).is_some() && bytes_like_data(right).is_some() => {
+            Ok(compare_bytes_like(
+                bytes_like_data(left).expect("checked above"),
+                bytes_like_data(right).expect("checked above"),
+            ))
+        }
         (left, right) => Err(VmExecutionError::new(format!(
             "values {} and {} are not order-comparable",
             left.type_name(),
@@ -1330,6 +2009,10 @@ pub(super) fn vm_values_equal(left: &VmValue, right: &VmValue) -> Result<bool, V
     }
 
     match (left, right) {
+        (VmValue::Set(left), VmValue::Set(right))
+        | (VmValue::Set(left), VmValue::FrozenSet(right))
+        | (VmValue::FrozenSet(left), VmValue::Set(right))
+        | (VmValue::FrozenSet(left), VmValue::FrozenSet(right)) => set_values_equal(left, right),
         (VmValue::List(left), VmValue::List(right))
         | (VmValue::Tuple(left), VmValue::Tuple(right)) => {
             if left.len() != right.len() {
@@ -1359,6 +2042,9 @@ pub(super) fn vm_values_equal(left: &VmValue, right: &VmValue) -> Result<bool, V
             }
             Ok(true)
         }
+        (left, right) if bytes_like_data(left).is_some() && bytes_like_data(right).is_some() => {
+            Ok(bytes_like_data(left) == bytes_like_data(right))
+        }
         _ => Ok(left == right),
     }
 }
@@ -1374,6 +2060,20 @@ pub(super) fn contains_value(
                 "string membership requires a string needle",
             )),
         },
+        VmValue::Bytes(value) | VmValue::ByteArray(value) => match needle {
+            VmValue::Int(_) | VmValue::Bool(_) => Ok(value.contains(&byte_from_value(needle)?)),
+            VmValue::Bytes(needle) | VmValue::ByteArray(needle) => {
+                if needle.is_empty() {
+                    return Ok(true);
+                }
+                Ok(value.windows(needle.len()).any(|window| window == needle))
+            }
+            other => Err(VmExecutionError::new(format!(
+                "a bytes-like object is required, not '{}'",
+                other.type_name()
+            ))),
+        },
+        VmValue::Set(values) | VmValue::FrozenSet(values) => set_contains_value(values, needle),
         VmValue::List(values) | VmValue::Tuple(values) => {
             for item in values {
                 if vm_values_equal(item, needle)? {
@@ -1399,12 +2099,18 @@ pub(super) fn contains_value(
 
 pub(super) fn iterate_value(value: &VmValue) -> Result<Vec<VmValue>, VmExecutionError> {
     match value {
-        VmValue::List(values) | VmValue::Tuple(values) => Ok(values.clone()),
+        VmValue::List(values)
+        | VmValue::Tuple(values)
+        | VmValue::Set(values)
+        | VmValue::FrozenSet(values) => Ok(values.clone()),
         VmValue::Dict(entries) => Ok(entries.iter().map(|(key, _)| key.clone()).collect()),
         VmValue::String(value) => Ok(value
             .chars()
             .map(|ch| VmValue::String(ch.to_string()))
             .collect()),
+        VmValue::Bytes(value) | VmValue::ByteArray(value) => {
+            Ok(value.iter().copied().map(vm_int).collect())
+        }
         other => Err(VmExecutionError::new(format!(
             "value of type {} is not iterable",
             other.type_name()
@@ -1426,6 +2132,11 @@ pub(super) fn assign_subscript(
         VmValue::Dict(mut entries) => {
             dict_set(&mut entries, index.clone(), value);
             Ok(VmValue::Dict(entries))
+        }
+        VmValue::ByteArray(mut bytes) => {
+            let idx = normalize_sequence_index(index, bytes.len())?;
+            bytes[idx] = byte_from_value(&value)?;
+            Ok(VmValue::ByteArray(bytes))
         }
         other => Err(VmExecutionError::new(format!(
             "subscript assignment is not supported for {}",
@@ -1455,6 +2166,7 @@ pub(super) fn subscript_value(
             let idx = normalize_sequence_index(index, chars.len())?;
             Ok(VmValue::String(chars[idx].clone()))
         }
+        VmValue::Bytes(value) | VmValue::ByteArray(value) => bytes_like_index_value(&value, index),
         other => Err(VmExecutionError::new(format!(
             "subscript access is not supported for {}",
             other.type_name()
@@ -1490,6 +2202,8 @@ pub(super) fn subscript_slice_value(
                     .collect::<String>(),
             ))
         }
+        VmValue::Bytes(value) => slice_bytes_like(value, lower, upper, step, false),
+        VmValue::ByteArray(value) => slice_bytes_like(value, lower, upper, step, true),
         other => Err(VmExecutionError::new(format!(
             "slice access is not supported for {}",
             other.type_name()
@@ -1767,9 +2481,13 @@ pub(super) fn type_matches_name(value: &VmValue, name: &str) -> bool {
         "datetime.datetime" => matches!(value, VmValue::DateTime(_)),
         "datetime.timedelta" => matches!(value, VmValue::TimeDelta(_)),
         "str" => matches!(value, VmValue::String(_)),
+        "bytes" => matches!(value, VmValue::Bytes(_)),
+        "bytearray" => matches!(value, VmValue::ByteArray(_)),
         "list" => matches!(value, VmValue::List(_)),
         "dict" => matches!(value, VmValue::Dict(_)),
         "tuple" => matches!(value, VmValue::Tuple(_)),
+        "set" => matches!(value, VmValue::Set(_)),
+        "frozenset" => matches!(value, VmValue::FrozenSet(_)),
         _ => false,
     }
 }

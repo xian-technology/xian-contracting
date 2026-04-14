@@ -32,11 +32,29 @@ def test_manifest_tracks_public_contract_surface_only():
     assert "Exception" in CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
         "allowed_builtins"
     ]
-    assert "set" not in CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
+    assert "bytes" in CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
         "allowed_builtins"
     ]
-    assert "frozenset" not in CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
+    assert "bytearray" in CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
         "allowed_builtins"
+    ]
+    assert "set" in CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
+        "allowed_builtins"
+    ]
+    assert "frozenset" in CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
+        "allowed_builtins"
+    ]
+    assert "bytes" in CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
+        "allowed_annotations"
+    ]
+    assert "bytearray" in CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
+        "allowed_annotations"
+    ]
+    assert "set" in CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
+        "allowed_annotations"
+    ]
+    assert "frozenset" in CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
+        "allowed_annotations"
     ]
     assert "raise" in vm_surface["supported_ir"]["statement_nodes"]
     assert "dict_comp" in vm_surface["supported_ir"]["expression_nodes"]
