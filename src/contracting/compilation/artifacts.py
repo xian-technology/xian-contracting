@@ -116,9 +116,7 @@ def validate_contract_artifacts(
         raise TypeError("deployment_artifacts must be a dictionary.")
 
     if artifacts.get("format") != CONTRACT_ARTIFACT_FORMAT_V1:
-        raise ValueError(
-            "deployment_artifacts has an unsupported format."
-        )
+        raise ValueError("deployment_artifacts has an unsupported format.")
     if artifacts.get("module_name") != module_name:
         raise ValueError(
             "deployment_artifacts module_name does not match the target contract."

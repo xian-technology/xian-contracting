@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from contracting.compilation.linter import ErrorCode, LintError, Linter
+from contracting.compilation.linter import ErrorCode, Linter, LintError
 
 XIAN_VM_V1_PROFILE = "xian_vm_v1"
 SUPPORTED_VM_PROFILES = (XIAN_VM_V1_PROFILE,)

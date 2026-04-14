@@ -18,7 +18,6 @@ from contracting.compilation.python_compatibility import (
     module_name_from_path,
 )
 
-
 AUTHORED_CONFORMANCE_FEATURE_EXCLUSIONS: dict[str, str] = {}
 _EXACT_STRING_METHOD_FEATURES = {
     "endswith": "methods.string.endswith",
@@ -62,7 +61,9 @@ class _AuthoredConformanceVisitor(ast.NodeVisitor):
             CONTRACT_LANGUAGE_MANIFEST["python_contracting"]["allowed_builtins"]
         )
         self._public_env = set(
-            CONTRACT_LANGUAGE_MANIFEST["python_contracting"]["public_env_surface"]
+            CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
+                "public_env_surface"
+            ]
         )
 
     def visit_Name(self, node: ast.Name) -> None:
@@ -85,7 +86,10 @@ class _AuthoredConformanceVisitor(ast.NodeVisitor):
             elif isinstance(decorator, ast.Name) and decorator.id == "export":
                 self.used_features.add("decorators.export")
             elif isinstance(decorator, ast.Call):
-                if isinstance(decorator.func, ast.Name) and decorator.func.id == "export":
+                if (
+                    isinstance(decorator.func, ast.Name)
+                    and decorator.func.id == "export"
+                ):
                     self.used_features.add("decorators.export")
                     if any(
                         keyword.arg == "typecheck"
@@ -124,7 +128,10 @@ class _AuthoredConformanceVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_BinOp(self, node: ast.BinOp) -> None:
-        if isinstance(node.op, ast.BitAnd | ast.BitOr | ast.BitXor | ast.LShift | ast.RShift):
+        if isinstance(
+            node.op,
+            ast.BitAnd | ast.BitOr | ast.BitXor | ast.LShift | ast.RShift,
+        ):
             self.used_features.add("syntax.bitwise")
         self.generic_visit(node)
 

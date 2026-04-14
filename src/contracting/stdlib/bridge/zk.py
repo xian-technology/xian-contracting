@@ -260,7 +260,9 @@ def get_vk_info(vk_id: str):
         "circuit_family": _registry_field(vk_id, "circuit_family"),
         "statement_version": _registry_field(vk_id, "statement_version"),
         "contract_name": _registry_field(vk_id, "contract_name"),
-        "artifact_contract_name": _registry_field(vk_id, "artifact_contract_name"),
+        "artifact_contract_name": _registry_field(
+            vk_id, "artifact_contract_name"
+        ),
         "tree_depth": _registry_field(vk_id, "tree_depth"),
         "leaf_capacity": _registry_field(vk_id, "leaf_capacity"),
         "max_inputs": _registry_field(vk_id, "max_inputs"),

@@ -9,8 +9,8 @@ from types import FunctionType
 import autopep8
 from xian_runtime_types.time import Datetime
 
-from contracting.compilation.compiler import ContractingCompiler
 from contracting.compilation.artifacts import build_contract_artifacts
+from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution import runtime
 from contracting.execution.executor import Executor
 from contracting.execution.parallel import ParallelBatchExecutor
@@ -430,6 +430,9 @@ class ContractingClient:
         signer=None,
     ):
 
+        if self.raw_driver.has_contract("submission"):
+            self.submission_contract = self.get_contract("submission")
+
         assert self.submission_contract is not None, (
             "No submission contract set. Try set_submission_contract first."
         )
@@ -444,11 +447,51 @@ class ContractingClient:
         if signer is None:
             signer = self.signer
 
-        deployment_artifacts = self.build_deployment_artifacts(f, name=name)
+        submit_keywords = getattr(
+            self.submission_contract.submit_contract,
+            "keywords",
+            {},
+        )
+        supports_deployment_artifacts = True
+        if isinstance(submit_keywords, dict):
+            supports_deployment_artifacts = (
+                "deployment_artifacts" in submit_keywords
+            )
+
+        if supports_deployment_artifacts:
+            try:
+                deployment_artifacts = self.build_deployment_artifacts(
+                    f,
+                    name=name,
+                )
+            except Exception:
+                deployment_artifacts = None
+
+            if deployment_artifacts is not None:
+                self.submission_contract.submit_contract(
+                    name=name,
+                    code=f,
+                    deployment_artifacts=deployment_artifacts,
+                    owner=owner,
+                    constructor_args=constructor_args,
+                    metering=metering,
+                    signer=signer,
+                )
+                return
+
+            self.submission_contract.submit_contract(
+                name=name,
+                code=f,
+                owner=owner,
+                constructor_args=constructor_args,
+                metering=metering,
+                signer=signer,
+            )
+            return
+
         self.submission_contract.submit_contract(
             name=name,
             code=f,
-            deployment_artifacts=deployment_artifacts,
             owner=owner,
             constructor_args=constructor_args,
             metering=metering,

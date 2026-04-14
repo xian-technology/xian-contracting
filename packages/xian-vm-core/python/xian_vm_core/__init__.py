@@ -1,8 +1,11 @@
-import hashlib
 import ast
+import hashlib
 import json
 from dataclasses import dataclass
 from typing import Any
+
+from xian_runtime_types.decimal import ContractingDecimal
+from xian_runtime_types.encoding import encode_kv
 
 from contracting import constants
 from contracting.execution.runtime import WRITE_MAX, rt
@@ -19,9 +22,6 @@ from contracting.storage.driver import (
     TIME_KEY,
     XIAN_VM_V1_IR_KEY,
 )
-from xian_runtime_types.encoding import encode_kv
-from xian_runtime_types.decimal import ContractingDecimal
-from xian_runtime_types.time import Datetime
 
 from ._native import (
     VmIrValidationError,
@@ -32,6 +32,15 @@ from ._native import (
     validate_deployment_artifacts_json,
     validate_module_ir_json,
 )
+
+
+def _interface_type_name(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    name = getattr(value, "__name__", None)
+    if isinstance(name, str) and name:
+        return name
+    return str(value)
 
 
 @dataclass(slots=True)
@@ -130,7 +139,9 @@ class NativeVmHost:
 
     def _write_raw_cost(self, key: str, value: Any) -> int:
         encoded_key, encoded_value = encode_kv(key, value)
-        return (len(encoded_key) + len(encoded_value)) * constants.WRITE_COST_PER_BYTE
+        return (
+            len(encoded_key) + len(encoded_value)
+        ) * constants.WRITE_COST_PER_BYTE
 
     def _charge_host_write(
         self,
@@ -240,7 +251,7 @@ class NativeVmHost:
                 function.get("name") == export_name
                 and function.get("visibility") == "export"
             ):
-                    return True
+                return True
         return False
 
     def _contract_enforce_interface(
@@ -274,7 +285,9 @@ class NativeVmHost:
                 function = functions.get(item.get("name"))
                 if function is None:
                     return False
-                expected_visibility = "private" if item.get("private") else "export"
+                expected_visibility = (
+                    "private" if item.get("private") else "export"
+                )
                 if function.get("visibility") != expected_visibility:
                     return False
                 expected_args = tuple(item.get("args", ()))
@@ -470,9 +483,7 @@ class NativeVmHost:
             self._stage_contract_metadata_write(args[0], OWNER_KEY, args[1])
             return None
         if syscall_id == "contract.set_developer":
-            self._stage_contract_metadata_write(
-                args[0], DEVELOPER_KEY, args[1]
-            )
+            self._stage_contract_metadata_write(args[0], DEVELOPER_KEY, args[1])
             return None
         if syscall_id == "contract.deploy":
             name = kwargs.get("name", args[0] if len(args) > 0 else None)
@@ -537,7 +548,9 @@ class NativeVmHost:
             function_name = syscall_id.split(".", 1)[1]
             handler = getattr(zk_bridge, function_name)
             return handler(*args, **kwargs)
-        raise VmRuntimeExecutionError(f"unsupported host syscall '{syscall_id}'")
+        raise VmRuntimeExecutionError(
+            f"unsupported host syscall '{syscall_id}'"
+        )
 
 
 def execute_contract(
@@ -696,18 +709,22 @@ def _combined_chi_used(
     return max(combined, int(raw_chi_used))
 
 
-def _snapshots_to_writes(driver, snapshots: list[dict[str, Any]]) -> dict[str, Any]:
+def _snapshots_to_writes(
+    driver, snapshots: list[dict[str, Any]]
+) -> dict[str, Any]:
     writes: dict[str, Any] = {}
     for snapshot in snapshots:
         contract_name = snapshot["contract_name"]
         for variable in snapshot["variables"]:
-            writes[driver.make_key(contract_name, variable["binding"])] = variable[
-                "value"
-            ]
+            writes[driver.make_key(contract_name, variable["binding"])] = (
+                variable["value"]
+            )
         for hash_snapshot in snapshot["hashes"]:
             binding = hash_snapshot["binding"]
             for storage_key, value in hash_snapshot["entries"].items():
-                writes[driver.make_key(contract_name, binding, [storage_key])] = value
+                writes[
+                    driver.make_key(contract_name, binding, [storage_key])
+                ] = value
     return writes
 
 
@@ -722,6 +739,8 @@ def _construct_function_name(module_ir: dict[str, Any]) -> str | None:
         if function.get("visibility") == "construct":
             return function.get("name")
     return None
+
+
 __all__ = [
     "NativeExecutionResult",
     "NativeVmHost",

@@ -35,7 +35,9 @@ def main(argv: list[str] | None = None) -> int:
     auditor = AuthoredConformanceAuditor()
     paths = [Path(raw).resolve() for raw in args.paths]
     reports = auditor.audit_paths(paths)
-    issues_by_file = [report.to_dict() for report in reports if not report.compatible]
+    issues_by_file = [
+        report.to_dict() for report in reports if not report.compatible
+    ]
     payload = {
         "files_scanned": len(reports),
         "compatible_files": sum(report.compatible for report in reports),

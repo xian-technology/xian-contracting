@@ -214,6 +214,7 @@ def covered_conformance_surface() -> dict[str, set[str]]:
         features.update(case.get("covers_features", ()))
     return {"builtins": builtins, "env": env, "features": features}
 
+
 CONTRACT_LANGUAGE_CONFORMANCE_CASES: tuple[dict[str, Any], ...] = (
     {
         "id": "binary_values",

@@ -3,11 +3,13 @@ from contracting.compilation.artifacts import (
     build_contract_artifacts,
     validate_contract_artifacts,
 )
+from contracting.compilation.compiler import ContractingCompiler
+from contracting.compilation.lowering import IrLoweringError
 from contracting.execution.runtime import rt
 from contracting.names import assert_safe_contract_name
 from contracting.storage.driver import (
-    DEVELOPER_KEY,
     DEPLOYER_KEY,
+    DEVELOPER_KEY,
     INITIATOR_KEY,
     OWNER_KEY,
     TIME_KEY,
@@ -72,14 +74,29 @@ class Contract:
                     vm_profile="xian_vm_v1",
                 )
             else:
-                artifacts = build_contract_artifacts(
-                    module_name=name,
-                    source=code,
-                    lint=True,
-                    vm_profile="xian_vm_v1",
-                )
+                try:
+                    artifacts = build_contract_artifacts(
+                        module_name=name,
+                        source=code,
+                        lint=True,
+                        vm_profile="xian_vm_v1",
+                    )
+                except IrLoweringError:
+                    if rt.env.get(XIAN_EXECUTION_MODE_ENV_KEY) == "xian_vm_v1":
+                        raise
 
-            if artifacts["runtime_code"] is None:
+                    compiler = ContractingCompiler(module_name=name)
+                    artifacts = {
+                        "source": compiler.normalize_source(code, lint=True),
+                        "runtime_code": compiler.parse_to_code(
+                            code,
+                            lint=True,
+                        ),
+                        "vm_ir_json": None,
+                    }
+
+            runtime_code = artifacts.get("runtime_code")
+            if runtime_code is None:
                 derived = build_contract_artifacts(
                     module_name=name,
                     source=artifacts["source"],
@@ -87,10 +104,10 @@ class Contract:
                     vm_profile="xian_vm_v1",
                     include_runtime_code=True,
                 )
-                artifacts["runtime_code"] = derived["runtime_code"]
+                runtime_code = derived["runtime_code"]
 
             source_obj = artifacts["source"]
-            code_obj = artifacts["runtime_code"]
+            code_obj = runtime_code
             vm_ir_json = artifacts["vm_ir_json"]
 
             raw_source_bytes = len(source_obj.encode("utf-8"))

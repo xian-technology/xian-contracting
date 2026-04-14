@@ -305,21 +305,21 @@ def f():
 """
         self.assertIn(ErrorCode.E014, self._codes(code))
 
-    def test_e014_set_builtin(self):
+    def test_set_builtin_is_allowed(self):
         code = """
 @export
 def f():
     return set([1, 2, 3])
 """
-        self.assertIn(ErrorCode.E014, self._codes(code))
+        self.assertNotIn(ErrorCode.E014, self._codes(code))
 
-    def test_e014_frozenset_builtin(self):
+    def test_frozenset_builtin_is_allowed(self):
         code = """
 @export
 def f():
     return frozenset([1, 2, 3])
 """
-        self.assertIn(ErrorCode.E014, self._codes(code))
+        self.assertNotIn(ErrorCode.E014, self._codes(code))
 
     def test_e015_orm_shadow(self):
         code = """

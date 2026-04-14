@@ -538,9 +538,7 @@ _HOST_BINDINGS = (
 )
 
 HOST_BINDINGS = tuple(dict(spec) for spec in _HOST_BINDINGS)
-HOST_BINDINGS_BY_PATH = {
-    spec["binding"]: dict(spec) for spec in _HOST_BINDINGS
-}
+HOST_BINDINGS_BY_PATH = {spec["binding"]: dict(spec) for spec in _HOST_BINDINGS}
 HOST_BINDINGS_BY_ID = {spec["id"]: dict(spec) for spec in _HOST_BINDINGS}
 
 

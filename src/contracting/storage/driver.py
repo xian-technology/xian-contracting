@@ -233,7 +233,7 @@ class Driver:
         deployer=None,
         initiator=None,
         lint=True,
-        store_runtime_code=False,
+        store_runtime_code=True,
     ):
         compiler = ContractingCompiler(module_name=name)
         normalized_source = compiler.normalize_source(source, lint=lint)

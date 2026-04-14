@@ -2,8 +2,8 @@ import ast
 import json
 
 from contracting import constants
-from contracting.compilation.lowering import XianIrLowerer
 from contracting.compilation.linter import Linter, LintingError
+from contracting.compilation.lowering import XianIrLowerer
 from contracting.compilation.vm import (
     XIAN_VM_V1_PROFILE,
     VmCompatibilityChecker,
@@ -76,7 +76,9 @@ class ContractingCompiler(ast.NodeTransformer):
 
         return compiled_code
 
-    def normalize_source(self, source: str, lint=True, vm_profile: str | None = None):
+    def normalize_source(
+        self, source: str, lint=True, vm_profile: str | None = None
+    ):
         tree = ast.parse(source)
 
         if lint:

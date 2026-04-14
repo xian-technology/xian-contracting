@@ -1,4 +1,3 @@
-from contracting.stdlib.builtins import exports as builtin_exports
 from xian_runtime_types.collections import exports as collection_exports
 from xian_runtime_types.decimal import exports as decimal_exports
 from xian_runtime_types.time import exports as time_exports
@@ -10,6 +9,7 @@ from contracting.stdlib.bridge.imports import exports as imports_exports
 from contracting.stdlib.bridge.orm import exports as orm_exports
 from contracting.stdlib.bridge.random import exports as random_exports
 from contracting.stdlib.bridge.zk import exports as zk_exports
+from contracting.stdlib.builtins import exports as builtin_exports
 
 # TODO create a module instead and return it inside of a dictionary like:
 # {

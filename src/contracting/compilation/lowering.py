@@ -168,8 +168,10 @@ class XianIrLowerer:
             body = body[1:]
 
         self._inspect_module_bindings(body)
-        self._contract_handle_factories = self._discover_contract_handle_factories(
-            [node for node in body if isinstance(node, ast.FunctionDef)]
+        self._contract_handle_factories = (
+            self._discover_contract_handle_factories(
+                [node for node in body if isinstance(node, ast.FunctionDef)]
+            )
         )
 
         imports: list[dict[str, Any]] = []
@@ -182,9 +184,7 @@ class XianIrLowerer:
                 imports.extend(self._lower_import(node))
                 continue
             if isinstance(node, ast.Assign):
-                global_declarations.append(
-                    self._lower_global_declaration(node)
-                )
+                global_declarations.append(self._lower_global_declaration(node))
                 continue
             if isinstance(node, ast.FunctionDef):
                 functions.append(self._lower_function(node))
@@ -203,10 +203,7 @@ class XianIrLowerer:
             "functions": functions,
             "module_body": module_body,
             "host_dependencies": sorted(
-                (
-                    dict(spec)
-                    for spec in self._host_dependencies.values()
-                ),
+                (dict(spec) for spec in self._host_dependencies.values()),
                 key=lambda spec: spec["id"],
             ),
         }
@@ -254,7 +251,9 @@ class XianIrLowerer:
                 continue
             if not isinstance(node, ast.Assign):
                 continue
-            if len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
+            if len(node.targets) != 1 or not isinstance(
+                node.targets[0], ast.Name
+            ):
                 continue
             target = node.targets[0].id
             if not isinstance(node.value, ast.Call):
@@ -349,7 +348,9 @@ class XianIrLowerer:
         for node in ast.walk(function):
             if not isinstance(node, ast.Assign):
                 continue
-            if len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
+            if len(node.targets) != 1 or not isinstance(
+                node.targets[0], ast.Name
+            ):
                 continue
             pending.append((node.targets[0].id, node.value))
 
@@ -377,7 +378,8 @@ class XianIrLowerer:
     ) -> bool:
         if isinstance(node, ast.Name):
             return (
-                node.id in self._static_import_bindings or node.id in local_bindings
+                node.id in self._static_import_bindings
+                or node.id in local_bindings
             )
         if isinstance(node, ast.Call):
             if self._is_importlib_import_call(node):
@@ -387,7 +389,9 @@ class XianIrLowerer:
         return False
 
     def _is_importlib_import_call(self, node: ast.Call) -> bool:
-        return self._canonical_dotted_path(node.func) == "importlib.import_module"
+        return (
+            self._canonical_dotted_path(node.func) == "importlib.import_module"
+        )
 
     def _contract_target_for_expression(
         self,
@@ -502,7 +506,9 @@ class XianIrLowerer:
                     name=target.id,
                     storage_type=callee_path,
                     syscall_id=syscall_id,
-                    args=[self._lower_expression(arg) for arg in node.value.args],
+                    args=[
+                        self._lower_expression(arg) for arg in node.value.args
+                    ],
                     keywords=[
                         self._lower_keyword(keyword)
                         for keyword in node.value.keywords
@@ -563,12 +569,16 @@ class XianIrLowerer:
 
         decorator = self._lower_decorator(node)
         previous_local_contract_handles = self._local_contract_handles
-        self._local_contract_handles = self._collect_local_contract_handle_bindings(
-            node,
-            self._contract_handle_factories,
+        self._local_contract_handles = (
+            self._collect_local_contract_handle_bindings(
+                node,
+                self._contract_handle_factories,
+            )
         )
         try:
-            lowered_body = [self._lower_statement(statement) for statement in body]
+            lowered_body = [
+                self._lower_statement(statement) for statement in body
+            ]
         finally:
             self._local_contract_handles = previous_local_contract_handles
         return self._node(
@@ -624,7 +634,9 @@ class XianIrLowerer:
             "complex decorators are not supported in Xian IR",
         )
 
-    def _lower_parameters(self, arguments: ast.arguments) -> list[dict[str, Any]]:
+    def _lower_parameters(
+        self, arguments: ast.arguments
+    ) -> list[dict[str, Any]]:
         parameters: list[dict[str, Any]] = []
 
         if arguments.posonlyargs:
@@ -715,12 +727,21 @@ class XianIrLowerer:
 
     def _lower_statement(self, node: ast.stmt) -> dict[str, Any]:
         if isinstance(node, ast.Assign):
-            if len(node.targets) == 1 and isinstance(node.targets[0], ast.Subscript):
+            if len(node.targets) == 1 and isinstance(
+                node.targets[0], ast.Subscript
+            ):
                 storage_meta = self._storage_subscript_metadata(node.targets[0])
-                if storage_meta is not None and storage_meta["write_syscall_id"] is not None:
-                    self._record_host_dependency_id(storage_meta["write_syscall_id"])
+                if (
+                    storage_meta is not None
+                    and storage_meta["write_syscall_id"] is not None
+                ):
+                    self._record_host_dependency_id(
+                        storage_meta["write_syscall_id"]
+                    )
                     if storage_meta["read_syscall_id"] is not None:
-                        self._record_host_dependency_id(storage_meta["read_syscall_id"])
+                        self._record_host_dependency_id(
+                            storage_meta["read_syscall_id"]
+                        )
                     return self._node(
                         "storage_set",
                         node,
@@ -739,10 +760,17 @@ class XianIrLowerer:
         if isinstance(node, ast.AugAssign):
             if isinstance(node.target, ast.Subscript):
                 storage_meta = self._storage_subscript_metadata(node.target)
-                if storage_meta is not None and storage_meta["write_syscall_id"] is not None:
-                    self._record_host_dependency_id(storage_meta["write_syscall_id"])
+                if (
+                    storage_meta is not None
+                    and storage_meta["write_syscall_id"] is not None
+                ):
+                    self._record_host_dependency_id(
+                        storage_meta["write_syscall_id"]
+                    )
                     if storage_meta["read_syscall_id"] is not None:
-                        self._record_host_dependency_id(storage_meta["read_syscall_id"])
+                        self._record_host_dependency_id(
+                            storage_meta["read_syscall_id"]
+                        )
                     return self._node(
                         "storage_mutate",
                         node,
@@ -898,14 +926,18 @@ class XianIrLowerer:
             return self._node(
                 "list",
                 node,
-                elements=[self._lower_expression(element) for element in node.elts],
+                elements=[
+                    self._lower_expression(element) for element in node.elts
+                ],
             )
         if isinstance(node, ast.ListComp):
             return self._node(
                 "list_comp",
                 node,
                 element=self._lower_expression(node.elt),
-                generators=self._lower_comprehension_generators(node.generators),
+                generators=self._lower_comprehension_generators(
+                    node.generators
+                ),
             )
         if isinstance(node, ast.DictComp):
             return self._node(
@@ -913,13 +945,17 @@ class XianIrLowerer:
                 node,
                 key=self._lower_expression(node.key),
                 value=self._lower_expression(node.value),
-                generators=self._lower_comprehension_generators(node.generators),
+                generators=self._lower_comprehension_generators(
+                    node.generators
+                ),
             )
         if isinstance(node, ast.Tuple):
             return self._node(
                 "tuple",
                 node,
-                elements=[self._lower_expression(element) for element in node.elts],
+                elements=[
+                    self._lower_expression(element) for element in node.elts
+                ],
             )
         if isinstance(node, ast.Dict):
             entries = []
@@ -950,7 +986,10 @@ class XianIrLowerer:
             )
         if isinstance(node, ast.Subscript):
             storage_meta = self._storage_subscript_metadata(node)
-            if storage_meta is not None and storage_meta["read_syscall_id"] is not None:
+            if (
+                storage_meta is not None
+                and storage_meta["read_syscall_id"] is not None
+            ):
                 self._record_host_dependency_id(storage_meta["read_syscall_id"])
                 return self._node(
                     "storage_get",
@@ -981,8 +1020,7 @@ class XianIrLowerer:
                             node,
                             func=self._lower_expression(node.func),
                             args=[
-                                self._lower_expression(arg)
-                                for arg in node.args
+                                self._lower_expression(arg) for arg in node.args
                             ],
                             keywords=[
                                 self._lower_keyword(keyword)
@@ -1003,9 +1041,7 @@ class XianIrLowerer:
                         "call",
                         node,
                         func=self._lower_expression(node.func),
-                        args=[
-                            self._lower_expression(arg) for arg in node.args
-                        ],
+                        args=[self._lower_expression(arg) for arg in node.args],
                         keywords=[
                             self._lower_keyword(keyword)
                             for keyword in node.keywords
@@ -1035,11 +1071,7 @@ class XianIrLowerer:
                 syscall_id=(
                     host["id"]
                     if host is not None and host["kind"] == "syscall"
-                    else (
-                        event_emit["id"]
-                        if event_emit is not None
-                        else None
-                    )
+                    else (event_emit["id"] if event_emit is not None else None)
                 ),
                 event_binding=(
                     node.func.id if event_emit is not None else None
@@ -1168,8 +1200,12 @@ class XianIrLowerer:
             return self._node("constant", node, value_type="bool", value=value)
         if isinstance(value, int):
             if -(2**63) <= value <= 2**63 - 1:
-                return self._node("constant", node, value_type="int", value=value)
-            return self._node("constant", node, value_type="int", value=str(value))
+                return self._node(
+                    "constant", node, value_type="int", value=value
+                )
+            return self._node(
+                "constant", node, value_type="int", value=str(value)
+            )
         if isinstance(value, float):
             literal = ast.get_source_segment(self.source, node) or repr(value)
             return self._node(
@@ -1195,9 +1231,11 @@ class XianIrLowerer:
 
 
 def _is_docstring_expr(node: ast.stmt) -> bool:
-    return isinstance(node, ast.Expr) and isinstance(
-        getattr(node, "value", None), ast.Constant
-    ) and isinstance(node.value.value, str)
+    return (
+        isinstance(node, ast.Expr)
+        and isinstance(getattr(node, "value", None), ast.Constant)
+        and isinstance(node.value.value, str)
+    )
 
 
 def _operator_name(mapping, node, source_node: ast.AST) -> str:

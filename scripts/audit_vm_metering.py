@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import sys
 import tempfile
@@ -15,13 +16,14 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from generate_vm_parity_fixtures import (
-    FIXTURES,
-    _execute_call,
-    _json_value,
-    _module_source,
-    _set_seed_state,
+generate_vm_parity_fixtures = importlib.import_module(
+    "generate_vm_parity_fixtures"
 )
+FIXTURES = generate_vm_parity_fixtures.FIXTURES
+_execute_call = generate_vm_parity_fixtures._execute_call
+_json_value = generate_vm_parity_fixtures._json_value
+_module_source = generate_vm_parity_fixtures._module_source
+_set_seed_state = generate_vm_parity_fixtures._set_seed_state
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -78,7 +80,9 @@ def _transaction_size_bytes(spec: dict[str, Any]) -> int:
         },
     }
     return len(
-        json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        json.dumps(payload, separators=(",", ":"), sort_keys=True).encode(
+            "utf-8"
+        )
     )
 
 
@@ -212,7 +216,8 @@ def audit_metering(
                 if python_run["raw_cost"] > 0
                 else 0.0
             ),
-            status_code_match=python_run["status_code"] == native_run["status_code"],
+            status_code_match=python_run["status_code"]
+            == native_run["status_code"],
             result_match=python_run["result"] == native_run["result"],
         )
         if observation.vm_raw_cost < observation.python_raw_cost:
@@ -220,7 +225,11 @@ def audit_metering(
         observations.append(observation)
 
     observations.sort(key=lambda item: item.name)
-    ratios = [item.ratio_vs_native for item in observations if item.python_raw_cost > 0]
+    ratios = [
+        item.ratio_vs_native
+        for item in observations
+        if item.python_raw_cost > 0
+    ]
     authored = [
         item for item in observations if item.name.startswith("authored_")
     ]
@@ -228,7 +237,9 @@ def audit_metering(
         item.ratio_vs_native for item in authored if item.python_raw_cost > 0
     ]
     authored_under_metered = [
-        item.name for item in authored if item.vm_raw_cost < item.python_raw_cost
+        item.name
+        for item in authored
+        if item.vm_raw_cost < item.python_raw_cost
     ]
     return {
         "fixtures_scanned": len(observations),
@@ -237,8 +248,12 @@ def audit_metering(
         "min_ratio_vs_native": min(ratios) if ratios else 0.0,
         "authored_fixtures_scanned": len(authored),
         "authored_under_metered": authored_under_metered,
-        "authored_max_ratio_vs_native": max(authored_ratios) if authored_ratios else 0.0,
-        "authored_min_ratio_vs_native": min(authored_ratios) if authored_ratios else 0.0,
+        "authored_max_ratio_vs_native": max(authored_ratios)
+        if authored_ratios
+        else 0.0,
+        "authored_min_ratio_vs_native": min(authored_ratios)
+        if authored_ratios
+        else 0.0,
         "observations": [asdict(item) for item in observations],
     }
 

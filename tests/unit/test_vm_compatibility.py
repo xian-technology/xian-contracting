@@ -91,7 +91,7 @@ def probe():
         self.assertTrue(report.compatible)
         self.assertEqual(report.feature_counts["keyword_unpack_calls"], 1)
 
-    def test_vm_profile_rejects_set_usage(self):
+    def test_vm_profile_accepts_set_usage(self):
         source = """
 @export
 def unique(value: str):
@@ -101,8 +101,7 @@ def unique(value: str):
 
         report = self.checker.check(source, profile=XIAN_VM_V1_PROFILE)
 
-        self.assertFalse(report.compatible)
-        self.assertIn(ErrorCode.E023, {error.code for error in report.errors})
+        self.assertTrue(report.compatible)
         self.assertEqual(report.feature_counts["set_calls"], 1)
 
     def test_vm_profile_preserves_base_lint_errors(self):
@@ -134,7 +133,7 @@ def render(values: list[int]):
         self.assertEqual(report.feature_counts["dict_calls"], 1)
         self.assertEqual(report.feature_counts["len_calls"], 1)
 
-    def test_compiler_vm_profile_can_raise(self):
+    def test_compiler_vm_profile_allows_set_usage(self):
         compiler = ContractingCompiler()
         source = """
 @export
@@ -143,8 +142,9 @@ def render(values: list[int]):
     return len(seen)
 """
 
-        with self.assertRaises(VmCompatibilityError):
-            compiler.parse_to_code(
-                source,
-                vm_profile=XIAN_VM_V1_PROFILE,
-            )
+        code = compiler.parse_to_code(
+            source,
+            vm_profile=XIAN_VM_V1_PROFILE,
+        )
+
+        self.assertIn("set()", code)
