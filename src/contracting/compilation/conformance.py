@@ -1292,4 +1292,179 @@ def probe():
         "function_name": "probe",
         "kwargs": {},
     },
+    {
+        "id": "replay_governance_state_patch_flow",
+        "description": "A governance-style proposal and imported state-patch execution flow preserves cross-contract state and event ordering.",
+        "covers_features": (
+            "events.log",
+            "imports.static",
+            "storage.hash",
+            "storage.variable",
+        ),
+        "dependencies": (
+            {
+                "name": "conformance_patch_registry",
+                "source": """
+records = Hash(default_value=None)
+
+PatchAppliedEvent = LogEvent(
+    "PatchApplied",
+    {
+        "proposal_id": indexed(int),
+        "key": indexed(str),
+        "value": int,
+    },
+)
+
+@export
+def apply_patch(proposal_id: int, key: str, value: int):
+    records[key] = value
+    PatchAppliedEvent(
+        {
+            "proposal_id": proposal_id,
+            "key": key,
+            "value": value,
+        }
+    )
+    return records[key]
+
+@export
+def read(key: str):
+    return records[key]
+""",
+            },
+            {
+                "name": "conformance_patch_governance",
+                "source": """
+import conformance_patch_registry
+
+proposal_count = Variable()
+proposals = Hash(default_value=None)
+approval_count = Hash(default_value=0)
+proposal_approvals = Hash(default_value=False)
+
+ProposalCreatedEvent = LogEvent(
+    "ProposalCreated",
+    {
+        "proposal_id": indexed(int),
+        "key": indexed(str),
+        "value": int,
+    },
+)
+ProposalApprovedEvent = LogEvent(
+    "ProposalApproved",
+    {
+        "proposal_id": indexed(int),
+        "approver": indexed(str),
+        "approval_count": int,
+    },
+)
+ProposalExecutedEvent = LogEvent(
+    "ProposalExecuted",
+    {
+        "proposal_id": indexed(int),
+        "key": indexed(str),
+        "value": int,
+    },
+)
+
+@construct
+def seed():
+    proposal_count.set(0)
+
+@export
+def propose_patch(key: str, value: int):
+    proposal_id = proposal_count.get()
+    proposals[proposal_id, "key"] = key
+    proposals[proposal_id, "value"] = value
+    proposals[proposal_id, "status"] = "pending"
+    proposal_count.set(proposal_id + 1)
+    ProposalCreatedEvent(
+        {
+            "proposal_id": proposal_id,
+            "key": key,
+            "value": value,
+        }
+    )
+    return proposal_id
+
+@export
+def approve_patch(proposal_id: int, approver: str):
+    assert proposals[proposal_id, "status"] == "pending"
+    assert not proposal_approvals[proposal_id, approver]
+
+    proposal_approvals[proposal_id, approver] = True
+    approval_count[proposal_id] += 1
+    ProposalApprovedEvent(
+        {
+            "proposal_id": proposal_id,
+            "approver": approver,
+            "approval_count": approval_count[proposal_id],
+        }
+    )
+
+    if approval_count[proposal_id] >= 2:
+        stored = conformance_patch_registry.apply_patch(
+            proposal_id=proposal_id,
+            key=proposals[proposal_id, "key"],
+            value=proposals[proposal_id, "value"],
+        )
+        proposals[proposal_id, "status"] = "executed"
+        ProposalExecutedEvent(
+            {
+                "proposal_id": proposal_id,
+                "key": proposals[proposal_id, "key"],
+                "value": stored,
+            }
+        )
+        return {
+            "status": proposals[proposal_id, "status"],
+            "stored": stored,
+        }
+
+    return {
+        "status": proposals[proposal_id, "status"],
+        "stored": None,
+    }
+
+@export
+def proposal_status(proposal_id: int):
+    return {
+        "status": proposals[proposal_id, "status"],
+        "approvals": approval_count[proposal_id],
+    }
+""",
+            },
+        ),
+        "source": """
+import conformance_patch_governance
+import conformance_patch_registry
+
+@export
+def probe():
+    proposal_id = conformance_patch_governance.propose_patch(
+        key="reward_split",
+        value=25,
+    )
+    first = conformance_patch_governance.approve_patch(
+        proposal_id=proposal_id,
+        approver="alice",
+    )
+    second = conformance_patch_governance.approve_patch(
+        proposal_id=proposal_id,
+        approver="bob",
+    )
+    return {
+        "proposal_id": proposal_id,
+        "first": first,
+        "second": second,
+        "status": conformance_patch_governance.proposal_status(
+            proposal_id=proposal_id,
+        ),
+        "stored": conformance_patch_registry.read(key="reward_split"),
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {},
+    },
 )
