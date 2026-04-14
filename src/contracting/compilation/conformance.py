@@ -1082,4 +1082,214 @@ def probe():
         "function_name": "probe",
         "kwargs": {},
     },
+    {
+        "id": "replay_dex_multi_module_flow",
+        "description": "A DEX-style router/pair/token flow preserves cross-contract state and event ordering like authored historical workloads.",
+        "covers_features": (
+            "events.log",
+            "imports.static",
+            "storage.hash",
+        ),
+        "dependencies": (
+            {
+                "name": "conformance_dex_token_a",
+                "source": """
+balances = Hash(default_value=0)
+approvals = Hash(default_value=0)
+
+TransferEvent = LogEvent(
+    "Transfer",
+    {
+        "from": indexed(str),
+        "to": indexed(str),
+        "amount": int,
+    },
+)
+ApproveEvent = LogEvent(
+    "Approve",
+    {
+        "from": indexed(str),
+        "to": indexed(str),
+        "amount": int,
+    },
+)
+
+@construct
+def seed():
+    balances["alice"] = 12
+
+@export
+def approve_for(owner: str, spender: str, amount: int):
+    approvals[owner, spender] = amount
+    ApproveEvent({"from": owner, "to": spender, "amount": amount})
+    return approvals[owner, spender]
+
+@export
+def transfer_from(amount: int, to: str, main_account: str):
+    assert approvals[main_account, ctx.caller] >= amount
+    assert balances[main_account] >= amount
+    approvals[main_account, ctx.caller] -= amount
+    balances[main_account] -= amount
+    balances[to] += amount
+    TransferEvent({"from": main_account, "to": to, "amount": amount})
+    return balances[to]
+
+@export
+def balance_of(account: str):
+    return balances[account]
+
+@export
+def allowance(owner: str, spender: str):
+    return approvals[owner, spender]
+""",
+            },
+            {
+                "name": "conformance_dex_token_b",
+                "source": """
+balances = Hash(default_value=0)
+
+TransferEvent = LogEvent(
+    "Transfer",
+    {
+        "from": indexed(str),
+        "to": indexed(str),
+        "amount": int,
+    },
+)
+
+@construct
+def seed():
+    balances["conformance_dex_pair"] = 30
+
+@export
+def transfer(amount: int, to: str):
+    assert balances[ctx.caller] >= amount
+    balances[ctx.caller] -= amount
+    balances[to] += amount
+    TransferEvent({"from": ctx.caller, "to": to, "amount": amount})
+    return balances[to]
+
+@export
+def balance_of(account: str):
+    return balances[account]
+""",
+            },
+            {
+                "name": "conformance_dex_pair",
+                "source": """
+import conformance_dex_token_a
+import conformance_dex_token_b
+
+reserves = Hash(default_value=0)
+
+SwapEvent = LogEvent(
+    "Swap",
+    {
+        "trader": indexed(str),
+        "recipient": indexed(str),
+        "amount_in": int,
+        "amount_out": int,
+    },
+)
+
+@construct
+def seed():
+    reserves["token_a"] = 0
+    reserves["token_b"] = 30
+
+@export
+def swap_exact_input(trader: str, recipient: str, amount_in: int, amount_out_min: int):
+    assert amount_in > 0
+    amount_out = amount_in * 2
+    assert amount_out >= amount_out_min
+    assert reserves["token_b"] >= amount_out
+
+    conformance_dex_token_a.transfer_from(
+        amount=amount_in,
+        to=ctx.this,
+        main_account=trader,
+    )
+    conformance_dex_token_b.transfer(amount=amount_out, to=recipient)
+
+    reserves["token_a"] += amount_in
+    reserves["token_b"] -= amount_out
+    SwapEvent(
+        {
+            "trader": trader,
+            "recipient": recipient,
+            "amount_in": amount_in,
+            "amount_out": amount_out,
+        }
+    )
+    return {
+        "amount_in": amount_in,
+        "amount_out": amount_out,
+        "reserve_a": reserves["token_a"],
+        "reserve_b": reserves["token_b"],
+    }
+
+@export
+def get_reserves():
+    return {
+        "token_a": reserves["token_a"],
+        "token_b": reserves["token_b"],
+    }
+""",
+            },
+            {
+                "name": "conformance_dex_router",
+                "source": """
+import conformance_dex_pair
+
+@export
+def swap_exact_input(trader: str, recipient: str, amount_in: int, amount_out_min: int):
+    return conformance_dex_pair.swap_exact_input(
+        trader=trader,
+        recipient=recipient,
+        amount_in=amount_in,
+        amount_out_min=amount_out_min,
+    )
+""",
+            },
+        ),
+        "source": """
+import conformance_dex_router
+import conformance_dex_pair
+import conformance_dex_token_a
+import conformance_dex_token_b
+
+@export
+def probe():
+    approved = conformance_dex_token_a.approve_for(
+        owner=ctx.caller,
+        spender="conformance_dex_pair",
+        amount=4,
+    )
+    swap = conformance_dex_router.swap_exact_input(
+        trader=ctx.caller,
+        recipient="vault",
+        amount_in=3,
+        amount_out_min=6,
+    )
+    return {
+        "approved": approved,
+        "swap": swap,
+        "reserves": conformance_dex_pair.get_reserves(),
+        "token_a": {
+            "alice": conformance_dex_token_a.balance_of(account=ctx.caller),
+            "pair": conformance_dex_token_a.balance_of(account="conformance_dex_pair"),
+            "allowance": conformance_dex_token_a.allowance(
+                owner=ctx.caller,
+                spender="conformance_dex_pair",
+            ),
+        },
+        "token_b": {
+            "pair": conformance_dex_token_b.balance_of(account="conformance_dex_pair"),
+            "vault": conformance_dex_token_b.balance_of(account="vault"),
+        },
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {},
+    },
 )
