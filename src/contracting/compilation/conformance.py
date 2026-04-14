@@ -117,10 +117,12 @@ def current_vm_parity_gaps() -> dict[str, list[str]]:
 def covered_conformance_surface() -> dict[str, set[str]]:
     builtins: set[str] = set()
     env: set[str] = set()
+    features: set[str] = set()
     for case in CONTRACT_LANGUAGE_CONFORMANCE_CASES:
         builtins.update(case.get("covers_builtins", ()))
         env.update(case.get("covers_env", ()))
-    return {"builtins": builtins, "env": env}
+        features.update(case.get("covers_features", ()))
+    return {"builtins": builtins, "env": env, "features": features}
 
 CONTRACT_LANGUAGE_CONFORMANCE_CASES: tuple[dict[str, Any], ...] = (
     {
@@ -137,6 +139,11 @@ CONTRACT_LANGUAGE_CONFORMANCE_CASES: tuple[dict[str, Any], ...] = (
             "ord",
         ),
         "covers_env": ("Variable",),
+        "covers_features": (
+            "storage.variable",
+            "syntax.assert",
+            "values.binary",
+        ),
         "source": """
 payload = Variable()
 
@@ -187,6 +194,11 @@ def probe(seed: bytes) -> dict:
             "set",
         ),
         "covers_env": ("Variable", "frozenset", "set"),
+        "covers_features": (
+            "decorators.export.typecheck",
+            "storage.variable",
+            "values.sets",
+        ),
         "source": """
 payload = Variable()
 
@@ -233,6 +245,10 @@ def probe(seed: list[int], markers: frozenset[int]) -> dict:
         "description": "Bitwise operators and unary invert behave like the Python VM.",
         "covers_builtins": ("int",),
         "covers_env": ("Hash",),
+        "covers_features": (
+            "storage.hash",
+            "syntax.bitwise",
+        ),
         "source": """
 flags = Hash(default_value=0)
 
@@ -259,6 +275,7 @@ def probe(value: int):
         "id": "raise_exception_instance",
         "description": "Explicit Exception(...) raising matches the Python VM error path.",
         "covers_builtins": ("Exception",),
+        "covers_features": ("syntax.raise",),
         "source": """
 @export
 def fail(armed: bool):
@@ -273,6 +290,7 @@ def fail(armed: bool):
         "id": "raise_exception_type",
         "description": "Raising the Exception type object instantiates the same error shape.",
         "covers_builtins": ("Exception",),
+        "covers_features": ("syntax.raise",),
         "source": """
 @export
 def fail():
@@ -285,6 +303,7 @@ def fail():
         "id": "keyword_unpack_calls",
         "description": "Keyword unpacking in calls behaves like the Python VM.",
         "covers_builtins": ("dict",),
+        "covers_features": ("syntax.keyword_unpack",),
         "source": """
 def quote(amount: int, to: str, memo: str = ""):
     return {
@@ -306,6 +325,7 @@ def render():
         "id": "dict_comprehension",
         "description": "Dict comprehensions behave like the Python VM.",
         "covers_builtins": ("str",),
+        "covers_features": ("syntax.dict_comp",),
         "source": """
 @export
 def render(values: list[int]):
@@ -383,6 +403,7 @@ def probe():
             "tuple",
             "zip",
         ),
+        "covers_features": ("syntax.list_comp",),
         "source": """
 @export
 def probe(values: list[int]):
@@ -415,6 +436,7 @@ def probe(values: list[int]):
             "range",
         ),
         "covers_env": ("filter", "map"),
+        "covers_features": ("helpers.higher_order",),
         "source": """
 def double(value: int) -> int:
     return value * 2
@@ -441,6 +463,7 @@ def probe(values: list[int]):
     {
         "id": "string_method_helpers",
         "description": "Common deterministic string helpers behave like the Python VM.",
+        "covers_features": ("methods.string",),
         "source": """
 @export
 def probe():
@@ -463,6 +486,7 @@ def probe():
     {
         "id": "local_collection_methods",
         "description": "Local list/dict helper methods behave like the Python VM.",
+        "covers_features": ("methods.collection",),
         "source": """
 @export
 def probe():
@@ -495,6 +519,10 @@ def probe():
     {
         "id": "control_flow_and_slicing_edges",
         "description": "Loop else blocks, chained comparisons, and negative slicing match the Python VM.",
+        "covers_features": (
+            "syntax.loop_else",
+            "syntax.while",
+        ),
         "source": """
 @export
 def probe():
@@ -546,6 +574,15 @@ def probe():
             "ctx",
             "indexed",
         ),
+        "covers_features": (
+            "context.ctx",
+            "decorators.construct",
+            "decorators.export",
+            "decorators.export.typecheck",
+            "events.log",
+            "storage.hash",
+            "storage.variable",
+        ),
         "source": """
 counter = Variable()
 balances = Hash(default_value=0)
@@ -592,6 +629,17 @@ def probe(value: Any, amount: int) -> Any:
             "importlib",
             "random",
             "zk",
+        ),
+        "covers_features": (
+            "modules.contract",
+            "modules.crypto",
+            "modules.datetime",
+            "modules.decimal",
+            "modules.hashlib",
+            "modules.importlib",
+            "modules.random",
+            "modules.zk",
+            "storage.foreign",
         ),
         "dependencies": (
             {
@@ -656,5 +704,38 @@ def probe():
 """,
         "function_name": "probe",
         "kwargs": {},
+    },
+    {
+        "id": "static_import_contract_calls",
+        "description": "Static contract imports behave like the Python VM.",
+        "covers_builtins": ("dict",),
+        "covers_features": ("imports.static",),
+        "dependencies": (
+            {
+                "name": "conformance_static_child",
+                "source": """
+balances = Hash(default_value=0)
+
+@construct
+def seed():
+    balances["alice"] = 7
+
+@export
+def balance_of(account: str):
+    return balances[account]
+""",
+            },
+        ),
+        "source": """
+import conformance_static_child
+
+@export
+def probe(account: str):
+    return {
+        "balance": conformance_static_child.balance_of(account=account),
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {"account": "alice"},
     },
 )
