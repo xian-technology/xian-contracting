@@ -1467,4 +1467,235 @@ def probe():
         "function_name": "probe",
         "kwargs": {},
     },
+    {
+        "id": "replay_validator_epoch_rewards_flow",
+        "description": "A validator-membership and epoch-reward flow preserves cross-contract state and event ordering like chain-governance workloads.",
+        "covers_features": (
+            "events.log",
+            "imports.static",
+            "storage.hash",
+            "storage.variable",
+        ),
+        "dependencies": (
+            {
+                "name": "conformance_validator_registry",
+                "source": """
+validator_count = Variable()
+validators = Hash(default_value=None)
+stakes = Hash(default_value=0)
+statuses = Hash(default_value=None)
+approvals = Hash(default_value=False)
+approval_count = Hash(default_value=0)
+
+ValidatorProposedEvent = LogEvent(
+    "ValidatorProposed",
+    {
+        "validator": indexed(str),
+        "stake": int,
+    },
+)
+ValidatorApprovedEvent = LogEvent(
+    "ValidatorApproved",
+    {
+        "validator": indexed(str),
+        "approver": indexed(str),
+        "approval_count": int,
+    },
+)
+ValidatorActivatedEvent = LogEvent(
+    "ValidatorActivated",
+    {
+        "validator": indexed(str),
+        "stake": int,
+    },
+)
+
+@construct
+def seed():
+    validator_count.set(0)
+
+@export
+def propose_validator(validator: str, stake: int):
+    index = validator_count.get()
+    validators[index] = validator
+    stakes[validator] = stake
+    statuses[validator] = "pending"
+    validator_count.set(index + 1)
+    ValidatorProposedEvent({"validator": validator, "stake": stake})
+    return {
+        "validator": validator,
+        "status": statuses[validator],
+        "stake": stakes[validator],
+    }
+
+@export
+def approve_validator(validator: str, approver: str):
+    assert statuses[validator] == "pending"
+    assert not approvals[validator, approver]
+    approvals[validator, approver] = True
+    approval_count[validator] += 1
+    ValidatorApprovedEvent(
+        {
+            "validator": validator,
+            "approver": approver,
+            "approval_count": approval_count[validator],
+        }
+    )
+    if approval_count[validator] >= 2:
+        statuses[validator] = "approved"
+        ValidatorActivatedEvent(
+            {
+                "validator": validator,
+                "stake": stakes[validator],
+            }
+        )
+    return {
+        "validator": validator,
+        "status": statuses[validator],
+        "approvals": approval_count[validator],
+    }
+
+@export
+def active_validators():
+    active = []
+    for index in range(validator_count.get()):
+        candidate = validators[index]
+        if statuses[candidate] == "approved":
+            active.append(candidate)
+    return active
+
+@export
+def status_of(validator: str):
+    return {
+        "status": statuses[validator],
+        "stake": stakes[validator],
+        "approvals": approval_count[validator],
+    }
+""",
+            },
+            {
+                "name": "conformance_epoch_rewards",
+                "source": """
+import conformance_validator_registry
+
+balances = Hash(default_value=0)
+last_epoch = Variable()
+
+RewardPaidEvent = LogEvent(
+    "RewardPaid",
+    {
+        "epoch": indexed(int),
+        "validator": indexed(str),
+        "amount": int,
+    },
+)
+EpochSettledEvent = LogEvent(
+    "EpochSettled",
+    {
+        "epoch": indexed(int),
+        "validator_count": int,
+        "total_reward": int,
+    },
+)
+
+@construct
+def seed():
+    last_epoch.set(0)
+
+@export
+def settle_epoch(epoch: int, total_reward: int):
+    assert epoch > last_epoch.get()
+    active = conformance_validator_registry.active_validators()
+    assert len(active) > 0
+
+    share = total_reward // len(active)
+    remainder = total_reward - (share * len(active))
+
+    for index in range(len(active)):
+        validator = active[index]
+        amount = share
+        if index < remainder:
+            amount += 1
+        balances[validator] += amount
+        RewardPaidEvent(
+            {
+                "epoch": epoch,
+                "validator": validator,
+                "amount": amount,
+            }
+        )
+
+    last_epoch.set(epoch)
+    EpochSettledEvent(
+        {
+            "epoch": epoch,
+            "validator_count": len(active),
+            "total_reward": total_reward,
+        }
+    )
+    return {
+        "epoch": epoch,
+        "validators": active,
+        "share": share,
+        "remainder": remainder,
+    }
+
+@export
+def reward_of(validator: str):
+    return balances[validator]
+""",
+            },
+        ),
+        "source": """
+import conformance_validator_registry
+import conformance_epoch_rewards
+
+@export
+def probe():
+    first = conformance_validator_registry.propose_validator(
+        validator="node_1",
+        stake=100,
+    )
+    second = conformance_validator_registry.propose_validator(
+        validator="node_2",
+        stake=80,
+    )
+
+    conformance_validator_registry.approve_validator(
+        validator="node_1",
+        approver="alice",
+    )
+    approve_node_1 = conformance_validator_registry.approve_validator(
+        validator="node_1",
+        approver="bob",
+    )
+    conformance_validator_registry.approve_validator(
+        validator="node_2",
+        approver="alice",
+    )
+    approve_node_2 = conformance_validator_registry.approve_validator(
+        validator="node_2",
+        approver="carol",
+    )
+
+    settlement = conformance_epoch_rewards.settle_epoch(epoch=1, total_reward=9)
+
+    return {
+        "proposed": [first, second],
+        "approved": [approve_node_1, approve_node_2],
+        "active": conformance_validator_registry.active_validators(),
+        "status": {
+            "node_1": conformance_validator_registry.status_of("node_1"),
+            "node_2": conformance_validator_registry.status_of("node_2"),
+        },
+        "settlement": settlement,
+        "rewards": {
+            "node_1": conformance_epoch_rewards.reward_of("node_1"),
+            "node_2": conformance_epoch_rewards.reward_of("node_2"),
+        },
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {},
+    },
 )
