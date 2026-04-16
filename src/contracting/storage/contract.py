@@ -28,6 +28,30 @@ class Contract:
         return driver or rt.env.get("__Driver") or Driver()
 
     @classmethod
+    def _active_contract_name(cls) -> str | None:
+        current_state = rt.context._get_state()
+        active_contract = current_state.get("this")
+        if isinstance(active_contract, str) and active_contract != "":
+            return active_contract
+        return None
+
+    @classmethod
+    def _require_submission_metadata_context(
+        cls,
+        *,
+        driver: Driver | None = None,
+    ) -> Driver:
+        resolved_driver = cls._resolve_driver(driver)
+        active_contract = cls._active_contract_name()
+        if active_contract is None:
+            return resolved_driver
+        if active_contract != constants.SUBMISSION_CONTRACT_NAME:
+            raise AssertionError(
+                "Contract metadata changes are restricted to submission."
+            )
+        return resolved_driver
+
+    @classmethod
     def _submit_with_driver(
         cls,
         driver: Driver,
@@ -266,7 +290,9 @@ class Contract:
         driver: Driver | None = None,
     ) -> None:
         assert_safe_contract_name(name)
-        cls._resolve_driver(driver).set_var(
+        cls._require_submission_metadata_context(
+            driver=driver,
+        ).set_var(
             name,
             OWNER_KEY,
             value=new_owner,
@@ -281,7 +307,9 @@ class Contract:
         driver: Driver | None = None,
     ) -> None:
         assert_safe_contract_name(name)
-        cls._resolve_driver(driver).set_var(
+        cls._require_submission_metadata_context(
+            driver=driver,
+        ).set_var(
             name,
             DEVELOPER_KEY,
             value=new_developer,

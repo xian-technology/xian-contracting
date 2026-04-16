@@ -146,7 +146,7 @@ def probe():
         name="con_replay_submission_child",
         code=None,
         deployment_artifacts=ARTIFACTS,
-        owner="owner_a",
+        owner=ctx.caller,
         constructor_args={{"label": "ready"}},
         developer=ctx.caller,
         deployer=ctx.caller,
@@ -155,7 +155,7 @@ def probe():
     ContractDeployedEvent(
         {{
             "name": "con_replay_submission_child",
-            "owner": "owner_a",
+            "owner": ctx.caller,
             "developer": ctx.caller,
         }}
     )
@@ -216,6 +216,68 @@ def covered_conformance_surface() -> dict[str, set[str]]:
 
 
 CONTRACT_LANGUAGE_CONFORMANCE_CASES: tuple[dict[str, Any], ...] = (
+    {
+        "id": "contract_metadata_owner_protected",
+        "description": "Contracts cannot rewrite another contract owner outside the submission privilege path.",
+        "covers_env": ("Contract",),
+        "covers_features": ("host.contract_metadata_auth",),
+        "dependencies": (
+            {
+                "name": "conformance_metadata_owner_target",
+                "owner": "owner_a",
+                "source": """
+value = Variable()
+
+@construct
+def seed():
+    value.set("ready")
+
+@export
+def read():
+    return value.get()
+""",
+            },
+        ),
+        "source": """
+@export
+def probe():
+    Contract.set_owner("conformance_metadata_owner_target", "mallory")
+    return "unexpected"
+""",
+        "function_name": "probe",
+        "kwargs": {},
+    },
+    {
+        "id": "contract_metadata_developer_protected",
+        "description": "Contracts cannot rewrite another contract developer outside the submission privilege path.",
+        "covers_env": ("Contract",),
+        "covers_features": ("host.contract_metadata_auth",),
+        "dependencies": (
+            {
+                "name": "conformance_metadata_developer_target",
+                "owner": "owner_a",
+                "source": """
+value = Variable()
+
+@construct
+def seed():
+    value.set("ready")
+
+@export
+def read():
+    return value.get()
+""",
+            },
+        ),
+        "source": """
+@export
+def probe():
+    Contract.set_developer("conformance_metadata_developer_target", "mallory")
+    return "unexpected"
+""",
+        "function_name": "probe",
+        "kwargs": {},
+    },
     {
         "id": "binary_values",
         "description": "bytes/bytearray values behave like the Python VM and round-trip through storage.",

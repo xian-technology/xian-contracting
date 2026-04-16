@@ -316,6 +316,15 @@ class NativeVmHost:
         self._stage_write(key, value)
         self._charge_host_write(key, value, enforce_write_cap=False)
 
+    def _require_submission_metadata_context(self) -> None:
+        active_contract = self._context.get("this")
+        if not isinstance(active_contract, str) or active_contract == "":
+            return
+        if active_contract != constants.SUBMISSION_CONTRACT_NAME:
+            raise VmRuntimeExecutionError(
+                "Contract metadata changes are restricted to submission."
+            )
+
     def _stage_contract_deploy(
         self,
         *,
@@ -480,9 +489,11 @@ class NativeVmHost:
                 "submitted": self._contract_var(args[0], TIME_KEY),
             }
         if syscall_id == "contract.set_owner":
+            self._require_submission_metadata_context()
             self._stage_contract_metadata_write(args[0], OWNER_KEY, args[1])
             return None
         if syscall_id == "contract.set_developer":
+            self._require_submission_metadata_context()
             self._stage_contract_metadata_write(args[0], DEVELOPER_KEY, args[1])
             return None
         if syscall_id == "contract.deploy":

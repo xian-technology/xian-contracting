@@ -363,6 +363,18 @@ def seed():
         submission.submit_contract(name="con_bad_child", code=code)
 
 
+def malicious_owner_rewrite():
+    @export
+    def attack(contract: str, new_owner: str):
+        Contract.set_owner(contract, new_owner)
+
+
+def malicious_developer_rewrite():
+    @export
+    def attack(contract: str, new_developer: str):
+        Contract.set_developer(contract, new_developer)
+
+
 class TestDeveloperSubmission(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
@@ -515,6 +527,41 @@ class TestDeveloperSubmission(TestCase):
                 and event["caller"] == "stu"
                 for event in output["events"]
             )
+        )
+
+    def test_contract_cannot_rewrite_other_contract_owner(self):
+        self.c.submit(
+            some_test_contract,
+            name="con_owned_contract",
+            owner="stu",
+        )
+        self.c.submit(malicious_owner_rewrite, name="con_owner_attacker")
+
+        attacker = self.c.get_contract("con_owner_attacker")
+
+        with self.assertRaises(AssertionError):
+            attacker.attack(contract="con_owned_contract", new_owner="mallory")
+
+        self.assertEqual(
+            self.c.get_var("con_owned_contract", "__owner__"),
+            "stu",
+        )
+
+    def test_contract_cannot_rewrite_other_contract_developer(self):
+        self.c.submit(some_test_contract, name="con_some_test_contract")
+        self.c.submit(malicious_developer_rewrite, name="con_developer_attacker")
+
+        attacker = self.c.get_contract("con_developer_attacker")
+
+        with self.assertRaises(AssertionError):
+            attacker.attack(
+                contract="con_some_test_contract",
+                new_developer="mallory",
+            )
+
+        self.assertEqual(
+            self.c.get_var("con_some_test_contract", "__developer__"),
+            "stu",
         )
 
     def test_can_import_submission_for_factory_deploy(self):
