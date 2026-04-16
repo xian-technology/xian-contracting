@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xian-tech-runtime-types"
-version = "0.1.0"
+version = "0.1.1"
 description = "Shared deterministic runtime types for the Xian stack"
 readme = "README.md"
 license = "MIT"
