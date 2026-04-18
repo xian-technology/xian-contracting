@@ -12,8 +12,36 @@ from contracting.execution.module import (
     install_database_loader,
     uninstall_builtins,
 )
+from contracting.execution.tracer_common import (
+    CallLimitExceededError,
+    ChiExceededError,
+)
 from contracting.stdlib.bridge.random import clear_random_state
 from contracting.storage.driver import Driver
+
+
+def _classify_execution_error(error: BaseException | None) -> str:
+    """
+    Classify an execution error so callers can distinguish resource-limit
+    failures from contract-level bugs. Returned value goes into the
+    transaction output dict as ``error_class``.
+
+    Categories:
+      * ``"success"``              – no error (status_code == 0)
+      * ``"chi_exceeded"``         – ran out of chi budget
+      * ``"call_limit_exceeded"``  – deterministic instruction cap hit
+      * ``"contract_assertion"``   – ``assert`` statement failed in a contract
+      * ``"contract_error"``       – any other exception from contract code
+    """
+    if error is None:
+        return "success"
+    if isinstance(error, ChiExceededError):
+        return "chi_exceeded"
+    if isinstance(error, CallLimitExceededError):
+        return "call_limit_exceeded"
+    if isinstance(error, AssertionError):
+        return "contract_assertion"
+    return "contract_error"
 
 
 class Executor:
@@ -204,9 +232,16 @@ class Executor:
                     "Balance key was not set properly. Cannot deduct chi."
                 )
 
-                to_deduct = chi_used
-                to_deduct /= chi_cost
-                to_deduct = ContractingDecimal(to_deduct)
+                # Use Decimal arithmetic throughout. Previously this went
+                # chi_used // chi_cost through Python float ("/"), which
+                # loses precision on ratios that aren't exact fractions in
+                # base-2 (e.g. chi_used=10000, chi_cost=3). Wrapping the
+                # resulting float in ContractingDecimal preserved the
+                # imprecise value. Convert to Decimal first so the division
+                # itself happens in Decimal space.
+                to_deduct = ContractingDecimal(chi_used) / ContractingDecimal(
+                    chi_cost
+                )
 
                 balance = self._coerce_balance_value(driver.get(balances_key))
 
@@ -230,6 +265,9 @@ class Executor:
                 "prefix_reads": frozenset(driver.transaction_read_prefixes),
                 "events": events,
                 "contract_costs": contract_costs,
+                "error_class": _classify_execution_error(
+                    result if status_code != 0 else None
+                ),
             }
 
             disable_restricted_imports()
