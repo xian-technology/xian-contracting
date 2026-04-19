@@ -291,7 +291,7 @@ def probe():
             "list",
             "ord",
         ),
-        "covers_env": ("Variable",),
+        "covers_env": ("Variable", "bytearray", "bytes"),
         "covers_features": (
             "storage.variable",
             "syntax.assert",
@@ -556,6 +556,7 @@ def probe():
             "tuple",
             "zip",
         ),
+        "covers_env": ("range",),
         "covers_features": ("syntax.list_comp",),
         "source": """
 @export
