@@ -349,6 +349,15 @@ class _LintVisitor(ast.NodeVisitor):
 
         ast.NodeVisitor.generic_visit(self, node)
 
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        if isinstance(node.op, ast.Mult):
+            self.add(
+                ErrorCode.E001,
+                node,
+                detail="Augmented multiplication is not allowed; use x = x * y",
+            )
+        ast.NodeVisitor.generic_visit(self, node)
+
     def _check_orm_assign(self, node: ast.Assign, orm_name: str) -> None:
         for target in node.targets:
             if isinstance(target, ast.Tuple):

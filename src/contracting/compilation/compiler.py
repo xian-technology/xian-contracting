@@ -69,6 +69,21 @@ class ContractingCompiler(ast.NodeTransformer):
     def privatize(s):
         return "{}{}".format(constants.PRIVATE_METHOD_PREFIX, s)
 
+    def _guarded_mul_call(
+        self,
+        left: ast.expr,
+        right: ast.expr,
+        location: ast.AST,
+    ) -> ast.Call:
+        return ast.copy_location(
+            ast.Call(
+                func=ast.Name(id="__xian_mul__", ctx=ast.Load()),
+                args=[left, right],
+                keywords=[],
+            ),
+            location,
+        )
+
     def compile(self, source: str, lint=True, vm_profile: str | None = None):
         tree = self.parse(source, lint=lint, vm_profile=vm_profile)
 
@@ -205,6 +220,12 @@ class ContractingCompiler(ast.NodeTransformer):
 
         self.generic_visit(node)
 
+        return node
+
+    def visit_BinOp(self, node):
+        self.generic_visit(node)
+        if isinstance(node.op, ast.Mult):
+            return self._guarded_mul_call(node.left, node.right, node)
         return node
 
     def visit_Name(self, node):

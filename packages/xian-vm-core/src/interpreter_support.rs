@@ -111,6 +111,12 @@ fn repeat_bytes_like(bytes: &[u8], count: &BigInt) -> Result<Vec<u8>, VmExecutio
         return Ok(Vec::new());
     }
     let count = bigint_to_usize(count, "repeat count")?;
+    let total_len = bytes.len().saturating_mul(count);
+    if total_len > MAX_BINARY_ALLOCATION_BYTES {
+        return Err(VmExecutionError::new(
+            "binary repetition exceeds the maximum allowed allocation size",
+        ));
+    }
     let mut repeated = Vec::with_capacity(bytes.len().saturating_mul(count));
     for _ in 0..count {
         repeated.extend_from_slice(bytes);
@@ -1090,6 +1096,12 @@ pub(super) fn repeat_values(
         return Ok(Vec::new());
     }
     let count = bigint_to_usize(count, "sequence repeat count")?;
+    let total_len = values.len().saturating_mul(count);
+    if total_len > MAX_SEQUENCE_LENGTH {
+        return Err(VmExecutionError::new(
+            "sequence repetition exceeds the maximum allowed allocation size",
+        ));
+    }
     let mut repeated = Vec::with_capacity(values.len().saturating_mul(count));
     for _ in 0..count {
         repeated.extend(values.iter().cloned());
@@ -1101,7 +1113,14 @@ pub(super) fn repeat_string(value: &str, count: &BigInt) -> Result<String, VmExe
     if count.sign() == Sign::Minus {
         return Ok(String::new());
     }
-    Ok(value.repeat(bigint_to_usize(count, "string repeat count")?))
+    let count = bigint_to_usize(count, "string repeat count")?;
+    let total_len = value.len().saturating_mul(count);
+    if total_len > MAX_BINARY_ALLOCATION_BYTES {
+        return Err(VmExecutionError::new(
+            "string repetition exceeds the maximum allowed allocation size",
+        ));
+    }
+    Ok(value.repeat(count))
 }
 
 pub(super) fn render_simple_format(

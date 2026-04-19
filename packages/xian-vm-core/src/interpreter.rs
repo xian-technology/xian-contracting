@@ -14,6 +14,8 @@ const STORAGE_DELIMITER: &str = ":";
 const STORAGE_INDEX_SEPARATOR: &str = ".";
 const MAX_HASH_DIMENSIONS: usize = 16;
 const MAX_STORAGE_KEY_SIZE: usize = 1024;
+pub(crate) const MAX_SEQUENCE_LENGTH: usize = 1024 * 128;
+pub(crate) const MAX_BINARY_ALLOCATION_BYTES: usize = 1024 * 128;
 pub(crate) const VM_GAS_CALL_DISPATCH: u64 = 5_000;
 const VM_GAS_EVENT_EMIT: u64 = 8_000;
 const VM_GAS_VARIABLE_GET: u64 = 1_280;
@@ -2116,11 +2118,21 @@ impl VmInstance {
                 let mut current = start;
                 if step.sign() != Sign::Minus {
                     while current < stop {
+                        if values.len() >= MAX_SEQUENCE_LENGTH {
+                            return Err(VmExecutionError::new(
+                                "range() exceeds the maximum allowed allocation size",
+                            ));
+                        }
                         values.push(VmValue::Int(current.clone()));
                         current += &step;
                     }
                 } else {
                     while current > stop {
+                        if values.len() >= MAX_SEQUENCE_LENGTH {
+                            return Err(VmExecutionError::new(
+                                "range() exceeds the maximum allowed allocation size",
+                            ));
+                        }
                         values.push(VmValue::Int(current.clone()));
                         current += &step;
                     }
@@ -2165,9 +2177,15 @@ impl VmInstance {
                         if size.sign() == Sign::Minus {
                             return Err(VmExecutionError::new("negative count"));
                         }
+                        let size = bigint_to_usize(size, "bytes() size")?;
+                        if size > MAX_BINARY_ALLOCATION_BYTES {
+                            return Err(VmExecutionError::new(
+                                "bytes() exceeds the maximum allowed allocation size",
+                            ));
+                        }
                         Ok(VmValue::Bytes(vec![
                             0;
-                            bigint_to_usize(size, "bytes() size")?
+                            size
                         ]))
                     }
                     [value] => Ok(VmValue::Bytes(clone_as_bytes_like(value)?)),
@@ -2206,12 +2224,15 @@ impl VmInstance {
                         if size.sign() == Sign::Minus {
                             return Err(VmExecutionError::new("negative count"));
                         }
+                        let size = bigint_to_usize(size, "bytearray() size")?;
+                        if size > MAX_BINARY_ALLOCATION_BYTES {
+                            return Err(VmExecutionError::new(
+                                "bytearray() exceeds the maximum allowed allocation size",
+                            ));
+                        }
                         Ok(VmValue::ByteArray(vec![
                             0;
-                            bigint_to_usize(
-                                size,
-                                "bytearray() size"
-                            )?
+                            size
                         ]))
                     }
                     [value] => Ok(VmValue::ByteArray(clone_as_bytes_like(value)?)),
