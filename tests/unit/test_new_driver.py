@@ -64,6 +64,32 @@ class TestDriver(unittest.TestCase):
         self.assertNotIn(key1, keys)
         self.assertNotIn(key2, keys)
 
+    def test_scan_keys_from_disk_paginates_prefix_results(self):
+        for suffix in ("alice", "bob", "carol"):
+            self.driver.set(f"currency.balances:{suffix}", "1")
+        self.driver.commit()
+
+        first_page, first_has_more = self.driver.scan_keys_from_disk(
+            "currency.balances",
+            limit=2,
+        )
+        second_page, second_has_more = self.driver.scan_keys_from_disk(
+            "currency.balances",
+            limit=2,
+            after_key=first_page[-1],
+        )
+
+        self.assertEqual(
+            first_page,
+            [
+                "currency.balances:alice",
+                "currency.balances:bob",
+            ],
+        )
+        self.assertTrue(first_has_more)
+        self.assertEqual(second_page, ["currency.balances:carol"])
+        self.assertFalse(second_has_more)
+
     def test_items(self):
         prefix_key = 'prefix_key'
         value = 'test_value'

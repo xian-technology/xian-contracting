@@ -90,6 +90,52 @@ class LMDBStore:
                 keys.append(key_bytes.decode("utf-8"))
         return keys
 
+    def scan_keys(
+        self,
+        prefix: str = "",
+        *,
+        limit: int = 100,
+        after_key: str | None = None,
+    ) -> tuple[list[str], bool]:
+        prefix_bytes = prefix.encode("utf-8")
+        after_key_bytes = (
+            after_key.encode("utf-8") if after_key is not None else None
+        )
+        normalized_limit = max(int(limit), 0)
+        if normalized_limit == 0:
+            return [], False
+
+        keys: list[str] = []
+        has_more = False
+        start_bytes = (
+            after_key_bytes
+            if after_key_bytes is not None
+            else prefix_bytes
+        )
+
+        with self._env.begin() as txn:
+            cursor = txn.cursor()
+            if start_bytes:
+                if not cursor.set_range(start_bytes):
+                    return keys, False
+            elif not cursor.first():
+                return keys, False
+
+            for key_bytes in cursor.iternext(values=False):
+                if prefix_bytes and not key_bytes.startswith(prefix_bytes):
+                    break
+                if (
+                    after_key_bytes is not None
+                    and key_bytes <= after_key_bytes
+                ):
+                    continue
+                if len(keys) >= normalized_limit:
+                    has_more = True
+                    break
+                keys.append(key_bytes.decode("utf-8"))
+
+        return keys, has_more
+
     def items(self, prefix: str = ""):
         prefix_bytes = prefix.encode("utf-8")
         items = {}

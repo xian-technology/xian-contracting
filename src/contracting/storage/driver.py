@@ -118,6 +118,21 @@ class Driver:
             return keys[:length]
         return keys
 
+    def scan_keys_from_disk(
+        self,
+        prefix: str = "",
+        *,
+        limit: int = 100,
+        after_key: str | None = None,
+    ) -> tuple[list[str], bool]:
+        if self.track_transaction_reads:
+            self.transaction_read_prefixes.add(prefix)
+        return self._store.scan_keys(
+            prefix,
+            limit=limit,
+            after_key=after_key,
+        )
+
     def iter_from_disk(self, prefix: str = "", length: int = 0):
         if self.track_transaction_reads:
             self.transaction_read_prefixes.add(prefix)
