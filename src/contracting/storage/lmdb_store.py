@@ -108,9 +108,7 @@ class LMDBStore:
         keys: list[str] = []
         has_more = False
         start_bytes = (
-            after_key_bytes
-            if after_key_bytes is not None
-            else prefix_bytes
+            after_key_bytes if after_key_bytes is not None else prefix_bytes
         )
 
         with self._env.begin() as txn:
@@ -124,10 +122,7 @@ class LMDBStore:
             for key_bytes in cursor.iternext(values=False):
                 if prefix_bytes and not key_bytes.startswith(prefix_bytes):
                     break
-                if (
-                    after_key_bytes is not None
-                    and key_bytes <= after_key_bytes
-                ):
+                if after_key_bytes is not None and key_bytes <= after_key_bytes:
                     continue
                 if len(keys) >= normalized_limit:
                     has_more = True
