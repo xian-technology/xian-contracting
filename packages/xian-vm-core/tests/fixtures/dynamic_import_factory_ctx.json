@@ -605,6 +605,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 16,
                   "end_col": 31,
@@ -744,7 +745,7 @@
                       "line": 2
                     },
                     "value": {
-                      "host_binding_id": null,
+                      "host_binding_id": "module.importlib",
                       "id": "importlib",
                       "node": "name",
                       "span": {
@@ -937,6 +938,7 @@
                   "keywords": [
                     {
                       "arg": "account",
+                      "node": "keyword",
                       "span": {
                         "col": 28,
                         "end_col": 43,
@@ -1032,6 +1034,12 @@
             "category": "import",
             "id": "contract.import",
             "kind": "syscall"
+          },
+          {
+            "binding": "importlib",
+            "category": "import",
+            "id": "module.importlib",
+            "kind": "value"
           }
         ],
         "imports": [],

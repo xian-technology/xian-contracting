@@ -128,14 +128,14 @@ chi cost. The real bottleneck was Python execution inside the contracts,
 especially MiMC tree updates and command-binding digests.
 
 After moving those hot paths into native `xian-zk` bindings and metering them
-explicitly through the `zk` stdlib bridge, the local shielded benchmark in
-`xian-abci/scripts/benchmark_shielded_chi.py` dropped to:
+explicitly through the `zk` stdlib bridge, the current local shielded benchmark
+in `xian-abci/scripts/benchmark_shielded_chi.py` reports:
 
-- deposit with 2 outputs: `3,742` chi
-- transfer with 2 inputs / 2 outputs: `4,062` chi
-- withdraw with 1 input / 1 output: `3,479` chi
-- exact withdraw with no new output note: `2,405` chi
-- relayed hidden-sender transfer: `5,726` chi
+- deposit with 2 outputs: `3,347` chi
+- transfer with 2 inputs / 2 outputs: `3,600` chi
+- withdraw with 1 input / 1 output: `3,128` chi
+- exact withdraw with no new output note: `2,175` chi
+- relayed hidden-sender transfer: `5,288` chi
 
 April 2026 baseline before the native tree/digest path:
 

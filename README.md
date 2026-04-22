@@ -4,23 +4,23 @@
 compilation, secure execution, storage semantics, metering, and the runtime
 rules that contracts must obey.
 
+The published package is `xian-tech-contracting`. The import package remains
+`contracting`.
+
 ## Quick Start
 
-Install the runtime:
+Install the default pure-Python runtime:
 
 ```bash
 pip install xian-tech-contracting
 ```
 
-If you want contract-side zk proof verification, install the optional zk
-backend too:
+Optional native packages are split out so the default install stays small:
 
 ```bash
+pip install 'xian-tech-contracting[native]'
 pip install 'xian-tech-contracting[zk]'
 ```
-
-The published PyPI package name is `xian-tech-contracting`. The repo name
-remains `xian-contracting`, and the import surface remains `contracting`.
 
 Submit and call a contract:
 
@@ -57,10 +57,12 @@ print(driver.get("example.key"))
 ## Key Directories
 
 - `src/contracting/`: runtime, storage, compilation, and stdlib bridge code
-- `packages/`: shared packages such as `xian-runtime-types`, `xian-accounts`,
-  the native tracer, and `xian-zk`
+- `packages/`: shared packages for deterministic runtime types, accounts,
+  native tracing, fast-path validation, VM work, and zk tooling
+- `scripts/`: audit and fixture-generation tools used by VM/runtime work
 - `tests/`: unit, integration, and security coverage
-- `docs/`: architecture, backlog, and execution notes
+- `docs/`: architecture, backlog, current-state notes, and active design drafts
+- `examples/`: notebook examples plus a non-Jupyter validation script
 
 ## What It Covers
 
@@ -69,23 +71,32 @@ print(driver.get("example.key"))
 - storage drivers and encoding
 - contract-side runtime helpers
 - optional native tracing backend
+- speculative parallel batch execution primitives
 - native zero-knowledge verifier building blocks
+- Xian VM IR generation, validation, parity fixtures, and early native VM work
 
 ## Validation
+
+The default CI path is:
 
 ```bash
 uv sync --group dev
 uv run ruff check .
 uv run ruff format --check .
-uv run pytest
+uv run pytest --cov=contracting --cov-report=term-missing --cov-report=xml
 ```
 
-If you change the zk runtime surface or the native verifier package, run:
+The native CI path is:
 
 ```bash
-uv sync --group dev --extra zk
-uv run --extra zk pytest -q tests/unit/test_zk_stdlib.py tests/integration/test_zk_bridge.py
-cd packages/xian-zk && uv sync --group dev && uv run maturin develop && uv run pytest -q
+uv sync --group dev --extra native --extra zk
+cargo check --manifest-path packages/xian-native-tracer/Cargo.toml
+cargo check --manifest-path packages/xian-zk/Cargo.toml --features python-extension
+cargo test --manifest-path packages/xian-zk/Cargo.toml --no-default-features
+cd packages/xian-zk && uv run pytest -q
+uv run pytest -q tests/unit/test_tracer.py tests/unit/test_native_tracer.py \
+  tests/unit/test_runtime.py tests/unit/test_zk_stdlib.py \
+  tests/integration/test_chi_deduction.py tests/integration/test_zk_bridge.py
 ```
 
 If you change metering, tracing, storage encoding, or import restrictions, run
@@ -96,4 +107,6 @@ the relevant `tests/security/` and `tests/integration/` paths explicitly too.
 - [AGENTS.md](AGENTS.md)
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - [docs/BACKLOG.md](docs/BACKLOG.md)
+- [docs/PARALLEL_EXECUTION.md](docs/PARALLEL_EXECUTION.md)
+- [docs/TRACER_BACKENDS.md](docs/TRACER_BACKENDS.md)
 - [docs/README.md](docs/README.md)

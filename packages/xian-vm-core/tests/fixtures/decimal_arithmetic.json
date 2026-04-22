@@ -2,7 +2,8 @@
   "call": {
     "args": [],
     "function": "probe",
-    "kwargs": {}
+    "kwargs": {},
+    "module": "con_vm_parity_decimal"
   },
   "context": {
     "block_hash": "block5",
@@ -30,758 +31,765 @@
       }
     },
     "state": {
-      "hashes": [
-        {
-          "binding": "balances",
-          "entries": [
-            {
-              "key": "alice",
-              "value": {
+      "con_vm_parity_decimal": {
+        "hashes": [
+          {
+            "binding": "balances",
+            "entries": [
+              {
+                "key": "alice",
+                "value": {
+                  "__vm_type__": "decimal",
+                  "value": "1.62345678901234567890123456789"
+                }
+              }
+            ]
+          }
+        ],
+        "variables": [
+          {
+            "binding": "last_snapshot",
+            "value": {
+              "floored": {
+                "__vm_type__": "decimal",
+                "value": "-2"
+              },
+              "is_decimal": true,
+              "quotient": {
+                "__vm_type__": "decimal",
+                "value": "0.811728394506172839450617283945"
+              },
+              "total": {
                 "__vm_type__": "decimal",
                 "value": "1.62345678901234567890123456789"
               }
             }
-          ]
-        }
-      ],
-      "variables": [
-        {
-          "binding": "last_snapshot",
-          "value": {
-            "floored": {
-              "__vm_type__": "decimal",
-              "value": "-2"
-            },
-            "is_decimal": true,
-            "quotient": {
-              "__vm_type__": "decimal",
-              "value": "0.811728394506172839450617283945"
-            },
-            "total": {
-              "__vm_type__": "decimal",
-              "value": "1.62345678901234567890123456789"
-            }
           }
-        }
-      ]
+        ]
+      }
     }
   },
-  "initial_state": {
-    "foreign_hashes": [],
-    "foreign_variables": [],
-    "hashes": [],
-    "variables": []
-  },
-  "ir": {
-    "docstring": null,
-    "functions": [
-      {
-        "body": [
+  "modules": [
+    {
+      "initial_state": {
+        "foreign_hashes": [],
+        "foreign_variables": [],
+        "hashes": [],
+        "variables": []
+      },
+      "ir": {
+        "docstring": null,
+        "functions": [
           {
-            "binding": "balances",
-            "key": {
-              "node": "constant",
-              "span": {
-                "col": 13,
-                "end_col": 20,
-                "end_line": 6,
-                "line": 6
-              },
-              "value": "alice",
-              "value_type": "str"
-            },
-            "node": "storage_mutate",
-            "operator": "add",
-            "read_syscall_id": "storage.hash.get",
-            "span": {
-              "col": 4,
-              "end_col": 75,
-              "end_line": 6,
-              "line": 6
-            },
-            "storage_type": "Hash",
-            "value": {
-              "left": {
-                "args": [
-                  {
-                    "node": "constant",
-                    "span": {
-                      "col": 33,
-                      "end_col": 68,
-                      "end_line": 6,
-                      "line": 6
-                    },
-                    "value": "0.1234567890123456789012345678909",
-                    "value_type": "str"
-                  }
-                ],
-                "event_binding": null,
-                "func": {
-                  "host_binding_id": "numeric.decimal.new",
-                  "id": "decimal",
-                  "node": "name",
+            "body": [
+              {
+                "binding": "balances",
+                "key": {
+                  "node": "constant",
                   "span": {
-                    "col": 25,
-                    "end_col": 32,
+                    "col": 13,
+                    "end_col": 20,
                     "end_line": 6,
                     "line": 6
-                  }
+                  },
+                  "value": "alice",
+                  "value_type": "str"
                 },
-                "keywords": [],
-                "node": "call",
+                "node": "storage_mutate",
+                "operator": "add",
+                "read_syscall_id": "storage.hash.get",
                 "span": {
-                  "col": 25,
-                  "end_col": 69,
-                  "end_line": 6,
-                  "line": 6
-                },
-                "syscall_id": "numeric.decimal.new"
-              },
-              "node": "bin_op",
-              "operator": "add",
-              "right": {
-                "literal": "1.5",
-                "node": "constant",
-                "span": {
-                  "col": 72,
+                  "col": 4,
                   "end_col": 75,
                   "end_line": 6,
                   "line": 6
                 },
-                "value": 1.5,
-                "value_type": "float"
-              },
-              "span": {
-                "col": 25,
-                "end_col": 75,
-                "end_line": 6,
-                "line": 6
-              }
-            },
-            "write_syscall_id": "storage.hash.set"
-          },
-          {
-            "node": "assign",
-            "span": {
-              "col": 4,
-              "end_col": 29,
-              "end_line": 7,
-              "line": 7
-            },
-            "targets": [
-              {
-                "host_binding_id": null,
-                "id": "total",
-                "node": "name",
-                "span": {
-                  "col": 4,
-                  "end_col": 9,
-                  "end_line": 7,
-                  "line": 7
-                }
-              }
-            ],
-            "value": {
-              "binding": "balances",
-              "key": {
-                "node": "constant",
-                "span": {
-                  "col": 21,
-                  "end_col": 28,
-                  "end_line": 7,
-                  "line": 7
-                },
-                "value": "alice",
-                "value_type": "str"
-              },
-              "node": "storage_get",
-              "span": {
-                "col": 12,
-                "end_col": 29,
-                "end_line": 7,
-                "line": 7
-              },
-              "storage_type": "Hash",
-              "syscall_id": "storage.hash.get"
-            }
-          },
-          {
-            "node": "assign",
-            "span": {
-              "col": 4,
-              "end_col": 35,
-              "end_line": 8,
-              "line": 8
-            },
-            "targets": [
-              {
-                "host_binding_id": null,
-                "id": "quotient",
-                "node": "name",
-                "span": {
-                  "col": 4,
-                  "end_col": 12,
-                  "end_line": 8,
-                  "line": 8
-                }
-              }
-            ],
-            "value": {
-              "left": {
-                "host_binding_id": null,
-                "id": "total",
-                "node": "name",
-                "span": {
-                  "col": 15,
-                  "end_col": 20,
-                  "end_line": 8,
-                  "line": 8
-                }
-              },
-              "node": "bin_op",
-              "operator": "div",
-              "right": {
-                "args": [
-                  {
-                    "node": "constant",
-                    "span": {
-                      "col": 31,
-                      "end_col": 34,
-                      "end_line": 8,
-                      "line": 8
-                    },
-                    "value": "2",
-                    "value_type": "str"
-                  }
-                ],
-                "event_binding": null,
-                "func": {
-                  "host_binding_id": "numeric.decimal.new",
-                  "id": "decimal",
-                  "node": "name",
-                  "span": {
-                    "col": 23,
-                    "end_col": 30,
-                    "end_line": 8,
-                    "line": 8
-                  }
-                },
-                "keywords": [],
-                "node": "call",
-                "span": {
-                  "col": 23,
-                  "end_col": 35,
-                  "end_line": 8,
-                  "line": 8
-                },
-                "syscall_id": "numeric.decimal.new"
-              },
-              "span": {
-                "col": 15,
-                "end_col": 35,
-                "end_line": 8,
-                "line": 8
-              }
-            }
-          },
-          {
-            "node": "assign",
-            "span": {
-              "col": 4,
-              "end_col": 43,
-              "end_line": 9,
-              "line": 9
-            },
-            "targets": [
-              {
-                "host_binding_id": null,
-                "id": "floored",
-                "node": "name",
-                "span": {
-                  "col": 4,
-                  "end_col": 11,
-                  "end_line": 9,
-                  "line": 9
-                }
-              }
-            ],
-            "value": {
-              "left": {
-                "args": [
-                  {
-                    "node": "constant",
-                    "span": {
-                      "col": 22,
-                      "end_col": 26,
-                      "end_line": 9,
-                      "line": 9
-                    },
-                    "value": "-5",
-                    "value_type": "str"
-                  }
-                ],
-                "event_binding": null,
-                "func": {
-                  "host_binding_id": "numeric.decimal.new",
-                  "id": "decimal",
-                  "node": "name",
-                  "span": {
-                    "col": 14,
-                    "end_col": 21,
-                    "end_line": 9,
-                    "line": 9
-                  }
-                },
-                "keywords": [],
-                "node": "call",
-                "span": {
-                  "col": 14,
-                  "end_col": 27,
-                  "end_line": 9,
-                  "line": 9
-                },
-                "syscall_id": "numeric.decimal.new"
-              },
-              "node": "bin_op",
-              "operator": "floordiv",
-              "right": {
-                "args": [
-                  {
-                    "node": "constant",
-                    "span": {
-                      "col": 39,
-                      "end_col": 42,
-                      "end_line": 9,
-                      "line": 9
-                    },
-                    "value": "2",
-                    "value_type": "str"
-                  }
-                ],
-                "event_binding": null,
-                "func": {
-                  "host_binding_id": "numeric.decimal.new",
-                  "id": "decimal",
-                  "node": "name",
-                  "span": {
-                    "col": 31,
-                    "end_col": 38,
-                    "end_line": 9,
-                    "line": 9
-                  }
-                },
-                "keywords": [],
-                "node": "call",
-                "span": {
-                  "col": 31,
-                  "end_col": 43,
-                  "end_line": 9,
-                  "line": 9
-                },
-                "syscall_id": "numeric.decimal.new"
-              },
-              "span": {
-                "col": 14,
-                "end_col": 43,
-                "end_line": 9,
-                "line": 9
-              }
-            }
-          },
-          {
-            "node": "assign",
-            "span": {
-              "col": 4,
-              "end_col": 5,
-              "end_line": 15,
-              "line": 10
-            },
-            "targets": [
-              {
-                "host_binding_id": null,
-                "id": "snapshot",
-                "node": "name",
-                "span": {
-                  "col": 4,
-                  "end_col": 12,
-                  "end_line": 10,
-                  "line": 10
-                }
-              }
-            ],
-            "value": {
-              "entries": [
-                {
-                  "key": {
-                    "node": "constant",
-                    "span": {
-                      "col": 8,
-                      "end_col": 15,
-                      "end_line": 11,
-                      "line": 11
-                    },
-                    "value": "total",
-                    "value_type": "str"
-                  },
-                  "value": {
-                    "host_binding_id": null,
-                    "id": "total",
-                    "node": "name",
-                    "span": {
-                      "col": 17,
-                      "end_col": 22,
-                      "end_line": 11,
-                      "line": 11
-                    }
-                  }
-                },
-                {
-                  "key": {
-                    "node": "constant",
-                    "span": {
-                      "col": 8,
-                      "end_col": 18,
-                      "end_line": 12,
-                      "line": 12
-                    },
-                    "value": "quotient",
-                    "value_type": "str"
-                  },
-                  "value": {
-                    "host_binding_id": null,
-                    "id": "quotient",
-                    "node": "name",
-                    "span": {
-                      "col": 20,
-                      "end_col": 28,
-                      "end_line": 12,
-                      "line": 12
-                    }
-                  }
-                },
-                {
-                  "key": {
-                    "node": "constant",
-                    "span": {
-                      "col": 8,
-                      "end_col": 17,
-                      "end_line": 13,
-                      "line": 13
-                    },
-                    "value": "floored",
-                    "value_type": "str"
-                  },
-                  "value": {
-                    "host_binding_id": null,
-                    "id": "floored",
-                    "node": "name",
-                    "span": {
-                      "col": 19,
-                      "end_col": 26,
-                      "end_line": 13,
-                      "line": 13
-                    }
-                  }
-                },
-                {
-                  "key": {
-                    "node": "constant",
-                    "span": {
-                      "col": 8,
-                      "end_col": 20,
-                      "end_line": 14,
-                      "line": 14
-                    },
-                    "value": "is_decimal",
-                    "value_type": "str"
-                  },
-                  "value": {
+                "storage_type": "Hash",
+                "value": {
+                  "left": {
                     "args": [
                       {
-                        "host_binding_id": null,
-                        "id": "quotient",
-                        "node": "name",
+                        "node": "constant",
                         "span": {
                           "col": 33,
-                          "end_col": 41,
-                          "end_line": 14,
-                          "line": 14
-                        }
-                      },
-                      {
-                        "host_binding_id": "numeric.decimal.new",
-                        "id": "decimal",
-                        "node": "name",
-                        "span": {
-                          "col": 43,
-                          "end_col": 50,
-                          "end_line": 14,
-                          "line": 14
-                        }
+                          "end_col": 68,
+                          "end_line": 6,
+                          "line": 6
+                        },
+                        "value": "0.1234567890123456789012345678909",
+                        "value_type": "str"
                       }
                     ],
                     "event_binding": null,
                     "func": {
-                      "host_binding_id": null,
-                      "id": "isinstance",
+                      "host_binding_id": "numeric.decimal.new",
+                      "id": "decimal",
                       "node": "name",
                       "span": {
-                        "col": 22,
+                        "col": 25,
                         "end_col": 32,
-                        "end_line": 14,
-                        "line": 14
+                        "end_line": 6,
+                        "line": 6
                       }
                     },
                     "keywords": [],
                     "node": "call",
                     "span": {
-                      "col": 22,
-                      "end_col": 51,
-                      "end_line": 14,
-                      "line": 14
+                      "col": 25,
+                      "end_col": 69,
+                      "end_line": 6,
+                      "line": 6
                     },
-                    "syscall_id": null
-                  }
-                }
-              ],
-              "node": "dict",
-              "span": {
-                "col": 15,
-                "end_col": 5,
-                "end_line": 15,
-                "line": 10
-              }
-            }
-          },
-          {
-            "node": "expr",
-            "span": {
-              "col": 4,
-              "end_col": 31,
-              "end_line": 16,
-              "line": 16
-            },
-            "value": {
-              "args": [
-                {
-                  "host_binding_id": null,
-                  "id": "snapshot",
-                  "node": "name",
+                    "syscall_id": "numeric.decimal.new"
+                  },
+                  "node": "bin_op",
+                  "operator": "add",
+                  "right": {
+                    "literal": "1.5",
+                    "node": "constant",
+                    "span": {
+                      "col": 72,
+                      "end_col": 75,
+                      "end_line": 6,
+                      "line": 6
+                    },
+                    "value": 1.5,
+                    "value_type": "float"
+                  },
                   "span": {
-                    "col": 22,
-                    "end_col": 30,
-                    "end_line": 16,
-                    "line": 16
+                    "col": 25,
+                    "end_col": 75,
+                    "end_line": 6,
+                    "line": 6
                   }
-                }
-              ],
-              "func": {
-                "attr": "set",
-                "host_binding_id": null,
-                "node": "attribute",
-                "path": "last_snapshot.set",
+                },
+                "write_syscall_id": "storage.hash.set"
+              },
+              {
+                "node": "assign",
                 "span": {
                   "col": 4,
-                  "end_col": 21,
+                  "end_col": 29,
+                  "end_line": 7,
+                  "line": 7
+                },
+                "targets": [
+                  {
+                    "host_binding_id": null,
+                    "id": "total",
+                    "node": "name",
+                    "span": {
+                      "col": 4,
+                      "end_col": 9,
+                      "end_line": 7,
+                      "line": 7
+                    }
+                  }
+                ],
+                "value": {
+                  "binding": "balances",
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 21,
+                      "end_col": 28,
+                      "end_line": 7,
+                      "line": 7
+                    },
+                    "value": "alice",
+                    "value_type": "str"
+                  },
+                  "node": "storage_get",
+                  "span": {
+                    "col": 12,
+                    "end_col": 29,
+                    "end_line": 7,
+                    "line": 7
+                  },
+                  "storage_type": "Hash",
+                  "syscall_id": "storage.hash.get"
+                }
+              },
+              {
+                "node": "assign",
+                "span": {
+                  "col": 4,
+                  "end_col": 35,
+                  "end_line": 8,
+                  "line": 8
+                },
+                "targets": [
+                  {
+                    "host_binding_id": null,
+                    "id": "quotient",
+                    "node": "name",
+                    "span": {
+                      "col": 4,
+                      "end_col": 12,
+                      "end_line": 8,
+                      "line": 8
+                    }
+                  }
+                ],
+                "value": {
+                  "left": {
+                    "host_binding_id": null,
+                    "id": "total",
+                    "node": "name",
+                    "span": {
+                      "col": 15,
+                      "end_col": 20,
+                      "end_line": 8,
+                      "line": 8
+                    }
+                  },
+                  "node": "bin_op",
+                  "operator": "div",
+                  "right": {
+                    "args": [
+                      {
+                        "node": "constant",
+                        "span": {
+                          "col": 31,
+                          "end_col": 34,
+                          "end_line": 8,
+                          "line": 8
+                        },
+                        "value": "2",
+                        "value_type": "str"
+                      }
+                    ],
+                    "event_binding": null,
+                    "func": {
+                      "host_binding_id": "numeric.decimal.new",
+                      "id": "decimal",
+                      "node": "name",
+                      "span": {
+                        "col": 23,
+                        "end_col": 30,
+                        "end_line": 8,
+                        "line": 8
+                      }
+                    },
+                    "keywords": [],
+                    "node": "call",
+                    "span": {
+                      "col": 23,
+                      "end_col": 35,
+                      "end_line": 8,
+                      "line": 8
+                    },
+                    "syscall_id": "numeric.decimal.new"
+                  },
+                  "span": {
+                    "col": 15,
+                    "end_col": 35,
+                    "end_line": 8,
+                    "line": 8
+                  }
+                }
+              },
+              {
+                "node": "assign",
+                "span": {
+                  "col": 4,
+                  "end_col": 43,
+                  "end_line": 9,
+                  "line": 9
+                },
+                "targets": [
+                  {
+                    "host_binding_id": null,
+                    "id": "floored",
+                    "node": "name",
+                    "span": {
+                      "col": 4,
+                      "end_col": 11,
+                      "end_line": 9,
+                      "line": 9
+                    }
+                  }
+                ],
+                "value": {
+                  "left": {
+                    "args": [
+                      {
+                        "node": "constant",
+                        "span": {
+                          "col": 22,
+                          "end_col": 26,
+                          "end_line": 9,
+                          "line": 9
+                        },
+                        "value": "-5",
+                        "value_type": "str"
+                      }
+                    ],
+                    "event_binding": null,
+                    "func": {
+                      "host_binding_id": "numeric.decimal.new",
+                      "id": "decimal",
+                      "node": "name",
+                      "span": {
+                        "col": 14,
+                        "end_col": 21,
+                        "end_line": 9,
+                        "line": 9
+                      }
+                    },
+                    "keywords": [],
+                    "node": "call",
+                    "span": {
+                      "col": 14,
+                      "end_col": 27,
+                      "end_line": 9,
+                      "line": 9
+                    },
+                    "syscall_id": "numeric.decimal.new"
+                  },
+                  "node": "bin_op",
+                  "operator": "floordiv",
+                  "right": {
+                    "args": [
+                      {
+                        "node": "constant",
+                        "span": {
+                          "col": 39,
+                          "end_col": 42,
+                          "end_line": 9,
+                          "line": 9
+                        },
+                        "value": "2",
+                        "value_type": "str"
+                      }
+                    ],
+                    "event_binding": null,
+                    "func": {
+                      "host_binding_id": "numeric.decimal.new",
+                      "id": "decimal",
+                      "node": "name",
+                      "span": {
+                        "col": 31,
+                        "end_col": 38,
+                        "end_line": 9,
+                        "line": 9
+                      }
+                    },
+                    "keywords": [],
+                    "node": "call",
+                    "span": {
+                      "col": 31,
+                      "end_col": 43,
+                      "end_line": 9,
+                      "line": 9
+                    },
+                    "syscall_id": "numeric.decimal.new"
+                  },
+                  "span": {
+                    "col": 14,
+                    "end_col": 43,
+                    "end_line": 9,
+                    "line": 9
+                  }
+                }
+              },
+              {
+                "node": "assign",
+                "span": {
+                  "col": 4,
+                  "end_col": 5,
+                  "end_line": 15,
+                  "line": 10
+                },
+                "targets": [
+                  {
+                    "host_binding_id": null,
+                    "id": "snapshot",
+                    "node": "name",
+                    "span": {
+                      "col": 4,
+                      "end_col": 12,
+                      "end_line": 10,
+                      "line": 10
+                    }
+                  }
+                ],
+                "value": {
+                  "entries": [
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 8,
+                          "end_col": 15,
+                          "end_line": 11,
+                          "line": 11
+                        },
+                        "value": "total",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "total",
+                        "node": "name",
+                        "span": {
+                          "col": 17,
+                          "end_col": 22,
+                          "end_line": 11,
+                          "line": 11
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 8,
+                          "end_col": 18,
+                          "end_line": 12,
+                          "line": 12
+                        },
+                        "value": "quotient",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "quotient",
+                        "node": "name",
+                        "span": {
+                          "col": 20,
+                          "end_col": 28,
+                          "end_line": 12,
+                          "line": 12
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 8,
+                          "end_col": 17,
+                          "end_line": 13,
+                          "line": 13
+                        },
+                        "value": "floored",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "floored",
+                        "node": "name",
+                        "span": {
+                          "col": 19,
+                          "end_col": 26,
+                          "end_line": 13,
+                          "line": 13
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 8,
+                          "end_col": 20,
+                          "end_line": 14,
+                          "line": 14
+                        },
+                        "value": "is_decimal",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "args": [
+                          {
+                            "host_binding_id": null,
+                            "id": "quotient",
+                            "node": "name",
+                            "span": {
+                              "col": 33,
+                              "end_col": 41,
+                              "end_line": 14,
+                              "line": 14
+                            }
+                          },
+                          {
+                            "host_binding_id": "numeric.decimal.new",
+                            "id": "decimal",
+                            "node": "name",
+                            "span": {
+                              "col": 43,
+                              "end_col": 50,
+                              "end_line": 14,
+                              "line": 14
+                            }
+                          }
+                        ],
+                        "event_binding": null,
+                        "func": {
+                          "host_binding_id": null,
+                          "id": "isinstance",
+                          "node": "name",
+                          "span": {
+                            "col": 22,
+                            "end_col": 32,
+                            "end_line": 14,
+                            "line": 14
+                          }
+                        },
+                        "keywords": [],
+                        "node": "call",
+                        "span": {
+                          "col": 22,
+                          "end_col": 51,
+                          "end_line": 14,
+                          "line": 14
+                        },
+                        "syscall_id": null
+                      }
+                    }
+                  ],
+                  "node": "dict",
+                  "span": {
+                    "col": 15,
+                    "end_col": 5,
+                    "end_line": 15,
+                    "line": 10
+                  }
+                }
+              },
+              {
+                "node": "expr",
+                "span": {
+                  "col": 4,
+                  "end_col": 31,
                   "end_line": 16,
                   "line": 16
                 },
                 "value": {
-                  "host_binding_id": null,
-                  "id": "last_snapshot",
-                  "node": "name",
+                  "args": [
+                    {
+                      "host_binding_id": null,
+                      "id": "snapshot",
+                      "node": "name",
+                      "span": {
+                        "col": 22,
+                        "end_col": 30,
+                        "end_line": 16,
+                        "line": 16
+                      }
+                    }
+                  ],
+                  "func": {
+                    "attr": "set",
+                    "host_binding_id": null,
+                    "node": "attribute",
+                    "path": "last_snapshot.set",
+                    "span": {
+                      "col": 4,
+                      "end_col": 21,
+                      "end_line": 16,
+                      "line": 16
+                    },
+                    "value": {
+                      "host_binding_id": null,
+                      "id": "last_snapshot",
+                      "node": "name",
+                      "span": {
+                        "col": 4,
+                        "end_col": 17,
+                        "end_line": 16,
+                        "line": 16
+                      }
+                    }
+                  },
+                  "keywords": [],
+                  "method": "set",
+                  "node": "call",
+                  "receiver_binding": "last_snapshot",
+                  "receiver_type": "Variable",
                   "span": {
                     "col": 4,
-                    "end_col": 17,
+                    "end_col": 31,
                     "end_line": 16,
                     "line": 16
-                  }
+                  },
+                  "syscall_id": "storage.variable.set"
                 }
               },
+              {
+                "node": "return",
+                "span": {
+                  "col": 4,
+                  "end_col": 19,
+                  "end_line": 17,
+                  "line": 17
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "snapshot",
+                  "node": "name",
+                  "span": {
+                    "col": 11,
+                    "end_col": 19,
+                    "end_line": 17,
+                    "line": 17
+                  }
+                }
+              }
+            ],
+            "decorator": {
+              "args": [],
               "keywords": [],
-              "method": "set",
-              "node": "call",
-              "receiver_binding": "last_snapshot",
-              "receiver_type": "Variable",
+              "name": "export",
+              "node": "decorator",
               "span": {
-                "col": 4,
-                "end_col": 31,
-                "end_line": 16,
-                "line": 16
-              },
-              "syscall_id": "storage.variable.set"
-            }
-          },
-          {
-            "node": "return",
+                "col": 1,
+                "end_col": 7,
+                "end_line": 4,
+                "line": 4
+              }
+            },
+            "docstring": null,
+            "name": "probe",
+            "node": "function",
+            "parameters": [],
+            "returns": null,
             "span": {
-              "col": 4,
+              "col": 0,
               "end_col": 19,
               "end_line": 17,
-              "line": 17
+              "line": 5
             },
-            "value": {
-              "host_binding_id": null,
-              "id": "snapshot",
-              "node": "name",
-              "span": {
-                "col": 11,
-                "end_col": 19,
-                "end_line": 17,
-                "line": 17
-              }
-            }
+            "visibility": "export"
           }
         ],
-        "decorator": {
-          "args": [],
-          "keywords": [],
-          "name": "export",
-          "node": "decorator",
-          "span": {
-            "col": 1,
-            "end_col": 7,
-            "end_line": 4,
-            "line": 4
-          }
-        },
-        "docstring": null,
-        "name": "probe",
-        "node": "function",
-        "parameters": [],
-        "returns": null,
-        "span": {
-          "col": 0,
-          "end_col": 19,
-          "end_line": 17,
-          "line": 5
-        },
-        "visibility": "export"
-      }
-    ],
-    "global_declarations": [
-      {
-        "args": [],
-        "keywords": [
+        "global_declarations": [
           {
-            "arg": "default_value",
-            "span": {
-              "col": 16,
-              "end_col": 42,
-              "end_line": 1,
-              "line": 1
-            },
-            "value": {
-              "args": [
-                {
-                  "node": "constant",
+            "args": [],
+            "keywords": [
+              {
+                "arg": "default_value",
+                "node": "keyword",
+                "span": {
+                  "col": 16,
+                  "end_col": 42,
+                  "end_line": 1,
+                  "line": 1
+                },
+                "value": {
+                  "args": [
+                    {
+                      "node": "constant",
+                      "span": {
+                        "col": 38,
+                        "end_col": 41,
+                        "end_line": 1,
+                        "line": 1
+                      },
+                      "value": "0",
+                      "value_type": "str"
+                    }
+                  ],
+                  "event_binding": null,
+                  "func": {
+                    "host_binding_id": "numeric.decimal.new",
+                    "id": "decimal",
+                    "node": "name",
+                    "span": {
+                      "col": 30,
+                      "end_col": 37,
+                      "end_line": 1,
+                      "line": 1
+                    }
+                  },
+                  "keywords": [],
+                  "node": "call",
                   "span": {
-                    "col": 38,
-                    "end_col": 41,
+                    "col": 30,
+                    "end_col": 42,
                     "end_line": 1,
                     "line": 1
                   },
-                  "value": "0",
-                  "value_type": "str"
+                  "syscall_id": "numeric.decimal.new"
                 }
-              ],
-              "event_binding": null,
-              "func": {
-                "host_binding_id": "numeric.decimal.new",
-                "id": "decimal",
-                "node": "name",
-                "span": {
-                  "col": 30,
-                  "end_col": 37,
-                  "end_line": 1,
-                  "line": 1
-                }
-              },
-              "keywords": [],
-              "node": "call",
-              "span": {
-                "col": 30,
-                "end_col": 42,
-                "end_line": 1,
-                "line": 1
-              },
-              "syscall_id": "numeric.decimal.new"
-            }
+              }
+            ],
+            "name": "balances",
+            "node": "storage_decl",
+            "span": {
+              "col": 0,
+              "end_col": 43,
+              "end_line": 1,
+              "line": 1
+            },
+            "storage_type": "Hash",
+            "syscall_id": "storage.hash.new"
+          },
+          {
+            "args": [],
+            "keywords": [],
+            "name": "last_snapshot",
+            "node": "storage_decl",
+            "span": {
+              "col": 0,
+              "end_col": 26,
+              "end_line": 2,
+              "line": 2
+            },
+            "storage_type": "Variable",
+            "syscall_id": "storage.variable.new"
           }
         ],
-        "name": "balances",
-        "node": "storage_decl",
-        "span": {
-          "col": 0,
-          "end_col": 43,
-          "end_line": 1,
-          "line": 1
-        },
-        "storage_type": "Hash",
-        "syscall_id": "storage.hash.new"
+        "host_catalog_version": "xian_vm_v1_host_v1",
+        "host_dependencies": [
+          {
+            "binding": "decimal",
+            "category": "numeric",
+            "id": "numeric.decimal.new",
+            "kind": "syscall"
+          },
+          {
+            "binding": "Hash.__getitem__",
+            "category": "storage",
+            "id": "storage.hash.get",
+            "kind": "syscall"
+          },
+          {
+            "binding": "Hash",
+            "category": "storage",
+            "id": "storage.hash.new",
+            "kind": "syscall"
+          },
+          {
+            "binding": "Hash.__setitem__",
+            "category": "storage",
+            "id": "storage.hash.set",
+            "kind": "syscall"
+          },
+          {
+            "binding": "Variable",
+            "category": "storage",
+            "id": "storage.variable.new",
+            "kind": "syscall"
+          },
+          {
+            "binding": "Variable.set",
+            "category": "storage",
+            "id": "storage.variable.set",
+            "kind": "syscall"
+          }
+        ],
+        "imports": [],
+        "ir_version": "xian_ir_v1",
+        "module_body": [],
+        "module_name": "con_vm_parity_decimal",
+        "source_hash": "e180680c5a179dcb6b005698b13dc706bcce43ff5c42b33f872a8d4640b210de",
+        "vm_profile": "xian_vm_v1"
       },
-      {
-        "args": [],
-        "keywords": [],
-        "name": "last_snapshot",
-        "node": "storage_decl",
-        "span": {
-          "col": 0,
-          "end_col": 26,
-          "end_line": 2,
-          "line": 2
-        },
-        "storage_type": "Variable",
-        "syscall_id": "storage.variable.new"
-      }
-    ],
-    "host_catalog_version": "xian_vm_v1_host_v1",
-    "host_dependencies": [
-      {
-        "binding": "decimal",
-        "category": "numeric",
-        "id": "numeric.decimal.new",
-        "kind": "syscall"
-      },
-      {
-        "binding": "Hash.__getitem__",
-        "category": "storage",
-        "id": "storage.hash.get",
-        "kind": "syscall"
-      },
-      {
-        "binding": "Hash",
-        "category": "storage",
-        "id": "storage.hash.new",
-        "kind": "syscall"
-      },
-      {
-        "binding": "Hash.__setitem__",
-        "category": "storage",
-        "id": "storage.hash.set",
-        "kind": "syscall"
-      },
-      {
-        "binding": "Variable",
-        "category": "storage",
-        "id": "storage.variable.new",
-        "kind": "syscall"
-      },
-      {
-        "binding": "Variable.set",
-        "category": "storage",
-        "id": "storage.variable.set",
-        "kind": "syscall"
-      }
-    ],
-    "imports": [],
-    "ir_version": "xian_ir_v1",
-    "module_body": [],
-    "module_name": "con_vm_parity_decimal",
-    "source_hash": "e180680c5a179dcb6b005698b13dc706bcce43ff5c42b33f872a8d4640b210de",
-    "vm_profile": "xian_vm_v1"
-  },
-  "module_name": "con_vm_parity_decimal",
-  "name": "decimal_arithmetic",
-  "source": "balances = Hash(default_value=decimal(\"0\"))\nlast_snapshot = Variable()\n\n@export\ndef probe():\n    balances[\"alice\"] += decimal(\"0.1234567890123456789012345678909\") + 1.5\n    total = balances[\"alice\"]\n    quotient = total / decimal(\"2\")\n    floored = decimal(\"-5\") // decimal(\"2\")\n    snapshot = {\n        \"total\": total,\n        \"quotient\": quotient,\n        \"floored\": floored,\n        \"is_decimal\": isinstance(quotient, decimal),\n    }\n    last_snapshot.set(snapshot)\n    return snapshot"
+      "module_name": "con_vm_parity_decimal",
+      "owner": null
+    }
+  ],
+  "name": "decimal_arithmetic"
 }

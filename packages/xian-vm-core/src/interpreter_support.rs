@@ -4,11 +4,9 @@ pub(super) fn builtin_name_value(name: &str) -> Option<VmValue> {
     match name {
         "len" | "range" | "str" | "bool" | "int" | "float" | "bytes" | "bytearray" | "dict"
         | "list" | "tuple" | "set" | "frozenset" | "isinstance" | "issubclass" | "sorted"
-        | "sum" | "min" | "max" | "all" | "any" | "map" | "filter" | "reversed" | "zip"
-        | "pow" | "format" | "ord" | "abs" | "ascii" | "bin" | "hex" | "oct" | "chr"
-        | "divmod" | "round" | "Exception" => {
-            Some(VmValue::Builtin(name.to_owned()))
-        }
+        | "sum" | "min" | "max" | "all" | "any" | "map" | "filter" | "reversed" | "zip" | "pow"
+        | "format" | "ord" | "abs" | "ascii" | "bin" | "hex" | "oct" | "chr" | "divmod"
+        | "round" | "Exception" => Some(VmValue::Builtin(name.to_owned())),
         "Any" | "decimal" => Some(VmValue::TypeMarker(name.to_owned())),
         _ => None,
     }

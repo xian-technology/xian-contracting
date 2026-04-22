@@ -907,20 +907,39 @@ class TestLogEvent(TestCase):
         self.assertEqual(self.log_event._name, "transfer_event")
         self.assertEqual(self.log_event._key, "test_contract.transfer_event")
 
-    def test_log_event_keeps_legacy_constructor_compatible(self):
-        legacy = LogEvent(
-            "legacy_contract",
-            "approve_event",
+    def test_log_event_rejects_legacy_constructor(self):
+        with self.assertRaises(TypeError):
+            LogEvent(
+                "legacy_contract",
+                "approve_event",
+                event="Approve",
+                params={"owner": str},
+                driver=driver,
+            )
+
+        with self.assertRaises(TypeError):
+            LogEvent(
+                "legacy_contract",
+                "approve_event",
+                "Approve",
+                {"owner": str},
+                driver=driver,
+            )
+
+    def test_log_event_accepts_keyword_constructor(self):
+        log_event = LogEvent(
             event="Approve",
             params={"owner": str},
+            contract="token",
+            name="approve_event",
             driver=driver,
         )
 
-        self.assertEqual(legacy._contract, "legacy_contract")
-        self.assertEqual(legacy._name, "approve_event")
-        self.assertEqual(legacy._event, "Approve")
-        self.assertEqual(legacy._params["owner"]["type"], (str,))
-        self.assertFalse(legacy._params["owner"]["idx"])
+        self.assertEqual(log_event._contract, "token")
+        self.assertEqual(log_event._name, "approve_event")
+        self.assertEqual(log_event._event, "Approve")
+        self.assertEqual(log_event._params["owner"]["type"], (str,))
+        self.assertFalse(log_event._params["owner"]["idx"])
 
     def test_log_event_normalizes_shorthand_without_mutating_input(self):
         raw_args = {

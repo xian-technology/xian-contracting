@@ -590,7 +590,7 @@
                           "line": 90
                         },
                         "value": {
-                          "host_binding_id": null,
+                          "host_binding_id": "module.importlib",
                           "id": "importlib",
                           "node": "name",
                           "span": {
@@ -754,7 +754,7 @@
                       "line": 95
                     },
                     "value": {
-                      "host_binding_id": null,
+                      "host_binding_id": "module.importlib",
                       "id": "importlib",
                       "node": "name",
                       "span": {
@@ -877,7 +877,7 @@
                         "line": 99
                       },
                       "value": {
-                        "host_binding_id": null,
+                        "host_binding_id": "module.importlib",
                         "id": "importlib",
                         "node": "name",
                         "span": {
@@ -959,7 +959,7 @@
                           "line": 101
                         },
                         "value": {
-                          "host_binding_id": null,
+                          "host_binding_id": "module.importlib",
                           "id": "importlib",
                           "node": "name",
                           "span": {
@@ -1025,7 +1025,7 @@
                           "line": 101
                         },
                         "value": {
-                          "host_binding_id": null,
+                          "host_binding_id": "module.importlib",
                           "id": "importlib",
                           "node": "name",
                           "span": {
@@ -1449,35 +1449,57 @@
               {
                 "body": [
                   {
-                    "node": "aug_assign",
-                    "operator": "mul",
+                    "node": "assign",
                     "span": {
                       "col": 2,
-                      "end_col": 13,
+                      "end_col": 20,
                       "end_line": 113,
                       "line": 113
                     },
-                    "target": {
-                      "host_binding_id": null,
-                      "id": "scale",
-                      "node": "name",
+                    "targets": [
+                      {
+                        "host_binding_id": null,
+                        "id": "scale",
+                        "node": "name",
+                        "span": {
+                          "col": 2,
+                          "end_col": 7,
+                          "end_line": 113,
+                          "line": 113
+                        }
+                      }
+                    ],
+                    "value": {
+                      "left": {
+                        "host_binding_id": null,
+                        "id": "scale",
+                        "node": "name",
+                        "span": {
+                          "col": 10,
+                          "end_col": 15,
+                          "end_line": 113,
+                          "line": 113
+                        }
+                      },
+                      "node": "bin_op",
+                      "operator": "mul",
+                      "right": {
+                        "node": "constant",
+                        "span": {
+                          "col": 18,
+                          "end_col": 20,
+                          "end_line": 113,
+                          "line": 113
+                        },
+                        "value": 10,
+                        "value_type": "int"
+                      },
                       "span": {
-                        "col": 2,
-                        "end_col": 7,
+                        "col": 10,
+                        "end_col": 20,
                         "end_line": 113,
                         "line": 113
                       }
-                    },
-                    "value": {
-                      "node": "constant",
-                      "span": {
-                        "col": 11,
-                        "end_col": 13,
-                        "end_line": 113,
-                        "line": 113
-                      },
-                      "value": 10,
-                      "value_type": "int"
                     }
                   }
                 ],
@@ -1532,7 +1554,7 @@
                 "orelse": [],
                 "span": {
                   "col": 1,
-                  "end_col": 13,
+                  "end_col": 20,
                   "end_line": 113,
                   "line": 112
                 },
@@ -24120,6 +24142,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 20,
                   "end_col": 38,
@@ -24155,6 +24178,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 13,
                   "end_col": 28,
@@ -24232,6 +24256,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 16,
                   "end_col": 33,
@@ -24389,6 +24414,12 @@
             "kind": "syscall"
           },
           {
+            "binding": "importlib",
+            "category": "import",
+            "id": "module.importlib",
+            "kind": "value"
+          },
+          {
             "binding": "decimal",
             "category": "numeric",
             "id": "numeric.decimal.new",
@@ -24441,7 +24472,7 @@
         "ir_version": "xian_ir_v1",
         "module_body": [],
         "module_name": "con_pairs",
-        "source_hash": "df331d2a2363365ed57722bb82a41d003b38c431b9c5dd5cd398f51f605c0dfb",
+        "source_hash": "eb31bcf6692232d3719d553101dcb4694ff7074d9d337ec9929a14148ca97380",
         "vm_profile": "xian_vm_v1"
       },
       "module_name": "con_pairs",
@@ -24596,7 +24627,7 @@
                       "line": 26
                     },
                     "value": {
-                      "host_binding_id": null,
+                      "host_binding_id": "module.importlib",
                       "id": "importlib",
                       "node": "name",
                       "span": {
@@ -24694,7 +24725,7 @@
                           "line": 31
                         },
                         "value": {
-                          "host_binding_id": null,
+                          "host_binding_id": "module.importlib",
                           "id": "importlib",
                           "node": "name",
                           "span": {
@@ -24858,7 +24889,7 @@
                       "line": 36
                     },
                     "value": {
-                      "host_binding_id": null,
+                      "host_binding_id": "module.importlib",
                       "id": "importlib",
                       "node": "name",
                       "span": {
@@ -24981,7 +25012,7 @@
                         "line": 40
                       },
                       "value": {
-                        "host_binding_id": null,
+                        "host_binding_id": "module.importlib",
                         "id": "importlib",
                         "node": "name",
                         "span": {
@@ -25063,7 +25094,7 @@
                           "line": 42
                         },
                         "value": {
-                          "host_binding_id": null,
+                          "host_binding_id": "module.importlib",
                           "id": "importlib",
                           "node": "name",
                           "span": {
@@ -25129,7 +25160,7 @@
                           "line": 42
                         },
                         "value": {
-                          "host_binding_id": null,
+                          "host_binding_id": "module.importlib",
                           "id": "importlib",
                           "node": "name",
                           "span": {
@@ -25553,35 +25584,57 @@
               {
                 "body": [
                   {
-                    "node": "aug_assign",
-                    "operator": "mul",
+                    "node": "assign",
                     "span": {
                       "col": 2,
-                      "end_col": 13,
+                      "end_col": 20,
                       "end_line": 54,
                       "line": 54
                     },
-                    "target": {
-                      "host_binding_id": null,
-                      "id": "scale",
-                      "node": "name",
+                    "targets": [
+                      {
+                        "host_binding_id": null,
+                        "id": "scale",
+                        "node": "name",
+                        "span": {
+                          "col": 2,
+                          "end_col": 7,
+                          "end_line": 54,
+                          "line": 54
+                        }
+                      }
+                    ],
+                    "value": {
+                      "left": {
+                        "host_binding_id": null,
+                        "id": "scale",
+                        "node": "name",
+                        "span": {
+                          "col": 10,
+                          "end_col": 15,
+                          "end_line": 54,
+                          "line": 54
+                        }
+                      },
+                      "node": "bin_op",
+                      "operator": "mul",
+                      "right": {
+                        "node": "constant",
+                        "span": {
+                          "col": 18,
+                          "end_col": 20,
+                          "end_line": 54,
+                          "line": 54
+                        },
+                        "value": 10,
+                        "value_type": "int"
+                      },
                       "span": {
-                        "col": 2,
-                        "end_col": 7,
+                        "col": 10,
+                        "end_col": 20,
                         "end_line": 54,
                         "line": 54
                       }
-                    },
-                    "value": {
-                      "node": "constant",
-                      "span": {
-                        "col": 11,
-                        "end_col": 13,
-                        "end_line": 54,
-                        "line": 54
-                      },
-                      "value": 10,
-                      "value_type": "int"
                     }
                   }
                 ],
@@ -25636,7 +25689,7 @@
                 "orelse": [],
                 "span": {
                   "col": 1,
-                  "end_col": 13,
+                  "end_col": 20,
                   "end_line": 54,
                   "line": 53
                 },
@@ -48496,6 +48549,7 @@
             "keywords": [
               {
                 "arg": "foreign_contract",
+                "node": "keyword",
                 "span": {
                   "col": 27,
                   "end_col": 53,
@@ -48516,6 +48570,7 @@
               },
               {
                 "arg": "foreign_name",
+                "node": "keyword",
                 "span": {
                   "col": 55,
                   "end_col": 82,
@@ -48551,6 +48606,7 @@
             "keywords": [
               {
                 "arg": "foreign_contract",
+                "node": "keyword",
                 "span": {
                   "col": 23,
                   "end_col": 49,
@@ -48571,6 +48627,7 @@
               },
               {
                 "arg": "foreign_name",
+                "node": "keyword",
                 "span": {
                   "col": 51,
                   "end_col": 71,
@@ -48620,6 +48677,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 30,
                   "end_col": 49,
@@ -48655,6 +48713,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 24,
                   "end_col": 43,
@@ -48934,6 +48993,12 @@
             "kind": "syscall"
           },
           {
+            "binding": "importlib",
+            "category": "import",
+            "id": "module.importlib",
+            "kind": "value"
+          },
+          {
             "binding": "ForeignHash.__getitem__",
             "category": "storage",
             "id": "storage.foreign_hash.get",
@@ -48992,7 +49057,7 @@
         "ir_version": "xian_ir_v1",
         "module_body": [],
         "module_name": "con_dex",
-        "source_hash": "bec59891c51e17bdfec850e11f1082d4ae0727e06e03fabdd309a703f3a5f3a6",
+        "source_hash": "a04564e17c23f1269c0ff42ad2268688c232077b650f41656283323c52525bd1",
         "vm_profile": "xian_vm_v1"
       },
       "module_name": "con_dex",
@@ -51731,6 +51796,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 16,
                   "end_col": 31,
@@ -51766,6 +51832,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 17,
                   "end_col": 32,
@@ -59547,6 +59614,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 16,
                   "end_col": 31,
@@ -59582,6 +59650,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 17,
                   "end_col": 32,
@@ -59617,6 +59686,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 19,
                   "end_col": 38,
@@ -59652,6 +59722,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 16,
                   "end_col": 34,

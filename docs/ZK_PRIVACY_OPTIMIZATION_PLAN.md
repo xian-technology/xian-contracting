@@ -45,9 +45,10 @@ So phase 1 should not market a remote prover as equivalent to split-prover secur
 
 ## Phased Plan
 
-### Phase 1: Trusted Prover Service
+### Implemented: Trusted Prover Service And Runtime Hot Paths
 
-Implement an authenticated local-loopback prover service for `xian-zk` with matching client classes.
+`xian-zk` now has an authenticated local-loopback prover service with matching
+client classes.
 
 Purpose:
 
@@ -62,30 +63,35 @@ Security model:
 - require an auth token when enabled
 - document clearly that witness material is exposed to the service
 
-### Phase 2: Wallet Sync Privacy
+This implementation round also added native shielded tree append and
+relay-digest helpers exposed through the runtime `zk` bridge.
 
-Add note-discovery tags and more selective indexed queries so wallets do not need to inspect every candidate payload. The design should preserve optional disclosures and avoid turning note addresses into trivially searchable public identifiers.
+### Implemented: Wallet Sync Privacy
 
-### Phase 3: Network-Origin Privacy
+Note-discovery tags and selective indexed retrieval are in place so wallets do
+not need to inspect every payload. The design preserves optional disclosures and
+avoids putting recipient viewing keys in cleartext in new payloads.
+
+### Remaining: Network-Origin Privacy
 
 Add a privacy-preserving submission layer for private transactions, likely relayer-mesh or Dandelion++ style propagation. Hidden on-chain sender is incomplete if the first peer can still identify the source.
 
-### Phase 4: Batch Verification
+### Remaining: Batch Verification
 
 When shielded transaction volume is high enough, add block-local aggregation or batch verification so validator work scales better than one independent pairing-check path per transaction.
 
-### Phase 5: Split Prover
+### Remaining: Split Prover
 
 Add a real split-prover protocol for Xian wallets. This is the first phase that can claim witness-exposure reduction against the proving service itself.
 
-### Phase 6: Accumulator Redesign
+### Remaining: Accumulator Redesign
 
 Evaluate whether Xian should eventually move from the current append-only note-root model toward a larger-anonymity-set global membership design such as Curve Trees or related constructions.
 
-## Phase 1 Scope
+## Implemented Scope
 
-This implementation round now covers phase 1 plus the first practical runtime
-optimization needed to make shielded fees usable:
+The current implementation covers the first practical runtime and wallet
+tooling slice needed to make shielded fees usable:
 
 - authenticated prover service in `xian-zk`
 - client classes for shielded note, command, and relay proving
@@ -93,7 +99,7 @@ optimization needed to make shielded fees usable:
 - tests that prove requests can round-trip through the service
 - native shielded tree append / relay-digest helpers exposed through the runtime
   `zk` bridge
-- benchmark harness for before/after shielded chi comparison
+- benchmark harness for shielded chi comparison
 
 It does **not** claim:
 
@@ -104,7 +110,7 @@ It does **not** claim:
 
 ## Follow-Up Metrics
 
-After phase 1 lands, measure:
+Keep measuring:
 
 - proof latency on desktop local native path
 - proof latency through the local prover service

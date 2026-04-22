@@ -11,12 +11,8 @@ from contracting.stdlib.bridge.random import exports as random_exports
 from contracting.stdlib.bridge.zk import exports as zk_exports
 from contracting.stdlib.builtins import exports as builtin_exports
 
-# TODO create a module instead and return it inside of a dictionary like:
-# {
-#    'stdlib': module
-# }
-#
-# Then stdlib.datetime becomes available, etc
+# Contracts currently receive a flat stdlib namespace. Keep the export list
+# explicit so changes to the contract-visible surface are easy to review.
 
 
 def gather():

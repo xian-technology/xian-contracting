@@ -736,7 +736,7 @@
                       "line": 11
                     },
                     "value": {
-                      "host_binding_id": null,
+                      "host_binding_id": "module.importlib",
                       "id": "importlib",
                       "node": "name",
                       "span": {
@@ -798,7 +798,7 @@
                           "line": 11
                         },
                         "value": {
-                          "host_binding_id": null,
+                          "host_binding_id": "module.importlib",
                           "id": "importlib",
                           "node": "name",
                           "span": {
@@ -853,6 +853,7 @@
                   "keywords": [
                     {
                       "arg": "amount",
+                      "node": "keyword",
                       "span": {
                         "col": 22,
                         "end_col": 35,
@@ -873,6 +874,7 @@
                     },
                     {
                       "arg": "to",
+                      "node": "keyword",
                       "span": {
                         "col": 37,
                         "end_col": 42,
@@ -956,6 +958,12 @@
             "category": "import",
             "id": "contract.import",
             "kind": "syscall"
+          },
+          {
+            "binding": "importlib",
+            "category": "import",
+            "id": "module.importlib",
+            "kind": "value"
           }
         ],
         "imports": [],
@@ -4653,6 +4661,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 16,
                   "end_col": 31,
@@ -4688,6 +4697,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 17,
                   "end_col": 32,
@@ -17889,7 +17899,7 @@
                         "line": 538
                       },
                       "value": {
-                        "host_binding_id": null,
+                        "host_binding_id": "module.datetime",
                         "id": "datetime",
                         "node": "name",
                         "span": {
@@ -17903,6 +17913,7 @@
                     "keywords": [
                       {
                         "arg": "days",
+                        "node": "keyword",
                         "span": {
                           "col": 41,
                           "end_col": 67,
@@ -19575,6 +19586,7 @@
                       "keywords": [
                         {
                           "arg": "owner",
+                          "node": "keyword",
                           "span": {
                             "col": 12,
                             "end_col": 25,
@@ -19595,6 +19607,7 @@
                         },
                         {
                           "arg": "validator",
+                          "node": "keyword",
                           "span": {
                             "col": 12,
                             "end_col": 29,
@@ -19615,6 +19628,7 @@
                         },
                         {
                           "arg": "amount",
+                          "node": "keyword",
                           "span": {
                             "col": 12,
                             "end_col": 36,
@@ -19635,6 +19649,7 @@
                         },
                         {
                           "arg": "kind",
+                          "node": "keyword",
                           "span": {
                             "col": 12,
                             "end_col": 28,
@@ -19655,6 +19670,7 @@
                         },
                         {
                           "arg": "reason",
+                          "node": "keyword",
                           "span": {
                             "col": 12,
                             "end_col": 25,
@@ -19884,6 +19900,7 @@
                           "keywords": [
                             {
                               "arg": "owner",
+                              "node": "keyword",
                               "span": {
                                 "col": 16,
                                 "end_col": 31,
@@ -19904,6 +19921,7 @@
                             },
                             {
                               "arg": "validator",
+                              "node": "keyword",
                               "span": {
                                 "col": 16,
                                 "end_col": 33,
@@ -19924,6 +19942,7 @@
                             },
                             {
                               "arg": "amount",
+                              "node": "keyword",
                               "span": {
                                 "col": 16,
                                 "end_col": 41,
@@ -19944,6 +19963,7 @@
                             },
                             {
                               "arg": "kind",
+                              "node": "keyword",
                               "span": {
                                 "col": 16,
                                 "end_col": 33,
@@ -19964,6 +19984,7 @@
                             },
                             {
                               "arg": "reason",
+                              "node": "keyword",
                               "span": {
                                 "col": 16,
                                 "end_col": 29,
@@ -40906,6 +40927,7 @@
                       "keywords": [
                         {
                           "arg": "force",
+                          "node": "keyword",
                           "span": {
                             "col": 32,
                             "end_col": 42,
@@ -50163,7 +50185,7 @@
                               "line": 1477
                             },
                             "value": {
-                              "host_binding_id": null,
+                              "host_binding_id": "module.datetime",
                               "id": "datetime",
                               "node": "name",
                               "span": {
@@ -50177,6 +50199,7 @@
                           "keywords": [
                             {
                               "arg": "days",
+                              "node": "keyword",
                               "span": {
                                 "col": 43,
                                 "end_col": 68,
@@ -53143,6 +53166,7 @@
                           "keywords": [
                             {
                               "arg": "force",
+                              "node": "keyword",
                               "span": {
                                 "col": 36,
                                 "end_col": 46,
@@ -53348,6 +53372,7 @@
                               "keywords": [
                                 {
                                   "arg": "force",
+                                  "node": "keyword",
                                   "span": {
                                     "col": 36,
                                     "end_col": 46,
@@ -53621,6 +53646,7 @@
                                   "keywords": [
                                     {
                                       "arg": "force",
+                                      "node": "keyword",
                                       "span": {
                                         "col": 36,
                                         "end_col": 46,
@@ -53806,6 +53832,7 @@
                                       "keywords": [
                                         {
                                           "arg": "force",
+                                          "node": "keyword",
                                           "span": {
                                             "col": 36,
                                             "end_col": 46,
@@ -54231,6 +54258,7 @@
                                           "keywords": [
                                             {
                                               "arg": "force",
+                                              "node": "keyword",
                                               "span": {
                                                 "col": 36,
                                                 "end_col": 46,
@@ -54570,6 +54598,7 @@
                                                   "keywords": [
                                                     {
                                                       "arg": "force",
+                                                      "node": "keyword",
                                                       "span": {
                                                         "col": 36,
                                                         "end_col": 46,
@@ -54812,6 +54841,7 @@
                                                   "keywords": [
                                                     {
                                                       "arg": "force",
+                                                      "node": "keyword",
                                                       "span": {
                                                         "col": 36,
                                                         "end_col": 46,
@@ -54952,6 +54982,7 @@
                                                   "keywords": [
                                                     {
                                                       "arg": "new_value",
+                                                      "node": "keyword",
                                                       "span": {
                                                         "col": 26,
                                                         "end_col": 55,
@@ -55053,6 +55084,7 @@
                                                       "keywords": [
                                                         {
                                                           "arg": "args",
+                                                          "node": "keyword",
                                                           "span": {
                                                             "col": 30,
                                                             "end_col": 54,
@@ -55154,6 +55186,7 @@
                                                           "keywords": [
                                                             {
                                                               "arg": "new_value",
+                                                              "node": "keyword",
                                                               "span": {
                                                                 "col": 27,
                                                                 "end_col": 56,
@@ -58283,6 +58316,7 @@
                   "keywords": [
                     {
                       "arg": "account",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 22,
@@ -58303,6 +58337,7 @@
                     },
                     {
                       "arg": "infraction_type",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 39,
@@ -58323,6 +58358,7 @@
                     },
                     {
                       "arg": "evidence_id",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 31,
@@ -58343,6 +58379,7 @@
                     },
                     {
                       "arg": "evidence_height",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 39,
@@ -58718,6 +58755,7 @@
                   "keywords": [
                     {
                       "arg": "reward_key",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 29,
@@ -58738,6 +58776,7 @@
                     },
                     {
                       "arg": "requested_validator_power",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 38,
@@ -58758,6 +58797,7 @@
                     },
                     {
                       "arg": "commission_bps_value",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 49,
@@ -58778,6 +58818,7 @@
                     },
                     {
                       "arg": "moniker",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 23,
@@ -58798,6 +58839,7 @@
                     },
                     {
                       "arg": "network_endpoint",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 41,
@@ -58818,6 +58860,7 @@
                     },
                     {
                       "arg": "metadata_uri",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 33,
@@ -59241,6 +59284,7 @@
                   "keywords": [
                     {
                       "arg": "reward_key",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 29,
@@ -59261,6 +59305,7 @@
                     },
                     {
                       "arg": "requested_validator_power",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 59,
@@ -59281,6 +59326,7 @@
                     },
                     {
                       "arg": "commission_bps_value",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 49,
@@ -59301,6 +59347,7 @@
                     },
                     {
                       "arg": "moniker",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 23,
@@ -59321,6 +59368,7 @@
                     },
                     {
                       "arg": "network_endpoint",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 41,
@@ -59341,6 +59389,7 @@
                     },
                     {
                       "arg": "metadata_uri",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 33,
@@ -59775,7 +59824,7 @@
                         "line": 1767
                       },
                       "value": {
-                        "host_binding_id": null,
+                        "host_binding_id": "module.datetime",
                         "id": "datetime",
                         "node": "name",
                         "span": {
@@ -59789,6 +59838,7 @@
                     "keywords": [
                       {
                         "arg": "days",
+                        "node": "keyword",
                         "span": {
                           "col": 57,
                           "end_col": 78,
@@ -61064,6 +61114,7 @@
                   "keywords": [
                     {
                       "arg": "amount",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 37,
@@ -61111,6 +61162,7 @@
                     },
                     {
                       "arg": "to",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 19,
@@ -61143,6 +61195,7 @@
                     },
                     {
                       "arg": "main_account",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 31,
@@ -62142,6 +62195,7 @@
                   "keywords": [
                     {
                       "arg": "reward_key",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 63,
@@ -62210,6 +62264,7 @@
                     },
                     {
                       "arg": "requested_validator_power",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 59,
@@ -62230,6 +62285,7 @@
                     },
                     {
                       "arg": "commission_bps_value",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 49,
@@ -62250,6 +62306,7 @@
                     },
                     {
                       "arg": "moniker",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 23,
@@ -62270,6 +62327,7 @@
                     },
                     {
                       "arg": "network_endpoint",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 41,
@@ -62290,6 +62348,7 @@
                     },
                     {
                       "arg": "metadata_uri",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 33,
@@ -63280,6 +63339,7 @@
                   "keywords": [
                     {
                       "arg": "amount",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 21,
@@ -63300,6 +63360,7 @@
                     },
                     {
                       "arg": "to",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 19,
@@ -63332,6 +63393,7 @@
                     },
                     {
                       "arg": "main_account",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 31,
@@ -63814,6 +63876,7 @@
                   "keywords": [
                     {
                       "arg": "owner",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 24,
@@ -63846,6 +63909,7 @@
                     },
                     {
                       "arg": "validator",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 28,
@@ -63878,6 +63942,7 @@
                     },
                     {
                       "arg": "amount",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 21,
@@ -63898,6 +63963,7 @@
                     },
                     {
                       "arg": "kind",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 24,
@@ -64195,6 +64261,7 @@
                   "keywords": [
                     {
                       "arg": "amount",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 21,
@@ -64215,6 +64282,7 @@
                     },
                     {
                       "arg": "to",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 19,
@@ -64247,6 +64315,7 @@
                     },
                     {
                       "arg": "main_account",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 31,
@@ -65587,6 +65656,7 @@
                   "keywords": [
                     {
                       "arg": "owner",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 24,
@@ -65619,6 +65689,7 @@
                     },
                     {
                       "arg": "validator",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 27,
@@ -65639,6 +65710,7 @@
                     },
                     {
                       "arg": "amount",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 21,
@@ -65659,6 +65731,7 @@
                     },
                     {
                       "arg": "kind",
+                      "node": "keyword",
                       "span": {
                         "col": 8,
                         "end_col": 25,
@@ -67312,6 +67385,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 13,
                   "end_col": 32,
@@ -67347,6 +67421,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 20,
                   "end_col": 35,
@@ -67424,6 +67499,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 29,
                   "end_col": 48,
@@ -67459,6 +67535,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 21,
                   "end_col": 40,
@@ -67494,6 +67571,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 16,
                   "end_col": 31,
@@ -67529,6 +67607,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 14,
                   "end_col": 32,
@@ -67564,6 +67643,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 22,
                   "end_col": 37,
@@ -67599,6 +67679,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 17,
                   "end_col": 32,
@@ -67634,6 +67715,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 23,
                   "end_col": 38,
@@ -67669,6 +67751,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 19,
                   "end_col": 34,
@@ -67704,6 +67787,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 29,
                   "end_col": 47,
@@ -67739,6 +67823,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 23,
                   "end_col": 41,
@@ -67788,6 +67873,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 32,
                   "end_col": 50,
@@ -67823,6 +67909,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 36,
                   "end_col": 54,
@@ -67858,6 +67945,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 23,
                   "end_col": 41,
@@ -67893,6 +67981,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 14,
                   "end_col": 33,
@@ -67928,6 +68017,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 20,
                   "end_col": 38,
@@ -67963,6 +68053,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 21,
                   "end_col": 36,
@@ -67998,6 +68089,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 23,
                   "end_col": 41,
@@ -68033,6 +68125,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 26,
                   "end_col": 45,
@@ -68082,6 +68175,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 23,
                   "end_col": 38,
@@ -68117,6 +68211,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 23,
                   "end_col": 38,
@@ -68152,6 +68247,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 19,
                   "end_col": 37,
@@ -68187,6 +68283,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 16,
                   "end_col": 32,
@@ -68222,6 +68319,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 25,
                   "end_col": 41,
@@ -68257,6 +68355,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 21,
                   "end_col": 37,
@@ -68292,6 +68391,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 16,
                   "end_col": 32,
@@ -68327,6 +68427,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 21,
                   "end_col": 39,
@@ -68362,6 +68463,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 17,
                   "end_col": 35,
@@ -68397,6 +68499,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 15,
                   "end_col": 33,
@@ -68432,6 +68535,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 25,
                   "end_col": 40,
@@ -69159,6 +69263,12 @@
             "category": "environment",
             "id": "env.now",
             "kind": "env_value"
+          },
+          {
+            "binding": "datetime",
+            "category": "time",
+            "id": "module.datetime",
+            "kind": "value"
           },
           {
             "binding": "Hash.__getitem__",

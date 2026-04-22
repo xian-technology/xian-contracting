@@ -1,7 +1,5 @@
 import json
 
-from nacl.bindings import crypto_sign_ed25519_pk_to_curve25519
-from nacl.public import PublicKey, SealedBox
 from xian_zk import (
     ShieldedKeyBundle,
     ShieldedNote,
@@ -212,9 +210,28 @@ def test_note_payload_does_not_embed_viewing_public_key_in_cleartext():
     assert '"discovery_tag"' in decoded
     assert '"sync_hint"' in decoded
     assert parsed is not None
-    assert parsed.ciphertexts[0].viewing_public_key is None
     assert parsed.ciphertexts[0].discovery_tag is not None
+    assert parsed.ciphertexts[0].ephemeral_public_key is not None
     assert parsed.ciphertexts[0].sync_hint == recipient_keys.sync_hint
+
+
+def test_version_one_payload_format_is_rejected():
+    legacy_payload = "0x" + json.dumps(
+        {
+            "version": 1,
+            "ciphertexts": [
+                {
+                    "viewing_public_key": "00" * 32,
+                    "ciphertext": "0x00",
+                    "label": None,
+                }
+            ],
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8").hex()
+
+    assert ShieldedNotePayload.from_hex(legacy_payload) is None
 
 
 def test_payload_matcher_and_tags_work_for_owner_and_disclosed_viewer():
@@ -260,59 +277,6 @@ def test_payload_matcher_and_tags_work_for_owner_and_disclosed_viewer():
     assert not payload_matches_viewing_key(
         payload,
         viewing_private_key=stranger_keys.viewing_private_key,
-    )
-
-
-def test_legacy_payload_format_still_decrypts():
-    asset_id = asset_id_for_contract("con_shielded_note_token")
-    recipient_keys = ShieldedKeyBundle.from_parts(
-        owner_secret=field(150),
-        viewing_private_key="15" * 32,
-    )
-
-    output = ShieldedOutput.for_recipient(
-        recipient_keys.recipient,
-        amount=11,
-        rho=field(160),
-        blind=field(170),
-    )
-    message = output.to_message(asset_id, memo="legacy")
-    sealed_box = SealedBox(
-        PublicKey(
-            crypto_sign_ed25519_pk_to_curve25519(
-                bytes.fromhex(recipient_keys.viewing_public_key)
-            )
-        )
-    )
-    ciphertext = "0x" + sealed_box.encrypt(
-        message.to_json().encode("utf-8")
-    ).hex()
-    legacy_payload = "0x" + json.dumps(
-        {
-            "version": 1,
-            "ciphertexts": [
-                {
-                    "viewing_public_key": recipient_keys.viewing_public_key,
-                    "ciphertext": ciphertext,
-                    "label": None,
-                }
-            ],
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8").hex()
-
-    decrypted = decrypt_note_message(
-        legacy_payload,
-        viewing_private_key=recipient_keys.viewing_private_key,
-    )
-
-    assert decrypted.memo == "legacy"
-    assert decrypted.to_owned_note(recipient_keys.owner_secret) == ShieldedNote(
-        owner_secret=recipient_keys.owner_secret,
-        amount=11,
-        rho=field(160),
-        blind=field(170),
     )
 
 

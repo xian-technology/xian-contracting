@@ -1,8 +1,13 @@
 import os
+import tempfile
+from pathlib import Path
 from unittest import TestCase
 from unittest.mock import Mock
 
-from contracting.client import AbstractContract, ContractingClient
+from contracting.client import (
+    AbstractContract,
+    ContractingClient,
+)
 from contracting.compilation.artifacts import CONTRACT_ARTIFACT_FORMAT_V1
 from contracting.storage.driver import Driver
 
@@ -112,6 +117,40 @@ class TestClient(TestCase):
 
         with self.assertRaises(AssertionError):
             self.client.submit(f="")
+
+    def test_closure_to_code_string_dedents_and_unparses_nested_source(self):
+        self.client = ContractingClient(submission_filename=None, driver=self.driver)
+
+        def con_nested_source():
+            values=[1,2,3]
+
+            @export
+            def get():
+                return values[0]
+
+        code, name = self.client.closure_to_code_string(con_nested_source)
+
+        self.assertEqual(name, "con_nested_source")
+        self.assertIn("values = [1, 2, 3]", code)
+
+    def test_closure_to_code_string_does_not_execute_source(self):
+        self.client = ContractingClient(submission_filename=None, driver=self.driver)
+        sentinel = Path(tempfile.gettempdir()) / "xian_closure_source_probe"
+        if sentinel.exists():
+            sentinel.unlink()
+
+        def con_source_probe():
+            payload = f"; touch {sentinel}"
+
+            @export
+            def get():
+                return payload
+
+        code, name = self.client.closure_to_code_string(con_source_probe)
+
+        self.assertEqual(name, "con_source_probe")
+        self.assertIn("touch", code)
+        self.assertFalse(sentinel.exists())
 
     def test_build_deployment_artifacts_returns_canonical_bundle(self):
         self.client = ContractingClient(submission_filename=None, driver=self.driver)

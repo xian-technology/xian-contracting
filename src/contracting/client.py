@@ -1,12 +1,12 @@
 import ast
 import inspect
 import os
+import textwrap
 from datetime import datetime
 from functools import partial
 from pathlib import Path
 from types import FunctionType
 
-import autopep8
 from xian_runtime_types.time import Datetime
 
 from contracting.compilation.artifacts import build_contract_artifacts
@@ -370,8 +370,7 @@ class ContractingClient:
         )
 
     def closure_to_code_string(self, f):
-        closure_code = inspect.getsource(f)
-        closure_code = autopep8.fix_code(closure_code)
+        closure_code = textwrap.dedent(inspect.getsource(f))
         closure_tree = ast.parse(closure_code)
 
         # Remove the enclosing function by swapping out the function def node with its children

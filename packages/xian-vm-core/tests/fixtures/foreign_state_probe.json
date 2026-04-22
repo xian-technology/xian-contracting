@@ -4,7 +4,8 @@
     "function": "inspect",
     "kwargs": {
       "account": "alice"
-    }
+    },
+    "module": "con_vm_parity_foreign"
   },
   "context": {
     "block_hash": "block5",
@@ -21,531 +22,542 @@
       "owner": "banker"
     },
     "state": {
-      "hashes": [
-        {
-          "binding": "seen",
-          "entries": [
-            {
-              "key": "alice",
-              "value": {
-                "balance": 7,
-                "owner": "banker"
-              }
-            }
-          ]
-        }
-      ],
-      "variables": []
-    }
-  },
-  "initial_state": {
-    "foreign_hashes": [
-      {
-        "contract": "bank",
-        "entries": [
+      "con_vm_parity_foreign": {
+        "hashes": [
           {
-            "key": "alice",
-            "value": 7
-          }
-        ],
-        "name": "balances"
-      }
-    ],
-    "foreign_variables": [
-      {
-        "contract": "bank",
-        "name": "owner",
-        "value": "banker"
-      }
-    ],
-    "hashes": [],
-    "variables": []
-  },
-  "ir": {
-    "docstring": null,
-    "functions": [
-      {
-        "body": [
-          {
-            "node": "assign",
-            "span": {
-              "col": 4,
-              "end_col": 30,
-              "end_line": 7,
-              "line": 7
-            },
-            "targets": [
+            "binding": "seen",
+            "entries": [
               {
-                "host_binding_id": null,
-                "id": "owner",
-                "node": "name",
-                "span": {
-                  "col": 4,
-                  "end_col": 9,
-                  "end_line": 7,
-                  "line": 7
+                "key": "alice",
+                "value": {
+                  "balance": 7,
+                  "owner": "banker"
                 }
               }
+            ]
+          }
+        ],
+        "variables": []
+      }
+    }
+  },
+  "modules": [
+    {
+      "initial_state": {
+        "foreign_hashes": [
+          {
+            "contract": "bank",
+            "entries": [
+              {
+                "key": "alice",
+                "value": 7
+              }
             ],
-            "value": {
-              "args": [],
-              "func": {
-                "attr": "get",
-                "host_binding_id": null,
-                "node": "attribute",
-                "path": "remote_owner.get",
+            "name": "balances"
+          }
+        ],
+        "foreign_variables": [
+          {
+            "contract": "bank",
+            "name": "owner",
+            "value": "banker"
+          }
+        ],
+        "hashes": [],
+        "variables": []
+      },
+      "ir": {
+        "docstring": null,
+        "functions": [
+          {
+            "body": [
+              {
+                "node": "assign",
                 "span": {
-                  "col": 12,
-                  "end_col": 28,
+                  "col": 4,
+                  "end_col": 30,
                   "end_line": 7,
                   "line": 7
                 },
-                "value": {
-                  "host_binding_id": null,
-                  "id": "remote_owner",
-                  "node": "name",
-                  "span": {
-                    "col": 12,
-                    "end_col": 24,
-                    "end_line": 7,
-                    "line": 7
-                  }
-                }
-              },
-              "keywords": [],
-              "method": "get",
-              "node": "call",
-              "receiver_binding": "remote_owner",
-              "receiver_type": "ForeignVariable",
-              "span": {
-                "col": 12,
-                "end_col": 30,
-                "end_line": 7,
-                "line": 7
-              },
-              "syscall_id": "storage.foreign_variable.get"
-            }
-          },
-          {
-            "node": "assign",
-            "span": {
-              "col": 4,
-              "end_col": 38,
-              "end_line": 8,
-              "line": 8
-            },
-            "targets": [
-              {
-                "host_binding_id": null,
-                "id": "balance",
-                "node": "name",
-                "span": {
-                  "col": 4,
-                  "end_col": 11,
-                  "end_line": 8,
-                  "line": 8
-                }
-              }
-            ],
-            "value": {
-              "binding": "remote_balances",
-              "key": {
-                "host_binding_id": null,
-                "id": "account",
-                "node": "name",
-                "span": {
-                  "col": 30,
-                  "end_col": 37,
-                  "end_line": 8,
-                  "line": 8
-                }
-              },
-              "node": "storage_get",
-              "span": {
-                "col": 14,
-                "end_col": 38,
-                "end_line": 8,
-                "line": 8
-              },
-              "storage_type": "ForeignHash",
-              "syscall_id": "storage.foreign_hash.get"
-            }
-          },
-          {
-            "node": "assign",
-            "span": {
-              "col": 4,
-              "end_col": 51,
-              "end_line": 9,
-              "line": 9
-            },
-            "targets": [
-              {
-                "host_binding_id": null,
-                "id": "snapshot",
-                "node": "name",
-                "span": {
-                  "col": 4,
-                  "end_col": 12,
-                  "end_line": 9,
-                  "line": 9
-                }
-              }
-            ],
-            "value": {
-              "entries": [
-                {
-                  "key": {
-                    "node": "constant",
-                    "span": {
-                      "col": 16,
-                      "end_col": 23,
-                      "end_line": 9,
-                      "line": 9
-                    },
-                    "value": "owner",
-                    "value_type": "str"
-                  },
-                  "value": {
+                "targets": [
+                  {
                     "host_binding_id": null,
                     "id": "owner",
                     "node": "name",
                     "span": {
-                      "col": 25,
-                      "end_col": 30,
-                      "end_line": 9,
-                      "line": 9
+                      "col": 4,
+                      "end_col": 9,
+                      "end_line": 7,
+                      "line": 7
                     }
                   }
-                },
-                {
-                  "key": {
-                    "node": "constant",
+                ],
+                "value": {
+                  "args": [],
+                  "func": {
+                    "attr": "get",
+                    "host_binding_id": null,
+                    "node": "attribute",
+                    "path": "remote_owner.get",
                     "span": {
-                      "col": 32,
-                      "end_col": 41,
-                      "end_line": 9,
-                      "line": 9
+                      "col": 12,
+                      "end_col": 28,
+                      "end_line": 7,
+                      "line": 7
                     },
-                    "value": "balance",
-                    "value_type": "str"
+                    "value": {
+                      "host_binding_id": null,
+                      "id": "remote_owner",
+                      "node": "name",
+                      "span": {
+                        "col": 12,
+                        "end_col": 24,
+                        "end_line": 7,
+                        "line": 7
+                      }
+                    }
                   },
-                  "value": {
+                  "keywords": [],
+                  "method": "get",
+                  "node": "call",
+                  "receiver_binding": "remote_owner",
+                  "receiver_type": "ForeignVariable",
+                  "span": {
+                    "col": 12,
+                    "end_col": 30,
+                    "end_line": 7,
+                    "line": 7
+                  },
+                  "syscall_id": "storage.foreign_variable.get"
+                }
+              },
+              {
+                "node": "assign",
+                "span": {
+                  "col": 4,
+                  "end_col": 38,
+                  "end_line": 8,
+                  "line": 8
+                },
+                "targets": [
+                  {
                     "host_binding_id": null,
                     "id": "balance",
                     "node": "name",
                     "span": {
-                      "col": 43,
-                      "end_col": 50,
+                      "col": 4,
+                      "end_col": 11,
+                      "end_line": 8,
+                      "line": 8
+                    }
+                  }
+                ],
+                "value": {
+                  "binding": "remote_balances",
+                  "key": {
+                    "host_binding_id": null,
+                    "id": "account",
+                    "node": "name",
+                    "span": {
+                      "col": 30,
+                      "end_col": 37,
+                      "end_line": 8,
+                      "line": 8
+                    }
+                  },
+                  "node": "storage_get",
+                  "span": {
+                    "col": 14,
+                    "end_col": 38,
+                    "end_line": 8,
+                    "line": 8
+                  },
+                  "storage_type": "ForeignHash",
+                  "syscall_id": "storage.foreign_hash.get"
+                }
+              },
+              {
+                "node": "assign",
+                "span": {
+                  "col": 4,
+                  "end_col": 51,
+                  "end_line": 9,
+                  "line": 9
+                },
+                "targets": [
+                  {
+                    "host_binding_id": null,
+                    "id": "snapshot",
+                    "node": "name",
+                    "span": {
+                      "col": 4,
+                      "end_col": 12,
                       "end_line": 9,
                       "line": 9
                     }
                   }
+                ],
+                "value": {
+                  "entries": [
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 16,
+                          "end_col": 23,
+                          "end_line": 9,
+                          "line": 9
+                        },
+                        "value": "owner",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "owner",
+                        "node": "name",
+                        "span": {
+                          "col": 25,
+                          "end_col": 30,
+                          "end_line": 9,
+                          "line": 9
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 32,
+                          "end_col": 41,
+                          "end_line": 9,
+                          "line": 9
+                        },
+                        "value": "balance",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "balance",
+                        "node": "name",
+                        "span": {
+                          "col": 43,
+                          "end_col": 50,
+                          "end_line": 9,
+                          "line": 9
+                        }
+                      }
+                    }
+                  ],
+                  "node": "dict",
+                  "span": {
+                    "col": 15,
+                    "end_col": 51,
+                    "end_line": 9,
+                    "line": 9
+                  }
                 }
-              ],
-              "node": "dict",
-              "span": {
-                "col": 15,
-                "end_col": 51,
-                "end_line": 9,
-                "line": 9
+              },
+              {
+                "binding": "seen",
+                "key": {
+                  "host_binding_id": null,
+                  "id": "account",
+                  "node": "name",
+                  "span": {
+                    "col": 9,
+                    "end_col": 16,
+                    "end_line": 10,
+                    "line": 10
+                  }
+                },
+                "node": "storage_set",
+                "span": {
+                  "col": 4,
+                  "end_col": 28,
+                  "end_line": 10,
+                  "line": 10
+                },
+                "storage_type": "Hash",
+                "syscall_id": "storage.hash.set",
+                "value": {
+                  "host_binding_id": null,
+                  "id": "snapshot",
+                  "node": "name",
+                  "span": {
+                    "col": 20,
+                    "end_col": 28,
+                    "end_line": 10,
+                    "line": 10
+                  }
+                }
+              },
+              {
+                "node": "return",
+                "span": {
+                  "col": 4,
+                  "end_col": 19,
+                  "end_line": 11,
+                  "line": 11
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "snapshot",
+                  "node": "name",
+                  "span": {
+                    "col": 11,
+                    "end_col": 19,
+                    "end_line": 11,
+                    "line": 11
+                  }
+                }
               }
-            }
-          },
-          {
-            "binding": "seen",
-            "key": {
-              "host_binding_id": null,
-              "id": "account",
-              "node": "name",
+            ],
+            "decorator": {
+              "args": [],
+              "keywords": [],
+              "name": "export",
+              "node": "decorator",
               "span": {
-                "col": 9,
-                "end_col": 16,
-                "end_line": 10,
-                "line": 10
+                "col": 1,
+                "end_col": 7,
+                "end_line": 5,
+                "line": 5
               }
             },
-            "node": "storage_set",
-            "span": {
-              "col": 4,
-              "end_col": 28,
-              "end_line": 10,
-              "line": 10
-            },
-            "storage_type": "Hash",
-            "syscall_id": "storage.hash.set",
-            "value": {
-              "host_binding_id": null,
-              "id": "snapshot",
-              "node": "name",
-              "span": {
-                "col": 20,
-                "end_col": 28,
-                "end_line": 10,
-                "line": 10
+            "docstring": null,
+            "name": "inspect",
+            "node": "function",
+            "parameters": [
+              {
+                "annotation": "str",
+                "default": null,
+                "kind": "positional_or_keyword",
+                "name": "account",
+                "span": {
+                  "col": 12,
+                  "end_col": 24,
+                  "end_line": 6,
+                  "line": 6
+                }
               }
-            }
-          },
-          {
-            "node": "return",
+            ],
+            "returns": null,
             "span": {
-              "col": 4,
+              "col": 0,
               "end_col": 19,
               "end_line": 11,
-              "line": 11
-            },
-            "value": {
-              "host_binding_id": null,
-              "id": "snapshot",
-              "node": "name",
-              "span": {
-                "col": 11,
-                "end_col": 19,
-                "end_line": 11,
-                "line": 11
-              }
-            }
-          }
-        ],
-        "decorator": {
-          "args": [],
-          "keywords": [],
-          "name": "export",
-          "node": "decorator",
-          "span": {
-            "col": 1,
-            "end_col": 7,
-            "end_line": 5,
-            "line": 5
-          }
-        },
-        "docstring": null,
-        "name": "inspect",
-        "node": "function",
-        "parameters": [
-          {
-            "annotation": "str",
-            "default": null,
-            "kind": "positional_or_keyword",
-            "name": "account",
-            "span": {
-              "col": 12,
-              "end_col": 24,
-              "end_line": 6,
               "line": 6
-            }
+            },
+            "visibility": "export"
           }
         ],
-        "returns": null,
-        "span": {
-          "col": 0,
-          "end_col": 19,
-          "end_line": 11,
-          "line": 6
-        },
-        "visibility": "export"
-      }
-    ],
-    "global_declarations": [
-      {
-        "args": [],
-        "keywords": [
+        "global_declarations": [
           {
-            "arg": "foreign_contract",
+            "args": [],
+            "keywords": [
+              {
+                "arg": "foreign_contract",
+                "node": "keyword",
+                "span": {
+                  "col": 31,
+                  "end_col": 54,
+                  "end_line": 1,
+                  "line": 1
+                },
+                "value": {
+                  "node": "constant",
+                  "span": {
+                    "col": 48,
+                    "end_col": 54,
+                    "end_line": 1,
+                    "line": 1
+                  },
+                  "value": "bank",
+                  "value_type": "str"
+                }
+              },
+              {
+                "arg": "foreign_name",
+                "node": "keyword",
+                "span": {
+                  "col": 56,
+                  "end_col": 76,
+                  "end_line": 1,
+                  "line": 1
+                },
+                "value": {
+                  "node": "constant",
+                  "span": {
+                    "col": 69,
+                    "end_col": 76,
+                    "end_line": 1,
+                    "line": 1
+                  },
+                  "value": "owner",
+                  "value_type": "str"
+                }
+              }
+            ],
+            "name": "remote_owner",
+            "node": "storage_decl",
             "span": {
-              "col": 31,
-              "end_col": 54,
+              "col": 0,
+              "end_col": 77,
               "end_line": 1,
               "line": 1
             },
-            "value": {
-              "node": "constant",
-              "span": {
-                "col": 48,
-                "end_col": 54,
-                "end_line": 1,
-                "line": 1
-              },
-              "value": "bank",
-              "value_type": "str"
-            }
+            "storage_type": "ForeignVariable",
+            "syscall_id": "storage.foreign_variable.new"
           },
           {
-            "arg": "foreign_name",
-            "span": {
-              "col": 56,
-              "end_col": 76,
-              "end_line": 1,
-              "line": 1
-            },
-            "value": {
-              "node": "constant",
-              "span": {
-                "col": 69,
-                "end_col": 76,
-                "end_line": 1,
-                "line": 1
+            "args": [],
+            "keywords": [
+              {
+                "arg": "foreign_contract",
+                "node": "keyword",
+                "span": {
+                  "col": 30,
+                  "end_col": 53,
+                  "end_line": 2,
+                  "line": 2
+                },
+                "value": {
+                  "node": "constant",
+                  "span": {
+                    "col": 47,
+                    "end_col": 53,
+                    "end_line": 2,
+                    "line": 2
+                  },
+                  "value": "bank",
+                  "value_type": "str"
+                }
               },
-              "value": "owner",
-              "value_type": "str"
-            }
-          }
-        ],
-        "name": "remote_owner",
-        "node": "storage_decl",
-        "span": {
-          "col": 0,
-          "end_col": 77,
-          "end_line": 1,
-          "line": 1
-        },
-        "storage_type": "ForeignVariable",
-        "syscall_id": "storage.foreign_variable.new"
-      },
-      {
-        "args": [],
-        "keywords": [
-          {
-            "arg": "foreign_contract",
+              {
+                "arg": "foreign_name",
+                "node": "keyword",
+                "span": {
+                  "col": 55,
+                  "end_col": 78,
+                  "end_line": 2,
+                  "line": 2
+                },
+                "value": {
+                  "node": "constant",
+                  "span": {
+                    "col": 68,
+                    "end_col": 78,
+                    "end_line": 2,
+                    "line": 2
+                  },
+                  "value": "balances",
+                  "value_type": "str"
+                }
+              }
+            ],
+            "name": "remote_balances",
+            "node": "storage_decl",
             "span": {
-              "col": 30,
-              "end_col": 53,
+              "col": 0,
+              "end_col": 79,
               "end_line": 2,
               "line": 2
             },
-            "value": {
-              "node": "constant",
-              "span": {
-                "col": 47,
-                "end_col": 53,
-                "end_line": 2,
-                "line": 2
-              },
-              "value": "bank",
-              "value_type": "str"
-            }
+            "storage_type": "ForeignHash",
+            "syscall_id": "storage.foreign_hash.new"
           },
           {
-            "arg": "foreign_name",
+            "args": [],
+            "keywords": [
+              {
+                "arg": "default_value",
+                "node": "keyword",
+                "span": {
+                  "col": 12,
+                  "end_col": 30,
+                  "end_line": 3,
+                  "line": 3
+                },
+                "value": {
+                  "node": "constant",
+                  "span": {
+                    "col": 26,
+                    "end_col": 30,
+                    "end_line": 3,
+                    "line": 3
+                  },
+                  "value": null,
+                  "value_type": "none"
+                }
+              }
+            ],
+            "name": "seen",
+            "node": "storage_decl",
             "span": {
-              "col": 55,
-              "end_col": 78,
-              "end_line": 2,
-              "line": 2
-            },
-            "value": {
-              "node": "constant",
-              "span": {
-                "col": 68,
-                "end_col": 78,
-                "end_line": 2,
-                "line": 2
-              },
-              "value": "balances",
-              "value_type": "str"
-            }
-          }
-        ],
-        "name": "remote_balances",
-        "node": "storage_decl",
-        "span": {
-          "col": 0,
-          "end_col": 79,
-          "end_line": 2,
-          "line": 2
-        },
-        "storage_type": "ForeignHash",
-        "syscall_id": "storage.foreign_hash.new"
-      },
-      {
-        "args": [],
-        "keywords": [
-          {
-            "arg": "default_value",
-            "span": {
-              "col": 12,
-              "end_col": 30,
+              "col": 0,
+              "end_col": 31,
               "end_line": 3,
               "line": 3
             },
-            "value": {
-              "node": "constant",
-              "span": {
-                "col": 26,
-                "end_col": 30,
-                "end_line": 3,
-                "line": 3
-              },
-              "value": null,
-              "value_type": "none"
-            }
+            "storage_type": "Hash",
+            "syscall_id": "storage.hash.new"
           }
         ],
-        "name": "seen",
-        "node": "storage_decl",
-        "span": {
-          "col": 0,
-          "end_col": 31,
-          "end_line": 3,
-          "line": 3
-        },
-        "storage_type": "Hash",
-        "syscall_id": "storage.hash.new"
-      }
-    ],
-    "host_catalog_version": "xian_vm_v1_host_v1",
-    "host_dependencies": [
-      {
-        "binding": "ForeignHash.__getitem__",
-        "category": "storage",
-        "id": "storage.foreign_hash.get",
-        "kind": "syscall"
+        "host_catalog_version": "xian_vm_v1_host_v1",
+        "host_dependencies": [
+          {
+            "binding": "ForeignHash.__getitem__",
+            "category": "storage",
+            "id": "storage.foreign_hash.get",
+            "kind": "syscall"
+          },
+          {
+            "binding": "ForeignHash",
+            "category": "storage",
+            "id": "storage.foreign_hash.new",
+            "kind": "syscall"
+          },
+          {
+            "binding": "ForeignVariable.get",
+            "category": "storage",
+            "id": "storage.foreign_variable.get",
+            "kind": "syscall"
+          },
+          {
+            "binding": "ForeignVariable",
+            "category": "storage",
+            "id": "storage.foreign_variable.new",
+            "kind": "syscall"
+          },
+          {
+            "binding": "Hash.__getitem__",
+            "category": "storage",
+            "id": "storage.hash.get",
+            "kind": "syscall"
+          },
+          {
+            "binding": "Hash",
+            "category": "storage",
+            "id": "storage.hash.new",
+            "kind": "syscall"
+          },
+          {
+            "binding": "Hash.__setitem__",
+            "category": "storage",
+            "id": "storage.hash.set",
+            "kind": "syscall"
+          }
+        ],
+        "imports": [],
+        "ir_version": "xian_ir_v1",
+        "module_body": [],
+        "module_name": "con_vm_parity_foreign",
+        "source_hash": "313ab0eaa0877b29880844aaca81c3d94e0da77e37564ab4f5b5b3fc142321b9",
+        "vm_profile": "xian_vm_v1"
       },
-      {
-        "binding": "ForeignHash",
-        "category": "storage",
-        "id": "storage.foreign_hash.new",
-        "kind": "syscall"
-      },
-      {
-        "binding": "ForeignVariable.get",
-        "category": "storage",
-        "id": "storage.foreign_variable.get",
-        "kind": "syscall"
-      },
-      {
-        "binding": "ForeignVariable",
-        "category": "storage",
-        "id": "storage.foreign_variable.new",
-        "kind": "syscall"
-      },
-      {
-        "binding": "Hash.__getitem__",
-        "category": "storage",
-        "id": "storage.hash.get",
-        "kind": "syscall"
-      },
-      {
-        "binding": "Hash",
-        "category": "storage",
-        "id": "storage.hash.new",
-        "kind": "syscall"
-      },
-      {
-        "binding": "Hash.__setitem__",
-        "category": "storage",
-        "id": "storage.hash.set",
-        "kind": "syscall"
-      }
-    ],
-    "imports": [],
-    "ir_version": "xian_ir_v1",
-    "module_body": [],
-    "module_name": "con_vm_parity_foreign",
-    "source_hash": "313ab0eaa0877b29880844aaca81c3d94e0da77e37564ab4f5b5b3fc142321b9",
-    "vm_profile": "xian_vm_v1"
-  },
-  "module_name": "con_vm_parity_foreign",
-  "name": "foreign_state_probe",
-  "source": "remote_owner = ForeignVariable(foreign_contract=\"bank\", foreign_name=\"owner\")\nremote_balances = ForeignHash(foreign_contract=\"bank\", foreign_name=\"balances\")\nseen = Hash(default_value=None)\n\n@export\ndef inspect(account: str):\n    owner = remote_owner.get()\n    balance = remote_balances[account]\n    snapshot = {\"owner\": owner, \"balance\": balance}\n    seen[account] = snapshot\n    return snapshot"
+      "module_name": "con_vm_parity_foreign",
+      "owner": null
+    }
+  ],
+  "name": "foreign_state_probe"
 }

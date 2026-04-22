@@ -1,7 +1,7 @@
 # Examples
 
-The notebooks in this directory are kept in sync with the current
-`xian-contracting` runtime.
+The notebooks in this directory exercise the current `xian-contracting`
+runtime through `ContractingClient`.
 
 Principles:
 
@@ -13,7 +13,7 @@ Principles:
   canonical runtime code is inspected through `__code__`.
 - Outputs are cleared in git so the notebooks stay reviewable and rerunnable.
 
-Run them in Jupyter as usual, or validate them without Jupyter:
+Run them in Jupyter as usual, or validate the code cells without Jupyter:
 
 ```bash
 uv run python examples/validate_notebooks.py

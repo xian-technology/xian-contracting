@@ -107,10 +107,17 @@ Rules:
 
 ## Parallel Transaction Processing
 
-Parallel execution is not trivial and should not be implemented as naive
-concurrent mutation.
+Parallel execution now has a reusable `contracting.execution.parallel`
+primitive for raw contract-call batches:
 
-Safe direction:
+- `ExecutionRequest`
+- `ExecutionAccess`
+- `ParallelExecutionPlanner`
+- `ParallelBatchExecutor`
+
+It still must not become naive concurrent mutation.
+
+Current safety model:
 
 - keep canonical block transaction order unchanged
 - execute transactions speculatively on snapshots
@@ -136,6 +143,16 @@ Required safeguards:
 - conservative first version with narrow eligibility
 - workload tests designed to force conflicts and verify identical final state
 
+Remaining useful work:
+
+- harden multi-worker process-pool lifecycle behavior under long-running node
+  workloads
+- add broader performance coverage for high-conflict and mixed-conflict batches
+- integrate only the generic runtime primitive into higher layers; keep ABCI
+  decoding, nonce policy, rewards, and result shaping outside this repo
+- keep proving serial equivalence with integration tests before enabling wider
+  production usage
+
 ## Rollout Order
 
 1. Keep the pure-Python tracer as the stable default.
@@ -143,5 +160,5 @@ Required safeguards:
    workload coverage.
 3. Keep the tracer backend abstraction explicit and policy-versioned.
 4. Harden the optional Rust native tracer further for long-term network use.
-5. Prototype speculative parallel execution only after the execution model and
-   workload harness are stronger.
+5. Treat speculative parallel execution as a local optimization and expand it
+   only when serial-equivalence coverage and workload data justify it.

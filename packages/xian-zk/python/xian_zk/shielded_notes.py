@@ -15,7 +15,7 @@ from nacl.bindings import (
     crypto_sign_ed25519_pk_to_curve25519,
     crypto_sign_ed25519_sk_to_curve25519,
 )
-from nacl.public import PrivateKey, PublicKey, SealedBox
+from nacl.public import PrivateKey, PublicKey
 from nacl.signing import SigningKey
 
 from xian_zk._native import (
@@ -109,15 +109,6 @@ def _decode_payload_json(payload_hex: str) -> dict[str, object] | None:
     return decoded
 
 
-def _resolve_viewing_public_key(
-    viewing_private_key: str,
-    viewing_public_key: str | None = None,
-) -> str:
-    if viewing_public_key is not None:
-        return viewing_public_key
-    return _public_key_from_private_key(viewing_private_key)
-
-
 def _normalize_viewer(
     viewer: "ShieldedViewer | ShieldedRecipient | str",
 ) -> "ShieldedViewer":
@@ -133,15 +124,6 @@ def _normalize_viewer(
     raise TypeError(
         "viewer must be a ShieldedViewer, ShieldedRecipient, or hex key"
     )
-
-
-def _encrypt_message_for_public_key(
-    message: str,
-    viewing_public_key: str,
-) -> str:
-    sealed_box = SealedBox(_x25519_public_key_from_ed25519(viewing_public_key))
-    ciphertext = sealed_box.encrypt(message.encode("utf-8"))
-    return _canonical_hex(ciphertext)
 
 
 def _shared_key_from_public_key(
@@ -516,58 +498,37 @@ class ShieldedPayloadCiphertext:
     sync_hint: str | None = None
     ephemeral_public_key: str | None = None
     nonce: str | None = None
-    viewing_public_key: str | None = None
-
-    def is_v2(self) -> bool:
-        return (
-            self.discovery_tag is not None
-            and self.ephemeral_public_key is not None
-            and self.nonce is not None
-        )
 
     def matches_viewing_key(
         self,
         *,
         viewing_private_key: str,
-        viewing_public_key: str,
     ) -> bool:
-        if self.is_v2():
-            try:
-                shared_key = _shared_key_from_private_key(
-                    viewing_private_key,
-                    self.ephemeral_public_key,
-                )
-            except Exception:
-                return False
-            return _discovery_tag(shared_key) == self.discovery_tag
-        return self.viewing_public_key == viewing_public_key
+        try:
+            shared_key = _shared_key_from_private_key(
+                viewing_private_key,
+                self.ephemeral_public_key,
+            )
+        except Exception:
+            return False
+        return _discovery_tag(shared_key) == self.discovery_tag
 
     def decrypt(
         self,
         *,
         viewing_private_key: str,
-        viewing_public_key: str,
     ) -> str:
-        if self.is_v2():
-            shared_key = _shared_key_from_private_key(
-                viewing_private_key,
-                self.ephemeral_public_key,
-            )
-            plaintext = crypto_box_open_easy_afternm(
-                _normalize_hex_bytes(self.ciphertext),
-                _normalize_hex_bytes(
-                    self.nonce, expected_len=crypto_box_NONCEBYTES
-                ),
-                shared_key,
-            )
-            return plaintext.decode("utf-8")
-
-        if self.viewing_public_key != viewing_public_key:
-            raise ValueError("no ciphertext for the provided viewing key")
-        sealed_box = SealedBox(
-            _x25519_private_key_from_ed25519(viewing_private_key)
+        shared_key = _shared_key_from_private_key(
+            viewing_private_key,
+            self.ephemeral_public_key,
         )
-        plaintext = sealed_box.decrypt(_normalize_hex_bytes(self.ciphertext))
+        plaintext = crypto_box_open_easy_afternm(
+            _normalize_hex_bytes(self.ciphertext),
+            _normalize_hex_bytes(
+                self.nonce, expected_len=crypto_box_NONCEBYTES
+            ),
+            shared_key,
+        )
         return plaintext.decode("utf-8")
 
 
@@ -597,7 +558,7 @@ class ShieldedNotePayload:
         if decoded is None:
             return None
         version = decoded.get("version")
-        if version not in (1, _PAYLOAD_VERSION):
+        if version != _PAYLOAD_VERSION:
             return None
         ciphertexts = decoded.get("ciphertexts")
         if not isinstance(ciphertexts, list):
@@ -613,34 +574,24 @@ class ShieldedNotePayload:
                 return None
             if label is not None and not isinstance(label, str):
                 return None
-            if version == 1:
-                viewing_public_key = item.get("viewing_public_key")
-                if not isinstance(viewing_public_key, str):
-                    return None
-                entry = ShieldedPayloadCiphertext(
-                    ciphertext=ciphertext,
-                    label=label,
-                    viewing_public_key=viewing_public_key,
-                )
-            else:
-                discovery_tag = item.get("discovery_tag")
-                sync_hint = item.get("sync_hint")
-                ephemeral_public_key = item.get("ephemeral_public_key")
-                nonce = item.get("nonce")
-                if not (
-                    isinstance(discovery_tag, str)
-                    and isinstance(ephemeral_public_key, str)
-                    and isinstance(nonce, str)
-                ):
-                    return None
-                entry = ShieldedPayloadCiphertext(
-                    ciphertext=ciphertext,
-                    label=label,
-                    discovery_tag=discovery_tag,
-                    sync_hint=sync_hint if isinstance(sync_hint, str) else None,
-                    ephemeral_public_key=ephemeral_public_key,
-                    nonce=nonce,
-                )
+            discovery_tag = item.get("discovery_tag")
+            sync_hint = item.get("sync_hint")
+            ephemeral_public_key = item.get("ephemeral_public_key")
+            nonce = item.get("nonce")
+            if not (
+                isinstance(discovery_tag, str)
+                and isinstance(ephemeral_public_key, str)
+                and isinstance(nonce, str)
+            ):
+                return None
+            entry = ShieldedPayloadCiphertext(
+                ciphertext=ciphertext,
+                label=label,
+                discovery_tag=discovery_tag,
+                sync_hint=sync_hint if isinstance(sync_hint, str) else None,
+                ephemeral_public_key=ephemeral_public_key,
+                nonce=nonce,
+            )
             entries.append(entry)
         return cls(ciphertexts=entries, version=int(version))
 
@@ -648,12 +599,10 @@ class ShieldedNotePayload:
         self,
         *,
         viewing_private_key: str,
-        viewing_public_key: str,
     ) -> ShieldedPayloadCiphertext | None:
         for ciphertext in self.ciphertexts:
             if ciphertext.matches_viewing_key(
                 viewing_private_key=viewing_private_key,
-                viewing_public_key=viewing_public_key,
             ):
                 return ciphertext
         return None
@@ -2129,15 +2078,10 @@ def payload_matches_viewing_key(
         return False
     payload = ShieldedNotePayload.from_hex(payload_hex)
     if payload is None:
-        return True
-    public_key = _resolve_viewing_public_key(
-        viewing_private_key,
-        viewing_public_key,
-    )
+        return False
     return (
         payload.matching_ciphertext(
             viewing_private_key=viewing_private_key,
-            viewing_public_key=public_key,
         )
         is not None
     )
@@ -2149,31 +2093,19 @@ def decrypt_note_message(
     viewing_private_key: str,
     viewing_public_key: str | None = None,
 ) -> ShieldedNoteMessage:
-    public_key = _resolve_viewing_public_key(
-        viewing_private_key,
-        viewing_public_key,
-    )
-    sealed_box = SealedBox(
-        _x25519_private_key_from_ed25519(viewing_private_key)
-    )
-
     payload = ShieldedNotePayload.from_hex(payload_hex)
-    if payload is not None:
-        ciphertext = payload.matching_ciphertext(
-            viewing_private_key=viewing_private_key,
-            viewing_public_key=public_key,
-        )
-        if ciphertext is not None:
-            return ShieldedNoteMessage.from_json(
-                ciphertext.decrypt(
-                    viewing_private_key=viewing_private_key,
-                    viewing_public_key=public_key,
-                )
+    if payload is None:
+        raise ValueError("invalid shielded note payload")
+    ciphertext = payload.matching_ciphertext(
+        viewing_private_key=viewing_private_key,
+    )
+    if ciphertext is not None:
+        return ShieldedNoteMessage.from_json(
+            ciphertext.decrypt(
+                viewing_private_key=viewing_private_key,
             )
-        raise ValueError("no ciphertext for the provided viewing key")
-
-    plaintext = sealed_box.decrypt(_normalize_hex_bytes(payload_hex))
-    return ShieldedNoteMessage.from_json(plaintext.decode("utf-8"))
+        )
+    raise ValueError("no ciphertext for the provided viewing key")
 
 
 def scan_notes(
@@ -2210,10 +2142,6 @@ def recover_viewable_notes(
     viewing_private_key: str,
     viewing_public_key: str | None = None,
 ) -> list[ShieldedViewableNote]:
-    public_key = _resolve_viewing_public_key(
-        viewing_private_key,
-        viewing_public_key,
-    )
     commitment_list = list(commitments)
     payload_list = list(payloads)
     if len(commitment_list) != len(payload_list):
@@ -2231,7 +2159,6 @@ def recover_viewable_notes(
         if payload is not None:
             ciphertext = payload.matching_ciphertext(
                 viewing_private_key=viewing_private_key,
-                viewing_public_key=public_key,
             )
             if ciphertext is None:
                 continue
@@ -2241,7 +2168,6 @@ def recover_viewable_notes(
             message = decrypt_note_message(
                 payload_hex,
                 viewing_private_key=viewing_private_key,
-                viewing_public_key=public_key,
             )
         except Exception:
             continue

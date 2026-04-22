@@ -1,11 +1,12 @@
-# Src
+# Source
 
-## Purpose
-- This folder contains the importable package code for `xian-contracting`.
+This directory contains the importable Python package for
+`xian-tech-contracting`.
 
 ## Contents
-- `contracting/`: main compiler, runtime, and storage package
 
-## Next
-- Start with [`contracting/README.md`](contracting/README.md).
+- `contracting/`: compiler, execution runtime, storage layer, stdlib bridge,
+  built-in contract assets, and public client facade
 
+Start with [`contracting/README.md`](contracting/README.md) for the package
+layout. Keep consensus-sensitive behavior in this tree small and test-backed.

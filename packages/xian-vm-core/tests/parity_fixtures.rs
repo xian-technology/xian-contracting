@@ -31,76 +31,45 @@ impl ParityHarness {
     fn from_fixture(fixture: &Map<String, Value>) -> Self {
         let mut harness = Self::default();
 
-        if let Some(modules) = fixture.get("modules").and_then(Value::as_array) {
-            for module in modules {
-                let module = module
-                    .as_object()
-                    .expect("fixture module should be an object");
-                let module_name = module
-                    .get("module_name")
-                    .and_then(Value::as_str)
-                    .expect("fixture module_name should be a string");
-                let module_ir: ModuleIr = serde_json::from_value(
-                    module
-                        .get("ir")
-                        .cloned()
-                        .expect("fixture module should include IR"),
-                )
-                .expect("module IR should deserialize");
-                let mut instance = VmInstance::new(module_ir, VmExecutionContext::default())
-                    .expect("module should initialize");
-                apply_initial_state(
-                    &mut instance,
-                    module
-                        .get("initial_state")
-                        .and_then(Value::as_object)
-                        .expect("fixture module should include initial_state"),
-                );
-                harness.modules.insert(
-                    module_name.to_owned(),
-                    ModuleHarness {
-                        instance,
-                        owner: module
-                            .get("owner")
-                            .and_then(Value::as_str)
-                            .map(str::to_owned),
-                    },
-                );
-            }
-            harness.sync_foreign_storage_views();
-            return harness;
+        let modules = fixture
+            .get("modules")
+            .and_then(Value::as_array)
+            .expect("fixture should include modules");
+        for module in modules {
+            let module = module
+                .as_object()
+                .expect("fixture module should be an object");
+            let module_name = module
+                .get("module_name")
+                .and_then(Value::as_str)
+                .expect("fixture module_name should be a string");
+            let module_ir: ModuleIr = serde_json::from_value(
+                module
+                    .get("ir")
+                    .cloned()
+                    .expect("fixture module should include IR"),
+            )
+            .expect("module IR should deserialize");
+            let mut instance = VmInstance::new(module_ir, VmExecutionContext::default())
+                .expect("module should initialize");
+            apply_initial_state(
+                &mut instance,
+                module
+                    .get("initial_state")
+                    .and_then(Value::as_object)
+                    .expect("fixture module should include initial_state"),
+            );
+            harness.modules.insert(
+                module_name.to_owned(),
+                ModuleHarness {
+                    instance,
+                    owner: module
+                        .get("owner")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
+                },
+            );
         }
-
-        let module_name = fixture
-            .get("module_name")
-            .and_then(Value::as_str)
-            .expect("legacy fixture should include module_name");
-        let module_ir: ModuleIr = serde_json::from_value(
-            fixture
-                .get("ir")
-                .cloned()
-                .expect("legacy fixture should include IR"),
-        )
-        .expect("legacy IR should deserialize");
-        let mut instance = VmInstance::new(module_ir, VmExecutionContext::default())
-            .expect("legacy module should initialize");
-        apply_initial_state(
-            &mut instance,
-            fixture
-                .get("initial_state")
-                .and_then(Value::as_object)
-                .expect("legacy fixture should include initial_state"),
-        );
-        harness.modules.insert(
-            module_name.to_owned(),
-            ModuleHarness {
-                instance,
-                owner: fixture
-                    .get("owner")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned),
-            },
-        );
         harness.sync_foreign_storage_views();
         harness
     }
@@ -166,15 +135,7 @@ impl ParityHarness {
         }
     }
 
-    fn collect_state(&self, expected_state: &Map<String, Value>, root_module: &str) -> Value {
-        if expected_state.contains_key("variables") || expected_state.contains_key("hashes") {
-            let module = self
-                .modules
-                .get(root_module)
-                .expect("root module should exist");
-            return collect_actual_state_for_module(&module.instance, expected_state);
-        }
-
+    fn collect_state(&self, expected_state: &Map<String, Value>) -> Value {
         Value::Object(Map::from_iter(expected_state.iter().map(
             |(module_name, state)| {
                 let module = self
@@ -386,8 +347,7 @@ fn run_fixture(path: &PathBuf) {
     let root_module = call
         .get("module")
         .and_then(Value::as_str)
-        .or_else(|| fixture.get("module_name").and_then(Value::as_str))
-        .expect("fixture should identify call module");
+        .expect("call.module should be a string");
     let function = call
         .get("function")
         .and_then(Value::as_str)
@@ -441,7 +401,6 @@ fn run_fixture(path: &PathBuf) {
             .get("state")
             .and_then(Value::as_object)
             .expect("expected.state missing"),
-        root_module,
     );
     assert_eq!(
         actual_state,

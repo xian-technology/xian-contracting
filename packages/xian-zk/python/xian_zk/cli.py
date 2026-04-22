@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -279,15 +278,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _legacy_argv(argv: list[str] | None) -> list[str] | None:
-    resolved = list(sys.argv[1:] if argv is None else argv)
-    if len(resolved) == 0:
-        return resolved
-    if resolved[0].startswith("-"):
-        return ["generate-note", *resolved]
-    return resolved
-
-
 def _handle_generate_note(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir).expanduser().resolve()
     vk_id_prefix = args.vk_id_prefix or _default_vk_id_prefix(
@@ -395,7 +385,7 @@ def _handle_validate_command(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(_legacy_argv(argv))
+    args = build_parser().parse_args(argv)
 
     handlers = {
         "generate-note": _handle_generate_note,

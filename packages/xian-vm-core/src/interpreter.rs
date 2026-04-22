@@ -2183,10 +2183,7 @@ impl VmInstance {
                                 "bytes() exceeds the maximum allowed allocation size",
                             ));
                         }
-                        Ok(VmValue::Bytes(vec![
-                            0;
-                            size
-                        ]))
+                        Ok(VmValue::Bytes(vec![0; size]))
                     }
                     [value] => Ok(VmValue::Bytes(clone_as_bytes_like(value)?)),
                     _ => Err(VmExecutionError::new("encoding without a string argument")),
@@ -2230,10 +2227,7 @@ impl VmInstance {
                                 "bytearray() exceeds the maximum allowed allocation size",
                             ));
                         }
-                        Ok(VmValue::ByteArray(vec![
-                            0;
-                            size
-                        ]))
+                        Ok(VmValue::ByteArray(vec![0; size]))
                     }
                     [value] => Ok(VmValue::ByteArray(clone_as_bytes_like(value)?)),
                     _ => Err(VmExecutionError::new("encoding without a string argument")),

@@ -348,29 +348,19 @@ class ForeignHash(Hash):
 
 
 class LogEvent(Datum):
-    """
-    TODO
-    - Break validation into smaller functions
-    - Add checks for use of illegal types and argument names (See Hash checks.)
-    """
+    """Declarative event schema used by contract code."""
 
     def __init__(
         self,
-        *args,
-        contract=None,
-        name=None,
         event=None,
         params=None,
+        *,
+        contract=None,
+        name=None,
         driver: Driver | None = None,
     ):
-        contract, name, event, params = self._resolve_init_args(
-            args=args,
-            contract=contract,
-            name=name,
-            event=event,
-            params=params,
-        )
-
+        if event is None or params is None:
+            raise TypeError("LogEvent requires both event and params.")
         self._contract = contract or rt.context.this or "__event__"
         self._name = name or event
         resolved_driver = driver or rt.env.get("__Driver") or Driver()
@@ -378,40 +368,6 @@ class LogEvent(Datum):
 
         self._event = self._validate_event_name(event)
         self._params = self._normalize_params(params)
-
-    @staticmethod
-    def _resolve_init_args(args, contract, name, event, params):
-        if len(args) == 0:
-            pass
-        elif len(args) == 1 and event is None and params is not None:
-            event = args[0]
-        elif len(args) == 2:
-            if event is None and params is None:
-                event, params = args
-            elif (
-                event is not None
-                and params is not None
-                and contract is None
-                and name is None
-            ):
-                contract, name = args
-            else:
-                raise TypeError(
-                    "Invalid LogEvent arguments. Use LogEvent(event, params, *, contract=..., name=...)."
-                )
-        elif len(args) == 4 and all(
-            value is None for value in (contract, name, event, params)
-        ):
-            contract, name, event, params = args
-        else:
-            raise TypeError(
-                "Invalid LogEvent arguments. Use LogEvent(event, params, *, contract=..., name=...)."
-            )
-
-        if event is None or params is None:
-            raise TypeError("LogEvent requires both event and params.")
-
-        return contract, name, event, params
 
     @staticmethod
     def _validate_event_name(event):

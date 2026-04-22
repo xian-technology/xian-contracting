@@ -604,6 +604,7 @@
             "keywords": [
               {
                 "arg": "default_value",
+                "node": "keyword",
                 "span": {
                   "col": 16,
                   "end_col": 31,
@@ -755,6 +756,7 @@
                   "keywords": [
                     {
                       "arg": "account",
+                      "node": "keyword",
                       "span": {
                         "col": 49,
                         "end_col": 64,

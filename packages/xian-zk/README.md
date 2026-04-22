@@ -20,58 +20,30 @@ workspace.
 - Trusted local prover-service support for note, command, and relay proof generation
 
 ## API
-- Python:
-  - `xian_zk.prepare_groth16_bn254_vk(vk_hex) -> PreparedGroth16Bn254Key`
-  - `xian_zk.verify_groth16_bn254(vk_hex, proof_hex, public_inputs) -> bool`
-  - `xian_zk.verify_groth16_bn254_prepared(prepared_vk, proof_hex, public_inputs) -> bool`
-  - `xian_zk.ShieldedNoteProver.build_insecure_dev_bundle()`
-  - `xian_zk.ShieldedNoteProver.build_random_bundle(contract_name=..., vk_id_prefix=...)`
-  - `xian_zk.ShieldedNoteProver.prove_deposit(...)`
-  - `xian_zk.ShieldedNoteProver.prove_transfer(...)`
-  - `xian_zk.ShieldedNoteProver.prove_withdraw(...)`
-  - `xian_zk.ShieldedKeyBundle.generate()`
-  - `xian_zk.ShieldedKeyBundle.from_parts(owner_secret=..., viewing_private_key=...)`
-  - `xian_zk.ShieldedWallet.generate(asset_id)`
-  - `xian_zk.ShieldedWallet.from_parts(asset_id=..., owner_secret=..., viewing_private_key=...)`
-  - `xian_zk.ShieldedWallet.from_json(snapshot_json)`
-  - `xian_zk.ShieldedWallet.from_seed_json(seed_json)`
-  - `xian_zk.ShieldedWallet.sync_records(records) -> ShieldedWalletSyncResult`
-  - `xian_zk.ShieldedWallet.candidate_records(records) -> list[ShieldedNoteRecord]`
-  - `xian_zk.ShieldedWallet.build_deposit(...)`
-  - `xian_zk.ShieldedWallet.build_transfer(...)`
-  - `xian_zk.ShieldedWallet.build_withdraw(...)`
-  - `xian_zk.ShieldedViewingKeyBundle.generate()`
-  - `xian_zk.owner_public(owner_secret) -> str`
-  - `xian_zk.output_commitment(asset_id, owner_public, amount, rho, blind) -> str`
-  - `xian_zk.generate_field_hex() -> str`
-  - `xian_zk.generate_owner_secret() -> str`
-  - `xian_zk.encrypt_note_message(...) -> str`
-  - `xian_zk.decrypt_note_message(...) -> ShieldedNoteMessage`
-  - `xian_zk.payload_discovery_tags(payload_hex) -> list[str]`
-  - `xian_zk.payload_matches_viewing_key(payload_hex, viewing_private_key=...) -> bool`
-  - `xian_zk.recover_encrypted_notes(...) -> list[ShieldedDiscoveredNote]`
-  - `xian_zk.recover_viewable_notes(...) -> list[ShieldedViewableNote]`
-  - `xian_zk.ShieldedNoteProverClient(...)`
-  - `xian_zk.ShieldedCommandProverClient(...)`
-  - `xian_zk.ShieldedRelayTransferProverClient(...)`
-  - `xian_zk.ShieldedZkProverService(...)`
-  - `xian_zk.shielded_registry_manifest(bundle) -> dict`
-  - `xian_zk.asset_id_for_contract(contract_name) -> str`
-  - `xian_zk.merkle_root(commitments) -> str`
-  - `xian_zk.tree_state(commitments) -> ShieldedTreeState`
-  - `xian_zk.scan_notes(asset_id=..., commitments=..., notes=...)`
-  - CLI: `uv run xian-zk-shielded-bundle --output-dir ...`
-  - CLI: `uv run xian-zk-prover-service --host 127.0.0.1 --port 8787 ...`
-- Rust:
-  - `prepare_groth16_bn254_vk(...)`
-  - `verify_groth16_bn254(...)`
-  - `verify_groth16_bn254_prepared(...)`
-  - `build_demo_vector()`
-  - `build_shielded_note_fixture()`
-  - `build_insecure_dev_shielded_note_bundle()`
-  - `prove_shielded_deposit(...)`
-  - `prove_shielded_transfer(...)`
-  - `prove_shielded_withdraw(...)`
+
+Python module `xian_zk` exposes:
+
+- raw and prepared Groth16 BN254 verification
+- native public-input, payload-hash, tree, and command digest helpers
+- shielded note request/result/prover/wallet types
+- shielded command request/result/prover/wallet types
+- shielded relay transfer request/result/prover/wallet types
+- registry manifest helpers for note, command, and relay verifying keys
+- note encryption/decryption, discovery-tag, sync-hint, and wallet sync helpers
+- local prover service clients and `ShieldedZkProverService`
+
+CLI entrypoints:
+
+- `uv run xian-zk-shielded-bundle generate-note --output-dir ...`
+- `uv run xian-zk-shielded-bundle generate-command --output-dir ...`
+- `uv run xian-zk-shielded-bundle import-note --bundle ... --output-dir ...`
+- `uv run xian-zk-shielded-bundle import-command --bundle ... --output-dir ...`
+- `uv run xian-zk-shielded-bundle validate-note --bundle ...`
+- `uv run xian-zk-shielded-bundle validate-command --bundle ...`
+- `uv run xian-zk-prover-service --host 127.0.0.1 --port 8787 ...`
+
+The Rust crate exposes the verifier core, shielded fixture builders, and proof
+generation helpers used by the Python bindings and tests.
 
 ## Encoding
 - Verifying keys: compressed canonical bytes as `0x`-prefixed hex
@@ -106,9 +78,9 @@ workspace.
   registration.
 - The encrypted payload format now supports owner delivery plus optional
   disclosed viewers inside a single on-chain payload blob.
-- The encrypted payload format now uses anonymous per-viewer discovery tags and
+- The encrypted payload format uses anonymous per-viewer discovery tags and
   ephemeral keys for new payloads, so recipient viewing keys are no longer
-  embedded in cleartext. Older payloads remain readable for compatibility.
+  embedded in cleartext.
 - `ShieldedWallet.sync_records(...)` now prefilters candidate payloads before
   full decryption, and note records now expose `payload_tags` so indexers can
   persist discovery metadata for later selective queries.
@@ -129,7 +101,8 @@ workspace.
   tests only. Its deterministic setup seed exposes toxic waste and must never
   be used for a real network.
 - `ShieldedNoteProver.build_random_bundle(...)` and
-  `xian-zk-shielded-bundle` generate a single-party random trusted setup. That
-  is appropriate for deployment tooling, but it is still not an MPC ceremony.
+  `xian-zk-shielded-bundle generate-note` generate a single-party random
+  trusted setup. That is appropriate for deployment tooling, but it is still
+  not an MPC ceremony.
 - Proof generation uses real randomness even when the proving bundle is a
   deterministic dev bundle.

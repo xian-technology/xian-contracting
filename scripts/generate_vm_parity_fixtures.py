@@ -1886,6 +1886,9 @@ def interact(payload: dict = None):
             {
                 "module_name": "con_pairs",
                 "source_path": str(PAIRS_SOURCE),
+                "source_replacements": [
+                    ("\t\tscale *= 10", "\t\tscale = scale * 10"),
+                ],
                 "initial_state_queries": {
                     "variables": ["pairs_num", "feeTo", "owner", "LOCK"],
                     "hashes": [
@@ -1924,6 +1927,9 @@ def interact(payload: dict = None):
             {
                 "module_name": "con_dex",
                 "source_path": str(DEX_SOURCE),
+                "source_replacements": [
+                    ("\t\tscale *= 10", "\t\tscale = scale * 10"),
+                ],
                 "initial_state_queries": {"variables": ["owner"], "hashes": []},
             },
             {
@@ -2140,58 +2146,40 @@ def build_fixture(spec: dict[str, Any]) -> dict[str, Any]:
         default_module_name = (
             spec["call"]["module"] if "modules" in spec else spec["module_name"]
         )
-        if "modules" in spec:
-            for module in spec["modules"]:
-                source = _module_source(module)
-                client.submit(
-                    source,
-                    name=module["module_name"],
-                    owner=module.get("owner"),
-                    constructor_args=module.get("constructor_args", {}),
-                    signer=spec["context"]["signer"],
-                )
-                module["_resolved_source"] = source
-            for module in spec["modules"]:
-                _set_seed_state(
-                    client, module["module_name"], module.get("seed", {})
-                )
-            for setup_call in spec.get("setup_calls", []):
-                _execute_call(
-                    client,
-                    default_module_name,
-                    spec["context"],
-                    setup_call,
-                )
-            module_initial_states = {
-                module["module_name"]: _initial_state_to_json(
-                    client,
-                    module["module_name"],
-                    module,
-                )
-                for module in spec["modules"]
-            }
-        else:
-            source = _module_source(spec)
+        modules = spec["modules"] if "modules" in spec else [spec]
+
+        for module in modules:
+            source = _module_source(module)
             client.submit(
                 source,
-                name=spec["module_name"],
-                constructor_args=spec.get("constructor_args", {}),
+                name=module["module_name"],
+                owner=module.get("owner"),
+                constructor_args=module.get("constructor_args", {}),
                 signer=spec["context"]["signer"],
             )
-            spec["_resolved_source"] = source
-            _set_seed_state(client, spec["module_name"], spec.get("seed", {}))
-            for setup_call in spec.get("setup_calls", []):
-                _execute_call(
-                    client,
-                    default_module_name,
-                    spec["context"],
-                    setup_call,
-                )
-            initial_state = _initial_state_to_json(
-                client,
-                spec["module_name"],
-                spec,
+            module["_resolved_source"] = source
+
+        for module in modules:
+            _set_seed_state(
+                client, module["module_name"], module.get("seed", {})
             )
+
+        for setup_call in spec.get("setup_calls", []):
+            _execute_call(
+                client,
+                default_module_name,
+                spec["context"],
+                setup_call,
+            )
+
+        module_initial_states = {
+            module["module_name"]: _initial_state_to_json(
+                client,
+                module["module_name"],
+                module,
+            )
+            for module in modules
+        }
 
         output = _execute_call(
             client,
@@ -2200,71 +2188,41 @@ def build_fixture(spec: dict[str, Any]) -> dict[str, Any]:
             spec["call"],
         )
 
-        if "modules" in spec:
-            modules = [
-                {
-                    "module_name": module["module_name"],
-                    "owner": module.get("owner"),
-                    "ir": ContractingCompiler(
-                        module_name=module["module_name"]
-                    ).lower_to_ir(module["_resolved_source"]),
-                    "initial_state": module_initial_states[
-                        module["module_name"]
-                    ],
-                }
-                for module in spec["modules"]
-            ]
-
-            return {
-                "name": spec["name"],
-                "modules": modules,
-                "context": {
-                    key: _json_value(value)
-                    for key, value in spec["context"].items()
-                },
-                "call": {
-                    "module": spec["call"]["module"],
-                    "function": spec["call"]["function"],
-                    "args": [
-                        _json_value(value)
-                        for value in spec["call"].get("args", [])
-                    ],
-                    "kwargs": {
-                        key: _json_value(value)
-                        for key, value in spec["call"].get("kwargs", {}).items()
-                    },
-                },
-                "expected": {
-                    "result": _json_value(output["result"]),
-                    "events": [
-                        _json_value(event) for event in output["events"]
-                    ],
-                    "state": {
-                        module_name: _query_state(
-                            client, module_name, module_state
-                        )
-                        for module_name, module_state in spec[
-                            "assert_state"
-                        ].items()
-                    },
-                },
+        fixture_modules = [
+            {
+                "module_name": module["module_name"],
+                "owner": module.get("owner"),
+                "ir": ContractingCompiler(
+                    module_name=module["module_name"]
+                ).lower_to_ir(module["_resolved_source"]),
+                "initial_state": module_initial_states[module["module_name"]],
             }
+            for module in modules
+        ]
 
-        ir = ContractingCompiler(module_name=spec["module_name"]).lower_to_ir(
-            spec["_resolved_source"]
-        )
+        if "modules" in spec:
+            expected_state = {
+                module_name: _query_state(client, module_name, module_state)
+                for module_name, module_state in spec["assert_state"].items()
+            }
+        else:
+            expected_state = {
+                default_module_name: _query_state(
+                    client,
+                    default_module_name,
+                    spec["assert_state"],
+                )
+            }
 
         return {
             "name": spec["name"],
-            "module_name": spec["module_name"],
-            "source": spec["_resolved_source"],
-            "ir": ir,
+            "modules": fixture_modules,
             "context": {
                 key: _json_value(value)
                 for key, value in spec["context"].items()
             },
-            "initial_state": initial_state,
             "call": {
+                "module": default_module_name,
                 "function": spec["call"]["function"],
                 "args": [
                     _json_value(value) for value in spec["call"].get("args", [])
@@ -2277,9 +2235,7 @@ def build_fixture(spec: dict[str, Any]) -> dict[str, Any]:
             "expected": {
                 "result": _json_value(output["result"]),
                 "events": [_json_value(event) for event in output["events"]],
-                "state": _query_state(
-                    client, spec["module_name"], spec["assert_state"]
-                ),
+                "state": expected_state,
             },
         }
 
