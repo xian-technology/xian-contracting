@@ -16,45 +16,6 @@ from contracting.storage.driver import Driver
 
 pytestmark = pytest.mark.optional_native
 
-NATIVE_VM_XFAIL_REASONS = {
-    "contract_metadata_owner_protected": (
-        "native VM reports metadata authorization errors with a different "
-        "exception shape than the Python VM"
-    ),
-    "contract_metadata_developer_protected": (
-        "native VM reports metadata authorization errors with a different "
-        "exception shape than the Python VM"
-    ),
-    "binary_values": (
-        "native VM and Python VM currently diverge on binary value helper "
-        "semantics"
-    ),
-    "dynamic_private_call_rejected": (
-        "native VM reports private dynamic call rejection with a different "
-        "error message than the Python VM"
-    ),
-    "token_allowance_event_flow": (
-        "native VM reports this token assertion path with a different error "
-        "shape than the Python VM"
-    ),
-    "replay_submission_deploy_flow": (
-        "native VM reports metadata authorization errors with a different "
-        "exception shape than the Python VM"
-    ),
-}
-
-
-def _case_param(case: dict):
-    reason = NATIVE_VM_XFAIL_REASONS.get(case["id"])
-    if reason is None:
-        return pytest.param(case, id=case["id"])
-    return pytest.param(
-        case,
-        id=case["id"],
-        marks=pytest.mark.xfail(strict=True, reason=reason),
-    )
-
-
 def _execution_context(
     contract_name: str, function_name: str, owner: str
 ) -> dict:
@@ -195,7 +156,10 @@ def _run_native_case(case: dict, storage_home: Path) -> dict:
 
 @pytest.mark.parametrize(
     "case",
-    [_case_param(case) for case in CONTRACT_LANGUAGE_CONFORMANCE_CASES],
+    [
+        pytest.param(case, id=case["id"])
+        for case in CONTRACT_LANGUAGE_CONFORMANCE_CASES
+    ],
 )
 def test_python_and_xian_vm_match_for_conformance_cases(
     tmp_path: Path, case: dict

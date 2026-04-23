@@ -28,16 +28,32 @@ def safe_range(*args):
     return values
 
 
-def safe_bytes(*args):
-    if len(args) == 1 and isinstance(args[0], int) and args[0] >= 0:
-        _ensure_binary_size(args[0], kind="bytes()")
-    return builtins.bytes(*args)
+class _SafeBytesMeta(type):
+    def __call__(cls, *args):
+        if len(args) == 1 and isinstance(args[0], int) and args[0] >= 0:
+            _ensure_binary_size(args[0], kind="bytes()")
+        return builtins.bytes(*args)
+
+    def __instancecheck__(cls, instance):
+        return isinstance(instance, builtins.bytes)
 
 
-def safe_bytearray(*args):
-    if len(args) == 1 and isinstance(args[0], int) and args[0] >= 0:
-        _ensure_binary_size(args[0], kind="bytearray()")
-    return builtins.bytearray(*args)
+class safe_bytes(metaclass=_SafeBytesMeta):
+    pass
+
+
+class _SafeBytearrayMeta(type):
+    def __call__(cls, *args):
+        if len(args) == 1 and isinstance(args[0], int) and args[0] >= 0:
+            _ensure_binary_size(args[0], kind="bytearray()")
+        return builtins.bytearray(*args)
+
+    def __instancecheck__(cls, instance):
+        return isinstance(instance, builtins.bytearray)
+
+
+class safe_bytearray(metaclass=_SafeBytearrayMeta):
+    pass
 
 
 def safe_mul(left, right):

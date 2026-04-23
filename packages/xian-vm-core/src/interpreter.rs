@@ -1084,6 +1084,7 @@ impl VmInstance {
                 if !test.truthy() {
                     let error_repr = object
                         .get("message")
+                        .filter(|value| !value.is_null())
                         .map(|value| self.eval_expression(value, scope, host))
                         .transpose()?
                         .map(|message: VmValue| {

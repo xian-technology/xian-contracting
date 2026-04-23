@@ -35,6 +35,12 @@ class TestAllocationBuiltins(TestCase):
         ):
             safe_bytearray(constants.MAX_BINARY_ALLOCATION_BYTES + 1)
 
+    def test_safe_binary_constructors_remain_isinstance_compatible(self):
+        self.assertIsInstance(safe_bytes("abc", "utf-8"), safe_bytes)
+        self.assertIsInstance(safe_bytearray(b"abc"), safe_bytearray)
+        self.assertNotIsInstance(bytearray(b"abc"), safe_bytes)
+        self.assertNotIsInstance(b"abc", safe_bytearray)
+
     def test_mul_rejects_oversized_string_repeat(self):
         with self.assertRaisesRegex(
             AssertionError,

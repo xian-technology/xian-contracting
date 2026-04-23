@@ -197,9 +197,9 @@ impl PythonBundleExecutor {
                 ))
             })?;
         if function.visibility != "export" {
-            return Err(VmExecutionError::new(
-                "AssertionError(\"Dynamic calls may only target exported contract functions!\")",
-            ));
+            return Err(VmExecutionError::new(format!(
+                "AssertionError(\"Exported function '{function_name}' does not exist on contract '{module_name}'!\")"
+            )));
         }
         Ok(())
     }
@@ -553,7 +553,7 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
 fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<PyObject> {
     match value {
         VmValue::None => Ok(py.None()),
-        VmValue::Bool(value) => Ok((*value).into_py(py)),
+        VmValue::Bool(value) => Ok((*value).into_pyobject(py)?.to_owned().into_any().unbind()),
         VmValue::Int(value) => {
             let builtins = PyModule::import(py, "builtins")?;
             Ok(builtins

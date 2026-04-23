@@ -321,7 +321,7 @@ class NativeVmHost:
         if not isinstance(active_contract, str) or active_contract == "":
             return
         if active_contract != constants.SUBMISSION_CONTRACT_NAME:
-            raise VmRuntimeExecutionError(
+            raise AssertionError(
                 "Contract metadata changes are restricted to submission."
             )
 
@@ -670,14 +670,8 @@ def _coerce_native_error_result(status_code: int, result: Any) -> Any:
 
 
 def _native_exception_from_repr(result: str) -> BaseException | None:
-    prefixed_name, separator, remainder = result.partition(": ")
-    if separator == ": " and prefixed_name in {
-        "VmRuntimeExecutionError",
-        "ValueError",
-    }:
-        nested = _native_exception_from_repr(remainder)
-        if nested is not None:
-            return nested
+    if result == "Contract metadata changes are restricted to submission.":
+        return AssertionError(result)
     exception_types: dict[str, type[BaseException]] = {
         "AssertionError": AssertionError,
         "TypeError": TypeError,
@@ -687,6 +681,14 @@ def _native_exception_from_repr(result: str) -> BaseException | None:
         "KeyError": KeyError,
         "IndexError": IndexError,
     }
+    prefixed_name, separator, remainder = result.partition(": ")
+    if separator == ": ":
+        nested = _native_exception_from_repr(remainder)
+        if nested is not None:
+            return nested
+        exception_type = exception_types.get(prefixed_name)
+        if exception_type is not None:
+            return exception_type(remainder)
     name, separator, args_repr = result.partition("(")
     if separator != "(" or not result.endswith(")"):
         return None
