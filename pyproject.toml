@@ -38,6 +38,7 @@ zk = [
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.147.0,<7",
     "pytest>=9.0.2,<10",
     "pytest-cov>=7.0.0,<8",
     "ruff>=0.15.6,<0.16",

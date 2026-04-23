@@ -93,23 +93,15 @@ of the pure-Python install.
 The native CI path is:
 
 ```bash
-uv sync --group dev --extra native --extra zk
-cargo check --manifest-path packages/xian-native-tracer/Cargo.toml
-cargo check --manifest-path packages/xian-zk/Cargo.toml --features python-extension
-cargo check --manifest-path packages/xian-vm-core/Cargo.toml --features python-extension
-cargo test --manifest-path packages/xian-zk/Cargo.toml --no-default-features
-cd packages/xian-zk && uv run pytest -q
-uv run pytest -q tests/unit/test_tracer.py tests/unit/test_runtime.py \
-  tests/unit/test_zk_stdlib.py tests/integration/test_chi_deduction.py
-uv run pytest -q -m optional_native tests/unit/test_native_tracer.py \
-  tests/integration/test_tracer_workloads.py tests/integration/test_zk_bridge.py
-uv run --with ./packages/xian-vm-core python -m pytest -q -m optional_native \
-  tests/integration/test_vm_language_conformance.py \
-  tests/integration/test_vm_metering_audit.py
+./scripts/validate-release.sh
 ```
 
 If you change metering, tracing, storage encoding, or import restrictions, run
 the relevant `tests/security/` and `tests/integration/` paths explicitly too.
+
+`./scripts/validate-release.sh` is the release gate for this repo. It runs the
+default suite, the native tracer / zk / VM checks, the optional-native parity
+and fuzz coverage, and the Rust package checks used by release CI.
 
 ## Related Docs
 
@@ -117,5 +109,6 @@ the relevant `tests/security/` and `tests/integration/` paths explicitly too.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - [docs/BACKLOG.md](docs/BACKLOG.md)
 - [docs/PARALLEL_EXECUTION.md](docs/PARALLEL_EXECUTION.md)
+- [docs/SAFETY_INVARIANTS.md](docs/SAFETY_INVARIANTS.md)
 - [docs/TRACER_BACKENDS.md](docs/TRACER_BACKENDS.md)
 - [docs/README.md](docs/README.md)

@@ -5,6 +5,8 @@ runtime/VM work. They are not node operation scripts.
 
 ## Current Scripts
 
+- `validate-release.sh`: release-grade validation gate for the full runtime,
+  native tracer, zk, and Xian VM paths.
 - `audit_authored_conformance.py`: scans authored contracts against the
   Python-vs-Xian-VM conformance matrix.
 - `audit_python_vm_compatibility.py`: checks whether authored contracts can be

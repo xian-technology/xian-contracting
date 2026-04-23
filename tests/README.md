@@ -19,4 +19,6 @@ The default suite deselects `optional_native` tests because they require Rust
 extension packages. Focused native/zk/VM validation follows the commands in the
 root [`README.md`](../README.md). Run targeted integration/security tests
 whenever a change touches execution semantics, import restrictions, metering, or
-storage encoding.
+storage encoding. The optional-native release gate now also includes the
+stateful Python-vs-native VM fuzz coverage in
+`integration/test_vm_stateful_fuzz.py`.
