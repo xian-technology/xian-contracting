@@ -3,7 +3,6 @@ import os
 from unittest import TestCase
 
 import pytest
-import xian_zk  # noqa: F401
 
 from contracting.client import ContractingClient
 from contracting.storage.contract import Contract
@@ -12,6 +11,10 @@ pytestmark = pytest.mark.optional_native
 
 
 class TestZkBridge(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import xian_zk  # noqa: F401
+
     def setUp(self):
         self.c = ContractingClient(signer="stu")
         self.c.raw_driver.flush_full()
