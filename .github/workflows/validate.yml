@@ -70,6 +70,9 @@ jobs:
       - name: Check zk verifier binding crate
         run: cargo check --manifest-path packages/xian-zk/Cargo.toml --features python-extension
 
+      - name: Check VM core binding crate
+        run: cargo check --manifest-path packages/xian-vm-core/Cargo.toml --features python-extension
+
       - name: Run zk verifier Rust tests
         run: cargo test --manifest-path packages/xian-zk/Cargo.toml --no-default-features
 
@@ -78,5 +81,11 @@ jobs:
           cd packages/xian-zk
           uv run pytest -q
 
-      - name: Run native tracer tests
-        run: uv run pytest -q tests/unit/test_tracer.py tests/unit/test_native_tracer.py tests/unit/test_runtime.py tests/unit/test_zk_stdlib.py tests/integration/test_chi_deduction.py tests/integration/test_zk_bridge.py
+      - name: Run native support tests
+        run: uv run pytest -q tests/unit/test_tracer.py tests/unit/test_runtime.py tests/unit/test_zk_stdlib.py tests/integration/test_chi_deduction.py
+
+      - name: Run optional native extension tests
+        run: uv run pytest -q -m optional_native tests/unit/test_native_tracer.py tests/integration/test_tracer_workloads.py tests/integration/test_zk_bridge.py
+
+      - name: Run native VM tests
+        run: uv run --with ./packages/xian-vm-core python -m pytest -q -m optional_native tests/integration/test_vm_language_conformance.py tests/integration/test_vm_metering_audit.py

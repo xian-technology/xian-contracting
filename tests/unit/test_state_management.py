@@ -1,80 +1,40 @@
-import os
-import unittest
+import tempfile
+from pathlib import Path
+from unittest import TestCase
 
 from contracting.client import ContractingClient
 
-try:
-    from xian.constants import Constants
-    from xian.processor import TxProcessor
-    from xian.services.simulator import Simulator
-
-    XIAN_AVAILABLE = True
-except ModuleNotFoundError:
-    XIAN_AVAILABLE = False
+CONTRACTS_DIR = Path(__file__).resolve().parent / "contracts"
 
 
-@unittest.skipUnless(XIAN_AVAILABLE, "xian-abci is required for this test")
-class MyTestCase(unittest.TestCase):
+def read_contract(name: str) -> str:
+    return (CONTRACTS_DIR / name).read_text(encoding="utf-8")
+
+
+class TestStateManagement(TestCase):
     def setUp(self):
-        constants = Constants()
-        self.c = ContractingClient(storage_home=constants.STORAGE_HOME)
-        self.tx_processor = TxProcessor(client=self.c)
-        self.chi_calculator = Simulator()
-        self.d = self.c.raw_driver
-        self.d.flush_full()
+        self.storage_home = tempfile.TemporaryDirectory()
+        self.client = ContractingClient(storage_home=self.storage_home.name)
+        self.client.flush()
 
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        submission_contract_path = os.path.join(
-            script_dir,
-            "contracts",
-            "submission.s.py",
-        )
+    def tearDown(self):
+        self.client.flush()
+        self.storage_home.cleanup()
 
-        with open(submission_contract_path) as f:
-            contract = f.read()
-        self.d.set_contract(name="submission", code=contract)
+    def test_ctx_this_and_caller_are_preserved_through_proxy_imports(self):
+        self.client.submit(read_contract("proxythis.py"), name="con_proxythis")
+        self.client.submit(read_contract("thistest2.py"), name="con_thistest2")
+        proxy = self.client.get_contract("con_proxythis")
 
-    def deploy_broken_stuff(self):
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-
-        proxythis_path = os.path.join(script_dir, "contracts", "proxythis.py")
-        with open(proxythis_path) as f:
-            contract = f.read()
-
-        self.c.submit(
-            contract,
-            name="con_proxythis",
-        )
-        self.proxythis = self.c.get_contract("con_proxythis")
-
-        thistest2_path = os.path.join(script_dir, "contracts", "thistest2.py")
-        with open(thistest2_path) as f:
-            contract = f.read()
-
-        self.c.submit(
-            contract,
-            name="con_thistest2",
-        )
-        self.thistest2 = self.c.get_contract("con_thistest2")
-
-    def test_submit(self):
-        self.deploy_broken_stuff()
         self.assertEqual(
-            self.proxythis.proxythis(con="con_thistest2", signer="address"),
+            proxy.proxythis(con="con_thistest2", signer="address"),
             ("con_thistest2", "con_proxythis"),
         )
         self.assertEqual(
-            self.proxythis.noproxy(signer="address"),
+            proxy.noproxy(signer="address"),
             ("con_proxythis", "address"),
         )
         self.assertEqual(
-            self.proxythis.nestedproxythis(
-                con="con_thistest2",
-                signer="address",
-            ),
+            proxy.nestedproxythis(con="con_thistest2", signer="address"),
             ("con_thistest2", "con_proxythis"),
         )
-
-
-if __name__ == "__main__":
-    unittest.main()

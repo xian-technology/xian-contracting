@@ -3,11 +3,12 @@ import os
 from unittest import TestCase
 
 import pytest
-
-pytest.importorskip("xian_zk")
+import xian_zk  # noqa: F401
 
 from contracting.client import ContractingClient
 from contracting.storage.contract import Contract
+
+pytestmark = pytest.mark.optional_native
 
 
 class TestZkBridge(TestCase):

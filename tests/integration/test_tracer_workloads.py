@@ -1,8 +1,11 @@
-import sys
 import textwrap
 from unittest import TestCase
 
+import pytest
+
 from contracting.execution.tracer import MAX_CHI, create_tracer
+
+pytestmark = pytest.mark.optional_native
 
 
 def _meter(mode: str, source: str) -> int:
@@ -20,12 +23,7 @@ def _meter(mode: str, source: str) -> int:
 
 class TestTracerWorkloads(TestCase):
     def setUp(self):
-        if sys.version_info < (3, 12):
-            self.skipTest("tracer workloads require sys.monitoring support")
-        try:
-            create_tracer("native_instruction_v1").reset()
-        except ImportError as exc:
-            self.skipTest(str(exc))
+        create_tracer("native_instruction_v1").reset()
 
     def test_branch_heavy_workloads_charge_less_under_native_tracer(self):
         cases = {

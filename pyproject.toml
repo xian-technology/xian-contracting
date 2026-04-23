@@ -55,6 +55,10 @@ contracting = ["contracts/submission.s.py", "contracts/submission_source.s.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not optional_native'"
+markers = [
+    "optional_native: requires optional native/Rust extension packages and is run by the native CI job",
+]
 
 [tool.ruff]
 line-length = 80

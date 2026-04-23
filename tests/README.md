@@ -15,7 +15,8 @@ Default validation:
 uv run pytest
 ```
 
-Focused native/zk validation follows the commands in the root
-[`README.md`](../README.md). Run targeted integration/security tests whenever a
-change touches execution semantics, import restrictions, metering, or storage
-encoding.
+The default suite deselects `optional_native` tests because they require Rust
+extension packages. Focused native/zk/VM validation follows the commands in the
+root [`README.md`](../README.md). Run targeted integration/security tests
+whenever a change touches execution semantics, import restrictions, metering, or
+storage encoding.

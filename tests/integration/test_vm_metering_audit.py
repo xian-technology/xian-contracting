@@ -6,13 +6,15 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = PROJECT_ROOT / "scripts" / "audit_vm_metering.py"
+pytestmark = pytest.mark.optional_native
 
 
 def _load_audit_vm_metering():
-    spec = importlib.util.spec_from_file_location("audit_vm_metering", SCRIPT_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "audit_vm_metering", SCRIPT_PATH
+    )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"failed to load {SCRIPT_PATH}")
     module = importlib.util.module_from_spec(spec)
@@ -21,18 +23,10 @@ def _load_audit_vm_metering():
     return module
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 12), reason="native_instruction_v1 requires Python 3.12+"
-)
 def test_vm_metering_is_not_lower_than_native_instruction():
-    pytest.importorskip("xian_vm_core")
     audit_vm_metering = _load_audit_vm_metering()
 
-    try:
-        audit_vm_metering._require_native_instruction_tracer()
-    except RuntimeError as exc:
-        pytest.skip(str(exc))
-
+    audit_vm_metering._require_native_instruction_tracer()
     report = audit_vm_metering.audit_metering()
 
     assert all(item["status_code_match"] for item in report["observations"])

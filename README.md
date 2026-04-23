@@ -86,17 +86,26 @@ uv run ruff format --check .
 uv run pytest --cov=contracting --cov-report=term-missing --cov-report=xml
 ```
 
+The default pytest configuration intentionally deselects tests marked
+`optional_native`; those tests require Rust extension packages that are not part
+of the pure-Python install.
+
 The native CI path is:
 
 ```bash
 uv sync --group dev --extra native --extra zk
 cargo check --manifest-path packages/xian-native-tracer/Cargo.toml
 cargo check --manifest-path packages/xian-zk/Cargo.toml --features python-extension
+cargo check --manifest-path packages/xian-vm-core/Cargo.toml --features python-extension
 cargo test --manifest-path packages/xian-zk/Cargo.toml --no-default-features
 cd packages/xian-zk && uv run pytest -q
-uv run pytest -q tests/unit/test_tracer.py tests/unit/test_native_tracer.py \
-  tests/unit/test_runtime.py tests/unit/test_zk_stdlib.py \
-  tests/integration/test_chi_deduction.py tests/integration/test_zk_bridge.py
+uv run pytest -q tests/unit/test_tracer.py tests/unit/test_runtime.py \
+  tests/unit/test_zk_stdlib.py tests/integration/test_chi_deduction.py
+uv run pytest -q -m optional_native tests/unit/test_native_tracer.py \
+  tests/integration/test_tracer_workloads.py tests/integration/test_zk_bridge.py
+uv run --with ./packages/xian-vm-core python -m pytest -q -m optional_native \
+  tests/integration/test_vm_language_conformance.py \
+  tests/integration/test_vm_metering_audit.py
 ```
 
 If you change metering, tracing, storage encoding, or import restrictions, run

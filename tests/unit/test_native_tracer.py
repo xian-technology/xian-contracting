@@ -1,19 +1,17 @@
-import sys
 from unittest import TestCase
 from unittest.mock import ANY, patch
+
+import pytest
 
 from contracting.execution.native_tracer import TOOL_ID
 from contracting.execution.tracer import ChiExceededError, create_tracer
 
+pytestmark = pytest.mark.optional_native
+
 
 class TestNativeTracer(TestCase):
     def setUp(self):
-        if sys.version_info < (3, 12):
-            self.skipTest("native tracer requires sys.monitoring support")
-        try:
-            self.tracer = create_tracer("native_instruction_v1")
-        except ImportError as exc:
-            self.skipTest(str(exc))
+        self.tracer = create_tracer("native_instruction_v1")
 
     def tearDown(self):
         self.tracer.reset()

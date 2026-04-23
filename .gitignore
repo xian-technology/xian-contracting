@@ -3,6 +3,7 @@ __pycache__/
 *.dSYM/
 .coverage
 .coverage.*
+coverage.xml
 .pytest_cache/
 .ruff_cache/
 .tmp-home/
