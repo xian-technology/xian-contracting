@@ -45,10 +45,30 @@ jobs:
 
   validate-native:
     runs-on: ubuntu-latest
+    env:
+      XIAN_WORKSPACE_ROOT: ${{ github.workspace }}/.xian-workspace
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Checkout xian-configs
+        uses: actions/checkout@v6
+        with:
+          repository: xian-technology/xian-configs
+          path: .xian-workspace/xian-configs
+
+      - name: Checkout xian-contracts
+        uses: actions/checkout@v6
+        with:
+          repository: xian-technology/xian-contracts
+          path: .xian-workspace/xian-contracts
+
+      - name: Checkout xian-stable-protocol
+        uses: actions/checkout@v6
+        with:
+          repository: xian-technology/xian-stable-protocol
+          path: .xian-workspace/xian-stable-protocol
 
       - name: Set up Python 3.14
         uses: actions/setup-python@v6

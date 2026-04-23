@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -15,7 +16,16 @@ from contracting.compilation.compiler import ContractingCompiler
 from contracting.stdlib.bridge import zk as zk_bridge
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-WORKSPACE_ROOT = PROJECT_ROOT.parent
+
+
+def _workspace_root() -> Path:
+    configured = os.environ.get("XIAN_WORKSPACE_ROOT")
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return PROJECT_ROOT.parent
+
+
+WORKSPACE_ROOT = _workspace_root()
 FIXTURE_DIR = PROJECT_ROOT / "packages" / "xian-vm-core" / "tests" / "fixtures"
 SHIELDED_NOTE_TOKEN_SOURCE = (
     WORKSPACE_ROOT
