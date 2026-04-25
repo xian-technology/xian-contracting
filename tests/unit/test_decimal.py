@@ -1,4 +1,5 @@
 import unittest
+import decimal
 from decimal import Decimal
 from unittest import TestCase
 
@@ -186,6 +187,17 @@ class TestDecimal(TestCase):
             '9' * 61 + '.' + '9' * 30 + '9'
         )
         self.assertEqual(fix_precision(e), MAX_DECIMAL)
+
+    def test_fix_precision_does_not_depend_on_ambient_decimal_context(self):
+        previous = decimal.getcontext().copy()
+        try:
+            decimal.setcontext(decimal.Context(prec=28))
+            self.assertEqual(
+                fix_precision(Decimal('9980.099711')),
+                Decimal('9980.099711'),
+            )
+        finally:
+            decimal.setcontext(previous)
 
     def test_contracting_decimal_can_round(self):
         s = '12345678901234567890123456789.123456789012345678901234567890'

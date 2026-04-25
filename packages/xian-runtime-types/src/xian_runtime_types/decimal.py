@@ -53,7 +53,11 @@ class DecimalOverflowError(OverflowError):
 
 def fix_precision(x: Decimal):
     try:
-        quantized = x.quantize(MIN_DECIMAL, rounding=ROUND_DOWN).normalize()
+        quantized = x.quantize(
+            MIN_DECIMAL,
+            rounding=ROUND_DOWN,
+            context=CONTEXT,
+        ).normalize(context=CONTEXT)
     except InvalidOperation as exc:
         raise DecimalOverflowError(
             f"Value {x} exceeds the supported decimal range."
