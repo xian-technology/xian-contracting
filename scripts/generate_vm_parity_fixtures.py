@@ -93,6 +93,14 @@ DEX_SOURCE = (
     / "src"
     / "con_dex.py"
 )
+LP_TOKEN_SOURCE = (
+    WORKSPACE_ROOT
+    / "xian-contracts"
+    / "contracts"
+    / "dex"
+    / "src"
+    / "con_lp_token.py"
+)
 PAIRS_SOURCE = (
     WORKSPACE_ROOT
     / "xian-contracts"
@@ -1898,6 +1906,9 @@ def interact(payload: dict = None):
                 "source_path": str(PAIRS_SOURCE),
                 "source_replacements": [
                     ("\t\tscale *= 10", "\t\tscale = scale * 10"),
+                    ('\timportlib.Var("balances", Hash),\n', ""),
+                    ('\timportlib.Var("approvals", Hash),\n', ""),
+                    ('\timportlib.Var("metadata", Hash),\n', ""),
                 ],
                 "initial_state_queries": {
                     "variables": ["pairs_num", "feeTo", "owner", "LOCK"],
@@ -1943,8 +1954,48 @@ def interact(payload: dict = None):
                 "initial_state_queries": {"variables": ["owner"], "hashes": []},
             },
             {
+                "module_name": "con_dex_lp_token",
+                "source_path": str(LP_TOKEN_SOURCE),
+                "source_replacements": [
+                    (
+                        "metadata = Hash()",
+                        "metadata = Hash(default_value=None)",
+                    ),
+                ],
+                "constructor_args": {
+                    "token_name": "DEX LP Token",
+                    "token_symbol": "DEX-LP",
+                    "operator_address": "dex_governor",
+                    "minter_address": "con_pairs",
+                },
+                "initial_state_queries": {
+                    "variables": ["operator", "minter"],
+                    "hashes": [
+                        {
+                            "binding": "metadata",
+                            "keys": [
+                                "token_name",
+                                "token_symbol",
+                                "precision",
+                                "total_supply",
+                            ],
+                        },
+                        {
+                            "binding": "balances",
+                            "keys": ["DEAD", "dex_alice", "con_pairs"],
+                        },
+                    ],
+                },
+            },
+            {
                 "module_name": "con_currency_dex",
                 "source_path": str(GENESIS_CURRENCY_SOURCE),
+                "source_replacements": [
+                    (
+                        "metadata = Hash()",
+                        "metadata = Hash(default_value=None)",
+                    ),
+                ],
                 "constructor_args": {"vk": "dex_alice"},
                 "initial_state_queries": {
                     "variables": [],
@@ -2005,6 +2056,16 @@ def interact(payload: dict = None):
         },
         "setup_calls": [
             {
+                "module": "con_pairs",
+                "function": "enableFee",
+                "kwargs": {"en": False},
+                "context": {
+                    "caller": "dex_bob",
+                    "signer": "dex_bob",
+                    "now": Datetime(2024, 5, 8, 9, 59, 0),
+                },
+            },
+            {
                 "module": "con_currency_dex",
                 "function": "approve",
                 "kwargs": {"amount": 1000.0, "to": "con_dex"},
@@ -2036,6 +2097,7 @@ def interact(payload: dict = None):
                     "amountBMin": 2000.0,
                     "to": "dex_alice",
                     "deadline": Datetime(2024, 5, 8, 10, 30, 0),
+                    "lpToken": "con_dex_lp_token",
                 },
                 "context": {
                     "caller": "dex_alice",
@@ -2112,6 +2174,24 @@ def interact(payload: dict = None):
                 ],
             },
             "con_dex": {"variables": ["owner"], "hashes": []},
+            "con_dex_lp_token": {
+                "variables": ["operator", "minter"],
+                "hashes": [
+                    {
+                        "binding": "metadata",
+                        "keys": [
+                            "token_name",
+                            "token_symbol",
+                            "precision",
+                            "total_supply",
+                        ],
+                    },
+                    {
+                        "binding": "balances",
+                        "keys": ["DEAD", "dex_alice", "con_pairs"],
+                    },
+                ],
+            },
             "con_currency_dex": {
                 "variables": [],
                 "hashes": [
