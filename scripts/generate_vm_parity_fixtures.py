@@ -85,30 +85,12 @@ CHI_COST_SOURCE = (
 )
 REWARDS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "rewards.s.py"
 MEMBERS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "members.s.py"
-DEX_SOURCE = (
-    WORKSPACE_ROOT
-    / "xian-contracts"
-    / "contracts"
-    / "dex"
-    / "src"
-    / "con_dex.py"
-)
-LP_TOKEN_SOURCE = (
-    WORKSPACE_ROOT
-    / "xian-contracts"
-    / "contracts"
-    / "dex"
-    / "src"
-    / "con_lp_token.py"
-)
-PAIRS_SOURCE = (
-    WORKSPACE_ROOT
-    / "xian-contracts"
-    / "contracts"
-    / "dex"
-    / "src"
-    / "con_pairs.py"
-)
+DEX_SRC_DIR = Path(
+    os.environ.get("XIAN_DEX_SRC_DIR", WORKSPACE_ROOT / "xian-dex" / "src")
+).expanduser()
+DEX_SOURCE = DEX_SRC_DIR / "con_dex.py"
+LP_TOKEN_SOURCE = DEX_SRC_DIR / "con_lp_token.py"
+PAIRS_SOURCE = DEX_SRC_DIR / "con_pairs.py"
 FIELD_ONE_HEX = "0x" + "00" * 31 + "01"
 FIELD_TWO_HEX = "0x" + "00" * 31 + "02"
 FIELD_ZERO_HEX = "0x" + "00" * 32
