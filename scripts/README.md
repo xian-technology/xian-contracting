@@ -26,7 +26,8 @@ runtime/VM work. They are not node operation scripts.
 - Most scripts expect to run from the repository root through `uv run`.
 - VM fixture generation depends on sibling repos such as `xian-contracts`,
   `xian-configs`, and `xian-stable-protocol` being present under the same
-  workspace root. Set `XIAN_WORKSPACE_ROOT` to point at a different workspace
-  root when those repos are checked out elsewhere.
+  workspace root. DEX fixtures use the pinned bundle in `xian-configs` by
+  default. Set `XIAN_WORKSPACE_ROOT` to point at a different workspace root, or
+  `XIAN_DEX_BUNDLE` / `XIAN_DEX_SRC_DIR` for DEX-specific overrides.
 - Do not put node lifecycle, genesis, or operator workflow scripts here; those
   belong in `xian-stack`, `xian-cli`, or `xian-abci`.

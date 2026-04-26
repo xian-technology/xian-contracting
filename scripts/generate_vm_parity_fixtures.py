@@ -85,18 +85,56 @@ CHI_COST_SOURCE = (
 )
 REWARDS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "rewards.s.py"
 MEMBERS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "members.s.py"
-DEX_SRC_DIR = Path(
-    os.environ.get("XIAN_DEX_SRC_DIR", WORKSPACE_ROOT / "xian-dex" / "src")
-).expanduser()
-DEX_SOURCE = DEX_SRC_DIR / "con_dex.py"
-LP_TOKEN_SOURCE = DEX_SRC_DIR / "con_lp_token.py"
-PAIRS_SOURCE = DEX_SRC_DIR / "con_pairs.py"
+DEFAULT_DEX_BUNDLE_SOURCE = (
+    WORKSPACE_ROOT
+    / "xian-configs"
+    / "solution-packs"
+    / "dex"
+    / "contract-bundle.json"
+)
 FIELD_ONE_HEX = "0x" + "00" * 31 + "01"
 FIELD_TWO_HEX = "0x" + "00" * 31 + "02"
 FIELD_ZERO_HEX = "0x" + "00" * 32
 FIELD_MODULUS = 21888242871839275222246405745257275088548364400416034343698204186575808495617
 MIMC_ROUNDS = 91
 MAX_ZK_INPUTS = 4
+
+
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _dex_source_path(role: str, fallback_name: str) -> Path:
+    src_override = os.environ.get("XIAN_DEX_SRC_DIR")
+    if src_override:
+        return Path(src_override).expanduser() / fallback_name
+
+    bundle_path = Path(
+        os.environ.get(
+            "XIAN_DEX_BUNDLE",
+            os.environ.get("XIAN_DEX_BUNDLE_PATH", DEFAULT_DEX_BUNDLE_SOURCE),
+        )
+    ).expanduser()
+    payload = json.loads(bundle_path.read_text(encoding="utf-8"))
+    for contract in payload.get("contracts", []):
+        if contract.get("role") != role:
+            continue
+        source_path = (bundle_path.parent / contract["path"]).resolve()
+        expected_sha256 = contract.get("sha256")
+        if expected_sha256:
+            actual_sha256 = _sha256_file(source_path)
+            if actual_sha256 != expected_sha256:
+                raise RuntimeError(
+                    f"DEX bundle sha256 mismatch for {source_path}: "
+                    f"expected {expected_sha256}, got {actual_sha256}"
+                )
+        return source_path
+    raise RuntimeError(f"DEX bundle missing role {role!r}: {bundle_path}")
+
+
+DEX_SOURCE = _dex_source_path("router", "con_dex.py")
+LP_TOKEN_SOURCE = _dex_source_path("lp_token_template", "con_lp_token.py")
+PAIRS_SOURCE = _dex_source_path("pairs", "con_pairs.py")
 
 
 def _json_value(value: Any) -> Any:
