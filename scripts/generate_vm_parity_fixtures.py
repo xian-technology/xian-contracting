@@ -86,11 +86,7 @@ CHI_COST_SOURCE = (
 REWARDS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "rewards.s.py"
 MEMBERS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "members.s.py"
 DEFAULT_DEX_BUNDLE_SOURCE = (
-    WORKSPACE_ROOT
-    / "xian-configs"
-    / "solution-packs"
-    / "dex"
-    / "contract-bundle.json"
+    WORKSPACE_ROOT / "xian-configs" / "modules" / "dex" / "contract-bundle.json"
 )
 FIELD_ONE_HEX = "0x" + "00" * 31 + "01"
 FIELD_TWO_HEX = "0x" + "00" * 31 + "02"
