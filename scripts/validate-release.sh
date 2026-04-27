@@ -50,6 +50,7 @@ UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" pyte
   tests/integration/test_zk_bridge.py
 
 UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" \
+  --refresh-package xian-tech-vm-core \
   --with ./packages/xian-vm-core \
   python -m pytest -q -m optional_native \
   tests/integration/test_vm_language_conformance.py \

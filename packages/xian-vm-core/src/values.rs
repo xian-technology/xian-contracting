@@ -58,24 +58,26 @@ impl VmDecimal {
         }
 
         let mut digits = format!("{whole}{fraction}");
-        let mut scale = fraction.len() as i64 - exponent;
+        let mut scale = fraction.len() as i128 - exponent as i128;
 
-        if scale < 0 {
-            digits.push_str(&"0".repeat(scale.unsigned_abs() as usize));
-            scale = 0;
-        }
-
-        if scale > DECIMAL_SCALE as i64 {
-            let trim = (scale - DECIMAL_SCALE as i64) as usize;
-            if trim >= digits.len() {
+        if scale > DECIMAL_SCALE as i128 {
+            let trim = scale - DECIMAL_SCALE as i128;
+            if trim >= digits.len() as i128 {
                 return Ok(Self::zero());
             }
-            digits.truncate(digits.len() - trim);
-            scale = DECIMAL_SCALE as i64;
+            digits.truncate(digits.len() - trim as usize);
+            scale = DECIMAL_SCALE as i128;
         }
 
-        if scale < DECIMAL_SCALE as i64 {
-            digits.push_str(&"0".repeat((DECIMAL_SCALE as i64 - scale) as usize));
+        if scale < DECIMAL_SCALE as i128 {
+            let zeros_to_append = DECIMAL_SCALE as i128 - scale;
+            let scaled_digits = digits.trim_start_matches('0').len() as i128 + zeros_to_append;
+            if scaled_digits > DECIMAL_MAX_SCALED_DIGITS as i128 {
+                return Err(VmExecutionError::new(format!(
+                    "decimal value {trimmed} exceeds the supported decimal range"
+                )));
+            }
+            digits.push_str(&"0".repeat(zeros_to_append as usize));
         }
 
         let digits = digits.trim_start_matches('0');
@@ -1071,6 +1073,37 @@ mod tests {
             let value = VmDecimal::from_str_literal(literal).expect("decimal literal should parse");
             assert_eq!(value.to_string(), expected);
         }
+    }
+
+    #[test]
+    fn truncates_tiny_decimal_exponents_without_allocating_large_buffers() {
+        let value =
+            VmDecimal::from_str_literal("1e-1000000").expect("tiny decimal should truncate");
+        assert_eq!(value.to_string(), "0");
+    }
+
+    #[test]
+    fn rejects_huge_decimal_exponents_without_allocating_large_buffers() {
+        let error =
+            VmDecimal::from_str_literal("1e1000000").expect_err("huge decimal should overflow");
+        assert_eq!(
+            error.to_string(),
+            "decimal value 1e1000000 exceeds the supported decimal range"
+        );
+    }
+
+    #[test]
+    fn handles_extreme_i64_decimal_exponents_without_panicking() {
+        let tiny =
+            VmDecimal::from_str_literal("1e-9223372036854775808").expect("tiny value should parse");
+        assert_eq!(tiny.to_string(), "0");
+
+        let huge = VmDecimal::from_str_literal("1e9223372036854775807")
+            .expect_err("huge value should overflow");
+        assert_eq!(
+            huge.to_string(),
+            "decimal value 1e9223372036854775807 exceeds the supported decimal range"
+        );
     }
 }
 

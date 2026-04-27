@@ -911,6 +911,36 @@ def probe():
         "kwargs": {},
     },
     {
+        "id": "decimal_scaled_integer_edges",
+        "description": "Fixed-scale decimal arithmetic edge cases match between the Python VM and Xian VM.",
+        "covers_env": ("decimal",),
+        "covers_features": (
+            "modules.decimal",
+            "values.decimal",
+            "values.decimal.division_truncation",
+            "values.decimal.exponent_truncation",
+            "values.decimal.modulo_sign",
+            "values.decimal.pow",
+        ),
+        "source": """
+@export
+def probe():
+    return {
+        "tiny_negative": decimal("-1e-31"),
+        "tiny_huge_exponent": decimal("1e-1000000"),
+        "division": decimal("1") / decimal("3"),
+        "multiplication": decimal("5.1234") * decimal("2.3451"),
+        "negative_modulo": decimal("-1") % decimal("2"),
+        "negative_floor_div": decimal("-3") // decimal("2"),
+        "integer_pow": decimal("0.1") ** decimal("3"),
+        "negative_integer_pow": decimal("2") ** decimal("-1"),
+        "sqrt_pow": decimal("9") ** decimal("0.5"),
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {},
+    },
+    {
         "id": "authored_reward_change_flow",
         "description": "Authored-style reward change flows through a statically imported module like the Python VM.",
         "covers_builtins": (

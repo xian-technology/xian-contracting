@@ -108,4 +108,10 @@ jobs:
         run: uv run pytest -q -m optional_native tests/unit/test_native_tracer.py tests/integration/test_tracer_workloads.py tests/integration/test_zk_bridge.py
 
       - name: Run native VM tests
-        run: uv run --with ./packages/xian-vm-core python -m pytest -q -m optional_native tests/integration/test_vm_language_conformance.py tests/integration/test_vm_metering_audit.py
+        run: |
+          uv run --refresh-package xian-tech-vm-core \
+            --with ./packages/xian-vm-core \
+            python -m pytest -q -m optional_native \
+            tests/integration/test_vm_language_conformance.py \
+            tests/integration/test_vm_metering_audit.py \
+            tests/integration/test_vm_stateful_fuzz.py

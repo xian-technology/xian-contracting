@@ -16,6 +16,7 @@ from contracting.storage.driver import Driver
 
 pytestmark = pytest.mark.optional_native
 
+
 def _execution_context(
     contract_name: str, function_name: str, owner: str
 ) -> dict:
@@ -168,3 +169,44 @@ def test_python_and_xian_vm_match_for_conformance_cases(
     native_output = _run_native_case(case, tmp_path / "native")
 
     assert native_output == python_output, case["description"]
+
+
+DECIMAL_REJECTION_SOURCE = """
+@export
+def arbitrary_fractional_pow():
+    return decimal("9") ** decimal("0.3")
+
+@export
+def huge_positive_exponent():
+    return decimal("1e1000000")
+""".strip()
+
+
+@pytest.mark.parametrize(
+    ("function_name", "expected_native_result"),
+    [
+        ("arbitrary_fractional_pow", "unsupported decimal exponent 0.3"),
+        (
+            "huge_positive_exponent",
+            "decimal value 1e1000000 exceeds the supported decimal range",
+        ),
+    ],
+)
+def test_python_and_xian_vm_reject_decimal_edge_cases(
+    tmp_path: Path, function_name: str, expected_native_result: str
+):
+    case = {
+        "id": f"decimal_reject_{function_name}",
+        "description": f"Both engines reject decimal edge case {function_name}.",
+        "source": DECIMAL_REJECTION_SOURCE,
+        "function_name": function_name,
+        "kwargs": {},
+    }
+    python_output = _run_python_case(case, tmp_path / "python")
+    native_output = _run_native_case(case, tmp_path / "native")
+
+    assert python_output["status_code"] == 1
+    assert native_output["status_code"] == 1
+    assert native_output["result"] == expected_native_result
+    assert native_output["writes"] == python_output["writes"] == {}
+    assert native_output["events"] == python_output["events"] == []

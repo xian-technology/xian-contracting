@@ -307,29 +307,132 @@ impl VmHost for ParityHarness {
     }
 }
 
+const PARITY_FIXTURES: &[&str] = &[
+    "authored_currency_transfer.json",
+    "authored_dex_swap_path.json",
+    "authored_members_reward_change.json",
+    "authored_oracle_price_info.json",
+    "authored_profile_channel.json",
+    "authored_reflection_transfer.json",
+    "authored_shielded_commands_hash.json",
+    "authored_shielded_note_hash.json",
+    "authored_stable_token_burn.json",
+    "authored_turn_based_join.json",
+    "bigint_shielded_primitives.json",
+    "collection_helpers.json",
+    "decimal_arithmetic.json",
+    "dynamic_import_factory_ctx.json",
+    "foreign_state_probe.json",
+    "range_summary.json",
+    "static_import_ctx.json",
+    "time_hash_crypto.json",
+    "transfer_event.json",
+];
+
+macro_rules! parity_fixture_test {
+    ($test_name:ident, $fixture_name:literal) => {
+        #[test]
+        fn $test_name() {
+            run_named_fixture($fixture_name);
+        }
+    };
+}
+
+parity_fixture_test!(
+    parity_fixture_authored_currency_transfer,
+    "authored_currency_transfer.json"
+);
+parity_fixture_test!(
+    parity_fixture_authored_dex_swap_path,
+    "authored_dex_swap_path.json"
+);
+parity_fixture_test!(
+    parity_fixture_authored_members_reward_change,
+    "authored_members_reward_change.json"
+);
+parity_fixture_test!(
+    parity_fixture_authored_oracle_price_info,
+    "authored_oracle_price_info.json"
+);
+parity_fixture_test!(
+    parity_fixture_authored_profile_channel,
+    "authored_profile_channel.json"
+);
+parity_fixture_test!(
+    parity_fixture_authored_reflection_transfer,
+    "authored_reflection_transfer.json"
+);
+parity_fixture_test!(
+    parity_fixture_authored_shielded_commands_hash,
+    "authored_shielded_commands_hash.json"
+);
+parity_fixture_test!(
+    parity_fixture_authored_shielded_note_hash,
+    "authored_shielded_note_hash.json"
+);
+parity_fixture_test!(
+    parity_fixture_authored_stable_token_burn,
+    "authored_stable_token_burn.json"
+);
+parity_fixture_test!(
+    parity_fixture_authored_turn_based_join,
+    "authored_turn_based_join.json"
+);
+parity_fixture_test!(
+    parity_fixture_bigint_shielded_primitives,
+    "bigint_shielded_primitives.json"
+);
+parity_fixture_test!(parity_fixture_collection_helpers, "collection_helpers.json");
+parity_fixture_test!(parity_fixture_decimal_arithmetic, "decimal_arithmetic.json");
+parity_fixture_test!(
+    parity_fixture_dynamic_import_factory_ctx,
+    "dynamic_import_factory_ctx.json"
+);
+parity_fixture_test!(
+    parity_fixture_foreign_state_probe,
+    "foreign_state_probe.json"
+);
+parity_fixture_test!(parity_fixture_range_summary, "range_summary.json");
+parity_fixture_test!(parity_fixture_static_import_ctx, "static_import_ctx.json");
+parity_fixture_test!(parity_fixture_time_hash_crypto, "time_hash_crypto.json");
+parity_fixture_test!(parity_fixture_transfer_event, "transfer_event.json");
+
 #[test]
-fn curated_python_runtime_parity_fixtures_match_rust_vm() {
+fn every_parity_fixture_has_a_named_test() {
     let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
-    let fixture_filter = env::var("XIAN_VM_FIXTURE_FILTER").ok();
     let mut files = fs::read_dir(&fixture_dir)
         .expect("fixture directory should exist")
         .map(|entry| entry.expect("fixture entry should load").path())
         .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("json"))
-        .filter(|path| {
-            fixture_filter.as_ref().is_none_or(|filter| {
-                path.file_name()
-                    .and_then(|value| value.to_str())
-                    .map(|name| name.contains(filter))
-                    .unwrap_or(false)
-            })
+        .map(|path| {
+            path.file_name()
+                .and_then(|value| value.to_str())
+                .expect("fixture filename should be valid UTF-8")
+                .to_owned()
         })
         .collect::<Vec<_>>();
     files.sort();
-    assert!(!files.is_empty(), "expected at least one parity fixture");
 
-    for path in files {
-        run_fixture(&path);
+    let mut expected = PARITY_FIXTURES
+        .iter()
+        .map(|name| (*name).to_owned())
+        .collect::<Vec<_>>();
+    expected.sort();
+
+    assert_eq!(files, expected);
+}
+
+fn run_named_fixture(fixture_name: &str) {
+    if env::var("XIAN_VM_FIXTURE_FILTER")
+        .ok()
+        .is_some_and(|filter| !fixture_name.contains(&filter))
+    {
+        return;
     }
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(fixture_name);
+    run_fixture(&path);
 }
 
 fn run_fixture(path: &PathBuf) {
