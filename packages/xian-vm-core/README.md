@@ -3,6 +3,18 @@
 `xian-vm-core` is the first Rust-side consumer of the frozen `xian_vm_v1`
 compiler IR emitted by `xian-contracting`.
 
+```mermaid
+flowchart LR
+  Source["Contract source"] --> Compiler["xian-contracting compiler"]
+  Compiler --> IR["xian_vm_v1 IR"]
+  IR --> Validator["Rust IR validator"]
+  Validator --> VM["Native VM execution slice"]
+  VM --> Host["Host storage and syscall bridge"]
+  Host --> State["Deterministic state and events"]
+  Fixtures["Python parity fixtures"] --> Validator
+  Fixtures --> VM
+```
+
 Current scope:
 
 - deserialize the structural JSON IR

@@ -19,6 +19,17 @@ workspace.
 - Note math helpers for commitments, nullifiers, asset ids, and Merkle roots
 - Trusted local prover-service support for note, command, and relay proof generation
 
+```mermaid
+flowchart LR
+  Wallet["Shielded wallet"] --> Request["Proof request"]
+  Request --> Prover["xian-zk prover toolkit"]
+  Prover --> Proof["Groth16 proof and public inputs"]
+  Proof --> Contract["Shielded contract"]
+  Contract --> Registry["zk_registry verifying key"]
+  Contract --> Bridge["contract-side zk bridge"]
+  Bridge --> Verifier["xian-zk verifier"]
+```
+
 ## API
 
 Python module `xian_zk` exposes:

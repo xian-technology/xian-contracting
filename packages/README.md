@@ -17,6 +17,18 @@ install remains pure Python and easy to install.
 - `xian-zk/`: native Groth16 BN254 verification and shielded-note proving
   toolkit, published as `xian-tech-zk`
 
+```mermaid
+flowchart LR
+  Contracting["xian-tech-contracting"] --> RuntimeTypes["xian-runtime-types"]
+  Contracting --> Accounts["xian-accounts"]
+  Contracting --> NativeTracer["xian-native-tracer"]
+  Contracting --> VM["xian-vm-core"]
+  Contracting --> ZK["xian-zk"]
+  ABCI["xian-abci"] --> Fastpath["xian-fastpath-core"]
+  ABCI --> VM
+  SDK["xian-py"] --> Accounts
+```
+
 ## Notes
 
 Keep these packages small and purpose-built. Shared code belongs here only when

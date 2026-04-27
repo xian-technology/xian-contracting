@@ -11,6 +11,21 @@ types, accounts, native tracer, fast-path validator, VM crates, zk tooling)
 are released independently and consumed by `xian-abci`, `xian-py`, and the
 node runtime.
 
+## Runtime Shape
+
+```mermaid
+flowchart LR
+  Source["Authored contract source"] --> Compiler["Compiler and linter"]
+  Compiler --> Artifact["Runtime and VM artifacts"]
+  Artifact --> Executor["Executor and metering"]
+  Executor --> Storage["Deterministic storage"]
+  Executor --> Stdlib["Stdlib bridge"]
+  Executor --> Events["LogEvent output"]
+  Packages["Optional native packages"] --> Executor
+  Packages --> VM["xian-vm-core"]
+  Packages --> ZK["xian-zk"]
+```
+
 ## Quick Start
 
 Install the default pure-Python runtime:

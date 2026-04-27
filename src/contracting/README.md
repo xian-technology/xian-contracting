@@ -18,6 +18,17 @@ storage, and exposes the contract-side stdlib bridge.
 - `constants.py` and `names.py`: shared runtime constants and contract-name
   validation
 
+```mermaid
+flowchart LR
+  Client["ContractingClient"] --> Compilation["compilation"]
+  Client --> Execution["execution"]
+  Execution --> Storage["storage"]
+  Execution --> Stdlib["stdlib"]
+  Compilation --> Artifact["runtime artifact"]
+  Artifact --> Execution
+  Contracts["built-in contracts"] --> Execution
+```
+
 ## Notes
 
 This package is consensus-sensitive. Changes to compilation output, metering,
