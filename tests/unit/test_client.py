@@ -27,6 +27,7 @@ class TestClient(TestCase):
     def tearDown(self):
         if self.client:
             self.client.flush()
+            self.client.close()
 
     def test_set_submission_updates_contract_file(self):
         self.client = ContractingClient(driver=self.driver)
@@ -59,6 +60,45 @@ class TestClient(TestCase):
 
         self.assertIsNotNone(self.client)
 
+    def test_close_closes_owned_driver(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            client = ContractingClient(
+                submission_filename=None,
+                storage_home=Path(tmpdir),
+            )
+            store = client.raw_driver._store
+
+            client.close()
+
+            self.assertIsNone(store._env)
+
+    def test_close_leaves_injected_driver_open(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            driver = Driver(storage_home=Path(tmpdir))
+            client = ContractingClient(
+                submission_filename=None,
+                driver=driver,
+            )
+
+            client.close()
+
+            driver.set_var("currency", "balances", ["alice"], value=1000)
+            driver.commit()
+            self.assertEqual(
+                driver.get_var("currency", "balances", ["alice"]),
+                1000,
+            )
+            driver.close()
+
+    def test_context_manager_closes_owned_driver(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with ContractingClient(
+                submission_filename=None,
+                storage_home=Path(tmpdir),
+            ) as client:
+                store = client.raw_driver._store
+
+            self.assertIsNone(store._env)
 
     def test_gets_submission_contract_from_state_if_no_filename_provided(self):
         self.driver.set_contract(name='submission', code=self.submission_contract_file)

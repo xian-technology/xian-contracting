@@ -9,6 +9,7 @@ from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime
 
+from contracting.storage.lmdb_environment import DEFAULT_ENVIRONMENT_POOL
 from contracting.storage.lmdb_store import LMDBStore
 
 
@@ -47,6 +48,32 @@ class TestLMDBStoreBasic(TestCase):
         self.store.batch_set({"key": "exists"})
         self.store.batch_set({"key": None})
         self.assertIsNone(self.store.get("key"))
+
+    def test_multiple_handles_share_environment_until_last_close(self):
+        root = Path(tempfile.mkdtemp())
+        path = root / "test"
+        first_store = LMDBStore(path)
+        second_store = LMDBStore(path)
+        try:
+            self.assertIs(first_store._env, second_store._env)
+            self.assertEqual(DEFAULT_ENVIRONMENT_POOL.ref_count(path), 2)
+
+            first_store.batch_set({"key": "value"})
+            first_store.close()
+
+            self.assertEqual(DEFAULT_ENVIRONMENT_POOL.ref_count(path), 1)
+            self.assertEqual(second_store.get("key"), "value")
+        finally:
+            first_store.close()
+            second_store.close()
+        self.assertEqual(DEFAULT_ENVIRONMENT_POOL.ref_count(path), 0)
+
+    def test_close_is_idempotent_and_rejects_later_operations(self):
+        self.store.close()
+        self.store.close()
+
+        with self.assertRaisesRegex(RuntimeError, "LMDBStore is closed"):
+            self.store.get("key")
 
     def test_recreated_path_opens_fresh_environment(self):
         root = Path(tempfile.mkdtemp())
@@ -164,3 +191,14 @@ class TestDriverWithLMDB(TestCase):
         self.driver.delete_contract("con_test")
         self.assertIsNone(self.driver.get_contract("con_test"))
         self.assertIsNone(self.driver.get_contract_source("con_test"))
+
+    def test_driver_context_manager_closes_store(self):
+        from contracting.storage.driver import Driver
+
+        root = Path(tempfile.mkdtemp())
+        with Driver(storage_home=root) as driver:
+            store = driver._store
+            driver.set_var("currency", "balances", ["alice"], value=1000)
+            driver.commit()
+
+        self.assertIsNone(store._env)

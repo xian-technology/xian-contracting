@@ -60,6 +60,15 @@ class Driver:
         self.storage_path.mkdir(parents=True, exist_ok=True)
         self._store = LMDBStore(self.storage_path)
 
+    def close(self) -> None:
+        self._store.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
     def get(self, key: str, save: bool = True):
         value = self.find(key)
         if save:

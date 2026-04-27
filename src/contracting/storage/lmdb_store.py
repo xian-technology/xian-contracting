@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from threading import Lock
 
 import lmdb
 from xian_runtime_types.encoding import decode, encode
+
+from contracting.storage.lmdb_environment import (
+    DEFAULT_ENVIRONMENT_POOL,
+    LMDBEnvironmentOptions,
+)
 
 DEFAULT_MAP_SIZE = int(
     os.environ.get(
@@ -16,97 +20,61 @@ DEFAULT_MAP_SIZE = int(
     )
 )
 
-_ENV_LOCK = Lock()
-_ENV_REGISTRY = {}
-
 
 class LMDBStore:
     """Thin wrapper around a single LMDB environment."""
 
     def __init__(self, path: str | Path, map_size: int = DEFAULT_MAP_SIZE):
         self._path = Path(path)
-        self._path.mkdir(parents=True, exist_ok=True)
-        self._registry_key = self._path.resolve()
         self._map_size = map_size
-        self._path_signature = self._current_path_signature()
-        self._env = self._open_env()
+        self._lease = DEFAULT_ENVIRONMENT_POOL.acquire(
+            self._path,
+            LMDBEnvironmentOptions(map_size=map_size),
+        )
+        self._env = self._lease.env
         self._db = self._env.open_db()
 
-    def _current_path_signature(self):
-        stat = self._registry_key.stat()
-        return (stat.st_dev, stat.st_ino)
-
-    def _open_env(self):
-        with _ENV_LOCK:
-            existing = _ENV_REGISTRY.get(self._registry_key)
-            if existing is not None:
-                env, ref_count, path_signature = existing
-                if path_signature == self._path_signature:
-                    if self._map_size > env.info()["map_size"]:
-                        env.set_mapsize(self._map_size)
-                    _ENV_REGISTRY[self._registry_key] = (
-                        env,
-                        ref_count + 1,
-                        path_signature,
-                    )
-                    return env
-
-                _ENV_REGISTRY.pop(self._registry_key, None)
-                env.close()
-
-            env = lmdb.open(
-                str(self._registry_key),
-                map_size=self._map_size,
-                max_dbs=1,
-                readahead=True,
-                writemap=False,
-                sync=True,
-                metasync=True,
-            )
-            _ENV_REGISTRY[self._registry_key] = (
-                env,
-                1,
-                self._path_signature,
-            )
-            return env
+    def _require_open(self):
+        if self._env is None or self._db is None or self._lease is None:
+            raise RuntimeError("LMDBStore is closed")
+        return self._env
 
     def close(self):
         if self._env is not None:
-            with _ENV_LOCK:
-                existing = _ENV_REGISTRY.get(self._registry_key)
-                if existing is not None and existing[0] is self._env:
-                    env, ref_count, path_signature = existing
-                    if ref_count <= 1:
-                        _ENV_REGISTRY.pop(self._registry_key, None)
-                        env.close()
-                    else:
-                        _ENV_REGISTRY[self._registry_key] = (
-                            env,
-                            ref_count - 1,
-                            path_signature,
-                        )
-                else:
-                    try:
-                        self._env.close()
-                    except lmdb.Error:
-                        pass
+            self._lease.close()
             self._env = None
+            self._db = None
+            self._lease = None
+
+    def __enter__(self):
+        self._require_open()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def _grow_map(self):
         self._map_size *= 2
-        self._env.set_mapsize(self._map_size)
+        self._require_open()
+        self._lease.resize(self._map_size)
 
     def _run_write_transaction(self, operation):
         while True:
             try:
-                with self._env.begin(write=True) as txn:
+                with self._require_open().begin(write=True) as txn:
                     operation(txn)
                 return
             except lmdb.MapFullError:
                 self._grow_map()
 
     def get(self, key: str):
-        with self._env.begin() as txn:
+        with self._require_open().begin() as txn:
             value = txn.get(key.encode("utf-8"))
         if value is None:
             return None
@@ -126,7 +94,7 @@ class LMDBStore:
     def keys(self, prefix: str = ""):
         prefix_bytes = prefix.encode("utf-8")
         keys = []
-        with self._env.begin() as txn:
+        with self._require_open().begin() as txn:
             cursor = txn.cursor()
             if prefix_bytes:
                 if not cursor.set_range(prefix_bytes):
@@ -161,7 +129,7 @@ class LMDBStore:
             after_key_bytes if after_key_bytes is not None else prefix_bytes
         )
 
-        with self._env.begin() as txn:
+        with self._require_open().begin() as txn:
             cursor = txn.cursor()
             if start_bytes:
                 if not cursor.set_range(start_bytes):
@@ -184,7 +152,7 @@ class LMDBStore:
     def items(self, prefix: str = ""):
         prefix_bytes = prefix.encode("utf-8")
         items = {}
-        with self._env.begin() as txn:
+        with self._require_open().begin() as txn:
             cursor = txn.cursor()
             if prefix_bytes:
                 if not cursor.set_range(prefix_bytes):
@@ -224,5 +192,5 @@ class LMDBStore:
         )
 
     def exists(self, key: str) -> bool:
-        with self._env.begin() as txn:
+        with self._require_open().begin() as txn:
             return txn.get(key.encode("utf-8")) is not None

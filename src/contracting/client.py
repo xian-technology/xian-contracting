@@ -236,6 +236,7 @@ class ContractingClient:
     ):
         if tracer_mode is not None:
             runtime.rt.set_tracer_mode(tracer_mode)
+        self._owns_driver = driver is None
         driver = (
             driver if driver is not None else Driver(storage_home=storage_home)
         )
@@ -260,6 +261,16 @@ class ContractingClient:
 
         # Get submission contract from state
         self.submission_contract = self.get_contract("submission")
+
+    def close(self) -> None:
+        if self._owns_driver:
+            self.raw_driver.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
     def set_submission_contract(self, filename=None, commit=True):
         state_contract = self.get_contract("submission")
