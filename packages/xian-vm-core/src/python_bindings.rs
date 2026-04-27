@@ -397,12 +397,12 @@ fn py_hash_entries_to_vm(
     value: Bound<'_, PyAny>,
 ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
     let sequence = value
-        .downcast::<PyList>()
+        .cast::<PyList>()
         .map_err(|_| VmExecutionError::new("expected list of hash entries"))?;
     let mut entries = Vec::with_capacity(sequence.len());
     for item in sequence.iter() {
         let pair = item
-            .downcast::<PyTuple>()
+            .cast::<PyTuple>()
             .map_err(|_| VmExecutionError::new("hash entry must be a tuple"))?;
         if pair.len() != 2 {
             return Err(VmExecutionError::new(
@@ -434,7 +434,7 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
     }
     if value.is_instance_of::<PyList>() {
         let values = value
-            .downcast::<PyList>()
+            .cast::<PyList>()
             .map_err(|error| VmExecutionError::new(error.to_string()))?
             .iter()
             .map(py_to_vm)
@@ -443,7 +443,7 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
     }
     if value.is_instance_of::<PyTuple>() {
         let values = value
-            .downcast::<PyTuple>()
+            .cast::<PyTuple>()
             .map_err(|error| VmExecutionError::new(error.to_string()))?
             .iter()
             .map(py_to_vm)
@@ -452,7 +452,7 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
     }
     if value.is_instance_of::<PyDict>() {
         let dict = value
-            .downcast::<PyDict>()
+            .cast::<PyDict>()
             .map_err(|error| VmExecutionError::new(error.to_string()))?;
         let mut entries = Vec::new();
         for (key, item) in dict.iter() {
@@ -462,13 +462,13 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
     }
     if value.is_instance_of::<PyBytes>() {
         let bytes = value
-            .downcast::<PyBytes>()
+            .cast::<PyBytes>()
             .map_err(|error| VmExecutionError::new(error.to_string()))?;
         return Ok(VmValue::Bytes(bytes.as_bytes().to_vec()));
     }
     if value.is_instance_of::<PyByteArray>() {
         let bytes = value
-            .downcast::<PyByteArray>()
+            .cast::<PyByteArray>()
             .map_err(|error| VmExecutionError::new(error.to_string()))?;
         return Ok(VmValue::ByteArray(bytes.to_vec()));
     }
@@ -696,7 +696,7 @@ fn optional_string_item(
 
 fn context_from_py(context: &Bound<'_, PyAny>) -> Result<VmExecutionContext, VmExecutionError> {
     let dict = context
-        .downcast::<PyDict>()
+        .cast::<PyDict>()
         .map_err(|error| VmExecutionError::new(error.to_string()))?;
     let this = optional_string_item(dict, "this")?;
     let caller = optional_string_item(dict, "caller")?;
@@ -711,7 +711,7 @@ fn context_from_py(context: &Bound<'_, PyAny>) -> Result<VmExecutionContext, VmE
                 return Ok(None);
             }
             let tuple = value
-                .downcast::<PyTuple>()
+                .cast::<PyTuple>()
                 .map_err(|error| VmExecutionError::new(error.to_string()))?;
             if tuple.len() != 2 {
                 return Err(VmExecutionError::new("context.entry must be a 2-tuple"));
@@ -922,14 +922,14 @@ fn execute_bundle(
     let kwargs = kwargs.bind(py);
     let context = context.bind(py);
     let args = args
-        .downcast::<PyList>()
+        .cast::<PyList>()
         .map_err(|error| PyTypeError::new_err(error.to_string()))?
         .iter()
         .map(py_to_vm)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?;
     let kwargs_dict = kwargs
-        .downcast::<PyDict>()
+        .cast::<PyDict>()
         .map_err(|error| PyTypeError::new_err(error.to_string()))?;
     let mut converted_kwargs = Vec::new();
     for (key, value) in kwargs_dict.iter() {
