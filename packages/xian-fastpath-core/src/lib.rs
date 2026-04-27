@@ -35,7 +35,7 @@ fn decode_and_validate_transaction_static(
     py: Python<'_>,
     raw: &[u8],
     chain_id: &str,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let (tx_value, _) = decode_transaction_bytes_impl(raw)?;
     validate_transaction_static_impl(&tx_value, chain_id)?;
     value_to_pyobject(py, &tx_value)
@@ -382,7 +382,7 @@ fn validation_error(message: &str) -> PyErr {
     NativeFastpathValidationError::new_err(message.to_string())
 }
 
-fn value_to_pyobject(py: Python<'_>, value: &Value) -> PyResult<PyObject> {
+fn value_to_pyobject(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
     match value {
         Value::Null => Ok(py.None()),
         Value::Bool(raw) => Ok(raw.into_py_any(py)?),

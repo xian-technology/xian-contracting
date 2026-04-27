@@ -1,5 +1,5 @@
 [build-system]
-requires = ["maturin>=1.8,<2"]
+requires = ["maturin>=1.13.1,<2"]
 build-backend = "maturin"
 
 [project]
@@ -29,8 +29,8 @@ xian-zk-prover-service = "xian_zk.prover_service:main"
 
 [dependency-groups]
 dev = [
-    "maturin>=1.8,<2",
-    "pytest>=9.0.2,<10",
+    "maturin>=1.13.1,<2",
+    "pytest>=9.0.3,<10",
 ]
 
 [tool.maturin]

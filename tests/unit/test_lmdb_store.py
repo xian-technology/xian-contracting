@@ -1,13 +1,15 @@
 """Tests for the LMDB storage backend."""
 
+import shutil
 import tempfile
 from pathlib import Path
 from unittest import TestCase
 
-from contracting.storage.lmdb_store import LMDBStore
 from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime
+
+from contracting.storage.lmdb_store import LMDBStore
 
 
 class TestLMDBStoreBasic(TestCase):
@@ -45,6 +47,22 @@ class TestLMDBStoreBasic(TestCase):
         self.store.batch_set({"key": "exists"})
         self.store.batch_set({"key": None})
         self.assertIsNone(self.store.get("key"))
+
+    def test_recreated_path_opens_fresh_environment(self):
+        root = Path(tempfile.mkdtemp())
+        path = root / "test"
+        first_store = LMDBStore(path)
+        try:
+            first_store.batch_set({"key": "old"})
+            shutil.rmtree(root)
+
+            second_store = LMDBStore(path)
+            try:
+                self.assertIsNone(second_store.get("key"))
+            finally:
+                second_store.close()
+        finally:
+            first_store.close()
 
 
 class TestLMDBStoreKeys(TestCase):

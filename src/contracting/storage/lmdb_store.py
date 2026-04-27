@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from threading import Lock
 
 import lmdb
 from xian_runtime_types.encoding import decode, encode
@@ -15,6 +16,9 @@ DEFAULT_MAP_SIZE = int(
     )
 )
 
+_ENV_LOCK = Lock()
+_ENV_REGISTRY = {}
+
 
 class LMDBStore:
     """Thin wrapper around a single LMDB environment."""
@@ -22,24 +26,70 @@ class LMDBStore:
     def __init__(self, path: str | Path, map_size: int = DEFAULT_MAP_SIZE):
         self._path = Path(path)
         self._path.mkdir(parents=True, exist_ok=True)
+        self._registry_key = self._path.resolve()
         self._map_size = map_size
+        self._path_signature = self._current_path_signature()
         self._env = self._open_env()
         self._db = self._env.open_db()
 
+    def _current_path_signature(self):
+        stat = self._registry_key.stat()
+        return (stat.st_dev, stat.st_ino)
+
     def _open_env(self):
-        return lmdb.open(
-            str(self._path),
-            map_size=self._map_size,
-            max_dbs=1,
-            readahead=True,
-            writemap=False,
-            sync=True,
-            metasync=True,
-        )
+        with _ENV_LOCK:
+            existing = _ENV_REGISTRY.get(self._registry_key)
+            if existing is not None:
+                env, ref_count, path_signature = existing
+                if path_signature == self._path_signature:
+                    if self._map_size > env.info()["map_size"]:
+                        env.set_mapsize(self._map_size)
+                    _ENV_REGISTRY[self._registry_key] = (
+                        env,
+                        ref_count + 1,
+                        path_signature,
+                    )
+                    return env
+
+                _ENV_REGISTRY.pop(self._registry_key, None)
+                env.close()
+
+            env = lmdb.open(
+                str(self._registry_key),
+                map_size=self._map_size,
+                max_dbs=1,
+                readahead=True,
+                writemap=False,
+                sync=True,
+                metasync=True,
+            )
+            _ENV_REGISTRY[self._registry_key] = (
+                env,
+                1,
+                self._path_signature,
+            )
+            return env
 
     def close(self):
         if self._env is not None:
-            self._env.close()
+            with _ENV_LOCK:
+                existing = _ENV_REGISTRY.get(self._registry_key)
+                if existing is not None and existing[0] is self._env:
+                    env, ref_count, path_signature = existing
+                    if ref_count <= 1:
+                        _ENV_REGISTRY.pop(self._registry_key, None)
+                        env.close()
+                    else:
+                        _ENV_REGISTRY[self._registry_key] = (
+                            env,
+                            ref_count - 1,
+                            path_signature,
+                        )
+                else:
+                    try:
+                        self._env.close()
+                    except lmdb.Error:
+                        pass
             self._env = None
 
     def _grow_map(self):

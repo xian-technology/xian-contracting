@@ -136,7 +136,7 @@ impl PythonBundleExecutor {
         if self.modules.contains_key(module_name) {
             return Ok(());
         }
-        let module_ir_json = Python::with_gil(|py| -> PyResult<Option<String>> {
+        let module_ir_json = Python::attach(|py| -> PyResult<Option<String>> {
             let host = self.host.bind(py);
             let response = host.call_method1("load_module_ir_json", (module_name,))?;
             if response.is_none() {
@@ -233,7 +233,7 @@ impl VmHost for PythonBundleExecutor {
                 return Ok(Some(value));
             }
         }
-        Python::with_gil(|py| -> Result<Option<VmValue>, VmExecutionError> {
+        Python::attach(|py| -> Result<Option<VmValue>, VmExecutionError> {
             let host = self.host.bind(py);
             let response = host
                 .call_method1("read_variable", (contract, binding))
@@ -253,7 +253,7 @@ impl VmHost for PythonBundleExecutor {
                 return Ok(Some(value));
             }
         }
-        Python::with_gil(|py| -> Result<Option<VmValue>, VmExecutionError> {
+        Python::attach(|py| -> Result<Option<VmValue>, VmExecutionError> {
             let host = self.host.bind(py);
             let key_py =
                 vm_to_py(py, key).map_err(|error| VmExecutionError::new(error.to_string()))?;
@@ -270,7 +270,7 @@ impl VmHost for PythonBundleExecutor {
         binding: &str,
         prefix: &str,
     ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
-        Python::with_gil(|py| -> Result<Vec<(String, VmValue)>, VmExecutionError> {
+        Python::attach(|py| -> Result<Vec<(String, VmValue)>, VmExecutionError> {
             let host = self.host.bind(py);
             let response = host
                 .call_method1("scan_hash_entries", (contract, binding, prefix))
@@ -280,7 +280,7 @@ impl VmHost for PythonBundleExecutor {
     }
 
     fn load_owner(&mut self, contract: &str) -> Result<Option<String>, VmExecutionError> {
-        Python::with_gil(|py| -> Result<Option<String>, VmExecutionError> {
+        Python::attach(|py| -> Result<Option<String>, VmExecutionError> {
             let host = self.host.bind(py);
             let response = host
                 .call_method1("get_owner", (contract,))
@@ -348,7 +348,7 @@ impl VmHost for PythonBundleExecutor {
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
-        Python::with_gil(|py| -> Result<VmValue, VmExecutionError> {
+        Python::attach(|py| -> Result<VmValue, VmExecutionError> {
             let host = self.host.bind(py);
             let py_args = PyList::empty(py);
             for value in &args {
@@ -550,7 +550,7 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
     )))
 }
 
-fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<PyObject> {
+fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
     match value {
         VmValue::None => Ok(py.None()),
         VmValue::Bool(value) => Ok((*value).into_pyobject(py)?.to_owned().into_any().unbind()),
@@ -770,7 +770,7 @@ fn context_from_py(context: &Bound<'_, PyAny>) -> Result<VmExecutionContext, VmE
     })
 }
 
-fn execution_result_to_py(py: Python<'_>, result: PyExecutionResult) -> PyResult<PyObject> {
+fn execution_result_to_py(py: Python<'_>, result: PyExecutionResult) -> PyResult<Py<PyAny>> {
     let payload = PyDict::new(py);
     payload.set_item("status_code", result.status_code)?;
     payload.set_item("result", vm_to_py(py, &result.result)?)?;
@@ -877,7 +877,7 @@ fn validate_deployment_artifacts_json(
     artifacts_json: &str,
     input_source: Option<&str>,
     vm_profile: &str,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let bundle = crate::validate_contract_artifacts_json(
         module_name,
         artifacts_json,
@@ -917,7 +917,7 @@ fn execute_bundle(
     meter: bool,
     chi_budget_raw: u64,
     transaction_size_bytes: usize,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let args = args.bind(py);
     let kwargs = kwargs.bind(py);
     let context = context.bind(py);
