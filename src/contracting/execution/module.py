@@ -8,6 +8,7 @@ from importlib import __import__, invalidate_caches
 from importlib.abc import Loader
 from importlib.machinery import ModuleSpec
 
+import lmdb
 from cachetools import LRUCache
 
 from contracting.execution.runtime import rt
@@ -123,7 +124,11 @@ class ContractModuleFinder:
     @classmethod
     def find_spec(cls, fullname, path=None, target=None):
         driver = cls.current_driver()
-        if driver.get_contract(fullname) is None:
+        try:
+            code = driver.get_contract(fullname)
+        except (RuntimeError, lmdb.Error):
+            return None
+        if code is None:
             return None
         return ModuleSpec(fullname, ContractModuleLoader(driver))
 

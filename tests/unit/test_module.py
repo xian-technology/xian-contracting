@@ -135,6 +135,16 @@ print("ok")
 
         self.assertNotIn(ContractModuleFinder, sys.meta_path)
 
+    def test_finder_ignores_closed_driver_for_normal_imports(self):
+        with tempfile.TemporaryDirectory() as storage_home:
+            driver = Driver(storage_home=storage_home)
+            install_contract_module_loader(driver=driver)
+            driver.close()
+
+            self.assertIsNone(ContractModuleFinder.find_spec("not_a_contract"))
+
+            uninstall_contract_module_loader()
+
     def test_integration_and_importing(self):
         loader = ContractModuleLoader()
         module_name = "testing_integration"
