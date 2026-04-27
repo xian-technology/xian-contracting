@@ -92,9 +92,9 @@ def import_module(name):
     if not _contract_exists_by_name(name):
         raise ImportError
 
-    from contracting.execution.module import import_database_contract
+    from contracting.execution.module import import_contract_module
 
-    return import_database_contract(name)
+    return import_contract_module(name)
 
 
 def _resolve_contract_module(contract):

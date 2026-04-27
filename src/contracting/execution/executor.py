@@ -8,8 +8,8 @@ from contracting.execution import runtime
 from contracting.execution.module import (
     disable_restricted_imports,
     enable_restricted_imports,
-    import_database_contract,
-    install_database_loader,
+    import_contract_module,
+    install_contract_module_loader,
     uninstall_builtins,
 )
 from contracting.execution.tracer_common import (
@@ -72,7 +72,7 @@ class Executor:
 
     def wipe_modules(self):
         uninstall_builtins()
-        install_database_loader()
+        install_contract_module_loader()
 
     @staticmethod
     def _coerce_balance_value(balance):
@@ -123,7 +123,7 @@ class Executor:
             runtime.rt.env.update({"__Driver": driver})
             clear_random_state()
 
-            install_database_loader(driver=driver)
+            install_contract_module_loader(driver=driver)
 
             balances_key = None
             contract_costs = {}
@@ -182,7 +182,7 @@ class Executor:
                 enable_restricted_imports()
                 runtime.rt.begin_contract_metering(contract_name)
 
-                module = import_database_contract(contract_name)
+                module = import_contract_module(contract_name)
                 func = getattr(module, function_name)
 
                 if contract_name == constants.SUBMISSION_CONTRACT_NAME:

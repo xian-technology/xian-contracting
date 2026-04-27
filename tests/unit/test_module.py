@@ -8,16 +8,16 @@ from contextvars import copy_context
 from unittest import TestCase
 
 from contracting.execution.module import (
-    DatabaseFinder,
-    DatabaseLoader,
-    install_database_loader,
-    uninstall_database_loader,
+    ContractModuleFinder,
+    ContractModuleLoader,
+    install_contract_module_loader,
+    uninstall_contract_module_loader,
 )
 from contracting.names import is_safe_contract_name
 from contracting.storage.driver import Driver
 
 
-class TestDatabase(TestCase):
+class TestContractStorage(TestCase):
     def setUp(self):
         self.d = Driver()
         self.d.flush_full()
@@ -49,19 +49,19 @@ class TestDatabase(TestCase):
         self.assertIsNone(self.d.get_contract(name))
 
 
-class TestDatabaseLoader(TestCase):
+class TestContractModuleLoader(TestCase):
     def setUp(self):
-        self.dl = DatabaseLoader()
+        self.loader = ContractModuleLoader()
 
     def test_init(self):
         self.assertTrue(
-            isinstance(self.dl.d, Driver),
-            "self.d is not a Database object.",
+            isinstance(self.loader.driver, Driver),
+            "self.loader.driver is not a Driver object.",
         )
 
     def test_create_module(self):
         self.assertEqual(
-            self.dl.create_module(None),
+            self.loader.create_module(None),
             None,
             "self.create_module should return None",
         )
@@ -69,18 +69,18 @@ class TestDatabaseLoader(TestCase):
     def test_exec_module(self):
         module = types.ModuleType("test")
 
-        self.dl.d.set_contract("test", "b = 1337")
-        self.dl.exec_module(module)
-        self.dl.d.flush_full()
+        self.loader.driver.set_contract("test", "b = 1337")
+        self.loader.exec_module(module)
+        self.loader.driver.flush_full()
 
         self.assertEqual(module.b, 1337)
 
     def test_exec_module_nonattribute(self):
         module = types.ModuleType("test")
 
-        self.dl.d.set_contract("test", "b = 1337")
-        self.dl.exec_module(module)
-        self.dl.d.flush_full()
+        self.loader.driver.set_contract("test", "b = 1337")
+        self.loader.exec_module(module)
+        self.loader.driver.flush_full()
 
         with self.assertRaises(AttributeError):
             module.a
@@ -89,13 +89,15 @@ class TestDatabaseLoader(TestCase):
         module = types.ModuleType("howdy")
 
         self.assertEqual(
-            self.dl.module_repr(module),
+            self.loader.module_repr(module),
             "<module 'howdy' (smart contract)>",
         )
 
 
 class TestInstallLoader(TestCase):
-    def test_database_finder_does_not_open_default_driver_on_import(self):
+    def test_contract_module_finder_does_not_open_default_driver_on_import(
+        self,
+    ):
         with tempfile.TemporaryDirectory() as home_dir:
             env = os.environ.copy()
             env["HOME"] = home_dir
@@ -103,10 +105,10 @@ class TestInstallLoader(TestCase):
 from pathlib import Path
 
 from contracting.client import ContractingClient
-from contracting.execution.module import DatabaseFinder
+from contracting.execution.module import ContractModuleFinder
 
 storage_home = Path.home() / ".cometbft" / "xian"
-assert DatabaseFinder.default_driver is None
+assert ContractModuleFinder.default_driver is None
 ContractingClient(storage_home=storage_home, submission_filename=None)
 print("ok")
 """
@@ -121,26 +123,26 @@ print("ok")
             self.assertEqual(result.stdout.strip(), "ok")
 
     def test_install_loader(self):
-        uninstall_database_loader()
+        uninstall_contract_module_loader()
 
-        self.assertNotIn(DatabaseFinder, sys.meta_path)
+        self.assertNotIn(ContractModuleFinder, sys.meta_path)
 
-        install_database_loader()
+        install_contract_module_loader()
 
-        self.assertIn(DatabaseFinder, sys.meta_path)
+        self.assertIn(ContractModuleFinder, sys.meta_path)
 
-        uninstall_database_loader()
+        uninstall_contract_module_loader()
 
-        self.assertNotIn(DatabaseFinder, sys.meta_path)
+        self.assertNotIn(ContractModuleFinder, sys.meta_path)
 
     def test_integration_and_importing(self):
-        dl = DatabaseLoader()
+        loader = ContractModuleLoader()
         module_name = "testing_integration"
         sys.modules.pop(module_name, None)
-        dl.d.set_contract(module_name, "a = 1234567890")
-        dl.d.commit()
+        loader.driver.set_contract(module_name, "a = 1234567890")
+        loader.driver.commit()
 
-        install_database_loader(driver=dl.d)
+        install_contract_module_loader(driver=loader.driver)
 
         imported = __import__(module_name)
 
@@ -161,13 +163,13 @@ print("ok")
             driver_a.commit()
             driver_b.commit()
 
-            install_database_loader(driver=driver_a)
+            install_contract_module_loader(driver=driver_a)
 
             def resolve_contract(driver, expected):
-                install_database_loader(driver=driver)
-                spec = DatabaseFinder.find_spec("testing")
+                install_contract_module_loader(driver=driver)
+                spec = ContractModuleFinder.find_spec("testing")
                 self.assertIsNotNone(spec)
-                return spec.loader.d.get_contract("testing") == expected
+                return spec.loader.driver.get_contract("testing") == expected
 
             context_a = copy_context()
             context_b = copy_context()
@@ -185,7 +187,7 @@ driver = Driver()
 
 class TestModuleLoadingIntegration(TestCase):
     def setUp(self):
-        install_database_loader(driver=driver)
+        install_contract_module_loader(driver=driver)
         driver.flush_full()
 
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -204,7 +206,7 @@ class TestModuleLoadingIntegration(TestCase):
             driver.commit()
 
     def tearDown(self):
-        uninstall_database_loader()
+        uninstall_contract_module_loader()
         for module_name in tuple(sys.modules):
             if module_name.startswith("module"):
                 sys.modules.pop(module_name, None)

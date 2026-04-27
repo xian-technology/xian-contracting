@@ -16,7 +16,7 @@ from contracting.storage.driver import Driver
 
 # This function overrides the __import__ function, which is the builtin function that is called whenever Python runs
 # an 'import' statement. If the globals dictionary contains {'__contract__': True}, then this function will make sure
-# that the module being imported comes from the database and not from builtins or site packages.
+# that the module being imported comes from contract storage and not from builtins or site packages.
 #
 # For all exec statements, we add the {'__contract__': True} _key to the globals to protect against unwanted imports.
 #
@@ -25,7 +25,7 @@ from contracting.storage.driver import Driver
 
 def is_valid_import(name):
     spec = importlib.util.find_spec(name)
-    if not isinstance(spec.loader, DatabaseLoader):
+    if not isinstance(spec.loader, ContractModuleLoader):
         raise ImportError(
             "module {} cannot be imported in a smart contract.".format(name)
         )
@@ -33,7 +33,7 @@ def is_valid_import(name):
 
 def restricted_import(name, globals=None, locals=None, fromlist=(), level=0):
     if globals is not None and globals.get("__contract__") is True:
-        driver = DatabaseFinder.current_driver()
+        driver = ContractModuleFinder.current_driver()
         if driver.get_contract(name) is None:
             raise ImportError(
                 "module {} cannot be imported in a smart contract.".format(name)
@@ -62,24 +62,24 @@ def uninstall_builtins():
     invalidate_caches()
 
 
-def _remove_database_finders():
+def _remove_contract_module_finders():
     sys.meta_path[:] = [
-        finder for finder in sys.meta_path if finder is not DatabaseFinder
+        finder for finder in sys.meta_path if finder is not ContractModuleFinder
     ]
 
 
-def install_database_loader(driver=None):
+def install_contract_module_loader(driver=None):
     if driver is None:
-        driver = DatabaseFinder.current_driver() or Driver()
-    _DATABASE_DRIVER.set(driver)
-    DatabaseFinder.default_driver = driver
-    _remove_database_finders()
-    sys.meta_path.insert(0, DatabaseFinder)
+        driver = ContractModuleFinder.current_driver() or Driver()
+    _CONTRACT_MODULE_DRIVER.set(driver)
+    ContractModuleFinder.default_driver = driver
+    _remove_contract_module_finders()
+    sys.meta_path.insert(0, ContractModuleFinder)
     invalidate_caches()
 
 
-def uninstall_database_loader():
-    _remove_database_finders()
+def uninstall_contract_module_loader():
+    _remove_contract_module_finders()
     invalidate_caches()
 
 
@@ -91,34 +91,28 @@ def purge_contract_module(name: str) -> None:
     sys.modules.pop(name, None)
 
 
-def import_database_contract(name: str):
-    driver = DatabaseFinder.current_driver()
+def import_contract_module(name: str):
+    driver = ContractModuleFinder.current_driver()
     if driver.get_contract(name) is None:
         raise ImportError("Module {} not found".format(name))
 
     purge_contract_module(name)
     spec = importlib.util.find_spec(name)
-    if spec is None or not isinstance(spec.loader, DatabaseLoader):
+    if spec is None or not isinstance(spec.loader, ContractModuleLoader):
         raise ImportError(
             "module {} cannot be imported in a smart contract.".format(name)
         )
     return importlib.import_module(name)
 
 
-"""
-    Is this where interaction with the database occurs with the interface of code strings, etc?
-    IE: pushing a contract does sanity checks here?
-"""
-
-
-class DatabaseFinder:
+class ContractModuleFinder:
     default_driver = None
 
     @classmethod
     def current_driver(cls):
         driver = (
             rt.env.get("__Driver")
-            or _DATABASE_DRIVER.get()
+            or _CONTRACT_MODULE_DRIVER.get()
             or cls.default_driver
         )
         if driver is None:
@@ -131,11 +125,11 @@ class DatabaseFinder:
         driver = cls.current_driver()
         if driver.get_contract(fullname) is None:
             return None
-        return ModuleSpec(fullname, DatabaseLoader(driver))
+        return ModuleSpec(fullname, ContractModuleLoader(driver))
 
 
-_DATABASE_DRIVER: ContextVar[Driver | None] = ContextVar(
-    "contracting_database_driver",
+_CONTRACT_MODULE_DRIVER: ContextVar[Driver | None] = ContextVar(
+    "contracting_contract_module_driver",
     default=None,
 )
 
@@ -157,16 +151,16 @@ def _compile_contract_code(name: str, code: str):
     return compiled
 
 
-class DatabaseLoader(Loader):
-    def __init__(self, d=None):
-        self.d = d or DatabaseFinder.current_driver()
+class ContractModuleLoader(Loader):
+    def __init__(self, driver=None):
+        self.driver = driver or ContractModuleFinder.current_driver()
 
     def create_module(self, spec):
         return None
 
     def exec_module(self, module):
         # fetch the individual contract
-        code = self.d.get_contract(module.__name__)
+        code = self.driver.get_contract(module.__name__)
         if code is None:
             raise ImportError("Module {} not found".format(module.__name__))
 
