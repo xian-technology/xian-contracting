@@ -43,8 +43,8 @@ class MeteringObservation:
 
 
 def _require_native_instruction_tracer() -> None:
-    if sys.version_info < (3, 12):
-        raise RuntimeError("native_instruction_v1 requires Python 3.12+")
+    if sys.version_info < (3, 14):
+        raise RuntimeError("native_instruction_v1 requires Python 3.14+")
     tracer = create_tracer("native_instruction_v1")
     tracer.reset()
 

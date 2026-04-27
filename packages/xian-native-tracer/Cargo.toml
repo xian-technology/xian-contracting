@@ -10,4 +10,4 @@ name = "_native"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.28.3", features = ["abi3-py312", "extension-module"] }
+pyo3 = { version = "0.28.3", features = ["abi3-py314", "extension-module"] }

@@ -700,7 +700,7 @@ def _native_exception_from_repr(result: str) -> BaseException | None:
         return exception_type()
     try:
         args = ast.literal_eval(f"({inner},)")
-    except (SyntaxError, ValueError):
+    except SyntaxError, ValueError:
         return exception_type(inner)
     if not isinstance(args, tuple):
         args = (args,)

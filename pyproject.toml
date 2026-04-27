@@ -9,7 +9,7 @@ description = "Xian Network Python Contracting Engine"
 readme = "README.md"
 license = "GPL-3.0-only"
 authors = [{ name = "Xian Network", email = "info@xian.org" }]
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "cachetools>=7.0.6,<8",
     "lmdb>=2.2.0,<3",
@@ -18,8 +18,6 @@ dependencies = [
 ]
 keywords = ["blockchain", "xian", "contracting", "python"]
 classifiers = [
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Development Status :: 5 - Production/Stable",
 ]
@@ -63,7 +61,7 @@ markers = [
 
 [tool.ruff]
 line-length = 80
-target-version = "py312"
+target-version = "py314"
 exclude = [
     "examples",
     "tests/integration/test_contracts",

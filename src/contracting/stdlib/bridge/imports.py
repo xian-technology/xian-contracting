@@ -236,7 +236,7 @@ def call(contract, function, kwargs=None):
 def has_export(contract, function):
     try:
         module = _resolve_contract_module(contract)
-    except (AssertionError, ImportError):
+    except AssertionError, ImportError:
         return False
 
     if not isinstance(function, str):
