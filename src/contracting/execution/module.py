@@ -126,7 +126,7 @@ class ContractModuleFinder:
         driver = cls.current_driver()
         try:
             code = driver.get_contract(fullname)
-        except (RuntimeError, lmdb.Error):
+        except RuntimeError, lmdb.Error:
             return None
         if code is None:
             return None

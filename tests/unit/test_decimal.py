@@ -1,14 +1,15 @@
 import decimal
 import unittest
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from unittest import TestCase
 
 from xian_runtime_types.decimal import (
+    CONTEXT,
     MAX_DECIMAL,
+    MIN_DECIMAL,
     ContractingDecimal,
     DecimalOverflowError,
     fix_precision,
-    neg_sci_not,
 )
 
 
@@ -234,33 +235,66 @@ class TestDecimal(TestCase):
 
     def test_contracting_decimal_can_round(self):
         s = "12345678901234567890123456789.123456789012345678901234567890"
+        with decimal.localcontext(CONTEXT):
+            self.assertEqual(
+                round(Decimal(s), 10), round(ContractingDecimal(s), 10)
+            )
+
+    def test_contracting_decimal_arithmetic_ignores_ambient_context(self):
+        previous = decimal.getcontext().copy()
+        try:
+            decimal.setcontext(decimal.Context(prec=5))
+            self.assertEqual(
+                ContractingDecimal("1") / ContractingDecimal("3"),
+                ContractingDecimal("0.333333333333333333333333333333"),
+            )
+            self.assertEqual(
+                ContractingDecimal("5.1234") * ContractingDecimal("2.3451"),
+                ContractingDecimal("12.01488534"),
+            )
+        finally:
+            decimal.setcontext(previous)
+
+    def test_contracting_decimal_negative_tiny_scientific_notation_truncates_to_zero(
+        self,
+    ):
+        self.assertEqual(ContractingDecimal("-1e-31"), 0)
+
+    def test_contracting_decimal_huge_tiny_exponent_truncates_to_zero(self):
+        self.assertEqual(ContractingDecimal("1e-1000000"), 0)
+
+    def test_contracting_decimal_huge_positive_exponent_rejects_overflow(self):
+        with self.assertRaises(DecimalOverflowError):
+            ContractingDecimal("1e1000000")
+
+    def test_contracting_decimal_arithmetic_rejects_overflow(self):
+        with self.assertRaises(DecimalOverflowError):
+            ContractingDecimal(MAX_DECIMAL) + ContractingDecimal(MIN_DECIMAL)
+
+    def test_contracting_decimal_modulo_uses_dividend_sign(self):
         self.assertEqual(
-            round(Decimal(s), 10), round(ContractingDecimal(s), 10)
+            ContractingDecimal("-1") % ContractingDecimal("2"),
+            ContractingDecimal("-1"),
         )
 
-    def test_sci_not_whole_number(self):
-        s = "2e-5"
-        expected = "0.00002"
+    def test_contracting_decimal_rejects_non_vm_decimal_exponent(self):
+        with self.assertRaises(InvalidOperation):
+            ContractingDecimal("9") ** ContractingDecimal("0.3")
 
-        self.assertEqual(neg_sci_not(s), expected)
-
-    def test_sci_not_decimal(self):
-        s = "2.2e-7"
-        expected = "0.00000022"
-
-        self.assertEqual(neg_sci_not(s), expected)
-
-    def test_sci_not_e0(self):
-        s = "2e-0"
-        expected = "2"
-
-        self.assertEqual(neg_sci_not(s), expected)
-
-    def test_sci_not_extra_precision(self):
-        s = "20e-5"
-        expected = "20e-5"
-
-        self.assertEqual(neg_sci_not(s), expected)
+    def test_contracting_decimal_strings_match_vm_repr_cases(self):
+        cases = [
+            ("1000", "1E+3"),
+            ("50000000", "50E+6"),
+            ("1234000", "1.234E+6"),
+            ("1234500", "1.2345E+6"),
+            ("0.0001", "0.0001"),
+            ("0.0000001", "100E-9"),
+            ("1234.5", "1234.5"),
+            ("12345", "12345"),
+        ]
+        for literal, expected in cases:
+            with self.subTest(literal=literal):
+                self.assertEqual(str(ContractingDecimal(literal)), expected)
 
 
 if "__main__" == __name__:

@@ -12,7 +12,6 @@ from xian_runtime_types.decimal import (
     DecimalOverflowError,
     exports,
     fix_precision,
-    neg_sci_not,
 )
 from xian_runtime_types.encoding import (
     Encoder,
@@ -52,7 +51,6 @@ __all__ = [
     "DecimalOverflowError",
     "exports",
     "fix_precision",
-    "neg_sci_not",
     "Encoder",
     "as_object",
     "convert",
