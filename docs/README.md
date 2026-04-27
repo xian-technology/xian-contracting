@@ -17,11 +17,4 @@ Current-state docs:
 Active design / roadmap notes:
 
 - `COMPILE_TIME_EXTENDS.md`
-- `COMPILER_NAME_REFACTOR_DRAFT.md`
 - `ZK_PRIVACY_OPTIMIZATION_PLAN.md`
-
-Removed obsolete docs:
-
-- The old shielded state reduction V1 plan was removed because its implemented
-  work is now covered by `SHIELDED_STATE_REDESIGN_V2.md` and the remaining
-  privacy work is tracked in `ZK_PRIVACY_OPTIMIZATION_PLAN.md`.
