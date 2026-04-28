@@ -196,6 +196,11 @@ fn validate_transaction_static_impl(tx_value: &Value, chain_id: &str) -> PyResul
     }
 
     let signing_payload = build_signing_payload(payload);
+    if contains_non_integer_number(&signing_payload) {
+        return Err(validation_error(
+            "Transaction has wrongly formatted dictionary",
+        ));
+    }
     let signing_message = canonical_json(&signing_payload)?;
     if !verify_signature(sender, signature, &signing_message) {
         return Err(validation_error("Bad signature"));
@@ -321,6 +326,15 @@ fn is_hex_of_len(value: &str, expected_len: usize) -> bool {
 
 fn is_non_negative_integer(value: Option<&Value>) -> bool {
     matches!(value, Some(Value::Number(number)) if number.as_u64().is_some())
+}
+
+fn contains_non_integer_number(value: &Value) -> bool {
+    match value {
+        Value::Number(number) => number.as_i64().is_none() && number.as_u64().is_none(),
+        Value::Array(items) => items.iter().any(contains_non_integer_number),
+        Value::Object(items) => items.values().any(contains_non_integer_number),
+        _ => false,
+    }
 }
 
 fn canonical_json(value: &Value) -> PyResult<String> {
