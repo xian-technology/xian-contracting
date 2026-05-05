@@ -237,6 +237,27 @@ def something():
 
         self.assertDictEqual(got, expected)
 
+    def test_variables_remove_only_private_prefix(self):
+        code = '''
+__private = Variable()
+_public = Variable()
+__private_hash = Hash()
+_public_hash = Hash()
+
+@export
+def something():
+   return 1
+        '''
+
+        got = parser.variables_for_contract(code)
+
+        expected = {
+            'variables': ['private', '_public'],
+            'hashes': ['private_hash', '_public_hash']
+        }
+
+        self.assertDictEqual(got, expected)
+
     def test_float_literals_preserve_source_precision(self):
         code = """
 @export

@@ -48,8 +48,8 @@ def variables_for_contract(contract_code: str):
     for assign in assigns:
         if isinstance(assign.value, ast.Call):
             if assign.value.func.id == "Variable":
-                variables.append(assign.targets[0].id.lstrip("__"))
+                variables.append(assign.targets[0].id.removeprefix("__"))
             elif assign.value.func.id == "Hash":
-                hashes.append(assign.targets[0].id.lstrip("__"))
+                hashes.append(assign.targets[0].id.removeprefix("__"))
 
     return {"variables": variables, "hashes": hashes}

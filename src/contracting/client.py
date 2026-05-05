@@ -25,6 +25,7 @@ BUILTIN_SUBMISSION_RUNTIME_PATH = (
 BUILTIN_SUBMISSION_SOURCE_PATH = (
     Path(__file__).resolve().parent / "contracts" / "submission_source.s.py"
 )
+BUILTIN_SUBMISSION_RUNTIME_FILENAME = str(BUILTIN_SUBMISSION_RUNTIME_PATH)
 
 
 class AbstractContract:
@@ -224,14 +225,12 @@ class ContractingClient:
     def __init__(
         self,
         signer="sys",
-        submission_filename=os.path.join(
-            os.path.dirname(__file__), "contracts/submission.s.py"
-        ),
+        submission_filename=BUILTIN_SUBMISSION_RUNTIME_FILENAME,
         storage_home=constants.STORAGE_HOME,
-        driver: Driver = None,
+        driver: Driver | None = None,
         metering=False,
-        compiler=ContractingCompiler(),
-        environment={},
+        compiler: ContractingCompiler | None = None,
+        environment: dict | None = None,
         tracer_mode: str | None = None,
     ):
         if tracer_mode is not None:
@@ -243,9 +242,11 @@ class ContractingClient:
         self.executor = Executor(metering=metering, driver=driver)
         self.raw_driver = driver
         self.signer = signer
-        self.compiler = compiler
+        self.compiler = (
+            compiler if compiler is not None else ContractingCompiler()
+        )
         self.submission_filename = submission_filename
-        self.environment = environment
+        self.environment = environment if environment is not None else {}
         # Get submission contract from file
         if submission_filename is not None:
             runtime_code, source_code, vm_ir_json = (
@@ -436,9 +437,11 @@ class ContractingClient:
         name=None,
         metering=None,
         owner=None,
-        constructor_args={},
+        constructor_args=None,
         signer=None,
     ):
+        if constructor_args is None:
+            constructor_args = {}
 
         if self.raw_driver.has_contract("submission"):
             self.submission_contract = self.get_contract("submission")
@@ -519,8 +522,14 @@ class ContractingClient:
                 contracts.add(key.replace(".__code__", ""))
         return sorted(contracts)
 
-    def get_var(self, contract, variable, arguments=[], mark=False):
+    def get_var(self, contract, variable, arguments=None, mark=False):
+        if arguments is None:
+            arguments = []
         return self.raw_driver.get_var(contract, variable, arguments, mark)
 
-    def set_var(self, contract, variable, arguments=[], value=None, mark=False):
+    def set_var(
+        self, contract, variable, arguments=None, value=None, mark=False
+    ):
+        if arguments is None:
+            arguments = []
         self.raw_driver.set_var(contract, variable, arguments, value, mark)
