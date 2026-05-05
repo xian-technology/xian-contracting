@@ -21,7 +21,7 @@ from contracting.storage.driver import Driver
 #
 # For all exec statements, we add the {'__contract__': True} _key to the globals to protect against unwanted imports.
 #
-# Note: anything installed with pip or in site-packages will also not work, so contract package names *must* be unique.
+# Note: anything installed into site-packages will also not work, so contract package names *must* be unique.
 
 
 def is_valid_import(name):

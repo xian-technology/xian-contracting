@@ -31,14 +31,14 @@ flowchart LR
 Install the default pure-Python runtime:
 
 ```bash
-pip install xian-tech-contracting
+uv add xian-tech-contracting
 ```
 
 Optional native packages (kept off the default install to keep it small):
 
 ```bash
-pip install 'xian-tech-contracting[native]'
-pip install 'xian-tech-contracting[zk]'
+uv add 'xian-tech-contracting[native]'
+uv add 'xian-tech-contracting[zk]'
 ```
 
 Submit a contract and call a method:
