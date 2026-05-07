@@ -23,7 +23,7 @@ def _validate_structural_artifacts_with_native_core(
 ) -> dict[str, str | None] | None:
     try:
         from xian_vm_core import validate_deployment_artifacts_json
-    except (ImportError, OSError):
+    except ImportError, OSError:
         return None
 
     try:
