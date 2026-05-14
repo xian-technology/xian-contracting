@@ -15,7 +15,8 @@
     "README.md"
   ],
   "scripts": {
-    "build": "wasm-pack build .. --target bundler --out-dir npm/dist --features wasm --no-default-features"
+    "build": "node scripts/build-wasm.mjs && node scripts/ensure-publishable-dist.mjs",
+    "prepack": "npm run build"
   },
   "license": "MIT"
 }
