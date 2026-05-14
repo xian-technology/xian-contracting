@@ -269,7 +269,7 @@ source = { directory = "packages/xian-compiler-core" }
 
 [[package]]
 name = "xian-tech-contracting"
-version = "1.0.6"
+version = "1.0.8"
 source = { editable = "." }
 dependencies = [
     { name = "cachetools" },
@@ -322,12 +322,12 @@ source = { editable = "packages/xian-fastpath-core" }
 
 [[package]]
 name = "xian-tech-runtime-types"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/xian-runtime-types" }
 
 [[package]]
 name = "xian-tech-zk"
-version = "0.1.4"
+version = "0.1.5"
 source = { editable = "packages/xian-zk" }
 dependencies = [
     { name = "pynacl" },
