@@ -264,7 +264,7 @@ wheels = [
 
 [[package]]
 name = "xian-tech-compiler-core"
-version = "0.1.0"
+version = "0.1.1"
 source = { directory = "packages/xian-compiler-core" }
 
 [[package]]

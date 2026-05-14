@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "xian-tech-compiler-core"
-version = "0.1.0"
+version = "0.1.1"
 description = "Shared Rust/WASM compiler core for Xian contracts"
 readme = "README.md"
 license = "MIT"

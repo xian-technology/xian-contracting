@@ -1,6 +1,6 @@
 {
   "name": "@xian-tech/compiler",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shared WASM compiler core for Xian contracts",
   "type": "module",
   "exports": {
