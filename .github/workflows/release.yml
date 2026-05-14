@@ -331,6 +331,7 @@ jobs:
     needs:
       - release-context
       - collect-release-artifacts
+    if: needs.collect-release-artifacts.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -352,6 +353,7 @@ jobs:
       - release-context
       - collect-release-artifacts
       - publish
+    if: needs.publish.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
