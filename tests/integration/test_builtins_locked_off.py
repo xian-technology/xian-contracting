@@ -1,7 +1,7 @@
 import os
 from unittest import TestCase
 
-from contracting.client import ContractingClient
+from contracting.local import ContractingClient
 
 
 class TestBuiltinsLockedOff(TestCase):
@@ -87,7 +87,7 @@ class TestDynamicImport(TestCase):
             contract = f.read()
             self.c.submit(contract, name="con_dynamic_import")
 
-        dynamic_import = self.c.get_contract("con_dynamic_import")
+        dynamic_import = self.c.get_contract_proxy("con_dynamic_import")
 
         with self.assertRaises(ImportError):
             dynamic_import.import_thing(name="con_math")
@@ -109,6 +109,6 @@ class TestFloatIssue(TestCase):
             contract = f.read()
             self.c.submit(contract, name="con_float_issue")
 
-        float_issue = self.c.get_contract("con_float_issue")
+        float_issue = self.c.get_contract_proxy("con_float_issue")
 
         float_issue.get(x=0.1, y=0.1)

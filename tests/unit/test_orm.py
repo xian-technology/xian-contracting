@@ -1,4 +1,7 @@
 from unittest import TestCase
+
+from xian_runtime_types.decimal import ContractingDecimal
+
 from contracting import constants
 from contracting.execution.runtime import rt
 from contracting.storage.driver import Driver
@@ -11,7 +14,6 @@ from contracting.storage.orm import (
     Variable,
     indexed,
 )
-from xian_runtime_types.decimal import ContractingDecimal
 
 # from contracting.stdlib.env import gather
 
@@ -907,10 +909,10 @@ class TestLogEvent(TestCase):
         self.assertEqual(self.log_event._name, "transfer_event")
         self.assertEqual(self.log_event._key, "test_contract.transfer_event")
 
-    def test_log_event_rejects_legacy_constructor(self):
+    def test_log_event_rejects_positional_contract_constructor(self):
         with self.assertRaises(TypeError):
             LogEvent(
-                "legacy_contract",
+                "old_contract",
                 "approve_event",
                 event="Approve",
                 params={"owner": str},
@@ -919,7 +921,7 @@ class TestLogEvent(TestCase):
 
         with self.assertRaises(TypeError):
             LogEvent(
-                "legacy_contract",
+                "old_contract",
                 "approve_event",
                 "Approve",
                 {"owner": str},

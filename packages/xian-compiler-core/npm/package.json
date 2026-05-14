@@ -1,0 +1,21 @@
+{
+  "name": "@xian-tech/compiler",
+  "version": "0.1.0",
+  "description": "Shared WASM compiler core for Xian contracts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/xian_compiler_core.d.ts",
+      "import": "./dist/xian_compiler_core.js"
+    }
+  },
+  "types": "./dist/xian_compiler_core.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "wasm-pack build .. --target bundler --out-dir npm/dist --features wasm --no-default-features"
+  },
+  "license": "MIT"
+}

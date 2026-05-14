@@ -22,7 +22,6 @@ HASH_DELIMITER = constants.DELIMITER
 _MISSING = object()
 
 SOURCE_KEY = "__source__"
-CODE_KEY = "__code__"
 XIAN_VM_V1_IR_KEY = "__xian_ir_v1__"
 TYPE_KEY = "__type__"
 AUTHOR_KEY = "__author__"
@@ -234,11 +233,23 @@ class Driver:
     def get_contract_initiator(self, name):
         return self.get_var(name, INITIATOR_KEY)
 
-    def get_contract(self, name):
-        return self.get_var(name, CODE_KEY)
+    def get_local_contract_runtime(self, name):
+        source = self.get_contract_source(name)
+        if source is None:
+            return None
+        if "@__export" in source:
+            return source
+
+        compiler = ContractingCompiler(module_name=name)
+        try:
+            return compiler.parse_to_code(source, lint=False)
+        except Exception:
+            if "@export" in source or "@construct" in source:
+                raise
+            return source
 
     def has_contract(self, name):
-        artifact_keys = (XIAN_VM_V1_IR_KEY, SOURCE_KEY, CODE_KEY)
+        artifact_keys = (XIAN_VM_V1_IR_KEY, SOURCE_KEY)
         for variable in artifact_keys:
             key = self.make_key(name, variable)
             value = self.find(key)
@@ -257,13 +268,13 @@ class Driver:
         deployer=None,
         initiator=None,
         lint=True,
-        store_runtime_code=True,
     ):
         compiler = ContractingCompiler(module_name=name)
-        normalized_source = compiler.normalize_source(source, lint=lint)
-        runtime_code = None
-        if store_runtime_code:
-            runtime_code = compiler.parse_to_code(source, lint=lint)
+        normalized_source = compiler.normalize_source(
+            source,
+            lint=lint,
+            vm_profile="xian_vm_v1",
+        )
         vm_ir_json = compiler.lower_to_ir_json(
             normalized_source,
             lint=False,
@@ -273,7 +284,6 @@ class Driver:
         )
         self.set_contract(
             name=name,
-            code=runtime_code,
             source=normalized_source,
             vm_ir_json=vm_ir_json,
             owner=owner,
@@ -287,7 +297,7 @@ class Driver:
     def set_contract(
         self,
         name,
-        code=None,
+        *,
         source=None,
         vm_ir_json=None,
         owner=None,
@@ -305,23 +315,21 @@ class Driver:
         if timestamp is None:
             timestamp = Datetime._from_datetime(datetime.now())
 
-        if code is None and source is None and vm_ir_json is None:
+        if source is None and vm_ir_json is None:
             raise TypeError(
                 "set_contract requires at least one contract artifact."
             )
 
-        if code is not None:
-            compile(code, name, "exec")
-
         if source is not None:
+            if not isinstance(source, str):
+                raise TypeError("Contract source must be a string.")
+            compile(source, name, "exec")
             self.set_var(
                 name,
                 SOURCE_KEY,
                 value=source,
                 enforce_write_cap=False,
             )
-        if code is not None:
-            self.set_var(name, CODE_KEY, value=code, enforce_write_cap=False)
         if vm_ir_json is not None:
             self.set_var(
                 name,
@@ -500,5 +508,5 @@ class Driver:
     def is_file(self, filename):
         return any(
             self._store.exists(f"{filename}{INDEX_SEPARATOR}{artifact_key}")
-            for artifact_key in (XIAN_VM_V1_IR_KEY, SOURCE_KEY, CODE_KEY)
+            for artifact_key in (XIAN_VM_V1_IR_KEY, SOURCE_KEY)
         )

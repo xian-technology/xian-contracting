@@ -9,7 +9,6 @@ DEFAULT_COST = common.DEFAULT_COST
 MAX_CALL_COUNT = common.MAX_CALL_COUNT
 MAX_CHI = common.MAX_CHI
 MIN_OPCODE_COST = common.MIN_OPCODE_COST
-SUPPORTED_TRACER_MODES = common.SUPPORTED_TRACER_MODES
 TRACER_POLICIES = common.TRACER_POLICIES
 CallLimitExceededError = common.CallLimitExceededError
 ChiExceededError = common.ChiExceededError
@@ -18,20 +17,10 @@ get_tracer_policy = common.get_tracer_policy
 get_uncategorized_default_cost_opcodes = (
     common.get_uncategorized_default_cost_opcodes
 )
-resolve_tracer_mode = common.resolve_tracer_mode
 
 
-def create_tracer(mode: str | None = None):
-    selected = resolve_tracer_mode(mode)
-    if selected == "python_line_v1":
-        return PythonLineTracer()
-    if selected == "native_instruction_v1":
-        from contracting.execution.native_tracer import (
-            NativeInstructionTracer,
-        )
-
-        return NativeInstructionTracer()
-    raise ValueError(f"unsupported tracer mode: {selected}")
+def create_tracer():
+    return PythonLineTracer()
 
 
 Tracer = PythonLineTracer
@@ -43,7 +32,6 @@ __all__ = [
     "MAX_CALL_COUNT",
     "MAX_CHI",
     "MIN_OPCODE_COST",
-    "SUPPORTED_TRACER_MODES",
     "TRACER_POLICIES",
     "CallLimitExceededError",
     "ChiExceededError",
@@ -53,5 +41,4 @@ __all__ = [
     "get_default_cost_opcodes",
     "get_tracer_policy",
     "get_uncategorized_default_cost_opcodes",
-    "resolve_tracer_mode",
 ]

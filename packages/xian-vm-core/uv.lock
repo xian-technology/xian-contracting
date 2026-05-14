@@ -119,7 +119,6 @@ requires-dist = [
     { name = "lmdb", specifier = ">=2.2.0,<3" },
     { name = "pynacl", specifier = ">=1.5.0,<2" },
     { name = "xian-tech-fastpath-core", marker = "extra == 'native'", editable = "../xian-fastpath-core" },
-    { name = "xian-tech-native-tracer", marker = "extra == 'native'", editable = "../xian-native-tracer" },
     { name = "xian-tech-runtime-types", editable = "../xian-runtime-types" },
     { name = "xian-tech-zk", marker = "extra == 'zk'", editable = "../xian-zk" },
 ]

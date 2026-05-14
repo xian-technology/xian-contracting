@@ -1,6 +1,7 @@
-from contracting.client import ContractingClient
 from unittest import TestCase
-import os
+
+from contracting.local import ContractingClient
+
 
 def contract():
     storage = Hash()
@@ -27,7 +28,7 @@ class TestComplexStorage(TestCase):
         self.c.flush()
 
         self.c.submit(contract, name="con_contract")
-        self.contract = self.c.get_contract('con_contract')
+        self.contract = self.c.get_contract_proxy('con_contract')
 
     def tearDown(self):
         self.c.flush()

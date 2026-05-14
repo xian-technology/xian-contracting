@@ -8,7 +8,6 @@ from contracting.execution.runtime import rt
 from contracting.names import is_safe_contract_name
 from contracting.stdlib.bridge.access import __export
 from contracting.storage.driver import (
-    CODE_KEY,
     DEPLOYER_KEY,
     DEVELOPER_KEY,
     INITIATOR_KEY,
@@ -83,7 +82,7 @@ def _contract_exists_by_name(name):
         return False
 
     _driver = rt.env.get("__Driver") or Driver()
-    return _driver.get_contract(name) is not None
+    return _driver.has_contract(name)
 
 
 def import_module(name):
@@ -107,7 +106,7 @@ def _resolve_contract_module(contract):
         )
 
     _driver = rt.env.get("__Driver") or Driver()
-    if _driver.get_contract(contract.__name__) is None:
+    if not _driver.has_contract(contract.__name__):
         raise AssertionError(
             "Contract module must reference an existing deployed contract!"
         )
@@ -138,7 +137,7 @@ def exists(contract):
         )
 
     _driver = rt.env.get("__Driver") or Driver()
-    return _driver.get_contract(contract.__name__) is not None
+    return _driver.has_contract(contract.__name__)
 
 
 def _validate_function_name(name):
@@ -309,15 +308,15 @@ def contract_info(contract):
 
 
 def code_hash(contract, kind="runtime"):
-    if kind not in {"runtime", "source"}:
-        raise AssertionError("Hash kind must be 'runtime' or 'source'!")
+    if kind == "runtime":
+        kind = "ir"
+    if kind not in {"ir", "source"}:
+        raise AssertionError("Hash kind must be 'ir' or 'source'!")
 
     contract_name = _contract_name_from_target(contract)
     _driver = rt.env.get("__Driver") or Driver()
-    if kind == "runtime":
-        contract_text = _driver.get_var(contract_name, CODE_KEY)
-        if contract_text is None:
-            contract_text = _driver.get_var(contract_name, XIAN_VM_V1_IR_KEY)
+    if kind == "ir":
+        contract_text = _driver.get_var(contract_name, XIAN_VM_V1_IR_KEY)
     else:
         contract_text = _driver.get_var(contract_name, SOURCE_KEY)
     if contract_text is None:

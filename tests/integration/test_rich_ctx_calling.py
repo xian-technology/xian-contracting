@@ -1,5 +1,16 @@
 from unittest import TestCase
-from contracting.client import ContractingClient
+
+from contracting.artifacts import build_contract_artifacts
+from contracting.local import ContractingClient
+
+
+def build_submission_artifacts(name, source):
+    return build_contract_artifacts(
+        module_name=name,
+        source=source,
+        lint=True,
+        vm_profile="xian_vm_v1",
+    )
 
 
 def con_module1():
@@ -97,7 +108,7 @@ class TestRandomsContract(TestCase):
         self.c.flush()
 
     def test_ctx2(self):
-        module = self.c.get_contract('con_module1')
+        module = self.c.get_contract_proxy('con_module1')
         res = module.get_context2()
         expected = {
             'name': 'get_context2',
@@ -111,7 +122,7 @@ class TestRandomsContract(TestCase):
         self.assertDictEqual(res, expected)
 
     def test_multi_call_doesnt_affect_parameters(self):
-        aio = self.c.get_contract('con_all_in_one')
+        aio = self.c.get_contract_proxy('con_all_in_one')
         res = aio.call_me()
 
         expected = {
@@ -127,7 +138,7 @@ class TestRandomsContract(TestCase):
         self.assertDictEqual(res, expected)
 
     def test_dynamic_call(self):
-        dy = self.c.get_contract('con_dynamic_import')
+        dy = self.c.get_contract_proxy('con_dynamic_import')
         res1, res2 = dy.called_from_a_far()
 
         expected1 = {
@@ -200,7 +211,7 @@ def inspect():
         self.c.submit(con_mid, name='con_mid')
         self.c.submit(con_leaf, name='con_leaf')
 
-        root = self.c.get_contract('con_root')
+        root = self.c.get_contract_proxy('con_root')
         result = root.call_mid()
 
         self.assertDictEqual(
@@ -266,7 +277,7 @@ def reenter_root():
         self.c.submit(con_root, name='con_root_reentry')
         self.c.submit(con_mid, name='con_mid_reentry')
 
-        root = self.c.get_contract('con_root_reentry')
+        root = self.c.get_contract_proxy('con_root_reentry')
         result = root.bounce()
 
         self.assertDictEqual(
@@ -289,35 +300,21 @@ def reenter_root():
         )
 
     def test_submission_name_in_construct_function(self):
-        contract = self.c.get_contract('con_submission_name_test')
+        contract = self.c.get_contract_proxy('con_submission_name_test')
         submission_name = contract.get_submission_context()
 
         self.assertEqual("con_submission_name_test", submission_name)
 
     def test_entry_context(self):
-        contract = self.c.get_contract('con_submission_name_test')
+        contract = self.c.get_contract_proxy('con_submission_name_test')
         details = contract.get_entry_context()
 
         self.assertEqual("con_submission_name_test", details.get('entry_contract'))
         self.assertEqual("get_entry_context", details.get('entry_function'))
 
     def test_factory_deployment_sets_child_context_and_provenance(self):
-        factory_code = '''
-import submission
-
-@export
-def deploy_child(name: str, owner: str):
-    code = """
-module_ctx = Hash()
+        child_source = """
 construct_ctx = Hash()
-
-module_ctx['this'] = ctx.this
-module_ctx['caller'] = ctx.caller
-module_ctx['signer'] = ctx.signer
-module_ctx['owner'] = ctx.owner
-module_ctx['entry_contract'] = ctx.entry[0]
-module_ctx['entry_function'] = ctx.entry[1]
-module_ctx['submission_name'] = ctx.submission_name
 
 @construct
 def seed():
@@ -333,8 +330,22 @@ def seed():
 def ready():
     return True
 """
+        child_artifacts = build_submission_artifacts(
+            "con_factory_child",
+            child_source,
+        )
+        factory_code = f'''
+import submission
 
-    submission.submit_contract(name=name, code=code, owner=owner)
+CHILD_ARTIFACTS = {child_artifacts!r}
+
+@export
+def deploy_child(name: str, owner: str):
+    submission.submit_contract(
+        name=name,
+        deployment_artifacts=CHILD_ARTIFACTS,
+        owner=owner,
+    )
 '''
 
         self.c.submit(factory_code, name='con_factory')
@@ -385,10 +396,6 @@ def ready():
             'submission_name': 'con_factory_child',
         }
         for key, value in expected_ctx.items():
-            self.assertEqual(
-                self.c.get_var('con_factory_child', 'module_ctx', [key]),
-                value,
-            )
             self.assertEqual(
                 self.c.get_var('con_factory_child', 'construct_ctx', [key]),
                 value,

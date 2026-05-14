@@ -2,43 +2,47 @@
 
 ## Current Default
 
-The default Xian execution path should remain:
+The default Xian network execution path is `xian_vm_v1`.
+
+`xian-contracting` still needs to remain:
 
 - pure Python
 - self-contained
 - easy to install as a standalone library
 - usable outside the full blockchain stack
 
-Future execution backends must not compromise that default.
+Those properties apply to the compiler, artifact builder, and local test
+harness. They do not imply a second network VM.
 
-## Current Tracer Hardening Backlog
+## Local Harness Metering Backlog
 
-The current Python tracer is deterministic and protects the runtime from the
-worst instruction-callback DoS paths, but it still has precision limits.
+The local harness tracer is deterministic and useful for development-time
+checks, but it is no longer consensus policy. The Xian VM owns network
+execution and metering.
 
 Recent hardening already landed:
 
 - fixed Python 3.14 line metadata handling
 - kept per-code tracer metadata warm across executions
-- split tracer event ceilings by backend semantics
+- split event ceilings by execution surface
 - made the opcode default-cost set explicit and test-guarded
 - added workload tests for branch-heavy and loop-heavy tracer cases
 - forbade ternary expressions, semicolons, and one-line compound statements
   in contract source
 
-Remaining useful hardening steps:
+Remaining useful harness hardening steps:
 
 - forbid lambdas
 - restrict or forbid complex comprehensions if they create poor line-cost
   precision
 - reject lines whose compiled bytecode bucket exceeds a configured threshold
-- keep gas schedule changes versioned and explicit across supported CPython
-  minors
+- keep local harness metering changes versioned and explicit across supported
+  CPython minors
 - extend workload tests further with contracts designed to probe tracer blind
   spots beyond the current branch-heavy coverage
 
-These changes are intended to reduce opportunities to game line-based charging
-without changing the pure-Python default execution model.
+These changes are intended to reduce opportunities to game local-test metering
+without changing network execution, which is owned by the Xian VM.
 
 ## Return Value Metering
 
@@ -50,60 +54,6 @@ Current rule:
 - reject return values larger than `MAX_RETURN_VALUE_SIZE`
 
 This should remain deterministic and versioned as part of the execution policy.
-
-## Future Native Tracer
-
-`native_instruction_v1` now exists as an optional Rust-backed backend via the
-`xian-tech-native-tracer` package.
-
-What remains true:
-
-- the pure-Python tracer remains the default
-- `xian-contracting` keeps working without native extensions
-- the native backend is optional and must be selected explicitly
-- startup must fail loudly if a caller selects `native_instruction_v1` without
-  the package installed
-
-The remaining native-tracer backlog is about hardening, packaging, and policy.
-
-Design direction:
-
-- language: Rust
-- Python binding layer: PyO3/maturin
-- backend name: `native_instruction_v1`
-
-Why Rust:
-
-- strong safety properties relative to C
-- good performance
-- mature Linux/macOS packaging story for Python extensions
-- simpler long-term maintenance than a niche toolchain
-
-## Tracer Backend Policy
-
-Tracer choice must be treated as execution policy, not a per-node preference,
-when it changes gas semantics.
-
-Suggested network-level execution config shape:
-
-```yaml
-execution:
-  tracer:
-    mode: python_line_v1
-    gas_schedule: xian-2026-01
-```
-
-Possible modes:
-
-- `python_line_v1`
-- `native_instruction_v1`
-
-Rules:
-
-- all validators on a network must use the same tracer mode when gas semantics
-  differ
-- no silent fallback between tracer implementations
-- gas schedule changes must be explicitly versioned
 
 ## Parallel Transaction Processing
 
@@ -130,7 +80,7 @@ This keeps final semantics equivalent to serial execution.
 
 Important distinction:
 
-- tracer backend choice is consensus policy when it changes gas semantics
+- the Xian VM and its gas schedule are consensus policy
 - parallel speculative execution can remain a local optimization if it is
   provably serial-equivalent
 
@@ -155,10 +105,9 @@ Remaining useful work:
 
 ## Rollout Order
 
-1. Keep the pure-Python tracer as the stable default.
-2. Keep tightening the current tracer with targeted language restrictions and
+1. Keep the local harness tracer as standalone test infrastructure.
+2. Keep tightening that harness with targeted language restrictions and
    workload coverage.
-3. Keep the tracer backend abstraction explicit and policy-versioned.
-4. Harden the optional Rust native tracer further for long-term network use.
-5. Treat speculative parallel execution as a local optimization and expand it
+3. Keep the Xian VM as the only network execution target.
+4. Treat speculative parallel execution as a local optimization and expand it
    only when serial-equivalence coverage and workload data justify it.

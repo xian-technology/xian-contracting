@@ -4,12 +4,10 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from contracting.execution.tracer import (
-    DEFAULT_COST,
     CU_COSTS,
-    DEFAULT_TRACER_MODE,
+    DEFAULT_COST,
     MAX_CALL_COUNT,
     MAX_CHI,
-    SUPPORTED_TRACER_MODES,
     CallLimitExceededError,
     ChiExceededError,
     Tracer,
@@ -17,7 +15,6 @@ from contracting.execution.tracer import (
     get_default_cost_opcodes,
     get_tracer_policy,
     get_uncategorized_default_cost_opcodes,
-    resolve_tracer_mode,
 )
 
 
@@ -64,7 +61,7 @@ class TestTracerLifecycle(TestCase):
 
 
 class TestOpcodeCosts(TestCase):
-    def test_call_opcode_cost_is_named_not_legacy_indexed(self):
+    def test_call_opcode_cost_is_named(self):
         call_opcode = opcode.opmap.get("CALL")
         if call_opcode is not None:
             self.assertEqual(CU_COSTS[call_opcode], 1610)
@@ -77,18 +74,12 @@ class TestOpcodeCosts(TestCase):
 
 
 class TestTracerSelection(TestCase):
-    def test_default_mode_is_supported(self):
-        self.assertIn(DEFAULT_TRACER_MODE, SUPPORTED_TRACER_MODES)
-        self.assertEqual(resolve_tracer_mode(None), DEFAULT_TRACER_MODE)
-
-    def test_backend_policies_use_backend_specific_event_limits(self):
-        python_policy = get_tracer_policy("python_line_v1")
-        native_policy = get_tracer_policy("native_instruction_v1")
+    def test_backend_policy_uses_default_event_limit(self):
+        python_policy = get_tracer_policy()
 
         self.assertEqual(python_policy.max_events, MAX_CALL_COUNT)
-        self.assertGreater(native_policy.max_events, python_policy.max_events)
-        self.assertEqual(native_policy.max_chi, MAX_CHI)
-        self.assertGreater(native_policy.max_chi, 6_500_000)
+        self.assertEqual(python_policy.max_chi, MAX_CHI)
+        self.assertGreater(python_policy.max_chi, 6_500_000)
 
     def test_factory_returns_python_tracer_by_default(self):
         tracer = create_tracer()

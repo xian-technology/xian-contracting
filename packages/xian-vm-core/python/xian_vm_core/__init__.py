@@ -13,7 +13,6 @@ from contracting.names import assert_safe_contract_name
 from contracting.stdlib.bridge import zk as zk_bridge
 from contracting.stdlib.bridge.random import seed as random_seed
 from contracting.storage.driver import (
-    CODE_KEY,
     DEPLOYER_KEY,
     DEVELOPER_KEY,
     INITIATOR_KEY,
@@ -233,7 +232,7 @@ class NativeVmHost:
         return module_ir
 
     def _contract_exists(self, contract: str) -> bool:
-        for artifact_key in (XIAN_VM_V1_IR_KEY, SOURCE_KEY, CODE_KEY):
+        for artifact_key in (XIAN_VM_V1_IR_KEY, SOURCE_KEY):
             pending_artifact = self._contract_var(contract, artifact_key)
             if pending_artifact is not None:
                 return True
@@ -525,10 +524,8 @@ class NativeVmHost:
             if kind is None and len(args) > 1:
                 kind = args[1]
             kind = kind or "runtime"
-            if kind == "runtime":
+            if kind in {"runtime", "ir"}:
                 contract_text = self._contract_var(args[0], XIAN_VM_V1_IR_KEY)
-                if contract_text is None:
-                    contract_text = self._contract_var(args[0], CODE_KEY)
             else:
                 contract_text = self._contract_var(args[0], SOURCE_KEY)
             if contract_text is None:

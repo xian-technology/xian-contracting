@@ -1,6 +1,5 @@
-from datetime import datetime as dt
-from datetime import timedelta
 import decimal
+from datetime import timedelta
 from unittest import TestCase
 
 from xian_runtime_types.time import (
@@ -12,6 +11,7 @@ from xian_runtime_types.time import (
     Datetime,
     Timedelta,
 )
+
 
 class TestTimedelta(TestCase):
     def test_implementation_mimics_actual_timedelta(self):

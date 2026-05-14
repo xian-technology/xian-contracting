@@ -2,7 +2,7 @@ import tempfile
 from pathlib import Path
 from unittest import TestCase
 
-from contracting.client import ContractingClient
+from contracting.local import ContractingClient
 
 CONTRACTS_DIR = Path(__file__).resolve().parent / "contracts"
 
@@ -24,7 +24,7 @@ class TestStateManagement(TestCase):
     def test_ctx_this_and_caller_are_preserved_through_proxy_imports(self):
         self.client.submit(read_contract("proxythis.py"), name="con_proxythis")
         self.client.submit(read_contract("thistest2.py"), name="con_thistest2")
-        proxy = self.client.get_contract("con_proxythis")
+        proxy = self.client.get_contract_proxy("con_proxythis")
 
         self.assertEqual(
             proxy.proxythis(con="con_thistest2", signer="address"),

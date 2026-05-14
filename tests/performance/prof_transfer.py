@@ -1,6 +1,18 @@
 import secrets
-from contracting.storage.driver import Driver
+
+from contracting.artifacts import build_contract_artifacts
 from contracting.execution.executor import Executor
+from contracting.storage.driver import Driver
+
+
+def build_submission_artifacts(name, source):
+    return build_contract_artifacts(
+        module_name=name,
+        source=source,
+        lint=True,
+        vm_profile="xian_vm_v1",
+    )
+
 
 def submission_kwargs_for_file(f):
     # Get the file name only by splitting off directories
@@ -12,11 +24,14 @@ def submission_kwargs_for_file(f):
     contract_name = split[0]
 
     with open(f) as file:
-        contract_code = file.read()
+        contract_source = file.read()
 
     return {
         'name': contract_name,
-        'code': contract_code,
+        'deployment_artifacts': build_submission_artifacts(
+            contract_name,
+            contract_source,
+        ),
     }
 
 
@@ -34,7 +49,7 @@ with open('../../contracting/contracts/submission.s.py') as f:
     contract = f.read()
 
 d.set_contract(name='submission',
-                    code=contract)
+                    source=contract)
 d.commit()
 
 recipients = [secrets.token_hex(16) for _ in range(1000)]
@@ -71,4 +86,3 @@ d.flush_full()
 
 # print(profiler.last_session.duration)
 # print(profiler.output_text(unicode=True, color=True, show_all=True))
-

@@ -4,11 +4,11 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import Mock
 
-from contracting.client import (
+from contracting.artifacts import CONTRACT_ARTIFACT_FORMAT_V1
+from contracting.local import (
     AbstractContract,
     ContractingClient,
 )
-from contracting.compilation.artifacts import CONTRACT_ARTIFACT_FORMAT_V1
 from contracting.storage.driver import Driver
 
 
@@ -33,7 +33,7 @@ class TestClient(TestCase):
         self.client = ContractingClient(driver=self.driver)
         self.client.flush()
 
-        submission_1_code = self.client.raw_driver.get('submission.__code__')
+        submission_1_code = self.client.raw_driver.get_local_contract_runtime('submission')
         
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         submission_file_path = os.path.join(self.script_dir, "precompiled", "updated_submission.py")
@@ -41,7 +41,7 @@ class TestClient(TestCase):
         self.driver.flush_full()
         self.client.set_submission_contract(filename=submission_file_path)
 
-        submission_2_code = self.client.raw_driver.get('submission.__code__')
+        submission_2_code = self.client.raw_driver.get_local_contract_runtime('submission')
 
         self.assertNotEqual(submission_1_code, submission_2_code)
 
@@ -101,7 +101,9 @@ class TestClient(TestCase):
             self.assertIsNone(store._env)
 
     def test_gets_submission_contract_from_state_if_no_filename_provided(self):
-        self.driver.set_contract(name='submission', code=self.submission_contract_file)
+        self.driver.set_contract(
+            name='submission', source=self.submission_contract_file
+        )
         self.driver.commit()
 
         self.client = ContractingClient(submission_filename=None, driver=self.driver)
@@ -114,13 +116,13 @@ class TestClient(TestCase):
         self.client.raw_driver.flush_full()
         self.client.submission_contract = None
 
-        contract = self.client.raw_driver.get_contract('submission')
+        contract = self.client.raw_driver.get_local_contract_runtime('submission')
         self.assertIsNone(contract)
         self.assertIsNone(self.client.submission_contract)
 
         self.client.set_submission_contract()
 
-        contract = self.client.raw_driver.get_contract('submission')
+        contract = self.client.raw_driver.get_local_contract_runtime('submission')
         self.assertIsNotNone(contract)
         self.assertIsNotNone(self.client.submission_contract)
 
@@ -130,16 +132,18 @@ class TestClient(TestCase):
         self.client.raw_driver.flush_full()
         self.client.submission_contract = None
 
-        contract = self.client.raw_driver.get_contract('submission')
+        contract = self.client.raw_driver.get_local_contract_runtime('submission')
         self.assertIsNone(contract)
         self.assertIsNone(self.client.submission_contract)
 
-        self.driver.set_contract(name='submission', code=self.submission_contract_file)
+        self.driver.set_contract(
+            name='submission', source=self.submission_contract_file
+        )
         self.driver.commit()
 
         self.client.set_submission_contract()
 
-        contract = self.client.raw_driver.get_contract('submission')
+        contract = self.client.raw_driver.get_local_contract_runtime('submission')
         self.assertIsNotNone(contract)
         self.assertIsNotNone(self.client.submission_contract)
 
@@ -238,10 +242,14 @@ def ping():
         self.client.submission_contract.submit_contract.assert_called_once()
         kwargs = self.client.submission_contract.submit_contract.call_args.kwargs
         self.assertEqual(kwargs["name"], "con_submit_probe")
-        self.assertEqual(kwargs["code"], code)
+        self.assertNotIn("code", kwargs)
         self.assertEqual(
             kwargs["deployment_artifacts"]["module_name"],
             "con_submit_probe",
+        )
+        self.assertIn(
+            "def ping():",
+            kwargs["deployment_artifacts"]["source"],
         )
         self.assertEqual(
             kwargs["deployment_artifacts"]["format"],

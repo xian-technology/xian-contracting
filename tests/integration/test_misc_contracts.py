@@ -1,9 +1,18 @@
-import importlib
-from unittest import TestCase
-from xian_runtime_types.time import Datetime
-from contracting.client import ContractingClient
-from contracting.storage.driver import Driver
 import os
+from unittest import TestCase
+
+from contracting.artifacts import build_contract_artifacts
+from contracting.local import ContractingClient
+from contracting.storage.driver import Driver
+
+
+def build_submission_artifacts(name, source):
+    return build_contract_artifacts(
+        module_name=name,
+        source=source,
+        lint=True,
+        vm_profile="xian_vm_v1",
+    )
 
 
 def too_many_writes():
@@ -58,23 +67,7 @@ def exploit():
 class TestMiscContracts(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
-        self.c.raw_driver.flush_full()
-
-        submission_path = os.path.join(
-            os.path.dirname(__file__), "test_contracts", "submission.s.py"
-        )
-
-        with open(submission_path) as f:
-            contract = f.read()
-
-        self.c.raw_driver.set_contract(
-            name="submission",
-            code=contract,
-        )
-
-        self.c.raw_driver.commit()
-
-        submission = self.c.get_contract("submission")
+        self.c.flush()
 
         self.c.submit(too_many_writes, name="con_too_many_writes")
 
@@ -95,8 +88,8 @@ class TestMiscContracts(TestCase):
             code = f.read()
             self.c.submit(code, name="con_foreign_thing")
 
-        self.thing = self.c.get_contract("con_thing")
-        self.foreign_thing = self.c.get_contract("con_foreign_thing")
+        self.thing = self.c.get_contract_proxy("con_thing")
+        self.foreign_thing = self.c.get_contract_proxy("con_foreign_thing")
 
     def tearDown(self):
         self.c.raw_driver.flush_full()
@@ -128,8 +121,8 @@ class TestMiscContracts(TestCase):
         self.c.submit(con_clone_source, name="con_clone_source")
         self.c.submit(con_clone_target, name="con_clone_target")
 
-        cloned = self.c.get_contract("con_clone_target")
-        source = self.c.get_contract("con_clone_source")
+        cloned = self.c.get_contract_proxy("con_clone_target")
+        source = self.c.get_contract_proxy("con_clone_source")
 
         self.assertEqual(cloned.read(key="alice"), 100)
         self.assertEqual(cloned.read(key="settings"), {"limit": 7})
@@ -140,7 +133,7 @@ class TestMiscContracts(TestCase):
         self.assertEqual(source.read(key="settings"), {"limit": 7})
 
     def test_single_too_many_writes_fails(self):
-        tmwc = self.c.get_contract("con_too_many_writes")
+        tmwc = self.c.get_contract_proxy("con_too_many_writes")
         self.c.executor.metering = True
         self.c.set_var(
             contract="currency",
@@ -161,7 +154,7 @@ class TestMiscContracts(TestCase):
         self.c.executor.metering = False
 
     def test_multiple_too_many_writes_fails(self):
-        tmwc = self.c.get_contract("con_too_many_writes")
+        tmwc = self.c.get_contract_proxy("con_too_many_writes")
         self.c.executor.metering = True
         self.c.set_var(
             contract="currency",
@@ -183,7 +176,7 @@ class TestMiscContracts(TestCase):
         self.c.executor.metering = False
 
     def test_failed_once_doesnt_affect_others(self):
-        tmwc = self.c.get_contract("con_too_many_writes")
+        tmwc = self.c.get_contract_proxy("con_too_many_writes")
         self.c.executor.metering = True
         self.c.set_var(
             contract="currency",
@@ -212,7 +205,7 @@ class TestMiscContracts(TestCase):
         self.c.executor.metering = False
 
     def test_memory_overload(self):
-        tmwc = self.c.get_contract("con_too_many_writes")
+        tmwc = self.c.get_contract_proxy("con_too_many_writes")
         self.c.executor.metering = True
         self.c.set_var(
             contract="currency",
@@ -234,7 +227,7 @@ class TestMiscContracts(TestCase):
         self.c.executor.metering = False
 
     def test_memory_overload2(self):
-        tmwc = self.c.get_contract("con_too_many_writes")
+        tmwc = self.c.get_contract_proxy("con_too_many_writes")
         self.c.executor.metering = True
         self.c.set_var(
             contract="currency",
@@ -268,7 +261,13 @@ class TestMiscContracts(TestCase):
             self.c.executor.execute(
                 contract_name="submission",
                 function_name="submit_contract",
-                kwargs={"name": "exploit", "code": exploit},
+                kwargs={
+                    "name": "exploit",
+                    "deployment_artifacts": self.c.build_deployment_artifacts(
+                        exploit,
+                        name="exploit",
+                    ),
+                },
                 chi=1000,
                 sender="stu",
             )["status_code"],
@@ -291,12 +290,12 @@ class TestPassHash(TestCase):
 
         self.c.raw_driver.set_contract(
             name="submission",
-            code=contract,
+            source=contract,
         )
 
         self.c.raw_driver.commit()
 
-        submission = self.c.get_contract("submission")
+        submission = self.c.get_contract_proxy("submission")
 
         # submit erc20 clone
         pass_hash_path = os.path.join(
@@ -315,8 +314,8 @@ class TestPassHash(TestCase):
             code = f.read()
             self.c.submit(code, name="con_test_pass_hash")
 
-        self.pass_hash = self.c.get_contract("con_pass_hash")
-        self.test_pass_hash = self.c.get_contract("con_test_pass_hash")
+        self.pass_hash = self.c.get_contract_proxy("con_pass_hash")
+        self.test_pass_hash = self.c.get_contract_proxy("con_test_pass_hash")
 
     def test_store_value(self):
         self.test_pass_hash.store(k="thing", v="value")
@@ -331,12 +330,8 @@ def some_test_contract():
         return 1
 
 
-def import_submission():
-    import submission
-
-    @export
-    def haha():
-        code = """
+def import_submission_source():
+    child_source = """
 factory_caller = Variable()
 
 @construct
@@ -347,20 +342,50 @@ def seed():
 def get_factory_caller():
     return factory_caller.get()
 """
-        submission.submit_contract(name="con_something123", code=code)
+    child_artifacts = build_submission_artifacts(
+        "con_something123",
+        child_source,
+    )
+    return f"""
+import submission
+
+CHILD_ARTIFACTS = {child_artifacts!r}
+
+@export
+def haha():
+    submission.submit_contract(
+        name="con_something123",
+        deployment_artifacts=CHILD_ARTIFACTS,
+    )
+"""
 
 
-def bad_submission_factory():
-    import submission
-
-    @export
-    def deploy_bad():
-        code = """
+def bad_submission_factory_source():
+    child_source = """
 @construct
 def seed():
     assert False, "boom"
+
+@export
+def ready():
+    return True
 """
-        submission.submit_contract(name="con_bad_child", code=code)
+    child_artifacts = build_submission_artifacts(
+        "con_bad_child",
+        child_source,
+    )
+    return f"""
+import submission
+
+CHILD_ARTIFACTS = {child_artifacts!r}
+
+@export
+def deploy_bad():
+    submission.submit_contract(
+        name="con_bad_child",
+        deployment_artifacts=CHILD_ARTIFACTS,
+    )
+"""
 
 
 def malicious_owner_rewrite():
@@ -389,7 +414,7 @@ class TestDeveloperSubmission(TestCase):
 
         self.c.raw_driver.set_contract(
             name="submission",
-            code=contract,
+            source=contract,
         )
 
         self.c.raw_driver.commit()
@@ -408,7 +433,7 @@ class TestDeveloperSubmission(TestCase):
     def test_change_developer_if_developer_works(self):
         self.c.submit(some_test_contract, name="con_some_test_contract")
 
-        submission = self.c.get_contract("submission")
+        submission = self.c.get_contract_proxy("submission")
 
         submission.change_developer(
             contract="con_some_test_contract", new_developer="not_stu"
@@ -421,7 +446,7 @@ class TestDeveloperSubmission(TestCase):
     def test_change_developer_prevents_new_change(self):
         self.c.submit(some_test_contract, name="con_some_test_contract")
 
-        submission = self.c.get_contract("submission")
+        submission = self.c.get_contract_proxy("submission")
 
         submission.change_developer(
             contract="con_some_test_contract", new_developer="not_stu"
@@ -439,7 +464,7 @@ class TestDeveloperSubmission(TestCase):
             owner="stu",
         )
 
-        submission = self.c.get_contract("submission")
+        submission = self.c.get_contract_proxy("submission")
         submission.change_owner(
             contract="con_owned_contract",
             new_owner="not_stu",
@@ -457,8 +482,8 @@ class TestDeveloperSubmission(TestCase):
             owner="stu",
         )
 
-        submission = self.c.get_contract("submission")
-        target = self.c.get_contract("con_owned_contract")
+        submission = self.c.get_contract_proxy("submission")
+        target = self.c.get_contract_proxy("con_owned_contract")
         submission.change_owner(
             contract="con_owned_contract",
             new_owner="not_stu",
@@ -479,7 +504,7 @@ class TestDeveloperSubmission(TestCase):
             owner="stu",
         )
 
-        submission = self.c.get_contract("submission")
+        submission = self.c.get_contract_proxy("submission")
 
         with self.assertRaises(AssertionError):
             submission.change_owner(
@@ -491,7 +516,7 @@ class TestDeveloperSubmission(TestCase):
     def test_change_owner_rejects_contract_without_runtime_owner(self):
         self.c.submit(some_test_contract, name="con_unowned_contract")
 
-        submission = self.c.get_contract("submission")
+        submission = self.c.get_contract_proxy("submission")
 
         with self.assertRaises(AssertionError):
             submission.change_owner(
@@ -537,7 +562,7 @@ class TestDeveloperSubmission(TestCase):
         )
         self.c.submit(malicious_owner_rewrite, name="con_owner_attacker")
 
-        attacker = self.c.get_contract("con_owner_attacker")
+        attacker = self.c.get_contract_proxy("con_owner_attacker")
 
         with self.assertRaises(AssertionError):
             attacker.attack(contract="con_owned_contract", new_owner="mallory")
@@ -551,7 +576,7 @@ class TestDeveloperSubmission(TestCase):
         self.c.submit(some_test_contract, name="con_some_test_contract")
         self.c.submit(malicious_developer_rewrite, name="con_developer_attacker")
 
-        attacker = self.c.get_contract("con_developer_attacker")
+        attacker = self.c.get_contract_proxy("con_developer_attacker")
 
         with self.assertRaises(AssertionError):
             attacker.attack(
@@ -565,9 +590,12 @@ class TestDeveloperSubmission(TestCase):
         )
 
     def test_can_import_submission_for_factory_deploy(self):
-        self.c.submit(import_submission, name="con_import_submission")
+        self.c.submit(
+            import_submission_source(),
+            name="con_import_submission",
+        )
 
-        imp_con = self.c.get_contract("con_import_submission")
+        imp_con = self.c.get_contract_proxy("con_import_submission")
         imp_con.haha()
 
         self.assertEqual(
@@ -588,7 +616,10 @@ class TestDeveloperSubmission(TestCase):
         )
 
     def test_factory_deploy_rolls_back_on_child_constructor_failure(self):
-        self.c.submit(bad_submission_factory, name="con_bad_submission_factory")
+        self.c.submit(
+            bad_submission_factory_source(),
+            name="con_bad_submission_factory",
+        )
 
         output = self.c.executor.execute(
             sender="stu",
@@ -599,7 +630,7 @@ class TestDeveloperSubmission(TestCase):
         )
 
         self.assertEqual(output["status_code"], 1)
-        self.assertIsNone(self.c.raw_driver.get_contract("con_bad_child"))
+        self.assertIsNone(self.c.raw_driver.get_local_contract_runtime("con_bad_child"))
         self.assertIsNone(
             self.c.raw_driver.get_contract_source("con_bad_child")
         )
@@ -635,7 +666,7 @@ class TestFloatThing(TestCase):
 
         self.c.raw_driver.set_contract(
             name="submission",
-            code=contract,
+            source=contract,
         )
 
         self.c.raw_driver.commit()
@@ -643,7 +674,7 @@ class TestFloatThing(TestCase):
     def test_can_add(self):
         self.c.submit(con_float_thing, name="con_float_thing")
 
-        ft_con = self.c.get_contract("con_float_thing")
+        ft_con = self.c.get_contract_proxy("con_float_thing")
         ft_con.float_thing_fn(
             currency_reserve=50000.125,
             token_reserve=52.45,
@@ -829,7 +860,7 @@ class TestHackThing(TestCase):
 
         self.c.raw_driver.set_contract(
             name="submission",
-            code=contract,
+            source=contract,
         )
 
         self.c.raw_driver.commit()
@@ -839,7 +870,7 @@ class TestHackThing(TestCase):
         with self.assertRaises(Exception):
             self.c.submit(module_hack, name="con_module_hack")
 
-            ft_con = self.c.get_contract("con_module_hack")
+            ft_con = self.c.get_contract_proxy("con_module_hack")
 
             ft_con.hack()
 
@@ -863,7 +894,7 @@ class TestHackThing(TestCase):
         self.c.submit(con_test_one)
         self.c.submit(con_test_two)
 
-        t2 = self.c.get_contract("con_test_two")
+        t2 = self.c.get_contract_proxy("con_test_two")
 
         with self.assertRaises(Exception):
             t2.clear()
@@ -904,7 +935,7 @@ class TestFixed(TestCase):
 
         self.c.raw_driver.set_contract(
             name="submission",
-            code=contract,
+            source=contract,
         )
 
         self.c.raw_driver.commit()
@@ -914,7 +945,7 @@ class TestFixed(TestCase):
 
         self.c.raw_driver.commit()
         self.c.raw_driver.flush_cache()
-        f = self.c.get_contract("con_test_fixed")
+        f = self.c.get_contract_proxy("con_test_fixed")
 
         z = f.multiply()
         self.assertEqual(z, 1.234 * 5.678)

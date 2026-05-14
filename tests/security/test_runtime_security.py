@@ -1,7 +1,6 @@
 from unittest import TestCase
 
-from contracting.client import ContractingClient
-
+from contracting.local import ContractingClient
 
 ROOT_REENTRY_CONTRACT = """
 counter = Variable(default_value=0)
@@ -133,45 +132,39 @@ class TestRuntimeSecurity(TestCase):
         self.assertIsNone(self.client.raw_driver.get("con_reentry_root.counter"))
         self.assertIsNone(self.client.raw_driver.get("con_reentry_child.seen"))
 
-        root = self.client.get_contract("con_reentry_root")
-        child = self.client.get_contract("con_reentry_child")
+        root = self.client.get_contract_proxy("con_reentry_root")
+        child = self.client.get_contract_proxy("con_reentry_child")
         self.assertEqual(root.get_counter(), 0)
         self.assertEqual(child.get_seen(), "")
 
-    def test_contract_python_globals_do_not_persist_across_transactions(self):
-        self.client.submit(
-            DIRECT_TRANSIENT_GLOBAL_CONTRACT,
-            name="con_transient_direct",
-        )
+    def test_contract_python_globals_are_rejected_before_deployment(self):
+        with self.assertRaisesRegex(
+            Exception,
+            "xian.syntax.unsupported_statement.global",
+        ):
+            self.client.submit(
+                DIRECT_TRANSIENT_GLOBAL_CONTRACT,
+                name="con_transient_direct",
+            )
 
-        contract = self.client.get_contract("con_transient_direct")
+    def test_dynamic_imported_contract_globals_are_rejected_before_deployment(self):
+        with self.assertRaisesRegex(
+            Exception,
+            "xian.syntax.unsupported_statement.global",
+        ):
+            self.client.submit(
+                DYNAMIC_TRANSIENT_CHILD_CONTRACT,
+                name="con_transient_child",
+            )
 
-        self.assertEqual(contract.bump(), 1)
-        self.assertEqual(contract.bump(), 1)
-
-    def test_dynamic_imported_contract_globals_do_not_persist(self):
-        self.client.submit(
-            DYNAMIC_TRANSIENT_CHILD_CONTRACT,
-            name="con_transient_child",
-        )
-        self.client.submit(
-            DYNAMIC_TRANSIENT_PARENT_CONTRACT,
-            name="con_transient_parent",
-        )
-
-        parent = self.client.get_contract("con_transient_parent")
-
-        self.assertEqual(parent.bounce(), 1)
-        self.assertEqual(parent.bounce(), 1)
-
-    def test_redeploy_after_flush_uses_fresh_contract_code(self):
+    def test_redeploy_after_flush_uses_fresh_contract_source(self):
         self.client.raw_driver.set_contract_from_source(
             name="con_reload_probe",
             source=RELOAD_V1_CONTRACT,
         )
         self.client.raw_driver.commit()
 
-        probe = self.client.get_contract("con_reload_probe")
+        probe = self.client.get_contract_proxy("con_reload_probe")
         self.assertEqual(probe.version(), "v1")
 
         self.client.raw_driver.flush_full()
@@ -182,7 +175,7 @@ class TestRuntimeSecurity(TestCase):
         )
         self.client.raw_driver.commit()
 
-        probe = self.client.get_contract("con_reload_probe")
+        probe = self.client.get_contract_proxy("con_reload_probe")
         self.assertEqual(probe.version(), "v2")
 
     def test_hash_prefix_reads_do_not_expose_live_mutable_state(self):
@@ -191,6 +184,6 @@ class TestRuntimeSecurity(TestCase):
             name="con_hash_all_mutation",
         )
 
-        contract = self.client.get_contract("con_hash_all_mutation")
+        contract = self.client.get_contract_proxy("con_hash_all_mutation")
 
         self.assertEqual(contract.mutate_via_all(), {"count": 1})

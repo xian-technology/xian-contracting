@@ -1,0 +1,428 @@
+{
+  "artifact": {
+    "format": "xian_contract_artifact_v1",
+    "hashes": {
+      "input_source_sha256": "1a3ca48793ff9996ccb12e857220e21f09ac44f9b3e9f20b84cab5163f0f7bcb",
+      "source_sha256": "67cdbd433d1088782d00b6d53b8e6ff9f0852386c6a5214f013a06ad3e679807",
+      "vm_ir_sha256": "578965922456f7879e285bbf9cf373fa2665d44a653a9bad2639bc1c818683f9"
+    },
+    "module_name": "con_dynamic_import",
+    "source": "I = importlib\n\ndef load_token(token: str):\n    return I.import_module(token)\n\n@export\ndef call_token(token: str, amount: int, to: str):\n    module = load_token(token)\n    module.transfer(amount=amount, to=to)",
+    "vm_ir_json": "{\"docstring\": null, \"functions\": [{\"body\": [{\"node\": \"return\", \"span\": {\"col\": 4, \"end_col\": 33, \"end_line\": 4, \"line\": 4}, \"value\": {\"args\": [{\"host_binding_id\": null, \"id\": \"token\", \"node\": \"name\", \"span\": {\"col\": 27, \"end_col\": 32, \"end_line\": 4, \"line\": 4}}], \"event_binding\": null, \"func\": {\"attr\": \"import_module\", \"host_binding_id\": \"contract.import\", \"node\": \"attribute\", \"path\": \"I.import_module\", \"span\": {\"col\": 11, \"end_col\": 26, \"end_line\": 4, \"line\": 4}, \"value\": {\"host_binding_id\": \"module.importlib\", \"id\": \"I\", \"node\": \"name\", \"span\": {\"col\": 11, \"end_col\": 12, \"end_line\": 4, \"line\": 4}}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 11, \"end_col\": 33, \"end_line\": 4, \"line\": 4}, \"syscall_id\": \"contract.import\"}}], \"decorator\": null, \"docstring\": null, \"name\": \"load_token\", \"node\": \"function\", \"parameters\": [{\"annotation\": \"str\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"token\", \"span\": {\"col\": 15, \"end_col\": 25, \"end_line\": 3, \"line\": 3}}], \"returns\": null, \"span\": {\"col\": 0, \"end_col\": 33, \"end_line\": 4, \"line\": 3}, \"visibility\": \"private\"}, {\"body\": [{\"node\": \"assign\", \"span\": {\"col\": 4, \"end_col\": 30, \"end_line\": 8, \"line\": 8}, \"targets\": [{\"host_binding_id\": null, \"id\": \"module\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 10, \"end_line\": 8, \"line\": 8}}], \"value\": {\"args\": [{\"host_binding_id\": null, \"id\": \"token\", \"node\": \"name\", \"span\": {\"col\": 24, \"end_col\": 29, \"end_line\": 8, \"line\": 8}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"load_token\", \"node\": \"name\", \"span\": {\"col\": 13, \"end_col\": 23, \"end_line\": 8, \"line\": 8}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 13, \"end_col\": 30, \"end_line\": 8, \"line\": 8}, \"syscall_id\": null}}, {\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 41, \"end_line\": 9, \"line\": 9}, \"value\": {\"args\": [], \"contract_target\": {\"binding\": \"module\", \"kind\": \"local_handle\", \"source\": {\"args\": [{\"host_binding_id\": null, \"id\": \"token\", \"node\": \"name\", \"span\": {\"col\": 24, \"end_col\": 29, \"end_line\": 8, \"line\": 8}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"load_token\", \"node\": \"name\", \"span\": {\"col\": 13, \"end_col\": 23, \"end_line\": 8, \"line\": 8}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 13, \"end_col\": 30, \"end_line\": 8, \"line\": 8}, \"syscall_id\": null}, \"span\": {\"col\": 4, \"end_col\": 10, \"end_line\": 9, \"line\": 9}}, \"func\": {\"attr\": \"transfer\", \"host_binding_id\": null, \"node\": \"attribute\", \"path\": \"module.transfer\", \"span\": {\"col\": 4, \"end_col\": 19, \"end_line\": 9, \"line\": 9}, \"value\": {\"host_binding_id\": null, \"id\": \"module\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 10, \"end_line\": 9, \"line\": 9}}}, \"function_name\": \"transfer\", \"keywords\": [{\"arg\": \"amount\", \"node\": \"keyword\", \"span\": {\"col\": 20, \"end_col\": 33, \"end_line\": 9, \"line\": 9}, \"value\": {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 27, \"end_col\": 33, \"end_line\": 9, \"line\": 9}}}, {\"arg\": \"to\", \"node\": \"keyword\", \"span\": {\"col\": 35, \"end_col\": 40, \"end_line\": 9, \"line\": 9}, \"value\": {\"host_binding_id\": null, \"id\": \"to\", \"node\": \"name\", \"span\": {\"col\": 38, \"end_col\": 40, \"end_line\": 9, \"line\": 9}}}], \"node\": \"call\", \"span\": {\"col\": 4, \"end_col\": 41, \"end_line\": 9, \"line\": 9}, \"syscall_id\": \"contract.export_call\"}}], \"decorator\": {\"args\": [], \"keywords\": [], \"name\": \"export\", \"node\": \"decorator\", \"span\": {\"col\": 1, \"end_col\": 7, \"end_line\": 6, \"line\": 6}}, \"docstring\": null, \"name\": \"call_token\", \"node\": \"function\", \"parameters\": [{\"annotation\": \"str\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"token\", \"span\": {\"col\": 15, \"end_col\": 25, \"end_line\": 7, \"line\": 7}}, {\"annotation\": \"int\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"amount\", \"span\": {\"col\": 27, \"end_col\": 38, \"end_line\": 7, \"line\": 7}}, {\"annotation\": \"str\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"to\", \"span\": {\"col\": 40, \"end_col\": 47, \"end_line\": 7, \"line\": 7}}], \"returns\": null, \"span\": {\"col\": 0, \"end_col\": 41, \"end_line\": 9, \"line\": 7}, \"visibility\": \"export\"}], \"global_declarations\": [{\"name\": \"I\", \"node\": \"binding_decl\", \"span\": {\"col\": 0, \"end_col\": 13, \"end_line\": 1, \"line\": 1}, \"value\": {\"host_binding_id\": \"module.importlib\", \"id\": \"importlib\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 13, \"end_line\": 1, \"line\": 1}}}], \"host_catalog_version\": \"xian_vm_v1_host_v1\", \"host_dependencies\": [{\"binding\": \"__contract_export__\", \"category\": \"contract\", \"id\": \"contract.export_call\", \"kind\": \"syscall\"}, {\"binding\": \"importlib.import_module\", \"category\": \"import\", \"id\": \"contract.import\", \"kind\": \"syscall\"}, {\"binding\": \"importlib\", \"category\": \"import\", \"id\": \"module.importlib\", \"kind\": \"value\"}], \"imports\": [], \"ir_version\": \"xian_ir_v1\", \"module_body\": [], \"module_name\": \"con_dynamic_import\", \"source_hash\": \"67cdbd433d1088782d00b6d53b8e6ff9f0852386c6a5214f013a06ad3e679807\", \"vm_profile\": \"xian_vm_v1\"}",
+    "vm_profile": "xian_vm_v1"
+  },
+  "diagnostics": [],
+  "expected": {
+    "accepted": true
+  },
+  "generator": {
+    "artifact_format": "xian_contract_artifact_v1",
+    "name": "python-contracting"
+  },
+  "input_source": "I = importlib\n\n\ndef load_token(token: str):\n    return I.import_module(token)\n\n\n@export\ndef call_token(token: str, amount: int, to: str):\n    module = load_token(token)\n    module.transfer(amount=amount, to=to)\n",
+  "module_name": "con_dynamic_import",
+  "name": "con_dynamic_import",
+  "normalized_source": "I = importlib\n\ndef load_token(token: str):\n    return I.import_module(token)\n\n@export\ndef call_token(token: str, amount: int, to: str):\n    module = load_token(token)\n    module.transfer(amount=amount, to=to)",
+  "schema": "xian.compiler_fixture.v1",
+  "source_path": "packages/xian-compiler-core/tests/sources/con_dynamic_import.s.py",
+  "vm_ir": {
+    "docstring": null,
+    "functions": [
+      {
+        "body": [
+          {
+            "node": "return",
+            "span": {
+              "col": 4,
+              "end_col": 33,
+              "end_line": 4,
+              "line": 4
+            },
+            "value": {
+              "args": [
+                {
+                  "host_binding_id": null,
+                  "id": "token",
+                  "node": "name",
+                  "span": {
+                    "col": 27,
+                    "end_col": 32,
+                    "end_line": 4,
+                    "line": 4
+                  }
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "attr": "import_module",
+                "host_binding_id": "contract.import",
+                "node": "attribute",
+                "path": "I.import_module",
+                "span": {
+                  "col": 11,
+                  "end_col": 26,
+                  "end_line": 4,
+                  "line": 4
+                },
+                "value": {
+                  "host_binding_id": "module.importlib",
+                  "id": "I",
+                  "node": "name",
+                  "span": {
+                    "col": 11,
+                    "end_col": 12,
+                    "end_line": 4,
+                    "line": 4
+                  }
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 11,
+                "end_col": 33,
+                "end_line": 4,
+                "line": 4
+              },
+              "syscall_id": "contract.import"
+            }
+          }
+        ],
+        "decorator": null,
+        "docstring": null,
+        "name": "load_token",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "str",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "token",
+            "span": {
+              "col": 15,
+              "end_col": 25,
+              "end_line": 3,
+              "line": 3
+            }
+          }
+        ],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 33,
+          "end_line": 4,
+          "line": 3
+        },
+        "visibility": "private"
+      },
+      {
+        "body": [
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 30,
+              "end_line": 8,
+              "line": 8
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "module",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 10,
+                  "end_line": 8,
+                  "line": 8
+                }
+              }
+            ],
+            "value": {
+              "args": [
+                {
+                  "host_binding_id": null,
+                  "id": "token",
+                  "node": "name",
+                  "span": {
+                    "col": 24,
+                    "end_col": 29,
+                    "end_line": 8,
+                    "line": 8
+                  }
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "host_binding_id": null,
+                "id": "load_token",
+                "node": "name",
+                "span": {
+                  "col": 13,
+                  "end_col": 23,
+                  "end_line": 8,
+                  "line": 8
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 13,
+                "end_col": 30,
+                "end_line": 8,
+                "line": 8
+              },
+              "syscall_id": null
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 41,
+              "end_line": 9,
+              "line": 9
+            },
+            "value": {
+              "args": [],
+              "contract_target": {
+                "binding": "module",
+                "kind": "local_handle",
+                "source": {
+                  "args": [
+                    {
+                      "host_binding_id": null,
+                      "id": "token",
+                      "node": "name",
+                      "span": {
+                        "col": 24,
+                        "end_col": 29,
+                        "end_line": 8,
+                        "line": 8
+                      }
+                    }
+                  ],
+                  "event_binding": null,
+                  "func": {
+                    "host_binding_id": null,
+                    "id": "load_token",
+                    "node": "name",
+                    "span": {
+                      "col": 13,
+                      "end_col": 23,
+                      "end_line": 8,
+                      "line": 8
+                    }
+                  },
+                  "keywords": [],
+                  "node": "call",
+                  "span": {
+                    "col": 13,
+                    "end_col": 30,
+                    "end_line": 8,
+                    "line": 8
+                  },
+                  "syscall_id": null
+                },
+                "span": {
+                  "col": 4,
+                  "end_col": 10,
+                  "end_line": 9,
+                  "line": 9
+                }
+              },
+              "func": {
+                "attr": "transfer",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "module.transfer",
+                "span": {
+                  "col": 4,
+                  "end_col": 19,
+                  "end_line": 9,
+                  "line": 9
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "module",
+                  "node": "name",
+                  "span": {
+                    "col": 4,
+                    "end_col": 10,
+                    "end_line": 9,
+                    "line": 9
+                  }
+                }
+              },
+              "function_name": "transfer",
+              "keywords": [
+                {
+                  "arg": "amount",
+                  "node": "keyword",
+                  "span": {
+                    "col": 20,
+                    "end_col": 33,
+                    "end_line": 9,
+                    "line": 9
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "amount",
+                    "node": "name",
+                    "span": {
+                      "col": 27,
+                      "end_col": 33,
+                      "end_line": 9,
+                      "line": 9
+                    }
+                  }
+                },
+                {
+                  "arg": "to",
+                  "node": "keyword",
+                  "span": {
+                    "col": 35,
+                    "end_col": 40,
+                    "end_line": 9,
+                    "line": 9
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "to",
+                    "node": "name",
+                    "span": {
+                      "col": 38,
+                      "end_col": 40,
+                      "end_line": 9,
+                      "line": 9
+                    }
+                  }
+                }
+              ],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 41,
+                "end_line": 9,
+                "line": 9
+              },
+              "syscall_id": "contract.export_call"
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 6,
+            "line": 6
+          }
+        },
+        "docstring": null,
+        "name": "call_token",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "str",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "token",
+            "span": {
+              "col": 15,
+              "end_col": 25,
+              "end_line": 7,
+              "line": 7
+            }
+          },
+          {
+            "annotation": "int",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "amount",
+            "span": {
+              "col": 27,
+              "end_col": 38,
+              "end_line": 7,
+              "line": 7
+            }
+          },
+          {
+            "annotation": "str",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "to",
+            "span": {
+              "col": 40,
+              "end_col": 47,
+              "end_line": 7,
+              "line": 7
+            }
+          }
+        ],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 41,
+          "end_line": 9,
+          "line": 7
+        },
+        "visibility": "export"
+      }
+    ],
+    "global_declarations": [
+      {
+        "name": "I",
+        "node": "binding_decl",
+        "span": {
+          "col": 0,
+          "end_col": 13,
+          "end_line": 1,
+          "line": 1
+        },
+        "value": {
+          "host_binding_id": "module.importlib",
+          "id": "importlib",
+          "node": "name",
+          "span": {
+            "col": 4,
+            "end_col": 13,
+            "end_line": 1,
+            "line": 1
+          }
+        }
+      }
+    ],
+    "host_catalog_version": "xian_vm_v1_host_v1",
+    "host_dependencies": [
+      {
+        "binding": "__contract_export__",
+        "category": "contract",
+        "id": "contract.export_call",
+        "kind": "syscall"
+      },
+      {
+        "binding": "importlib.import_module",
+        "category": "import",
+        "id": "contract.import",
+        "kind": "syscall"
+      },
+      {
+        "binding": "importlib",
+        "category": "import",
+        "id": "module.importlib",
+        "kind": "value"
+      }
+    ],
+    "imports": [],
+    "ir_version": "xian_ir_v1",
+    "module_body": [],
+    "module_name": "con_dynamic_import",
+    "source_hash": "67cdbd433d1088782d00b6d53b8e6ff9f0852386c6a5214f013a06ad3e679807",
+    "vm_profile": "xian_vm_v1"
+  },
+  "vm_profile": "xian_vm_v1"
+}

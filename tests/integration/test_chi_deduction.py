@@ -1,9 +1,19 @@
 import os
 from unittest import TestCase
 
+from contracting.artifacts import build_contract_artifacts
 from contracting.constants import CHI_PER_T
 from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
+
+
+def build_submission_artifacts(name, source):
+    return build_contract_artifacts(
+        module_name=name,
+        source=source,
+        lint=True,
+        vm_profile="xian_vm_v1",
+    )
 
 
 def submission_kwargs_for_file(f):
@@ -16,11 +26,14 @@ def submission_kwargs_for_file(f):
     contract_name = split[0]
 
     with open(f) as file:
-        contract_code = file.read()
+        contract_source = file.read()
 
     return {
         "name": f"con_{contract_name}",
-        "code": contract_code,
+        "deployment_artifacts": build_submission_artifacts(
+            f"con_{contract_name}",
+            contract_source,
+        ),
     }
 
 
@@ -44,7 +57,7 @@ class TestMetering(TestCase):
         with open(submission_path) as f:
             contract = f.read()
 
-        self.d.set_contract(name="submission", code=contract)
+        self.d.set_contract(name="submission", source=contract)
         self.d.commit()
 
         # Execute the currency contract with metering disabled
@@ -175,7 +188,13 @@ def get():
 """
         self.e.execute(
             **TEST_SUBMISSION_KWARGS,
-            kwargs={"name": "con_string_balance_probe", "code": small_code},
+            kwargs={
+                "name": "con_string_balance_probe",
+                "deployment_artifacts": build_submission_artifacts(
+                    "con_string_balance_probe",
+                    small_code,
+                ),
+            },
             metering=False,
             auto_commit=True,
         )
@@ -241,13 +260,25 @@ def get():
 
         self.e.execute(
             **TEST_SUBMISSION_KWARGS,
-            kwargs={"name": "con_small_return", "code": small_code},
+            kwargs={
+                "name": "con_small_return",
+                "deployment_artifacts": build_submission_artifacts(
+                    "con_small_return",
+                    small_code,
+                ),
+            },
             metering=False,
             auto_commit=True,
         )
         self.e.execute(
             **TEST_SUBMISSION_KWARGS,
-            kwargs={"name": "con_large_return", "code": large_code},
+            kwargs={
+                "name": "con_large_return",
+                "deployment_artifacts": build_submission_artifacts(
+                    "con_large_return",
+                    large_code,
+                ),
+            },
             metering=False,
             auto_commit=True,
         )
@@ -277,7 +308,13 @@ def get():
 
         self.e.execute(
             **TEST_SUBMISSION_KWARGS,
-            kwargs={"name": "con_huge_return", "code": huge_code},
+            kwargs={
+                "name": "con_huge_return",
+                "deployment_artifacts": build_submission_artifacts(
+                    "con_huge_return",
+                    huge_code,
+                ),
+            },
             metering=False,
             auto_commit=True,
         )

@@ -5,6 +5,10 @@ from pathlib import Path
 from contracting.compilation.authored_conformance import (
     AuthoredConformanceAuditor,
 )
+from contracting.compilation.sources import (
+    iter_authored_contract_sources,
+    module_name_from_path,
+)
 from scripts.audit_authored_conformance import main
 
 
@@ -95,3 +99,18 @@ def test_audit_authored_conformance_main_returns_success_for_covered_contract(
     exit_code = main([str(tmp_path), "--fail-on-issues"])
 
     assert exit_code == 0
+
+
+def test_iter_authored_contract_sources_ignores_non_contract_files(
+    tmp_path: Path,
+) -> None:
+    contract_path = tmp_path / "con_probe.py"
+    contract_path.write_text("@export\ndef ping():\n    return 'pong'\n")
+    test_path = tmp_path / "tests" / "test_probe.py"
+    test_path.parent.mkdir()
+    test_path.write_text("def test_probe():\n    pass\n")
+
+    discovered = iter_authored_contract_sources([tmp_path])
+
+    assert discovered == [contract_path]
+    assert module_name_from_path(contract_path) == "con_probe"

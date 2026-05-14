@@ -38,7 +38,7 @@ class TestContractNames(TestCase):
         with self.assertRaises(AssertionError):
             self.driver.set_contract(
                 name="con.bad",
-                code="@export\ndef ping():\n    return 1\n",
+                source="@export\ndef ping():\n    return 1\n",
             )
 
     def test_driver_set_contract_from_source_rejects_unsafe_name(self):

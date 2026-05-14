@@ -15,7 +15,7 @@
 - `src/contracting/compilation/`: parser, compiler, linter, and whitelist logic.
 - `src/contracting/execution/`: runtime, executor, module loading, and tracing.
 - `src/contracting/storage/`: drivers, ORM helpers, encoder, and LMDB-backed state storage.
-- `src/contracting/contracts/`: package-local runtime assets such as the
+- `src/contracting/contracts/`: package-local contract assets such as the
   built-in submission contract.
 - `tests/`: unit, integration, security, and performance coverage.
 

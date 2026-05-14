@@ -1,9 +1,19 @@
 import os
 from unittest import TestCase
 
+from contracting.artifacts import build_contract_artifacts
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
+
+
+def build_submission_artifacts(name, source):
+    return build_contract_artifacts(
+        module_name=name,
+        source=source,
+        lint=True,
+        vm_profile="xian_vm_v1",
+    )
 
 
 def submission_kwargs_for_file(f):
@@ -16,11 +26,14 @@ def submission_kwargs_for_file(f):
     contract_name = split[0]
 
     with open(f) as file:
-        contract_code = file.read()
+        contract_source = file.read()
 
     return {
         "name": f"con_{contract_name}",
-        "code": contract_code,
+        "deployment_artifacts": build_submission_artifacts(
+            f"con_{contract_name}",
+            contract_source,
+        ),
     }
 
 
@@ -43,7 +56,7 @@ class TestExecutor(TestCase):
         with open(submission_path) as f:
             contract = f.read()
 
-        self.d.set_contract(name="submission", code=contract)
+        self.d.set_contract(name="submission", source=contract)
         self.d.commit()
 
         self.compiler = ContractingCompiler()
@@ -60,14 +73,20 @@ def d():
     return 1            
 """
 
-        kwargs = {"name": "con_stubucks", "code": code}
+        kwargs = {
+            "name": "con_stubucks",
+            "deployment_artifacts": build_submission_artifacts(
+                "con_stubucks",
+                code,
+            ),
+        }
 
         e.execute(**TEST_SUBMISSION_KWARGS, kwargs=kwargs, auto_commit=True)
 
         self.compiler.module_name = "con_stubucks"
         new_code = self.compiler.parse_to_code(code)
 
-        self.assertEqual(self.d.get_contract("con_stubucks"), new_code)
+        self.assertEqual(self.d.get_local_contract_runtime("con_stubucks"), new_code)
 
     def test_submission_then_function_call(self):
         e = Executor(metering=False)
@@ -77,7 +96,13 @@ def d():
     return 1            
 """
 
-        kwargs = {"name": "con_stubuckz", "code": code}
+        kwargs = {
+            "name": "con_stubuckz",
+            "deployment_artifacts": build_submission_artifacts(
+                "con_stubuckz",
+                code,
+            ),
+        }
 
         e.execute(**TEST_SUBMISSION_KWARGS, kwargs=kwargs)
         output = e.execute(
@@ -106,7 +131,13 @@ def ping():
         ):
             output = e.execute(
                 **TEST_SUBMISSION_KWARGS,
-                kwargs={"name": bad_name, "code": code},
+                kwargs={
+                    "name": bad_name,
+                    "deployment_artifacts": build_submission_artifacts(
+                        bad_name,
+                        code,
+                    ),
+                },
             )
 
             self.assertEqual(output["status_code"], 1)
@@ -114,7 +145,7 @@ def ping():
                 "lowercase ASCII letters, digits, and underscores",
                 str(output["result"]),
             )
-            self.assertIsNone(self.d.get_contract(bad_name))
+            self.assertIsNone(self.d.get_local_contract_runtime(bad_name))
 
     def test_submission_rejects_invalid_owner_type(self):
         e = Executor(metering=False)
@@ -126,11 +157,18 @@ def ping():
 
         output = e.execute(
             **TEST_SUBMISSION_KWARGS,
-            kwargs={"name": "con_valid_name", "code": code, "owner": 7},
+            kwargs={
+                "name": "con_valid_name",
+                "deployment_artifacts": build_submission_artifacts(
+                    "con_valid_name",
+                    code,
+                ),
+                "owner": 7,
+            },
         )
 
         self.assertEqual(output["status_code"], 1)
-        self.assertIsNone(self.d.get_contract("con_valid_name"))
+        self.assertIsNone(self.d.get_local_contract_runtime("con_valid_name"))
 
     def test_change_developer_rejects_empty_string(self):
         e = Executor(metering=False)
@@ -142,7 +180,13 @@ def ping():
 
         e.execute(
             **TEST_SUBMISSION_KWARGS,
-            kwargs={"name": "con_valid_name", "code": code},
+            kwargs={
+                "name": "con_valid_name",
+                "deployment_artifacts": build_submission_artifacts(
+                    "con_valid_name",
+                    code,
+                ),
+            },
             auto_commit=True,
         )
 
@@ -180,7 +224,10 @@ def get_v():
 """
 
         self.assertEqual(k["name"], "con_orm_variable_contract")
-        self.assertEqual(k["code"], code)
+        self.assertEqual(
+            k["deployment_artifacts"]["source"].strip(),
+            code.strip(),
+        )
 
     def test_orm_variable_sets_in_contract(self):
         e = Executor(metering=False)
@@ -276,7 +323,13 @@ def get_queue():
 
         e.execute(
             **TEST_SUBMISSION_KWARGS,
-            kwargs={"name": "con_variable_collections", "code": code},
+            kwargs={
+                "name": "con_variable_collections",
+                "deployment_artifacts": build_submission_artifacts(
+                    "con_variable_collections",
+                    code,
+                ),
+            },
         )
 
         e.execute(
@@ -616,15 +669,11 @@ def get_queue():
             "orm_no_contract_access.s.py",
         )
 
-        output = e.execute(
-            **TEST_SUBMISSION_KWARGS,
-            kwargs=submission_kwargs_for_file(test_orm_no_contract_access_path),
-        )
-
-        self.assertEqual(
-            str(output["result"]),
-            "[\"1:4: E002 Name '__Contract' must not start or end with underscore\"]",
-        )
+        with self.assertRaisesRegex(
+            Exception,
+            "Name '__Contract' must not start or end with underscore",
+        ):
+            submission_kwargs_for_file(test_orm_no_contract_access_path)
 
     def test_construct_function_sets_properly(self):
         e = Executor(metering=False)

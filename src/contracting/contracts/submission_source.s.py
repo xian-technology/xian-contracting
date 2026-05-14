@@ -41,30 +41,22 @@ def assert_safe_contract_name(name: str):
 @export
 def submit_contract(
     name: str,
-    code: str = None,
     owner: str = None,
     constructor_args: dict = None,
     deployment_artifacts: dict = None,
 ):
     assert_safe_contract_name(name)
-    assert code is None or (
-        isinstance(code, str) and code != ""
-    ), "code must be None or a non-empty string!"
     assert owner is None or (
         isinstance(owner, str) and owner != ""
     ), "Owner must be None or a non-empty string!"
     if constructor_args is None:
         constructor_args = {}
-    assert deployment_artifacts is None or isinstance(
+    assert isinstance(
         deployment_artifacts, dict
-    ), "deployment_artifacts must be None or a dict!"
-    assert (
-        code is not None or deployment_artifacts is not None
-    ), "submit_contract requires code or deployment_artifacts!"
+    ), "deployment_artifacts must be a dict!"
 
     Contract.deploy(
         name=name,
-        code=code,
         deployment_artifacts=deployment_artifacts,
         owner=owner,
         constructor_args=constructor_args,

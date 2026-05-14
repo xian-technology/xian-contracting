@@ -21,13 +21,13 @@ def get_contract_info_by_name(s: str):
 
 
 @export
-def get_code_hash(s: str, kind: str = "runtime"):
+def get_code_hash(s: str, kind: str = "ir"):
     m = importlib.import_module(s)
     return importlib.code_hash(m, kind=kind)
 
 
 @export
-def get_code_hash_by_name(s: str, kind: str = "runtime"):
+def get_code_hash_by_name(s: str, kind: str = "ir"):
     return importlib.code_hash(s, kind=kind)
 
 

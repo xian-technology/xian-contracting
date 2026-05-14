@@ -887,7 +887,6 @@ fn validate_deployment_artifacts_json(
     .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?;
     let payload = PyDict::new(py);
     payload.set_item("source", bundle.source)?;
-    payload.set_item("runtime_code", bundle.runtime_code)?;
     payload.set_item("vm_ir_json", bundle.vm_ir_json)?;
     Ok(payload.into_any().unbind())
 }

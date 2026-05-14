@@ -16,6 +16,24 @@ else
   exit 1
 fi
 
+if [[ -d /opt/homebrew/opt/rustup/bin ]]; then
+  export PATH="/opt/homebrew/opt/rustup/bin:${PATH}"
+fi
+
+for required_bin in cargo npm wasm-pack; do
+  if ! command -v "${required_bin}" >/dev/null 2>&1; then
+    printf '%s is required but was not found\n' "${required_bin}" >&2
+    exit 1
+  fi
+done
+
+if command -v rustup >/dev/null 2>&1; then
+  rustup target add wasm32-unknown-unknown
+else
+  printf 'rustup is required to install the wasm32-unknown-unknown target\n' >&2
+  exit 1
+fi
+
 cd "${repo_root}"
 
 UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" sync \
@@ -28,10 +46,13 @@ UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" ruff
 UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" ruff format --check .
 UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" pytest
 
-cargo check --manifest-path packages/xian-native-tracer/Cargo.toml
+cargo test --manifest-path packages/xian-compiler-core/Cargo.toml
+cargo check --manifest-path packages/xian-compiler-core/Cargo.toml --features python-extension
+cargo check --manifest-path packages/xian-compiler-core/Cargo.toml --features wasm
 cargo check --manifest-path packages/xian-zk/Cargo.toml --features python-extension
 cargo check --manifest-path packages/xian-vm-core/Cargo.toml --features python-extension
 cargo test --manifest-path packages/xian-zk/Cargo.toml --no-default-features
+npm --prefix packages/xian-compiler-core/npm run build
 
 (
   cd packages/xian-zk
@@ -45,8 +66,6 @@ UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" pyte
   tests/security/test_runtime_security.py
 
 UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" pytest -q -m optional_native \
-  tests/unit/test_native_tracer.py \
-  tests/integration/test_tracer_workloads.py \
   tests/integration/test_zk_bridge.py
 
 UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" \
@@ -54,5 +73,4 @@ UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" \
   --with ./packages/xian-vm-core \
   python -m pytest -q -m optional_native \
   tests/integration/test_vm_language_conformance.py \
-  tests/integration/test_vm_metering_audit.py \
   tests/integration/test_vm_stateful_fuzz.py

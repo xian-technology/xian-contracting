@@ -32,10 +32,14 @@ def is_valid_import(name):
         )
 
 
+def _get_local_contract_runtime(driver: Driver, name: str):
+    return driver.get_local_contract_runtime(name)
+
+
 def restricted_import(name, globals=None, locals=None, fromlist=(), level=0):
     if globals is not None and globals.get("__contract__") is True:
         driver = ContractModuleFinder.current_driver()
-        if driver.get_contract(name) is None:
+        if _get_local_contract_runtime(driver, name) is None:
             raise ImportError(
                 "module {} cannot be imported in a smart contract.".format(name)
             )
@@ -94,7 +98,7 @@ def purge_contract_module(name: str) -> None:
 
 def import_contract_module(name: str):
     driver = ContractModuleFinder.current_driver()
-    if driver.get_contract(name) is None:
+    if _get_local_contract_runtime(driver, name) is None:
         raise ImportError("Module {} not found".format(name))
 
     purge_contract_module(name)
@@ -125,7 +129,7 @@ class ContractModuleFinder:
     def find_spec(cls, fullname, path=None, target=None):
         driver = cls.current_driver()
         try:
-            code = driver.get_contract(fullname)
+            code = _get_local_contract_runtime(driver, fullname)
         except RuntimeError, lmdb.Error:
             return None
         if code is None:
@@ -142,16 +146,16 @@ _CONTRACT_MODULE_DRIVER: ContextVar[Driver | None] = ContextVar(
 COMPILED_CODE_CACHE = LRUCache(maxsize=512)
 
 
-def _compiled_code_cache_key(name: str, code: str) -> tuple[str, str]:
-    code_hash = hashlib.sha3_256(code.encode("utf-8")).hexdigest()
+def _compiled_code_cache_key(name: str, runtime_source: str) -> tuple[str, str]:
+    code_hash = hashlib.sha3_256(runtime_source.encode("utf-8")).hexdigest()
     return name, code_hash
 
 
-def _compile_contract_code(name: str, code: str):
-    cache_key = _compiled_code_cache_key(name, code)
+def _compile_contract_runtime_source(name: str, runtime_source: str):
+    cache_key = _compiled_code_cache_key(name, runtime_source)
     compiled = COMPILED_CODE_CACHE.get(cache_key)
     if compiled is None:
-        compiled = compile(code, name, "exec")
+        compiled = compile(runtime_source, name, "exec")
         COMPILED_CODE_CACHE[cache_key] = compiled
     return compiled
 
@@ -165,11 +169,11 @@ class ContractModuleLoader(Loader):
 
     def exec_module(self, module):
         # fetch the individual contract
-        code = self.driver.get_contract(module.__name__)
+        code = _get_local_contract_runtime(self.driver, module.__name__)
         if code is None:
             raise ImportError("Module {} not found".format(module.__name__))
 
-        compiled = _compile_contract_code(module.__name__, code)
+        compiled = _compile_contract_runtime_source(module.__name__, code)
 
         rt.tracer.register_code(compiled)
 

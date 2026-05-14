@@ -1,9 +1,23 @@
-from unittest import TestCase
-from contracting.storage.driver import Driver
-from contracting.execution.executor import Executor
-from xian_runtime_types.time import Datetime
-import contracting
 import os
+from unittest import TestCase
+
+from xian_runtime_types.time import Datetime
+
+import contracting
+from contracting.artifacts import build_contract_artifacts
+from contracting.execution.executor import Executor
+from contracting.storage.driver import Driver
+
+
+def build_submission_artifacts(name, source):
+    return build_contract_artifacts(
+        module_name=name,
+        source=source,
+        lint=True,
+        vm_profile="xian_vm_v1",
+    )
+
+
 def submission_kwargs_for_file(f):
     # Get the file name only by splitting off directories
     split = f.split('/')
@@ -14,11 +28,14 @@ def submission_kwargs_for_file(f):
     contract_name = split[0]
 
     with open(f) as file:
-        contract_code = file.read()
+        contract_source = file.read()
 
     return {
         'name': f"con_{contract_name}",
-        'code': contract_code,
+        'deployment_artifacts': build_submission_artifacts(
+            f"con_{contract_name}",
+            contract_source,
+        ),
     }
 
 
@@ -38,7 +55,7 @@ class TestAtomicSwapContract(TestCase):
             contract = f.read()
 
         self.d.set_contract(name='submission',
-                            code=contract)
+                            source=contract)
         self.d.commit()
 
         self.e = Executor(currency_contract='con_erc20_clone', metering=False)

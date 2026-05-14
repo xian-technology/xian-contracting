@@ -1,55 +1,64 @@
 # xian-contracting
 
-`xian-contracting` is the Python smart-contract runtime for Xian. It owns
-contract compilation, secure execution, storage semantics, gas metering, the
-standard library bridge, and the runtime rules that contracts must obey at
-consensus.
+`xian-contracting` is the contract compiler, artifact builder, local test
+harness, and standard-library bridge for Xian. Network execution is defined by
+the Xian VM (`xian_vm_v1`).
 
 The published PyPI package is `xian-tech-contracting`. The import package
 remains `contracting`. Side packages under `packages/` (deterministic runtime
-types, accounts, native tracer, fast-path validator, VM crates, zk tooling)
+types, accounts, fast-path validator, VM crates, zk tooling)
 are released independently and consumed by `xian-abci`, `xian-py`, and the
 node runtime.
 
-## Runtime Shape
+## Package Shape
 
 ```mermaid
 flowchart LR
   Source["Authored contract source"] --> Compiler["Compiler and linter"]
-  Compiler --> Artifact["Runtime and VM artifacts"]
-  Artifact --> Executor["Executor and metering"]
+  Compiler --> Artifact["Deployment artifacts"]
+  Artifact --> VM["xian_vm_v1 execution target"]
+  Artifact --> Executor["Local harness"]
   Executor --> Storage["Deterministic storage"]
   Executor --> Stdlib["Stdlib bridge"]
   Executor --> Events["LogEvent output"]
-  Packages["Optional native packages"] --> Executor
-  Packages --> VM["xian-vm-core"]
+  Packages["Side packages"] --> VM
   Packages --> ZK["xian-zk"]
 ```
 
 ## Quick Start
 
-Install the default pure-Python runtime:
+Install the package:
 
 ```bash
 uv add xian-tech-contracting
 ```
 
-Optional native packages (kept off the default install to keep it small):
+Optional zk helpers are kept off the default install:
 
 ```bash
-uv add 'xian-tech-contracting[native]'
 uv add 'xian-tech-contracting[zk]'
 ```
 
-Submit a contract and call a method:
+Compile deployment artifacts:
 
 ```python
-from contracting.client import ContractingClient
+from contracting.artifacts import build_contract_artifacts
+
+artifacts = build_contract_artifacts(
+    module_name="con_token",
+    source=contract_source,
+)
+```
+
+Run a contract in the local harness:
+
+```python
+from contracting.local import ContractingClient
 
 client = ContractingClient()
 client.submit(name="con_token", code=contract_source)
 
-token = client.get_contract("con_token")
+token = client.get_contract_proxy("con_token")
 token.transfer(amount=100, to="bob")
 ```
 
@@ -70,9 +79,12 @@ print(driver.get("example.key"))
 - **Consensus parity comes first.** Metering, storage encoding, import
   restrictions, and runtime helpers must stay version-aligned across all
   validators.
-- **Native acceleration is optional.** The native tracer, fast-path validator,
-  and VM crates are implementation details. The contract model and runtime
-  rules must remain understandable without them.
+- **The Xian VM is the execution target.** The local harness is for contract
+  tests and developer ergonomics; the deployable artifact is source plus Xian
+  VM IR.
+- **Compiler and harness stay distinct.** SDKs and CLI deployment flows consume
+  deployment artifacts. The local harness may derive transient proxies for
+  testing, but those are not chain artifacts.
 - **Stay scoped.** Built-in helpers serve the execution model. They do not grow
   into a general convenience framework.
 - **No node orchestration here.** Operator workflow, genesis distribution, and
@@ -82,17 +94,21 @@ print(driver.get("example.key"))
 
 ## Key Directories
 
-- `src/contracting/` — runtime, storage, compilation, and stdlib bridge.
+- `src/contracting/` — compiler, artifacts, local harness, storage, and stdlib
+  bridge.
+  - `artifacts/` — public deployment artifact builder and validator.
   - `compilation/` — parser, compiler, linter, and whitelist logic.
+  - `compiler/` — public compiler import surface.
   - `execution/` — runtime, executor, module loading, and tracing.
+  - `local/` — high-level `ContractingClient` for local tests and tooling.
   - `storage/` — drivers, ORM helpers, encoder, and LMDB-backed state.
-  - `contracts/` — package-local runtime assets (e.g. the built-in submission
+  - `contracts/` — package-local contract assets (e.g. the built-in submission
     contract).
   - `stdlib/` — contract-side standard-library bridge.
-  - `client.py` — high-level `ContractingClient` for tests and tooling.
 - `packages/` — independently released sibling packages:
-  `xian-accounts`, `xian-contract-tools`, `xian-fastpath-core`,
-  `xian-native-tracer`, `xian-runtime-types`, `xian-vm-core`, `xian-zk`.
+  `xian-accounts`, `xian-compiler-core`, `xian-contract-tools`,
+  `xian-fastpath-core`,
+  `xian-runtime-types`, `xian-vm-core`, `xian-zk`.
 - `scripts/` — audit and fixture-generation tools used by VM/runtime work.
 - `tests/` — `unit/`, `integration/`, `security/`, `performance/` coverage.
 - `examples/` — notebook walk-throughs and a non-Jupyter validation script.
@@ -101,10 +117,9 @@ print(driver.get("example.key"))
 ## What This Runtime Covers
 
 - compilation and linting of contract source
-- runtime execution, metering, and import restrictions
+- local harness execution, metering, and import restrictions
 - storage drivers and encoding
 - contract-side runtime helpers (`stdlib` bridge)
-- optional native tracing backend
 - speculative parallel batch execution primitives
 - native zero-knowledge verifier building blocks
 - Xian VM IR generation, validation, parity fixtures, and early native VM work
@@ -121,8 +136,8 @@ uv run pytest --cov=contracting --cov-report=term-missing --cov-report=xml
 ```
 
 The default `pytest` config deselects tests marked `optional_native`; those
-tests require Rust extension packages that are not part of the pure-Python
-install.
+tests require heavier Rust extension packages beyond the required compiler
+core.
 
 Native / release CI path:
 
@@ -130,9 +145,10 @@ Native / release CI path:
 ./scripts/validate-release.sh
 ```
 
-`validate-release.sh` runs the default suite plus the native tracer, zk, and
-VM checks, the optional-native parity and fuzz coverage, and the Rust-side
-package checks used by release CI. It is the gate for tagging a release.
+`validate-release.sh` runs the default suite plus compiler-core, zk, and VM
+checks, the WASM compiler package build, optional-native parity and fuzz
+coverage, and the Rust-side package checks used by release CI. It is the gate
+for tagging a release.
 
 If you change metering, tracing, storage encoding, or import restrictions,
 treat the change as consensus-sensitive and run the relevant `tests/security/`
@@ -144,9 +160,9 @@ and `tests/integration/` paths explicitly.
 - [docs/README.md](docs/README.md) — index of internal design notes
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — major components and dependency direction
 - [docs/BACKLOG.md](docs/BACKLOG.md) — open work and follow-ups
+- [docs/COMPILER_RELEASE.md](docs/COMPILER_RELEASE.md) — compiler package validation and publish order
 - [docs/SAFETY_INVARIANTS.md](docs/SAFETY_INVARIANTS.md) — invariants the runtime must preserve
 - [docs/PARALLEL_EXECUTION.md](docs/PARALLEL_EXECUTION.md) — speculative parallel batch execution model
-- [docs/TRACER_BACKENDS.md](docs/TRACER_BACKENDS.md) — Python vs. native tracer backends
 - [docs/COMPILE_TIME_EXTENDS.md](docs/COMPILE_TIME_EXTENDS.md) — contract import / extends model
 - [docs/EXECUTION_BACKLOG.md](docs/EXECUTION_BACKLOG.md) — execution-engine follow-ups
 - [docs/SHIELDED_STATE_REDESIGN_V2.md](docs/SHIELDED_STATE_REDESIGN_V2.md) — shielded-state model

@@ -1,0 +1,220 @@
+{
+  "artifact": {
+    "format": "xian_contract_artifact_v1",
+    "hashes": {
+      "input_source_sha256": "dbb3dae92b222216baefc44b9747073c0b8eecefd9d8b2d9f31c21d774624ab1",
+      "source_sha256": "8f0d334133da1179c4590ede41b21a7e9103cfe24e57292efcc058835d0e601e",
+      "vm_ir_sha256": "151b8aed38cd175022a98f5ef7cfff63c2a044601319e87167ba2a1e36ea6951"
+    },
+    "module_name": "con_storage_hash",
+    "source": "balances = Hash(default_value=0)\n\n@export\ndef bump(key: str, amount: int):\n    balances[key] += amount\n    return balances[key]",
+    "vm_ir_json": "{\"docstring\": null, \"functions\": [{\"body\": [{\"binding\": \"balances\", \"key\": {\"host_binding_id\": null, \"id\": \"key\", \"node\": \"name\", \"span\": {\"col\": 13, \"end_col\": 16, \"end_line\": 5, \"line\": 5}}, \"node\": \"storage_mutate\", \"operator\": \"add\", \"read_syscall_id\": \"storage.hash.get\", \"span\": {\"col\": 4, \"end_col\": 27, \"end_line\": 5, \"line\": 5}, \"storage_type\": \"Hash\", \"value\": {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 21, \"end_col\": 27, \"end_line\": 5, \"line\": 5}}, \"write_syscall_id\": \"storage.hash.set\"}, {\"node\": \"return\", \"span\": {\"col\": 4, \"end_col\": 24, \"end_line\": 6, \"line\": 6}, \"value\": {\"binding\": \"balances\", \"key\": {\"host_binding_id\": null, \"id\": \"key\", \"node\": \"name\", \"span\": {\"col\": 20, \"end_col\": 23, \"end_line\": 6, \"line\": 6}}, \"node\": \"storage_get\", \"span\": {\"col\": 11, \"end_col\": 24, \"end_line\": 6, \"line\": 6}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.get\"}}], \"decorator\": {\"args\": [], \"keywords\": [], \"name\": \"export\", \"node\": \"decorator\", \"span\": {\"col\": 1, \"end_col\": 7, \"end_line\": 3, \"line\": 3}}, \"docstring\": null, \"name\": \"bump\", \"node\": \"function\", \"parameters\": [{\"annotation\": \"str\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"key\", \"span\": {\"col\": 9, \"end_col\": 17, \"end_line\": 4, \"line\": 4}}, {\"annotation\": \"int\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"amount\", \"span\": {\"col\": 19, \"end_col\": 30, \"end_line\": 4, \"line\": 4}}], \"returns\": null, \"span\": {\"col\": 0, \"end_col\": 24, \"end_line\": 6, \"line\": 4}, \"visibility\": \"export\"}], \"global_declarations\": [{\"args\": [], \"keywords\": [{\"arg\": \"default_value\", \"node\": \"keyword\", \"span\": {\"col\": 16, \"end_col\": 31, \"end_line\": 1, \"line\": 1}, \"value\": {\"node\": \"constant\", \"span\": {\"col\": 30, \"end_col\": 31, \"end_line\": 1, \"line\": 1}, \"value\": 0, \"value_type\": \"int\"}}], \"name\": \"balances\", \"node\": \"storage_decl\", \"span\": {\"col\": 0, \"end_col\": 32, \"end_line\": 1, \"line\": 1}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.new\"}], \"host_catalog_version\": \"xian_vm_v1_host_v1\", \"host_dependencies\": [{\"binding\": \"Hash.__getitem__\", \"category\": \"storage\", \"id\": \"storage.hash.get\", \"kind\": \"syscall\"}, {\"binding\": \"Hash\", \"category\": \"storage\", \"id\": \"storage.hash.new\", \"kind\": \"syscall\"}, {\"binding\": \"Hash.__setitem__\", \"category\": \"storage\", \"id\": \"storage.hash.set\", \"kind\": \"syscall\"}], \"imports\": [], \"ir_version\": \"xian_ir_v1\", \"module_body\": [], \"module_name\": \"con_storage_hash\", \"source_hash\": \"8f0d334133da1179c4590ede41b21a7e9103cfe24e57292efcc058835d0e601e\", \"vm_profile\": \"xian_vm_v1\"}",
+    "vm_profile": "xian_vm_v1"
+  },
+  "diagnostics": [],
+  "expected": {
+    "accepted": true
+  },
+  "generator": {
+    "artifact_format": "xian_contract_artifact_v1",
+    "name": "python-contracting"
+  },
+  "input_source": "balances = Hash(default_value=0)\n\n\n@export\ndef bump(key: str, amount: int):\n    balances[key] += amount\n    return balances[key]\n",
+  "module_name": "con_storage_hash",
+  "name": "con_storage_hash",
+  "normalized_source": "balances = Hash(default_value=0)\n\n@export\ndef bump(key: str, amount: int):\n    balances[key] += amount\n    return balances[key]",
+  "schema": "xian.compiler_fixture.v1",
+  "source_path": "packages/xian-compiler-core/tests/sources/con_storage_hash.s.py",
+  "vm_ir": {
+    "docstring": null,
+    "functions": [
+      {
+        "body": [
+          {
+            "binding": "balances",
+            "key": {
+              "host_binding_id": null,
+              "id": "key",
+              "node": "name",
+              "span": {
+                "col": 13,
+                "end_col": 16,
+                "end_line": 5,
+                "line": 5
+              }
+            },
+            "node": "storage_mutate",
+            "operator": "add",
+            "read_syscall_id": "storage.hash.get",
+            "span": {
+              "col": 4,
+              "end_col": 27,
+              "end_line": 5,
+              "line": 5
+            },
+            "storage_type": "Hash",
+            "value": {
+              "host_binding_id": null,
+              "id": "amount",
+              "node": "name",
+              "span": {
+                "col": 21,
+                "end_col": 27,
+                "end_line": 5,
+                "line": 5
+              }
+            },
+            "write_syscall_id": "storage.hash.set"
+          },
+          {
+            "node": "return",
+            "span": {
+              "col": 4,
+              "end_col": 24,
+              "end_line": 6,
+              "line": 6
+            },
+            "value": {
+              "binding": "balances",
+              "key": {
+                "host_binding_id": null,
+                "id": "key",
+                "node": "name",
+                "span": {
+                  "col": 20,
+                  "end_col": 23,
+                  "end_line": 6,
+                  "line": 6
+                }
+              },
+              "node": "storage_get",
+              "span": {
+                "col": 11,
+                "end_col": 24,
+                "end_line": 6,
+                "line": 6
+              },
+              "storage_type": "Hash",
+              "syscall_id": "storage.hash.get"
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 3,
+            "line": 3
+          }
+        },
+        "docstring": null,
+        "name": "bump",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "str",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "key",
+            "span": {
+              "col": 9,
+              "end_col": 17,
+              "end_line": 4,
+              "line": 4
+            }
+          },
+          {
+            "annotation": "int",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "amount",
+            "span": {
+              "col": 19,
+              "end_col": 30,
+              "end_line": 4,
+              "line": 4
+            }
+          }
+        ],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 24,
+          "end_line": 6,
+          "line": 4
+        },
+        "visibility": "export"
+      }
+    ],
+    "global_declarations": [
+      {
+        "args": [],
+        "keywords": [
+          {
+            "arg": "default_value",
+            "node": "keyword",
+            "span": {
+              "col": 16,
+              "end_col": 31,
+              "end_line": 1,
+              "line": 1
+            },
+            "value": {
+              "node": "constant",
+              "span": {
+                "col": 30,
+                "end_col": 31,
+                "end_line": 1,
+                "line": 1
+              },
+              "value": 0,
+              "value_type": "int"
+            }
+          }
+        ],
+        "name": "balances",
+        "node": "storage_decl",
+        "span": {
+          "col": 0,
+          "end_col": 32,
+          "end_line": 1,
+          "line": 1
+        },
+        "storage_type": "Hash",
+        "syscall_id": "storage.hash.new"
+      }
+    ],
+    "host_catalog_version": "xian_vm_v1_host_v1",
+    "host_dependencies": [
+      {
+        "binding": "Hash.__getitem__",
+        "category": "storage",
+        "id": "storage.hash.get",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Hash",
+        "category": "storage",
+        "id": "storage.hash.new",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Hash.__setitem__",
+        "category": "storage",
+        "id": "storage.hash.set",
+        "kind": "syscall"
+      }
+    ],
+    "imports": [],
+    "ir_version": "xian_ir_v1",
+    "module_body": [],
+    "module_name": "con_storage_hash",
+    "source_hash": "8f0d334133da1179c4590ede41b21a7e9103cfe24e57292efcc058835d0e601e",
+    "vm_profile": "xian_vm_v1"
+  },
+  "vm_profile": "xian_vm_v1"
+}

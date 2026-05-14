@@ -1,7 +1,10 @@
-from unittest import TestCase
-from xian_runtime_types.time import Datetime
-from contracting.client import ContractingClient
 import os
+from unittest import TestCase
+
+from xian_runtime_types.time import Datetime
+
+from contracting.local import ContractingClient
+
 
 class TestSenecaClientReplacesExecutor(TestCase):
     def setUp(self):
@@ -13,11 +16,11 @@ class TestSenecaClientReplacesExecutor(TestCase):
         with open(submission_path) as f:
             contract = f.read()
 
-        self.c.raw_driver.set_contract(name='submission', code=contract,)
+        self.c.raw_driver.set_contract(name='submission', source=contract,)
 
         self.c.raw_driver.commit()
 
-        submission = self.c.get_contract('submission')
+        submission = self.c.get_contract_proxy('submission')
 
         # submit erc20 clone
         erc20_clone_path = os.path.join(os.path.dirname(__file__), "test_contracts", "erc20_clone.s.py")
@@ -32,8 +35,8 @@ class TestSenecaClientReplacesExecutor(TestCase):
             code = f.read()
             self.c.submit(code, name='con_atomic_swaps')
 
-        self.erc20_clone = self.c.get_contract('con_erc20_clone')
-        self.atomic_swaps = self.c.get_contract('con_atomic_swaps')
+        self.erc20_clone = self.c.get_contract_proxy('con_erc20_clone')
+        self.atomic_swaps = self.c.get_contract_proxy('con_atomic_swaps')
 
     def tearDown(self):
         self.c.raw_driver.flush_full()

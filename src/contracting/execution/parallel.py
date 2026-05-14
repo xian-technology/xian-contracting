@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from contracting import constants
-from contracting.execution import runtime
 from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 
@@ -202,7 +201,6 @@ class _WorkerRuntime:
 @dataclass(frozen=True)
 class _WorkerConfig:
     storage_home: str
-    tracer_mode: str
     metering: bool
     currency_contract: str
     balances_hash: str
@@ -221,9 +219,6 @@ _WORKER_RUNTIMES: dict[_WorkerConfig, _WorkerRuntime] = {}
 
 
 def _get_worker_runtime(config: _WorkerConfig) -> _WorkerRuntime:
-    if runtime.rt.tracer_mode != config.tracer_mode:
-        runtime.rt.set_tracer_mode(config.tracer_mode)
-
     worker_runtime = _WORKER_RUNTIMES.get(config)
     if worker_runtime is not None:
         return worker_runtime
@@ -706,10 +701,8 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
         enabled: bool = True,
         workers: int = 0,
         min_batch_size: int = 8,
-        tracer_mode: str | None = None,
     ) -> None:
         self.executor = executor
-        self.tracer_mode = tracer_mode or runtime.rt.tracer_mode
         self._mp_context = multiprocessing.get_context("spawn")
         self._executor: ProcessPoolExecutor | None = None
         super().__init__(
@@ -753,7 +746,6 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
         typed_requests = list(requests)
         task_template = _WorkerConfig(
             storage_home=str(self.executor.driver.storage_home),
-            tracer_mode=self.tracer_mode,
             metering=self.executor.metering,
             currency_contract=self.executor.currency_contract,
             balances_hash=self.executor.balances_hash,

@@ -9,12 +9,12 @@ import textwrap
 import time
 from pathlib import Path
 
-from contracting.client import ContractingClient
 from contracting.execution.parallel import (
     ExecutionRequest,
     ParallelBatchExecutor,
     ParallelExecutionStats,
 )
+from contracting.local import ContractingClient
 
 BENCHMARK_CONTRACT = textwrap.dedent(
     """
@@ -31,11 +31,8 @@ BENCHMARK_CONTRACT = textwrap.dedent(
 )
 
 
-def build_client(storage_home: Path, *, tracer_mode: str | None) -> ContractingClient:
-    client = ContractingClient(
-        storage_home=storage_home,
-        tracer_mode=tracer_mode,
-    )
+def build_client(storage_home: Path) -> ContractingClient:
+    client = ContractingClient(storage_home=storage_home)
     client.submit(BENCHMARK_CONTRACT, name="con_parallel_bench", signer="sys")
     client.raw_driver.commit()
     return client
@@ -125,7 +122,6 @@ def benchmark_iteration(
     tx_count: int,
     rounds: int,
     workers: int,
-    tracer_mode: str | None,
     warmup_transactions: int,
     iteration_index: int,
 ) -> dict:
@@ -146,14 +142,8 @@ def benchmark_iteration(
         tempfile.TemporaryDirectory() as serial_dir,
         tempfile.TemporaryDirectory() as parallel_dir,
     ):
-        serial_client = build_client(
-            Path(serial_dir) / "xian",
-            tracer_mode=tracer_mode,
-        )
-        parallel_client = build_client(
-            Path(parallel_dir) / "xian",
-            tracer_mode=tracer_mode,
-        )
+        serial_client = build_client(Path(serial_dir) / "xian")
+        parallel_client = build_client(Path(parallel_dir) / "xian")
 
         serial_outputs, serial_stats, serial_duration = execute_batch(
             client=serial_client,
@@ -218,7 +208,6 @@ def parse_args() -> argparse.Namespace:
         default=min(os.cpu_count() or 1, 8),
     )
     parser.add_argument("--warmup-transactions", type=int, default=16)
-    parser.add_argument("--tracer-mode", default=None)
     return parser.parse_args()
 
 
@@ -239,7 +228,6 @@ def main() -> int:
                 "iterations": args.iterations,
                 "workers": args.workers,
                 "warmup_transactions": args.warmup_transactions,
-                "tracer_mode": args.tracer_mode,
             },
             sort_keys=True,
         )
@@ -250,7 +238,6 @@ def main() -> int:
             tx_count=args.tx_count,
             rounds=args.rounds,
             workers=args.workers,
-            tracer_mode=args.tracer_mode,
             warmup_transactions=args.warmup_transactions,
             iteration_index=index,
         )

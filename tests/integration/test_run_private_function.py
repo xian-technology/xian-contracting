@@ -1,6 +1,8 @@
-from unittest import TestCase
-from contracting.client import ContractingClient
 import os
+from unittest import TestCase
+
+from contracting.local import ContractingClient
+
 
 class TestRunPrivateFunction(TestCase):
     def setUp(self):
@@ -12,7 +14,7 @@ class TestRunPrivateFunction(TestCase):
             code = f.read()
 
         self.client.submit(code, name='private_methods')
-        self.private_methods = self.client.get_contract('private_methods')
+        self.private_methods = self.client.get_contract_proxy('private_methods')
 
     def tearDown(self):
         self.client.flush()

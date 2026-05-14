@@ -13,7 +13,7 @@ from contracting.compilation.authored_conformance import (
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Audit authored contract sources against the Python-vs-Xian-VM "
+            "Audit authored contract sources against the Xian VM "
             "conformance matrix."
         )
     )

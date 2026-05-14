@@ -1,5 +1,6 @@
 from unittest import TestCase
-from contracting.stdlib.bridge.hashing import sha256, sha3
+
+from contracting.stdlib.bridge.hashing import sha3, sha256
 
 
 class TestHashing(TestCase):

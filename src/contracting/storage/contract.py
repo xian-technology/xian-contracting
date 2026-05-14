@@ -1,10 +1,6 @@
 from contracting import constants
-from contracting.compilation.artifacts import (
-    build_contract_artifacts,
-    validate_contract_artifacts,
-)
+from contracting.artifacts import validate_contract_artifacts
 from contracting.compilation.compiler import ContractingCompiler
-from contracting.compilation.lowering import IrLoweringError
 from contracting.execution.runtime import rt
 from contracting.names import assert_safe_contract_name
 from contracting.storage.driver import (
@@ -57,8 +53,7 @@ class Contract:
         driver: Driver,
         *,
         name,
-        code,
-        deployment_artifacts=None,
+        deployment_artifacts,
         owner=None,
         constructor_args=None,
         developer=None,
@@ -71,68 +66,27 @@ class Contract:
             if driver.has_contract(name):
                 raise Exception("Contract already exists.")
 
-            if code is None and deployment_artifacts is None:
-                raise TypeError(
-                    "Contract deployment requires code or deployment_artifacts."
-                )
-            if code is not None and not isinstance(code, str):
-                raise TypeError("Contract code must be a string.")
-            if (
-                deployment_artifacts is None
-                and rt.env.get(XIAN_EXECUTION_MODE_ENV_KEY) == "xian_vm_v1"
-            ):
-                raise TypeError(
-                    "xian_vm_v1 requires deployment_artifacts for contract deployment."
-                )
+            if not isinstance(deployment_artifacts, dict):
+                raise TypeError("Contract deployment requires artifacts.")
             if rt.env.get(XIAN_EXECUTION_MODE_ENV_KEY) == "xian_vm_v1":
                 raise TypeError(
                     "xian_vm_v1 contract deployment must execute through the "
-                    "native VM host, not the Python runtime path."
+                    "native VM host, not the local harness path."
                 )
 
-            if deployment_artifacts is not None:
-                artifacts = validate_contract_artifacts(
-                    module_name=name,
-                    artifacts=deployment_artifacts,
-                    input_source=code,
-                    vm_profile="xian_vm_v1",
-                )
-            else:
-                try:
-                    artifacts = build_contract_artifacts(
-                        module_name=name,
-                        source=code,
-                        lint=True,
-                        vm_profile="xian_vm_v1",
-                    )
-                except IrLoweringError:
-                    if rt.env.get(XIAN_EXECUTION_MODE_ENV_KEY) == "xian_vm_v1":
-                        raise
-
-                    compiler = ContractingCompiler(module_name=name)
-                    artifacts = {
-                        "source": compiler.normalize_source(code, lint=True),
-                        "runtime_code": compiler.parse_to_code(
-                            code,
-                            lint=True,
-                        ),
-                        "vm_ir_json": None,
-                    }
-
-            runtime_code = artifacts.get("runtime_code")
-            if runtime_code is None:
-                derived = build_contract_artifacts(
-                    module_name=name,
-                    source=artifacts["source"],
-                    lint=False,
-                    vm_profile="xian_vm_v1",
-                    include_runtime_code=True,
-                )
-                runtime_code = derived["runtime_code"]
+            artifacts = validate_contract_artifacts(
+                module_name=name,
+                artifacts=deployment_artifacts,
+                vm_profile="xian_vm_v1",
+            )
 
             source_obj = artifacts["source"]
-            code_obj = runtime_code
             vm_ir_json = artifacts["vm_ir_json"]
+            code_obj = ContractingCompiler(module_name=name).parse_to_code(
+                source_obj,
+                lint=False,
+                vm_profile="xian_vm_v1",
+            )
 
             raw_source_bytes = len(source_obj.encode("utf-8"))
             assert (
@@ -196,7 +150,6 @@ class Contract:
             if now is not None:
                 driver.set_contract(
                     name=name,
-                    code=code_obj,
                     source=source_obj,
                     vm_ir_json=vm_ir_json,
                     owner=owner,
@@ -209,7 +162,6 @@ class Contract:
             else:
                 driver.set_contract(
                     name=name,
-                    code=code_obj,
                     source=source_obj,
                     vm_ir_json=vm_ir_json,
                     owner=owner,
@@ -222,8 +174,7 @@ class Contract:
     def submit(
         self,
         name,
-        code,
-        deployment_artifacts=None,
+        deployment_artifacts,
         owner=None,
         constructor_args=None,
         developer=None,
@@ -233,7 +184,6 @@ class Contract:
         self._submit_with_driver(
             self._driver,
             name=name,
-            code=code,
             deployment_artifacts=deployment_artifacts,
             owner=owner,
             constructor_args=constructor_args,
@@ -247,8 +197,7 @@ class Contract:
         cls,
         *,
         name,
-        code,
-        deployment_artifacts=None,
+        deployment_artifacts,
         owner=None,
         constructor_args=None,
         developer=None,
@@ -259,7 +208,6 @@ class Contract:
         cls._submit_with_driver(
             cls._resolve_driver(driver),
             name=name,
-            code=code,
             deployment_artifacts=deployment_artifacts,
             owner=owner,
             constructor_args=constructor_args,

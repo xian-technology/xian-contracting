@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xian.org/schemas/compiler_fixture_v1.schema.json",
+  "title": "Xian compiler fixture v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "name",
+    "generator",
+    "module_name",
+    "vm_profile",
+    "input_source",
+    "expected",
+    "diagnostics"
+  ],
+  "properties": {
+    "schema": {
+      "const": "xian.compiler_fixture.v1"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generator": {
+      "type": "object",
+      "required": ["name", "artifact_format"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "artifact_format": {"const": "xian_contract_artifact_v1"}
+      },
+      "additionalProperties": false
+    },
+    "source_path": {
+      "type": "string"
+    },
+    "module_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "vm_profile": {
+      "const": "xian_vm_v1"
+    },
+    "input_source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "normalized_source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact": {
+      "type": "object",
+      "required": [
+        "format",
+        "module_name",
+        "vm_profile",
+        "source",
+        "vm_ir_json",
+        "hashes"
+      ],
+      "properties": {
+        "format": {"const": "xian_contract_artifact_v1"},
+        "module_name": {"type": "string", "minLength": 1},
+        "vm_profile": {"const": "xian_vm_v1"},
+        "source": {"type": "string", "minLength": 1},
+        "vm_ir_json": {"type": "string", "minLength": 1},
+        "hashes": {
+          "type": "object",
+          "required": [
+            "input_source_sha256",
+            "source_sha256",
+            "vm_ir_sha256"
+          ],
+          "properties": {
+            "input_source_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "source_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "vm_ir_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "vm_ir": {
+      "type": "object"
+    },
+    "expected": {
+      "type": "object",
+      "required": ["accepted"],
+      "properties": {
+        "accepted": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "code", "message"],
+        "properties": {
+          "severity": {"enum": ["error", "warning", "info"]},
+          "code": {"type": "string", "minLength": 1},
+          "message": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"expected": {"properties": {"accepted": {"const": true}}}}
+      },
+      "then": {
+        "required": ["normalized_source", "artifact", "vm_ir"]
+      }
+    }
+  ],
+  "additionalProperties": false
+}

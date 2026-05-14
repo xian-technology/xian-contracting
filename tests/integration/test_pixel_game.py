@@ -1,5 +1,6 @@
-from contracting.client import ContractingClient
 from unittest import TestCase
+
+from contracting.local import ContractingClient
 
 
 def con_coin():
@@ -74,7 +75,7 @@ class TestCoinContract(TestCase):
         self.c.flush()
 
         self.c.submit(con_coin)
-        self.coin = self.c.get_contract('con_coin')
+        self.coin = self.c.get_contract_proxy('con_coin')
 
     def tearDown(self):
         self.c.flush()
@@ -151,7 +152,6 @@ class TestCoinContract(TestCase):
 
 
 def con_pixel_game():
-    import con_coin
 
     plots = Hash()
     landlord = Variable()
@@ -220,7 +220,7 @@ class TestPixelGame(TestCase):
 
         self.c.submit(con_coin)
         self.c.submit(con_pixel_game)
-        self.pixel = self.c.get_contract('con_pixel_game')
+        self.pixel = self.c.get_contract_proxy('con_pixel_game')
 
     def tearDown(self):
         self.c.flush()

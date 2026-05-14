@@ -1,0 +1,545 @@
+{
+  "artifact": {
+    "format": "xian_contract_artifact_v1",
+    "hashes": {
+      "input_source_sha256": "3eb3b13e87754e6e3762029c0640df80ccceec0a22f78f974711e82e9857d966",
+      "source_sha256": "d7aff721e2274b41981738c26543e5ba6ad96556984f1e31130a8eb31539e2d8",
+      "vm_ir_sha256": "a7a73e4e355ab3ebecf880bd56954e24e41a9c7afce8632a88da46075933a3d4"
+    },
+    "module_name": "con_event_import",
+    "source": "import currency\nTransferEvent = LogEvent('Transfer', {'from': indexed(str), 'to': indexed(str), 'amount': int})\n\n@export\ndef transfer(amount: int, to: str):\n    sender = ctx.caller\n    currency.transfer(amount=amount, to=to)\n    TransferEvent({'from': sender, 'to': to, 'amount': amount})",
+    "vm_ir_json": "{\"docstring\": null, \"functions\": [{\"body\": [{\"node\": \"assign\", \"span\": {\"col\": 4, \"end_col\": 23, \"end_line\": 6, \"line\": 6}, \"targets\": [{\"host_binding_id\": null, \"id\": \"sender\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 10, \"end_line\": 6, \"line\": 6}}], \"value\": {\"attr\": \"caller\", \"host_binding_id\": \"context.caller\", \"node\": \"attribute\", \"path\": \"ctx.caller\", \"span\": {\"col\": 13, \"end_col\": 23, \"end_line\": 6, \"line\": 6}, \"value\": {\"host_binding_id\": null, \"id\": \"ctx\", \"node\": \"name\", \"span\": {\"col\": 13, \"end_col\": 16, \"end_line\": 6, \"line\": 6}}}}, {\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 43, \"end_line\": 7, \"line\": 7}, \"value\": {\"args\": [], \"contract_target\": {\"binding\": \"currency\", \"kind\": \"static_import\", \"span\": {\"col\": 4, \"end_col\": 12, \"end_line\": 7, \"line\": 7}}, \"func\": {\"attr\": \"transfer\", \"host_binding_id\": null, \"node\": \"attribute\", \"path\": \"currency.transfer\", \"span\": {\"col\": 4, \"end_col\": 21, \"end_line\": 7, \"line\": 7}, \"value\": {\"host_binding_id\": null, \"id\": \"currency\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 12, \"end_line\": 7, \"line\": 7}}}, \"function_name\": \"transfer\", \"keywords\": [{\"arg\": \"amount\", \"node\": \"keyword\", \"span\": {\"col\": 22, \"end_col\": 35, \"end_line\": 7, \"line\": 7}, \"value\": {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 29, \"end_col\": 35, \"end_line\": 7, \"line\": 7}}}, {\"arg\": \"to\", \"node\": \"keyword\", \"span\": {\"col\": 37, \"end_col\": 42, \"end_line\": 7, \"line\": 7}, \"value\": {\"host_binding_id\": null, \"id\": \"to\", \"node\": \"name\", \"span\": {\"col\": 40, \"end_col\": 42, \"end_line\": 7, \"line\": 7}}}], \"node\": \"call\", \"span\": {\"col\": 4, \"end_col\": 43, \"end_line\": 7, \"line\": 7}, \"syscall_id\": \"contract.export_call\"}}, {\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 63, \"end_line\": 8, \"line\": 8}, \"value\": {\"args\": [{\"entries\": [{\"key\": {\"node\": \"constant\", \"span\": {\"col\": 19, \"end_col\": 25, \"end_line\": 8, \"line\": 8}, \"value\": \"from\", \"value_type\": \"str\"}, \"value\": {\"host_binding_id\": null, \"id\": \"sender\", \"node\": \"name\", \"span\": {\"col\": 27, \"end_col\": 33, \"end_line\": 8, \"line\": 8}}}, {\"key\": {\"node\": \"constant\", \"span\": {\"col\": 35, \"end_col\": 39, \"end_line\": 8, \"line\": 8}, \"value\": \"to\", \"value_type\": \"str\"}, \"value\": {\"host_binding_id\": null, \"id\": \"to\", \"node\": \"name\", \"span\": {\"col\": 41, \"end_col\": 43, \"end_line\": 8, \"line\": 8}}}, {\"key\": {\"node\": \"constant\", \"span\": {\"col\": 45, \"end_col\": 53, \"end_line\": 8, \"line\": 8}, \"value\": \"amount\", \"value_type\": \"str\"}, \"value\": {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 55, \"end_col\": 61, \"end_line\": 8, \"line\": 8}}}], \"node\": \"dict\", \"span\": {\"col\": 18, \"end_col\": 62, \"end_line\": 8, \"line\": 8}}], \"event_binding\": \"TransferEvent\", \"func\": {\"host_binding_id\": null, \"id\": \"TransferEvent\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 17, \"end_line\": 8, \"line\": 8}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 4, \"end_col\": 63, \"end_line\": 8, \"line\": 8}, \"syscall_id\": \"event.log.emit\"}}], \"decorator\": {\"args\": [], \"keywords\": [], \"name\": \"export\", \"node\": \"decorator\", \"span\": {\"col\": 1, \"end_col\": 7, \"end_line\": 4, \"line\": 4}}, \"docstring\": null, \"name\": \"transfer\", \"node\": \"function\", \"parameters\": [{\"annotation\": \"int\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"amount\", \"span\": {\"col\": 13, \"end_col\": 24, \"end_line\": 5, \"line\": 5}}, {\"annotation\": \"str\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"to\", \"span\": {\"col\": 26, \"end_col\": 33, \"end_line\": 5, \"line\": 5}}], \"returns\": null, \"span\": {\"col\": 0, \"end_col\": 63, \"end_line\": 8, \"line\": 5}, \"visibility\": \"export\"}], \"global_declarations\": [{\"event_name\": \"Transfer\", \"name\": \"TransferEvent\", \"node\": \"event_decl\", \"params\": {\"entries\": [{\"key\": {\"node\": \"constant\", \"span\": {\"col\": 38, \"end_col\": 44, \"end_line\": 2, \"line\": 2}, \"value\": \"from\", \"value_type\": \"str\"}, \"value\": {\"args\": [{\"host_binding_id\": null, \"id\": \"str\", \"node\": \"name\", \"span\": {\"col\": 54, \"end_col\": 57, \"end_line\": 2, \"line\": 2}}], \"event_binding\": null, \"func\": {\"host_binding_id\": \"event.indexed\", \"id\": \"indexed\", \"node\": \"name\", \"span\": {\"col\": 46, \"end_col\": 53, \"end_line\": 2, \"line\": 2}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 46, \"end_col\": 58, \"end_line\": 2, \"line\": 2}, \"syscall_id\": \"event.indexed\"}}, {\"key\": {\"node\": \"constant\", \"span\": {\"col\": 60, \"end_col\": 64, \"end_line\": 2, \"line\": 2}, \"value\": \"to\", \"value_type\": \"str\"}, \"value\": {\"args\": [{\"host_binding_id\": null, \"id\": \"str\", \"node\": \"name\", \"span\": {\"col\": 74, \"end_col\": 77, \"end_line\": 2, \"line\": 2}}], \"event_binding\": null, \"func\": {\"host_binding_id\": \"event.indexed\", \"id\": \"indexed\", \"node\": \"name\", \"span\": {\"col\": 66, \"end_col\": 73, \"end_line\": 2, \"line\": 2}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 66, \"end_col\": 78, \"end_line\": 2, \"line\": 2}, \"syscall_id\": \"event.indexed\"}}, {\"key\": {\"node\": \"constant\", \"span\": {\"col\": 80, \"end_col\": 88, \"end_line\": 2, \"line\": 2}, \"value\": \"amount\", \"value_type\": \"str\"}, \"value\": {\"host_binding_id\": null, \"id\": \"int\", \"node\": \"name\", \"span\": {\"col\": 90, \"end_col\": 93, \"end_line\": 2, \"line\": 2}}}], \"node\": \"dict\", \"span\": {\"col\": 37, \"end_col\": 94, \"end_line\": 2, \"line\": 2}}, \"span\": {\"col\": 0, \"end_col\": 95, \"end_line\": 2, \"line\": 2}, \"syscall_id\": \"event.log.new\"}], \"host_catalog_version\": \"xian_vm_v1_host_v1\", \"host_dependencies\": [{\"binding\": \"ctx.caller\", \"category\": \"context\", \"id\": \"context.caller\", \"kind\": \"context_field\"}, {\"binding\": \"__contract_export__\", \"category\": \"contract\", \"id\": \"contract.export_call\", \"kind\": \"syscall\"}, {\"binding\": \"indexed\", \"category\": \"event\", \"id\": \"event.indexed\", \"kind\": \"syscall\"}, {\"binding\": \"LogEvent.__call__\", \"category\": \"event\", \"id\": \"event.log.emit\", \"kind\": \"syscall\"}, {\"binding\": \"LogEvent\", \"category\": \"event\", \"id\": \"event.log.new\", \"kind\": \"syscall\"}], \"imports\": [{\"alias\": null, \"module\": \"currency\", \"node\": \"import\", \"span\": {\"col\": 0, \"end_col\": 15, \"end_line\": 1, \"line\": 1}}], \"ir_version\": \"xian_ir_v1\", \"module_body\": [], \"module_name\": \"con_event_import\", \"source_hash\": \"d7aff721e2274b41981738c26543e5ba6ad96556984f1e31130a8eb31539e2d8\", \"vm_profile\": \"xian_vm_v1\"}",
+    "vm_profile": "xian_vm_v1"
+  },
+  "diagnostics": [],
+  "expected": {
+    "accepted": true
+  },
+  "generator": {
+    "artifact_format": "xian_contract_artifact_v1",
+    "name": "python-contracting"
+  },
+  "input_source": "import currency\n\nTransferEvent = LogEvent(\n    \"Transfer\",\n    {\n        \"from\": indexed(str),\n        \"to\": indexed(str),\n        \"amount\": int,\n    },\n)\n\n\n@export\ndef transfer(amount: int, to: str):\n    sender = ctx.caller\n    currency.transfer(amount=amount, to=to)\n    TransferEvent({\"from\": sender, \"to\": to, \"amount\": amount})\n",
+  "module_name": "con_event_import",
+  "name": "con_event_import",
+  "normalized_source": "import currency\nTransferEvent = LogEvent('Transfer', {'from': indexed(str), 'to': indexed(str), 'amount': int})\n\n@export\ndef transfer(amount: int, to: str):\n    sender = ctx.caller\n    currency.transfer(amount=amount, to=to)\n    TransferEvent({'from': sender, 'to': to, 'amount': amount})",
+  "schema": "xian.compiler_fixture.v1",
+  "source_path": "packages/xian-compiler-core/tests/sources/con_event_import.s.py",
+  "vm_ir": {
+    "docstring": null,
+    "functions": [
+      {
+        "body": [
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 23,
+              "end_line": 6,
+              "line": 6
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "sender",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 10,
+                  "end_line": 6,
+                  "line": 6
+                }
+              }
+            ],
+            "value": {
+              "attr": "caller",
+              "host_binding_id": "context.caller",
+              "node": "attribute",
+              "path": "ctx.caller",
+              "span": {
+                "col": 13,
+                "end_col": 23,
+                "end_line": 6,
+                "line": 6
+              },
+              "value": {
+                "host_binding_id": null,
+                "id": "ctx",
+                "node": "name",
+                "span": {
+                  "col": 13,
+                  "end_col": 16,
+                  "end_line": 6,
+                  "line": 6
+                }
+              }
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 43,
+              "end_line": 7,
+              "line": 7
+            },
+            "value": {
+              "args": [],
+              "contract_target": {
+                "binding": "currency",
+                "kind": "static_import",
+                "span": {
+                  "col": 4,
+                  "end_col": 12,
+                  "end_line": 7,
+                  "line": 7
+                }
+              },
+              "func": {
+                "attr": "transfer",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "currency.transfer",
+                "span": {
+                  "col": 4,
+                  "end_col": 21,
+                  "end_line": 7,
+                  "line": 7
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "currency",
+                  "node": "name",
+                  "span": {
+                    "col": 4,
+                    "end_col": 12,
+                    "end_line": 7,
+                    "line": 7
+                  }
+                }
+              },
+              "function_name": "transfer",
+              "keywords": [
+                {
+                  "arg": "amount",
+                  "node": "keyword",
+                  "span": {
+                    "col": 22,
+                    "end_col": 35,
+                    "end_line": 7,
+                    "line": 7
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "amount",
+                    "node": "name",
+                    "span": {
+                      "col": 29,
+                      "end_col": 35,
+                      "end_line": 7,
+                      "line": 7
+                    }
+                  }
+                },
+                {
+                  "arg": "to",
+                  "node": "keyword",
+                  "span": {
+                    "col": 37,
+                    "end_col": 42,
+                    "end_line": 7,
+                    "line": 7
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "to",
+                    "node": "name",
+                    "span": {
+                      "col": 40,
+                      "end_col": 42,
+                      "end_line": 7,
+                      "line": 7
+                    }
+                  }
+                }
+              ],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 43,
+                "end_line": 7,
+                "line": 7
+              },
+              "syscall_id": "contract.export_call"
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 63,
+              "end_line": 8,
+              "line": 8
+            },
+            "value": {
+              "args": [
+                {
+                  "entries": [
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 19,
+                          "end_col": 25,
+                          "end_line": 8,
+                          "line": 8
+                        },
+                        "value": "from",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "sender",
+                        "node": "name",
+                        "span": {
+                          "col": 27,
+                          "end_col": 33,
+                          "end_line": 8,
+                          "line": 8
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 35,
+                          "end_col": 39,
+                          "end_line": 8,
+                          "line": 8
+                        },
+                        "value": "to",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "to",
+                        "node": "name",
+                        "span": {
+                          "col": 41,
+                          "end_col": 43,
+                          "end_line": 8,
+                          "line": 8
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 45,
+                          "end_col": 53,
+                          "end_line": 8,
+                          "line": 8
+                        },
+                        "value": "amount",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "amount",
+                        "node": "name",
+                        "span": {
+                          "col": 55,
+                          "end_col": 61,
+                          "end_line": 8,
+                          "line": 8
+                        }
+                      }
+                    }
+                  ],
+                  "node": "dict",
+                  "span": {
+                    "col": 18,
+                    "end_col": 62,
+                    "end_line": 8,
+                    "line": 8
+                  }
+                }
+              ],
+              "event_binding": "TransferEvent",
+              "func": {
+                "host_binding_id": null,
+                "id": "TransferEvent",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 17,
+                  "end_line": 8,
+                  "line": 8
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 63,
+                "end_line": 8,
+                "line": 8
+              },
+              "syscall_id": "event.log.emit"
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 4,
+            "line": 4
+          }
+        },
+        "docstring": null,
+        "name": "transfer",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "int",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "amount",
+            "span": {
+              "col": 13,
+              "end_col": 24,
+              "end_line": 5,
+              "line": 5
+            }
+          },
+          {
+            "annotation": "str",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "to",
+            "span": {
+              "col": 26,
+              "end_col": 33,
+              "end_line": 5,
+              "line": 5
+            }
+          }
+        ],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 63,
+          "end_line": 8,
+          "line": 5
+        },
+        "visibility": "export"
+      }
+    ],
+    "global_declarations": [
+      {
+        "event_name": "Transfer",
+        "name": "TransferEvent",
+        "node": "event_decl",
+        "params": {
+          "entries": [
+            {
+              "key": {
+                "node": "constant",
+                "span": {
+                  "col": 38,
+                  "end_col": 44,
+                  "end_line": 2,
+                  "line": 2
+                },
+                "value": "from",
+                "value_type": "str"
+              },
+              "value": {
+                "args": [
+                  {
+                    "host_binding_id": null,
+                    "id": "str",
+                    "node": "name",
+                    "span": {
+                      "col": 54,
+                      "end_col": 57,
+                      "end_line": 2,
+                      "line": 2
+                    }
+                  }
+                ],
+                "event_binding": null,
+                "func": {
+                  "host_binding_id": "event.indexed",
+                  "id": "indexed",
+                  "node": "name",
+                  "span": {
+                    "col": 46,
+                    "end_col": 53,
+                    "end_line": 2,
+                    "line": 2
+                  }
+                },
+                "keywords": [],
+                "node": "call",
+                "span": {
+                  "col": 46,
+                  "end_col": 58,
+                  "end_line": 2,
+                  "line": 2
+                },
+                "syscall_id": "event.indexed"
+              }
+            },
+            {
+              "key": {
+                "node": "constant",
+                "span": {
+                  "col": 60,
+                  "end_col": 64,
+                  "end_line": 2,
+                  "line": 2
+                },
+                "value": "to",
+                "value_type": "str"
+              },
+              "value": {
+                "args": [
+                  {
+                    "host_binding_id": null,
+                    "id": "str",
+                    "node": "name",
+                    "span": {
+                      "col": 74,
+                      "end_col": 77,
+                      "end_line": 2,
+                      "line": 2
+                    }
+                  }
+                ],
+                "event_binding": null,
+                "func": {
+                  "host_binding_id": "event.indexed",
+                  "id": "indexed",
+                  "node": "name",
+                  "span": {
+                    "col": 66,
+                    "end_col": 73,
+                    "end_line": 2,
+                    "line": 2
+                  }
+                },
+                "keywords": [],
+                "node": "call",
+                "span": {
+                  "col": 66,
+                  "end_col": 78,
+                  "end_line": 2,
+                  "line": 2
+                },
+                "syscall_id": "event.indexed"
+              }
+            },
+            {
+              "key": {
+                "node": "constant",
+                "span": {
+                  "col": 80,
+                  "end_col": 88,
+                  "end_line": 2,
+                  "line": 2
+                },
+                "value": "amount",
+                "value_type": "str"
+              },
+              "value": {
+                "host_binding_id": null,
+                "id": "int",
+                "node": "name",
+                "span": {
+                  "col": 90,
+                  "end_col": 93,
+                  "end_line": 2,
+                  "line": 2
+                }
+              }
+            }
+          ],
+          "node": "dict",
+          "span": {
+            "col": 37,
+            "end_col": 94,
+            "end_line": 2,
+            "line": 2
+          }
+        },
+        "span": {
+          "col": 0,
+          "end_col": 95,
+          "end_line": 2,
+          "line": 2
+        },
+        "syscall_id": "event.log.new"
+      }
+    ],
+    "host_catalog_version": "xian_vm_v1_host_v1",
+    "host_dependencies": [
+      {
+        "binding": "ctx.caller",
+        "category": "context",
+        "id": "context.caller",
+        "kind": "context_field"
+      },
+      {
+        "binding": "__contract_export__",
+        "category": "contract",
+        "id": "contract.export_call",
+        "kind": "syscall"
+      },
+      {
+        "binding": "indexed",
+        "category": "event",
+        "id": "event.indexed",
+        "kind": "syscall"
+      },
+      {
+        "binding": "LogEvent.__call__",
+        "category": "event",
+        "id": "event.log.emit",
+        "kind": "syscall"
+      },
+      {
+        "binding": "LogEvent",
+        "category": "event",
+        "id": "event.log.new",
+        "kind": "syscall"
+      }
+    ],
+    "imports": [
+      {
+        "alias": null,
+        "module": "currency",
+        "node": "import",
+        "span": {
+          "col": 0,
+          "end_col": 15,
+          "end_line": 1,
+          "line": 1
+        }
+      }
+    ],
+    "ir_version": "xian_ir_v1",
+    "module_body": [],
+    "module_name": "con_event_import",
+    "source_hash": "d7aff721e2274b41981738c26543e5ba6ad96556984f1e31130a8eb31539e2d8",
+    "vm_profile": "xian_vm_v1"
+  },
+  "vm_profile": "xian_vm_v1"
+}

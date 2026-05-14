@@ -1,0 +1,492 @@
+import ast
+import inspect
+import os
+import textwrap
+from datetime import datetime
+from functools import partial
+from pathlib import Path
+from types import FunctionType
+
+from xian_runtime_types.time import Datetime
+
+from contracting import constants
+from contracting.artifacts import build_contract_artifacts
+from contracting.compilation.compiler import ContractingCompiler
+from contracting.execution.executor import Executor
+from contracting.execution.parallel import ParallelBatchExecutor
+from contracting.storage.driver import Driver
+from contracting.storage.orm import Hash, Variable
+
+BUILTIN_SUBMISSION_RUNTIME_PATH = (
+    Path(__file__).resolve().parents[1] / "contracts" / "submission.s.py"
+)
+BUILTIN_SUBMISSION_SOURCE_PATH = (
+    Path(__file__).resolve().parents[1] / "contracts" / "submission_source.s.py"
+)
+BUILTIN_SUBMISSION_RUNTIME_FILENAME = str(BUILTIN_SUBMISSION_RUNTIME_PATH)
+
+
+class AbstractContract:
+    def __init__(
+        self,
+        name,
+        signer,
+        environment,
+        executor: Executor,
+        funcs,
+        return_full_output=False,
+    ):
+        self.name = name
+        self.signer = signer
+        self.environment = environment
+        self.executor = executor
+        self.functions = funcs
+
+        # set up virtual functions
+        for f in funcs:
+            # unpack tuple packed in SenecaClient
+            func, kwargs = f
+
+            # set the kwargs to None. these will fail if they are not provided
+            default_kwargs = {}
+            for kwarg in kwargs:
+                default_kwargs[kwarg] = None
+
+            # each function is a partial that allows kwarg overloading and overriding
+            setattr(
+                self,
+                func,
+                partial(
+                    self._abstract_function_call,
+                    signer=self.signer,
+                    contract_name=self.name,
+                    executor=self.executor,
+                    func=func,
+                    return_full_output=return_full_output,
+                    # environment=self.environment,
+                    **default_kwargs,
+                ),
+            )
+
+    def keys(self):
+        # Scope strictly to this contract's namespace
+        return self.executor.driver.keys(f"{self.name}.")
+
+    # a variable contains a DOT, but no __, and no :
+    # a hash contains a DOT, no __, and a :
+    # a constant contains __, a DOT, and :
+
+    def quick_read(self, variable, key=None, args=None):
+        a = []
+
+        if key is not None:
+            a.append(key)
+
+        if args is not None and isinstance(args, list):
+            for arg in args:
+                a.append(arg)
+
+        k = self.executor.driver.make_key(
+            contract=self.name, variable=variable, args=a
+        )
+        return self.executor.driver.get(k)
+
+    def quick_write(self, variable, key=None, value=None, args=None):
+        if key is not None:
+            a = [key]
+        else:
+            a = []
+
+        if args is not None and isinstance(args, list):
+            for arg in args:
+                a.append(arg)
+
+        k = self.executor.driver.make_key(
+            contract=self.name, variable=variable, args=a
+        )
+
+        self.executor.driver.set(k, value)
+        self.executor.driver.commit()
+
+    def run_private_function(self, f, signer=None, environment=None, **kwargs):
+        # Override kwargs if provided
+        signer = signer or self.signer
+        environment = environment or self.environment
+
+        # Let executor access private functions
+        self.executor.bypass_privates = True
+
+        try:
+            # Append private method prefix to function name if it isn't there already
+            if not f.startswith(constants.PRIVATE_METHOD_PREFIX):
+                f = "{}{}".format(constants.PRIVATE_METHOD_PREFIX, f)
+
+            return self._abstract_function_call(
+                signer=signer,
+                executor=self.executor,
+                contract_name=self.name,
+                environment=environment,
+                func=f,
+                metering=None,
+                now=None,
+                **kwargs,
+            )
+        finally:
+            # Always restore restricted mode, even if the private call fails.
+            self.executor.bypass_privates = False
+
+    def __getattr__(self, item):
+        try:
+            # return the attribute if it exists on the instance
+            return self.__getattribute__(item)
+        except AttributeError as e:
+            # otherwise, attempt to resolve it. full name is contract.item
+            fullname = "{}.{}".format(self.name, item)
+
+            # if the raw name exists, it is a __protected__ or a variable, so prepare for those
+            if fullname in self.keys():
+                variable = Variable(
+                    contract=self.name, name=item, driver=self.executor.driver
+                )
+
+                # return just the value if it is __protected__ to prevent sets
+                if item.startswith("__"):
+                    return variable.get()
+
+                # otherwise, return the variable object with allows sets
+                return variable
+
+            # otherwise, see if contract.items: has more than one entry
+            if (
+                len(
+                    self.executor.driver.values(
+                        prefix=self.name + "." + item + ":"
+                    )
+                )
+                > 0
+            ):
+                # if so, it is a hash. return the hash object
+                return Hash(
+                    contract=self.name, name=item, driver=self.executor.driver
+                )
+
+            # otherwise, the attribut does not exist, so throw the error.
+            raise e
+
+    def now(self):
+        d = datetime.today()
+        return Datetime(d.year, d.month, d.day, hour=d.hour, minute=d.minute)
+
+    def _abstract_function_call(
+        self,
+        signer,
+        executor,
+        contract_name,
+        func,
+        environment=None,
+        chi=constants.DEFAULT_CHI,
+        metering=None,
+        now=None,
+        return_full_output=False,
+        **kwargs,
+    ):
+
+        # for k, v in kwargs.items():
+        #     assert v is not None, 'Keyword "{}" not provided. Must not be None.'.format(k)
+        environment = environment or self.environment
+
+        if now is None:
+            now = self.now()
+
+        if environment.get("now") is None:
+            environment.update({"now": now})
+
+        output = executor.execute(
+            sender=signer,
+            contract_name=contract_name,
+            function_name=func,
+            kwargs=kwargs,
+            chi=chi,
+            environment=environment,
+            metering=metering,
+        )
+
+        if executor.production:
+            executor.sandbox.terminate()
+
+        if output["status_code"] == 1 and not return_full_output:
+            raise output["result"]
+        return output["result"] if not return_full_output else output
+
+
+class ContractingClient:
+    def __init__(
+        self,
+        signer="sys",
+        submission_filename=BUILTIN_SUBMISSION_RUNTIME_FILENAME,
+        storage_home=constants.STORAGE_HOME,
+        driver: Driver | None = None,
+        metering=False,
+        compiler: ContractingCompiler | None = None,
+        environment: dict | None = None,
+    ):
+        self._owns_driver = driver is None
+        driver = (
+            driver if driver is not None else Driver(storage_home=storage_home)
+        )
+        self.executor = Executor(metering=metering, driver=driver)
+        self.raw_driver = driver
+        self.signer = signer
+        self.compiler = (
+            compiler if compiler is not None else ContractingCompiler()
+        )
+        self.submission_filename = submission_filename
+        self.environment = environment if environment is not None else {}
+        # Get submission contract from file
+        if submission_filename is not None:
+            local_source, source_code, vm_ir_json = (
+                self._load_submission_artifacts(self.submission_filename)
+            )
+            self.raw_driver.set_contract(
+                name="submission",
+                source=source_code or local_source,
+                vm_ir_json=vm_ir_json,
+            )
+            self.raw_driver.commit()
+
+        # Get submission contract from state
+        self.submission_contract = self.get_contract_proxy("submission")
+
+    def close(self) -> None:
+        if self._owns_driver:
+            self.raw_driver.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+    def set_submission_contract(self, filename=None, commit=True):
+        state_contract = self.get_contract_proxy("submission")
+
+        if filename is None:
+            filename = self.submission_filename
+
+        if filename is None and state_contract is None:
+            raise AssertionError(
+                "No submission contract provided or found in state."
+            )
+
+        if filename is not None:
+            local_source, source_code, vm_ir_json = (
+                self._load_submission_artifacts(filename)
+            )
+            self.raw_driver.delete_contract(name="submission")
+            self.raw_driver.set_contract(
+                name="submission",
+                source=source_code or local_source,
+                vm_ir_json=vm_ir_json,
+            )
+
+            if commit:
+                self.raw_driver.commit()
+
+        self.submission_contract = self.get_contract_proxy("submission")
+
+    def _load_submission_artifacts(
+        self,
+        filename: str | os.PathLike[str],
+    ) -> tuple[str, str | None, str | None]:
+        runtime_path = Path(filename).resolve()
+        local_source = runtime_path.read_text(encoding="utf-8")
+
+        source_code = None
+        vm_ir_json = None
+        if runtime_path == BUILTIN_SUBMISSION_RUNTIME_PATH:
+            source_code = BUILTIN_SUBMISSION_SOURCE_PATH.read_text(
+                encoding="utf-8"
+            )
+            previous_module_name = self.compiler.module_name
+            self.compiler.module_name = "submission"
+            try:
+                vm_ir_json = self.compiler.lower_to_ir_json(
+                    source_code,
+                    lint=False,
+                    vm_profile="xian_vm_v1",
+                    indent=None,
+                    sort_keys=True,
+                )
+            finally:
+                self.compiler.module_name = previous_module_name
+
+        return local_source, source_code, vm_ir_json
+
+    def build_parallel_executor(
+        self,
+        *,
+        enabled: bool = True,
+        workers: int = 0,
+        min_batch_size: int = 8,
+    ) -> ParallelBatchExecutor:
+        return ParallelBatchExecutor(
+            executor=self.executor,
+            enabled=enabled,
+            workers=workers,
+            min_batch_size=min_batch_size,
+        )
+
+    def flush(self):
+        # flushes storage and resubmits genesis contracts
+        self.raw_driver.flush_full()
+        self.raw_driver.flush_cache()
+
+        if self.submission_filename is not None:
+            self.set_submission_contract()
+
+    # Returns abstract contract which has partial methods mapped to each exported function.
+    def get_contract_proxy(self, name):
+        contract = self.raw_driver.get_local_contract_runtime(name)
+
+        if contract is None:
+            return None
+
+        tree = ast.parse(contract)
+
+        function_defs = [
+            n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
+        ]
+
+        funcs = []
+        for definition in function_defs:
+            func_name = definition.name
+            kwargs = [arg.arg for arg in definition.args.args]
+
+            funcs.append((func_name, kwargs))
+
+        return AbstractContract(
+            name=name,
+            signer=self.signer,
+            environment=self.environment,
+            executor=self.executor,
+            funcs=funcs,
+        )
+
+    def get_contract_source(self, name):
+        return self.raw_driver.get_contract_source(name)
+
+    def get_contract_ir(self, name, *, vm_profile: str = "xian_vm_v1"):
+        return self.raw_driver.get_contract_ir(name, vm_profile=vm_profile)
+
+    def closure_to_code_string(self, f):
+        closure_code = textwrap.dedent(inspect.getsource(f))
+        closure_tree = ast.parse(closure_code)
+
+        # Remove the enclosing function by swapping out the function def node with its children
+        assert len(closure_tree.body) == 1, "Module has multiple body nodes."
+        assert isinstance(closure_tree.body[0], ast.FunctionDef), (
+            "Function definition not found at root."
+        )
+
+        func_def_body = closure_tree.body[0]
+        closure_tree.body = func_def_body.body
+
+        contract_source = ast.unparse(closure_tree)
+        name = func_def_body.name
+
+        return contract_source, name
+
+    def lint(self, f, raise_errors=False):
+        if isinstance(f, FunctionType):
+            f, _ = self.closure_to_code_string(f)
+
+        if raise_errors:
+            self.compiler.linter.check_raise(f)
+            return None
+
+        return self.compiler.linter.check(f)
+
+    def compile(self, f):
+        if isinstance(f, FunctionType):
+            f, _ = self.closure_to_code_string(f)
+
+        code = self.compiler.parse_to_code(f)
+        return code
+
+    def build_deployment_artifacts(self, f, *, name=None):
+        if isinstance(f, FunctionType):
+            f, inferred_name = self.closure_to_code_string(f)
+            if name is None:
+                name = inferred_name
+
+        assert name is not None, "No name provided."
+
+        return build_contract_artifacts(
+            module_name=name,
+            source=f,
+            lint=True,
+            vm_profile="xian_vm_v1",
+        )
+
+    def submit(
+        self,
+        f,
+        name=None,
+        metering=None,
+        owner=None,
+        constructor_args=None,
+        signer=None,
+    ):
+        if constructor_args is None:
+            constructor_args = {}
+
+        if self.raw_driver.has_contract("submission"):
+            self.submission_contract = self.get_contract_proxy("submission")
+
+        assert self.submission_contract is not None, (
+            "No submission contract set. Try set_submission_contract first."
+        )
+
+        if isinstance(f, FunctionType):
+            f, n = self.closure_to_code_string(f)
+            if name is None:
+                name = n
+
+        assert name is not None, "No name provided."
+
+        if signer is None:
+            signer = self.signer
+
+        deployment_artifacts = self.build_deployment_artifacts(
+            f,
+            name=name,
+        )
+        self.submission_contract.submit_contract(
+            name=name,
+            deployment_artifacts=deployment_artifacts,
+            owner=owner,
+            constructor_args=constructor_args,
+            metering=metering,
+            signer=signer,
+        )
+
+    def get_contracts(self):
+        contracts = set()
+        for key in self.raw_driver.keys():
+            if key.endswith(".__source__"):
+                contracts.add(key.replace(".__source__", ""))
+            elif key.endswith(".__xian_ir_v1__"):
+                contracts.add(key.replace(".__xian_ir_v1__", ""))
+        return sorted(contracts)
+
+    def get_var(self, contract, variable, arguments=None, mark=False):
+        if arguments is None:
+            arguments = []
+        return self.raw_driver.get_var(contract, variable, arguments, mark)
+
+    def set_var(
+        self, contract, variable, arguments=None, value=None, mark=False
+    ):
+        if arguments is None:
+            arguments = []
+        self.raw_driver.set_var(contract, variable, arguments, value, mark)

@@ -1,25 +1,14 @@
-from unittest import TestCase
 import hashlib
-from xian_runtime_types.time import Datetime
-from contracting.client import ContractingClient
 import os
+from unittest import TestCase
+
+from contracting.local import ContractingClient
 
 
 class TestDynamicImports(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
-        self.c.raw_driver.flush_full()
-
-        submission_path = os.path.join(
-            os.path.dirname(__file__), "test_contracts", "submission.s.py"
-        )
-
-        with open(submission_path) as f:
-            contract = f.read()
-
-        self.c.raw_driver.set_contract(name="submission", code=contract)
-        self.c.raw_driver.commit()
-        self.c.submission_contract = self.c.get_contract("submission")
+        self.c.flush()
 
         # submit erc20 clone
         stubucks_path = os.path.join(
@@ -66,11 +55,11 @@ class TestDynamicImports(TestCase):
             code = f.read()
             self.c.submit(code, name="con_dynamic_ctx_probe")
 
-        self.stubucks = self.c.get_contract("con_stubucks")
-        self.tejastokens = self.c.get_contract("con_tejastokens")
-        self.bastardcoin = self.c.get_contract("con_bastardcoin")
-        self.dynamic_importing = self.c.get_contract("con_dynamic_importing")
-        self.dynamic_ctx_probe = self.c.get_contract("con_dynamic_ctx_probe")
+        self.stubucks = self.c.get_contract_proxy("con_stubucks")
+        self.tejastokens = self.c.get_contract_proxy("con_tejastokens")
+        self.bastardcoin = self.c.get_contract_proxy("con_bastardcoin")
+        self.dynamic_importing = self.c.get_contract_proxy("con_dynamic_importing")
+        self.dynamic_ctx_probe = self.c.get_contract_proxy("con_dynamic_ctx_probe")
 
     def tearDown(self):
         self.c.raw_driver.flush_full()
@@ -374,7 +363,7 @@ class TestDynamicImports(TestCase):
             code = f.read()
             self.c.submit(code, name="con_owner_stuff", owner="poo")
 
-        owner_stuff = self.c.get_contract("con_owner_stuff")
+        owner_stuff = self.c.get_contract_proxy("con_owner_stuff")
 
         self.assertIsNone(owner_stuff.get_owner(s="con_stubucks", signer="poo"))
         self.assertEqual(
@@ -397,7 +386,7 @@ class TestDynamicImports(TestCase):
             code = f.read()
             self.c.submit(code, name="con_owner_stuff", owner="poo")
 
-        owner_stuff = self.c.get_contract("con_owner_stuff")
+        owner_stuff = self.c.get_contract_proxy("con_owner_stuff")
         expected = {
             "name": "con_owner_stuff",
             "owner": "poo",
@@ -415,7 +404,7 @@ class TestDynamicImports(TestCase):
             expected,
         )
 
-    def test_code_hash_returns_runtime_and_source_hashes(self):
+    def test_code_hash_returns_ir_and_source_hashes(self):
         owner_stuff_path = os.path.join(
             os.path.dirname(__file__), "test_contracts", "owner_stuff.s.py"
         )
@@ -424,11 +413,11 @@ class TestDynamicImports(TestCase):
             code = f.read()
             self.c.submit(code, name="con_owner_stuff", owner="poo")
 
-        owner_stuff = self.c.get_contract("con_owner_stuff")
-        runtime_code = self.c.get_var("con_owner_stuff", "__code__")
+        owner_stuff = self.c.get_contract_proxy("con_owner_stuff")
+        ir_code = self.c.get_var("con_owner_stuff", "__xian_ir_v1__")
         source_code = self.c.get_var("con_owner_stuff", "__source__")
-        expected_runtime_hash = hashlib.sha3_256(
-            runtime_code.encode("utf-8")
+        expected_ir_hash = hashlib.sha3_256(
+            ir_code.encode("utf-8")
         ).hexdigest()
         expected_source_hash = hashlib.sha3_256(
             source_code.encode("utf-8")
@@ -437,18 +426,18 @@ class TestDynamicImports(TestCase):
         self.assertEqual(
             owner_stuff.get_code_hash(
                 s="con_owner_stuff",
-                kind="runtime",
+                kind="ir",
                 signer="poo",
             ),
-            expected_runtime_hash,
+            expected_ir_hash,
         )
         self.assertEqual(
             owner_stuff.get_code_hash_by_name(
                 s="con_owner_stuff",
-                kind="runtime",
+                kind="ir",
                 signer="poo",
             ),
-            expected_runtime_hash,
+            expected_ir_hash,
         )
         self.assertEqual(
             owner_stuff.get_code_hash(
@@ -476,7 +465,7 @@ class TestDynamicImports(TestCase):
             code = f.read()
             self.c.submit(code, name="con_owner_stuff", owner="poo")
 
-        owner_stuff = self.c.get_contract("con_owner_stuff")
+        owner_stuff = self.c.get_contract_proxy("con_owner_stuff")
 
         with self.assertRaises(AssertionError):
             owner_stuff.get_code_hash_by_name(
@@ -494,7 +483,7 @@ class TestDynamicImports(TestCase):
             code = f.read()
             self.c.submit(code, name="con_owner_stuff", owner="poot")
 
-        owner_stuff = self.c.get_contract("con_owner_stuff")
+        owner_stuff = self.c.get_contract_proxy("con_owner_stuff")
 
         self.assertEqual(owner_stuff.owner_of_this(signer="poot"), "poot")
 
@@ -507,7 +496,7 @@ class TestDynamicImports(TestCase):
             code = f.read()
             self.c.submit(code, name="con_owner_stuff", owner="poot")
 
-        owner_stuff = self.c.get_contract("owner_stuff")
+        owner_stuff = self.c.get_contract_proxy("owner_stuff")
         with self.assertRaises(Exception):
             owner_stuff.owner_of_this()
 
@@ -528,7 +517,7 @@ class TestDynamicImports(TestCase):
             code = f.read()
             self.c.submit(code, name="con_child_test", owner="con_parent_test")
 
-        parent_test = self.c.get_contract("con_parent_test")
+        parent_test = self.c.get_contract_proxy("con_parent_test")
 
         val = parent_test.get_val_from_child(s="con_child_test")
 
@@ -551,7 +540,7 @@ class TestDynamicImports(TestCase):
             code = f.read()
             self.c.submit(code, name="con_child_test", owner="blorg")
 
-        parent_test = self.c.get_contract("parent_test")
+        parent_test = self.c.get_contract_proxy("parent_test")
 
         with self.assertRaises(Exception) as e:
             parent_test.get_val_from_child(s="child_test")

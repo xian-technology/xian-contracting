@@ -2,8 +2,7 @@ from unittest import TestCase
 
 from xian_runtime_types.decimal import ContractingDecimal
 
-from contracting.client import ContractingClient
-
+from contracting.local import ContractingClient
 
 TYPECHECKED_CONTRACT = """
 @export(typecheck=True)
@@ -49,7 +48,7 @@ class TestExportTypecheck(TestCase):
 
     def test_typechecked_export_accepts_decimal_backed_numeric_values(self):
         self.client.submit(TYPECHECKED_CONTRACT, name="con_typed_calc")
-        contract = self.client.get_contract("con_typed_calc")
+        contract = self.client.get_contract_proxy("con_typed_calc")
 
         self.assertEqual(contract.calculate(limit=3), "YES")
         self.assertEqual(contract.calculate(limit=0.2), "YES")
@@ -60,7 +59,7 @@ class TestExportTypecheck(TestCase):
 
     def test_typechecked_export_rejects_bad_argument_type(self):
         self.client.submit(TYPECHECKED_CONTRACT, name="con_typed_calc")
-        contract = self.client.get_contract("con_typed_calc")
+        contract = self.client.get_contract_proxy("con_typed_calc")
 
         with self.assertRaisesRegex(
             TypeError, "Argument 'limit' must be <class 'float'>"
@@ -69,7 +68,7 @@ class TestExportTypecheck(TestCase):
 
     def test_typechecked_export_rejects_nested_container_mismatches(self):
         self.client.submit(TYPECHECKED_CONTRACT, name="con_typed_calc")
-        contract = self.client.get_contract("con_typed_calc")
+        contract = self.client.get_contract_proxy("con_typed_calc")
 
         with self.assertRaisesRegex(
             TypeError, "Argument 'metadata'\\['counts'\\]\\[1\\]"
@@ -81,7 +80,7 @@ class TestExportTypecheck(TestCase):
 
     def test_typechecked_export_rejects_bad_return_type(self):
         self.client.submit(BAD_RETURN_CONTRACT, name="con_bad_return")
-        contract = self.client.get_contract("con_bad_return")
+        contract = self.client.get_contract_proxy("con_bad_return")
 
         with self.assertRaisesRegex(
             TypeError, "Return value must be <class 'str'>"
@@ -92,7 +91,7 @@ class TestExportTypecheck(TestCase):
         self.client.submit(INNER_TYPED_CONTRACT, name="con_inner_typed")
         self.client.submit(OUTER_TYPED_CONTRACT, name="con_outer_typed")
 
-        outer = self.client.get_contract("con_outer_typed")
+        outer = self.client.get_contract_proxy("con_outer_typed")
 
         with self.assertRaisesRegex(
             TypeError, "Argument 'count' must be <class 'int'>"

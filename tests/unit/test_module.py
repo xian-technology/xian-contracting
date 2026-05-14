@@ -25,12 +25,12 @@ class TestContractStorage(TestCase):
     def tearDown(self):
         self.d.flush_full()
 
-    def test_push_and_get_contract(self):
+    def test_push_and_get_local_contract_runtime(self):
         code = "a = 123"
         name = "test"
 
-        self.d.set_contract(name, code)
-        _code = self.d.get_contract(name)
+        self.d.set_contract(name, source=code)
+        _code = self.d.get_local_contract_runtime(name)
 
         self.assertEqual(
             code,
@@ -42,11 +42,11 @@ class TestContractStorage(TestCase):
         code = "a = 123"
         name = "test"
 
-        self.d.set_contract(name, code)
+        self.d.set_contract(name, source=code)
         self.d.commit()
         self.d.flush_full()
 
-        self.assertIsNone(self.d.get_contract(name))
+        self.assertIsNone(self.d.get_local_contract_runtime(name))
 
 
 class TestContractModuleLoader(TestCase):
@@ -69,7 +69,7 @@ class TestContractModuleLoader(TestCase):
     def test_exec_module(self):
         module = types.ModuleType("test")
 
-        self.loader.driver.set_contract("test", "b = 1337")
+        self.loader.driver.set_contract("test", source="b = 1337")
         self.loader.exec_module(module)
         self.loader.driver.flush_full()
 
@@ -78,7 +78,7 @@ class TestContractModuleLoader(TestCase):
     def test_exec_module_nonattribute(self):
         module = types.ModuleType("test")
 
-        self.loader.driver.set_contract("test", "b = 1337")
+        self.loader.driver.set_contract("test", source="b = 1337")
         self.loader.exec_module(module)
         self.loader.driver.flush_full()
 
@@ -104,7 +104,7 @@ class TestInstallLoader(TestCase):
             script = """
 from pathlib import Path
 
-from contracting.client import ContractingClient
+from contracting.local import ContractingClient
 from contracting.execution.module import ContractModuleFinder
 
 storage_home = Path.home() / ".cometbft" / "xian"
@@ -149,7 +149,7 @@ print("ok")
         loader = ContractModuleLoader()
         module_name = "testing_integration"
         sys.modules.pop(module_name, None)
-        loader.driver.set_contract(module_name, "a = 1234567890")
+        loader.driver.set_contract(module_name, source="a = 1234567890")
         loader.driver.commit()
 
         install_contract_module_loader(driver=loader.driver)
@@ -168,8 +168,8 @@ print("ok")
 
             driver_a.flush_full()
             driver_b.flush_full()
-            driver_a.set_contract("testing", "a = 111")
-            driver_b.set_contract("testing", "a = 222")
+            driver_a.set_contract("testing", source="a = 111")
+            driver_b.set_contract("testing", source="a = 222")
             driver_a.commit()
             driver_b.commit()
 
@@ -179,7 +179,7 @@ print("ok")
                 install_contract_module_loader(driver=driver)
                 spec = ContractModuleFinder.find_spec("testing")
                 self.assertIsNotNone(spec)
-                return spec.loader.driver.get_contract("testing") == expected
+                return spec.loader.driver.get_local_contract_runtime("testing") == expected
 
             context_a = copy_context()
             context_b = copy_context()
@@ -212,7 +212,7 @@ class TestModuleLoadingIntegration(TestCase):
             with open(contract) as f:
                 code = f.read()
 
-            driver.set_contract(name=name, code=code)
+            driver.set_contract(name=name, source=code)
             driver.commit()
 
     def tearDown(self):

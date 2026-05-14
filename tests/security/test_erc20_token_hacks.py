@@ -1,7 +1,7 @@
 import os
 from unittest import TestCase
 
-from contracting.client import ContractingClient
+from contracting.local import ContractingClient
 
 
 class TestTokenHacks(TestCase):
@@ -16,7 +16,7 @@ class TestTokenHacks(TestCase):
         with open(submission_path) as f:
             contract = f.read()
 
-        self.c.raw_driver.set_contract(name="submission", code=contract)
+        self.c.raw_driver.set_contract(name="submission", source=contract)
 
         self.c.raw_driver.commit()
 
@@ -79,7 +79,7 @@ class TestTokenHacks(TestCase):
             self.assertEqual(pre_hack_balance, post_hack_balance)
 
     def test_double_spend_if_chi_run_out(self):
-        token = self.c.get_contract("con_erc20")
+        token = self.c.get_contract_proxy("con_erc20")
 
         pre_hack_balance_stu = float(
             str(self.c.get_var("con_erc20", "balances", arguments=["stu"]))
@@ -101,7 +101,7 @@ class TestTokenHacks(TestCase):
         # Test the double_spend contract
         # - sends the amount of the "allowance" (set in token.approve as 'tx_amount')
         # - calls transfer_from to send from 'stu' to 'colin' as 'con_hack'
-        con_hack = self.c.get_contract("con_hack")
+        con_hack = self.c.get_contract_proxy("con_hack")
         self.c.raw_driver.commit()
         with self.assertRaises(AssertionError):
             con_hack.double_spend(receiver="colin", chi=200)
@@ -136,7 +136,7 @@ class TestTokenHacks(TestCase):
             code = f.read()
             self.c.submit(code, name="con_call_infinate_loop", metering=True)
 
-        loop = self.c.get_contract("con_call_infinate_loop")
+        loop = self.c.get_contract_proxy("con_call_infinate_loop")
 
         with self.assertRaises(AssertionError):
             loop.call()

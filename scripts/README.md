@@ -5,21 +5,23 @@ runtime/VM work. They are not node operation scripts.
 
 ## Current Scripts
 
-- `validate-release.sh`: release-grade validation gate for the full runtime,
-  native tracer, zk, and Xian VM paths.
+- `validate-release.sh`: release-grade validation gate for the local runtime,
+  zk, and Xian VM paths.
 - `audit_authored_conformance.py`: scans authored contracts against the
-  Python-vs-Xian-VM conformance matrix.
-- `audit_python_vm_compatibility.py`: checks whether authored contracts can be
-  compiled/executed by the Python VM compatibility path.
+  contract-language conformance matrix.
 - `audit_vm_compatibility.py`: reports whether contract sources fit a selected
   VM compatibility profile.
 - `audit_vm_ir_lowering.py`: lowers contract sources to the current VM IR and
   reports lowering failures plus host dependency counts.
-- `audit_vm_metering.py`: compares Python native-instruction metering against
-  `xian_vm_v1` metering for parity fixtures.
-- `generate_vm_parity_fixtures.py`: regenerates curated VM parity fixtures from
-  current Python runtime behavior and selected authored contract sources in the
-  wider Xian workspace.
+- `audit_compiler_core_parity.py`: compares Rust compiler-core artifacts
+  against the Python reference compiler across authored contracts and lint
+  modes.
+- `generate_compiler_fixtures.py`: records current Python compiler source,
+  normalization, artifact, IR, hash, and rejection behavior as
+  `xian.compiler_fixture.v1` JSON for the Rust compiler migration.
+- `generate_vm_parity_fixtures.py`: regenerates curated VM conformance fixtures
+  from current local harness behavior and selected authored contract sources in
+  the wider Xian workspace.
 
 ## Notes
 

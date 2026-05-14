@@ -4,7 +4,7 @@ from unittest import TestCase
 
 import pytest
 
-from contracting.client import ContractingClient
+from contracting.local import ContractingClient
 from contracting.storage.contract import Contract
 
 pytestmark = pytest.mark.optional_native
@@ -17,19 +17,7 @@ class TestZkBridge(TestCase):
 
     def setUp(self):
         self.c = ContractingClient(signer="stu")
-        self.c.raw_driver.flush_full()
-
-        submission_path = os.path.join(
-            os.path.dirname(__file__),
-            "test_contracts",
-            "submission.s.py",
-        )
-        with open(submission_path) as submission_file:
-            self.c.raw_driver.set_contract(
-                name="submission",
-                code=submission_file.read(),
-            )
-        self.c.raw_driver.commit()
+        self.c.flush()
 
         registry_path = os.path.join(
             os.path.dirname(__file__),
@@ -38,9 +26,13 @@ class TestZkBridge(TestCase):
         )
         registry_path = os.path.abspath(registry_path)
         with open(registry_path) as registry_file:
+            registry_source = registry_file.read()
             Contract(driver=self.c.raw_driver).submit(
                 name="zk_registry",
-                code=registry_file.read(),
+                deployment_artifacts=self.c.build_deployment_artifacts(
+                    registry_source,
+                    name="zk_registry",
+                ),
                 constructor_args={"owner": "stu"},
             )
         self.c.raw_driver.commit()
@@ -66,8 +58,8 @@ class TestZkBridge(TestCase):
         with open(fixture_path) as fixture_file:
             self.fixture = json.load(fixture_file)
 
-        self.contract = self.c.get_contract("con_zk_probe")
-        self.registry = self.c.get_contract("zk_registry")
+        self.contract = self.c.get_contract_proxy("con_zk_probe")
+        self.registry = self.c.get_contract_proxy("zk_registry")
         self.registry.register_vk(
             vk_id="demo-square",
             vk_hex=self.fixture["vk_hex"],

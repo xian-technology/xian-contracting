@@ -7,8 +7,7 @@ pub const CONTRACT_ARTIFACT_FORMAT_V1: &str = "xian_contract_artifact_v1";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedArtifactBundle {
     pub source: String,
-    pub runtime_code: Option<String>,
-    pub vm_ir_json: Option<String>,
+    pub vm_ir_json: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,8 +64,13 @@ pub fn validate_contract_artifacts_json(
         ));
     }
 
+    if object.contains_key("runtime_code") {
+        return Err(ArtifactValidationError::new(
+            "deployment_artifacts must not include runtime_code.",
+        ));
+    }
+
     let source = required_non_empty_string_field(object, "source")?;
-    let runtime_code = optional_non_empty_string_field(object, "runtime_code")?;
     let vm_ir_json = required_non_empty_string_field(object, "vm_ir_json")?;
     let hashes = object
         .get("hashes")
@@ -80,8 +84,10 @@ pub fn validate_contract_artifacts_json(
     if let Some(input_source) = input_source {
         validate_hash_field(hashes, "input_source_sha256", &sha256_hex(input_source))?;
     }
-    if let Some(runtime_code) = runtime_code {
-        validate_hash_field(hashes, "runtime_code_sha256", &sha256_hex(runtime_code))?;
+    if hashes.contains_key("runtime_code_sha256") {
+        return Err(ArtifactValidationError::new(
+            "deployment_artifacts hashes must not include runtime_code_sha256.",
+        ));
     }
     let module_ir = parse_module_ir(vm_ir_json)
         .map_err(|error| ArtifactValidationError::new(error.to_string()))?;
@@ -103,8 +109,7 @@ pub fn validate_contract_artifacts_json(
 
     Ok(ValidatedArtifactBundle {
         source: source.to_owned(),
-        runtime_code: runtime_code.map(ToOwned::to_owned),
-        vm_ir_json: Some(vm_ir_json.to_owned()),
+        vm_ir_json: vm_ir_json.to_owned(),
     })
 }
 
@@ -130,22 +135,6 @@ fn required_non_empty_string_field<'a>(
         )));
     }
     Ok(value)
-}
-
-fn optional_non_empty_string_field<'a>(
-    object: &'a serde_json::Map<String, Value>,
-    field: &str,
-) -> Result<Option<&'a str>, ArtifactValidationError> {
-    match object.get(field) {
-        None | Some(Value::Null) => Ok(None),
-        Some(Value::String(value)) if !value.is_empty() => Ok(Some(value)),
-        Some(Value::String(_)) => Err(ArtifactValidationError::new(format!(
-            "deployment_artifacts must include a non-empty '{field}' string."
-        ))),
-        Some(_) => Err(ArtifactValidationError::new(format!(
-            "deployment_artifacts must include a string field '{field}'."
-        ))),
-    }
 }
 
 fn validate_hash_field(
@@ -193,17 +182,14 @@ mod tests {
             "host_dependencies": [],
         })
         .to_string();
-        let runtime_code = "pass\n".to_owned();
         json!({
             "format": CONTRACT_ARTIFACT_FORMAT_V1,
             "module_name": module_name,
             "vm_profile": XIAN_VM_V1_PROFILE,
             "source": source,
-            "runtime_code": runtime_code,
             "vm_ir_json": vm_ir_json,
             "hashes": {
                 "source_sha256": sha256_hex(source),
-                "runtime_code_sha256": sha256_hex("pass\n"),
                 "vm_ir_sha256": sha256_hex(&json!({
                     "ir_version": XIAN_IR_V1,
                     "vm_profile": XIAN_VM_V1_PROFILE,
@@ -234,7 +220,7 @@ mod tests {
         .expect("bundle should validate");
 
         assert_eq!(validated.source, "x = 1\n");
-        assert_eq!(validated.runtime_code.as_deref(), Some("pass\n"));
+        assert!(!validated.vm_ir_json.is_empty());
     }
 
     #[test]
@@ -282,8 +268,28 @@ mod tests {
                 .expect("ir-only bundle should validate");
 
         assert_eq!(validated.source, "x = 1\n");
-        assert_eq!(validated.runtime_code, None);
-        assert!(validated.vm_ir_json.is_some());
+        assert!(!validated.vm_ir_json.is_empty());
+    }
+
+    #[test]
+    fn rejects_runtime_code_bundle() {
+        let mut payload: Value = serde_json::from_str(&make_artifact("con_probe", "x = 1\n"))
+            .expect("artifact json should parse");
+        payload["runtime_code"] = Value::String("pass\n".to_owned());
+        payload["hashes"]["runtime_code_sha256"] = Value::String(sha256_hex("pass\n"));
+
+        let error = validate_contract_artifacts_json(
+            "con_probe",
+            &payload.to_string(),
+            None,
+            XIAN_VM_V1_PROFILE,
+        )
+        .expect_err("bundle should fail");
+
+        assert_eq!(
+            error.to_string(),
+            "deployment_artifacts must not include runtime_code."
+        );
     }
 
     #[test]
@@ -318,13 +324,8 @@ mod tests {
         .expect("vm ir should parse");
         module_ir["module_name"] = Value::String("con_other".to_owned());
         payload["vm_ir_json"] = Value::String(module_ir.to_string());
-        let runtime_code = payload["runtime_code"]
-            .as_str()
-            .expect("runtime_code should exist")
-            .to_owned();
         payload["hashes"]["vm_ir_sha256"] =
             Value::String(sha256_hex(payload["vm_ir_json"].as_str().expect("vm ir")));
-        payload["hashes"]["runtime_code_sha256"] = Value::String(sha256_hex(&runtime_code));
 
         let error = validate_contract_artifacts_json(
             "con_probe",

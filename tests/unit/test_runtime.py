@@ -33,10 +33,6 @@ class TestRuntimeLifecycle(TestCase):
         runtime.rt.set_up(stmps=1000, meter=True)
         self.assertIs(runtime.rt.tracer, tracer)
 
-    def test_set_tracer_mode_switches_backend(self):
-        runtime.rt.set_tracer_mode("python_line_v1")
-        self.assertEqual(runtime.rt.tracer_mode, "python_line_v1")
-
     def test_runtime_state_is_isolated_per_thread(self):
         barrier = Barrier(2)
 
@@ -101,7 +97,6 @@ class TestTracerMetering(TestCase):
         self.assertEqual(runtime.rt.tracer.get_chi_used(), 900)
 
     def test_python_line_metadata_survives_runtime_cleanup(self):
-        runtime.rt.set_tracer_mode("python_line_v1")
         runtime.rt.set_up(stmps=1_000_000, meter=True)
         code = compile("x = 1\ny = x + 1\n", "<test>", "exec")
         runtime.rt.tracer.register_code(code)

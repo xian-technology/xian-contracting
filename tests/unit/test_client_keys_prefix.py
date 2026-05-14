@@ -1,5 +1,6 @@
 import unittest
-from contracting.client import ContractingClient
+
+from contracting.local import ContractingClient
 
 
 class TestClientKeysPrefix(unittest.TestCase):
@@ -19,8 +20,8 @@ def f():
         self.client.submit(code_b, name='abc2')
 
         # Write distinct state under each contract to detect leakage
-        self.client.set_var('abc', '__code__', value='X')
-        self.client.set_var('abc2', '__code__', value='Y')
+        self.client.set_var('abc', '__source__', value='X')
+        self.client.set_var('abc2', '__source__', value='Y')
 
         # Also add a hash-like key for both
         self.client.set_var('abc', 'h', arguments=['k'], value=1)
@@ -30,7 +31,7 @@ def f():
         self.client.flush()
 
     def test_keys_scoped_to_exact_contract(self):
-        abc = self.client.get_contract('abc')
+        abc = self.client.get_contract_proxy('abc')
         keys = abc.keys()
         # Ensure keys from abc2 are not present
         self.assertTrue(all(not k.startswith('abc2.') for k in keys))
@@ -38,5 +39,4 @@ def f():
 
 if __name__ == '__main__':
     unittest.main()
-
 

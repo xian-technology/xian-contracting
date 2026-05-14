@@ -3,11 +3,11 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from contracting.client import ContractingClient
 from contracting.execution.parallel import (
     ExecutionRequest,
     ParallelBatchExecutor,
 )
+from contracting.local import ContractingClient
 
 CONTRACT_CODE = textwrap.dedent(
     """

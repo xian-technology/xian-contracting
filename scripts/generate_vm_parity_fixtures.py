@@ -11,8 +11,8 @@ from nacl.signing import SigningKey
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime, Timedelta
 
-from contracting.client import ContractingClient
 from contracting.compilation.compiler import ContractingCompiler
+from contracting.local import ContractingClient
 from contracting.stdlib.bridge import zk as zk_bridge
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

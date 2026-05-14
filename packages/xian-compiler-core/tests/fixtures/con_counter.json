@@ -1,0 +1,421 @@
+{
+  "artifact": {
+    "format": "xian_contract_artifact_v1",
+    "hashes": {
+      "input_source_sha256": "5fa75cd08b9f5de7e6c983c0f666b68384372b9c5f4c8a5479168bc6bd085cf2",
+      "source_sha256": "630ca674b3d66166338a7b87f346fe841056da9e2a5b816895111c906944fe48",
+      "vm_ir_sha256": "3a17114b4798e7b769d981de3fac14a2a1b1101ace55cded6ab31770c21f2558"
+    },
+    "module_name": "con_counter",
+    "source": "counter = Variable()\n\n@construct\ndef seed():\n    counter.set(0)\n\n@export\ndef get():\n    return counter.get()\n\n@export\ndef increment():\n    counter.set(counter.get() + 1)\n    return counter.get()",
+    "vm_ir_json": "{\"docstring\": null, \"functions\": [{\"body\": [{\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 18, \"end_line\": 5, \"line\": 5}, \"value\": {\"args\": [{\"node\": \"constant\", \"span\": {\"col\": 16, \"end_col\": 17, \"end_line\": 5, \"line\": 5}, \"value\": 0, \"value_type\": \"int\"}], \"func\": {\"attr\": \"set\", \"host_binding_id\": null, \"node\": \"attribute\", \"path\": \"counter.set\", \"span\": {\"col\": 4, \"end_col\": 15, \"end_line\": 5, \"line\": 5}, \"value\": {\"host_binding_id\": null, \"id\": \"counter\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 11, \"end_line\": 5, \"line\": 5}}}, \"keywords\": [], \"method\": \"set\", \"node\": \"call\", \"receiver_binding\": \"counter\", \"receiver_type\": \"Variable\", \"span\": {\"col\": 4, \"end_col\": 18, \"end_line\": 5, \"line\": 5}, \"syscall_id\": \"storage.variable.set\"}}], \"decorator\": {\"args\": [], \"keywords\": [], \"name\": \"construct\", \"node\": \"decorator\", \"span\": {\"col\": 1, \"end_col\": 10, \"end_line\": 3, \"line\": 3}}, \"docstring\": null, \"name\": \"seed\", \"node\": \"function\", \"parameters\": [], \"returns\": null, \"span\": {\"col\": 0, \"end_col\": 18, \"end_line\": 5, \"line\": 4}, \"visibility\": \"construct\"}, {\"body\": [{\"node\": \"return\", \"span\": {\"col\": 4, \"end_col\": 24, \"end_line\": 9, \"line\": 9}, \"value\": {\"args\": [], \"func\": {\"attr\": \"get\", \"host_binding_id\": null, \"node\": \"attribute\", \"path\": \"counter.get\", \"span\": {\"col\": 11, \"end_col\": 22, \"end_line\": 9, \"line\": 9}, \"value\": {\"host_binding_id\": null, \"id\": \"counter\", \"node\": \"name\", \"span\": {\"col\": 11, \"end_col\": 18, \"end_line\": 9, \"line\": 9}}}, \"keywords\": [], \"method\": \"get\", \"node\": \"call\", \"receiver_binding\": \"counter\", \"receiver_type\": \"Variable\", \"span\": {\"col\": 11, \"end_col\": 24, \"end_line\": 9, \"line\": 9}, \"syscall_id\": \"storage.variable.get\"}}], \"decorator\": {\"args\": [], \"keywords\": [], \"name\": \"export\", \"node\": \"decorator\", \"span\": {\"col\": 1, \"end_col\": 7, \"end_line\": 7, \"line\": 7}}, \"docstring\": null, \"name\": \"get\", \"node\": \"function\", \"parameters\": [], \"returns\": null, \"span\": {\"col\": 0, \"end_col\": 24, \"end_line\": 9, \"line\": 8}, \"visibility\": \"export\"}, {\"body\": [{\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 34, \"end_line\": 13, \"line\": 13}, \"value\": {\"args\": [{\"left\": {\"args\": [], \"func\": {\"attr\": \"get\", \"host_binding_id\": null, \"node\": \"attribute\", \"path\": \"counter.get\", \"span\": {\"col\": 16, \"end_col\": 27, \"end_line\": 13, \"line\": 13}, \"value\": {\"host_binding_id\": null, \"id\": \"counter\", \"node\": \"name\", \"span\": {\"col\": 16, \"end_col\": 23, \"end_line\": 13, \"line\": 13}}}, \"keywords\": [], \"method\": \"get\", \"node\": \"call\", \"receiver_binding\": \"counter\", \"receiver_type\": \"Variable\", \"span\": {\"col\": 16, \"end_col\": 29, \"end_line\": 13, \"line\": 13}, \"syscall_id\": \"storage.variable.get\"}, \"node\": \"bin_op\", \"operator\": \"add\", \"right\": {\"node\": \"constant\", \"span\": {\"col\": 32, \"end_col\": 33, \"end_line\": 13, \"line\": 13}, \"value\": 1, \"value_type\": \"int\"}, \"span\": {\"col\": 16, \"end_col\": 33, \"end_line\": 13, \"line\": 13}}], \"func\": {\"attr\": \"set\", \"host_binding_id\": null, \"node\": \"attribute\", \"path\": \"counter.set\", \"span\": {\"col\": 4, \"end_col\": 15, \"end_line\": 13, \"line\": 13}, \"value\": {\"host_binding_id\": null, \"id\": \"counter\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 11, \"end_line\": 13, \"line\": 13}}}, \"keywords\": [], \"method\": \"set\", \"node\": \"call\", \"receiver_binding\": \"counter\", \"receiver_type\": \"Variable\", \"span\": {\"col\": 4, \"end_col\": 34, \"end_line\": 13, \"line\": 13}, \"syscall_id\": \"storage.variable.set\"}}, {\"node\": \"return\", \"span\": {\"col\": 4, \"end_col\": 24, \"end_line\": 14, \"line\": 14}, \"value\": {\"args\": [], \"func\": {\"attr\": \"get\", \"host_binding_id\": null, \"node\": \"attribute\", \"path\": \"counter.get\", \"span\": {\"col\": 11, \"end_col\": 22, \"end_line\": 14, \"line\": 14}, \"value\": {\"host_binding_id\": null, \"id\": \"counter\", \"node\": \"name\", \"span\": {\"col\": 11, \"end_col\": 18, \"end_line\": 14, \"line\": 14}}}, \"keywords\": [], \"method\": \"get\", \"node\": \"call\", \"receiver_binding\": \"counter\", \"receiver_type\": \"Variable\", \"span\": {\"col\": 11, \"end_col\": 24, \"end_line\": 14, \"line\": 14}, \"syscall_id\": \"storage.variable.get\"}}], \"decorator\": {\"args\": [], \"keywords\": [], \"name\": \"export\", \"node\": \"decorator\", \"span\": {\"col\": 1, \"end_col\": 7, \"end_line\": 11, \"line\": 11}}, \"docstring\": null, \"name\": \"increment\", \"node\": \"function\", \"parameters\": [], \"returns\": null, \"span\": {\"col\": 0, \"end_col\": 24, \"end_line\": 14, \"line\": 12}, \"visibility\": \"export\"}], \"global_declarations\": [{\"args\": [], \"keywords\": [], \"name\": \"counter\", \"node\": \"storage_decl\", \"span\": {\"col\": 0, \"end_col\": 20, \"end_line\": 1, \"line\": 1}, \"storage_type\": \"Variable\", \"syscall_id\": \"storage.variable.new\"}], \"host_catalog_version\": \"xian_vm_v1_host_v1\", \"host_dependencies\": [{\"binding\": \"Variable.get\", \"category\": \"storage\", \"id\": \"storage.variable.get\", \"kind\": \"syscall\"}, {\"binding\": \"Variable\", \"category\": \"storage\", \"id\": \"storage.variable.new\", \"kind\": \"syscall\"}, {\"binding\": \"Variable.set\", \"category\": \"storage\", \"id\": \"storage.variable.set\", \"kind\": \"syscall\"}], \"imports\": [], \"ir_version\": \"xian_ir_v1\", \"module_body\": [], \"module_name\": \"con_counter\", \"source_hash\": \"630ca674b3d66166338a7b87f346fe841056da9e2a5b816895111c906944fe48\", \"vm_profile\": \"xian_vm_v1\"}",
+    "vm_profile": "xian_vm_v1"
+  },
+  "diagnostics": [],
+  "expected": {
+    "accepted": true
+  },
+  "generator": {
+    "artifact_format": "xian_contract_artifact_v1",
+    "name": "python-contracting"
+  },
+  "input_source": "counter = Variable()\n\n\n@construct\ndef seed():\n    counter.set(0)\n\n\n@export\ndef get():\n    return counter.get()\n\n\n@export\ndef increment():\n    counter.set(counter.get() + 1)\n    return counter.get()\n",
+  "module_name": "con_counter",
+  "name": "con_counter",
+  "normalized_source": "counter = Variable()\n\n@construct\ndef seed():\n    counter.set(0)\n\n@export\ndef get():\n    return counter.get()\n\n@export\ndef increment():\n    counter.set(counter.get() + 1)\n    return counter.get()",
+  "schema": "xian.compiler_fixture.v1",
+  "source_path": "packages/xian-compiler-core/tests/sources/con_counter.s.py",
+  "vm_ir": {
+    "docstring": null,
+    "functions": [
+      {
+        "body": [
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 18,
+              "end_line": 5,
+              "line": 5
+            },
+            "value": {
+              "args": [
+                {
+                  "node": "constant",
+                  "span": {
+                    "col": 16,
+                    "end_col": 17,
+                    "end_line": 5,
+                    "line": 5
+                  },
+                  "value": 0,
+                  "value_type": "int"
+                }
+              ],
+              "func": {
+                "attr": "set",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "counter.set",
+                "span": {
+                  "col": 4,
+                  "end_col": 15,
+                  "end_line": 5,
+                  "line": 5
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "counter",
+                  "node": "name",
+                  "span": {
+                    "col": 4,
+                    "end_col": 11,
+                    "end_line": 5,
+                    "line": 5
+                  }
+                }
+              },
+              "keywords": [],
+              "method": "set",
+              "node": "call",
+              "receiver_binding": "counter",
+              "receiver_type": "Variable",
+              "span": {
+                "col": 4,
+                "end_col": 18,
+                "end_line": 5,
+                "line": 5
+              },
+              "syscall_id": "storage.variable.set"
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "construct",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 10,
+            "end_line": 3,
+            "line": 3
+          }
+        },
+        "docstring": null,
+        "name": "seed",
+        "node": "function",
+        "parameters": [],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 18,
+          "end_line": 5,
+          "line": 4
+        },
+        "visibility": "construct"
+      },
+      {
+        "body": [
+          {
+            "node": "return",
+            "span": {
+              "col": 4,
+              "end_col": 24,
+              "end_line": 9,
+              "line": 9
+            },
+            "value": {
+              "args": [],
+              "func": {
+                "attr": "get",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "counter.get",
+                "span": {
+                  "col": 11,
+                  "end_col": 22,
+                  "end_line": 9,
+                  "line": 9
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "counter",
+                  "node": "name",
+                  "span": {
+                    "col": 11,
+                    "end_col": 18,
+                    "end_line": 9,
+                    "line": 9
+                  }
+                }
+              },
+              "keywords": [],
+              "method": "get",
+              "node": "call",
+              "receiver_binding": "counter",
+              "receiver_type": "Variable",
+              "span": {
+                "col": 11,
+                "end_col": 24,
+                "end_line": 9,
+                "line": 9
+              },
+              "syscall_id": "storage.variable.get"
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 7,
+            "line": 7
+          }
+        },
+        "docstring": null,
+        "name": "get",
+        "node": "function",
+        "parameters": [],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 24,
+          "end_line": 9,
+          "line": 8
+        },
+        "visibility": "export"
+      },
+      {
+        "body": [
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 34,
+              "end_line": 13,
+              "line": 13
+            },
+            "value": {
+              "args": [
+                {
+                  "left": {
+                    "args": [],
+                    "func": {
+                      "attr": "get",
+                      "host_binding_id": null,
+                      "node": "attribute",
+                      "path": "counter.get",
+                      "span": {
+                        "col": 16,
+                        "end_col": 27,
+                        "end_line": 13,
+                        "line": 13
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "counter",
+                        "node": "name",
+                        "span": {
+                          "col": 16,
+                          "end_col": 23,
+                          "end_line": 13,
+                          "line": 13
+                        }
+                      }
+                    },
+                    "keywords": [],
+                    "method": "get",
+                    "node": "call",
+                    "receiver_binding": "counter",
+                    "receiver_type": "Variable",
+                    "span": {
+                      "col": 16,
+                      "end_col": 29,
+                      "end_line": 13,
+                      "line": 13
+                    },
+                    "syscall_id": "storage.variable.get"
+                  },
+                  "node": "bin_op",
+                  "operator": "add",
+                  "right": {
+                    "node": "constant",
+                    "span": {
+                      "col": 32,
+                      "end_col": 33,
+                      "end_line": 13,
+                      "line": 13
+                    },
+                    "value": 1,
+                    "value_type": "int"
+                  },
+                  "span": {
+                    "col": 16,
+                    "end_col": 33,
+                    "end_line": 13,
+                    "line": 13
+                  }
+                }
+              ],
+              "func": {
+                "attr": "set",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "counter.set",
+                "span": {
+                  "col": 4,
+                  "end_col": 15,
+                  "end_line": 13,
+                  "line": 13
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "counter",
+                  "node": "name",
+                  "span": {
+                    "col": 4,
+                    "end_col": 11,
+                    "end_line": 13,
+                    "line": 13
+                  }
+                }
+              },
+              "keywords": [],
+              "method": "set",
+              "node": "call",
+              "receiver_binding": "counter",
+              "receiver_type": "Variable",
+              "span": {
+                "col": 4,
+                "end_col": 34,
+                "end_line": 13,
+                "line": 13
+              },
+              "syscall_id": "storage.variable.set"
+            }
+          },
+          {
+            "node": "return",
+            "span": {
+              "col": 4,
+              "end_col": 24,
+              "end_line": 14,
+              "line": 14
+            },
+            "value": {
+              "args": [],
+              "func": {
+                "attr": "get",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "counter.get",
+                "span": {
+                  "col": 11,
+                  "end_col": 22,
+                  "end_line": 14,
+                  "line": 14
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "counter",
+                  "node": "name",
+                  "span": {
+                    "col": 11,
+                    "end_col": 18,
+                    "end_line": 14,
+                    "line": 14
+                  }
+                }
+              },
+              "keywords": [],
+              "method": "get",
+              "node": "call",
+              "receiver_binding": "counter",
+              "receiver_type": "Variable",
+              "span": {
+                "col": 11,
+                "end_col": 24,
+                "end_line": 14,
+                "line": 14
+              },
+              "syscall_id": "storage.variable.get"
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 11,
+            "line": 11
+          }
+        },
+        "docstring": null,
+        "name": "increment",
+        "node": "function",
+        "parameters": [],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 24,
+          "end_line": 14,
+          "line": 12
+        },
+        "visibility": "export"
+      }
+    ],
+    "global_declarations": [
+      {
+        "args": [],
+        "keywords": [],
+        "name": "counter",
+        "node": "storage_decl",
+        "span": {
+          "col": 0,
+          "end_col": 20,
+          "end_line": 1,
+          "line": 1
+        },
+        "storage_type": "Variable",
+        "syscall_id": "storage.variable.new"
+      }
+    ],
+    "host_catalog_version": "xian_vm_v1_host_v1",
+    "host_dependencies": [
+      {
+        "binding": "Variable.get",
+        "category": "storage",
+        "id": "storage.variable.get",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Variable",
+        "category": "storage",
+        "id": "storage.variable.new",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Variable.set",
+        "category": "storage",
+        "id": "storage.variable.set",
+        "kind": "syscall"
+      }
+    ],
+    "imports": [],
+    "ir_version": "xian_ir_v1",
+    "module_body": [],
+    "module_name": "con_counter",
+    "source_hash": "630ca674b3d66166338a7b87f346fe841056da9e2a5b816895111c906944fe48",
+    "vm_profile": "xian_vm_v1"
+  },
+  "vm_profile": "xian_vm_v1"
+}

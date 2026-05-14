@@ -1,20 +1,14 @@
 from __future__ import annotations
 
 import opcode
-import os
 from dataclasses import dataclass
 
 DEFAULT_COST = 4
 MIN_OPCODE_COST = 2
 MAX_CHI = 50_000_000_000
 PYTHON_MAX_EVENTS = 800_000
-NATIVE_MAX_EVENTS = 3_250_000
 
 DEFAULT_TRACER_MODE = "python_line_v1"
-SUPPORTED_TRACER_MODES = {
-    "python_line_v1",
-    "native_instruction_v1",
-}
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,12 +25,6 @@ TRACER_POLICIES: dict[str, TracerPolicy] = {
         max_chi=MAX_CHI,
         max_events=PYTHON_MAX_EVENTS,
         event_name="line",
-    ),
-    "native_instruction_v1": TracerPolicy(
-        mode="native_instruction_v1",
-        max_chi=MAX_CHI,
-        max_events=NATIVE_MAX_EVENTS,
-        event_name="instruction",
     ),
 }
 
@@ -268,15 +256,5 @@ def get_uncategorized_default_cost_opcodes() -> list[str]:
     )
 
 
-def get_tracer_policy(mode: str | None = None) -> TracerPolicy:
-    selected = resolve_tracer_mode(mode)
-    return TRACER_POLICIES[selected]
-
-
-def resolve_tracer_mode(mode: str | None = None) -> str:
-    selected = mode or os.environ.get("XIAN_TRACER_MODE", DEFAULT_TRACER_MODE)
-    if selected not in SUPPORTED_TRACER_MODES:
-        raise ValueError(
-            f"tracer mode must be one of {sorted(SUPPORTED_TRACER_MODES)}"
-        )
-    return selected
+def get_tracer_policy() -> TracerPolicy:
+    return TRACER_POLICIES[DEFAULT_TRACER_MODE]

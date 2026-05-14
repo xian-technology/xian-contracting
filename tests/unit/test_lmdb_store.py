@@ -100,7 +100,7 @@ class TestLMDBStoreKeys(TestCase):
             {
                 "currency.balances:alice": 100,
                 "currency.balances:bob": 200,
-                "currency.__code__": "code here",
+                "currency.__source__": "source here",
                 "con_token.balances:alice": 50,
             }
         )
@@ -132,7 +132,7 @@ class TestLMDBStoreDelete(TestCase):
             {
                 "currency.balances:alice": 100,
                 "currency.balances:bob": 200,
-                "currency.__code__": "code",
+                "currency.__source__": "source",
             }
         )
 
@@ -147,7 +147,7 @@ class TestLMDBStoreDelete(TestCase):
     def test_delete_prefix(self):
         self.store.delete_prefix("currency.balances:")
         self.assertIsNone(self.store.get("currency.balances:alice"))
-        self.assertEqual(self.store.get("currency.__code__"), "code")
+        self.assertEqual(self.store.get("currency.__source__"), "source")
 
     def test_flush_removes_all(self):
         self.store.flush()
@@ -182,14 +182,14 @@ class TestDriverWithLMDB(TestCase):
         stored_source = self.driver.get_contract_source("con_test")
         self.assertIn("@export", stored_source)
         self.assertIn("def transfer(amount: float, to: str):", stored_source)
-        self.assertIsNotNone(self.driver.get_contract("con_test"))
+        self.assertIsNotNone(self.driver.get_local_contract_runtime("con_test"))
         self.assertIsNotNone(self.driver.get_contract_ir("con_test"))
 
     def test_delete_contract(self):
-        self.driver.set_contract("con_test", "x = 1")
+        self.driver.set_contract("con_test", source="x = 1")
         self.driver.commit()
         self.driver.delete_contract("con_test")
-        self.assertIsNone(self.driver.get_contract("con_test"))
+        self.assertIsNone(self.driver.get_local_contract_runtime("con_test"))
         self.assertIsNone(self.driver.get_contract_source("con_test"))
 
     def test_driver_context_manager_closes_store(self):

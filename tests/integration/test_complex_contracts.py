@@ -1,10 +1,22 @@
-from unittest import TestCase
-from contracting.storage.driver import Driver
-from contracting.execution.executor import Executor
-from datetime import datetime
-from contracting.stdlib.env import gather
-from hashlib import sha256, sha3_256
 import os
+from datetime import datetime
+from hashlib import sha3_256, sha256
+from unittest import TestCase
+
+from contracting.artifacts import build_contract_artifacts
+from contracting.execution.executor import Executor
+from contracting.stdlib.env import gather
+from contracting.storage.driver import Driver
+
+
+def build_submission_artifacts(name, source):
+    return build_contract_artifacts(
+        module_name=name,
+        source=source,
+        lint=True,
+        vm_profile="xian_vm_v1",
+    )
+
 
 def submission_kwargs_for_file(f):
     # Get the file name only by splitting off directories
@@ -16,11 +28,14 @@ def submission_kwargs_for_file(f):
     contract_name = split[0]
 
     with open(f) as file:
-        contract_code = file.read()
+        contract_source = file.read()
 
     return {
         'name': f'con_{contract_name}',
-        'code': contract_code,
+        'deployment_artifacts': build_submission_artifacts(
+            f'con_{contract_name}',
+            contract_source,
+        ),
     }
 
 
@@ -40,7 +55,7 @@ class TestComplexContracts(TestCase):
         with open(submission_path) as f:
             submission_contract = f.read()
             self.d.set_contract(name='submission',
-                                code=submission_contract)
+                                source=submission_contract)
             self.d.commit()
 
 
@@ -259,11 +274,11 @@ class TestComplexContracts(TestCase):
 
         bad_time_path = os.path.join(os.path.dirname(__file__), "test_contracts", "bad_time.s.py")
 
-        output = e.execute(**TEST_SUBMISSION_KWARGS,
-                           kwargs=submission_kwargs_for_file(bad_time_path),
-                           environment=environment)
-
-        self.assertEqual(output['status_code'], 1)
+        with self.assertRaisesRegex(
+            Exception,
+            "Name '_datetime' must not start or end with underscore",
+        ):
+            submission_kwargs_for_file(bad_time_path)
 
     def test_json_lists_work(self):
         e = Executor(metering=False)

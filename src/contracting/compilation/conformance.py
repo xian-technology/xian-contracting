@@ -9,7 +9,7 @@ from typing import Any
 
 from xian_runtime_types.collections import ContractingFrozenSet
 
-from contracting.compilation.artifacts import build_contract_artifacts
+from contracting.artifacts import build_contract_artifacts
 from contracting.compilation.ir import HOST_BINDINGS, XIAN_VM_HOST_CATALOG_V1
 from contracting.compilation.lowering import (
     XIAN_IR_V1_BIN_OPS,
@@ -144,7 +144,6 @@ ARTIFACTS = {artifacts!r}
 def probe():
     Contract.deploy(
         name="con_replay_submission_child",
-        code=None,
         deployment_artifacts=ARTIFACTS,
         owner=ctx.caller,
         constructor_args={{"label": "ready"}},
@@ -280,7 +279,7 @@ def probe():
     },
     {
         "id": "binary_values",
-        "description": "bytes/bytearray values behave like the Python VM and round-trip through storage.",
+        "description": "bytes/bytearray values round-trip through Xian VM storage.",
         "covers_builtins": (
             "bytearray",
             "bytes",
@@ -339,7 +338,7 @@ def probe(seed: bytes) -> dict:
     },
     {
         "id": "deterministic_sets",
-        "description": "Deterministic set/frozenset values behave like the Python VM contract surface.",
+        "description": "Deterministic set/frozenset values follow the Xian VM contract surface.",
         "covers_builtins": (
             "frozenset",
             "isinstance",
@@ -395,7 +394,7 @@ def probe(seed: list[int], markers: frozenset[int]) -> dict:
     },
     {
         "id": "bitwise_integer_ops",
-        "description": "Bitwise operators and unary invert behave like the Python VM.",
+        "description": "Bitwise operators and unary invert follow Xian VM semantics.",
         "covers_builtins": ("int",),
         "covers_env": ("Hash",),
         "covers_features": (
@@ -426,7 +425,7 @@ def probe(value: int):
     },
     {
         "id": "raise_exception_instance",
-        "description": "Explicit Exception(...) raising matches the Python VM error path.",
+        "description": "Explicit Exception(...) raising matches the Xian VM error path.",
         "covers_builtins": ("Exception",),
         "covers_features": ("syntax.raise",),
         "source": """
@@ -454,7 +453,7 @@ def fail():
     },
     {
         "id": "keyword_unpack_calls",
-        "description": "Keyword unpacking in calls behaves like the Python VM.",
+        "description": "Keyword unpacking in calls behaves follow Xian VM semantics.",
         "covers_builtins": ("dict",),
         "covers_features": ("syntax.keyword_unpack",),
         "source": """
@@ -476,7 +475,7 @@ def render():
     },
     {
         "id": "dict_comprehension",
-        "description": "Dict comprehensions behave like the Python VM.",
+        "description": "Dict comprehensions follow Xian VM semantics.",
         "covers_builtins": ("str",),
         "covers_features": ("syntax.dict_comp",),
         "source": """
@@ -489,7 +488,7 @@ def render(values: list[int]):
     },
     {
         "id": "builtin_scalar_helpers",
-        "description": "Scalar/text builtins behave like the Python VM.",
+        "description": "Scalar/text builtins follow Xian VM semantics.",
         "covers_builtins": (
             "abs",
             "ascii",
@@ -540,7 +539,7 @@ def probe():
     },
     {
         "id": "builtin_iterable_helpers",
-        "description": "Iterable and aggregate builtins behave like the Python VM.",
+        "description": "Iterable and aggregate builtins follow Xian VM semantics.",
         "covers_builtins": (
             "all",
             "any",
@@ -616,7 +615,7 @@ def probe(values: list[int]):
     },
     {
         "id": "string_method_helpers",
-        "description": "Common deterministic string helpers behave like the Python VM.",
+        "description": "Common deterministic string helpers follow Xian VM semantics.",
         "covers_features": (
             "methods.string",
             "methods.string.endswith",
@@ -647,7 +646,7 @@ def probe():
     },
     {
         "id": "local_collection_methods",
-        "description": "Local list/dict helper methods behave like the Python VM.",
+        "description": "Local list/dict helper methods follow Xian VM semantics.",
         "covers_features": (
             "methods.collection",
             "methods.list.clear",
@@ -686,7 +685,7 @@ def probe():
     },
     {
         "id": "authored_string_and_list_methods",
-        "description": "String and list helper methods used by authored contracts behave like the Python VM.",
+        "description": "String and list helper methods used by authored contracts follow Xian VM semantics.",
         "covers_features": (
             "methods.collection",
             "methods.list.append",
@@ -723,7 +722,7 @@ def probe():
     },
     {
         "id": "control_flow_and_slicing_edges",
-        "description": "Loop else blocks, chained comparisons, and negative slicing match the Python VM.",
+        "description": "Loop else blocks, chained comparisons, and negative slicing match Xian VM semantics.",
         "covers_features": (
             "syntax.loop_else",
             "syntax.while",
@@ -770,7 +769,7 @@ def probe():
     },
     {
         "id": "host_storage_event_context",
-        "description": "Storage, event, typing, and context bridge values match the Python VM.",
+        "description": "Storage, event, typing, and context bridge values match Xian VM semantics.",
         "covers_env": (
             "Any",
             "Hash",
@@ -822,7 +821,7 @@ def probe(value: Any, amount: int) -> Any:
     },
     {
         "id": "host_module_bridges",
-        "description": "Bridge modules and foreign storage behave like the Python VM.",
+        "description": "Bridge modules and foreign storage follow Xian VM semantics.",
         "covers_env": (
             "Contract",
             "ForeignHash",
@@ -912,7 +911,7 @@ def probe():
     },
     {
         "id": "decimal_scaled_integer_edges",
-        "description": "Fixed-scale decimal arithmetic edge cases match between the Python VM and Xian VM.",
+        "description": "Fixed-scale decimal arithmetic edge cases match under the Xian VM.",
         "covers_env": ("decimal",),
         "covers_features": (
             "modules.decimal",
@@ -942,7 +941,7 @@ def probe():
     },
     {
         "id": "authored_reward_change_flow",
-        "description": "Authored-style reward change flows through a statically imported module like the Python VM.",
+        "description": "Authored-style reward change flows through a statically imported module follow Xian VM semantics.",
         "covers_builtins": (
             "len",
             "sum",
@@ -989,7 +988,7 @@ def probe(change: list[float]):
     },
     {
         "id": "static_import_contract_calls",
-        "description": "Static contract imports behave like the Python VM.",
+        "description": "Static contract imports follow Xian VM semantics.",
         "covers_builtins": ("dict",),
         "covers_features": ("imports.static",),
         "dependencies": (
@@ -1022,7 +1021,7 @@ def probe(account: str):
     },
     {
         "id": "dynamic_private_call_rejected",
-        "description": "Dynamic importlib.call rejects private contract functions like the Python VM.",
+        "description": "Dynamic importlib.call rejects private contract functions follow Xian VM semantics.",
         "covers_env": ("importlib",),
         "covers_features": ("imports.dynamic",),
         "dependencies": (
@@ -1048,7 +1047,7 @@ def probe():
     },
     {
         "id": "token_allowance_event_flow",
-        "description": "Token-like approval and transfer event flows match the Python VM.",
+        "description": "Token-like approval and transfer event flows match Xian VM semantics.",
         "covers_features": (
             "events.log",
             "storage.hash",
@@ -1105,7 +1104,7 @@ def probe():
     },
     {
         "id": "replay_submission_deploy_flow",
-        "description": "Submission-style deployment and contract metadata changes match the Python VM.",
+        "description": "Submission-style deployment and contract metadata changes match Xian VM semantics.",
         "covers_env": (
             "Contract",
             "importlib",
@@ -1118,7 +1117,6 @@ def probe():
         "source": _replay_submission_deploy_source(),
         "function_name": "probe",
         "kwargs": {},
-        "ignore_write_suffixes": ("__code__",),
     },
     {
         "id": "replay_imported_token_event_sequence",

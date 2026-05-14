@@ -1,5 +1,7 @@
 from unittest import TestCase
-from contracting.client import ContractingClient
+
+from contracting.local import ContractingClient
+
 
 def con_random_contract():
     random.seed()
@@ -73,7 +75,7 @@ class TestRandomsContract(TestCase):
         self.c.flush()
         self.c.submit(con_random_contract)
 
-        self.random_contract = self.c.get_contract('con_random_contract')
+        self.random_contract = self.c.get_contract_proxy('con_random_contract')
 
     def tearDown(self):
         self.c.flush()

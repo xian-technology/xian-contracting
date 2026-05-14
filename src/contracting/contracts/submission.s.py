@@ -24,7 +24,6 @@ __ContractOwnerChangedEvent = LogEvent(
 @__export("submission")
 def submit_contract(
     name: str,
-    code: Any = None,
     owner: Any = None,
     constructor_args: Any = None,
     deployment_artifacts: Any = None,
@@ -46,24 +45,17 @@ def submit_contract(
         "Contract name must contain only lowercase ASCII letters, digits, "
         "and underscores!"
     )
-    assert code is None or (
-        isinstance(code, str) and code != ""
-    ), "code must be None or a non-empty string!"
     assert owner is None or (
         isinstance(owner, str) and owner != ""
     ), "Owner must be None or a non-empty string!"
     if constructor_args is None:
         constructor_args = {}
-    assert deployment_artifacts is None or isinstance(
+    assert isinstance(
         deployment_artifacts, dict
-    ), "deployment_artifacts must be None or a dict!"
-    assert (
-        code is not None or deployment_artifacts is not None
-    ), "submit_contract requires code or deployment_artifacts!"
+    ), "deployment_artifacts must be a dict!"
 
     __Contract().submit(
         name=name,
-        code=code,
         deployment_artifacts=deployment_artifacts,
         owner=owner,
         constructor_args=constructor_args,

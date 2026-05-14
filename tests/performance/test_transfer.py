@@ -1,8 +1,20 @@
-from unittest import TestCase
-import secrets
-from contracting.storage.driver import Driver
-from contracting.execution.executor import Executor
 import os
+import secrets
+from unittest import TestCase
+
+from contracting.artifacts import build_contract_artifacts
+from contracting.execution.executor import Executor
+from contracting.storage.driver import Driver
+
+
+def build_submission_artifacts(name, source):
+    return build_contract_artifacts(
+        module_name=name,
+        source=source,
+        lint=True,
+        vm_profile="xian_vm_v1",
+    )
+
 
 def submission_kwargs_for_file(f):
     # Get the file name only by splitting off directories
@@ -14,11 +26,14 @@ def submission_kwargs_for_file(f):
     contract_name = split[0]
 
     with open(f) as file:
-        contract_code = file.read()
+        contract_source = file.read()
 
     return {
         'name': f'con_{contract_name}',
-        'code': contract_code,
+        'deployment_artifacts': build_submission_artifacts(
+            f'con_{contract_name}',
+            contract_source,
+        ),
     }
 
 
@@ -41,7 +56,7 @@ class TestSandbox(TestCase):
             contract = f.read()
 
         self.d.set_contract(name='submission',
-                            code=contract)
+                            source=contract)
         self.d.commit()
 
         self.recipients = [secrets.token_hex(16) for _ in range(10000)]

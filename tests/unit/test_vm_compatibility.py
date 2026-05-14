@@ -5,7 +5,6 @@ from contracting.compilation.linter import ErrorCode
 from contracting.compilation.vm import (
     XIAN_VM_V1_PROFILE,
     VmCompatibilityChecker,
-    VmCompatibilityError,
 )
 
 

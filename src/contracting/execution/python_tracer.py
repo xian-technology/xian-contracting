@@ -21,7 +21,7 @@ from contracting.execution.tracer_common import (
 )
 
 TOOL_ID = sys.monitoring.PROFILER_ID
-_POLICY = get_tracer_policy("python_line_v1")
+_POLICY = get_tracer_policy()
 
 
 def _instruction_line_number(instruction: dis.Instruction) -> int | None:

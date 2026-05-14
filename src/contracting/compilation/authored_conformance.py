@@ -13,7 +13,7 @@ from contracting.compilation.conformance import (
     CONTRACT_LANGUAGE_MANIFEST,
     covered_conformance_surface,
 )
-from contracting.compilation.python_compatibility import (
+from contracting.compilation.sources import (
     iter_authored_contract_sources,
     module_name_from_path,
 )

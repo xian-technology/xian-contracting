@@ -56,9 +56,9 @@ Current execution coverage is intentionally narrow but real:
 
 It is not the full executor yet.
 
-The crate now also includes curated parity fixtures generated from the current
-Python runtime. Those fixtures are checked from Rust so the VM can match actual
-runtime behavior on a controlled contract subset instead of only passing
+The crate now also includes curated conformance fixtures generated from the
+current local harness. Those fixtures are checked from Rust so the VM can match
+actual contract behavior on a controlled contract subset instead of only passing
 hand-written executor tests.
 
 Metering is no longer only a placeholder:
@@ -72,18 +72,18 @@ Metering is no longer only a placeholder:
   not get free global-declaration and module-body execution
 - `contract.exists(...)`, `contract.has_export(...)`, `contract.info(...)`, and
   related contract metadata syscalls now resolve directly against the driver/IR
-  in the native host bridge, so metered native execution no longer depends on
-  Python runtime globals for those checks
+  in the native host bridge, so metered VM execution no longer depends on local
+  harness globals for those checks
 - authored contract storage now persists `__xian_ir_v1__`, and the native host
   requires that artifact for `xian_vm_v1` execution; stored `__source__`
   remains available for dashboards, BDS, and other inspection tooling, but it
   is no longer an execution fallback
-- the VM-native artifact path treats `vm_ir_json` as the executable artifact;
-  `runtime_code` is an optional Python-tooling field and is not written into
-  native deployment state
+- the VM-native artifact path treats `vm_ir_json` as the only executable
+  deployment artifact; local tooling may derive transient harness source when
+  it needs a standalone contract proxy
 - deployment artifacts are now validated against canonical compiler output,
-  not only against self-declared hashes, so forged source/runtime/IR bundles
-  are rejected before they reach native deployment
+  not only against self-declared hashes, so forged source/IR bundles are
+  rejected before they reach native deployment
 - native deployment now requires explicit deterministic `now` context from the
   caller; the host does not fall back to local wall-clock time for submission
   metadata
@@ -93,29 +93,9 @@ Metering is no longer only a placeholder:
   artifact validator used by the Python deployment path and offline tooling,
   so the native path is Rust-native for bundle validation but not yet a full
   Rust recompiler
-- the current five-node `make localnet-vm-e2e` native-authority soak passes
+- the current five-node `make localnet-parallel-e2e` native-authority soak passes
   end to end, including shielded token flows and parallel prefix-scan access
   patterns
-
-There is now also a calibration/audit tool:
-
-- `scripts/audit_vm_metering.py`
-
-It runs the full authored parity corpus through both:
-
-- `native_instruction_v1` in the current Python runtime
-- `xian_vm_v1` metering in the Rust VM
-
-and reports the current ratio envelope instead of relying on intuition.
-
-Current calibration state on this branch:
-
-- no fixture in the parity corpus is under-metered relative to
-  `native_instruction_v1`
-- the authored-contract subset is currently within roughly `1.02x` to `2.35x`
-  of `native_instruction_v1`
-- the full mixed corpus, which still includes intentionally synthetic helper
-  fixtures, is currently within roughly `1.02x` to `2.50x`
 
 That parity corpus now covers:
 

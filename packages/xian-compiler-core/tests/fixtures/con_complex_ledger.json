@@ -1,0 +1,3829 @@
+{
+  "artifact": {
+    "format": "xian_contract_artifact_v1",
+    "hashes": {
+      "input_source_sha256": "8c4aa40efad158bbe95aed39bbc1541939009f953e401af9dce1b75fd5f329f6",
+      "source_sha256": "56355a4a11c2a26db53eefc37c5b11e6bd9c594743541448a13230063754a63f",
+      "vm_ir_sha256": "b9218828e21e3df29890350a4e7ad9196daea255f5720ae8415de3a5a658f1c1"
+    },
+    "module_name": "con_complex_ledger",
+    "source": "LedgerEvent = LogEvent('LedgerTransfer', {'sender': indexed(str), 'recipient': indexed(str), 'amount': int})\nowner = Variable()\ntotal_supply = Variable()\nbalances = Hash(default_value=0)\nallowances = Hash(default_value=0)\naudit_log = Hash()\naudit_count = Variable()\n\ndef require_positive(amount: int):\n    assert isinstance(amount, int), 'amount must be an integer!'\n    assert amount > 0, 'amount must be positive!'\n\ndef record(action: str, account: str, amount: int):\n    index = audit_count.get()\n    audit_log[index, 'action'] = action\n    audit_log[index, 'account'] = account\n    audit_log[index, 'amount'] = amount\n    audit_count.set(index + 1)\n\n@construct\ndef seed(initial_owner: str=None, supply: int=0):\n    if initial_owner is None or initial_owner == '':\n        initial_owner = ctx.caller\n    require_positive(supply)\n    owner.set(initial_owner)\n    total_supply.set(supply)\n    balances[initial_owner] = supply\n    audit_count.set(0)\n    record('seed', initial_owner, supply)\n\n@export\ndef transfer(amount: int, to: str):\n    require_positive(amount)\n    sender = ctx.caller\n    assert isinstance(to, str) and to != '', 'recipient required!'\n    assert balances[sender] >= amount, 'insufficient balance!'\n    balances[sender] -= amount\n    balances[to] += amount\n    record('transfer', sender, amount)\n    LedgerEvent({'sender': sender, 'recipient': to, 'amount': amount})\n    return balances[sender]\n\n@export\ndef approve(amount: int, spender: str):\n    require_positive(amount)\n    assert isinstance(spender, str) and spender != '', 'spender required!'\n    allowances[ctx.caller, spender] = amount\n    record('approve', spender, amount)\n    return allowances[ctx.caller, spender]\n\n@export\ndef transfer_from(amount: int, owner_account: str, to: str):\n    require_positive(amount)\n    spender = ctx.caller\n    assert allowances[owner_account, spender] >= amount, 'allowance too low!'\n    assert balances[owner_account] >= amount, 'insufficient balance!'\n    allowances[owner_account, spender] -= amount\n    balances[owner_account] -= amount\n    balances[to] += amount\n    record('transfer_from', owner_account, amount)\n    LedgerEvent({'sender': owner_account, 'recipient': to, 'amount': amount})\n    return allowances[owner_account, spender]\n\n@export\ndef batch_transfer(recipients: list[str], amounts: list[int]):\n    assert len(recipients) == len(amounts), 'batch length mismatch!'\n    sent = 0\n    i = 0\n    while i < len(recipients):\n        transfer(amounts[i], recipients[i])\n        sent += amounts[i]\n        i += 1\n    return sent\n\n@export\ndef snapshot(accounts: list[str]) -> dict:\n    result = {}\n    for account in accounts:\n        result[account] = balances[account]\n    return result",
+    "vm_ir_json": "{\"docstring\": null, \"functions\": [{\"body\": [{\"message\": {\"node\": \"constant\", \"span\": {\"col\": 36, \"end_col\": 64, \"end_line\": 10, \"line\": 10}, \"value\": \"amount must be an integer!\", \"value_type\": \"str\"}, \"node\": \"assert\", \"span\": {\"col\": 4, \"end_col\": 64, \"end_line\": 10, \"line\": 10}, \"test\": {\"args\": [{\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 22, \"end_col\": 28, \"end_line\": 10, \"line\": 10}}, {\"host_binding_id\": null, \"id\": \"int\", \"node\": \"name\", \"span\": {\"col\": 30, \"end_col\": 33, \"end_line\": 10, \"line\": 10}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"isinstance\", \"node\": \"name\", \"span\": {\"col\": 11, \"end_col\": 21, \"end_line\": 10, \"line\": 10}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 11, \"end_col\": 34, \"end_line\": 10, \"line\": 10}, \"syscall_id\": null}}, {\"message\": {\"node\": \"constant\", \"span\": {\"col\": 23, \"end_col\": 49, \"end_line\": 11, \"line\": 11}, \"value\": \"amount must be positive!\", \"value_type\": \"str\"}, \"node\": \"assert\", \"span\": {\"col\": 4, \"end_col\": 49, \"end_line\": 11, \"line\": 11}, \"test\": {\"comparators\": [{\"node\": \"constant\", \"span\": {\"col\": 20, \"end_col\": 21, \"end_line\": 11, \"line\": 11}, \"value\": 0, \"value_type\": \"int\"}], \"left\": {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 11, \"end_col\": 17, \"end_line\": 11, \"line\": 11}}, \"node\": \"compare\", \"operators\": [\"gt\"], \"span\": {\"col\": 11, \"end_col\": 21, \"end_line\": 11, \"line\": 11}}}], \"decorator\": null, \"docstring\": null, \"name\": \"require_positive\", \"node\": \"function\", \"parameters\": [{\"annotation\": \"int\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"amount\", \"span\": {\"col\": 21, \"end_col\": 32, \"end_line\": 9, \"line\": 9}}], \"returns\": null, \"span\": {\"col\": 0, \"end_col\": 49, \"end_line\": 11, \"line\": 9}, \"visibility\": \"private\"}, {\"body\": [{\"node\": \"assign\", \"span\": {\"col\": 4, \"end_col\": 29, \"end_line\": 14, \"line\": 14}, \"targets\": [{\"host_binding_id\": null, \"id\": \"index\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 9, \"end_line\": 14, \"line\": 14}}], \"value\": {\"args\": [], \"func\": {\"attr\": \"get\", \"host_binding_id\": null, \"node\": \"attribute\", \"path\": \"audit_count.get\", \"span\": {\"col\": 12, \"end_col\": 27, \"end_line\": 14, \"line\": 14}, \"value\": {\"host_binding_id\": null, \"id\": \"audit_count\", \"node\": \"name\", \"span\": {\"col\": 12, \"end_col\": 23, \"end_line\": 14, \"line\": 14}}}, \"keywords\": [], \"method\": \"get\", \"node\": \"call\", \"receiver_binding\": \"audit_count\", \"receiver_type\": \"Variable\", \"span\": {\"col\": 12, \"end_col\": 29, \"end_line\": 14, \"line\": 14}, \"syscall_id\": \"storage.variable.get\"}}, {\"binding\": \"audit_log\", \"key\": {\"elements\": [{\"host_binding_id\": null, \"id\": \"index\", \"node\": \"name\", \"span\": {\"col\": 14, \"end_col\": 19, \"end_line\": 15, \"line\": 15}}, {\"node\": \"constant\", \"span\": {\"col\": 21, \"end_col\": 29, \"end_line\": 15, \"line\": 15}, \"value\": \"action\", \"value_type\": \"str\"}], \"node\": \"tuple\", \"span\": {\"col\": 14, \"end_col\": 29, \"end_line\": 15, \"line\": 15}}, \"node\": \"storage_set\", \"span\": {\"col\": 4, \"end_col\": 39, \"end_line\": 15, \"line\": 15}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.set\", \"value\": {\"host_binding_id\": null, \"id\": \"action\", \"node\": \"name\", \"span\": {\"col\": 33, \"end_col\": 39, \"end_line\": 15, \"line\": 15}}}, {\"binding\": \"audit_log\", \"key\": {\"elements\": [{\"host_binding_id\": null, \"id\": \"index\", \"node\": \"name\", \"span\": {\"col\": 14, \"end_col\": 19, \"end_line\": 16, \"line\": 16}}, {\"node\": \"constant\", \"span\": {\"col\": 21, \"end_col\": 30, \"end_line\": 16, \"line\": 16}, \"value\": \"account\", \"value_type\": \"str\"}], \"node\": \"tuple\", \"span\": {\"col\": 14, \"end_col\": 30, \"end_line\": 16, \"line\": 16}}, \"node\": \"storage_set\", \"span\": {\"col\": 4, \"end_col\": 41, \"end_line\": 16, \"line\": 16}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.set\", \"value\": {\"host_binding_id\": null, \"id\": \"account\", \"node\": \"name\", \"span\": {\"col\": 34, \"end_col\": 41, \"end_line\": 16, \"line\": 16}}}, {\"binding\": \"audit_log\", \"key\": {\"elements\": [{\"host_binding_id\": null, \"id\": \"index\", \"node\": \"name\", \"span\": {\"col\": 14, \"end_col\": 19, \"end_line\": 17, \"line\": 17}}, {\"node\": \"constant\", \"span\": {\"col\": 21, \"end_col\": 29, \"end_line\": 17, \"line\": 17}, \"value\": \"amount\", \"value_type\": \"str\"}], \"node\": \"tuple\", \"span\": {\"col\": 14, \"end_col\": 29, \"end_line\": 17, \"line\": 17}}, \"node\": \"storage_set\", \"span\": {\"col\": 4, \"end_col\": 39, \"end_line\": 17, \"line\": 17}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.set\", \"value\": {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 33, \"end_col\": 39, \"end_line\": 17, \"line\": 17}}}, {\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 30, \"end_line\": 18, \"line\": 18}, \"value\": {\"args\": [{\"left\": {\"host_binding_id\": null, \"id\": \"index\", \"node\": \"name\", \"span\": {\"col\": 20, \"end_col\": 25, \"end_line\": 18, \"line\": 18}}, \"node\": \"bin_op\", \"operator\": \"add\", \"right\": {\"node\": \"constant\", \"span\": {\"col\": 28, \"end_col\": 29, \"end_line\": 18, \"line\": 18}, \"value\": 1, \"value_type\": \"int\"}, \"span\": {\"col\": 20, \"end_col\": 29, \"end_line\": 18, \"line\": 18}}], \"func\": {\"attr\": \"set\", \"host_binding_id\": null, \"node\": \"attribute\", \"path\": \"audit_count.set\", \"span\": {\"col\": 4, \"end_col\": 19, \"end_line\": 18, \"line\": 18}, \"value\": {\"host_binding_id\": null, \"id\": \"audit_count\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 15, \"end_line\": 18, \"line\": 18}}}, \"keywords\": [], \"method\": \"set\", \"node\": \"call\", \"receiver_binding\": \"audit_count\", \"receiver_type\": \"Variable\", \"span\": {\"col\": 4, \"end_col\": 30, \"end_line\": 18, \"line\": 18}, \"syscall_id\": \"storage.variable.set\"}}], \"decorator\": null, \"docstring\": null, \"name\": \"record\", \"node\": \"function\", \"parameters\": [{\"annotation\": \"str\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"action\", \"span\": {\"col\": 11, \"end_col\": 22, \"end_line\": 13, \"line\": 13}}, {\"annotation\": \"str\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"account\", \"span\": {\"col\": 24, \"end_col\": 36, \"end_line\": 13, \"line\": 13}}, {\"annotation\": \"int\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"amount\", \"span\": {\"col\": 38, \"end_col\": 49, \"end_line\": 13, \"line\": 13}}], \"returns\": null, \"span\": {\"col\": 0, \"end_col\": 30, \"end_line\": 18, \"line\": 13}, \"visibility\": \"private\"}, {\"body\": [{\"body\": [{\"node\": \"assign\", \"span\": {\"col\": 8, \"end_col\": 34, \"end_line\": 23, \"line\": 23}, \"targets\": [{\"host_binding_id\": null, \"id\": \"initial_owner\", \"node\": \"name\", \"span\": {\"col\": 8, \"end_col\": 21, \"end_line\": 23, \"line\": 23}}], \"value\": {\"attr\": \"caller\", \"host_binding_id\": \"context.caller\", \"node\": \"attribute\", \"path\": \"ctx.caller\", \"span\": {\"col\": 24, \"end_col\": 34, \"end_line\": 23, \"line\": 23}, \"value\": {\"host_binding_id\": null, \"id\": \"ctx\", \"node\": \"name\", \"span\": {\"col\": 24, \"end_col\": 27, \"end_line\": 23, \"line\": 23}}}}], \"node\": \"if\", \"orelse\": [], \"span\": {\"col\": 4, \"end_col\": 34, \"end_line\": 23, \"line\": 22}, \"test\": {\"node\": \"bool_op\", \"operator\": \"or\", \"span\": {\"col\": 7, \"end_col\": 51, \"end_line\": 22, \"line\": 22}, \"values\": [{\"comparators\": [{\"node\": \"constant\", \"span\": {\"col\": 24, \"end_col\": 28, \"end_line\": 22, \"line\": 22}, \"value\": null, \"value_type\": \"none\"}], \"left\": {\"host_binding_id\": null, \"id\": \"initial_owner\", \"node\": \"name\", \"span\": {\"col\": 7, \"end_col\": 20, \"end_line\": 22, \"line\": 22}}, \"node\": \"compare\", \"operators\": [\"is\"], \"span\": {\"col\": 7, \"end_col\": 28, \"end_line\": 22, \"line\": 22}}, {\"comparators\": [{\"node\": \"constant\", \"span\": {\"col\": 49, \"end_col\": 51, \"end_line\": 22, \"line\": 22}, \"value\": \"\", \"value_type\": \"str\"}], \"left\": {\"host_binding_id\": null, \"id\": \"initial_owner\", \"node\": \"name\", \"span\": {\"col\": 32, \"end_col\": 45, \"end_line\": 22, \"line\": 22}}, \"node\": \"compare\", \"operators\": [\"eq\"], \"span\": {\"col\": 32, \"end_col\": 51, \"end_line\": 22, \"line\": 22}}]}}, {\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 28, \"end_line\": 24, \"line\": 24}, \"value\": {\"args\": [{\"host_binding_id\": null, \"id\": \"supply\", \"node\": \"name\", \"span\": {\"col\": 21, \"end_col\": 27, \"end_line\": 24, \"line\": 24}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"require_positive\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 20, \"end_line\": 24, \"line\": 24}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 4, \"end_col\": 28, \"end_line\": 24, \"line\": 24}, \"syscall_id\": null}}, {\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 28, \"end_line\": 25, \"line\": 25}, \"value\": {\"args\": [{\"host_binding_id\": null, \"id\": \"initial_owner\", \"node\": \"name\", \"span\": {\"col\": 14, \"end_col\": 27, \"end_line\": 25, \"line\": 25}}], \"func\": {\"attr\": \"set\", \"host_binding_id\": null, \"node\": \"attribute\", \"path\": \"owner.set\", \"span\": {\"col\": 4, \"end_col\": 13, \"end_line\": 25, \"line\": 25}, \"value\": {\"host_binding_id\": null, \"id\": \"owner\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 9, \"end_line\": 25, \"line\": 25}}}, \"keywords\": [], \"method\": \"set\", \"node\": \"call\", \"receiver_binding\": \"owner\", \"receiver_type\": \"Variable\", \"span\": {\"col\": 4, \"end_col\": 28, \"end_line\": 25, \"line\": 25}, \"syscall_id\": \"storage.variable.set\"}}, {\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 28, \"end_line\": 26, \"line\": 26}, \"value\": {\"args\": [{\"host_binding_id\": null, \"id\": \"supply\", \"node\": \"name\", \"span\": {\"col\": 21, \"end_col\": 27, \"end_line\": 26, \"line\": 26}}], \"func\": {\"attr\": \"set\", \"host_binding_id\": null, \"node\": \"attribute\", \"path\": \"total_supply.set\", \"span\": {\"col\": 4, \"end_col\": 20, \"end_line\": 26, \"line\": 26}, \"value\": {\"host_binding_id\": null, \"id\": \"total_supply\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 16, \"end_line\": 26, \"line\": 26}}}, \"keywords\": [], \"method\": \"set\", \"node\": \"call\", \"receiver_binding\": \"total_supply\", \"receiver_type\": \"Variable\", \"span\": {\"col\": 4, \"end_col\": 28, \"end_line\": 26, \"line\": 26}, \"syscall_id\": \"storage.variable.set\"}}, {\"binding\": \"balances\", \"key\": {\"host_binding_id\": null, \"id\": \"initial_owner\", \"node\": \"name\", \"span\": {\"col\": 13, \"end_col\": 26, \"end_line\": 27, \"line\": 27}}, \"node\": \"storage_set\", \"span\": {\"col\": 4, \"end_col\": 36, \"end_line\": 27, \"line\": 27}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.set\", \"value\": {\"host_binding_id\": null, \"id\": \"supply\", \"node\": \"name\", \"span\": {\"col\": 30, \"end_col\": 36, \"end_line\": 27, \"line\": 27}}}, {\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 22, \"end_line\": 28, \"line\": 28}, \"value\": {\"args\": [{\"node\": \"constant\", \"span\": {\"col\": 20, \"end_col\": 21, \"end_line\": 28, \"line\": 28}, \"value\": 0, \"value_type\": \"int\"}], \"func\": {\"attr\": \"set\", \"host_binding_id\": null, \"node\": \"attribute\", \"path\": \"audit_count.set\", \"span\": {\"col\": 4, \"end_col\": 19, \"end_line\": 28, \"line\": 28}, \"value\": {\"host_binding_id\": null, \"id\": \"audit_count\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 15, \"end_line\": 28, \"line\": 28}}}, \"keywords\": [], \"method\": \"set\", \"node\": \"call\", \"receiver_binding\": \"audit_count\", \"receiver_type\": \"Variable\", \"span\": {\"col\": 4, \"end_col\": 22, \"end_line\": 28, \"line\": 28}, \"syscall_id\": \"storage.variable.set\"}}, {\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 41, \"end_line\": 29, \"line\": 29}, \"value\": {\"args\": [{\"node\": \"constant\", \"span\": {\"col\": 11, \"end_col\": 17, \"end_line\": 29, \"line\": 29}, \"value\": \"seed\", \"value_type\": \"str\"}, {\"host_binding_id\": null, \"id\": \"initial_owner\", \"node\": \"name\", \"span\": {\"col\": 19, \"end_col\": 32, \"end_line\": 29, \"line\": 29}}, {\"host_binding_id\": null, \"id\": \"supply\", \"node\": \"name\", \"span\": {\"col\": 34, \"end_col\": 40, \"end_line\": 29, \"line\": 29}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"record\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 10, \"end_line\": 29, \"line\": 29}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 4, \"end_col\": 41, \"end_line\": 29, \"line\": 29}, \"syscall_id\": null}}], \"decorator\": {\"args\": [], \"keywords\": [], \"name\": \"construct\", \"node\": \"decorator\", \"span\": {\"col\": 1, \"end_col\": 10, \"end_line\": 20, \"line\": 20}}, \"docstring\": null, \"name\": \"seed\", \"node\": \"function\", \"parameters\": [{\"annotation\": \"str\", \"default\": {\"node\": \"constant\", \"span\": {\"col\": 28, \"end_col\": 32, \"end_line\": 21, \"line\": 21}, \"value\": null, \"value_type\": \"none\"}, \"kind\": \"positional_or_keyword\", \"name\": \"initial_owner\", \"span\": {\"col\": 9, \"end_col\": 27, \"end_line\": 21, \"line\": 21}}, {\"annotation\": \"int\", \"default\": {\"node\": \"constant\", \"span\": {\"col\": 46, \"end_col\": 47, \"end_line\": 21, \"line\": 21}, \"value\": 0, \"value_type\": \"int\"}, \"kind\": \"positional_or_keyword\", \"name\": \"supply\", \"span\": {\"col\": 34, \"end_col\": 45, \"end_line\": 21, \"line\": 21}}], \"returns\": null, \"span\": {\"col\": 0, \"end_col\": 41, \"end_line\": 29, \"line\": 21}, \"visibility\": \"construct\"}, {\"body\": [{\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 28, \"end_line\": 33, \"line\": 33}, \"value\": {\"args\": [{\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 21, \"end_col\": 27, \"end_line\": 33, \"line\": 33}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"require_positive\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 20, \"end_line\": 33, \"line\": 33}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 4, \"end_col\": 28, \"end_line\": 33, \"line\": 33}, \"syscall_id\": null}}, {\"node\": \"assign\", \"span\": {\"col\": 4, \"end_col\": 23, \"end_line\": 34, \"line\": 34}, \"targets\": [{\"host_binding_id\": null, \"id\": \"sender\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 10, \"end_line\": 34, \"line\": 34}}], \"value\": {\"attr\": \"caller\", \"host_binding_id\": \"context.caller\", \"node\": \"attribute\", \"path\": \"ctx.caller\", \"span\": {\"col\": 13, \"end_col\": 23, \"end_line\": 34, \"line\": 34}, \"value\": {\"host_binding_id\": null, \"id\": \"ctx\", \"node\": \"name\", \"span\": {\"col\": 13, \"end_col\": 16, \"end_line\": 34, \"line\": 34}}}}, {\"message\": {\"node\": \"constant\", \"span\": {\"col\": 45, \"end_col\": 66, \"end_line\": 35, \"line\": 35}, \"value\": \"recipient required!\", \"value_type\": \"str\"}, \"node\": \"assert\", \"span\": {\"col\": 4, \"end_col\": 66, \"end_line\": 35, \"line\": 35}, \"test\": {\"node\": \"bool_op\", \"operator\": \"and\", \"span\": {\"col\": 11, \"end_col\": 43, \"end_line\": 35, \"line\": 35}, \"values\": [{\"args\": [{\"host_binding_id\": null, \"id\": \"to\", \"node\": \"name\", \"span\": {\"col\": 22, \"end_col\": 24, \"end_line\": 35, \"line\": 35}}, {\"host_binding_id\": null, \"id\": \"str\", \"node\": \"name\", \"span\": {\"col\": 26, \"end_col\": 29, \"end_line\": 35, \"line\": 35}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"isinstance\", \"node\": \"name\", \"span\": {\"col\": 11, \"end_col\": 21, \"end_line\": 35, \"line\": 35}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 11, \"end_col\": 30, \"end_line\": 35, \"line\": 35}, \"syscall_id\": null}, {\"comparators\": [{\"node\": \"constant\", \"span\": {\"col\": 41, \"end_col\": 43, \"end_line\": 35, \"line\": 35}, \"value\": \"\", \"value_type\": \"str\"}], \"left\": {\"host_binding_id\": null, \"id\": \"to\", \"node\": \"name\", \"span\": {\"col\": 35, \"end_col\": 37, \"end_line\": 35, \"line\": 35}}, \"node\": \"compare\", \"operators\": [\"not_eq\"], \"span\": {\"col\": 35, \"end_col\": 43, \"end_line\": 35, \"line\": 35}}]}}, {\"message\": {\"node\": \"constant\", \"span\": {\"col\": 39, \"end_col\": 62, \"end_line\": 36, \"line\": 36}, \"value\": \"insufficient balance!\", \"value_type\": \"str\"}, \"node\": \"assert\", \"span\": {\"col\": 4, \"end_col\": 62, \"end_line\": 36, \"line\": 36}, \"test\": {\"comparators\": [{\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 31, \"end_col\": 37, \"end_line\": 36, \"line\": 36}}], \"left\": {\"binding\": \"balances\", \"key\": {\"host_binding_id\": null, \"id\": \"sender\", \"node\": \"name\", \"span\": {\"col\": 20, \"end_col\": 26, \"end_line\": 36, \"line\": 36}}, \"node\": \"storage_get\", \"span\": {\"col\": 11, \"end_col\": 27, \"end_line\": 36, \"line\": 36}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.get\"}, \"node\": \"compare\", \"operators\": [\"gt_e\"], \"span\": {\"col\": 11, \"end_col\": 37, \"end_line\": 36, \"line\": 36}}}, {\"binding\": \"balances\", \"key\": {\"host_binding_id\": null, \"id\": \"sender\", \"node\": \"name\", \"span\": {\"col\": 13, \"end_col\": 19, \"end_line\": 37, \"line\": 37}}, \"node\": \"storage_mutate\", \"operator\": \"sub\", \"read_syscall_id\": \"storage.hash.get\", \"span\": {\"col\": 4, \"end_col\": 30, \"end_line\": 37, \"line\": 37}, \"storage_type\": \"Hash\", \"value\": {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 24, \"end_col\": 30, \"end_line\": 37, \"line\": 37}}, \"write_syscall_id\": \"storage.hash.set\"}, {\"binding\": \"balances\", \"key\": {\"host_binding_id\": null, \"id\": \"to\", \"node\": \"name\", \"span\": {\"col\": 13, \"end_col\": 15, \"end_line\": 38, \"line\": 38}}, \"node\": \"storage_mutate\", \"operator\": \"add\", \"read_syscall_id\": \"storage.hash.get\", \"span\": {\"col\": 4, \"end_col\": 26, \"end_line\": 38, \"line\": 38}, \"storage_type\": \"Hash\", \"value\": {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 20, \"end_col\": 26, \"end_line\": 38, \"line\": 38}}, \"write_syscall_id\": \"storage.hash.set\"}, {\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 38, \"end_line\": 39, \"line\": 39}, \"value\": {\"args\": [{\"node\": \"constant\", \"span\": {\"col\": 11, \"end_col\": 21, \"end_line\": 39, \"line\": 39}, \"value\": \"transfer\", \"value_type\": \"str\"}, {\"host_binding_id\": null, \"id\": \"sender\", \"node\": \"name\", \"span\": {\"col\": 23, \"end_col\": 29, \"end_line\": 39, \"line\": 39}}, {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 31, \"end_col\": 37, \"end_line\": 39, \"line\": 39}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"record\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 10, \"end_line\": 39, \"line\": 39}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 4, \"end_col\": 38, \"end_line\": 39, \"line\": 39}, \"syscall_id\": null}}, {\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 70, \"end_line\": 40, \"line\": 40}, \"value\": {\"args\": [{\"entries\": [{\"key\": {\"node\": \"constant\", \"span\": {\"col\": 17, \"end_col\": 25, \"end_line\": 40, \"line\": 40}, \"value\": \"sender\", \"value_type\": \"str\"}, \"value\": {\"host_binding_id\": null, \"id\": \"sender\", \"node\": \"name\", \"span\": {\"col\": 27, \"end_col\": 33, \"end_line\": 40, \"line\": 40}}}, {\"key\": {\"node\": \"constant\", \"span\": {\"col\": 35, \"end_col\": 46, \"end_line\": 40, \"line\": 40}, \"value\": \"recipient\", \"value_type\": \"str\"}, \"value\": {\"host_binding_id\": null, \"id\": \"to\", \"node\": \"name\", \"span\": {\"col\": 48, \"end_col\": 50, \"end_line\": 40, \"line\": 40}}}, {\"key\": {\"node\": \"constant\", \"span\": {\"col\": 52, \"end_col\": 60, \"end_line\": 40, \"line\": 40}, \"value\": \"amount\", \"value_type\": \"str\"}, \"value\": {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 62, \"end_col\": 68, \"end_line\": 40, \"line\": 40}}}], \"node\": \"dict\", \"span\": {\"col\": 16, \"end_col\": 69, \"end_line\": 40, \"line\": 40}}], \"event_binding\": \"LedgerEvent\", \"func\": {\"host_binding_id\": null, \"id\": \"LedgerEvent\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 15, \"end_line\": 40, \"line\": 40}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 4, \"end_col\": 70, \"end_line\": 40, \"line\": 40}, \"syscall_id\": \"event.log.emit\"}}, {\"node\": \"return\", \"span\": {\"col\": 4, \"end_col\": 27, \"end_line\": 41, \"line\": 41}, \"value\": {\"binding\": \"balances\", \"key\": {\"host_binding_id\": null, \"id\": \"sender\", \"node\": \"name\", \"span\": {\"col\": 20, \"end_col\": 26, \"end_line\": 41, \"line\": 41}}, \"node\": \"storage_get\", \"span\": {\"col\": 11, \"end_col\": 27, \"end_line\": 41, \"line\": 41}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.get\"}}], \"decorator\": {\"args\": [], \"keywords\": [], \"name\": \"export\", \"node\": \"decorator\", \"span\": {\"col\": 1, \"end_col\": 7, \"end_line\": 31, \"line\": 31}}, \"docstring\": null, \"name\": \"transfer\", \"node\": \"function\", \"parameters\": [{\"annotation\": \"int\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"amount\", \"span\": {\"col\": 13, \"end_col\": 24, \"end_line\": 32, \"line\": 32}}, {\"annotation\": \"str\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"to\", \"span\": {\"col\": 26, \"end_col\": 33, \"end_line\": 32, \"line\": 32}}], \"returns\": null, \"span\": {\"col\": 0, \"end_col\": 27, \"end_line\": 41, \"line\": 32}, \"visibility\": \"export\"}, {\"body\": [{\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 28, \"end_line\": 45, \"line\": 45}, \"value\": {\"args\": [{\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 21, \"end_col\": 27, \"end_line\": 45, \"line\": 45}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"require_positive\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 20, \"end_line\": 45, \"line\": 45}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 4, \"end_col\": 28, \"end_line\": 45, \"line\": 45}, \"syscall_id\": null}}, {\"message\": {\"node\": \"constant\", \"span\": {\"col\": 55, \"end_col\": 74, \"end_line\": 46, \"line\": 46}, \"value\": \"spender required!\", \"value_type\": \"str\"}, \"node\": \"assert\", \"span\": {\"col\": 4, \"end_col\": 74, \"end_line\": 46, \"line\": 46}, \"test\": {\"node\": \"bool_op\", \"operator\": \"and\", \"span\": {\"col\": 11, \"end_col\": 53, \"end_line\": 46, \"line\": 46}, \"values\": [{\"args\": [{\"host_binding_id\": null, \"id\": \"spender\", \"node\": \"name\", \"span\": {\"col\": 22, \"end_col\": 29, \"end_line\": 46, \"line\": 46}}, {\"host_binding_id\": null, \"id\": \"str\", \"node\": \"name\", \"span\": {\"col\": 31, \"end_col\": 34, \"end_line\": 46, \"line\": 46}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"isinstance\", \"node\": \"name\", \"span\": {\"col\": 11, \"end_col\": 21, \"end_line\": 46, \"line\": 46}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 11, \"end_col\": 35, \"end_line\": 46, \"line\": 46}, \"syscall_id\": null}, {\"comparators\": [{\"node\": \"constant\", \"span\": {\"col\": 51, \"end_col\": 53, \"end_line\": 46, \"line\": 46}, \"value\": \"\", \"value_type\": \"str\"}], \"left\": {\"host_binding_id\": null, \"id\": \"spender\", \"node\": \"name\", \"span\": {\"col\": 40, \"end_col\": 47, \"end_line\": 46, \"line\": 46}}, \"node\": \"compare\", \"operators\": [\"not_eq\"], \"span\": {\"col\": 40, \"end_col\": 53, \"end_line\": 46, \"line\": 46}}]}}, {\"binding\": \"allowances\", \"key\": {\"elements\": [{\"attr\": \"caller\", \"host_binding_id\": \"context.caller\", \"node\": \"attribute\", \"path\": \"ctx.caller\", \"span\": {\"col\": 15, \"end_col\": 25, \"end_line\": 47, \"line\": 47}, \"value\": {\"host_binding_id\": null, \"id\": \"ctx\", \"node\": \"name\", \"span\": {\"col\": 15, \"end_col\": 18, \"end_line\": 47, \"line\": 47}}}, {\"host_binding_id\": null, \"id\": \"spender\", \"node\": \"name\", \"span\": {\"col\": 27, \"end_col\": 34, \"end_line\": 47, \"line\": 47}}], \"node\": \"tuple\", \"span\": {\"col\": 15, \"end_col\": 34, \"end_line\": 47, \"line\": 47}}, \"node\": \"storage_set\", \"span\": {\"col\": 4, \"end_col\": 44, \"end_line\": 47, \"line\": 47}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.set\", \"value\": {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 38, \"end_col\": 44, \"end_line\": 47, \"line\": 47}}}, {\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 38, \"end_line\": 48, \"line\": 48}, \"value\": {\"args\": [{\"node\": \"constant\", \"span\": {\"col\": 11, \"end_col\": 20, \"end_line\": 48, \"line\": 48}, \"value\": \"approve\", \"value_type\": \"str\"}, {\"host_binding_id\": null, \"id\": \"spender\", \"node\": \"name\", \"span\": {\"col\": 22, \"end_col\": 29, \"end_line\": 48, \"line\": 48}}, {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 31, \"end_col\": 37, \"end_line\": 48, \"line\": 48}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"record\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 10, \"end_line\": 48, \"line\": 48}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 4, \"end_col\": 38, \"end_line\": 48, \"line\": 48}, \"syscall_id\": null}}, {\"node\": \"return\", \"span\": {\"col\": 4, \"end_col\": 42, \"end_line\": 49, \"line\": 49}, \"value\": {\"binding\": \"allowances\", \"key\": {\"elements\": [{\"attr\": \"caller\", \"host_binding_id\": \"context.caller\", \"node\": \"attribute\", \"path\": \"ctx.caller\", \"span\": {\"col\": 22, \"end_col\": 32, \"end_line\": 49, \"line\": 49}, \"value\": {\"host_binding_id\": null, \"id\": \"ctx\", \"node\": \"name\", \"span\": {\"col\": 22, \"end_col\": 25, \"end_line\": 49, \"line\": 49}}}, {\"host_binding_id\": null, \"id\": \"spender\", \"node\": \"name\", \"span\": {\"col\": 34, \"end_col\": 41, \"end_line\": 49, \"line\": 49}}], \"node\": \"tuple\", \"span\": {\"col\": 22, \"end_col\": 41, \"end_line\": 49, \"line\": 49}}, \"node\": \"storage_get\", \"span\": {\"col\": 11, \"end_col\": 42, \"end_line\": 49, \"line\": 49}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.get\"}}], \"decorator\": {\"args\": [], \"keywords\": [], \"name\": \"export\", \"node\": \"decorator\", \"span\": {\"col\": 1, \"end_col\": 7, \"end_line\": 43, \"line\": 43}}, \"docstring\": null, \"name\": \"approve\", \"node\": \"function\", \"parameters\": [{\"annotation\": \"int\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"amount\", \"span\": {\"col\": 12, \"end_col\": 23, \"end_line\": 44, \"line\": 44}}, {\"annotation\": \"str\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"spender\", \"span\": {\"col\": 25, \"end_col\": 37, \"end_line\": 44, \"line\": 44}}], \"returns\": null, \"span\": {\"col\": 0, \"end_col\": 42, \"end_line\": 49, \"line\": 44}, \"visibility\": \"export\"}, {\"body\": [{\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 28, \"end_line\": 53, \"line\": 53}, \"value\": {\"args\": [{\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 21, \"end_col\": 27, \"end_line\": 53, \"line\": 53}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"require_positive\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 20, \"end_line\": 53, \"line\": 53}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 4, \"end_col\": 28, \"end_line\": 53, \"line\": 53}, \"syscall_id\": null}}, {\"node\": \"assign\", \"span\": {\"col\": 4, \"end_col\": 24, \"end_line\": 54, \"line\": 54}, \"targets\": [{\"host_binding_id\": null, \"id\": \"spender\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 11, \"end_line\": 54, \"line\": 54}}], \"value\": {\"attr\": \"caller\", \"host_binding_id\": \"context.caller\", \"node\": \"attribute\", \"path\": \"ctx.caller\", \"span\": {\"col\": 14, \"end_col\": 24, \"end_line\": 54, \"line\": 54}, \"value\": {\"host_binding_id\": null, \"id\": \"ctx\", \"node\": \"name\", \"span\": {\"col\": 14, \"end_col\": 17, \"end_line\": 54, \"line\": 54}}}}, {\"message\": {\"node\": \"constant\", \"span\": {\"col\": 57, \"end_col\": 77, \"end_line\": 55, \"line\": 55}, \"value\": \"allowance too low!\", \"value_type\": \"str\"}, \"node\": \"assert\", \"span\": {\"col\": 4, \"end_col\": 77, \"end_line\": 55, \"line\": 55}, \"test\": {\"comparators\": [{\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 49, \"end_col\": 55, \"end_line\": 55, \"line\": 55}}], \"left\": {\"binding\": \"allowances\", \"key\": {\"elements\": [{\"host_binding_id\": null, \"id\": \"owner_account\", \"node\": \"name\", \"span\": {\"col\": 22, \"end_col\": 35, \"end_line\": 55, \"line\": 55}}, {\"host_binding_id\": null, \"id\": \"spender\", \"node\": \"name\", \"span\": {\"col\": 37, \"end_col\": 44, \"end_line\": 55, \"line\": 55}}], \"node\": \"tuple\", \"span\": {\"col\": 22, \"end_col\": 44, \"end_line\": 55, \"line\": 55}}, \"node\": \"storage_get\", \"span\": {\"col\": 11, \"end_col\": 45, \"end_line\": 55, \"line\": 55}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.get\"}, \"node\": \"compare\", \"operators\": [\"gt_e\"], \"span\": {\"col\": 11, \"end_col\": 55, \"end_line\": 55, \"line\": 55}}}, {\"message\": {\"node\": \"constant\", \"span\": {\"col\": 46, \"end_col\": 69, \"end_line\": 56, \"line\": 56}, \"value\": \"insufficient balance!\", \"value_type\": \"str\"}, \"node\": \"assert\", \"span\": {\"col\": 4, \"end_col\": 69, \"end_line\": 56, \"line\": 56}, \"test\": {\"comparators\": [{\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 38, \"end_col\": 44, \"end_line\": 56, \"line\": 56}}], \"left\": {\"binding\": \"balances\", \"key\": {\"host_binding_id\": null, \"id\": \"owner_account\", \"node\": \"name\", \"span\": {\"col\": 20, \"end_col\": 33, \"end_line\": 56, \"line\": 56}}, \"node\": \"storage_get\", \"span\": {\"col\": 11, \"end_col\": 34, \"end_line\": 56, \"line\": 56}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.get\"}, \"node\": \"compare\", \"operators\": [\"gt_e\"], \"span\": {\"col\": 11, \"end_col\": 44, \"end_line\": 56, \"line\": 56}}}, {\"binding\": \"allowances\", \"key\": {\"elements\": [{\"host_binding_id\": null, \"id\": \"owner_account\", \"node\": \"name\", \"span\": {\"col\": 15, \"end_col\": 28, \"end_line\": 57, \"line\": 57}}, {\"host_binding_id\": null, \"id\": \"spender\", \"node\": \"name\", \"span\": {\"col\": 30, \"end_col\": 37, \"end_line\": 57, \"line\": 57}}], \"node\": \"tuple\", \"span\": {\"col\": 15, \"end_col\": 37, \"end_line\": 57, \"line\": 57}}, \"node\": \"storage_mutate\", \"operator\": \"sub\", \"read_syscall_id\": \"storage.hash.get\", \"span\": {\"col\": 4, \"end_col\": 48, \"end_line\": 57, \"line\": 57}, \"storage_type\": \"Hash\", \"value\": {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 42, \"end_col\": 48, \"end_line\": 57, \"line\": 57}}, \"write_syscall_id\": \"storage.hash.set\"}, {\"binding\": \"balances\", \"key\": {\"host_binding_id\": null, \"id\": \"owner_account\", \"node\": \"name\", \"span\": {\"col\": 13, \"end_col\": 26, \"end_line\": 58, \"line\": 58}}, \"node\": \"storage_mutate\", \"operator\": \"sub\", \"read_syscall_id\": \"storage.hash.get\", \"span\": {\"col\": 4, \"end_col\": 37, \"end_line\": 58, \"line\": 58}, \"storage_type\": \"Hash\", \"value\": {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 31, \"end_col\": 37, \"end_line\": 58, \"line\": 58}}, \"write_syscall_id\": \"storage.hash.set\"}, {\"binding\": \"balances\", \"key\": {\"host_binding_id\": null, \"id\": \"to\", \"node\": \"name\", \"span\": {\"col\": 13, \"end_col\": 15, \"end_line\": 59, \"line\": 59}}, \"node\": \"storage_mutate\", \"operator\": \"add\", \"read_syscall_id\": \"storage.hash.get\", \"span\": {\"col\": 4, \"end_col\": 26, \"end_line\": 59, \"line\": 59}, \"storage_type\": \"Hash\", \"value\": {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 20, \"end_col\": 26, \"end_line\": 59, \"line\": 59}}, \"write_syscall_id\": \"storage.hash.set\"}, {\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 50, \"end_line\": 60, \"line\": 60}, \"value\": {\"args\": [{\"node\": \"constant\", \"span\": {\"col\": 11, \"end_col\": 26, \"end_line\": 60, \"line\": 60}, \"value\": \"transfer_from\", \"value_type\": \"str\"}, {\"host_binding_id\": null, \"id\": \"owner_account\", \"node\": \"name\", \"span\": {\"col\": 28, \"end_col\": 41, \"end_line\": 60, \"line\": 60}}, {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 43, \"end_col\": 49, \"end_line\": 60, \"line\": 60}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"record\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 10, \"end_line\": 60, \"line\": 60}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 4, \"end_col\": 50, \"end_line\": 60, \"line\": 60}, \"syscall_id\": null}}, {\"node\": \"expr\", \"span\": {\"col\": 4, \"end_col\": 77, \"end_line\": 61, \"line\": 61}, \"value\": {\"args\": [{\"entries\": [{\"key\": {\"node\": \"constant\", \"span\": {\"col\": 17, \"end_col\": 25, \"end_line\": 61, \"line\": 61}, \"value\": \"sender\", \"value_type\": \"str\"}, \"value\": {\"host_binding_id\": null, \"id\": \"owner_account\", \"node\": \"name\", \"span\": {\"col\": 27, \"end_col\": 40, \"end_line\": 61, \"line\": 61}}}, {\"key\": {\"node\": \"constant\", \"span\": {\"col\": 42, \"end_col\": 53, \"end_line\": 61, \"line\": 61}, \"value\": \"recipient\", \"value_type\": \"str\"}, \"value\": {\"host_binding_id\": null, \"id\": \"to\", \"node\": \"name\", \"span\": {\"col\": 55, \"end_col\": 57, \"end_line\": 61, \"line\": 61}}}, {\"key\": {\"node\": \"constant\", \"span\": {\"col\": 59, \"end_col\": 67, \"end_line\": 61, \"line\": 61}, \"value\": \"amount\", \"value_type\": \"str\"}, \"value\": {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 69, \"end_col\": 75, \"end_line\": 61, \"line\": 61}}}], \"node\": \"dict\", \"span\": {\"col\": 16, \"end_col\": 76, \"end_line\": 61, \"line\": 61}}], \"event_binding\": \"LedgerEvent\", \"func\": {\"host_binding_id\": null, \"id\": \"LedgerEvent\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 15, \"end_line\": 61, \"line\": 61}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 4, \"end_col\": 77, \"end_line\": 61, \"line\": 61}, \"syscall_id\": \"event.log.emit\"}}, {\"node\": \"return\", \"span\": {\"col\": 4, \"end_col\": 45, \"end_line\": 62, \"line\": 62}, \"value\": {\"binding\": \"allowances\", \"key\": {\"elements\": [{\"host_binding_id\": null, \"id\": \"owner_account\", \"node\": \"name\", \"span\": {\"col\": 22, \"end_col\": 35, \"end_line\": 62, \"line\": 62}}, {\"host_binding_id\": null, \"id\": \"spender\", \"node\": \"name\", \"span\": {\"col\": 37, \"end_col\": 44, \"end_line\": 62, \"line\": 62}}], \"node\": \"tuple\", \"span\": {\"col\": 22, \"end_col\": 44, \"end_line\": 62, \"line\": 62}}, \"node\": \"storage_get\", \"span\": {\"col\": 11, \"end_col\": 45, \"end_line\": 62, \"line\": 62}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.get\"}}], \"decorator\": {\"args\": [], \"keywords\": [], \"name\": \"export\", \"node\": \"decorator\", \"span\": {\"col\": 1, \"end_col\": 7, \"end_line\": 51, \"line\": 51}}, \"docstring\": null, \"name\": \"transfer_from\", \"node\": \"function\", \"parameters\": [{\"annotation\": \"int\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"amount\", \"span\": {\"col\": 18, \"end_col\": 29, \"end_line\": 52, \"line\": 52}}, {\"annotation\": \"str\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"owner_account\", \"span\": {\"col\": 31, \"end_col\": 49, \"end_line\": 52, \"line\": 52}}, {\"annotation\": \"str\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"to\", \"span\": {\"col\": 51, \"end_col\": 58, \"end_line\": 52, \"line\": 52}}], \"returns\": null, \"span\": {\"col\": 0, \"end_col\": 45, \"end_line\": 62, \"line\": 52}, \"visibility\": \"export\"}, {\"body\": [{\"message\": {\"node\": \"constant\", \"span\": {\"col\": 44, \"end_col\": 68, \"end_line\": 66, \"line\": 66}, \"value\": \"batch length mismatch!\", \"value_type\": \"str\"}, \"node\": \"assert\", \"span\": {\"col\": 4, \"end_col\": 68, \"end_line\": 66, \"line\": 66}, \"test\": {\"comparators\": [{\"args\": [{\"host_binding_id\": null, \"id\": \"amounts\", \"node\": \"name\", \"span\": {\"col\": 34, \"end_col\": 41, \"end_line\": 66, \"line\": 66}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"len\", \"node\": \"name\", \"span\": {\"col\": 30, \"end_col\": 33, \"end_line\": 66, \"line\": 66}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 30, \"end_col\": 42, \"end_line\": 66, \"line\": 66}, \"syscall_id\": null}], \"left\": {\"args\": [{\"host_binding_id\": null, \"id\": \"recipients\", \"node\": \"name\", \"span\": {\"col\": 15, \"end_col\": 25, \"end_line\": 66, \"line\": 66}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"len\", \"node\": \"name\", \"span\": {\"col\": 11, \"end_col\": 14, \"end_line\": 66, \"line\": 66}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 11, \"end_col\": 26, \"end_line\": 66, \"line\": 66}, \"syscall_id\": null}, \"node\": \"compare\", \"operators\": [\"eq\"], \"span\": {\"col\": 11, \"end_col\": 42, \"end_line\": 66, \"line\": 66}}}, {\"node\": \"assign\", \"span\": {\"col\": 4, \"end_col\": 12, \"end_line\": 67, \"line\": 67}, \"targets\": [{\"host_binding_id\": null, \"id\": \"sent\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 8, \"end_line\": 67, \"line\": 67}}], \"value\": {\"node\": \"constant\", \"span\": {\"col\": 11, \"end_col\": 12, \"end_line\": 67, \"line\": 67}, \"value\": 0, \"value_type\": \"int\"}}, {\"node\": \"assign\", \"span\": {\"col\": 4, \"end_col\": 9, \"end_line\": 68, \"line\": 68}, \"targets\": [{\"host_binding_id\": null, \"id\": \"i\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 5, \"end_line\": 68, \"line\": 68}}], \"value\": {\"node\": \"constant\", \"span\": {\"col\": 8, \"end_col\": 9, \"end_line\": 68, \"line\": 68}, \"value\": 0, \"value_type\": \"int\"}}, {\"body\": [{\"node\": \"expr\", \"span\": {\"col\": 8, \"end_col\": 43, \"end_line\": 70, \"line\": 70}, \"value\": {\"args\": [{\"node\": \"subscript\", \"slice\": {\"host_binding_id\": null, \"id\": \"i\", \"node\": \"name\", \"span\": {\"col\": 25, \"end_col\": 26, \"end_line\": 70, \"line\": 70}}, \"span\": {\"col\": 17, \"end_col\": 27, \"end_line\": 70, \"line\": 70}, \"value\": {\"host_binding_id\": null, \"id\": \"amounts\", \"node\": \"name\", \"span\": {\"col\": 17, \"end_col\": 24, \"end_line\": 70, \"line\": 70}}}, {\"node\": \"subscript\", \"slice\": {\"host_binding_id\": null, \"id\": \"i\", \"node\": \"name\", \"span\": {\"col\": 40, \"end_col\": 41, \"end_line\": 70, \"line\": 70}}, \"span\": {\"col\": 29, \"end_col\": 42, \"end_line\": 70, \"line\": 70}, \"value\": {\"host_binding_id\": null, \"id\": \"recipients\", \"node\": \"name\", \"span\": {\"col\": 29, \"end_col\": 39, \"end_line\": 70, \"line\": 70}}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"transfer\", \"node\": \"name\", \"span\": {\"col\": 8, \"end_col\": 16, \"end_line\": 70, \"line\": 70}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 8, \"end_col\": 43, \"end_line\": 70, \"line\": 70}, \"syscall_id\": null}}, {\"node\": \"aug_assign\", \"operator\": \"add\", \"span\": {\"col\": 8, \"end_col\": 26, \"end_line\": 71, \"line\": 71}, \"target\": {\"host_binding_id\": null, \"id\": \"sent\", \"node\": \"name\", \"span\": {\"col\": 8, \"end_col\": 12, \"end_line\": 71, \"line\": 71}}, \"value\": {\"node\": \"subscript\", \"slice\": {\"host_binding_id\": null, \"id\": \"i\", \"node\": \"name\", \"span\": {\"col\": 24, \"end_col\": 25, \"end_line\": 71, \"line\": 71}}, \"span\": {\"col\": 16, \"end_col\": 26, \"end_line\": 71, \"line\": 71}, \"value\": {\"host_binding_id\": null, \"id\": \"amounts\", \"node\": \"name\", \"span\": {\"col\": 16, \"end_col\": 23, \"end_line\": 71, \"line\": 71}}}}, {\"node\": \"aug_assign\", \"operator\": \"add\", \"span\": {\"col\": 8, \"end_col\": 14, \"end_line\": 72, \"line\": 72}, \"target\": {\"host_binding_id\": null, \"id\": \"i\", \"node\": \"name\", \"span\": {\"col\": 8, \"end_col\": 9, \"end_line\": 72, \"line\": 72}}, \"value\": {\"node\": \"constant\", \"span\": {\"col\": 13, \"end_col\": 14, \"end_line\": 72, \"line\": 72}, \"value\": 1, \"value_type\": \"int\"}}], \"node\": \"while\", \"orelse\": [], \"span\": {\"col\": 4, \"end_col\": 14, \"end_line\": 72, \"line\": 69}, \"test\": {\"comparators\": [{\"args\": [{\"host_binding_id\": null, \"id\": \"recipients\", \"node\": \"name\", \"span\": {\"col\": 18, \"end_col\": 28, \"end_line\": 69, \"line\": 69}}], \"event_binding\": null, \"func\": {\"host_binding_id\": null, \"id\": \"len\", \"node\": \"name\", \"span\": {\"col\": 14, \"end_col\": 17, \"end_line\": 69, \"line\": 69}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 14, \"end_col\": 29, \"end_line\": 69, \"line\": 69}, \"syscall_id\": null}], \"left\": {\"host_binding_id\": null, \"id\": \"i\", \"node\": \"name\", \"span\": {\"col\": 10, \"end_col\": 11, \"end_line\": 69, \"line\": 69}}, \"node\": \"compare\", \"operators\": [\"lt\"], \"span\": {\"col\": 10, \"end_col\": 29, \"end_line\": 69, \"line\": 69}}}, {\"node\": \"return\", \"span\": {\"col\": 4, \"end_col\": 15, \"end_line\": 73, \"line\": 73}, \"value\": {\"host_binding_id\": null, \"id\": \"sent\", \"node\": \"name\", \"span\": {\"col\": 11, \"end_col\": 15, \"end_line\": 73, \"line\": 73}}}], \"decorator\": {\"args\": [], \"keywords\": [], \"name\": \"export\", \"node\": \"decorator\", \"span\": {\"col\": 1, \"end_col\": 7, \"end_line\": 64, \"line\": 64}}, \"docstring\": null, \"name\": \"batch_transfer\", \"node\": \"function\", \"parameters\": [{\"annotation\": \"list[str]\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"recipients\", \"span\": {\"col\": 19, \"end_col\": 40, \"end_line\": 65, \"line\": 65}}, {\"annotation\": \"list[int]\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"amounts\", \"span\": {\"col\": 42, \"end_col\": 60, \"end_line\": 65, \"line\": 65}}], \"returns\": null, \"span\": {\"col\": 0, \"end_col\": 15, \"end_line\": 73, \"line\": 65}, \"visibility\": \"export\"}, {\"body\": [{\"node\": \"assign\", \"span\": {\"col\": 4, \"end_col\": 15, \"end_line\": 77, \"line\": 77}, \"targets\": [{\"host_binding_id\": null, \"id\": \"result\", \"node\": \"name\", \"span\": {\"col\": 4, \"end_col\": 10, \"end_line\": 77, \"line\": 77}}], \"value\": {\"entries\": [], \"node\": \"dict\", \"span\": {\"col\": 13, \"end_col\": 15, \"end_line\": 77, \"line\": 77}}}, {\"body\": [{\"node\": \"assign\", \"span\": {\"col\": 8, \"end_col\": 43, \"end_line\": 79, \"line\": 79}, \"targets\": [{\"node\": \"subscript\", \"slice\": {\"host_binding_id\": null, \"id\": \"account\", \"node\": \"name\", \"span\": {\"col\": 15, \"end_col\": 22, \"end_line\": 79, \"line\": 79}}, \"span\": {\"col\": 8, \"end_col\": 23, \"end_line\": 79, \"line\": 79}, \"value\": {\"host_binding_id\": null, \"id\": \"result\", \"node\": \"name\", \"span\": {\"col\": 8, \"end_col\": 14, \"end_line\": 79, \"line\": 79}}}], \"value\": {\"binding\": \"balances\", \"key\": {\"host_binding_id\": null, \"id\": \"account\", \"node\": \"name\", \"span\": {\"col\": 35, \"end_col\": 42, \"end_line\": 79, \"line\": 79}}, \"node\": \"storage_get\", \"span\": {\"col\": 26, \"end_col\": 43, \"end_line\": 79, \"line\": 79}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.get\"}}], \"iter\": {\"host_binding_id\": null, \"id\": \"accounts\", \"node\": \"name\", \"span\": {\"col\": 19, \"end_col\": 27, \"end_line\": 78, \"line\": 78}}, \"node\": \"for\", \"orelse\": [], \"span\": {\"col\": 4, \"end_col\": 43, \"end_line\": 79, \"line\": 78}, \"target\": {\"host_binding_id\": null, \"id\": \"account\", \"node\": \"name\", \"span\": {\"col\": 8, \"end_col\": 15, \"end_line\": 78, \"line\": 78}}}, {\"node\": \"return\", \"span\": {\"col\": 4, \"end_col\": 17, \"end_line\": 80, \"line\": 80}, \"value\": {\"host_binding_id\": null, \"id\": \"result\", \"node\": \"name\", \"span\": {\"col\": 11, \"end_col\": 17, \"end_line\": 80, \"line\": 80}}}], \"decorator\": {\"args\": [], \"keywords\": [], \"name\": \"export\", \"node\": \"decorator\", \"span\": {\"col\": 1, \"end_col\": 7, \"end_line\": 75, \"line\": 75}}, \"docstring\": null, \"name\": \"snapshot\", \"node\": \"function\", \"parameters\": [{\"annotation\": \"list[str]\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"accounts\", \"span\": {\"col\": 13, \"end_col\": 32, \"end_line\": 76, \"line\": 76}}], \"returns\": \"dict\", \"span\": {\"col\": 0, \"end_col\": 17, \"end_line\": 80, \"line\": 76}, \"visibility\": \"export\"}], \"global_declarations\": [{\"event_name\": \"LedgerTransfer\", \"name\": \"LedgerEvent\", \"node\": \"event_decl\", \"params\": {\"entries\": [{\"key\": {\"node\": \"constant\", \"span\": {\"col\": 42, \"end_col\": 50, \"end_line\": 1, \"line\": 1}, \"value\": \"sender\", \"value_type\": \"str\"}, \"value\": {\"args\": [{\"host_binding_id\": null, \"id\": \"str\", \"node\": \"name\", \"span\": {\"col\": 60, \"end_col\": 63, \"end_line\": 1, \"line\": 1}}], \"event_binding\": null, \"func\": {\"host_binding_id\": \"event.indexed\", \"id\": \"indexed\", \"node\": \"name\", \"span\": {\"col\": 52, \"end_col\": 59, \"end_line\": 1, \"line\": 1}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 52, \"end_col\": 64, \"end_line\": 1, \"line\": 1}, \"syscall_id\": \"event.indexed\"}}, {\"key\": {\"node\": \"constant\", \"span\": {\"col\": 66, \"end_col\": 77, \"end_line\": 1, \"line\": 1}, \"value\": \"recipient\", \"value_type\": \"str\"}, \"value\": {\"args\": [{\"host_binding_id\": null, \"id\": \"str\", \"node\": \"name\", \"span\": {\"col\": 87, \"end_col\": 90, \"end_line\": 1, \"line\": 1}}], \"event_binding\": null, \"func\": {\"host_binding_id\": \"event.indexed\", \"id\": \"indexed\", \"node\": \"name\", \"span\": {\"col\": 79, \"end_col\": 86, \"end_line\": 1, \"line\": 1}}, \"keywords\": [], \"node\": \"call\", \"span\": {\"col\": 79, \"end_col\": 91, \"end_line\": 1, \"line\": 1}, \"syscall_id\": \"event.indexed\"}}, {\"key\": {\"node\": \"constant\", \"span\": {\"col\": 93, \"end_col\": 101, \"end_line\": 1, \"line\": 1}, \"value\": \"amount\", \"value_type\": \"str\"}, \"value\": {\"host_binding_id\": null, \"id\": \"int\", \"node\": \"name\", \"span\": {\"col\": 103, \"end_col\": 106, \"end_line\": 1, \"line\": 1}}}], \"node\": \"dict\", \"span\": {\"col\": 41, \"end_col\": 107, \"end_line\": 1, \"line\": 1}}, \"span\": {\"col\": 0, \"end_col\": 108, \"end_line\": 1, \"line\": 1}, \"syscall_id\": \"event.log.new\"}, {\"args\": [], \"keywords\": [], \"name\": \"owner\", \"node\": \"storage_decl\", \"span\": {\"col\": 0, \"end_col\": 18, \"end_line\": 2, \"line\": 2}, \"storage_type\": \"Variable\", \"syscall_id\": \"storage.variable.new\"}, {\"args\": [], \"keywords\": [], \"name\": \"total_supply\", \"node\": \"storage_decl\", \"span\": {\"col\": 0, \"end_col\": 25, \"end_line\": 3, \"line\": 3}, \"storage_type\": \"Variable\", \"syscall_id\": \"storage.variable.new\"}, {\"args\": [], \"keywords\": [{\"arg\": \"default_value\", \"node\": \"keyword\", \"span\": {\"col\": 16, \"end_col\": 31, \"end_line\": 4, \"line\": 4}, \"value\": {\"node\": \"constant\", \"span\": {\"col\": 30, \"end_col\": 31, \"end_line\": 4, \"line\": 4}, \"value\": 0, \"value_type\": \"int\"}}], \"name\": \"balances\", \"node\": \"storage_decl\", \"span\": {\"col\": 0, \"end_col\": 32, \"end_line\": 4, \"line\": 4}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.new\"}, {\"args\": [], \"keywords\": [{\"arg\": \"default_value\", \"node\": \"keyword\", \"span\": {\"col\": 18, \"end_col\": 33, \"end_line\": 5, \"line\": 5}, \"value\": {\"node\": \"constant\", \"span\": {\"col\": 32, \"end_col\": 33, \"end_line\": 5, \"line\": 5}, \"value\": 0, \"value_type\": \"int\"}}], \"name\": \"allowances\", \"node\": \"storage_decl\", \"span\": {\"col\": 0, \"end_col\": 34, \"end_line\": 5, \"line\": 5}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.new\"}, {\"args\": [], \"keywords\": [], \"name\": \"audit_log\", \"node\": \"storage_decl\", \"span\": {\"col\": 0, \"end_col\": 18, \"end_line\": 6, \"line\": 6}, \"storage_type\": \"Hash\", \"syscall_id\": \"storage.hash.new\"}, {\"args\": [], \"keywords\": [], \"name\": \"audit_count\", \"node\": \"storage_decl\", \"span\": {\"col\": 0, \"end_col\": 24, \"end_line\": 7, \"line\": 7}, \"storage_type\": \"Variable\", \"syscall_id\": \"storage.variable.new\"}], \"host_catalog_version\": \"xian_vm_v1_host_v1\", \"host_dependencies\": [{\"binding\": \"ctx.caller\", \"category\": \"context\", \"id\": \"context.caller\", \"kind\": \"context_field\"}, {\"binding\": \"indexed\", \"category\": \"event\", \"id\": \"event.indexed\", \"kind\": \"syscall\"}, {\"binding\": \"LogEvent.__call__\", \"category\": \"event\", \"id\": \"event.log.emit\", \"kind\": \"syscall\"}, {\"binding\": \"LogEvent\", \"category\": \"event\", \"id\": \"event.log.new\", \"kind\": \"syscall\"}, {\"binding\": \"Hash.__getitem__\", \"category\": \"storage\", \"id\": \"storage.hash.get\", \"kind\": \"syscall\"}, {\"binding\": \"Hash\", \"category\": \"storage\", \"id\": \"storage.hash.new\", \"kind\": \"syscall\"}, {\"binding\": \"Hash.__setitem__\", \"category\": \"storage\", \"id\": \"storage.hash.set\", \"kind\": \"syscall\"}, {\"binding\": \"Variable.get\", \"category\": \"storage\", \"id\": \"storage.variable.get\", \"kind\": \"syscall\"}, {\"binding\": \"Variable\", \"category\": \"storage\", \"id\": \"storage.variable.new\", \"kind\": \"syscall\"}, {\"binding\": \"Variable.set\", \"category\": \"storage\", \"id\": \"storage.variable.set\", \"kind\": \"syscall\"}], \"imports\": [], \"ir_version\": \"xian_ir_v1\", \"module_body\": [], \"module_name\": \"con_complex_ledger\", \"source_hash\": \"56355a4a11c2a26db53eefc37c5b11e6bd9c594743541448a13230063754a63f\", \"vm_profile\": \"xian_vm_v1\"}",
+    "vm_profile": "xian_vm_v1"
+  },
+  "diagnostics": [],
+  "expected": {
+    "accepted": true
+  },
+  "generator": {
+    "artifact_format": "xian_contract_artifact_v1",
+    "name": "python-contracting"
+  },
+  "input_source": "LedgerEvent = LogEvent(\n    \"LedgerTransfer\",\n    {\n        \"sender\": indexed(str),\n        \"recipient\": indexed(str),\n        \"amount\": int,\n    },\n)\n\nowner = Variable()\ntotal_supply = Variable()\nbalances = Hash(default_value=0)\nallowances = Hash(default_value=0)\naudit_log = Hash()\naudit_count = Variable()\n\n\ndef require_positive(amount: int):\n    assert isinstance(amount, int), \"amount must be an integer!\"\n    assert amount > 0, \"amount must be positive!\"\n\n\ndef record(action: str, account: str, amount: int):\n    index = audit_count.get()\n    audit_log[index, \"action\"] = action\n    audit_log[index, \"account\"] = account\n    audit_log[index, \"amount\"] = amount\n    audit_count.set(index + 1)\n\n\n@construct\ndef seed(initial_owner: str = None, supply: int = 0):\n    if initial_owner is None or initial_owner == \"\":\n        initial_owner = ctx.caller\n    require_positive(supply)\n    owner.set(initial_owner)\n    total_supply.set(supply)\n    balances[initial_owner] = supply\n    audit_count.set(0)\n    record(\"seed\", initial_owner, supply)\n\n\n@export\ndef transfer(amount: int, to: str):\n    require_positive(amount)\n    sender = ctx.caller\n    assert isinstance(to, str) and to != \"\", \"recipient required!\"\n    assert balances[sender] >= amount, \"insufficient balance!\"\n    balances[sender] -= amount\n    balances[to] += amount\n    record(\"transfer\", sender, amount)\n    LedgerEvent({\"sender\": sender, \"recipient\": to, \"amount\": amount})\n    return balances[sender]\n\n\n@export\ndef approve(amount: int, spender: str):\n    require_positive(amount)\n    assert isinstance(spender, str) and spender != \"\", \"spender required!\"\n    allowances[ctx.caller, spender] = amount\n    record(\"approve\", spender, amount)\n    return allowances[ctx.caller, spender]\n\n\n@export\ndef transfer_from(amount: int, owner_account: str, to: str):\n    require_positive(amount)\n    spender = ctx.caller\n    assert allowances[owner_account, spender] >= amount, \"allowance too low!\"\n    assert balances[owner_account] >= amount, \"insufficient balance!\"\n    allowances[owner_account, spender] -= amount\n    balances[owner_account] -= amount\n    balances[to] += amount\n    record(\"transfer_from\", owner_account, amount)\n    LedgerEvent({\"sender\": owner_account, \"recipient\": to, \"amount\": amount})\n    return allowances[owner_account, spender]\n\n\n@export\ndef batch_transfer(recipients: list[str], amounts: list[int]):\n    assert len(recipients) == len(amounts), \"batch length mismatch!\"\n    sent = 0\n    i = 0\n    while i < len(recipients):\n        transfer(amounts[i], recipients[i])\n        sent += amounts[i]\n        i += 1\n    return sent\n\n\n@export\ndef snapshot(accounts: list[str]) -> dict:\n    result = {}\n    for account in accounts:\n        result[account] = balances[account]\n    return result\n",
+  "module_name": "con_complex_ledger",
+  "name": "con_complex_ledger",
+  "normalized_source": "LedgerEvent = LogEvent('LedgerTransfer', {'sender': indexed(str), 'recipient': indexed(str), 'amount': int})\nowner = Variable()\ntotal_supply = Variable()\nbalances = Hash(default_value=0)\nallowances = Hash(default_value=0)\naudit_log = Hash()\naudit_count = Variable()\n\ndef require_positive(amount: int):\n    assert isinstance(amount, int), 'amount must be an integer!'\n    assert amount > 0, 'amount must be positive!'\n\ndef record(action: str, account: str, amount: int):\n    index = audit_count.get()\n    audit_log[index, 'action'] = action\n    audit_log[index, 'account'] = account\n    audit_log[index, 'amount'] = amount\n    audit_count.set(index + 1)\n\n@construct\ndef seed(initial_owner: str=None, supply: int=0):\n    if initial_owner is None or initial_owner == '':\n        initial_owner = ctx.caller\n    require_positive(supply)\n    owner.set(initial_owner)\n    total_supply.set(supply)\n    balances[initial_owner] = supply\n    audit_count.set(0)\n    record('seed', initial_owner, supply)\n\n@export\ndef transfer(amount: int, to: str):\n    require_positive(amount)\n    sender = ctx.caller\n    assert isinstance(to, str) and to != '', 'recipient required!'\n    assert balances[sender] >= amount, 'insufficient balance!'\n    balances[sender] -= amount\n    balances[to] += amount\n    record('transfer', sender, amount)\n    LedgerEvent({'sender': sender, 'recipient': to, 'amount': amount})\n    return balances[sender]\n\n@export\ndef approve(amount: int, spender: str):\n    require_positive(amount)\n    assert isinstance(spender, str) and spender != '', 'spender required!'\n    allowances[ctx.caller, spender] = amount\n    record('approve', spender, amount)\n    return allowances[ctx.caller, spender]\n\n@export\ndef transfer_from(amount: int, owner_account: str, to: str):\n    require_positive(amount)\n    spender = ctx.caller\n    assert allowances[owner_account, spender] >= amount, 'allowance too low!'\n    assert balances[owner_account] >= amount, 'insufficient balance!'\n    allowances[owner_account, spender] -= amount\n    balances[owner_account] -= amount\n    balances[to] += amount\n    record('transfer_from', owner_account, amount)\n    LedgerEvent({'sender': owner_account, 'recipient': to, 'amount': amount})\n    return allowances[owner_account, spender]\n\n@export\ndef batch_transfer(recipients: list[str], amounts: list[int]):\n    assert len(recipients) == len(amounts), 'batch length mismatch!'\n    sent = 0\n    i = 0\n    while i < len(recipients):\n        transfer(amounts[i], recipients[i])\n        sent += amounts[i]\n        i += 1\n    return sent\n\n@export\ndef snapshot(accounts: list[str]) -> dict:\n    result = {}\n    for account in accounts:\n        result[account] = balances[account]\n    return result",
+  "schema": "xian.compiler_fixture.v1",
+  "source_path": "packages/xian-compiler-core/tests/sources/con_complex_ledger.s.py",
+  "vm_ir": {
+    "docstring": null,
+    "functions": [
+      {
+        "body": [
+          {
+            "message": {
+              "node": "constant",
+              "span": {
+                "col": 36,
+                "end_col": 64,
+                "end_line": 10,
+                "line": 10
+              },
+              "value": "amount must be an integer!",
+              "value_type": "str"
+            },
+            "node": "assert",
+            "span": {
+              "col": 4,
+              "end_col": 64,
+              "end_line": 10,
+              "line": 10
+            },
+            "test": {
+              "args": [
+                {
+                  "host_binding_id": null,
+                  "id": "amount",
+                  "node": "name",
+                  "span": {
+                    "col": 22,
+                    "end_col": 28,
+                    "end_line": 10,
+                    "line": 10
+                  }
+                },
+                {
+                  "host_binding_id": null,
+                  "id": "int",
+                  "node": "name",
+                  "span": {
+                    "col": 30,
+                    "end_col": 33,
+                    "end_line": 10,
+                    "line": 10
+                  }
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "host_binding_id": null,
+                "id": "isinstance",
+                "node": "name",
+                "span": {
+                  "col": 11,
+                  "end_col": 21,
+                  "end_line": 10,
+                  "line": 10
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 11,
+                "end_col": 34,
+                "end_line": 10,
+                "line": 10
+              },
+              "syscall_id": null
+            }
+          },
+          {
+            "message": {
+              "node": "constant",
+              "span": {
+                "col": 23,
+                "end_col": 49,
+                "end_line": 11,
+                "line": 11
+              },
+              "value": "amount must be positive!",
+              "value_type": "str"
+            },
+            "node": "assert",
+            "span": {
+              "col": 4,
+              "end_col": 49,
+              "end_line": 11,
+              "line": 11
+            },
+            "test": {
+              "comparators": [
+                {
+                  "node": "constant",
+                  "span": {
+                    "col": 20,
+                    "end_col": 21,
+                    "end_line": 11,
+                    "line": 11
+                  },
+                  "value": 0,
+                  "value_type": "int"
+                }
+              ],
+              "left": {
+                "host_binding_id": null,
+                "id": "amount",
+                "node": "name",
+                "span": {
+                  "col": 11,
+                  "end_col": 17,
+                  "end_line": 11,
+                  "line": 11
+                }
+              },
+              "node": "compare",
+              "operators": [
+                "gt"
+              ],
+              "span": {
+                "col": 11,
+                "end_col": 21,
+                "end_line": 11,
+                "line": 11
+              }
+            }
+          }
+        ],
+        "decorator": null,
+        "docstring": null,
+        "name": "require_positive",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "int",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "amount",
+            "span": {
+              "col": 21,
+              "end_col": 32,
+              "end_line": 9,
+              "line": 9
+            }
+          }
+        ],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 49,
+          "end_line": 11,
+          "line": 9
+        },
+        "visibility": "private"
+      },
+      {
+        "body": [
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 29,
+              "end_line": 14,
+              "line": 14
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "index",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 9,
+                  "end_line": 14,
+                  "line": 14
+                }
+              }
+            ],
+            "value": {
+              "args": [],
+              "func": {
+                "attr": "get",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "audit_count.get",
+                "span": {
+                  "col": 12,
+                  "end_col": 27,
+                  "end_line": 14,
+                  "line": 14
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "audit_count",
+                  "node": "name",
+                  "span": {
+                    "col": 12,
+                    "end_col": 23,
+                    "end_line": 14,
+                    "line": 14
+                  }
+                }
+              },
+              "keywords": [],
+              "method": "get",
+              "node": "call",
+              "receiver_binding": "audit_count",
+              "receiver_type": "Variable",
+              "span": {
+                "col": 12,
+                "end_col": 29,
+                "end_line": 14,
+                "line": 14
+              },
+              "syscall_id": "storage.variable.get"
+            }
+          },
+          {
+            "binding": "audit_log",
+            "key": {
+              "elements": [
+                {
+                  "host_binding_id": null,
+                  "id": "index",
+                  "node": "name",
+                  "span": {
+                    "col": 14,
+                    "end_col": 19,
+                    "end_line": 15,
+                    "line": 15
+                  }
+                },
+                {
+                  "node": "constant",
+                  "span": {
+                    "col": 21,
+                    "end_col": 29,
+                    "end_line": 15,
+                    "line": 15
+                  },
+                  "value": "action",
+                  "value_type": "str"
+                }
+              ],
+              "node": "tuple",
+              "span": {
+                "col": 14,
+                "end_col": 29,
+                "end_line": 15,
+                "line": 15
+              }
+            },
+            "node": "storage_set",
+            "span": {
+              "col": 4,
+              "end_col": 39,
+              "end_line": 15,
+              "line": 15
+            },
+            "storage_type": "Hash",
+            "syscall_id": "storage.hash.set",
+            "value": {
+              "host_binding_id": null,
+              "id": "action",
+              "node": "name",
+              "span": {
+                "col": 33,
+                "end_col": 39,
+                "end_line": 15,
+                "line": 15
+              }
+            }
+          },
+          {
+            "binding": "audit_log",
+            "key": {
+              "elements": [
+                {
+                  "host_binding_id": null,
+                  "id": "index",
+                  "node": "name",
+                  "span": {
+                    "col": 14,
+                    "end_col": 19,
+                    "end_line": 16,
+                    "line": 16
+                  }
+                },
+                {
+                  "node": "constant",
+                  "span": {
+                    "col": 21,
+                    "end_col": 30,
+                    "end_line": 16,
+                    "line": 16
+                  },
+                  "value": "account",
+                  "value_type": "str"
+                }
+              ],
+              "node": "tuple",
+              "span": {
+                "col": 14,
+                "end_col": 30,
+                "end_line": 16,
+                "line": 16
+              }
+            },
+            "node": "storage_set",
+            "span": {
+              "col": 4,
+              "end_col": 41,
+              "end_line": 16,
+              "line": 16
+            },
+            "storage_type": "Hash",
+            "syscall_id": "storage.hash.set",
+            "value": {
+              "host_binding_id": null,
+              "id": "account",
+              "node": "name",
+              "span": {
+                "col": 34,
+                "end_col": 41,
+                "end_line": 16,
+                "line": 16
+              }
+            }
+          },
+          {
+            "binding": "audit_log",
+            "key": {
+              "elements": [
+                {
+                  "host_binding_id": null,
+                  "id": "index",
+                  "node": "name",
+                  "span": {
+                    "col": 14,
+                    "end_col": 19,
+                    "end_line": 17,
+                    "line": 17
+                  }
+                },
+                {
+                  "node": "constant",
+                  "span": {
+                    "col": 21,
+                    "end_col": 29,
+                    "end_line": 17,
+                    "line": 17
+                  },
+                  "value": "amount",
+                  "value_type": "str"
+                }
+              ],
+              "node": "tuple",
+              "span": {
+                "col": 14,
+                "end_col": 29,
+                "end_line": 17,
+                "line": 17
+              }
+            },
+            "node": "storage_set",
+            "span": {
+              "col": 4,
+              "end_col": 39,
+              "end_line": 17,
+              "line": 17
+            },
+            "storage_type": "Hash",
+            "syscall_id": "storage.hash.set",
+            "value": {
+              "host_binding_id": null,
+              "id": "amount",
+              "node": "name",
+              "span": {
+                "col": 33,
+                "end_col": 39,
+                "end_line": 17,
+                "line": 17
+              }
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 30,
+              "end_line": 18,
+              "line": 18
+            },
+            "value": {
+              "args": [
+                {
+                  "left": {
+                    "host_binding_id": null,
+                    "id": "index",
+                    "node": "name",
+                    "span": {
+                      "col": 20,
+                      "end_col": 25,
+                      "end_line": 18,
+                      "line": 18
+                    }
+                  },
+                  "node": "bin_op",
+                  "operator": "add",
+                  "right": {
+                    "node": "constant",
+                    "span": {
+                      "col": 28,
+                      "end_col": 29,
+                      "end_line": 18,
+                      "line": 18
+                    },
+                    "value": 1,
+                    "value_type": "int"
+                  },
+                  "span": {
+                    "col": 20,
+                    "end_col": 29,
+                    "end_line": 18,
+                    "line": 18
+                  }
+                }
+              ],
+              "func": {
+                "attr": "set",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "audit_count.set",
+                "span": {
+                  "col": 4,
+                  "end_col": 19,
+                  "end_line": 18,
+                  "line": 18
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "audit_count",
+                  "node": "name",
+                  "span": {
+                    "col": 4,
+                    "end_col": 15,
+                    "end_line": 18,
+                    "line": 18
+                  }
+                }
+              },
+              "keywords": [],
+              "method": "set",
+              "node": "call",
+              "receiver_binding": "audit_count",
+              "receiver_type": "Variable",
+              "span": {
+                "col": 4,
+                "end_col": 30,
+                "end_line": 18,
+                "line": 18
+              },
+              "syscall_id": "storage.variable.set"
+            }
+          }
+        ],
+        "decorator": null,
+        "docstring": null,
+        "name": "record",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "str",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "action",
+            "span": {
+              "col": 11,
+              "end_col": 22,
+              "end_line": 13,
+              "line": 13
+            }
+          },
+          {
+            "annotation": "str",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "account",
+            "span": {
+              "col": 24,
+              "end_col": 36,
+              "end_line": 13,
+              "line": 13
+            }
+          },
+          {
+            "annotation": "int",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "amount",
+            "span": {
+              "col": 38,
+              "end_col": 49,
+              "end_line": 13,
+              "line": 13
+            }
+          }
+        ],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 30,
+          "end_line": 18,
+          "line": 13
+        },
+        "visibility": "private"
+      },
+      {
+        "body": [
+          {
+            "body": [
+              {
+                "node": "assign",
+                "span": {
+                  "col": 8,
+                  "end_col": 34,
+                  "end_line": 23,
+                  "line": 23
+                },
+                "targets": [
+                  {
+                    "host_binding_id": null,
+                    "id": "initial_owner",
+                    "node": "name",
+                    "span": {
+                      "col": 8,
+                      "end_col": 21,
+                      "end_line": 23,
+                      "line": 23
+                    }
+                  }
+                ],
+                "value": {
+                  "attr": "caller",
+                  "host_binding_id": "context.caller",
+                  "node": "attribute",
+                  "path": "ctx.caller",
+                  "span": {
+                    "col": 24,
+                    "end_col": 34,
+                    "end_line": 23,
+                    "line": 23
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "ctx",
+                    "node": "name",
+                    "span": {
+                      "col": 24,
+                      "end_col": 27,
+                      "end_line": 23,
+                      "line": 23
+                    }
+                  }
+                }
+              }
+            ],
+            "node": "if",
+            "orelse": [],
+            "span": {
+              "col": 4,
+              "end_col": 34,
+              "end_line": 23,
+              "line": 22
+            },
+            "test": {
+              "node": "bool_op",
+              "operator": "or",
+              "span": {
+                "col": 7,
+                "end_col": 51,
+                "end_line": 22,
+                "line": 22
+              },
+              "values": [
+                {
+                  "comparators": [
+                    {
+                      "node": "constant",
+                      "span": {
+                        "col": 24,
+                        "end_col": 28,
+                        "end_line": 22,
+                        "line": 22
+                      },
+                      "value": null,
+                      "value_type": "none"
+                    }
+                  ],
+                  "left": {
+                    "host_binding_id": null,
+                    "id": "initial_owner",
+                    "node": "name",
+                    "span": {
+                      "col": 7,
+                      "end_col": 20,
+                      "end_line": 22,
+                      "line": 22
+                    }
+                  },
+                  "node": "compare",
+                  "operators": [
+                    "is"
+                  ],
+                  "span": {
+                    "col": 7,
+                    "end_col": 28,
+                    "end_line": 22,
+                    "line": 22
+                  }
+                },
+                {
+                  "comparators": [
+                    {
+                      "node": "constant",
+                      "span": {
+                        "col": 49,
+                        "end_col": 51,
+                        "end_line": 22,
+                        "line": 22
+                      },
+                      "value": "",
+                      "value_type": "str"
+                    }
+                  ],
+                  "left": {
+                    "host_binding_id": null,
+                    "id": "initial_owner",
+                    "node": "name",
+                    "span": {
+                      "col": 32,
+                      "end_col": 45,
+                      "end_line": 22,
+                      "line": 22
+                    }
+                  },
+                  "node": "compare",
+                  "operators": [
+                    "eq"
+                  ],
+                  "span": {
+                    "col": 32,
+                    "end_col": 51,
+                    "end_line": 22,
+                    "line": 22
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 28,
+              "end_line": 24,
+              "line": 24
+            },
+            "value": {
+              "args": [
+                {
+                  "host_binding_id": null,
+                  "id": "supply",
+                  "node": "name",
+                  "span": {
+                    "col": 21,
+                    "end_col": 27,
+                    "end_line": 24,
+                    "line": 24
+                  }
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "host_binding_id": null,
+                "id": "require_positive",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 20,
+                  "end_line": 24,
+                  "line": 24
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 28,
+                "end_line": 24,
+                "line": 24
+              },
+              "syscall_id": null
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 28,
+              "end_line": 25,
+              "line": 25
+            },
+            "value": {
+              "args": [
+                {
+                  "host_binding_id": null,
+                  "id": "initial_owner",
+                  "node": "name",
+                  "span": {
+                    "col": 14,
+                    "end_col": 27,
+                    "end_line": 25,
+                    "line": 25
+                  }
+                }
+              ],
+              "func": {
+                "attr": "set",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "owner.set",
+                "span": {
+                  "col": 4,
+                  "end_col": 13,
+                  "end_line": 25,
+                  "line": 25
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "owner",
+                  "node": "name",
+                  "span": {
+                    "col": 4,
+                    "end_col": 9,
+                    "end_line": 25,
+                    "line": 25
+                  }
+                }
+              },
+              "keywords": [],
+              "method": "set",
+              "node": "call",
+              "receiver_binding": "owner",
+              "receiver_type": "Variable",
+              "span": {
+                "col": 4,
+                "end_col": 28,
+                "end_line": 25,
+                "line": 25
+              },
+              "syscall_id": "storage.variable.set"
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 28,
+              "end_line": 26,
+              "line": 26
+            },
+            "value": {
+              "args": [
+                {
+                  "host_binding_id": null,
+                  "id": "supply",
+                  "node": "name",
+                  "span": {
+                    "col": 21,
+                    "end_col": 27,
+                    "end_line": 26,
+                    "line": 26
+                  }
+                }
+              ],
+              "func": {
+                "attr": "set",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "total_supply.set",
+                "span": {
+                  "col": 4,
+                  "end_col": 20,
+                  "end_line": 26,
+                  "line": 26
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "total_supply",
+                  "node": "name",
+                  "span": {
+                    "col": 4,
+                    "end_col": 16,
+                    "end_line": 26,
+                    "line": 26
+                  }
+                }
+              },
+              "keywords": [],
+              "method": "set",
+              "node": "call",
+              "receiver_binding": "total_supply",
+              "receiver_type": "Variable",
+              "span": {
+                "col": 4,
+                "end_col": 28,
+                "end_line": 26,
+                "line": 26
+              },
+              "syscall_id": "storage.variable.set"
+            }
+          },
+          {
+            "binding": "balances",
+            "key": {
+              "host_binding_id": null,
+              "id": "initial_owner",
+              "node": "name",
+              "span": {
+                "col": 13,
+                "end_col": 26,
+                "end_line": 27,
+                "line": 27
+              }
+            },
+            "node": "storage_set",
+            "span": {
+              "col": 4,
+              "end_col": 36,
+              "end_line": 27,
+              "line": 27
+            },
+            "storage_type": "Hash",
+            "syscall_id": "storage.hash.set",
+            "value": {
+              "host_binding_id": null,
+              "id": "supply",
+              "node": "name",
+              "span": {
+                "col": 30,
+                "end_col": 36,
+                "end_line": 27,
+                "line": 27
+              }
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 22,
+              "end_line": 28,
+              "line": 28
+            },
+            "value": {
+              "args": [
+                {
+                  "node": "constant",
+                  "span": {
+                    "col": 20,
+                    "end_col": 21,
+                    "end_line": 28,
+                    "line": 28
+                  },
+                  "value": 0,
+                  "value_type": "int"
+                }
+              ],
+              "func": {
+                "attr": "set",
+                "host_binding_id": null,
+                "node": "attribute",
+                "path": "audit_count.set",
+                "span": {
+                  "col": 4,
+                  "end_col": 19,
+                  "end_line": 28,
+                  "line": 28
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "audit_count",
+                  "node": "name",
+                  "span": {
+                    "col": 4,
+                    "end_col": 15,
+                    "end_line": 28,
+                    "line": 28
+                  }
+                }
+              },
+              "keywords": [],
+              "method": "set",
+              "node": "call",
+              "receiver_binding": "audit_count",
+              "receiver_type": "Variable",
+              "span": {
+                "col": 4,
+                "end_col": 22,
+                "end_line": 28,
+                "line": 28
+              },
+              "syscall_id": "storage.variable.set"
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 41,
+              "end_line": 29,
+              "line": 29
+            },
+            "value": {
+              "args": [
+                {
+                  "node": "constant",
+                  "span": {
+                    "col": 11,
+                    "end_col": 17,
+                    "end_line": 29,
+                    "line": 29
+                  },
+                  "value": "seed",
+                  "value_type": "str"
+                },
+                {
+                  "host_binding_id": null,
+                  "id": "initial_owner",
+                  "node": "name",
+                  "span": {
+                    "col": 19,
+                    "end_col": 32,
+                    "end_line": 29,
+                    "line": 29
+                  }
+                },
+                {
+                  "host_binding_id": null,
+                  "id": "supply",
+                  "node": "name",
+                  "span": {
+                    "col": 34,
+                    "end_col": 40,
+                    "end_line": 29,
+                    "line": 29
+                  }
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "host_binding_id": null,
+                "id": "record",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 10,
+                  "end_line": 29,
+                  "line": 29
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 41,
+                "end_line": 29,
+                "line": 29
+              },
+              "syscall_id": null
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "construct",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 10,
+            "end_line": 20,
+            "line": 20
+          }
+        },
+        "docstring": null,
+        "name": "seed",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "str",
+            "default": {
+              "node": "constant",
+              "span": {
+                "col": 28,
+                "end_col": 32,
+                "end_line": 21,
+                "line": 21
+              },
+              "value": null,
+              "value_type": "none"
+            },
+            "kind": "positional_or_keyword",
+            "name": "initial_owner",
+            "span": {
+              "col": 9,
+              "end_col": 27,
+              "end_line": 21,
+              "line": 21
+            }
+          },
+          {
+            "annotation": "int",
+            "default": {
+              "node": "constant",
+              "span": {
+                "col": 46,
+                "end_col": 47,
+                "end_line": 21,
+                "line": 21
+              },
+              "value": 0,
+              "value_type": "int"
+            },
+            "kind": "positional_or_keyword",
+            "name": "supply",
+            "span": {
+              "col": 34,
+              "end_col": 45,
+              "end_line": 21,
+              "line": 21
+            }
+          }
+        ],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 41,
+          "end_line": 29,
+          "line": 21
+        },
+        "visibility": "construct"
+      },
+      {
+        "body": [
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 28,
+              "end_line": 33,
+              "line": 33
+            },
+            "value": {
+              "args": [
+                {
+                  "host_binding_id": null,
+                  "id": "amount",
+                  "node": "name",
+                  "span": {
+                    "col": 21,
+                    "end_col": 27,
+                    "end_line": 33,
+                    "line": 33
+                  }
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "host_binding_id": null,
+                "id": "require_positive",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 20,
+                  "end_line": 33,
+                  "line": 33
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 28,
+                "end_line": 33,
+                "line": 33
+              },
+              "syscall_id": null
+            }
+          },
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 23,
+              "end_line": 34,
+              "line": 34
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "sender",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 10,
+                  "end_line": 34,
+                  "line": 34
+                }
+              }
+            ],
+            "value": {
+              "attr": "caller",
+              "host_binding_id": "context.caller",
+              "node": "attribute",
+              "path": "ctx.caller",
+              "span": {
+                "col": 13,
+                "end_col": 23,
+                "end_line": 34,
+                "line": 34
+              },
+              "value": {
+                "host_binding_id": null,
+                "id": "ctx",
+                "node": "name",
+                "span": {
+                  "col": 13,
+                  "end_col": 16,
+                  "end_line": 34,
+                  "line": 34
+                }
+              }
+            }
+          },
+          {
+            "message": {
+              "node": "constant",
+              "span": {
+                "col": 45,
+                "end_col": 66,
+                "end_line": 35,
+                "line": 35
+              },
+              "value": "recipient required!",
+              "value_type": "str"
+            },
+            "node": "assert",
+            "span": {
+              "col": 4,
+              "end_col": 66,
+              "end_line": 35,
+              "line": 35
+            },
+            "test": {
+              "node": "bool_op",
+              "operator": "and",
+              "span": {
+                "col": 11,
+                "end_col": 43,
+                "end_line": 35,
+                "line": 35
+              },
+              "values": [
+                {
+                  "args": [
+                    {
+                      "host_binding_id": null,
+                      "id": "to",
+                      "node": "name",
+                      "span": {
+                        "col": 22,
+                        "end_col": 24,
+                        "end_line": 35,
+                        "line": 35
+                      }
+                    },
+                    {
+                      "host_binding_id": null,
+                      "id": "str",
+                      "node": "name",
+                      "span": {
+                        "col": 26,
+                        "end_col": 29,
+                        "end_line": 35,
+                        "line": 35
+                      }
+                    }
+                  ],
+                  "event_binding": null,
+                  "func": {
+                    "host_binding_id": null,
+                    "id": "isinstance",
+                    "node": "name",
+                    "span": {
+                      "col": 11,
+                      "end_col": 21,
+                      "end_line": 35,
+                      "line": 35
+                    }
+                  },
+                  "keywords": [],
+                  "node": "call",
+                  "span": {
+                    "col": 11,
+                    "end_col": 30,
+                    "end_line": 35,
+                    "line": 35
+                  },
+                  "syscall_id": null
+                },
+                {
+                  "comparators": [
+                    {
+                      "node": "constant",
+                      "span": {
+                        "col": 41,
+                        "end_col": 43,
+                        "end_line": 35,
+                        "line": 35
+                      },
+                      "value": "",
+                      "value_type": "str"
+                    }
+                  ],
+                  "left": {
+                    "host_binding_id": null,
+                    "id": "to",
+                    "node": "name",
+                    "span": {
+                      "col": 35,
+                      "end_col": 37,
+                      "end_line": 35,
+                      "line": 35
+                    }
+                  },
+                  "node": "compare",
+                  "operators": [
+                    "not_eq"
+                  ],
+                  "span": {
+                    "col": 35,
+                    "end_col": 43,
+                    "end_line": 35,
+                    "line": 35
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "message": {
+              "node": "constant",
+              "span": {
+                "col": 39,
+                "end_col": 62,
+                "end_line": 36,
+                "line": 36
+              },
+              "value": "insufficient balance!",
+              "value_type": "str"
+            },
+            "node": "assert",
+            "span": {
+              "col": 4,
+              "end_col": 62,
+              "end_line": 36,
+              "line": 36
+            },
+            "test": {
+              "comparators": [
+                {
+                  "host_binding_id": null,
+                  "id": "amount",
+                  "node": "name",
+                  "span": {
+                    "col": 31,
+                    "end_col": 37,
+                    "end_line": 36,
+                    "line": 36
+                  }
+                }
+              ],
+              "left": {
+                "binding": "balances",
+                "key": {
+                  "host_binding_id": null,
+                  "id": "sender",
+                  "node": "name",
+                  "span": {
+                    "col": 20,
+                    "end_col": 26,
+                    "end_line": 36,
+                    "line": 36
+                  }
+                },
+                "node": "storage_get",
+                "span": {
+                  "col": 11,
+                  "end_col": 27,
+                  "end_line": 36,
+                  "line": 36
+                },
+                "storage_type": "Hash",
+                "syscall_id": "storage.hash.get"
+              },
+              "node": "compare",
+              "operators": [
+                "gt_e"
+              ],
+              "span": {
+                "col": 11,
+                "end_col": 37,
+                "end_line": 36,
+                "line": 36
+              }
+            }
+          },
+          {
+            "binding": "balances",
+            "key": {
+              "host_binding_id": null,
+              "id": "sender",
+              "node": "name",
+              "span": {
+                "col": 13,
+                "end_col": 19,
+                "end_line": 37,
+                "line": 37
+              }
+            },
+            "node": "storage_mutate",
+            "operator": "sub",
+            "read_syscall_id": "storage.hash.get",
+            "span": {
+              "col": 4,
+              "end_col": 30,
+              "end_line": 37,
+              "line": 37
+            },
+            "storage_type": "Hash",
+            "value": {
+              "host_binding_id": null,
+              "id": "amount",
+              "node": "name",
+              "span": {
+                "col": 24,
+                "end_col": 30,
+                "end_line": 37,
+                "line": 37
+              }
+            },
+            "write_syscall_id": "storage.hash.set"
+          },
+          {
+            "binding": "balances",
+            "key": {
+              "host_binding_id": null,
+              "id": "to",
+              "node": "name",
+              "span": {
+                "col": 13,
+                "end_col": 15,
+                "end_line": 38,
+                "line": 38
+              }
+            },
+            "node": "storage_mutate",
+            "operator": "add",
+            "read_syscall_id": "storage.hash.get",
+            "span": {
+              "col": 4,
+              "end_col": 26,
+              "end_line": 38,
+              "line": 38
+            },
+            "storage_type": "Hash",
+            "value": {
+              "host_binding_id": null,
+              "id": "amount",
+              "node": "name",
+              "span": {
+                "col": 20,
+                "end_col": 26,
+                "end_line": 38,
+                "line": 38
+              }
+            },
+            "write_syscall_id": "storage.hash.set"
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 38,
+              "end_line": 39,
+              "line": 39
+            },
+            "value": {
+              "args": [
+                {
+                  "node": "constant",
+                  "span": {
+                    "col": 11,
+                    "end_col": 21,
+                    "end_line": 39,
+                    "line": 39
+                  },
+                  "value": "transfer",
+                  "value_type": "str"
+                },
+                {
+                  "host_binding_id": null,
+                  "id": "sender",
+                  "node": "name",
+                  "span": {
+                    "col": 23,
+                    "end_col": 29,
+                    "end_line": 39,
+                    "line": 39
+                  }
+                },
+                {
+                  "host_binding_id": null,
+                  "id": "amount",
+                  "node": "name",
+                  "span": {
+                    "col": 31,
+                    "end_col": 37,
+                    "end_line": 39,
+                    "line": 39
+                  }
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "host_binding_id": null,
+                "id": "record",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 10,
+                  "end_line": 39,
+                  "line": 39
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 38,
+                "end_line": 39,
+                "line": 39
+              },
+              "syscall_id": null
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 70,
+              "end_line": 40,
+              "line": 40
+            },
+            "value": {
+              "args": [
+                {
+                  "entries": [
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 17,
+                          "end_col": 25,
+                          "end_line": 40,
+                          "line": 40
+                        },
+                        "value": "sender",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "sender",
+                        "node": "name",
+                        "span": {
+                          "col": 27,
+                          "end_col": 33,
+                          "end_line": 40,
+                          "line": 40
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 35,
+                          "end_col": 46,
+                          "end_line": 40,
+                          "line": 40
+                        },
+                        "value": "recipient",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "to",
+                        "node": "name",
+                        "span": {
+                          "col": 48,
+                          "end_col": 50,
+                          "end_line": 40,
+                          "line": 40
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 52,
+                          "end_col": 60,
+                          "end_line": 40,
+                          "line": 40
+                        },
+                        "value": "amount",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "amount",
+                        "node": "name",
+                        "span": {
+                          "col": 62,
+                          "end_col": 68,
+                          "end_line": 40,
+                          "line": 40
+                        }
+                      }
+                    }
+                  ],
+                  "node": "dict",
+                  "span": {
+                    "col": 16,
+                    "end_col": 69,
+                    "end_line": 40,
+                    "line": 40
+                  }
+                }
+              ],
+              "event_binding": "LedgerEvent",
+              "func": {
+                "host_binding_id": null,
+                "id": "LedgerEvent",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 15,
+                  "end_line": 40,
+                  "line": 40
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 70,
+                "end_line": 40,
+                "line": 40
+              },
+              "syscall_id": "event.log.emit"
+            }
+          },
+          {
+            "node": "return",
+            "span": {
+              "col": 4,
+              "end_col": 27,
+              "end_line": 41,
+              "line": 41
+            },
+            "value": {
+              "binding": "balances",
+              "key": {
+                "host_binding_id": null,
+                "id": "sender",
+                "node": "name",
+                "span": {
+                  "col": 20,
+                  "end_col": 26,
+                  "end_line": 41,
+                  "line": 41
+                }
+              },
+              "node": "storage_get",
+              "span": {
+                "col": 11,
+                "end_col": 27,
+                "end_line": 41,
+                "line": 41
+              },
+              "storage_type": "Hash",
+              "syscall_id": "storage.hash.get"
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 31,
+            "line": 31
+          }
+        },
+        "docstring": null,
+        "name": "transfer",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "int",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "amount",
+            "span": {
+              "col": 13,
+              "end_col": 24,
+              "end_line": 32,
+              "line": 32
+            }
+          },
+          {
+            "annotation": "str",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "to",
+            "span": {
+              "col": 26,
+              "end_col": 33,
+              "end_line": 32,
+              "line": 32
+            }
+          }
+        ],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 27,
+          "end_line": 41,
+          "line": 32
+        },
+        "visibility": "export"
+      },
+      {
+        "body": [
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 28,
+              "end_line": 45,
+              "line": 45
+            },
+            "value": {
+              "args": [
+                {
+                  "host_binding_id": null,
+                  "id": "amount",
+                  "node": "name",
+                  "span": {
+                    "col": 21,
+                    "end_col": 27,
+                    "end_line": 45,
+                    "line": 45
+                  }
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "host_binding_id": null,
+                "id": "require_positive",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 20,
+                  "end_line": 45,
+                  "line": 45
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 28,
+                "end_line": 45,
+                "line": 45
+              },
+              "syscall_id": null
+            }
+          },
+          {
+            "message": {
+              "node": "constant",
+              "span": {
+                "col": 55,
+                "end_col": 74,
+                "end_line": 46,
+                "line": 46
+              },
+              "value": "spender required!",
+              "value_type": "str"
+            },
+            "node": "assert",
+            "span": {
+              "col": 4,
+              "end_col": 74,
+              "end_line": 46,
+              "line": 46
+            },
+            "test": {
+              "node": "bool_op",
+              "operator": "and",
+              "span": {
+                "col": 11,
+                "end_col": 53,
+                "end_line": 46,
+                "line": 46
+              },
+              "values": [
+                {
+                  "args": [
+                    {
+                      "host_binding_id": null,
+                      "id": "spender",
+                      "node": "name",
+                      "span": {
+                        "col": 22,
+                        "end_col": 29,
+                        "end_line": 46,
+                        "line": 46
+                      }
+                    },
+                    {
+                      "host_binding_id": null,
+                      "id": "str",
+                      "node": "name",
+                      "span": {
+                        "col": 31,
+                        "end_col": 34,
+                        "end_line": 46,
+                        "line": 46
+                      }
+                    }
+                  ],
+                  "event_binding": null,
+                  "func": {
+                    "host_binding_id": null,
+                    "id": "isinstance",
+                    "node": "name",
+                    "span": {
+                      "col": 11,
+                      "end_col": 21,
+                      "end_line": 46,
+                      "line": 46
+                    }
+                  },
+                  "keywords": [],
+                  "node": "call",
+                  "span": {
+                    "col": 11,
+                    "end_col": 35,
+                    "end_line": 46,
+                    "line": 46
+                  },
+                  "syscall_id": null
+                },
+                {
+                  "comparators": [
+                    {
+                      "node": "constant",
+                      "span": {
+                        "col": 51,
+                        "end_col": 53,
+                        "end_line": 46,
+                        "line": 46
+                      },
+                      "value": "",
+                      "value_type": "str"
+                    }
+                  ],
+                  "left": {
+                    "host_binding_id": null,
+                    "id": "spender",
+                    "node": "name",
+                    "span": {
+                      "col": 40,
+                      "end_col": 47,
+                      "end_line": 46,
+                      "line": 46
+                    }
+                  },
+                  "node": "compare",
+                  "operators": [
+                    "not_eq"
+                  ],
+                  "span": {
+                    "col": 40,
+                    "end_col": 53,
+                    "end_line": 46,
+                    "line": 46
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "binding": "allowances",
+            "key": {
+              "elements": [
+                {
+                  "attr": "caller",
+                  "host_binding_id": "context.caller",
+                  "node": "attribute",
+                  "path": "ctx.caller",
+                  "span": {
+                    "col": 15,
+                    "end_col": 25,
+                    "end_line": 47,
+                    "line": 47
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "ctx",
+                    "node": "name",
+                    "span": {
+                      "col": 15,
+                      "end_col": 18,
+                      "end_line": 47,
+                      "line": 47
+                    }
+                  }
+                },
+                {
+                  "host_binding_id": null,
+                  "id": "spender",
+                  "node": "name",
+                  "span": {
+                    "col": 27,
+                    "end_col": 34,
+                    "end_line": 47,
+                    "line": 47
+                  }
+                }
+              ],
+              "node": "tuple",
+              "span": {
+                "col": 15,
+                "end_col": 34,
+                "end_line": 47,
+                "line": 47
+              }
+            },
+            "node": "storage_set",
+            "span": {
+              "col": 4,
+              "end_col": 44,
+              "end_line": 47,
+              "line": 47
+            },
+            "storage_type": "Hash",
+            "syscall_id": "storage.hash.set",
+            "value": {
+              "host_binding_id": null,
+              "id": "amount",
+              "node": "name",
+              "span": {
+                "col": 38,
+                "end_col": 44,
+                "end_line": 47,
+                "line": 47
+              }
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 38,
+              "end_line": 48,
+              "line": 48
+            },
+            "value": {
+              "args": [
+                {
+                  "node": "constant",
+                  "span": {
+                    "col": 11,
+                    "end_col": 20,
+                    "end_line": 48,
+                    "line": 48
+                  },
+                  "value": "approve",
+                  "value_type": "str"
+                },
+                {
+                  "host_binding_id": null,
+                  "id": "spender",
+                  "node": "name",
+                  "span": {
+                    "col": 22,
+                    "end_col": 29,
+                    "end_line": 48,
+                    "line": 48
+                  }
+                },
+                {
+                  "host_binding_id": null,
+                  "id": "amount",
+                  "node": "name",
+                  "span": {
+                    "col": 31,
+                    "end_col": 37,
+                    "end_line": 48,
+                    "line": 48
+                  }
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "host_binding_id": null,
+                "id": "record",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 10,
+                  "end_line": 48,
+                  "line": 48
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 38,
+                "end_line": 48,
+                "line": 48
+              },
+              "syscall_id": null
+            }
+          },
+          {
+            "node": "return",
+            "span": {
+              "col": 4,
+              "end_col": 42,
+              "end_line": 49,
+              "line": 49
+            },
+            "value": {
+              "binding": "allowances",
+              "key": {
+                "elements": [
+                  {
+                    "attr": "caller",
+                    "host_binding_id": "context.caller",
+                    "node": "attribute",
+                    "path": "ctx.caller",
+                    "span": {
+                      "col": 22,
+                      "end_col": 32,
+                      "end_line": 49,
+                      "line": 49
+                    },
+                    "value": {
+                      "host_binding_id": null,
+                      "id": "ctx",
+                      "node": "name",
+                      "span": {
+                        "col": 22,
+                        "end_col": 25,
+                        "end_line": 49,
+                        "line": 49
+                      }
+                    }
+                  },
+                  {
+                    "host_binding_id": null,
+                    "id": "spender",
+                    "node": "name",
+                    "span": {
+                      "col": 34,
+                      "end_col": 41,
+                      "end_line": 49,
+                      "line": 49
+                    }
+                  }
+                ],
+                "node": "tuple",
+                "span": {
+                  "col": 22,
+                  "end_col": 41,
+                  "end_line": 49,
+                  "line": 49
+                }
+              },
+              "node": "storage_get",
+              "span": {
+                "col": 11,
+                "end_col": 42,
+                "end_line": 49,
+                "line": 49
+              },
+              "storage_type": "Hash",
+              "syscall_id": "storage.hash.get"
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 43,
+            "line": 43
+          }
+        },
+        "docstring": null,
+        "name": "approve",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "int",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "amount",
+            "span": {
+              "col": 12,
+              "end_col": 23,
+              "end_line": 44,
+              "line": 44
+            }
+          },
+          {
+            "annotation": "str",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "spender",
+            "span": {
+              "col": 25,
+              "end_col": 37,
+              "end_line": 44,
+              "line": 44
+            }
+          }
+        ],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 42,
+          "end_line": 49,
+          "line": 44
+        },
+        "visibility": "export"
+      },
+      {
+        "body": [
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 28,
+              "end_line": 53,
+              "line": 53
+            },
+            "value": {
+              "args": [
+                {
+                  "host_binding_id": null,
+                  "id": "amount",
+                  "node": "name",
+                  "span": {
+                    "col": 21,
+                    "end_col": 27,
+                    "end_line": 53,
+                    "line": 53
+                  }
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "host_binding_id": null,
+                "id": "require_positive",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 20,
+                  "end_line": 53,
+                  "line": 53
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 28,
+                "end_line": 53,
+                "line": 53
+              },
+              "syscall_id": null
+            }
+          },
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 24,
+              "end_line": 54,
+              "line": 54
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "spender",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 11,
+                  "end_line": 54,
+                  "line": 54
+                }
+              }
+            ],
+            "value": {
+              "attr": "caller",
+              "host_binding_id": "context.caller",
+              "node": "attribute",
+              "path": "ctx.caller",
+              "span": {
+                "col": 14,
+                "end_col": 24,
+                "end_line": 54,
+                "line": 54
+              },
+              "value": {
+                "host_binding_id": null,
+                "id": "ctx",
+                "node": "name",
+                "span": {
+                  "col": 14,
+                  "end_col": 17,
+                  "end_line": 54,
+                  "line": 54
+                }
+              }
+            }
+          },
+          {
+            "message": {
+              "node": "constant",
+              "span": {
+                "col": 57,
+                "end_col": 77,
+                "end_line": 55,
+                "line": 55
+              },
+              "value": "allowance too low!",
+              "value_type": "str"
+            },
+            "node": "assert",
+            "span": {
+              "col": 4,
+              "end_col": 77,
+              "end_line": 55,
+              "line": 55
+            },
+            "test": {
+              "comparators": [
+                {
+                  "host_binding_id": null,
+                  "id": "amount",
+                  "node": "name",
+                  "span": {
+                    "col": 49,
+                    "end_col": 55,
+                    "end_line": 55,
+                    "line": 55
+                  }
+                }
+              ],
+              "left": {
+                "binding": "allowances",
+                "key": {
+                  "elements": [
+                    {
+                      "host_binding_id": null,
+                      "id": "owner_account",
+                      "node": "name",
+                      "span": {
+                        "col": 22,
+                        "end_col": 35,
+                        "end_line": 55,
+                        "line": 55
+                      }
+                    },
+                    {
+                      "host_binding_id": null,
+                      "id": "spender",
+                      "node": "name",
+                      "span": {
+                        "col": 37,
+                        "end_col": 44,
+                        "end_line": 55,
+                        "line": 55
+                      }
+                    }
+                  ],
+                  "node": "tuple",
+                  "span": {
+                    "col": 22,
+                    "end_col": 44,
+                    "end_line": 55,
+                    "line": 55
+                  }
+                },
+                "node": "storage_get",
+                "span": {
+                  "col": 11,
+                  "end_col": 45,
+                  "end_line": 55,
+                  "line": 55
+                },
+                "storage_type": "Hash",
+                "syscall_id": "storage.hash.get"
+              },
+              "node": "compare",
+              "operators": [
+                "gt_e"
+              ],
+              "span": {
+                "col": 11,
+                "end_col": 55,
+                "end_line": 55,
+                "line": 55
+              }
+            }
+          },
+          {
+            "message": {
+              "node": "constant",
+              "span": {
+                "col": 46,
+                "end_col": 69,
+                "end_line": 56,
+                "line": 56
+              },
+              "value": "insufficient balance!",
+              "value_type": "str"
+            },
+            "node": "assert",
+            "span": {
+              "col": 4,
+              "end_col": 69,
+              "end_line": 56,
+              "line": 56
+            },
+            "test": {
+              "comparators": [
+                {
+                  "host_binding_id": null,
+                  "id": "amount",
+                  "node": "name",
+                  "span": {
+                    "col": 38,
+                    "end_col": 44,
+                    "end_line": 56,
+                    "line": 56
+                  }
+                }
+              ],
+              "left": {
+                "binding": "balances",
+                "key": {
+                  "host_binding_id": null,
+                  "id": "owner_account",
+                  "node": "name",
+                  "span": {
+                    "col": 20,
+                    "end_col": 33,
+                    "end_line": 56,
+                    "line": 56
+                  }
+                },
+                "node": "storage_get",
+                "span": {
+                  "col": 11,
+                  "end_col": 34,
+                  "end_line": 56,
+                  "line": 56
+                },
+                "storage_type": "Hash",
+                "syscall_id": "storage.hash.get"
+              },
+              "node": "compare",
+              "operators": [
+                "gt_e"
+              ],
+              "span": {
+                "col": 11,
+                "end_col": 44,
+                "end_line": 56,
+                "line": 56
+              }
+            }
+          },
+          {
+            "binding": "allowances",
+            "key": {
+              "elements": [
+                {
+                  "host_binding_id": null,
+                  "id": "owner_account",
+                  "node": "name",
+                  "span": {
+                    "col": 15,
+                    "end_col": 28,
+                    "end_line": 57,
+                    "line": 57
+                  }
+                },
+                {
+                  "host_binding_id": null,
+                  "id": "spender",
+                  "node": "name",
+                  "span": {
+                    "col": 30,
+                    "end_col": 37,
+                    "end_line": 57,
+                    "line": 57
+                  }
+                }
+              ],
+              "node": "tuple",
+              "span": {
+                "col": 15,
+                "end_col": 37,
+                "end_line": 57,
+                "line": 57
+              }
+            },
+            "node": "storage_mutate",
+            "operator": "sub",
+            "read_syscall_id": "storage.hash.get",
+            "span": {
+              "col": 4,
+              "end_col": 48,
+              "end_line": 57,
+              "line": 57
+            },
+            "storage_type": "Hash",
+            "value": {
+              "host_binding_id": null,
+              "id": "amount",
+              "node": "name",
+              "span": {
+                "col": 42,
+                "end_col": 48,
+                "end_line": 57,
+                "line": 57
+              }
+            },
+            "write_syscall_id": "storage.hash.set"
+          },
+          {
+            "binding": "balances",
+            "key": {
+              "host_binding_id": null,
+              "id": "owner_account",
+              "node": "name",
+              "span": {
+                "col": 13,
+                "end_col": 26,
+                "end_line": 58,
+                "line": 58
+              }
+            },
+            "node": "storage_mutate",
+            "operator": "sub",
+            "read_syscall_id": "storage.hash.get",
+            "span": {
+              "col": 4,
+              "end_col": 37,
+              "end_line": 58,
+              "line": 58
+            },
+            "storage_type": "Hash",
+            "value": {
+              "host_binding_id": null,
+              "id": "amount",
+              "node": "name",
+              "span": {
+                "col": 31,
+                "end_col": 37,
+                "end_line": 58,
+                "line": 58
+              }
+            },
+            "write_syscall_id": "storage.hash.set"
+          },
+          {
+            "binding": "balances",
+            "key": {
+              "host_binding_id": null,
+              "id": "to",
+              "node": "name",
+              "span": {
+                "col": 13,
+                "end_col": 15,
+                "end_line": 59,
+                "line": 59
+              }
+            },
+            "node": "storage_mutate",
+            "operator": "add",
+            "read_syscall_id": "storage.hash.get",
+            "span": {
+              "col": 4,
+              "end_col": 26,
+              "end_line": 59,
+              "line": 59
+            },
+            "storage_type": "Hash",
+            "value": {
+              "host_binding_id": null,
+              "id": "amount",
+              "node": "name",
+              "span": {
+                "col": 20,
+                "end_col": 26,
+                "end_line": 59,
+                "line": 59
+              }
+            },
+            "write_syscall_id": "storage.hash.set"
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 50,
+              "end_line": 60,
+              "line": 60
+            },
+            "value": {
+              "args": [
+                {
+                  "node": "constant",
+                  "span": {
+                    "col": 11,
+                    "end_col": 26,
+                    "end_line": 60,
+                    "line": 60
+                  },
+                  "value": "transfer_from",
+                  "value_type": "str"
+                },
+                {
+                  "host_binding_id": null,
+                  "id": "owner_account",
+                  "node": "name",
+                  "span": {
+                    "col": 28,
+                    "end_col": 41,
+                    "end_line": 60,
+                    "line": 60
+                  }
+                },
+                {
+                  "host_binding_id": null,
+                  "id": "amount",
+                  "node": "name",
+                  "span": {
+                    "col": 43,
+                    "end_col": 49,
+                    "end_line": 60,
+                    "line": 60
+                  }
+                }
+              ],
+              "event_binding": null,
+              "func": {
+                "host_binding_id": null,
+                "id": "record",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 10,
+                  "end_line": 60,
+                  "line": 60
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 50,
+                "end_line": 60,
+                "line": 60
+              },
+              "syscall_id": null
+            }
+          },
+          {
+            "node": "expr",
+            "span": {
+              "col": 4,
+              "end_col": 77,
+              "end_line": 61,
+              "line": 61
+            },
+            "value": {
+              "args": [
+                {
+                  "entries": [
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 17,
+                          "end_col": 25,
+                          "end_line": 61,
+                          "line": 61
+                        },
+                        "value": "sender",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "owner_account",
+                        "node": "name",
+                        "span": {
+                          "col": 27,
+                          "end_col": 40,
+                          "end_line": 61,
+                          "line": 61
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 42,
+                          "end_col": 53,
+                          "end_line": 61,
+                          "line": 61
+                        },
+                        "value": "recipient",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "to",
+                        "node": "name",
+                        "span": {
+                          "col": 55,
+                          "end_col": 57,
+                          "end_line": 61,
+                          "line": 61
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "node": "constant",
+                        "span": {
+                          "col": 59,
+                          "end_col": 67,
+                          "end_line": 61,
+                          "line": 61
+                        },
+                        "value": "amount",
+                        "value_type": "str"
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "amount",
+                        "node": "name",
+                        "span": {
+                          "col": 69,
+                          "end_col": 75,
+                          "end_line": 61,
+                          "line": 61
+                        }
+                      }
+                    }
+                  ],
+                  "node": "dict",
+                  "span": {
+                    "col": 16,
+                    "end_col": 76,
+                    "end_line": 61,
+                    "line": 61
+                  }
+                }
+              ],
+              "event_binding": "LedgerEvent",
+              "func": {
+                "host_binding_id": null,
+                "id": "LedgerEvent",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 15,
+                  "end_line": 61,
+                  "line": 61
+                }
+              },
+              "keywords": [],
+              "node": "call",
+              "span": {
+                "col": 4,
+                "end_col": 77,
+                "end_line": 61,
+                "line": 61
+              },
+              "syscall_id": "event.log.emit"
+            }
+          },
+          {
+            "node": "return",
+            "span": {
+              "col": 4,
+              "end_col": 45,
+              "end_line": 62,
+              "line": 62
+            },
+            "value": {
+              "binding": "allowances",
+              "key": {
+                "elements": [
+                  {
+                    "host_binding_id": null,
+                    "id": "owner_account",
+                    "node": "name",
+                    "span": {
+                      "col": 22,
+                      "end_col": 35,
+                      "end_line": 62,
+                      "line": 62
+                    }
+                  },
+                  {
+                    "host_binding_id": null,
+                    "id": "spender",
+                    "node": "name",
+                    "span": {
+                      "col": 37,
+                      "end_col": 44,
+                      "end_line": 62,
+                      "line": 62
+                    }
+                  }
+                ],
+                "node": "tuple",
+                "span": {
+                  "col": 22,
+                  "end_col": 44,
+                  "end_line": 62,
+                  "line": 62
+                }
+              },
+              "node": "storage_get",
+              "span": {
+                "col": 11,
+                "end_col": 45,
+                "end_line": 62,
+                "line": 62
+              },
+              "storage_type": "Hash",
+              "syscall_id": "storage.hash.get"
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 51,
+            "line": 51
+          }
+        },
+        "docstring": null,
+        "name": "transfer_from",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "int",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "amount",
+            "span": {
+              "col": 18,
+              "end_col": 29,
+              "end_line": 52,
+              "line": 52
+            }
+          },
+          {
+            "annotation": "str",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "owner_account",
+            "span": {
+              "col": 31,
+              "end_col": 49,
+              "end_line": 52,
+              "line": 52
+            }
+          },
+          {
+            "annotation": "str",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "to",
+            "span": {
+              "col": 51,
+              "end_col": 58,
+              "end_line": 52,
+              "line": 52
+            }
+          }
+        ],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 45,
+          "end_line": 62,
+          "line": 52
+        },
+        "visibility": "export"
+      },
+      {
+        "body": [
+          {
+            "message": {
+              "node": "constant",
+              "span": {
+                "col": 44,
+                "end_col": 68,
+                "end_line": 66,
+                "line": 66
+              },
+              "value": "batch length mismatch!",
+              "value_type": "str"
+            },
+            "node": "assert",
+            "span": {
+              "col": 4,
+              "end_col": 68,
+              "end_line": 66,
+              "line": 66
+            },
+            "test": {
+              "comparators": [
+                {
+                  "args": [
+                    {
+                      "host_binding_id": null,
+                      "id": "amounts",
+                      "node": "name",
+                      "span": {
+                        "col": 34,
+                        "end_col": 41,
+                        "end_line": 66,
+                        "line": 66
+                      }
+                    }
+                  ],
+                  "event_binding": null,
+                  "func": {
+                    "host_binding_id": null,
+                    "id": "len",
+                    "node": "name",
+                    "span": {
+                      "col": 30,
+                      "end_col": 33,
+                      "end_line": 66,
+                      "line": 66
+                    }
+                  },
+                  "keywords": [],
+                  "node": "call",
+                  "span": {
+                    "col": 30,
+                    "end_col": 42,
+                    "end_line": 66,
+                    "line": 66
+                  },
+                  "syscall_id": null
+                }
+              ],
+              "left": {
+                "args": [
+                  {
+                    "host_binding_id": null,
+                    "id": "recipients",
+                    "node": "name",
+                    "span": {
+                      "col": 15,
+                      "end_col": 25,
+                      "end_line": 66,
+                      "line": 66
+                    }
+                  }
+                ],
+                "event_binding": null,
+                "func": {
+                  "host_binding_id": null,
+                  "id": "len",
+                  "node": "name",
+                  "span": {
+                    "col": 11,
+                    "end_col": 14,
+                    "end_line": 66,
+                    "line": 66
+                  }
+                },
+                "keywords": [],
+                "node": "call",
+                "span": {
+                  "col": 11,
+                  "end_col": 26,
+                  "end_line": 66,
+                  "line": 66
+                },
+                "syscall_id": null
+              },
+              "node": "compare",
+              "operators": [
+                "eq"
+              ],
+              "span": {
+                "col": 11,
+                "end_col": 42,
+                "end_line": 66,
+                "line": 66
+              }
+            }
+          },
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 12,
+              "end_line": 67,
+              "line": 67
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "sent",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 8,
+                  "end_line": 67,
+                  "line": 67
+                }
+              }
+            ],
+            "value": {
+              "node": "constant",
+              "span": {
+                "col": 11,
+                "end_col": 12,
+                "end_line": 67,
+                "line": 67
+              },
+              "value": 0,
+              "value_type": "int"
+            }
+          },
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 9,
+              "end_line": 68,
+              "line": 68
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "i",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 5,
+                  "end_line": 68,
+                  "line": 68
+                }
+              }
+            ],
+            "value": {
+              "node": "constant",
+              "span": {
+                "col": 8,
+                "end_col": 9,
+                "end_line": 68,
+                "line": 68
+              },
+              "value": 0,
+              "value_type": "int"
+            }
+          },
+          {
+            "body": [
+              {
+                "node": "expr",
+                "span": {
+                  "col": 8,
+                  "end_col": 43,
+                  "end_line": 70,
+                  "line": 70
+                },
+                "value": {
+                  "args": [
+                    {
+                      "node": "subscript",
+                      "slice": {
+                        "host_binding_id": null,
+                        "id": "i",
+                        "node": "name",
+                        "span": {
+                          "col": 25,
+                          "end_col": 26,
+                          "end_line": 70,
+                          "line": 70
+                        }
+                      },
+                      "span": {
+                        "col": 17,
+                        "end_col": 27,
+                        "end_line": 70,
+                        "line": 70
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "amounts",
+                        "node": "name",
+                        "span": {
+                          "col": 17,
+                          "end_col": 24,
+                          "end_line": 70,
+                          "line": 70
+                        }
+                      }
+                    },
+                    {
+                      "node": "subscript",
+                      "slice": {
+                        "host_binding_id": null,
+                        "id": "i",
+                        "node": "name",
+                        "span": {
+                          "col": 40,
+                          "end_col": 41,
+                          "end_line": 70,
+                          "line": 70
+                        }
+                      },
+                      "span": {
+                        "col": 29,
+                        "end_col": 42,
+                        "end_line": 70,
+                        "line": 70
+                      },
+                      "value": {
+                        "host_binding_id": null,
+                        "id": "recipients",
+                        "node": "name",
+                        "span": {
+                          "col": 29,
+                          "end_col": 39,
+                          "end_line": 70,
+                          "line": 70
+                        }
+                      }
+                    }
+                  ],
+                  "event_binding": null,
+                  "func": {
+                    "host_binding_id": null,
+                    "id": "transfer",
+                    "node": "name",
+                    "span": {
+                      "col": 8,
+                      "end_col": 16,
+                      "end_line": 70,
+                      "line": 70
+                    }
+                  },
+                  "keywords": [],
+                  "node": "call",
+                  "span": {
+                    "col": 8,
+                    "end_col": 43,
+                    "end_line": 70,
+                    "line": 70
+                  },
+                  "syscall_id": null
+                }
+              },
+              {
+                "node": "aug_assign",
+                "operator": "add",
+                "span": {
+                  "col": 8,
+                  "end_col": 26,
+                  "end_line": 71,
+                  "line": 71
+                },
+                "target": {
+                  "host_binding_id": null,
+                  "id": "sent",
+                  "node": "name",
+                  "span": {
+                    "col": 8,
+                    "end_col": 12,
+                    "end_line": 71,
+                    "line": 71
+                  }
+                },
+                "value": {
+                  "node": "subscript",
+                  "slice": {
+                    "host_binding_id": null,
+                    "id": "i",
+                    "node": "name",
+                    "span": {
+                      "col": 24,
+                      "end_col": 25,
+                      "end_line": 71,
+                      "line": 71
+                    }
+                  },
+                  "span": {
+                    "col": 16,
+                    "end_col": 26,
+                    "end_line": 71,
+                    "line": 71
+                  },
+                  "value": {
+                    "host_binding_id": null,
+                    "id": "amounts",
+                    "node": "name",
+                    "span": {
+                      "col": 16,
+                      "end_col": 23,
+                      "end_line": 71,
+                      "line": 71
+                    }
+                  }
+                }
+              },
+              {
+                "node": "aug_assign",
+                "operator": "add",
+                "span": {
+                  "col": 8,
+                  "end_col": 14,
+                  "end_line": 72,
+                  "line": 72
+                },
+                "target": {
+                  "host_binding_id": null,
+                  "id": "i",
+                  "node": "name",
+                  "span": {
+                    "col": 8,
+                    "end_col": 9,
+                    "end_line": 72,
+                    "line": 72
+                  }
+                },
+                "value": {
+                  "node": "constant",
+                  "span": {
+                    "col": 13,
+                    "end_col": 14,
+                    "end_line": 72,
+                    "line": 72
+                  },
+                  "value": 1,
+                  "value_type": "int"
+                }
+              }
+            ],
+            "node": "while",
+            "orelse": [],
+            "span": {
+              "col": 4,
+              "end_col": 14,
+              "end_line": 72,
+              "line": 69
+            },
+            "test": {
+              "comparators": [
+                {
+                  "args": [
+                    {
+                      "host_binding_id": null,
+                      "id": "recipients",
+                      "node": "name",
+                      "span": {
+                        "col": 18,
+                        "end_col": 28,
+                        "end_line": 69,
+                        "line": 69
+                      }
+                    }
+                  ],
+                  "event_binding": null,
+                  "func": {
+                    "host_binding_id": null,
+                    "id": "len",
+                    "node": "name",
+                    "span": {
+                      "col": 14,
+                      "end_col": 17,
+                      "end_line": 69,
+                      "line": 69
+                    }
+                  },
+                  "keywords": [],
+                  "node": "call",
+                  "span": {
+                    "col": 14,
+                    "end_col": 29,
+                    "end_line": 69,
+                    "line": 69
+                  },
+                  "syscall_id": null
+                }
+              ],
+              "left": {
+                "host_binding_id": null,
+                "id": "i",
+                "node": "name",
+                "span": {
+                  "col": 10,
+                  "end_col": 11,
+                  "end_line": 69,
+                  "line": 69
+                }
+              },
+              "node": "compare",
+              "operators": [
+                "lt"
+              ],
+              "span": {
+                "col": 10,
+                "end_col": 29,
+                "end_line": 69,
+                "line": 69
+              }
+            }
+          },
+          {
+            "node": "return",
+            "span": {
+              "col": 4,
+              "end_col": 15,
+              "end_line": 73,
+              "line": 73
+            },
+            "value": {
+              "host_binding_id": null,
+              "id": "sent",
+              "node": "name",
+              "span": {
+                "col": 11,
+                "end_col": 15,
+                "end_line": 73,
+                "line": 73
+              }
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 64,
+            "line": 64
+          }
+        },
+        "docstring": null,
+        "name": "batch_transfer",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "list[str]",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "recipients",
+            "span": {
+              "col": 19,
+              "end_col": 40,
+              "end_line": 65,
+              "line": 65
+            }
+          },
+          {
+            "annotation": "list[int]",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "amounts",
+            "span": {
+              "col": 42,
+              "end_col": 60,
+              "end_line": 65,
+              "line": 65
+            }
+          }
+        ],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 15,
+          "end_line": 73,
+          "line": 65
+        },
+        "visibility": "export"
+      },
+      {
+        "body": [
+          {
+            "node": "assign",
+            "span": {
+              "col": 4,
+              "end_col": 15,
+              "end_line": 77,
+              "line": 77
+            },
+            "targets": [
+              {
+                "host_binding_id": null,
+                "id": "result",
+                "node": "name",
+                "span": {
+                  "col": 4,
+                  "end_col": 10,
+                  "end_line": 77,
+                  "line": 77
+                }
+              }
+            ],
+            "value": {
+              "entries": [],
+              "node": "dict",
+              "span": {
+                "col": 13,
+                "end_col": 15,
+                "end_line": 77,
+                "line": 77
+              }
+            }
+          },
+          {
+            "body": [
+              {
+                "node": "assign",
+                "span": {
+                  "col": 8,
+                  "end_col": 43,
+                  "end_line": 79,
+                  "line": 79
+                },
+                "targets": [
+                  {
+                    "node": "subscript",
+                    "slice": {
+                      "host_binding_id": null,
+                      "id": "account",
+                      "node": "name",
+                      "span": {
+                        "col": 15,
+                        "end_col": 22,
+                        "end_line": 79,
+                        "line": 79
+                      }
+                    },
+                    "span": {
+                      "col": 8,
+                      "end_col": 23,
+                      "end_line": 79,
+                      "line": 79
+                    },
+                    "value": {
+                      "host_binding_id": null,
+                      "id": "result",
+                      "node": "name",
+                      "span": {
+                        "col": 8,
+                        "end_col": 14,
+                        "end_line": 79,
+                        "line": 79
+                      }
+                    }
+                  }
+                ],
+                "value": {
+                  "binding": "balances",
+                  "key": {
+                    "host_binding_id": null,
+                    "id": "account",
+                    "node": "name",
+                    "span": {
+                      "col": 35,
+                      "end_col": 42,
+                      "end_line": 79,
+                      "line": 79
+                    }
+                  },
+                  "node": "storage_get",
+                  "span": {
+                    "col": 26,
+                    "end_col": 43,
+                    "end_line": 79,
+                    "line": 79
+                  },
+                  "storage_type": "Hash",
+                  "syscall_id": "storage.hash.get"
+                }
+              }
+            ],
+            "iter": {
+              "host_binding_id": null,
+              "id": "accounts",
+              "node": "name",
+              "span": {
+                "col": 19,
+                "end_col": 27,
+                "end_line": 78,
+                "line": 78
+              }
+            },
+            "node": "for",
+            "orelse": [],
+            "span": {
+              "col": 4,
+              "end_col": 43,
+              "end_line": 79,
+              "line": 78
+            },
+            "target": {
+              "host_binding_id": null,
+              "id": "account",
+              "node": "name",
+              "span": {
+                "col": 8,
+                "end_col": 15,
+                "end_line": 78,
+                "line": 78
+              }
+            }
+          },
+          {
+            "node": "return",
+            "span": {
+              "col": 4,
+              "end_col": 17,
+              "end_line": 80,
+              "line": 80
+            },
+            "value": {
+              "host_binding_id": null,
+              "id": "result",
+              "node": "name",
+              "span": {
+                "col": 11,
+                "end_col": 17,
+                "end_line": 80,
+                "line": 80
+              }
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 75,
+            "line": 75
+          }
+        },
+        "docstring": null,
+        "name": "snapshot",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "list[str]",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "accounts",
+            "span": {
+              "col": 13,
+              "end_col": 32,
+              "end_line": 76,
+              "line": 76
+            }
+          }
+        ],
+        "returns": "dict",
+        "span": {
+          "col": 0,
+          "end_col": 17,
+          "end_line": 80,
+          "line": 76
+        },
+        "visibility": "export"
+      }
+    ],
+    "global_declarations": [
+      {
+        "event_name": "LedgerTransfer",
+        "name": "LedgerEvent",
+        "node": "event_decl",
+        "params": {
+          "entries": [
+            {
+              "key": {
+                "node": "constant",
+                "span": {
+                  "col": 42,
+                  "end_col": 50,
+                  "end_line": 1,
+                  "line": 1
+                },
+                "value": "sender",
+                "value_type": "str"
+              },
+              "value": {
+                "args": [
+                  {
+                    "host_binding_id": null,
+                    "id": "str",
+                    "node": "name",
+                    "span": {
+                      "col": 60,
+                      "end_col": 63,
+                      "end_line": 1,
+                      "line": 1
+                    }
+                  }
+                ],
+                "event_binding": null,
+                "func": {
+                  "host_binding_id": "event.indexed",
+                  "id": "indexed",
+                  "node": "name",
+                  "span": {
+                    "col": 52,
+                    "end_col": 59,
+                    "end_line": 1,
+                    "line": 1
+                  }
+                },
+                "keywords": [],
+                "node": "call",
+                "span": {
+                  "col": 52,
+                  "end_col": 64,
+                  "end_line": 1,
+                  "line": 1
+                },
+                "syscall_id": "event.indexed"
+              }
+            },
+            {
+              "key": {
+                "node": "constant",
+                "span": {
+                  "col": 66,
+                  "end_col": 77,
+                  "end_line": 1,
+                  "line": 1
+                },
+                "value": "recipient",
+                "value_type": "str"
+              },
+              "value": {
+                "args": [
+                  {
+                    "host_binding_id": null,
+                    "id": "str",
+                    "node": "name",
+                    "span": {
+                      "col": 87,
+                      "end_col": 90,
+                      "end_line": 1,
+                      "line": 1
+                    }
+                  }
+                ],
+                "event_binding": null,
+                "func": {
+                  "host_binding_id": "event.indexed",
+                  "id": "indexed",
+                  "node": "name",
+                  "span": {
+                    "col": 79,
+                    "end_col": 86,
+                    "end_line": 1,
+                    "line": 1
+                  }
+                },
+                "keywords": [],
+                "node": "call",
+                "span": {
+                  "col": 79,
+                  "end_col": 91,
+                  "end_line": 1,
+                  "line": 1
+                },
+                "syscall_id": "event.indexed"
+              }
+            },
+            {
+              "key": {
+                "node": "constant",
+                "span": {
+                  "col": 93,
+                  "end_col": 101,
+                  "end_line": 1,
+                  "line": 1
+                },
+                "value": "amount",
+                "value_type": "str"
+              },
+              "value": {
+                "host_binding_id": null,
+                "id": "int",
+                "node": "name",
+                "span": {
+                  "col": 103,
+                  "end_col": 106,
+                  "end_line": 1,
+                  "line": 1
+                }
+              }
+            }
+          ],
+          "node": "dict",
+          "span": {
+            "col": 41,
+            "end_col": 107,
+            "end_line": 1,
+            "line": 1
+          }
+        },
+        "span": {
+          "col": 0,
+          "end_col": 108,
+          "end_line": 1,
+          "line": 1
+        },
+        "syscall_id": "event.log.new"
+      },
+      {
+        "args": [],
+        "keywords": [],
+        "name": "owner",
+        "node": "storage_decl",
+        "span": {
+          "col": 0,
+          "end_col": 18,
+          "end_line": 2,
+          "line": 2
+        },
+        "storage_type": "Variable",
+        "syscall_id": "storage.variable.new"
+      },
+      {
+        "args": [],
+        "keywords": [],
+        "name": "total_supply",
+        "node": "storage_decl",
+        "span": {
+          "col": 0,
+          "end_col": 25,
+          "end_line": 3,
+          "line": 3
+        },
+        "storage_type": "Variable",
+        "syscall_id": "storage.variable.new"
+      },
+      {
+        "args": [],
+        "keywords": [
+          {
+            "arg": "default_value",
+            "node": "keyword",
+            "span": {
+              "col": 16,
+              "end_col": 31,
+              "end_line": 4,
+              "line": 4
+            },
+            "value": {
+              "node": "constant",
+              "span": {
+                "col": 30,
+                "end_col": 31,
+                "end_line": 4,
+                "line": 4
+              },
+              "value": 0,
+              "value_type": "int"
+            }
+          }
+        ],
+        "name": "balances",
+        "node": "storage_decl",
+        "span": {
+          "col": 0,
+          "end_col": 32,
+          "end_line": 4,
+          "line": 4
+        },
+        "storage_type": "Hash",
+        "syscall_id": "storage.hash.new"
+      },
+      {
+        "args": [],
+        "keywords": [
+          {
+            "arg": "default_value",
+            "node": "keyword",
+            "span": {
+              "col": 18,
+              "end_col": 33,
+              "end_line": 5,
+              "line": 5
+            },
+            "value": {
+              "node": "constant",
+              "span": {
+                "col": 32,
+                "end_col": 33,
+                "end_line": 5,
+                "line": 5
+              },
+              "value": 0,
+              "value_type": "int"
+            }
+          }
+        ],
+        "name": "allowances",
+        "node": "storage_decl",
+        "span": {
+          "col": 0,
+          "end_col": 34,
+          "end_line": 5,
+          "line": 5
+        },
+        "storage_type": "Hash",
+        "syscall_id": "storage.hash.new"
+      },
+      {
+        "args": [],
+        "keywords": [],
+        "name": "audit_log",
+        "node": "storage_decl",
+        "span": {
+          "col": 0,
+          "end_col": 18,
+          "end_line": 6,
+          "line": 6
+        },
+        "storage_type": "Hash",
+        "syscall_id": "storage.hash.new"
+      },
+      {
+        "args": [],
+        "keywords": [],
+        "name": "audit_count",
+        "node": "storage_decl",
+        "span": {
+          "col": 0,
+          "end_col": 24,
+          "end_line": 7,
+          "line": 7
+        },
+        "storage_type": "Variable",
+        "syscall_id": "storage.variable.new"
+      }
+    ],
+    "host_catalog_version": "xian_vm_v1_host_v1",
+    "host_dependencies": [
+      {
+        "binding": "ctx.caller",
+        "category": "context",
+        "id": "context.caller",
+        "kind": "context_field"
+      },
+      {
+        "binding": "indexed",
+        "category": "event",
+        "id": "event.indexed",
+        "kind": "syscall"
+      },
+      {
+        "binding": "LogEvent.__call__",
+        "category": "event",
+        "id": "event.log.emit",
+        "kind": "syscall"
+      },
+      {
+        "binding": "LogEvent",
+        "category": "event",
+        "id": "event.log.new",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Hash.__getitem__",
+        "category": "storage",
+        "id": "storage.hash.get",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Hash",
+        "category": "storage",
+        "id": "storage.hash.new",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Hash.__setitem__",
+        "category": "storage",
+        "id": "storage.hash.set",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Variable.get",
+        "category": "storage",
+        "id": "storage.variable.get",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Variable",
+        "category": "storage",
+        "id": "storage.variable.new",
+        "kind": "syscall"
+      },
+      {
+        "binding": "Variable.set",
+        "category": "storage",
+        "id": "storage.variable.set",
+        "kind": "syscall"
+      }
+    ],
+    "imports": [],
+    "ir_version": "xian_ir_v1",
+    "module_body": [],
+    "module_name": "con_complex_ledger",
+    "source_hash": "56355a4a11c2a26db53eefc37c5b11e6bd9c594743541448a13230063754a63f",
+    "vm_profile": "xian_vm_v1"
+  },
+  "vm_profile": "xian_vm_v1"
+}

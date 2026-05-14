@@ -1,8 +1,8 @@
-from unittest import TestCase
-from xian_runtime_types.time import Datetime
-from contracting.client import ContractingClient
-from contracting.storage.contract import Contract
 import os
+from unittest import TestCase
+
+from contracting.local import ContractingClient
+from contracting.storage.contract import Contract
 
 
 class TestSenecaClientReplacesExecutor(TestCase):
@@ -17,7 +17,7 @@ class TestSenecaClientReplacesExecutor(TestCase):
         with open(submission_path) as f:
             contract = f.read()
 
-        self.c.raw_driver.set_contract(name="submission", code=contract)
+        self.c.raw_driver.set_contract(name="submission", source=contract)
 
         self.c.raw_driver.commit()
 
@@ -38,7 +38,7 @@ class TestSenecaClientReplacesExecutor(TestCase):
             constructor_args={"a": 123, "b": 321},
         )
 
-        contract = self.c.get_contract("con_constructor_args_contract")
+        contract = self.c.get_contract_proxy("con_constructor_args_contract")
         a, b = contract.get()
 
         self.assertEqual(a, 123)
@@ -63,12 +63,15 @@ class TestSenecaClientReplacesExecutor(TestCase):
     def test_direct_contract_submit_uses_provided_driver_for_constructor(self):
         Contract(driver=self.c.raw_driver).submit(
             name="con_constructor_args_contract",
-            code=self.code,
+            deployment_artifacts=self.c.build_deployment_artifacts(
+                self.code,
+                name="con_constructor_args_contract",
+            ),
             constructor_args={"a": 123, "b": 321},
         )
         self.c.raw_driver.commit()
 
-        contract = self.c.get_contract("con_constructor_args_contract")
+        contract = self.c.get_contract_proxy("con_constructor_args_contract")
         a, b = contract.get()
 
         self.assertEqual(a, 123)

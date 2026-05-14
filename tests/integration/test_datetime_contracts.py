@@ -1,7 +1,10 @@
-from unittest import TestCase
-from contracting.client import ContractingClient
-from xian_runtime_types.time import Datetime
 import os
+from unittest import TestCase
+
+from xian_runtime_types.time import Datetime
+
+from contracting.local import ContractingClient
+
 
 class TestSenecaClientReplacesExecutor(TestCase):
     def setUp(self):
@@ -13,7 +16,7 @@ class TestSenecaClientReplacesExecutor(TestCase):
         with open(dater_path) as f:
             self.c.submit(f=f.read(), name='con_dater')
 
-        self.dater = self.c.get_contract('con_dater')
+        self.dater = self.c.get_contract_proxy('con_dater')
 
     def tearDown(self):
         self.c.flush()

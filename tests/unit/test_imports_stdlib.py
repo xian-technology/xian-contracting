@@ -1,8 +1,10 @@
-from unittest import TestCase
-from contracting.stdlib.bridge import imports
-from types import ModuleType
-from contracting.storage.orm import Hash, Variable
 import os
+from types import ModuleType
+from unittest import TestCase
+
+from contracting.stdlib.bridge import imports
+from contracting.storage.orm import Hash, Variable
+
 
 class TestImports(TestCase):
     def setUp(self):

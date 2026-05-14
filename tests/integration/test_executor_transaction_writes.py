@@ -1,9 +1,8 @@
-import importlib
-from unittest import TestCase
-from xian_runtime_types.time import Datetime
-from contracting.client import ContractingClient
-from contracting.storage.driver import Driver
 import os
+from unittest import TestCase
+
+from contracting.local import ContractingClient
+
 
 class TestTransactionWrites(TestCase):
     def setUp(self):

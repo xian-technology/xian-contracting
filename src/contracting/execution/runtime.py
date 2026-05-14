@@ -7,9 +7,7 @@ from dataclasses import dataclass, field
 
 from contracting import constants
 from contracting.execution.tracer import (
-    DEFAULT_TRACER_MODE,
     create_tracer,
-    resolve_tracer_mode,
 )
 
 DEFAULT_BASE_STATE = {
@@ -129,7 +127,6 @@ class EnvProxy(MutableMapping):
 
 @dataclass
 class RuntimeState:
-    tracer_mode: str
     tracer: object
     env: dict = field(default_factory=dict)
     chi: int = 0
@@ -152,7 +149,6 @@ WRITE_MAX = 1024 * 128
 class Runtime:
     def __init__(self):
         self.execution_lock = threading.RLock()
-        self._default_tracer_mode = DEFAULT_TRACER_MODE
         self._state_var: ContextVar[RuntimeState | None] = ContextVar(
             "contracting_runtime_state",
             default=None,
@@ -160,12 +156,8 @@ class Runtime:
         self._context_proxy = ContextProxy(self)
         self._env_proxy = EnvProxy(self)
 
-    def _new_state(self, tracer_mode: str | None = None) -> RuntimeState:
-        selected = resolve_tracer_mode(tracer_mode or self._default_tracer_mode)
-        return RuntimeState(
-            tracer_mode=selected,
-            tracer=create_tracer(selected),
-        )
+    def _new_state(self) -> RuntimeState:
+        return RuntimeState(tracer=create_tracer())
 
     def _state(self) -> RuntimeState:
         state = self._state_var.get()
@@ -185,10 +177,6 @@ class Runtime:
     @property
     def tracer(self):
         return self._state().tracer
-
-    @property
-    def tracer_mode(self):
-        return self._state().tracer_mode
 
     @property
     def signer(self):
@@ -229,19 +217,6 @@ class Runtime:
     @context.setter
     def context(self, value):
         self._state().context = value
-
-    def set_tracer_mode(self, mode: str) -> None:
-        state = self._state()
-        selected = resolve_tracer_mode(mode)
-        if state.tracer.is_started():
-            raise RuntimeError(
-                "cannot switch tracer mode during active execution"
-            )
-
-        state.tracer.reset()
-        state.tracer_mode = selected
-        state.tracer = create_tracer(selected)
-        self._default_tracer_mode = selected
 
     def _reset_execution_state(
         self,

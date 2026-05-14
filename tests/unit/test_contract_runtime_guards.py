@@ -68,9 +68,9 @@ def repeat(n: int):
     return "a" * n
 """
 
-        runtime_code = compiler.parse_to_code(code)
+        compiled_source = compiler.parse_to_code(code)
 
-        self.assertIn("__xian_mul__", runtime_code)
+        self.assertIn("__xian_mul__", compiled_source)
 
     def test_linter_rejects_augmented_multiplication(self):
         errors = Linter().check(
