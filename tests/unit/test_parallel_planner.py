@@ -95,6 +95,27 @@ class TestParallelExecutionPlanner(unittest.TestCase):
         self.assertEqual(plan.stages[0].request_indexes, (0,))
         self.assertEqual(plan.stages[1].request_indexes, (1,))
 
+    def test_large_independent_stage_keeps_all_requests_together(self):
+        plan = self.planner.build(
+            [
+                access(
+                    index,
+                    f"sender-{index}",
+                    reads={f"con.values:{index}"},
+                    writes={f"con.out:{index}"},
+                )
+                for index in range(1_000)
+            ]
+        )
+
+        self.assertEqual(plan.stage_count, 1)
+        self.assertEqual(plan.max_stage_size, 1_000)
+        self.assertEqual(plan.parallelizable_requests, 999)
+        self.assertEqual(
+            plan.stages[0].request_indexes,
+            tuple(range(1_000)),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

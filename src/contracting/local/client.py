@@ -328,12 +328,18 @@ class ContractingClient:
         enabled: bool = True,
         workers: int = 0,
         min_batch_size: int = 8,
+        max_speculative_waves: int = 0,
+        min_wave_acceptance_ratio: float = 0.0,
+        low_acceptance_min_wave_size: int | None = None,
     ) -> ParallelBatchExecutor:
         return ParallelBatchExecutor(
             executor=self.executor,
             enabled=enabled,
             workers=workers,
             min_batch_size=min_batch_size,
+            max_speculative_waves=max_speculative_waves,
+            min_wave_acceptance_ratio=min_wave_acceptance_ratio,
+            low_acceptance_min_wave_size=low_acceptance_min_wave_size,
         )
 
     def flush(self):

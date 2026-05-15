@@ -96,24 +96,113 @@ class ParallelPlan:
         return sum(max(stage.size - 1, 0) for stage in self.stages)
 
 
+@dataclass
+class _StageAccessSummary:
+    request_indexes: list[int] = field(default_factory=list)
+    senders: set[str] = field(default_factory=set)
+    reads: set[str] = field(default_factory=set)
+    prefix_reads: set[str] = field(default_factory=set)
+    writes: set[str] = field(default_factory=set)
+    additive_writes: set[str] = field(default_factory=set)
+
+    @classmethod
+    def from_accesses(
+        cls,
+        accesses: list[ExecutionAccess],
+    ) -> _StageAccessSummary:
+        summary = cls()
+        for access in accesses:
+            summary.add(access)
+        return summary
+
+    @property
+    def has_accesses(self) -> bool:
+        return bool(self.request_indexes)
+
+    def add(self, access: ExecutionAccess) -> None:
+        self.request_indexes.append(access.index)
+        self.senders.add(access.sender)
+        self.reads.update(access.reads)
+        self.prefix_reads.update(access.prefix_reads)
+        self.writes.update(access.writes)
+        self.additive_writes.update(access.additive_writes)
+
+    def conflicts_with(self, access: ExecutionAccess) -> bool:
+        if access.sender in self.senders:
+            return True
+
+        if access.writes & self.writes:
+            return True
+
+        if access.writes & self.reads:
+            return True
+
+        if access.writes & self.additive_writes:
+            return True
+
+        if access.reads & self.writes:
+            return True
+
+        if access.reads & self.additive_writes:
+            return True
+
+        if self._prefix_conflicts(access.prefix_reads, self.writes):
+            return True
+
+        if self._prefix_conflicts(access.prefix_reads, self.additive_writes):
+            return True
+
+        if self._prefix_conflicts(self.prefix_reads, access.writes):
+            return True
+
+        if self._prefix_conflicts(self.prefix_reads, access.additive_writes):
+            return True
+
+        if access.additive_writes & self.reads:
+            return True
+
+        if access.additive_writes & self.writes:
+            return True
+
+        return False
+
+    def to_stage(self) -> ParallelStage:
+        return ParallelStage(
+            request_indexes=tuple(self.request_indexes),
+            senders=frozenset(self.senders),
+            reads=frozenset(self.reads),
+            prefix_reads=frozenset(self.prefix_reads),
+            writes=frozenset(self.writes),
+            additive_writes=frozenset(self.additive_writes),
+        )
+
+    @staticmethod
+    def _prefix_conflicts(
+        prefixes: set[str] | frozenset[str],
+        keys: set[str] | frozenset[str],
+    ) -> bool:
+        return any(
+            key.startswith(prefix) for prefix in prefixes for key in keys
+        )
+
+
 class ParallelExecutionPlanner:
     """Build contiguous, deterministic parallel stages."""
 
     def build(self, accesses: list[ExecutionAccess]) -> ParallelPlan:
         stages: list[ParallelStage] = []
-        current_stage: list[ExecutionAccess] = []
+        current_stage = _StageAccessSummary()
 
         for access in accesses:
-            if current_stage and self._conflicts_with_stage(
-                access, current_stage
+            if current_stage.has_accesses and current_stage.conflicts_with(
+                access
             ):
-                stages.append(self._make_stage(current_stage))
-                current_stage = [access]
-            else:
-                current_stage.append(access)
+                stages.append(current_stage.to_stage())
+                current_stage = _StageAccessSummary()
+            current_stage.add(access)
 
-        if current_stage:
-            stages.append(self._make_stage(current_stage))
+        if current_stage.has_accesses:
+            stages.append(current_stage.to_stage())
 
         return ParallelPlan(stages=tuple(stages))
 
@@ -122,51 +211,14 @@ class ParallelExecutionPlanner:
         access: ExecutionAccess,
         stage: list[ExecutionAccess],
     ) -> bool:
-        stage_senders = {item.sender for item in stage}
-        if access.sender in stage_senders:
-            return True
+        return self.conflicts_with_stage(access, stage)
 
-        stage_reads = set().union(*(item.reads for item in stage))
-        stage_prefix_reads = set().union(*(item.prefix_reads for item in stage))
-        stage_writes = set().union(*(item.writes for item in stage))
-        stage_additive_writes = set().union(
-            *(item.additive_writes for item in stage)
-        )
-
-        if access.writes & stage_writes:
-            return True
-
-        if access.writes & stage_reads:
-            return True
-
-        if access.writes & stage_additive_writes:
-            return True
-
-        if access.reads & stage_writes:
-            return True
-
-        if access.reads & stage_additive_writes:
-            return True
-
-        if self._prefix_conflicts(access.prefix_reads, stage_writes):
-            return True
-
-        if self._prefix_conflicts(access.prefix_reads, stage_additive_writes):
-            return True
-
-        if self._prefix_conflicts(stage_prefix_reads, access.writes):
-            return True
-
-        if self._prefix_conflicts(stage_prefix_reads, access.additive_writes):
-            return True
-
-        if access.additive_writes & stage_reads:
-            return True
-
-        if access.additive_writes & stage_writes:
-            return True
-
-        return False
+    def conflicts_with_stage(
+        self,
+        access: ExecutionAccess,
+        stage: list[ExecutionAccess],
+    ) -> bool:
+        return _StageAccessSummary.from_accesses(stage).conflicts_with(access)
 
     @staticmethod
     def _prefix_conflicts(
@@ -178,18 +230,7 @@ class ParallelExecutionPlanner:
         )
 
     def _make_stage(self, stage: list[ExecutionAccess]) -> ParallelStage:
-        return ParallelStage(
-            request_indexes=tuple(item.index for item in stage),
-            senders=frozenset(item.sender for item in stage),
-            reads=frozenset().union(*(item.reads for item in stage)),
-            prefix_reads=frozenset().union(
-                *(item.prefix_reads for item in stage)
-            ),
-            writes=frozenset().union(*(item.writes for item in stage)),
-            additive_writes=frozenset().union(
-                *(item.additive_writes for item in stage)
-            ),
-        )
+        return _StageAccessSummary.from_accesses(stage).to_stage()
 
 
 @dataclass
@@ -269,12 +310,18 @@ def _speculative_execute_request(task: _SpeculativeTask) -> dict:
 class ParallelExecutionStats:
     parallel_attempted: bool
     worker_count: int
+    estimated_known_requests: int
+    estimated_unknown_requests: int
+    estimated_stage_count: int
+    estimated_parallelizable_requests: int
     planned_stage_count: int
     planned_parallelizable_requests: int
     speculative_wave_count: int
     speculative_accepted: int
+    speculative_rejected: int
     serial_prefiltered: int
     serial_fallbacks: int
+    guardrail_fallbacks: int
 
 
 class SpeculativeExecutionController:
@@ -284,10 +331,28 @@ class SpeculativeExecutionController:
         enabled: bool = True,
         workers: int = 0,
         min_batch_size: int = 8,
+        max_speculative_waves: int = 0,
+        min_wave_acceptance_ratio: float = 0.0,
+        low_acceptance_min_wave_size: int | None = None,
+        use_access_estimates: bool = False,
     ) -> None:
         self.enabled = enabled
         self.workers = max(int(workers), 0)
         self.min_batch_size = max(int(min_batch_size), 1)
+        self.use_access_estimates = bool(use_access_estimates)
+        self.max_speculative_waves = max(int(max_speculative_waves), 0)
+        self.min_wave_acceptance_ratio = min(
+            max(float(min_wave_acceptance_ratio), 0.0),
+            1.0,
+        )
+        self.low_acceptance_min_wave_size = max(
+            int(
+                low_acceptance_min_wave_size
+                if low_acceptance_min_wave_size is not None
+                else self.min_batch_size
+            ),
+            1,
+        )
         self.planner = ParallelExecutionPlanner()
 
     def is_enabled_for_batch(self, request_count: int) -> bool:
@@ -315,17 +380,27 @@ class SpeculativeExecutionController:
 
         final_results: list[dict | None] = [None] * len(requests)
         pending_indexes = list(range(len(requests)))
+        estimated_accesses = self._estimate_accesses(requests)
+        (
+            estimated_known_requests,
+            estimated_unknown_requests,
+            estimated_stage_count,
+            estimated_parallelizable_requests,
+        ) = self._estimated_plan_stats(estimated_accesses)
         planned_stage_count = 0
         planned_parallelizable_requests = 0
         speculative_wave_count = 0
         speculative_accepted = 0
+        speculative_rejected = 0
         serial_prefiltered = 0
         serial_fallbacks = 0
+        guardrail_fallbacks = 0
 
         while pending_indexes:
             speculative_indexes = self._build_speculative_wave(
                 requests=requests,
                 pending_indexes=pending_indexes,
+                estimated_accesses=estimated_accesses,
             )
 
             if len(speculative_indexes) < 2:
@@ -396,6 +471,7 @@ class SpeculativeExecutionController:
                 results=speculative_results,
                 requests=[requests[index] for index in speculative_indexes],
             )
+            speculative_rejected += len(speculative_indexes) - accepted_prefix
 
             for position in range(accepted_prefix):
                 index = speculative_indexes[position]
@@ -430,9 +506,35 @@ class SpeculativeExecutionController:
                     access=access,
                 )
                 serial_fallbacks += 1
+                if pending_indexes and self._should_stop_speculating_tail(
+                    speculative_wave_count=speculative_wave_count,
+                    accepted_prefix=accepted_prefix,
+                    wave_size=len(speculative_indexes),
+                ):
+                    fallback_count = self._execute_serial_indexes(
+                        final_results=final_results,
+                        requests=requests,
+                        indexes=pending_indexes,
+                    )
+                    serial_fallbacks += fallback_count
+                    guardrail_fallbacks += fallback_count
+                    pending_indexes.clear()
                 continue
 
             pending_indexes = pending_indexes[accepted_prefix:]
+            if pending_indexes and self._should_stop_speculating_tail(
+                speculative_wave_count=speculative_wave_count,
+                accepted_prefix=accepted_prefix,
+                wave_size=len(speculative_indexes),
+            ):
+                fallback_count = self._execute_serial_indexes(
+                    final_results=final_results,
+                    requests=requests,
+                    indexes=pending_indexes,
+                )
+                serial_fallbacks += fallback_count
+                guardrail_fallbacks += fallback_count
+                pending_indexes.clear()
 
         if auto_commit:
             self._commit_accepted_results()
@@ -440,12 +542,20 @@ class SpeculativeExecutionController:
         stats = ParallelExecutionStats(
             parallel_attempted=True,
             worker_count=self.workers,
+            estimated_known_requests=estimated_known_requests,
+            estimated_unknown_requests=estimated_unknown_requests,
+            estimated_stage_count=estimated_stage_count,
+            estimated_parallelizable_requests=(
+                estimated_parallelizable_requests
+            ),
             planned_stage_count=planned_stage_count,
             planned_parallelizable_requests=planned_parallelizable_requests,
             speculative_wave_count=speculative_wave_count,
             speculative_accepted=speculative_accepted,
+            speculative_rejected=speculative_rejected,
             serial_prefiltered=serial_prefiltered,
             serial_fallbacks=serial_fallbacks,
+            guardrail_fallbacks=guardrail_fallbacks,
         )
         return [result for result in final_results if result is not None], stats
 
@@ -456,12 +566,18 @@ class SpeculativeExecutionController:
         return ParallelExecutionStats(
             parallel_attempted=False,
             worker_count=0,
+            estimated_known_requests=0,
+            estimated_unknown_requests=0,
+            estimated_stage_count=0,
+            estimated_parallelizable_requests=0,
             planned_stage_count=0,
             planned_parallelizable_requests=0,
             speculative_wave_count=0,
             speculative_accepted=0,
+            speculative_rejected=0,
             serial_prefiltered=0,
             serial_fallbacks=0,
+            guardrail_fallbacks=0,
         )
 
     def _execute_serial_batch(
@@ -495,13 +611,64 @@ class SpeculativeExecutionController:
         return results, ParallelExecutionStats(
             parallel_attempted=parallel_attempted,
             worker_count=worker_count,
+            estimated_known_requests=0,
+            estimated_unknown_requests=0,
+            estimated_stage_count=0,
+            estimated_parallelizable_requests=0,
             planned_stage_count=0,
             planned_parallelizable_requests=0,
             speculative_wave_count=0,
             speculative_accepted=0,
+            speculative_rejected=0,
             serial_prefiltered=0,
             serial_fallbacks=serial_fallbacks,
+            guardrail_fallbacks=0,
         )
+
+    def _execute_serial_indexes(
+        self,
+        *,
+        final_results: list[dict | None],
+        requests: list[object],
+        indexes: list[int],
+    ) -> int:
+        for index in indexes:
+            request = requests[index]
+            result = self._execute_serial_request(request)
+            access = self._normalize_access(
+                index=index,
+                request=request,
+                output=result,
+            )
+            final_results[index] = self._decorate_result(
+                result,
+                speculative_accepted=False,
+                access=access,
+            )
+        return len(indexes)
+
+    def _should_stop_speculating_tail(
+        self,
+        *,
+        speculative_wave_count: int,
+        accepted_prefix: int,
+        wave_size: int,
+    ) -> bool:
+        if (
+            self.max_speculative_waves > 0
+            and speculative_wave_count >= self.max_speculative_waves
+        ):
+            return True
+
+        if (
+            self.min_wave_acceptance_ratio > 0.0
+            and wave_size >= self.low_acceptance_min_wave_size
+            and wave_size > 0
+        ):
+            acceptance_ratio = accepted_prefix / wave_size
+            return acceptance_ratio < self.min_wave_acceptance_ratio
+
+        return False
 
     def _decorate_result(
         self,
@@ -526,16 +693,88 @@ class SpeculativeExecutionController:
     def _get_request_sender(self, request: object) -> str | None:
         return None
 
+    def _estimate_access(
+        self,
+        *,
+        index: int,
+        request: object,
+    ) -> ExecutionAccess | None:
+        return None
+
     def _should_speculate_request(self, request: object) -> bool:
         return True
+
+    def _estimate_accesses(
+        self, requests: list[object]
+    ) -> list[ExecutionAccess | None]:
+        if not self.use_access_estimates:
+            return [None] * len(requests)
+        return [
+            self._estimate_access(index=index, request=request)
+            for index, request in enumerate(requests)
+        ]
+
+    def _estimated_plan_stats(
+        self, estimated_accesses: list[ExecutionAccess | None]
+    ) -> tuple[int, int, int, int]:
+        if not self.use_access_estimates:
+            return 0, 0, 0, 0
+
+        known = 0
+        unknown = 0
+        stage_count = 0
+        parallelizable_requests = 0
+        span: list[ExecutionAccess] = []
+
+        def flush_span() -> None:
+            nonlocal stage_count, parallelizable_requests, span
+            if not span:
+                return
+            plan = self.planner.build(span)
+            stage_count += plan.stage_count
+            parallelizable_requests += plan.parallelizable_requests
+            span = []
+
+        for access in estimated_accesses:
+            if access is None:
+                unknown += 1
+                flush_span()
+                continue
+            known += 1
+            span.append(access)
+        flush_span()
+
+        return known, unknown, stage_count, parallelizable_requests
 
     def _build_speculative_wave(
         self,
         *,
         requests: list[object],
         pending_indexes: list[int],
+        estimated_accesses: list[ExecutionAccess | None],
     ) -> list[int]:
         wave_indexes: list[int] = []
+        if self.use_access_estimates:
+            wave_summary = _StageAccessSummary()
+            for index in pending_indexes:
+                request = requests[index]
+                if not self._should_speculate_request(request):
+                    break
+
+                access = estimated_accesses[index]
+                if access is None:
+                    break
+
+                if wave_summary.has_accesses and wave_summary.conflicts_with(
+                    access
+                ):
+                    break
+
+                wave_indexes.append(index)
+                wave_summary.add(access)
+
+            return wave_indexes
+
         wave_senders: set[str] = set()
 
         for index in pending_indexes:
@@ -701,6 +940,10 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
         enabled: bool = True,
         workers: int = 0,
         min_batch_size: int = 8,
+        max_speculative_waves: int = 0,
+        min_wave_acceptance_ratio: float = 0.0,
+        low_acceptance_min_wave_size: int | None = None,
+        use_access_estimates: bool = False,
     ) -> None:
         self.executor = executor
         self._mp_context = multiprocessing.get_context("spawn")
@@ -709,6 +952,10 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
             enabled=enabled,
             workers=workers,
             min_batch_size=min_batch_size,
+            max_speculative_waves=max_speculative_waves,
+            min_wave_acceptance_ratio=min_wave_acceptance_ratio,
+            low_acceptance_min_wave_size=low_acceptance_min_wave_size,
+            use_access_estimates=use_access_estimates,
         )
 
     def close(self) -> None:

@@ -34,6 +34,7 @@ Primary types:
 
 The main process:
 
+- optionally estimates deterministic access sets before speculation
 - snapshots the current driver pending-write overlay
 - runs eligible requests speculatively against committed LMDB state plus that
   overlay
@@ -43,6 +44,26 @@ The main process:
 - optionally commits after the batch is complete
 
 The final state must match ordinary serial execution.
+
+When `use_access_estimates` is enabled, only requests with known estimates enter
+speculative waves. Unknown requests execute through the existing serial path.
+Estimates are scheduling hints only; actual read/write metadata is still
+validated before speculative writes are accepted.
+
+## Guardrails
+
+Callers can cap speculative retry work with:
+
+- `max_speculative_waves`: after this many waves, the remaining suffix runs
+  serially
+- `min_wave_acceptance_ratio`: when a large wave accepts too little of its
+  prefix, the remaining suffix runs serially
+- `low_acceptance_min_wave_size`: minimum wave size before the low-acceptance
+  rule applies
+
+These guardrails keep hot-key blocks from repeatedly speculating the same
+conflicting tail. Accepted speculative writes are kept; only the unaccepted
+canonical suffix falls back to serial execution.
 
 ## Conflict Rules
 

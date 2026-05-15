@@ -299,6 +299,117 @@ class TestParallelBatchExecutor(unittest.TestCase):
                 "three",
             )
 
+    def test_parallel_batch_guardrail_serializes_hot_conflict_tail(self):
+        requests = [
+            ExecutionRequest(
+                sender=f"sender-{index}",
+                contract_name="con_rw",
+                function_name="set_value",
+                kwargs={"new_value": index},
+                nonce=0,
+            )
+            for index in range(8)
+        ]
+
+        with (
+            tempfile.TemporaryDirectory() as serial_dir,
+            tempfile.TemporaryDirectory() as parallel_dir,
+        ):
+            serial_client = self._build_client(Path(serial_dir) / "xian")
+            parallel_client = self._build_client(Path(parallel_dir) / "xian")
+
+            serial_outputs = [
+                serial_client.executor.execute(
+                    sender=request.sender,
+                    contract_name=request.contract_name,
+                    function_name=request.function_name,
+                    kwargs=request.build_kwargs(),
+                    environment=request.build_environment(),
+                    chi=request.chi,
+                    chi_cost=request.chi_cost,
+                    metering=request.metering,
+                )
+                for request in requests
+            ]
+
+            parallel_executor = ParallelBatchExecutor(
+                executor=parallel_client.executor,
+                enabled=True,
+                workers=1,
+                min_batch_size=1,
+                min_wave_acceptance_ratio=0.5,
+                low_acceptance_min_wave_size=4,
+            )
+            parallel_outputs, stats = parallel_executor.execute(
+                requests=requests
+            )
+
+            self.assertEqual(stats.speculative_wave_count, 1)
+            self.assertEqual(stats.speculative_accepted, 1)
+            self.assertEqual(stats.speculative_rejected, 7)
+            self.assertEqual(stats.serial_fallbacks, 7)
+            self.assertEqual(stats.guardrail_fallbacks, 7)
+            self.assertEqual(
+                [output["result"] for output in parallel_outputs],
+                [output["result"] for output in serial_outputs],
+            )
+            self.assertEqual(parallel_client.raw_driver.get("con_rw.value"), 7)
+
+    def test_parallel_batch_max_wave_guardrail_serializes_suffix(self):
+        requests = [
+            ExecutionRequest(
+                sender=f"sender-{index}",
+                contract_name="con_rw",
+                function_name="set_value",
+                kwargs={"new_value": index},
+                nonce=0,
+            )
+            for index in range(6)
+        ]
+
+        with (
+            tempfile.TemporaryDirectory() as serial_dir,
+            tempfile.TemporaryDirectory() as parallel_dir,
+        ):
+            serial_client = self._build_client(Path(serial_dir) / "xian")
+            parallel_client = self._build_client(Path(parallel_dir) / "xian")
+
+            serial_outputs = [
+                serial_client.executor.execute(
+                    sender=request.sender,
+                    contract_name=request.contract_name,
+                    function_name=request.function_name,
+                    kwargs=request.build_kwargs(),
+                    environment=request.build_environment(),
+                    chi=request.chi,
+                    chi_cost=request.chi_cost,
+                    metering=request.metering,
+                )
+                for request in requests
+            ]
+
+            parallel_executor = ParallelBatchExecutor(
+                executor=parallel_client.executor,
+                enabled=True,
+                workers=1,
+                min_batch_size=1,
+                max_speculative_waves=1,
+            )
+            parallel_outputs, stats = parallel_executor.execute(
+                requests=requests
+            )
+
+            self.assertEqual(stats.speculative_wave_count, 1)
+            self.assertEqual(stats.speculative_accepted, 1)
+            self.assertEqual(stats.speculative_rejected, 5)
+            self.assertEqual(stats.serial_fallbacks, 5)
+            self.assertEqual(stats.guardrail_fallbacks, 5)
+            self.assertEqual(
+                [output["result"] for output in parallel_outputs],
+                [output["result"] for output in serial_outputs],
+            )
+            self.assertEqual(parallel_client.raw_driver.get("con_rw.value"), 5)
+
 
 if __name__ == "__main__":
     unittest.main()
