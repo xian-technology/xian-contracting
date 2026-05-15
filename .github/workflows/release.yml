@@ -25,12 +25,22 @@ jobs:
       version: ${{ steps.resolve.outputs.version }}
       pypi_environment: ${{ steps.resolve.outputs.pypi_environment }}
       pypi_url: ${{ steps.resolve.outputs.pypi_url }}
+      has_npm_package: ${{ steps.resolve.outputs.has_npm_package }}
+      npm_package_dir: ${{ steps.resolve.outputs.npm_package_dir }}
+      npm_package_name: ${{ steps.resolve.outputs.npm_package_name }}
+      npm_environment: ${{ steps.resolve.outputs.npm_environment }}
+      npm_url: ${{ steps.resolve.outputs.npm_url }}
       needs_rust: ${{ steps.resolve.outputs.needs_rust }}
     steps:
       - name: Resolve package from tag
         id: resolve
         run: |
           tag="${GITHUB_REF_NAME}"
+          has_npm_package="false"
+          npm_package_dir=""
+          npm_package_name=""
+          npm_environment=""
+          npm_url=""
 
           case "${tag}" in
             accounts-v*)
@@ -60,6 +70,11 @@ jobs:
               project_name="xian-tech-compiler-core"
               pypi_environment="pypi-xian-compiler-core"
               needs_rust="true"
+              has_npm_package="true"
+              npm_package_dir="packages/xian-compiler-core/npm"
+              npm_package_name="@xian-tech/compiler"
+              npm_environment="npm"
+              npm_url="https://www.npmjs.com/package/@xian-tech/compiler"
               ;;
             zk-v*)
               version="${tag#zk-v}"
@@ -81,6 +96,11 @@ jobs:
             echo "version=${version}"
             echo "pypi_environment=${pypi_environment}"
             echo "pypi_url=https://pypi.org/p/${project_name}"
+            echo "has_npm_package=${has_npm_package}"
+            echo "npm_package_dir=${npm_package_dir}"
+            echo "npm_package_name=${npm_package_name}"
+            echo "npm_environment=${npm_environment}"
+            echo "npm_url=${npm_url}"
             echo "needs_rust=${needs_rust}"
           } >> "${GITHUB_OUTPUT}"
 
@@ -147,8 +167,6 @@ jobs:
 
       - name: Verify built version matches tag
         run: |
-          package_dir="${{ needs.release-context.outputs.package_dir }}"
-          expected="${{ needs.release-context.outputs.version }}"
           python - <<'PY'
           import os
           import pathlib
@@ -271,6 +289,75 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  build-npm-compiler:
+    needs:
+      - release-context
+      - validate
+    if: always() && needs.release-context.outputs.has_npm_package == 'true' && needs.validate.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: |
+          if ! command -v wasm-pack >/dev/null 2>&1; then
+            cargo install wasm-pack --version 0.14.0 --locked
+          fi
+          wasm-pack --version
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Build npm package
+        run: npm --prefix "${{ needs.release-context.outputs.npm_package_dir }}" run build
+
+      - name: Verify npm package metadata matches tag
+        env:
+          EXPECTED_NAME: ${{ needs.release-context.outputs.npm_package_name }}
+          EXPECTED_VERSION: ${{ needs.release-context.outputs.version }}
+          PACKAGE_DIR: ${{ needs.release-context.outputs.npm_package_dir }}
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+
+          const packagePath = path.join(process.env.PACKAGE_DIR, "package.json");
+          const pkg = JSON.parse(fs.readFileSync(packagePath, "utf8"));
+          if (pkg.name !== process.env.EXPECTED_NAME) {
+            throw new Error(`${packagePath} has name ${pkg.name}, expected ${process.env.EXPECTED_NAME}`);
+          }
+          if (pkg.version !== process.env.EXPECTED_VERSION) {
+            throw new Error(`${packagePath} has version ${pkg.version}, expected ${process.env.EXPECTED_VERSION}`);
+          }
+          NODE
+
+      - name: Pack npm package
+        run: |
+          package_dir="${{ needs.release-context.outputs.npm_package_dir }}"
+          mkdir -p release-dist-npm
+          (
+            cd "${package_dir}"
+            npm pack --pack-destination "${GITHUB_WORKSPACE}/release-dist-npm"
+          )
+
+      - name: Upload npm release artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: npm-compiler-dist
+          path: release-dist-npm/*
+          if-no-files-found: error
+          retention-days: 14
+
   collect-release-artifacts:
     needs:
       - release-context
@@ -298,7 +385,6 @@ jobs:
 
       - name: Verify built version matches tag
         run: |
-          expected="${{ needs.release-context.outputs.version }}"
           python - <<'PY'
           import os
           import pathlib
@@ -348,12 +434,56 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
+  publish-npm-compiler:
+    needs:
+      - release-context
+      - build-npm-compiler
+    if: always() && needs.release-context.outputs.has_npm_package == 'true' && needs.build-npm-compiler.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment:
+      name: ${{ needs.release-context.outputs.npm_environment }}
+      url: ${{ needs.release-context.outputs.npm_url }}
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      - name: Download npm release artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: npm-compiler-dist
+          path: release-dist-npm
+
+      - name: Publish compiler package to npm
+        run: |
+          for package in release-dist-npm/*.tgz; do
+            metadata="$(
+              tar -xOf "$package" package/package.json \
+                | node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk); process.stdin.on("end", () => { const pkg = JSON.parse(input); console.log(pkg.name + "\t" + pkg.version); });'
+            )"
+            name="${metadata%%$'\t'*}"
+            version="${metadata#*$'\t'}"
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              echo "${name}@${version} is already published; skipping"
+              continue
+            fi
+            npm publish "./$package" --provenance --access public
+          done
+
   github-release:
     needs:
       - release-context
       - collect-release-artifacts
       - publish
-    if: always() && needs.publish.result == 'success'
+      - publish-npm-compiler
+    if: |
+      always() &&
+      needs.publish.result == 'success' &&
+      (needs.publish-npm-compiler.result == 'success' || needs.publish-npm-compiler.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -362,6 +492,13 @@ jobs:
         uses: actions/download-artifact@v6
         with:
           name: release-dist
+          path: dist
+
+      - name: Download npm release artifacts
+        if: needs.release-context.outputs.has_npm_package == 'true'
+        uses: actions/download-artifact@v6
+        with:
+          name: npm-compiler-dist
           path: dist
 
       - name: Create GitHub release
