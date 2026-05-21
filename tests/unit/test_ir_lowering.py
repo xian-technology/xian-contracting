@@ -160,6 +160,55 @@ def load_token(token: str):
         self.assertIn("module.importlib", dependency_ids)
         self.assertIn("contract.import", dependency_ids)
 
+    def test_lower_to_ir_preserves_interface_storage_type_host_bindings(self):
+        source = """
+TOKEN_INTERFACE = [
+    importlib.Var("balances", Hash),
+    importlib.Var("approvals", Hash),
+    importlib.Var("metadata", Variable),
+    importlib.Var("foreign_balances", ForeignHash),
+    importlib.Var("foreign_owner", ForeignVariable),
+]
+
+@export
+def interface():
+    return TOKEN_INTERFACE
+"""
+        compiler = ContractingCompiler(module_name="interface_contract")
+
+        ir = compiler.lower_to_ir(source)
+        interface_decl = ir["global_declarations"][0]["value"]
+        dependency_ids = {item["id"] for item in ir["host_dependencies"]}
+
+        self.assertEqual(interface_decl["node"], "list")
+        seen = {}
+        for element in interface_decl["elements"]:
+            self.assertEqual(element["syscall_id"], "contract.interface.var")
+            self.assertEqual(element["func"]["host_binding_id"], "contract.interface.var")
+            storage_name = element["args"][0]["value"]
+            type_arg = element["args"][1]
+            seen[storage_name] = (type_arg["id"], type_arg["host_binding_id"])
+
+        self.assertEqual(
+            seen,
+            {
+                "balances": ("Hash", "storage.hash.new"),
+                "approvals": ("Hash", "storage.hash.new"),
+                "metadata": ("Variable", "storage.variable.new"),
+                "foreign_balances": ("ForeignHash", "storage.foreign_hash.new"),
+                "foreign_owner": (
+                    "ForeignVariable",
+                    "storage.foreign_variable.new",
+                ),
+            },
+        )
+        self.assertIn("contract.interface.var", dependency_ids)
+        self.assertIn("module.importlib", dependency_ids)
+        self.assertIn("storage.hash.new", dependency_ids)
+        self.assertIn("storage.variable.new", dependency_ids)
+        self.assertIn("storage.foreign_hash.new", dependency_ids)
+        self.assertIn("storage.foreign_variable.new", dependency_ids)
+
     def test_lower_to_ir_records_hash_prefix_scan_runtime_usage(self):
         source = """
 values = Hash(default_value=0)

@@ -1614,6 +1614,12 @@ impl VmInstance {
     fn resolve_host_binding(&self, host_binding_id: &str) -> Result<VmValue, VmExecutionError> {
         match host_binding_id {
             "numeric.decimal.new" => Ok(VmValue::TypeMarker("decimal".to_owned())),
+            "typing.any" => Ok(VmValue::TypeMarker("Any".to_owned())),
+            "storage.variable.new" => Ok(VmValue::TypeMarker("Variable".to_owned())),
+            "storage.hash.new" => Ok(VmValue::TypeMarker("Hash".to_owned())),
+            "storage.foreign_variable.new" => Ok(VmValue::TypeMarker("ForeignVariable".to_owned())),
+            "storage.foreign_hash.new" => Ok(VmValue::TypeMarker("ForeignHash".to_owned())),
+            "event.log.new" => Ok(VmValue::TypeMarker("LogEvent".to_owned())),
             "module.importlib" => Ok(VmValue::Builtin("importlib".to_owned())),
             "module.hashlib" => Ok(VmValue::Builtin("hashlib".to_owned())),
             "module.crypto" => Ok(VmValue::Builtin("crypto".to_owned())),
@@ -3512,6 +3518,180 @@ mod tests {
         assert_eq!(host.calls.len(), 1);
         assert_eq!(contract_target_label(&host.calls[0].target), "currency");
         assert_eq!(host.calls[0].function, "transfer");
+    }
+
+    #[test]
+    fn resolves_host_bindings_used_as_type_marker_values() {
+        let module = parse_module_ir(
+            &json!({
+                "ir_version": XIAN_IR_V1,
+                "vm_profile": XIAN_VM_V1_PROFILE,
+                "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
+                "module_name": "interface_probe",
+                "source_hash": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+                "docstring": null,
+                "imports": [],
+                "global_declarations": [
+                    {
+                        "node": "binding_decl",
+                        "span": {"line": 1, "col": 0, "end_line": 1, "end_col": 16},
+                        "name": "any_type",
+                        "value": {
+                            "node": "name",
+                            "span": {"line": 1, "col": 11, "end_line": 1, "end_col": 14},
+                            "id": "Any",
+                            "host_binding_id": "typing.any"
+                        }
+                    },
+                    {
+                        "node": "binding_decl",
+                        "span": {"line": 2, "col": 0, "end_line": 2, "end_col": 23},
+                        "name": "variable_type",
+                        "value": {
+                            "node": "name",
+                            "span": {"line": 2, "col": 16, "end_line": 2, "end_col": 24},
+                            "id": "Variable",
+                            "host_binding_id": "storage.variable.new"
+                        }
+                    },
+                    {
+                        "node": "binding_decl",
+                        "span": {"line": 3, "col": 0, "end_line": 3, "end_col": 16},
+                        "name": "hash_type",
+                        "value": {
+                            "node": "name",
+                            "span": {"line": 3, "col": 12, "end_line": 3, "end_col": 16},
+                            "id": "Hash",
+                            "host_binding_id": "storage.hash.new"
+                        }
+                    },
+                    {
+                        "node": "binding_decl",
+                        "span": {"line": 4, "col": 0, "end_line": 4, "end_col": 36},
+                        "name": "foreign_variable_type",
+                        "value": {
+                            "node": "name",
+                            "span": {"line": 4, "col": 24, "end_line": 4, "end_col": 39},
+                            "id": "ForeignVariable",
+                            "host_binding_id": "storage.foreign_variable.new"
+                        }
+                    },
+                    {
+                        "node": "binding_decl",
+                        "span": {"line": 5, "col": 0, "end_line": 5, "end_col": 29},
+                        "name": "foreign_hash_type",
+                        "value": {
+                            "node": "name",
+                            "span": {"line": 5, "col": 20, "end_line": 5, "end_col": 31},
+                            "id": "ForeignHash",
+                            "host_binding_id": "storage.foreign_hash.new"
+                        }
+                    },
+                    {
+                        "node": "binding_decl",
+                        "span": {"line": 6, "col": 0, "end_line": 6, "end_col": 21},
+                        "name": "event_type",
+                        "value": {
+                            "node": "name",
+                            "span": {"line": 6, "col": 13, "end_line": 6, "end_col": 21},
+                            "id": "LogEvent",
+                            "host_binding_id": "event.log.new"
+                        }
+                    }
+                ],
+                "functions": [
+                    {
+                        "node": "function",
+                        "span": {"line": 8, "col": 0, "end_line": 9, "end_col": 94},
+                        "name": "get_type_markers",
+                        "visibility": "export",
+                        "decorator": null,
+                        "docstring": null,
+                        "parameters": [],
+                        "returns": null,
+                        "body": [
+                            {
+                                "node": "return",
+                                "span": {"line": 9, "col": 4, "end_line": 9, "end_col": 94},
+                                "value": {
+                                    "node": "list",
+                                    "span": {"line": 9, "col": 11, "end_line": 9, "end_col": 94},
+                                    "elements": [
+                                        {
+                                            "node": "name",
+                                            "span": {"line": 9, "col": 12, "end_line": 9, "end_col": 20},
+                                            "id": "any_type",
+                                            "host_binding_id": null
+                                        },
+                                        {
+                                            "node": "name",
+                                            "span": {"line": 9, "col": 22, "end_line": 9, "end_col": 35},
+                                            "id": "variable_type",
+                                            "host_binding_id": null
+                                        },
+                                        {
+                                            "node": "name",
+                                            "span": {"line": 9, "col": 37, "end_line": 9, "end_col": 46},
+                                            "id": "hash_type",
+                                            "host_binding_id": null
+                                        },
+                                        {
+                                            "node": "name",
+                                            "span": {"line": 9, "col": 48, "end_line": 9, "end_col": 69},
+                                            "id": "foreign_variable_type",
+                                            "host_binding_id": null
+                                        },
+                                        {
+                                            "node": "name",
+                                            "span": {"line": 9, "col": 71, "end_line": 9, "end_col": 88},
+                                            "id": "foreign_hash_type",
+                                            "host_binding_id": null
+                                        },
+                                        {
+                                            "node": "name",
+                                            "span": {"line": 9, "col": 90, "end_line": 9, "end_col": 100},
+                                            "id": "event_type",
+                                            "host_binding_id": null
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "module_body": [],
+                "host_dependencies": [
+                    {"binding": "Any", "id": "typing.any", "kind": "type_marker", "category": "typing"},
+                    {"binding": "Variable", "id": "storage.variable.new", "kind": "syscall", "category": "storage"},
+                    {"binding": "Hash", "id": "storage.hash.new", "kind": "syscall", "category": "storage"},
+                    {"binding": "ForeignVariable", "id": "storage.foreign_variable.new", "kind": "syscall", "category": "storage"},
+                    {"binding": "ForeignHash", "id": "storage.foreign_hash.new", "kind": "syscall", "category": "storage"},
+                    {"binding": "LogEvent", "id": "event.log.new", "kind": "syscall", "category": "event"}
+                ]
+            })
+            .to_string(),
+        )
+        .expect("module should parse");
+
+        let mut instance = VmInstance::new(module, VmExecutionContext::default())
+            .expect("instance should initialize");
+        let mut host = NoopHost;
+
+        let result = instance
+            .call_function(&mut host, "get_type_markers", vec![], vec![])
+            .expect("type markers should resolve");
+
+        assert_eq!(
+            result,
+            VmValue::List(vec![
+                VmValue::TypeMarker("Any".to_owned()),
+                VmValue::TypeMarker("Variable".to_owned()),
+                VmValue::TypeMarker("Hash".to_owned()),
+                VmValue::TypeMarker("ForeignVariable".to_owned()),
+                VmValue::TypeMarker("ForeignHash".to_owned()),
+                VmValue::TypeMarker("LogEvent".to_owned()),
+            ])
+        );
     }
 
     #[test]

@@ -130,7 +130,7 @@ class ContractModuleFinder:
         driver = cls.current_driver()
         try:
             code = _get_local_contract_runtime(driver, fullname)
-        except RuntimeError, lmdb.Error:
+        except (RuntimeError, lmdb.Error):
             return None
         if code is None:
             return None
