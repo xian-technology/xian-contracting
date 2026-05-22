@@ -308,7 +308,7 @@ class TestComplexContracts(TestCase):
 
         self.assertEqual(v['result'], date)
 
-    def test_hash_sha3_works(self):
+    def test_hash_sha3_text_works(self):
         e = Executor(metering=False)
 
         hashing_works_path = os.path.join(os.path.dirname(__file__), "test_contracts", "hashing_works.s.py")
@@ -317,13 +317,28 @@ class TestComplexContracts(TestCase):
                   kwargs=submission_kwargs_for_file(hashing_works_path))
 
         secret = 'c0d1cc254c2aca8716c6ef170630550d'
-        s3 = e.execute('colin', 'con_hashing_works', 't_sha3', kwargs={'s': secret})
+        s3 = e.execute('colin', 'con_hashing_works', 't_sha3_text', kwargs={'s': secret})
+
+        h = sha3_256()
+        h.update(secret.encode("utf-8"))
+        self.assertEqual(h.hexdigest(), s3['result'])
+
+    def test_hash_sha3_hex_works(self):
+        e = Executor(metering=False)
+
+        hashing_works_path = os.path.join(os.path.dirname(__file__), "test_contracts", "hashing_works.s.py")
+
+        e.execute(**TEST_SUBMISSION_KWARGS,
+                  kwargs=submission_kwargs_for_file(hashing_works_path))
+
+        secret = 'c0d1cc254c2aca8716c6ef170630550d'
+        s3 = e.execute('colin', 'con_hashing_works', 't_sha3_hex', kwargs={'s': secret})
 
         h = sha3_256()
         h.update(bytes.fromhex(secret))
         self.assertEqual(h.hexdigest(), s3['result'])
 
-    def test_hash_sha256_works(self):
+    def test_hash_sha256_text_works(self):
         e = Executor(metering=False)
 
         test_hashing_works_path = os.path.join(os.path.dirname(__file__), "test_contracts", "hashing_works.s.py")
@@ -332,7 +347,22 @@ class TestComplexContracts(TestCase):
                   kwargs=submission_kwargs_for_file(test_hashing_works_path))
 
         secret = 'c0d1cc254c2aca8716c6ef170630550d'
-        s3 = e.execute('colin', 'con_hashing_works', 't_sha256', kwargs={'s': secret})
+        s3 = e.execute('colin', 'con_hashing_works', 't_sha256_text', kwargs={'s': secret})
+
+        h = sha256()
+        h.update(secret.encode("utf-8"))
+        self.assertEqual(h.hexdigest(), s3['result'])
+
+    def test_hash_sha256_hex_works(self):
+        e = Executor(metering=False)
+
+        test_hashing_works_path = os.path.join(os.path.dirname(__file__), "test_contracts", "hashing_works.s.py")
+
+        e.execute(**TEST_SUBMISSION_KWARGS,
+                  kwargs=submission_kwargs_for_file(test_hashing_works_path))
+
+        secret = 'c0d1cc254c2aca8716c6ef170630550d'
+        s3 = e.execute('colin', 'con_hashing_works', 't_sha256_hex', kwargs={'s': secret})
 
         h = sha256()
         h.update(bytes.fromhex(secret))

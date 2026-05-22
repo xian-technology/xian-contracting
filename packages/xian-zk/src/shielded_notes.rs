@@ -2757,11 +2757,10 @@ mod tests {
     use crate::core::verify_groth16_bn254;
 
     #[test]
-    fn recipient_digest_matches_contract_hashing_for_hex_like_values() {
+    fn recipient_digest_matches_contract_text_hashing_for_hex_like_values() {
         let recipient = "ab".repeat(32);
         let expected = {
-            let decoded = hex::decode(&recipient).expect("hex recipient");
-            let digest = Sha3_256::digest(&decoded);
+            let digest = Sha3_256::digest(recipient.as_bytes());
             field_hex(Fr::from_be_bytes_mod_order(&digest))
         };
 

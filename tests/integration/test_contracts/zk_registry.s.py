@@ -161,7 +161,7 @@ def register_vk(
     if bundle_hash != "":
         require_hex_blob("bundle_hash", bundle_hash)
 
-    vk_hash = hashlib.sha3(vk_hex)
+    vk_hash = hashlib.sha3_text(vk_hex)
     index = vk_count.get()
     verifying_keys[vk_id, "scheme"] = scheme
     verifying_keys[vk_id, "curve"] = curve

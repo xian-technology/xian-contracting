@@ -350,12 +350,23 @@ class _LintVisitor(ast.NodeVisitor):
         ast.NodeVisitor.generic_visit(self, node)
 
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
-        if isinstance(node.op, ast.Mult):
-            self.add(
-                ErrorCode.E001,
-                node,
-                detail="Augmented multiplication is not allowed; use x = x * y",
-            )
+        guarded_ops = {
+            ast.Mult: "multiplication",
+            ast.Pow: "exponentiation",
+            ast.LShift: "left shift",
+            ast.RShift: "right shift",
+        }
+        for op_type, name in guarded_ops.items():
+            if isinstance(node.op, op_type):
+                self.add(
+                    ErrorCode.E001,
+                    node,
+                    detail=(
+                        f"Augmented {name} is not allowed; use "
+                        "x = x <operator> y"
+                    ),
+                )
+                break
         ast.NodeVisitor.generic_visit(self, node)
 
     def _check_orm_assign(self, node: ast.Assign, orm_name: str) -> None:

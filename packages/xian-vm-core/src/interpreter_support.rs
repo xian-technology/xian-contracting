@@ -122,6 +122,117 @@ fn repeat_bytes_like(bytes: &[u8], count: &BigInt) -> Result<Vec<u8>, VmExecutio
     Ok(repeated)
 }
 
+pub(super) fn integer_limit_error(kind: &str) -> VmExecutionError {
+    VmExecutionError::new(format!(
+        "{kind} exceeds the maximum allowed integer size of {MAX_INTEGER_BITS} bits"
+    ))
+}
+
+pub(super) fn ensure_bigint_bits(value: &BigInt, kind: &str) -> Result<(), VmExecutionError> {
+    if value.bits() > MAX_INTEGER_BITS {
+        return Err(integer_limit_error(kind));
+    }
+    Ok(())
+}
+
+pub(super) fn checked_int_value(value: BigInt, kind: &str) -> Result<VmValue, VmExecutionError> {
+    ensure_bigint_bits(&value, kind)?;
+    Ok(VmValue::Int(value))
+}
+
+pub(super) fn ensure_int_input_size(value: &str) -> Result<(), VmExecutionError> {
+    if value.len() > MAX_INT_STRING_CHARS {
+        return Err(VmExecutionError::new(format!(
+            "int() input exceeds the maximum allowed length of {MAX_INT_STRING_CHARS} characters"
+        )));
+    }
+    Ok(())
+}
+
+pub(super) fn ensure_int_bytes_input_size(value: &[u8]) -> Result<(), VmExecutionError> {
+    if value.len() > MAX_INT_STRING_CHARS {
+        return Err(VmExecutionError::new(format!(
+            "int() input exceeds the maximum allowed length of {MAX_INT_STRING_CHARS} characters"
+        )));
+    }
+    Ok(())
+}
+
+fn estimated_mul_bits(left: &BigInt, right: &BigInt) -> u64 {
+    if left.is_zero() || right.is_zero() {
+        return 0;
+    }
+    left.bits().saturating_add(right.bits())
+}
+
+fn is_power_of_two_bigint(value: &BigInt) -> bool {
+    if value.sign() == Sign::Minus || value.is_zero() {
+        return false;
+    }
+    let one = BigInt::from(1u8);
+    (value.clone() & (value - &one)).is_zero()
+}
+
+fn estimated_pow_bits(base: &BigInt, exponent: &BigInt) -> Result<u64, VmExecutionError> {
+    if exponent.sign() == Sign::Minus || base.is_zero() || base.abs() == BigInt::from(1u8) {
+        return Ok(1);
+    }
+    let exponent = exponent
+        .to_u64()
+        .ok_or_else(|| integer_limit_error("integer exponentiation"))?;
+    let absolute = base.abs();
+    let base_bits = if is_power_of_two_bigint(&absolute) {
+        absolute.bits().saturating_sub(1)
+    } else {
+        absolute.bits()
+    };
+    base_bits
+        .checked_mul(exponent)
+        .and_then(|value| value.checked_add(1))
+        .ok_or_else(|| integer_limit_error("integer exponentiation"))
+}
+
+fn checked_bigint_mul(left: BigInt, right: BigInt) -> Result<VmValue, VmExecutionError> {
+    if estimated_mul_bits(&left, &right) > MAX_INTEGER_BITS + 1 {
+        return Err(integer_limit_error("integer multiplication"));
+    }
+    checked_int_value(left * right, "integer multiplication")
+}
+
+pub(super) fn checked_bigint_pow(
+    base: &BigInt,
+    exponent: &BigInt,
+    kind: &str,
+) -> Result<VmValue, VmExecutionError> {
+    if estimated_pow_bits(base, exponent)? > MAX_INTEGER_BITS {
+        return Err(integer_limit_error(kind));
+    }
+    checked_int_value(base.pow(bigint_to_u32(exponent, "pow exponent")?), kind)
+}
+
+fn checked_left_shift(left: BigInt, right: BigInt) -> Result<VmValue, VmExecutionError> {
+    if right.sign() == Sign::Minus {
+        return Err(VmExecutionError::new("negative shift count"));
+    }
+    let shift = bigint_to_usize(&right, "shift count")?;
+    let shift_bits = u64::try_from(shift).unwrap_or(u64::MAX);
+    if !left.is_zero() && left.bits().saturating_add(shift_bits) > MAX_INTEGER_BITS {
+        return Err(integer_limit_error("left shift"));
+    }
+    checked_int_value(left << shift, "left shift")
+}
+
+fn checked_right_shift(left: BigInt, right: BigInt) -> Result<VmValue, VmExecutionError> {
+    if right.sign() == Sign::Minus {
+        return Err(VmExecutionError::new("negative shift count"));
+    }
+    if right > BigInt::from(MAX_INTEGER_BITS) {
+        return Err(integer_limit_error("right shift count"));
+    }
+    let shift = bigint_to_usize(&right, "shift count")?;
+    Ok(VmValue::Int(left >> shift))
+}
+
 fn compare_bytes_like(left: &[u8], right: &[u8]) -> std::cmp::Ordering {
     left.cmp(right)
 }
@@ -444,7 +555,7 @@ pub(super) fn apply_binary_operator(
             (left, VmValue::Decimal(right)) => Ok(VmValue::Decimal(
                 coerce_decimal(&left, "left")?.mul(&right)?,
             )),
-            (VmValue::Int(left), VmValue::Int(right)) => Ok(VmValue::Int(left * right)),
+            (VmValue::Int(left), VmValue::Int(right)) => checked_bigint_mul(left, right),
             (VmValue::Float(left), VmValue::Float(right)) => Ok(VmValue::Float(left * right)),
             (VmValue::Int(left), VmValue::Float(right)) => Ok(VmValue::Float(
                 bigint_to_f64(&left, "left int operand")? * right,
@@ -529,9 +640,9 @@ pub(super) fn apply_binary_operator(
             ))),
         },
         "pow" => match (left, right) {
-            (VmValue::Int(left), VmValue::Int(right)) => Ok(VmValue::Int(
-                left.pow(bigint_to_u32(&right, "pow exponent")?),
-            )),
+            (VmValue::Int(left), VmValue::Int(right)) => {
+                checked_bigint_pow(&left, &right, "integer exponentiation")
+            }
             (VmValue::Decimal(left), VmValue::Decimal(right)) => {
                 Ok(VmValue::Decimal(left.pow(&right)?))
             }
@@ -604,13 +715,13 @@ pub(super) fn apply_binary_operator(
         },
         "lshift" => {
             let left = left.as_bigint()?;
-            let right = bigint_to_usize(&right.as_bigint()?, "shift count")?;
-            Ok(VmValue::Int(left << right))
+            let right = right.as_bigint()?;
+            checked_left_shift(left, right)
         }
         "rshift" => {
             let left = left.as_bigint()?;
-            let right = bigint_to_usize(&right.as_bigint()?, "shift count")?;
-            Ok(VmValue::Int(left >> right))
+            let right = right.as_bigint()?;
+            checked_right_shift(left, right)
         }
         other => Err(VmExecutionError::new(format!(
             "unsupported binary operator '{other}'"
@@ -894,29 +1005,69 @@ pub(super) fn time_timedelta_new(
     )?))
 }
 
-pub(super) fn hash_sha3_256(
-    args: Vec<VmValue>,
-    kwargs: Vec<(String, VmValue)>,
-) -> Result<VmValue, VmExecutionError> {
-    if !kwargs.is_empty() || args.len() != 1 {
-        return Err(VmExecutionError::new("hashlib.sha3() expects one argument"));
+fn strict_hash_hex_bytes(value: &str) -> Result<Vec<u8>, VmExecutionError> {
+    if value.len() % 2 != 0 {
+        return Err(VmExecutionError::new(
+            "hash hex input must contain whole bytes",
+        ));
     }
-    let mut hasher = Sha3_256::new();
-    hasher.update(hash_bytes_from_value(&args[0])?);
-    Ok(VmValue::String(hex::encode(hasher.finalize())))
+    hex::decode(value)
+        .map_err(|_| VmExecutionError::new("hash hex input must be unprefixed hexadecimal"))
 }
 
-pub(super) fn hash_sha256(
+pub(super) fn hash_sha3_256_text(
     args: Vec<VmValue>,
     kwargs: Vec<(String, VmValue)>,
 ) -> Result<VmValue, VmExecutionError> {
     if !kwargs.is_empty() || args.len() != 1 {
         return Err(VmExecutionError::new(
-            "hashlib.sha256() expects one argument",
+            "hashlib.sha3_text() expects one argument",
+        ));
+    }
+    let mut hasher = Sha3_256::new();
+    hasher.update(args[0].as_string()?.as_bytes());
+    Ok(VmValue::String(hex::encode(hasher.finalize())))
+}
+
+pub(super) fn hash_sha3_256_hex(
+    args: Vec<VmValue>,
+    kwargs: Vec<(String, VmValue)>,
+) -> Result<VmValue, VmExecutionError> {
+    if !kwargs.is_empty() || args.len() != 1 {
+        return Err(VmExecutionError::new(
+            "hashlib.sha3_hex() expects one argument",
+        ));
+    }
+    let mut hasher = Sha3_256::new();
+    hasher.update(strict_hash_hex_bytes(&args[0].as_string()?)?);
+    Ok(VmValue::String(hex::encode(hasher.finalize())))
+}
+
+pub(super) fn hash_sha256_text(
+    args: Vec<VmValue>,
+    kwargs: Vec<(String, VmValue)>,
+) -> Result<VmValue, VmExecutionError> {
+    if !kwargs.is_empty() || args.len() != 1 {
+        return Err(VmExecutionError::new(
+            "hashlib.sha256_text() expects one argument",
         ));
     }
     let mut hasher = Sha256::new();
-    hasher.update(hash_bytes_from_value(&args[0])?);
+    hasher.update(args[0].as_string()?.as_bytes());
+    Ok(VmValue::String(hex::encode(hasher.finalize())))
+}
+
+pub(super) fn hash_sha256_hex(
+    args: Vec<VmValue>,
+    kwargs: Vec<(String, VmValue)>,
+) -> Result<VmValue, VmExecutionError> {
+    if !kwargs.is_empty() || args.len() != 1 {
+        return Err(VmExecutionError::new(
+            "hashlib.sha256_hex() expects one argument",
+        ));
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(strict_hash_hex_bytes(&args[0].as_string()?)?);
     Ok(VmValue::String(hex::encode(hasher.finalize())))
 }
 
@@ -971,17 +1122,6 @@ pub(super) fn crypto_key_is_valid(
     Ok(VmValue::Bool(
         key.len() == 64 && key.chars().all(|ch| ch.is_ascii_hexdigit()),
     ))
-}
-
-pub(super) fn hash_bytes_from_value(value: &VmValue) -> Result<Vec<u8>, VmExecutionError> {
-    if let Some(bytes) = bytes_like_data(value) {
-        return Ok(bytes.to_vec());
-    }
-    let input = value.as_string()?;
-    match hex::decode(&input) {
-        Ok(bytes) => Ok(bytes),
-        Err(_) => Ok(input.into_bytes()),
-    }
 }
 
 pub(super) fn positional_or_keyword_i64(

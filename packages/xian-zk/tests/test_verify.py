@@ -116,8 +116,8 @@ def test_shielded_note_flow_vectors_verify():
     )
 
 
-def test_recipient_digest_matches_contract_hashing_for_hex_like_values():
+def test_recipient_digest_matches_contract_text_hashing_for_hex_like_values():
     recipient = "ab" * 32
-    digest = hashlib.sha3_256(bytes.fromhex(recipient)).hexdigest()
+    digest = hashlib.sha3_256(recipient.encode("utf-8")).hexdigest()
     expected = f"0x{(int(digest, 16) % FIELD_MODULUS):064x}"
     assert recipient_digest(recipient) == expected

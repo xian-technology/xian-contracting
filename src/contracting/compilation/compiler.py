@@ -84,6 +84,22 @@ class ContractingCompiler(ast.NodeTransformer):
             location,
         )
 
+    def _guarded_binary_call(
+        self,
+        helper_name: str,
+        left: ast.expr,
+        right: ast.expr,
+        location: ast.AST,
+    ) -> ast.Call:
+        return ast.copy_location(
+            ast.Call(
+                func=ast.Name(id=helper_name, ctx=ast.Load()),
+                args=[left, right],
+                keywords=[],
+            ),
+            location,
+        )
+
     def compile(self, source: str, lint=True, vm_profile: str | None = None):
         tree = self.parse(source, lint=lint, vm_profile=vm_profile)
 
@@ -226,6 +242,35 @@ class ContractingCompiler(ast.NodeTransformer):
         self.generic_visit(node)
         if isinstance(node.op, ast.Mult):
             return self._guarded_mul_call(node.left, node.right, node)
+        if isinstance(node.op, ast.Pow):
+            return self._guarded_binary_call(
+                "__xian_pow__",
+                node.left,
+                node.right,
+                node,
+            )
+        if isinstance(node.op, ast.LShift):
+            return self._guarded_binary_call(
+                "__xian_lshift__",
+                node.left,
+                node.right,
+                node,
+            )
+        if isinstance(node.op, ast.RShift):
+            return self._guarded_binary_call(
+                "__xian_rshift__",
+                node.left,
+                node.right,
+                node,
+            )
+        return node
+
+    def visit_Call(self, node):
+        self.generic_visit(node)
+        if isinstance(node.func, ast.Name) and node.func.id == "int":
+            node.func.id = "__xian_int__"
+        elif isinstance(node.func, ast.Name) and node.func.id == "pow":
+            node.func.id = "__xian_pow__"
         return node
 
     def visit_Name(self, node):

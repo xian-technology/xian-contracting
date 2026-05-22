@@ -1,7 +1,7 @@
 use crate::{validate_module_ir, FunctionIr, ModuleIr};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use num_bigint::{BigInt, Sign};
-use num_traits::{Num, Signed, Zero};
+use num_traits::{Num, Signed, ToPrimitive, Zero};
 use serde_json::{Map, Value};
 use sha2::Digest as Sha2Digest;
 use sha2::Sha256;
@@ -16,6 +16,9 @@ const MAX_HASH_DIMENSIONS: usize = 16;
 const MAX_STORAGE_KEY_SIZE: usize = 1024;
 pub(crate) const MAX_SEQUENCE_LENGTH: usize = 1024 * 128;
 pub(crate) const MAX_BINARY_ALLOCATION_BYTES: usize = 1024 * 128;
+pub(crate) const MAX_INTEGER_BITS: u64 = (MAX_BINARY_ALLOCATION_BYTES as u64) * 8;
+pub(crate) const MAX_INT_STRING_CHARS: usize = 8192;
+pub(crate) const MAX_MODULAR_POW_EXPONENT_BITS: u64 = 8192;
 pub(crate) const VM_GAS_CALL_DISPATCH: u64 = 5_000;
 const VM_GAS_EVENT_EMIT: u64 = 8_000;
 const VM_GAS_VARIABLE_GET: u64 = 1_280;
@@ -1781,8 +1784,10 @@ impl VmInstance {
             "time.datetime.new" => time_datetime_new(args, kwargs),
             "time.datetime.strptime" => time_datetime_strptime(args, kwargs),
             "time.timedelta.new" => time_timedelta_new(args, kwargs),
-            "hash.sha3_256" => hash_sha3_256(args, kwargs),
-            "hash.sha256" => hash_sha256(args, kwargs),
+            "hash.sha3_256_text" => hash_sha3_256_text(args, kwargs),
+            "hash.sha3_256_hex" => hash_sha3_256_hex(args, kwargs),
+            "hash.sha256_text" => hash_sha256_text(args, kwargs),
+            "hash.sha256_hex" => hash_sha256_hex(args, kwargs),
             "crypto.ed25519_verify" => crypto_ed25519_verify(args, kwargs),
             "crypto.key_is_valid" => crypto_key_is_valid(args, kwargs),
             "storage.variable.get" => {
@@ -2298,6 +2303,7 @@ impl VmInstance {
                 }
                 match (&args[0], args.get(1)) {
                     (VmValue::String(value), Some(base)) => {
+                        ensure_int_input_size(value)?;
                         let base = bigint_to_u32(&base.as_bigint()?, "int() base")?;
                         if !(2..=36).contains(&base) {
                             return Err(VmExecutionError::new(
@@ -2305,37 +2311,46 @@ impl VmInstance {
                             ));
                         }
                         BigInt::from_str_radix(value, base)
-                            .map(VmValue::Int)
+                            .map(|value| checked_int_value(value, "int()"))
                             .map_err(|_| {
                                 VmExecutionError::new(format!(
                                     "cannot convert '{value}' to int with base {base}"
                                 ))
-                            })
+                            })?
                     }
                     (_, Some(_)) => Err(VmExecutionError::new(
                         "int() base argument requires a string input",
                     )),
-                    (VmValue::Int(value), None) => Ok(VmValue::Int(value.clone())),
+                    (VmValue::Int(value), None) => checked_int_value(value.clone(), "int()"),
                     (VmValue::Bool(value), None) => Ok(vm_int(if *value { 1 } else { 0 })),
                     (VmValue::Float(value), None) => {
-                        Ok(VmValue::Int(f64_to_bigint_trunc(*value, "float() input")?))
+                        checked_int_value(f64_to_bigint_trunc(*value, "float() input")?, "int()")
                     }
-                    (VmValue::Decimal(value), None) => Ok(VmValue::Int(value.to_bigint())),
+                    (VmValue::Decimal(value), None) => {
+                        checked_int_value(value.to_bigint(), "int()")
+                    }
                     (VmValue::String(value), None) => {
-                        BigInt::from_str(value).map(VmValue::Int).map_err(|_| {
-                            VmExecutionError::new(format!("cannot convert '{value}' to int"))
-                        })
+                        ensure_int_input_size(value)?;
+                        BigInt::from_str(value)
+                            .map(|value| checked_int_value(value, "int()"))
+                            .map_err(|_| {
+                                VmExecutionError::new(format!("cannot convert '{value}' to int"))
+                            })?
                     }
                     (VmValue::Bytes(value), None) | (VmValue::ByteArray(value), None) => {
+                        ensure_int_bytes_input_size(value)?;
                         let rendered = String::from_utf8(value.clone()).map_err(|_| {
                             VmExecutionError::new("cannot convert non-text bytes to int")
                         })?;
-                        BigInt::from_str(&rendered).map(VmValue::Int).map_err(|_| {
-                            VmExecutionError::new(format!(
-                                "cannot convert '{}' to int",
-                                String::from_utf8_lossy(value)
-                            ))
-                        })
+                        ensure_int_input_size(&rendered)?;
+                        BigInt::from_str(&rendered)
+                            .map(|value| checked_int_value(value, "int()"))
+                            .map_err(|_| {
+                                VmExecutionError::new(format!(
+                                    "cannot convert '{}' to int",
+                                    String::from_utf8_lossy(value)
+                                ))
+                            })?
                     }
                     (other, None) => Err(VmExecutionError::new(format!(
                         "int() does not support {}",
@@ -2361,12 +2376,19 @@ impl VmInstance {
                     if modulus.is_zero() {
                         return Err(VmExecutionError::new("pow() 3rd argument cannot be 0"));
                     }
-                    return Ok(VmValue::Int(base.modpow(&exponent, &modulus)));
+                    ensure_bigint_bits(&modulus, "modular exponentiation modulus")?;
+                    if exponent.bits() > MAX_MODULAR_POW_EXPONENT_BITS {
+                        return Err(integer_limit_error("modular exponentiation exponent"));
+                    }
+                    return checked_int_value(
+                        base.modpow(&exponent, &modulus),
+                        "modular exponentiation",
+                    );
                 }
                 match (&args[0], &args[1]) {
-                    (VmValue::Int(base), VmValue::Int(exponent)) => Ok(VmValue::Int(
-                        base.pow(bigint_to_u32(exponent, "pow() exponent")?),
-                    )),
+                    (VmValue::Int(base), VmValue::Int(exponent)) => {
+                        checked_bigint_pow(base, exponent, "integer exponentiation")
+                    }
                     (VmValue::Decimal(base), VmValue::Decimal(exponent)) => {
                         Ok(VmValue::Decimal(base.pow(exponent)?))
                     }
@@ -4087,6 +4109,55 @@ mod tests {
             cubic,
             VmDecimal::from_str_literal("0.001").expect("expected decimal should parse")
         );
+    }
+
+    #[test]
+    fn hash_syscalls_separate_text_and_hex_inputs() {
+        let text = hash_sha3_256_text(vec![VmValue::String("68656c6c6f".to_owned())], vec![])
+            .expect("text hash should succeed");
+        let decoded = hash_sha3_256_hex(vec![VmValue::String("68656c6c6f".to_owned())], vec![])
+            .expect("hex hash should succeed");
+
+        assert_eq!(
+            text,
+            VmValue::String(hex::encode(Sha3_256::digest("68656c6c6f".as_bytes())))
+        );
+        assert_eq!(
+            decoded,
+            VmValue::String(hex::encode(Sha3_256::digest(b"hello")))
+        );
+        assert_ne!(text, decoded);
+
+        let error = hash_sha3_256_hex(vec![VmValue::String("68 65".to_owned())], vec![])
+            .expect_err("hex mode should reject whitespace");
+        assert!(error.to_string().contains("hash hex input"));
+    }
+
+    #[test]
+    fn integer_arithmetic_rejects_oversized_results() {
+        let huge = BigInt::from(1u8) << (MAX_INTEGER_BITS as usize);
+        let mul_error = apply_binary_operator("mul", VmValue::Int(huge), vm_int(2))
+            .expect_err("oversized multiplication should fail");
+        assert!(mul_error
+            .to_string()
+            .contains("integer multiplication exceeds"));
+
+        let pow_error = apply_binary_operator("pow", vm_int(2), vm_int(MAX_INTEGER_BITS))
+            .expect_err("oversized exponentiation should fail");
+        assert!(pow_error
+            .to_string()
+            .contains("integer exponentiation exceeds"));
+
+        let shift_error = apply_binary_operator("lshift", vm_int(1), vm_int(MAX_INTEGER_BITS))
+            .expect_err("oversized left shift should fail");
+        assert!(shift_error.to_string().contains("left shift exceeds"));
+    }
+
+    #[test]
+    fn int_input_size_guard_rejects_oversized_strings() {
+        let value = "9".repeat(MAX_INT_STRING_CHARS + 1);
+        let error = ensure_int_input_size(&value).expect_err("oversized int input should fail");
+        assert!(error.to_string().contains("int() input exceeds"));
     }
 
     #[test]

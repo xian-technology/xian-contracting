@@ -758,8 +758,8 @@ def probe(vk: str, message: str, signature: str):
     snapshot = {
         "after_now": end > now,
         "delta_seconds": delta.seconds,
-        "sha3": hashlib.sha3(message),
-        "sha256": hashlib.sha256(message),
+        "sha3": hashlib.sha3_text(message),
+        "sha256": hashlib.sha256_text(message),
         "key_ok": crypto.key_is_valid(vk),
         "sig_ok": crypto.verify(vk, message, signature),
     }
@@ -798,7 +798,7 @@ last_snapshot = Variable()
 
 @export
 def probe():
-    digest = int(hashlib.sha3("xian-vm-bigint"), 16) % FIELD_MODULUS
+    digest = int(hashlib.sha3_text("xian-vm-bigint"), 16) % FIELD_MODULUS
     reduced = pow(digest + 7, 7, FIELD_MODULUS)
     rendered_parts = []
     rendered_parts.extend(["0x", format(reduced, "064x")])

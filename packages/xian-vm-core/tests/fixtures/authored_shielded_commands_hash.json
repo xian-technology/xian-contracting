@@ -4511,7 +4511,7 @@
                 "node": "assign",
                 "span": {
                   "col": 4,
-                  "end_col": 34,
+                  "end_col": 39,
                   "end_line": 164,
                   "line": 164
                 },
@@ -4535,8 +4535,8 @@
                       "id": "vk_hex",
                       "node": "name",
                       "span": {
-                        "col": 27,
-                        "end_col": 33,
+                        "col": 32,
+                        "end_col": 38,
                         "end_line": 164,
                         "line": 164
                       }
@@ -4544,13 +4544,13 @@
                   ],
                   "event_binding": null,
                   "func": {
-                    "attr": "sha3",
-                    "host_binding_id": "hash.sha3_256",
+                    "attr": "sha3_text",
+                    "host_binding_id": "hash.sha3_256_text",
                     "node": "attribute",
-                    "path": "hashlib.sha3",
+                    "path": "hashlib.sha3_text",
                     "span": {
                       "col": 14,
-                      "end_col": 26,
+                      "end_col": 31,
                       "end_line": 164,
                       "line": 164
                     },
@@ -4570,11 +4570,11 @@
                   "node": "call",
                   "span": {
                     "col": 14,
-                    "end_col": 34,
+                    "end_col": 39,
                     "end_line": 164,
                     "line": 164
                   },
-                  "syscall_id": "hash.sha3_256"
+                  "syscall_id": "hash.sha3_256_text"
                 }
               },
               {
@@ -12627,9 +12627,9 @@
             "kind": "syscall"
           },
           {
-            "binding": "hashlib.sha3",
+            "binding": "hashlib.sha3_text",
             "category": "hashing",
-            "id": "hash.sha3_256",
+            "id": "hash.sha3_256_text",
             "kind": "syscall"
           },
           {
@@ -12679,7 +12679,7 @@
         "ir_version": "xian_ir_v1",
         "module_body": [],
         "module_name": "con_zk_registry",
-        "source_hash": "ed8af9e291ba0851a5375b67cfea6522613d4d0888301ff62a5dc8501b926572",
+        "source_hash": "02fd9727a81dbc11f2bf0e22bba929b1f5dde6345ff6a0bce0d6134dbbe86bdc",
         "vm_profile": "xian_vm_v1"
       },
       "module_name": "con_zk_registry",
@@ -14483,7 +14483,7 @@
                 "node": "return",
                 "span": {
                   "col": 4,
-                  "end_col": 55,
+                  "end_col": 60,
                   "end_line": 55,
                   "line": 55
                 },
@@ -14497,8 +14497,8 @@
                             "id": "value",
                             "node": "name",
                             "span": {
-                              "col": 28,
-                              "end_col": 33,
+                              "col": 33,
+                              "end_col": 38,
                               "end_line": 55,
                               "line": 55
                             }
@@ -14506,13 +14506,13 @@
                         ],
                         "event_binding": null,
                         "func": {
-                          "attr": "sha3",
-                          "host_binding_id": "hash.sha3_256",
+                          "attr": "sha3_text",
+                          "host_binding_id": "hash.sha3_256_text",
                           "node": "attribute",
-                          "path": "hashlib.sha3",
+                          "path": "hashlib.sha3_text",
                           "span": {
                             "col": 15,
-                            "end_col": 27,
+                            "end_col": 32,
                             "end_line": 55,
                             "line": 55
                           },
@@ -14532,17 +14532,17 @@
                         "node": "call",
                         "span": {
                           "col": 15,
-                          "end_col": 34,
+                          "end_col": 39,
                           "end_line": 55,
                           "line": 55
                         },
-                        "syscall_id": "hash.sha3_256"
+                        "syscall_id": "hash.sha3_256_text"
                       },
                       {
                         "node": "constant",
                         "span": {
-                          "col": 36,
-                          "end_col": 38,
+                          "col": 41,
+                          "end_col": 43,
                           "end_line": 55,
                           "line": 55
                         },
@@ -14566,7 +14566,7 @@
                     "node": "call",
                     "span": {
                       "col": 11,
-                      "end_col": 39,
+                      "end_col": 44,
                       "end_line": 55,
                       "line": 55
                     },
@@ -14579,15 +14579,15 @@
                     "id": "FIELD_MODULUS",
                     "node": "name",
                     "span": {
-                      "col": 42,
-                      "end_col": 55,
+                      "col": 47,
+                      "end_col": 60,
                       "end_line": 55,
                       "line": 55
                     }
                   },
                   "span": {
                     "col": 11,
-                    "end_col": 55,
+                    "end_col": 60,
                     "end_line": 55,
                     "line": 55
                   }
@@ -14615,7 +14615,7 @@
             "returns": null,
             "span": {
               "col": 0,
-              "end_col": 55,
+              "end_col": 60,
               "end_line": 55,
               "line": 53
             },
@@ -15931,32 +15931,54 @@
                 }
               },
               {
-                "node": "aug_assign",
-                "operator": "mod",
+                "node": "assign",
                 "span": {
                   "col": 4,
-                  "end_col": 26,
+                  "end_col": 33,
                   "end_line": 90,
                   "line": 90
                 },
-                "target": {
-                  "host_binding_id": null,
-                  "id": "state",
-                  "node": "name",
-                  "span": {
-                    "col": 4,
-                    "end_col": 9,
-                    "end_line": 90,
-                    "line": 90
+                "targets": [
+                  {
+                    "host_binding_id": null,
+                    "id": "state",
+                    "node": "name",
+                    "span": {
+                      "col": 4,
+                      "end_col": 9,
+                      "end_line": 90,
+                      "line": 90
+                    }
                   }
-                },
+                ],
                 "value": {
-                  "host_binding_id": null,
-                  "id": "FIELD_MODULUS",
-                  "node": "name",
+                  "left": {
+                    "host_binding_id": null,
+                    "id": "state",
+                    "node": "name",
+                    "span": {
+                      "col": 12,
+                      "end_col": 17,
+                      "end_line": 90,
+                      "line": 90
+                    }
+                  },
+                  "node": "bin_op",
+                  "operator": "mod",
+                  "right": {
+                    "host_binding_id": null,
+                    "id": "FIELD_MODULUS",
+                    "node": "name",
+                    "span": {
+                      "col": 20,
+                      "end_col": 33,
+                      "end_line": 90,
+                      "line": 90
+                    }
+                  },
                   "span": {
-                    "col": 13,
-                    "end_col": 26,
+                    "col": 12,
+                    "end_col": 33,
                     "end_line": 90,
                     "line": 90
                   }
@@ -56882,9 +56904,9 @@
             "kind": "syscall"
           },
           {
-            "binding": "hashlib.sha3",
+            "binding": "hashlib.sha3_text",
             "category": "hashing",
-            "id": "hash.sha3_256",
+            "id": "hash.sha3_256_text",
             "kind": "syscall"
           },
           {
@@ -57024,7 +57046,7 @@
         "ir_version": "xian_ir_v1",
         "module_body": [],
         "module_name": "con_authored_shielded_commands",
-        "source_hash": "8af42f9f3a86f71b0c8ae00d808628577300277013efdf6cdf92f86bfa81e9ab",
+        "source_hash": "26f0e08dd171a752fd8c6ace2be369d4574cee047a4c4c8f9ca9f29941e9765d",
         "vm_profile": "xian_vm_v1"
       },
       "module_name": "con_authored_shielded_commands",

@@ -50,8 +50,9 @@ impl ParityHarness {
                     .expect("fixture module should include IR"),
             )
             .expect("module IR should deserialize");
-            let mut instance = VmInstance::new(module_ir, VmExecutionContext::default())
-                .expect("module should initialize");
+            let mut instance =
+                VmInstance::new_with_host(module_ir, VmExecutionContext::default(), &mut harness)
+                    .expect("module should initialize");
             apply_initial_state(
                 &mut instance,
                 module
@@ -165,6 +166,21 @@ impl ParityHarness {
             .map(|module| module.instance.has_export(export_name))
             .unwrap_or(false)
     }
+
+    fn module_satisfies_interface(&self, module_name: &str, interface: &[VmValue]) -> bool {
+        if !self.module_exists(module_name) {
+            return false;
+        }
+        interface
+            .iter()
+            .all(|entry| match dict_string_field(entry, "kind") {
+                Some(kind) if kind == "func" => dict_string_field(entry, "name")
+                    .map(|name| self.module_has_export(module_name, &name))
+                    .unwrap_or(false),
+                Some(kind) if kind == "var" => true,
+                _ => false,
+            })
+    }
 }
 
 impl VmHost for ParityHarness {
@@ -253,6 +269,15 @@ impl VmHost for ParityHarness {
                 required_string_arg("module", &args, &kwargs, 0)?,
                 required_string_arg("export_name", &args, &kwargs, 1)?,
             ))),
+            "contract.interface.func" => interface_func_value(&args, &kwargs),
+            "contract.interface.var" => interface_var_value(&args, &kwargs),
+            "contract.enforce_interface" => {
+                let module_name = required_contract_name_arg("contract", &args, &kwargs, 0)?;
+                let interface = required_interface_list_arg("interface", &args, &kwargs, 1)?;
+                Ok(VmValue::Bool(
+                    self.module_satisfies_interface(&module_name, interface),
+                ))
+            }
             "zk.shielded_command_nullifier_digest" => Ok(VmValue::String(
                 shielded_command_nullifier_digest_hex(&required_string_list_arg(
                     "input_nullifiers",
@@ -1027,6 +1052,20 @@ fn required_argument<'a>(
         .ok_or_else(|| VmExecutionError::new(format!("missing required argument '{name}'")))
 }
 
+fn optional_argument<'a>(
+    name: &str,
+    args: &'a [VmValue],
+    kwargs: &'a [(String, VmValue)],
+    position: usize,
+) -> Option<&'a VmValue> {
+    args.get(position).or_else(|| {
+        kwargs
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| value)
+    })
+}
+
 fn required_string_arg<'a>(
     name: &str,
     args: &'a [VmValue],
@@ -1037,6 +1076,39 @@ fn required_string_arg<'a>(
         VmValue::String(value) => Ok(value),
         other => Err(VmExecutionError::new(format!(
             "argument '{name}' must be a string, got {}",
+            vm_value_type_name(other)
+        ))),
+    }
+}
+
+fn required_contract_name_arg(
+    name: &str,
+    args: &[VmValue],
+    kwargs: &[(String, VmValue)],
+    position: usize,
+) -> Result<String, VmExecutionError> {
+    match required_argument(name, args, kwargs, position)? {
+        VmValue::String(value) => Ok(value.clone()),
+        VmValue::ContractHandle(handle) => Ok(handle.module.clone()),
+        other => Err(VmExecutionError::new(format!(
+            "argument '{name}' must be a contract name or handle, got {}",
+            vm_value_type_name(other)
+        ))),
+    }
+}
+
+fn optional_bool_arg(
+    name: &str,
+    args: &[VmValue],
+    kwargs: &[(String, VmValue)],
+    position: usize,
+    default: bool,
+) -> Result<bool, VmExecutionError> {
+    match optional_argument(name, args, kwargs, position) {
+        None => Ok(default),
+        Some(VmValue::Bool(value)) => Ok(*value),
+        Some(other) => Err(VmExecutionError::new(format!(
+            "argument '{name}' must be a bool, got {}",
             vm_value_type_name(other)
         ))),
     }
@@ -1054,6 +1126,21 @@ fn required_u64_arg(
             .ok_or_else(|| VmExecutionError::new(format!("argument '{name}' must fit into u64"))),
         other => Err(VmExecutionError::new(format!(
             "argument '{name}' must be an integer, got {}",
+            vm_value_type_name(other)
+        ))),
+    }
+}
+
+fn required_interface_list_arg<'a>(
+    name: &str,
+    args: &'a [VmValue],
+    kwargs: &'a [(String, VmValue)],
+    position: usize,
+) -> Result<&'a [VmValue], VmExecutionError> {
+    match required_argument(name, args, kwargs, position)? {
+        VmValue::List(values) | VmValue::Tuple(values) => Ok(values),
+        other => Err(VmExecutionError::new(format!(
+            "argument '{name}' must be a list, got {}",
             vm_value_type_name(other)
         ))),
     }
@@ -1112,4 +1199,57 @@ fn vm_value_type_name(value: &VmValue) -> &'static str {
         VmValue::TypeMarker(_) => "type_marker",
         VmValue::Exception(_) => "exception",
     }
+}
+
+fn interface_func_value(
+    args: &[VmValue],
+    kwargs: &[(String, VmValue)],
+) -> Result<VmValue, VmExecutionError> {
+    let name = required_string_arg("name", args, kwargs, 0)?.to_owned();
+    let private = optional_bool_arg("private", args, kwargs, 2, false)?;
+    let interface_args = optional_argument("args", args, kwargs, 1)
+        .cloned()
+        .unwrap_or_else(|| VmValue::Tuple(Vec::new()));
+    Ok(VmValue::Dict(vec![
+        (
+            VmValue::String("kind".to_owned()),
+            VmValue::String("func".to_owned()),
+        ),
+        (VmValue::String("name".to_owned()), VmValue::String(name)),
+        (VmValue::String("args".to_owned()), interface_args),
+        (
+            VmValue::String("private".to_owned()),
+            VmValue::Bool(private),
+        ),
+    ]))
+}
+
+fn interface_var_value(
+    args: &[VmValue],
+    kwargs: &[(String, VmValue)],
+) -> Result<VmValue, VmExecutionError> {
+    let name = required_string_arg("name", args, kwargs, 0)?.to_owned();
+    let type_value = required_argument("t", args, kwargs, 1)?.clone();
+    Ok(VmValue::Dict(vec![
+        (
+            VmValue::String("kind".to_owned()),
+            VmValue::String("var".to_owned()),
+        ),
+        (VmValue::String("name".to_owned()), VmValue::String(name)),
+        (VmValue::String("type".to_owned()), type_value),
+    ]))
+}
+
+fn dict_string_field(value: &VmValue, field: &str) -> Option<String> {
+    let VmValue::Dict(entries) = value else {
+        return None;
+    };
+    entries.iter().find_map(|(key, value)| {
+        if matches!(key, VmValue::String(key) if key == field) {
+            if let VmValue::String(value) = value {
+                return Some(value.clone());
+            }
+        }
+        None
+    })
 }

@@ -17,7 +17,7 @@ def initiate(participant: str, expiration: datetime.datetime, hashlock: str, amo
 @export
 def redeem(secret: str):
 
-    hashlock = hashlib.sha256(secret)
+    hashlock = hashlib.sha256_hex(secret)
 
     result = swaps[ctx.caller, hashlock]
 
@@ -36,7 +36,7 @@ def refund(participant: str, secret: str):
     assert participant != ctx.caller and participant != ctx.signer, \
         'Caller and signer cannot issue a refund.'
 
-    hashlock = hashlib.sha256(secret)
+    hashlock = hashlib.sha256_hex(secret)
 
     result = swaps[participant, hashlock]
 

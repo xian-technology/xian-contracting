@@ -4,7 +4,7 @@ hhash = Hash(default_value=0)
 def seed():
     hashed_data = 'woohoo'
     while True:
-        hashed_data = hashlib.sha3(hashed_data)
+        hashed_data = hashlib.sha3_text(hashed_data)
         hhash[hashed_data] = 'a'
 
 @export

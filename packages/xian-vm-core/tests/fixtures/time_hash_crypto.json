@@ -466,8 +466,8 @@
                             "id": "message",
                             "node": "name",
                             "span": {
-                              "col": 29,
-                              "end_col": 36,
+                              "col": 34,
+                              "end_col": 41,
                               "end_line": 11,
                               "line": 11
                             }
@@ -475,13 +475,13 @@
                         ],
                         "event_binding": null,
                         "func": {
-                          "attr": "sha3",
-                          "host_binding_id": "hash.sha3_256",
+                          "attr": "sha3_text",
+                          "host_binding_id": "hash.sha3_256_text",
                           "node": "attribute",
-                          "path": "hashlib.sha3",
+                          "path": "hashlib.sha3_text",
                           "span": {
                             "col": 16,
-                            "end_col": 28,
+                            "end_col": 33,
                             "end_line": 11,
                             "line": 11
                           },
@@ -501,11 +501,11 @@
                         "node": "call",
                         "span": {
                           "col": 16,
-                          "end_col": 37,
+                          "end_col": 42,
                           "end_line": 11,
                           "line": 11
                         },
-                        "syscall_id": "hash.sha3_256"
+                        "syscall_id": "hash.sha3_256_text"
                       }
                     },
                     {
@@ -527,8 +527,8 @@
                             "id": "message",
                             "node": "name",
                             "span": {
-                              "col": 33,
-                              "end_col": 40,
+                              "col": 38,
+                              "end_col": 45,
                               "end_line": 12,
                               "line": 12
                             }
@@ -536,13 +536,13 @@
                         ],
                         "event_binding": null,
                         "func": {
-                          "attr": "sha256",
-                          "host_binding_id": "hash.sha256",
+                          "attr": "sha256_text",
+                          "host_binding_id": "hash.sha256_text",
                           "node": "attribute",
-                          "path": "hashlib.sha256",
+                          "path": "hashlib.sha256_text",
                           "span": {
                             "col": 18,
-                            "end_col": 32,
+                            "end_col": 37,
                             "end_line": 12,
                             "line": 12
                           },
@@ -562,11 +562,11 @@
                         "node": "call",
                         "span": {
                           "col": 18,
-                          "end_col": 41,
+                          "end_col": 46,
                           "end_line": 12,
                           "line": 12
                         },
-                        "syscall_id": "hash.sha256"
+                        "syscall_id": "hash.sha256_text"
                       }
                     },
                     {
@@ -903,15 +903,15 @@
             "kind": "env_value"
           },
           {
-            "binding": "hashlib.sha256",
+            "binding": "hashlib.sha256_text",
             "category": "hashing",
-            "id": "hash.sha256",
+            "id": "hash.sha256_text",
             "kind": "syscall"
           },
           {
-            "binding": "hashlib.sha3",
+            "binding": "hashlib.sha3_text",
             "category": "hashing",
-            "id": "hash.sha3_256",
+            "id": "hash.sha3_256_text",
             "kind": "syscall"
           },
           {
@@ -967,7 +967,7 @@
         "ir_version": "xian_ir_v1",
         "module_body": [],
         "module_name": "con_vm_parity_time_hash_crypto",
-        "source_hash": "53061c498d26d2020c0006b2d61a8538ffb90ce1e86d638370ed4ed8eaab5998",
+        "source_hash": "84dc1f463de2c3689fa641f4c6b3290022f60415e463b5229981b5ef207f4d53",
         "vm_profile": "xian_vm_v1"
       },
       "module_name": "con_vm_parity_time_hash_crypto",

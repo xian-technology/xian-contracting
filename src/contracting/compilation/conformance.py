@@ -409,7 +409,7 @@ def probe(value: int):
     flags["value"] = value
     flags["value"] &= 14
     flags["value"] ^= 3
-    flags["value"] <<= 1
+    flags["value"] = flags["value"] << 1
     return {
         "stored": flags["value"],
         "and": value & 6,
@@ -894,8 +894,8 @@ def probe():
             "2026-04-13 12:34:56",
             "%Y-%m-%d %H:%M:%S",
         ) + datetime.DAYS,
-        "sha256": hashlib.sha256("hello"),
-        "sha3": hashlib.sha3("hello"),
+        "sha256": hashlib.sha256_text("hello"),
+        "sha3": hashlib.sha3_text("hello"),
         "key_valid": crypto.key_is_valid("0" * 64),
         "randbits": random.getrandbits(8),
         "randrange": random.randrange(10),

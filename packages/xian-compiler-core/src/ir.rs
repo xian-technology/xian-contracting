@@ -147,8 +147,30 @@ pub const HOST_BINDINGS: &[HostBinding] = &[
     host_binding("datetime.HOURS", "time.hours", "value", "time"),
     host_binding("datetime.DAYS", "time.days", "value", "time"),
     host_binding("datetime.WEEKS", "time.weeks", "value", "time"),
-    host_binding("hashlib.sha3", "hash.sha3_256", "syscall", "hashing"),
-    host_binding("hashlib.sha256", "hash.sha256", "syscall", "hashing"),
+    host_binding(
+        "hashlib.sha3_text",
+        "hash.sha3_256_text",
+        "syscall",
+        "hashing",
+    ),
+    host_binding(
+        "hashlib.sha3_hex",
+        "hash.sha3_256_hex",
+        "syscall",
+        "hashing",
+    ),
+    host_binding(
+        "hashlib.sha256_text",
+        "hash.sha256_text",
+        "syscall",
+        "hashing",
+    ),
+    host_binding(
+        "hashlib.sha256_hex",
+        "hash.sha256_hex",
+        "syscall",
+        "hashing",
+    ),
     host_binding(
         "crypto.verify",
         "crypto.ed25519_verify",

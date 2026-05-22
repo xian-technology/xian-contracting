@@ -362,8 +362,8 @@ def render():
 def probe(vk: str, message: str, signature: str):
     start = datetime.datetime.strptime("2024-01-01 00:00:00", "%Y-%m-%d %H:%M:%S")
     end = now + datetime.timedelta(days=1, seconds=5)
-    digest = hashlib.sha3(message)
-    digest2 = hashlib.sha256(message)
+    digest = hashlib.sha3_text(message)
+    digest2 = hashlib.sha256_text(message)
     key_ok = crypto.key_is_valid(vk)
     sig_ok = crypto.verify(vk, message, signature)
     return end > start and key_ok and sig_ok and digest != digest2
@@ -376,8 +376,8 @@ def probe(vk: str, message: str, signature: str):
 
         self.assertIn("time.datetime.strptime", dependency_ids)
         self.assertIn("time.timedelta.new", dependency_ids)
-        self.assertIn("hash.sha3_256", dependency_ids)
-        self.assertIn("hash.sha256", dependency_ids)
+        self.assertIn("hash.sha3_256_text", dependency_ids)
+        self.assertIn("hash.sha256_text", dependency_ids)
         self.assertIn("crypto.key_is_valid", dependency_ids)
         self.assertIn("crypto.ed25519_verify", dependency_ids)
         self.assertIn("env.now", dependency_ids)
@@ -388,8 +388,14 @@ def probe(vk: str, message: str, signature: str):
             probe["body"][1]["value"]["right"]["syscall_id"],
             "time.timedelta.new",
         )
-        self.assertEqual(probe["body"][2]["value"]["syscall_id"], "hash.sha3_256")
-        self.assertEqual(probe["body"][3]["value"]["syscall_id"], "hash.sha256")
+        self.assertEqual(
+            probe["body"][2]["value"]["syscall_id"],
+            "hash.sha3_256_text",
+        )
+        self.assertEqual(
+            probe["body"][3]["value"]["syscall_id"],
+            "hash.sha256_text",
+        )
         self.assertEqual(probe["body"][4]["value"]["syscall_id"], "crypto.key_is_valid")
         self.assertEqual(probe["body"][5]["value"]["syscall_id"], "crypto.ed25519_verify")
 
