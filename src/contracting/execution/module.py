@@ -131,7 +131,7 @@ class ContractModuleFinder:
         driver = cls.current_driver()
         try:
             code = _get_local_contract_runtime(driver, fullname)
-        except RuntimeError, lmdb.Error:
+        except (RuntimeError, lmdb.Error):
             return None
         if code is None:
             return None
@@ -156,7 +156,10 @@ def _compile_contract_runtime_source(name: str, runtime_source: str):
     cache_key = _compiled_code_cache_key(name, runtime_source)
     compiled = COMPILED_CODE_CACHE.get(cache_key)
     if compiled is None:
-        compiled = compile(runtime_source, name, "exec")
+        # optimize=0 pins consensus behavior: validators must NOT honor
+        # PYTHONOPTIMIZE / -O which would strip asserts and __debug__-guarded
+        # blocks from contract code and produce divergent state.
+        compiled = compile(runtime_source, name, "exec", optimize=0)
         COMPILED_CODE_CACHE[cache_key] = compiled
     return compiled
 

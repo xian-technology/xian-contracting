@@ -323,7 +323,7 @@ class Driver:
         if source is not None:
             if not isinstance(source, str):
                 raise TypeError("Contract source must be a string.")
-            compile(source, name, "exec")
+            compile(source, name, "exec", optimize=0)
             self.set_var(
                 name,
                 SOURCE_KEY,

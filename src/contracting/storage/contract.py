@@ -110,7 +110,7 @@ class Contract:
             scope.update({"__Driver": driver})
             scope["__builtins__"] = build_contract_builtins(__import__)
 
-            compiled = compile(code_obj, name, "exec")
+            compiled = compile(code_obj, name, "exec", optimize=0)
             rt.tracer.register_code(compiled)
             current_state = rt.context._get_state()
             deployment_owner = owner

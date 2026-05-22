@@ -87,7 +87,7 @@ class ContractingCompiler(ast.NodeTransformer):
     def compile(self, source: str, lint=True, vm_profile: str | None = None):
         tree = self.parse(source, lint=lint, vm_profile=vm_profile)
 
-        compiled_code = compile(tree, "<compilation>", "exec")
+        compiled_code = compile(tree, "<compilation>", "exec", optimize=0)
 
         return compiled_code
 

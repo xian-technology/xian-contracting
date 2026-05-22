@@ -1,3 +1,6 @@
+import os
+import subprocess
+import sys
 from unittest import TestCase
 
 from contracting import constants
@@ -60,6 +63,24 @@ class TestAllocationBuiltins(TestCase):
 
 
 class TestCompilerGuards(TestCase):
+    def test_contracting_package_refuses_optimized_python(self):
+        env_vars = os.environ.copy()
+        env_vars["PYTHONOPTIMIZE"] = "1"
+
+        result = subprocess.run(
+            [sys.executable, "-c", "import contracting"],
+            capture_output=True,
+            text=True,
+            env=env_vars,
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "xian-contracting refuses to run with PYTHONOPTIMIZE",
+            result.stderr,
+        )
+
     def test_compiler_rewrites_multiplication_to_guarded_helper(self):
         compiler = ContractingCompiler(module_name="guarded")
         code = """

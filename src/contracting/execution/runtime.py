@@ -283,9 +283,10 @@ class Runtime:
             cost = len(key) + len(value)
             if enforce_write_cap:
                 self.writes += cost
-                assert self.writes < WRITE_MAX, (
-                    "You have exceeded the maximum write capacity per transaction!"
-                )
+                if self.writes >= WRITE_MAX:
+                    raise AssertionError(
+                        "You have exceeded the maximum write capacity per transaction!"
+                    )
 
             chi_cost = cost * constants.WRITE_COST_PER_BYTE
             self.tracer.add_cost(chi_cost)
@@ -303,9 +304,10 @@ class Runtime:
 
         encoded = encode(value).encode("utf-8")
         size = len(encoded)
-        assert size <= constants.MAX_RETURN_VALUE_SIZE, (
-            "Return value exceeds the maximum allowed size."
-        )
+        if size > constants.MAX_RETURN_VALUE_SIZE:
+            raise AssertionError(
+                "Return value exceeds the maximum allowed size."
+            )
         self.tracer.add_cost(size * constants.RETURN_VALUE_COST_PER_BYTE)
 
     def deduct_execution_cost(self, cost: int):

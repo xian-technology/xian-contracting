@@ -111,10 +111,10 @@ class Executor:
             self.driver.clear_events()
             environment = {} if environment is None else dict(environment)
 
-            if not self.bypass_privates:
-                assert not function_name.startswith(
-                    constants.PRIVATE_METHOD_PREFIX
-                ), "Private method not callable."
+            if not self.bypass_privates and function_name.startswith(
+                constants.PRIVATE_METHOD_PREFIX
+            ):
+                raise AssertionError("Private method not callable.")
 
             if metering is None:
                 metering = self.metering
@@ -146,10 +146,11 @@ class Executor:
                             driver.get(balances_key)
                         )
 
-                    assert balance * chi_cost >= chi, (
-                        f"Sender does not have enough chi for the transaction. "
-                        f"Balance at key {balances_key} is {balance}"
-                    )
+                    if balance * chi_cost < chi:
+                        raise AssertionError(
+                            f"Sender does not have enough chi for the transaction. "
+                            f"Balance at key {balances_key} is {balance}"
+                        )
 
                 runtime.rt.env.update(environment)
                 status_code = 0
