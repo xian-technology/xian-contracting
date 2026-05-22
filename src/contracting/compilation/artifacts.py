@@ -5,6 +5,7 @@ from functools import lru_cache
 
 import xian_compiler_core
 
+from contracting.compilation.ir import HOST_BINDINGS, XIAN_VM_HOST_CATALOG_V1
 from contracting.compilation.vm import XIAN_VM_V1_PROFILE
 
 CONTRACT_ARTIFACT_FORMAT_V1 = "xian_contract_artifact_v1"
@@ -14,6 +15,51 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+@lru_cache(maxsize=1)
+def _assert_native_compiler_host_surface_current() -> None:
+    surface = xian_compiler_core.describe_vm_host_surface()
+    catalog_version = surface.get("catalog_version")
+    if catalog_version != XIAN_VM_HOST_CATALOG_V1:
+        raise RuntimeError(
+            "xian_compiler_core host catalog is stale relative to "
+            "contracting.compilation.ir; rebuild xian-tech-compiler-core. "
+            f"Expected catalog_version={XIAN_VM_HOST_CATALOG_V1!r}, "
+            f"got {catalog_version!r}."
+        )
+
+    native_bindings = {
+        spec.get("binding"): spec
+        for spec in surface.get("bindings", [])
+        if isinstance(spec, dict) and isinstance(spec.get("binding"), str)
+    }
+    missing = []
+    mismatched = []
+    for expected in HOST_BINDINGS:
+        binding = expected["binding"]
+        actual = native_bindings.get(binding)
+        if actual is None:
+            missing.append(binding)
+            continue
+        for field in ("id", "kind", "category"):
+            if actual.get(field) != expected[field]:
+                mismatched.append(
+                    f"{binding}.{field}: expected {expected[field]!r}, "
+                    f"got {actual.get(field)!r}"
+                )
+
+    if missing or mismatched:
+        details = []
+        if missing:
+            details.append("missing bindings: " + ", ".join(sorted(missing)))
+        if mismatched:
+            details.append("mismatched bindings: " + "; ".join(mismatched))
+        raise RuntimeError(
+            "xian_compiler_core host catalog is stale relative to "
+            "contracting.compilation.ir; rebuild xian-tech-compiler-core. "
+            + " ".join(details)
+        )
+
+
 @lru_cache(maxsize=256)
 def _compile_canonical_ir(
     *,
@@ -21,6 +67,7 @@ def _compile_canonical_ir(
     source: str,
     vm_profile: str,
 ) -> str:
+    _assert_native_compiler_host_surface_current()
     return xian_compiler_core.lower_source_to_ir_json(
         module_name,
         source,
@@ -37,6 +84,7 @@ def build_contract_artifacts(
     vm_profile: str = XIAN_VM_V1_PROFILE,
     compact: bool = False,
 ) -> dict[str, object]:
+    _assert_native_compiler_host_surface_current()
     return xian_compiler_core.compile_contract_artifact(
         module_name,
         source,
@@ -52,6 +100,8 @@ def validate_contract_artifacts(
     input_source: str | None = None,
     vm_profile: str = XIAN_VM_V1_PROFILE,
 ) -> dict[str, str]:
+    _assert_native_compiler_host_surface_current()
+
     if not isinstance(artifacts, dict):
         raise TypeError("deployment_artifacts must be a dictionary.")
 

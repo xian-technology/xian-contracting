@@ -8,7 +8,16 @@ from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime, Timedelta
 
 from contracting.execution.runtime import rt
+from contracting.stdlib.builtins import safe_bytearray, safe_bytes, safe_int
 from contracting.storage.driver import Driver
+
+# `safe_*` wrappers are exposed to contracts under the bare builtin names
+# (`int`, `bytes`, `bytearray`), so any annotation written by a contract author
+# resolves to the wrapper rather than the CPython class. Treat the wrappers
+# as transparent aliases here so strict-type and label behaviour is preserved.
+_INT_ANNOTATION_TYPES = (int, safe_int)
+_BYTES_ANNOTATION_TYPES = (bytes, safe_bytes)
+_BYTEARRAY_ANNOTATION_TYPES = (bytearray, safe_bytearray)
 
 
 def _annotation_label(annotation):
@@ -22,6 +31,12 @@ def _annotation_label(annotation):
         return "set"
     if annotation is ContractingFrozenSet:
         return "frozenset"
+    if annotation in _INT_ANNOTATION_TYPES:
+        return "<class 'int'>"
+    if annotation in _BYTES_ANNOTATION_TYPES:
+        return "<class 'bytes'>"
+    if annotation in _BYTEARRAY_ANNOTATION_TYPES:
+        return "<class 'bytearray'>"
     return str(annotation)
 
 
@@ -95,7 +110,7 @@ def _check_typed_value(value, annotation, label):
             _raise_type_error(label, annotation, value)
         return
 
-    if annotation is int:
+    if annotation in _INT_ANNOTATION_TYPES:
         if type(value) is not int:
             _raise_type_error(label, annotation, value)
         return

@@ -100,6 +100,41 @@ class TestAllocationBuiltins(TestCase):
         with self.assertRaisesRegex(AssertionError, "int\\(\\) input exceeds"):
             safe_int("9" * (constants.MAX_INT_STRING_CHARS + 1))
 
+    def test_int_and_pow_are_safe_in_contract_builtins(self):
+        # The compiler rewrites the syntactic forms `int(...)` and `pow(...)`
+        # to the guarded helpers, but indirect references — `foo = int`,
+        # `(pow,)[0]`, `[int][0]` — would still resolve through the contract's
+        # __builtins__. Override the bare names there so those indirections
+        # also hit the guarded wrappers.
+        from contracting.execution.sandbox import build_contract_builtins
+
+        builtins_dict = build_contract_builtins(lambda *a, **k: None)
+        self.assertIs(builtins_dict["int"], safe_int)
+        self.assertIs(builtins_dict["pow"], safe_pow)
+
+    def test_indirect_int_reference_still_guarded(self):
+        from contracting.execution.sandbox import build_contract_builtins
+
+        scope = {"__builtins__": build_contract_builtins(lambda *a, **k: None)}
+        oversize = "9" * (constants.MAX_INT_STRING_CHARS + 1)
+
+        with self.assertRaisesRegex(AssertionError, "int\\(\\) input exceeds"):
+            exec(f'foo = int\nfoo("{oversize}")', dict(scope))
+
+    def test_indirect_pow_reference_still_guarded(self):
+        from contracting.execution.sandbox import build_contract_builtins
+
+        scope = {"__builtins__": build_contract_builtins(lambda *a, **k: None)}
+        oversize_exponent = constants.MAX_INTEGER_BITS
+
+        with self.assertRaisesRegex(
+            AssertionError, "integer exponentiation exceeds"
+        ):
+            exec(
+                f"foo = pow\nfoo(2, {oversize_exponent})",
+                dict(scope),
+            )
+
 
 class TestCompilerGuards(TestCase):
     def test_contracting_package_refuses_optimized_python(self):

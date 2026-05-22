@@ -6,6 +6,7 @@ from xian_runtime_types.encoding import encode_kv
 
 from contracting import constants
 from contracting.execution.runtime import rt
+from contracting.stdlib.builtins import safe_bytearray, safe_bytes, safe_int
 from contracting.storage.driver import Driver
 
 _MISSING = object()
@@ -20,6 +21,22 @@ EVENT_ALLOWED_TYPES = (
     ContractingFrozenSet,
     ContractingDecimal,
 )
+
+# Contracts see `int`, `bytes`, `bytearray` bound to allocation-guarded
+# subclasses (safe_int, safe_bytes, safe_bytearray). When a contract writes
+# a LogEvent schema with `"amount": int`, the captured type would be the
+# wrapper. Normalize back to the canonical builtin so the stored schema is
+# what the author wrote and external introspection sees `int`, not the
+# internal wrapper.
+_TYPE_CANONICALIZATION = {
+    safe_int: int,
+    safe_bytes: bytes,
+    safe_bytearray: bytearray,
+}
+
+
+def _canonicalize_event_type(t):
+    return _TYPE_CANONICALIZATION.get(t, t)
 
 
 def _copy_mutable(value):
@@ -397,7 +414,7 @@ class LogEvent(Datum):
             issubclass(t, EVENT_ALLOWED_TYPES) for t in normalized_types
         ), "Each type in args must be str, int, float, decimal or bool."
 
-        return normalized_types
+        return tuple(_canonicalize_event_type(t) for t in normalized_types)
 
     @classmethod
     def _normalize_param(cls, arg_name, param):

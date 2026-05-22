@@ -92,7 +92,16 @@ CONFORMANCE_BUILTIN_EXCLUSIONS: dict[str, str] = {
     "None": "None literal, covered as syntax rather than a callable builtin.",
     "import": "Contract imports are covered via import statements and importlib, not the raw builtin token.",
 }
-CONFORMANCE_ENV_EXCLUSIONS: dict[str, str] = {}
+CONFORMANCE_ENV_EXCLUSIONS: dict[str, str] = {
+    "int": (
+        "Safe-int wrapper exported as a builtin override; coverage tracked via "
+        "the `int` builtin entry, not as a separate env name."
+    ),
+    "pow": (
+        "Safe-pow wrapper exported as a builtin override; coverage tracked via "
+        "the `pow` builtin entry, not as a separate env name."
+    ),
+}
 
 
 @lru_cache(maxsize=32)

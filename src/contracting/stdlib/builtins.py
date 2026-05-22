@@ -239,6 +239,13 @@ exports = {
     "range": safe_range,
     "bytes": safe_bytes,
     "bytearray": safe_bytearray,
+    # Override the bare `int` / `pow` names too: the compiler rewrites the
+    # syntactic forms `int(...)` and `pow(...)` to the `__xian_*` helpers,
+    # but indirect references — `foo = int; foo(huge_str)`, `(pow,)[0](...)` —
+    # would otherwise still resolve through the contract's __builtins__ to the
+    # unguarded CPython builtins and skip the metering checks.
+    "int": safe_int,
+    "pow": safe_pow,
     "__xian_int__": safe_int,
     "__xian_mul__": safe_mul,
     "__xian_pow__": safe_pow,
