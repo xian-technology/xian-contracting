@@ -106,6 +106,13 @@ def mutate_via_all():
 """
 
 
+HOST_BUILTINS_PROBE_CONTRACT = """
+@__export('con_builtin_probe')
+def can_reach_host_open():
+    return 'open' in __builtins__
+"""
+
+
 class TestRuntimeSecurity(TestCase):
     def setUp(self):
         self.client = ContractingClient(signer="stu")
@@ -187,3 +194,15 @@ class TestRuntimeSecurity(TestCase):
         contract = self.client.get_contract_proxy("con_hash_all_mutation")
 
         self.assertEqual(contract.mutate_via_all(), {"count": 1})
+
+    def test_runtime_builtins_are_restricted_even_for_unlinted_source(self):
+        self.client.raw_driver.set_contract(
+            name="con_builtin_probe",
+            source=HOST_BUILTINS_PROBE_CONTRACT,
+            owner="stu",
+        )
+        self.client.raw_driver.commit()
+
+        contract = self.client.get_contract_proxy("con_builtin_probe")
+
+        self.assertFalse(contract.can_reach_host_open())

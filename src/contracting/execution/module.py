@@ -12,6 +12,7 @@ import lmdb
 from cachetools import LRUCache
 
 from contracting.execution.runtime import rt
+from contracting.execution.sandbox import build_contract_builtins
 from contracting.stdlib import env
 from contracting.storage.driver import Driver
 
@@ -181,6 +182,7 @@ class ContractModuleLoader(Loader):
         scope.update(rt.env)
 
         scope.update({"__contract__": True})
+        scope["__builtins__"] = build_contract_builtins(restricted_import)
 
         # execute the module with the std env and update the module to pass forward
         exec(compiled, scope)

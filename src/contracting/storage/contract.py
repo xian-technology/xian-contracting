@@ -2,6 +2,7 @@ from contracting import constants
 from contracting.artifacts import validate_contract_artifacts
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution.runtime import rt
+from contracting.execution.sandbox import build_contract_builtins
 from contracting.names import assert_safe_contract_name
 from contracting.storage.driver import (
     DEPLOYER_KEY,
@@ -107,6 +108,7 @@ class Contract:
             scope.update({"__contract__": True})
             scope.update(rt.env)
             scope.update({"__Driver": driver})
+            scope["__builtins__"] = build_contract_builtins(__import__)
 
             compiled = compile(code_obj, name, "exec")
             rt.tracer.register_code(compiled)
