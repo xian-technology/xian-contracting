@@ -367,10 +367,7 @@ fn hash_to_field(label: &str) -> Fr {
 }
 
 fn contract_sha3_to_field(value: &str) -> Fr {
-    let digest = match hex::decode(value) {
-        Ok(raw) => Sha3_256::digest(&raw),
-        Err(_) => Sha3_256::digest(value.as_bytes()),
-    };
+    let digest = Sha3_256::digest(value.as_bytes());
     Fr::from_be_bytes_mod_order(&digest)
 }
 

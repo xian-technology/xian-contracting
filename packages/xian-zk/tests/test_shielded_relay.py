@@ -14,6 +14,7 @@ def field(value: int) -> str:
 
 
 def test_relay_wallet_builds_sender_hidden_transfer_plan():
+    relayer_public_key = "ab" * 32
     wallet = ShieldedRelayTransferWallet.from_parts(
         asset_id=field(111),
         owner_secret=field(222),
@@ -45,7 +46,7 @@ def test_relay_wallet_builds_sender_hidden_transfer_plan():
     plan = wallet.build_relay_transfer(
         recipient=recipient.recipient,
         amount=9,
-        relayer="relayer",
+        relayer=relayer_public_key,
         chain_id="xian-local-1",
         fee=2,
         expires_at="2026-01-01 12:30:00",
@@ -63,7 +64,7 @@ def test_relay_wallet_builds_sender_hidden_transfer_plan():
     assert plan.request.output_payload_hashes == plan.output_payload_hashes
     assert plan.relay_binding == relay_transfer_binding(
         input_nullifiers=[funding_note.nullifier(wallet.asset_id)],
-        relayer="relayer",
+        relayer=relayer_public_key,
         chain_id="xian-local-1",
         fee=2,
         expires_at="2026-01-01 12:30:00",
