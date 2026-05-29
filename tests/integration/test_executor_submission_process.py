@@ -1,5 +1,6 @@
 import os
 from unittest import TestCase
+from unittest.mock import patch
 
 from contracting.artifacts import build_contract_artifacts
 from contracting.compilation.compiler import ContractingCompiler
@@ -87,6 +88,49 @@ def d():
         new_code = self.compiler.parse_to_code(code)
 
         self.assertEqual(self.d.get_local_contract_runtime("con_stubucks"), new_code)
+
+    def test_contract_runtime_compile_failure_is_not_silently_downgraded(self):
+        code = """@export
+def d():
+    return 1
+"""
+
+        self.d.set_contract(name="con_loud_failure", source=code)
+
+        with patch.object(
+            ContractingCompiler,
+            "parse_to_code",
+            side_effect=AttributeError("unsupported contract syntax"),
+        ):
+            with self.assertRaises(AttributeError):
+                self.d.get_local_contract_runtime("con_loud_failure")
+
+    def test_non_contract_runtime_compile_failure_falls_back_with_warning(self):
+        source = "HELPER = 1\n"
+
+        self.d.set_contract(name="con_helper_module", source=source)
+
+        with patch.object(
+            ContractingCompiler,
+            "parse_to_code",
+            side_effect=AttributeError("unsupported helper syntax"),
+        ):
+            with self.assertLogs("contracting.storage.driver", level="WARNING") as logs:
+                runtime = self.d.get_local_contract_runtime("con_helper_module")
+
+        self.assertEqual(runtime, source)
+        self.assertIn("AttributeError", "\n".join(logs.output))
+
+    def test_unexpected_non_contract_runtime_compile_failure_raises(self):
+        self.d.set_contract(name="con_helper_module", source="HELPER = 1\n")
+
+        with patch.object(
+            ContractingCompiler,
+            "parse_to_code",
+            side_effect=RuntimeError("compiler regression"),
+        ):
+            with self.assertRaises(RuntimeError):
+                self.d.get_local_contract_runtime("con_helper_module")
 
     def test_submission_then_function_call(self):
         e = Executor(metering=False)

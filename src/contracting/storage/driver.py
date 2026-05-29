@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import decimal
+import logging
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +21,13 @@ from contracting.storage.lmdb_store import LMDBStore
 INDEX_SEPARATOR = constants.INDEX_SEPARATOR
 HASH_DELIMITER = constants.DELIMITER
 _MISSING = object()
+logger = logging.getLogger(__name__)
+SOURCE_RUNTIME_FALLBACK_EXCEPTIONS = (
+    AttributeError,
+    SyntaxError,
+    TypeError,
+    ValueError,
+)
 
 SOURCE_KEY = "__source__"
 XIAN_VM_V1_IR_KEY = "__xian_ir_v1__"
@@ -243,9 +251,20 @@ class Driver:
         compiler = ContractingCompiler(module_name=name)
         try:
             return compiler.parse_to_code(source, lint=False)
-        except Exception:
+        except SOURCE_RUNTIME_FALLBACK_EXCEPTIONS as exc:
             if "@export" in source or "@construct" in source:
+                logger.exception(
+                    "Failed to compile contract runtime for %s (%s).",
+                    name,
+                    type(exc).__name__,
+                )
                 raise
+            logger.warning(
+                "Falling back to source runtime for non-contract module %s after %s: %s",
+                name,
+                type(exc).__name__,
+                exc,
+            )
             return source
 
     def has_contract(self, name):

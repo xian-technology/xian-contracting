@@ -84,10 +84,11 @@ class Variable(Datum):
 
     def set(self, value):
         if self._type is not None and value is not None:
-            assert isinstance(value, self._type), (
-                f"Wrong type passed to variable! "
-                f"Expected {self._type}, got {type(value)}."
-            )
+            if not isinstance(value, self._type):
+                raise TypeError(
+                    f"Wrong type passed to variable! "
+                    f"Expected {self._type}, got {type(value)}."
+                )
 
         self._driver.set(self._key, value, True)
 
@@ -99,24 +100,27 @@ class Variable(Datum):
 
     def _get_mutable_value(self, method_name: str):
         value = self.get()
-        assert isinstance(value, (list, dict)), (
-            f"Variable.{method_name}() requires the stored value "
-            f"to be a list or dict."
-        )
+        if not isinstance(value, (list, dict)):
+            raise TypeError(
+                f"Variable.{method_name}() requires the stored value "
+                f"to be a list or dict."
+            )
         return value
 
     def _get_list_value(self, method_name: str):
         value = self.get()
-        assert isinstance(value, list), (
-            f"Variable.{method_name}() requires the stored value to be a list."
-        )
+        if not isinstance(value, list):
+            raise TypeError(
+                f"Variable.{method_name}() requires the stored value to be a list."
+            )
         return value
 
     def _get_dict_value(self, method_name: str):
         value = self.get()
-        assert isinstance(value, dict), (
-            f"Variable.{method_name}() requires the stored value to be a dict."
-        )
+        if not isinstance(value, dict):
+            raise TypeError(
+                f"Variable.{method_name}() requires the stored value to be a dict."
+            )
         return value
 
     def __getitem__(self, key):
@@ -143,9 +147,8 @@ class Variable(Datum):
 
     def update(self, other: dict):
         current = self._get_dict_value("update")
-        assert isinstance(other, dict), (
-            "Variable.update() requires a dict argument."
-        )
+        if not isinstance(other, dict):
+            raise TypeError("Variable.update() requires a dict argument.")
         current.update(other)
         self.set(current)
 
@@ -156,9 +159,8 @@ class Variable(Datum):
 
     def extend(self, values):
         current = self._get_list_value("extend")
-        assert isinstance(values, list), (
-            "Variable.extend() requires a list argument."
-        )
+        if not isinstance(values, list):
+            raise TypeError("Variable.extend() requires a list argument.")
         current.extend(values)
         self.set(current)
 
@@ -181,17 +183,17 @@ class Variable(Datum):
         current = self._get_mutable_value("pop")
 
         if isinstance(current, dict):
-            assert key is not _MISSING, (
-                "Variable.pop() requires a key for dict values."
-            )
+            if key is _MISSING:
+                raise TypeError("Variable.pop() requires a key for dict values.")
             if default is _MISSING:
                 value = current.pop(key)
             else:
                 value = current.pop(key, default)
         else:
-            assert default is _MISSING, (
-                "Variable.pop() does not accept a default for list values."
-            )
+            if default is not _MISSING:
+                raise TypeError(
+                    "Variable.pop() does not accept a default for list values."
+                )
             if key is _MISSING:
                 key = -1
             value = current.pop(key)

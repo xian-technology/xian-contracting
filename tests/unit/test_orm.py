@@ -174,14 +174,44 @@ class TestVariable(TestCase):
     def test_list_helpers_require_list_values(self):
         v = Variable("stustu", "value", driver=driver, default_value=123)
 
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(TypeError):
             v.append(1)
 
     def test_dict_helpers_require_dict_values(self):
         v = Variable("stustu", "value", driver=driver, default_value=123)
 
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(TypeError):
             v.update({"mode": "strict"})
+
+    def test_set_rejects_wrong_declared_type(self):
+        v = Variable("stustu", "value", driver=driver, t=int)
+
+        with self.assertRaises(TypeError):
+            v.set("1")
+
+    def test_update_requires_dict_argument(self):
+        v = Variable("stustu", "cfg", driver=driver, default_value={})
+
+        with self.assertRaises(TypeError):
+            v.update([("mode", "strict")])
+
+    def test_extend_requires_list_argument(self):
+        v = Variable("stustu", "queue", driver=driver, default_value=[])
+
+        with self.assertRaises(TypeError):
+            v.extend((1, 2))
+
+    def test_pop_rejects_missing_dict_key(self):
+        v = Variable("stustu", "cfg", driver=driver, default_value={"mode": "strict"})
+
+        with self.assertRaises(TypeError):
+            v.pop()
+
+    def test_pop_rejects_list_default(self):
+        v = Variable("stustu", "queue", driver=driver, default_value=[1, 2])
+
+        with self.assertRaises(TypeError):
+            v.pop(0, None)
 
 
 class TestHash(TestCase):
