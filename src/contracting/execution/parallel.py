@@ -181,9 +181,7 @@ class _StageAccessSummary:
         prefixes: set[str] | frozenset[str],
         keys: set[str] | frozenset[str],
     ) -> bool:
-        return any(
-            key.startswith(prefix) for prefix in prefixes for key in keys
-        )
+        return any(key.startswith(prefix) for prefix in prefixes for key in keys)
 
 
 class ParallelExecutionPlanner:
@@ -194,9 +192,7 @@ class ParallelExecutionPlanner:
         current_stage = _StageAccessSummary()
 
         for access in accesses:
-            if current_stage.has_accesses and current_stage.conflicts_with(
-                access
-            ):
+            if current_stage.has_accesses and current_stage.conflicts_with(access):
                 stages.append(current_stage.to_stage())
                 current_stage = _StageAccessSummary()
             current_stage.add(access)
@@ -225,9 +221,7 @@ class ParallelExecutionPlanner:
         prefixes: set[str] | frozenset[str],
         keys: set[str] | frozenset[str],
     ) -> bool:
-        return any(
-            key.startswith(prefix) for prefix in prefixes for key in keys
-        )
+        return any(key.startswith(prefix) for prefix in prefixes for key in keys)
 
     def _make_stage(self, stage: list[ExecutionAccess]) -> ParallelStage:
         return _StageAccessSummary.from_accesses(stage).to_stage()
@@ -356,11 +350,7 @@ class SpeculativeExecutionController:
         self.planner = ParallelExecutionPlanner()
 
     def is_enabled_for_batch(self, request_count: int) -> bool:
-        return (
-            self.enabled
-            and self.workers > 0
-            and request_count >= self.min_batch_size
-        )
+        return self.enabled and self.workers > 0 and request_count >= self.min_batch_size
 
     def execute(
         self,
@@ -545,9 +535,7 @@ class SpeculativeExecutionController:
             estimated_known_requests=estimated_known_requests,
             estimated_unknown_requests=estimated_unknown_requests,
             estimated_stage_count=estimated_stage_count,
-            estimated_parallelizable_requests=(
-                estimated_parallelizable_requests
-            ),
+            estimated_parallelizable_requests=(estimated_parallelizable_requests),
             planned_stage_count=planned_stage_count,
             planned_parallelizable_requests=planned_parallelizable_requests,
             speculative_wave_count=speculative_wave_count,
@@ -654,10 +642,7 @@ class SpeculativeExecutionController:
         accepted_prefix: int,
         wave_size: int,
     ) -> bool:
-        if (
-            self.max_speculative_waves > 0
-            and speculative_wave_count >= self.max_speculative_waves
-        ):
+        if self.max_speculative_waves > 0 and speculative_wave_count >= self.max_speculative_waves:
             return True
 
         if (
@@ -704,9 +689,7 @@ class SpeculativeExecutionController:
     def _should_speculate_request(self, request: object) -> bool:
         return True
 
-    def _estimate_accesses(
-        self, requests: list[object]
-    ) -> list[ExecutionAccess | None]:
+    def _estimate_accesses(self, requests: list[object]) -> list[ExecutionAccess | None]:
         if not self.use_access_estimates:
             return [None] * len(requests)
         return [
@@ -765,9 +748,7 @@ class SpeculativeExecutionController:
                 if access is None:
                     break
 
-                if wave_summary.has_accesses and wave_summary.conflicts_with(
-                    access
-                ):
+                if wave_summary.has_accesses and wave_summary.conflicts_with(access):
                     break
 
                 wave_indexes.append(index)
@@ -904,9 +885,7 @@ class SpeculativeExecutionController:
         if access.reads & committed_additive_writes:
             return True
 
-        if SpeculativeExecutionController._prefix_conflicts(
-            access.prefix_reads, committed_writes
-        ):
+        if SpeculativeExecutionController._prefix_conflicts(access.prefix_reads, committed_writes):
             return True
 
         if SpeculativeExecutionController._prefix_conflicts(
@@ -927,9 +906,7 @@ class SpeculativeExecutionController:
 
     @staticmethod
     def _prefix_conflicts(prefixes: frozenset[str], keys: set[str]) -> bool:
-        return any(
-            key.startswith(prefix) for prefix in prefixes for key in keys
-        )
+        return any(key.startswith(prefix) for prefix in prefixes for key in keys)
 
 
 class ParallelBatchExecutor(SpeculativeExecutionController):
@@ -1011,9 +988,7 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
         if self.workers == 1:
             return [_speculative_execute_request(task) for task in tasks]
 
-        return list(
-            self._get_executor().map(_speculative_execute_request, tasks)
-        )
+        return list(self._get_executor().map(_speculative_execute_request, tasks))
 
     def _get_executor(self) -> ProcessPoolExecutor:
         if self._executor is None:

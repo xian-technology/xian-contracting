@@ -41,10 +41,7 @@ def _annotation_label(annotation):
 
 
 def _raise_type_error(label, annotation, value):
-    raise TypeError(
-        f"{label} must be {_annotation_label(annotation)}, "
-        f"got {type(value).__name__}!"
-    )
+    raise TypeError(f"{label} must be {_annotation_label(annotation)}, got {type(value).__name__}!")
 
 
 def _check_typed_value(value, annotation, label):
@@ -116,9 +113,7 @@ def _check_typed_value(value, annotation, label):
         return
 
     if annotation is float:
-        if isinstance(value, bool) or not isinstance(
-            value, (int, float, ContractingDecimal)
-        ):
+        if isinstance(value, bool) or not isinstance(value, (int, float, ContractingDecimal)):
             _raise_type_error(label, annotation, value)
         return
 

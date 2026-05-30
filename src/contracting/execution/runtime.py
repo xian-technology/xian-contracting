@@ -133,14 +133,10 @@ class RuntimeState:
     writes: int = 0
     signer: str | None = None
     loaded_modules: list[str] = field(default_factory=list)
-    contract_meter_frames: list[dict[str, int | str]] = field(
-        default_factory=list
-    )
+    contract_meter_frames: list[dict[str, int | str]] = field(default_factory=list)
     contract_meter_markers: list[bool] = field(default_factory=list)
     contract_costs: dict[str, int] = field(default_factory=dict)
-    context: Context = field(
-        default_factory=lambda: Context(dict(DEFAULT_BASE_STATE))
-    )
+    context: Context = field(default_factory=lambda: Context(dict(DEFAULT_BASE_STATE)))
 
 
 WRITE_MAX = 1024 * 128
@@ -305,9 +301,7 @@ class Runtime:
         encoded = encode(value).encode("utf-8")
         size = len(encoded)
         if size > constants.MAX_RETURN_VALUE_SIZE:
-            raise AssertionError(
-                "Return value exceeds the maximum allowed size."
-            )
+            raise AssertionError("Return value exceeds the maximum allowed size.")
         self.tracer.add_cost(size * constants.RETURN_VALUE_COST_PER_BYTE)
 
     def deduct_execution_cost(self, cost: int):
@@ -378,9 +372,7 @@ class Runtime:
         total_cost = max(current_cost - int(frame["start_cost"]), 0)
         exclusive_cost = max(total_cost - int(frame["child_cost"]), 0)
         contract = str(frame["contract"])
-        state.contract_costs[contract] = (
-            state.contract_costs.get(contract, 0) + exclusive_cost
-        )
+        state.contract_costs[contract] = state.contract_costs.get(contract, 0) + exclusive_cost
 
         if state.contract_meter_frames:
             parent = state.contract_meter_frames[-1]
@@ -398,8 +390,7 @@ class Runtime:
 
         if fixed_overhead_contract is not None and fixed_overhead_units > 0:
             state.contract_costs[fixed_overhead_contract] = (
-                state.contract_costs.get(fixed_overhead_contract, 0)
-                + fixed_overhead_units
+                state.contract_costs.get(fixed_overhead_contract, 0) + fixed_overhead_units
             )
 
         result = dict(state.contract_costs)

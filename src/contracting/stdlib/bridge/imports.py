@@ -44,10 +44,7 @@ class Func:
 
         num_args = f.__code__.co_argcount
 
-        if (
-            f.__code__.co_name == self.name
-            and f.__code__.co_varnames[:num_args] == self.args
-        ):
+        if f.__code__.co_name == self.name and f.__code__.co_varnames[:num_args] == self.args:
             return True
 
         return False
@@ -70,9 +67,7 @@ class Var:
 def _contract_name_is_valid(name):
     if not is_safe_contract_name(name):
         return False
-    if name in set(
-        list(sys.stdlib_module_names) + list(sys.builtin_module_names)
-    ):
+    if name in set(list(sys.stdlib_module_names) + list(sys.builtin_module_names)):
         return False
     return True
 
@@ -101,29 +96,19 @@ def _resolve_contract_module(contract):
         return import_module(contract)
 
     if not isinstance(contract, ModuleType):
-        raise AssertionError(
-            "Contract target must be a contract name or imported contract module!"
-        )
+        raise AssertionError("Contract target must be a contract name or imported contract module!")
 
     _driver = rt.env.get("__Driver") or Driver()
     if not _driver.has_contract(contract.__name__):
-        raise AssertionError(
-            "Contract module must reference an existing deployed contract!"
-        )
+        raise AssertionError("Contract module must reference an existing deployed contract!")
 
     return contract
 
 
 def _contract_name_from_target(contract):
-    module = (
-        _resolve_contract_module(contract)
-        if isinstance(contract, str)
-        else contract
-    )
+    module = _resolve_contract_module(contract) if isinstance(contract, str) else contract
     if not isinstance(module, ModuleType):
-        raise AssertionError(
-            "Contract target must be a contract name or imported contract module!"
-        )
+        raise AssertionError("Contract target must be a contract name or imported contract module!")
     return module.__name__
 
 
@@ -132,9 +117,7 @@ def exists(contract):
         return _contract_exists_by_name(contract)
 
     if not isinstance(contract, ModuleType):
-        raise AssertionError(
-            "Contract target must be a contract name or imported contract module!"
-        )
+        raise AssertionError("Contract target must be a contract name or imported contract module!")
 
     _driver = rt.env.get("__Driver") or Driver()
     return _driver.has_contract(contract.__name__)
@@ -150,16 +133,12 @@ def _validate_function_name(name):
     if name.startswith(PRIVATE_METHOD_PREFIX):
         raise AssertionError("Private functions cannot be called dynamically!")
     if name.startswith("_") or name.endswith("_"):
-        raise AssertionError(
-            "Dynamic function names cannot start or end with '_'!"
-        )
+        raise AssertionError("Dynamic function names cannot start or end with '_'!")
 
 
 def _unwrap_exported_function(attribute):
     if not isinstance(attribute, FunctionType):
-        raise AssertionError(
-            "Dynamic calls may only target exported contract functions!"
-        )
+        raise AssertionError("Dynamic calls may only target exported contract functions!")
 
     closure = attribute.__closure__ or ()
     original = None
@@ -172,9 +151,7 @@ def _unwrap_exported_function(attribute):
             export_guard = value
 
     if original is None or export_guard is None:
-        raise AssertionError(
-            "Dynamic calls may only target exported contract functions!"
-        )
+        raise AssertionError("Dynamic calls may only target exported contract functions!")
 
     return attribute, original, export_guard
 
@@ -215,9 +192,7 @@ def _validate_dynamic_kwargs(module_name, function_name, original, kwargs):
     try:
         inspect.signature(original).bind(**kwargs)
     except TypeError as exc:
-        raise AssertionError(
-            f"Invalid kwargs for {module_name}.{function_name}: {exc}"
-        ) from exc
+        raise AssertionError(f"Invalid kwargs for {module_name}.{function_name}: {exc}") from exc
 
     return kwargs
 
@@ -226,16 +201,14 @@ def call(contract, function, kwargs=None):
     module = _resolve_contract_module(contract)
     _validate_function_name(function)
     wrapper, original = _resolve_exported_function(module, function)
-    kwargs = _validate_dynamic_kwargs(
-        module.__name__, function, original, kwargs
-    )
+    kwargs = _validate_dynamic_kwargs(module.__name__, function, original, kwargs)
     return wrapper(**kwargs)
 
 
 def has_export(contract, function):
     try:
         module = _resolve_contract_module(contract)
-    except (AssertionError, ImportError):
+    except AssertionError, ImportError:
         return False
 
     if not isinstance(function, str):
@@ -259,15 +232,9 @@ def has_export(contract, function):
 
 
 def enforce_interface(contract, interface: list):
-    module = (
-        _resolve_contract_module(contract)
-        if isinstance(contract, str)
-        else contract
-    )
+    module = _resolve_contract_module(contract) if isinstance(contract, str) else contract
     if not isinstance(module, ModuleType):
-        raise AssertionError(
-            "Contract target must be a contract name or imported contract module!"
-        )
+        raise AssertionError("Contract target must be a contract name or imported contract module!")
     implemented = vars(module)
 
     for i in interface:

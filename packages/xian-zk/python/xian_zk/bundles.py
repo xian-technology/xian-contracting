@@ -21,9 +21,7 @@ def _require_mapping(value: Any, *, label: str) -> Mapping[str, Any]:
     raise ValueError(f"{label} must be a JSON object")
 
 
-def _require_string(
-    value: Any, *, label: str, allow_empty: bool = False
-) -> str:
+def _require_string(value: Any, *, label: str, allow_empty: bool = False) -> str:
     if not isinstance(value, str):
         raise ValueError(f"{label} must be a string")
     if not allow_empty and value.strip() == "":
@@ -44,9 +42,7 @@ def _require_positive_int(value: Any, *, label: str) -> int:
     return resolved
 
 
-def _require_hex_string(
-    value: Any, *, label: str, allow_empty: bool = False
-) -> str:
+def _require_hex_string(value: Any, *, label: str, allow_empty: bool = False) -> str:
     resolved = _require_string(value, label=label, allow_empty=allow_empty)
     if allow_empty and resolved == "":
         return resolved
@@ -71,41 +67,24 @@ def _validate_common_payload(
         label="setup_ceremony",
         allow_empty=True,
     )
-    if (
-        setup_mode.strip().lower() not in _SAFE_SINGLE_PARTY_MODES
-        and setup_ceremony.strip() == ""
-    ):
+    if setup_mode.strip().lower() not in _SAFE_SINGLE_PARTY_MODES and setup_ceremony.strip() == "":
         raise ValueError(
             "setup_ceremony is required when setup_mode is not insecure-dev or single-party"
         )
 
     normalized = {
-        "circuit_family": _require_string(
-            payload.get("circuit_family"), label="circuit_family"
-        ),
+        "circuit_family": _require_string(payload.get("circuit_family"), label="circuit_family"),
         "warning": _require_string(payload.get("warning"), label="warning"),
         "setup_mode": setup_mode,
         "setup_ceremony": setup_ceremony,
-        "contract_name": _require_string(
-            payload.get("contract_name"), label="contract_name"
-        ),
-        "tree_depth": _require_positive_int(
-            payload.get("tree_depth"), label="tree_depth"
-        ),
-        "leaf_capacity": _require_positive_int(
-            payload.get("leaf_capacity"), label="leaf_capacity"
-        ),
-        "max_inputs": _require_positive_int(
-            payload.get("max_inputs"), label="max_inputs"
-        ),
-        "max_outputs": _require_positive_int(
-            payload.get("max_outputs"), label="max_outputs"
-        ),
+        "contract_name": _require_string(payload.get("contract_name"), label="contract_name"),
+        "tree_depth": _require_positive_int(payload.get("tree_depth"), label="tree_depth"),
+        "leaf_capacity": _require_positive_int(payload.get("leaf_capacity"), label="leaf_capacity"),
+        "max_inputs": _require_positive_int(payload.get("max_inputs"), label="max_inputs"),
+        "max_outputs": _require_positive_int(payload.get("max_outputs"), label="max_outputs"),
     }
     if normalized["leaf_capacity"] < 2 ** normalized["tree_depth"]:
-        raise ValueError(
-            "leaf_capacity must be large enough to cover the declared tree_depth"
-        )
+        raise ValueError("leaf_capacity must be large enough to cover the declared tree_depth")
 
     action_names = _BUNDLE_ACTIONS[bundle_type]
     vk_ids: set[str] = set()
@@ -114,12 +93,8 @@ def _validate_common_payload(
     for action in action_names:
         circuit = _require_mapping(payload.get(action), label=action)
         vk_id = _require_string(circuit.get("vk_id"), label=f"{action}.vk_id")
-        circuit_name = _require_string(
-            circuit.get("circuit_name"), label=f"{action}.circuit_name"
-        )
-        version = _require_string(
-            circuit.get("version"), label=f"{action}.version"
-        )
+        circuit_name = _require_string(circuit.get("circuit_name"), label=f"{action}.circuit_name")
+        version = _require_string(circuit.get("version"), label=f"{action}.version")
         if vk_id in vk_ids:
             raise ValueError(f"duplicate vk_id detected: {vk_id}")
         if circuit_name in circuit_names:
@@ -131,9 +106,7 @@ def _validate_common_payload(
             "vk_id": vk_id,
             "circuit_name": circuit_name,
             "version": version,
-            "vk_hex": _require_hex_string(
-                circuit.get("vk_hex"), label=f"{action}.vk_hex"
-            ),
+            "vk_hex": _require_hex_string(circuit.get("vk_hex"), label=f"{action}.vk_hex"),
         }
 
     if len(versions) != 1:
@@ -211,14 +184,9 @@ def load_and_validate_bundle_text(
     )
 
 
-def bundle_summary(
-    bundle: Mapping[str, Any], *, bundle_type: BundleType
-) -> str:
+def bundle_summary(bundle: Mapping[str, Any], *, bundle_type: BundleType) -> str:
     version = bundle[_BUNDLE_ACTIONS[bundle_type][0]]["version"]
-    return (
-        f"{bundle['circuit_family']} v{version} "
-        f"({bundle['setup_mode'] or 'unknown setup'})"
-    )
+    return f"{bundle['circuit_family']} v{version} ({bundle['setup_mode'] or 'unknown setup'})"
 
 
 __all__ = [

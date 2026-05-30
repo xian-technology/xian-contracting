@@ -28,9 +28,7 @@ from contracting.storage.driver import Driver
 def is_valid_import(name):
     spec = importlib.util.find_spec(name)
     if not isinstance(spec.loader, ContractModuleLoader):
-        raise ImportError(
-            "module {} cannot be imported in a smart contract.".format(name)
-        )
+        raise ImportError("module {} cannot be imported in a smart contract.".format(name))
 
 
 def _get_local_contract_runtime(driver: Driver, name: str):
@@ -41,9 +39,7 @@ def restricted_import(name, globals=None, locals=None, fromlist=(), level=0):
     if globals is not None and globals.get("__contract__") is True:
         driver = ContractModuleFinder.current_driver()
         if _get_local_contract_runtime(driver, name) is None:
-            raise ImportError(
-                "module {} cannot be imported in a smart contract.".format(name)
-            )
+            raise ImportError("module {} cannot be imported in a smart contract.".format(name))
         purge_contract_module(name)
 
     return __import__(name, globals, locals, fromlist, level)
@@ -69,9 +65,7 @@ def uninstall_builtins():
 
 
 def _remove_contract_module_finders():
-    sys.meta_path[:] = [
-        finder for finder in sys.meta_path if finder is not ContractModuleFinder
-    ]
+    sys.meta_path[:] = [finder for finder in sys.meta_path if finder is not ContractModuleFinder]
 
 
 def install_contract_module_loader(driver=None):
@@ -105,9 +99,7 @@ def import_contract_module(name: str):
     purge_contract_module(name)
     spec = importlib.util.find_spec(name)
     if spec is None or not isinstance(spec.loader, ContractModuleLoader):
-        raise ImportError(
-            "module {} cannot be imported in a smart contract.".format(name)
-        )
+        raise ImportError("module {} cannot be imported in a smart contract.".format(name))
     return importlib.import_module(name)
 
 
@@ -116,11 +108,7 @@ class ContractModuleFinder:
 
     @classmethod
     def current_driver(cls):
-        driver = (
-            rt.env.get("__Driver")
-            or _CONTRACT_MODULE_DRIVER.get()
-            or cls.default_driver
-        )
+        driver = rt.env.get("__Driver") or _CONTRACT_MODULE_DRIVER.get() or cls.default_driver
         if driver is None:
             driver = Driver()
             cls.default_driver = driver
@@ -131,7 +119,7 @@ class ContractModuleFinder:
         driver = cls.current_driver()
         try:
             code = _get_local_contract_runtime(driver, fullname)
-        except (RuntimeError, lmdb.Error):
+        except RuntimeError, lmdb.Error:
             return None
         if code is None:
             return None

@@ -4,9 +4,7 @@ import ast
 def methods_for_contract(contract_source: str):
     tree = ast.parse(contract_source)
 
-    function_defs = [
-        n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
-    ]
+    function_defs = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
 
     funcs = []
     for definition in function_defs:

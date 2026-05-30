@@ -94,9 +94,7 @@ class _VmCompatibilityVisitor(ast.NodeVisitor):
                 ErrorCode.E022,
                 node,
                 message=(
-                    "Syntax "
-                    f"'{construct}' is not supported by validation profile "
-                    f"'{self.profile}'"
+                    f"Syntax '{construct}' is not supported by validation profile '{self.profile}'"
                 ),
             )
         )
@@ -107,8 +105,7 @@ class _VmCompatibilityVisitor(ast.NodeVisitor):
                 ErrorCode.E023,
                 node,
                 message=(
-                    f"Built-in '{name}' is not supported by validation "
-                    f"profile '{self.profile}'"
+                    f"Built-in '{name}' is not supported by validation profile '{self.profile}'"
                 ),
             )
         )
@@ -192,9 +189,7 @@ class VmCompatibilityChecker:
         profile: str = XIAN_VM_V1_PROFILE,
     ) -> VmCompatibilityReport:
         if profile not in SUPPORTED_VM_PROFILES:
-            raise ValueError(
-                f"vm profile must be one of {sorted(SUPPORTED_VM_PROFILES)}"
-            )
+            raise ValueError(f"vm profile must be one of {sorted(SUPPORTED_VM_PROFILES)}")
 
         tree, parse_errors = self._parse(source_or_tree)
         errors: list[LintError] = list(parse_errors)
@@ -206,9 +201,7 @@ class VmCompatibilityChecker:
                 feature_counts=dict(feature_counts),
             )
 
-        lint_input: str | ast.AST = (
-            source_or_tree if isinstance(source_or_tree, str) else tree
-        )
+        lint_input: str | ast.AST = source_or_tree if isinstance(source_or_tree, str) else tree
         base_errors = self.linter.check(lint_input)
         if base_errors:
             errors.extend(base_errors)
@@ -271,6 +264,4 @@ def iter_contract_sources(paths: list[Path]) -> list[Path]:
 
 def _is_contract_source(path: Path) -> bool:
     name = path.name
-    return name.endswith(".s.py") or (
-        name.startswith("con_") and name.endswith(".py")
-    )
+    return name.endswith(".s.py") or (name.startswith("con_") and name.endswith(".py"))

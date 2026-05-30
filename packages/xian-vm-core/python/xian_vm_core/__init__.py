@@ -138,9 +138,7 @@ class NativeVmHost:
 
     def _write_raw_cost(self, key: str, value: Any) -> int:
         encoded_key, encoded_value = encode_kv(key, value)
-        return (
-            len(encoded_key) + len(encoded_value)
-        ) * constants.WRITE_COST_PER_BYTE
+        return (len(encoded_key) + len(encoded_value)) * constants.WRITE_COST_PER_BYTE
 
     def _charge_host_write(
         self,
@@ -166,13 +164,9 @@ class NativeVmHost:
         return self._lookup_key(self._make_key(contract, binding))
 
     def read_hash(self, contract: str, binding: str, key):
-        return self._lookup_key(
-            self._make_key(contract, binding, _hash_key_args(key))
-        )
+        return self._lookup_key(self._make_key(contract, binding, _hash_key_args(key)))
 
-    def scan_hash_entries(
-        self, contract: str, binding: str, prefix: str
-    ) -> list[tuple[str, Any]]:
+    def scan_hash_entries(self, contract: str, binding: str, prefix: str) -> list[tuple[str, Any]]:
         base_key = self._make_key(contract, binding)
         full_prefix = f"{base_key}{constants.DELIMITER}"
         if prefix:
@@ -246,10 +240,7 @@ class NativeVmHost:
         if not module_ir:
             return False
         for function in module_ir.get("functions", []):
-            if (
-                function.get("name") == export_name
-                and function.get("visibility") == "export"
-            ):
+            if function.get("name") == export_name and function.get("visibility") == "export":
                 return True
         return False
 
@@ -270,23 +261,18 @@ class NativeVmHost:
         storages = {
             declaration.get("name"): declaration.get("storage_type")
             for declaration in module_ir.get("global_declarations", [])
-            if isinstance(declaration, dict)
-            and declaration.get("node") == "storage_decl"
+            if isinstance(declaration, dict) and declaration.get("node") == "storage_decl"
         }
 
         for item in interface:
             if not isinstance(item, dict):
-                raise VmRuntimeExecutionError(
-                    "contract interface entries must be dict descriptors"
-                )
+                raise VmRuntimeExecutionError("contract interface entries must be dict descriptors")
             kind = item.get("__vm_interface__")
             if kind == "func":
                 function = functions.get(item.get("name"))
                 if function is None:
                     return False
-                expected_visibility = (
-                    "private" if item.get("private") else "export"
-                )
+                expected_visibility = "private" if item.get("private") else "export"
                 if function.get("visibility") != expected_visibility:
                     return False
                 expected_args = tuple(item.get("args", ()))
@@ -302,15 +288,11 @@ class NativeVmHost:
                 if storages.get(item.get("name")) != item.get("type"):
                     return False
                 continue
-            raise VmRuntimeExecutionError(
-                f"unsupported interface descriptor kind '{kind}'"
-            )
+            raise VmRuntimeExecutionError(f"unsupported interface descriptor kind '{kind}'")
 
         return True
 
-    def _stage_contract_metadata_write(
-        self, contract: str, variable: str, value: Any
-    ) -> None:
+    def _stage_contract_metadata_write(self, contract: str, variable: str, value: Any) -> None:
         key = self._make_key(contract, variable)
         self._stage_write(key, value)
         self._charge_host_write(key, value, enforce_write_cap=False)
@@ -320,9 +302,7 @@ class NativeVmHost:
         if not isinstance(active_contract, str) or active_contract == "":
             return
         if active_contract != constants.SUBMISSION_CONTRACT_NAME:
-            raise AssertionError(
-                "Contract metadata changes are restricted to submission."
-            )
+            raise AssertionError("Contract metadata changes are restricted to submission.")
 
     def _stage_contract_deploy(
         self,
@@ -363,9 +343,7 @@ class NativeVmHost:
 
         raw_source_bytes = len(source.encode("utf-8"))
         if raw_source_bytes > constants.MAX_CONTRACT_SUBMISSION_BYTES:
-            raise VmRuntimeExecutionError(
-                "Contract source exceeds the maximum allowed size."
-            )
+            raise VmRuntimeExecutionError("Contract source exceeds the maximum allowed size.")
 
         module_ir = json.loads(vm_ir_json)
         validate_module_ir(module_ir)
@@ -417,9 +395,7 @@ class NativeVmHost:
                     transaction_size_bytes=0,
                 )
                 if int(raw["status_code"]) != 0:
-                    raise VmRuntimeExecutionError(
-                        f"contract constructor failed: {raw['result']}"
-                    )
+                    raise VmRuntimeExecutionError(f"contract constructor failed: {raw['result']}")
                 constructor_writes = _snapshots_to_writes(
                     self.driver,
                     raw["snapshots"],
@@ -464,10 +440,7 @@ class NativeVmHost:
         self._pending_events.extend(constructor_events)
         self._record_raw_cost(
             constants.DEPLOYMENT_BASE_COST
-            + (
-                len(source.encode("utf-8"))
-                * constants.DEPLOYMENT_COST_PER_SOURCE_BYTE
-            )
+            + (len(source.encode("utf-8")) * constants.DEPLOYMENT_COST_PER_SOURCE_BYTE)
         )
 
     def handle_syscall(self, syscall_id: str, args, kwargs):
@@ -556,9 +529,7 @@ class NativeVmHost:
             function_name = syscall_id.split(".", 1)[1]
             handler = getattr(zk_bridge, function_name)
             return handler(*args, **kwargs)
-        raise VmRuntimeExecutionError(
-            f"unsupported host syscall '{syscall_id}'"
-        )
+        raise VmRuntimeExecutionError(f"unsupported host syscall '{syscall_id}'")
 
 
 def execute_contract(
@@ -636,24 +607,17 @@ def execute_contract(
 
 
 def _coerce_external_call_args(args: list[Any]) -> list[Any]:
-    return [
-        ContractingDecimal(str(value)) if isinstance(value, float) else value
-        for value in args
-    ]
+    return [ContractingDecimal(str(value)) if isinstance(value, float) else value for value in args]
 
 
 def _coerce_external_call_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
     return {
-        key: ContractingDecimal(str(value))
-        if isinstance(value, float)
-        else value
+        key: ContractingDecimal(str(value)) if isinstance(value, float) else value
         for key, value in kwargs.items()
     }
 
 
-def _merge_contract_costs(
-    left: dict[str, int], right: dict[str, int]
-) -> dict[str, int]:
+def _merge_contract_costs(left: dict[str, int], right: dict[str, int]) -> dict[str, int]:
     merged = dict(left)
     for contract, raw_cost in right.items():
         merged[contract] = int(merged.get(contract, 0)) + int(raw_cost)
@@ -697,7 +661,7 @@ def _native_exception_from_repr(result: str) -> BaseException | None:
         return exception_type()
     try:
         args = ast.literal_eval(f"({inner},)")
-    except (SyntaxError, ValueError):
+    except SyntaxError, ValueError:
         return exception_type(inner)
     if not isinstance(args, tuple):
         args = (args,)
@@ -711,30 +675,22 @@ def _combined_chi_used(
     extra_raw_cost: int,
     chi_budget_raw: int,
 ) -> int:
-    combined = (
-        (int(raw_cost) + int(extra_raw_cost)) // 1000
-    ) + constants.TRANSACTION_BASE_CHI
+    combined = ((int(raw_cost) + int(extra_raw_cost)) // 1000) + constants.TRANSACTION_BASE_CHI
     if chi_budget_raw > 0:
         combined = min(combined, chi_budget_raw // 1000)
     return max(combined, int(raw_chi_used))
 
 
-def _snapshots_to_writes(
-    driver, snapshots: list[dict[str, Any]]
-) -> dict[str, Any]:
+def _snapshots_to_writes(driver, snapshots: list[dict[str, Any]]) -> dict[str, Any]:
     writes: dict[str, Any] = {}
     for snapshot in snapshots:
         contract_name = snapshot["contract_name"]
         for variable in snapshot["variables"]:
-            writes[driver.make_key(contract_name, variable["binding"])] = (
-                variable["value"]
-            )
+            writes[driver.make_key(contract_name, variable["binding"])] = variable["value"]
         for hash_snapshot in snapshot["hashes"]:
             binding = hash_snapshot["binding"]
             for storage_key, value in hash_snapshot["entries"].items():
-                writes[
-                    driver.make_key(contract_name, binding, [storage_key])
-                ] = value
+                writes[driver.make_key(contract_name, binding, [storage_key])] = value
     return writes
 
 

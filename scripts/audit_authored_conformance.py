@@ -12,10 +12,7 @@ from contracting.compilation.authored_conformance import (
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description=(
-            "Audit authored contract sources against the Xian VM "
-            "conformance matrix."
-        )
+        description=("Audit authored contract sources against the Xian VM conformance matrix.")
     )
     parser.add_argument(
         "paths",
@@ -35,9 +32,7 @@ def main(argv: list[str] | None = None) -> int:
     auditor = AuthoredConformanceAuditor()
     paths = [Path(raw).resolve() for raw in args.paths]
     reports = auditor.audit_paths(paths)
-    issues_by_file = [
-        report.to_dict() for report in reports if not report.compatible
-    ]
+    issues_by_file = [report.to_dict() for report in reports if not report.compatible]
     payload = {
         "files_scanned": len(reports),
         "compatible_files": sum(report.compatible for report in reports),

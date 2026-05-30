@@ -8,9 +8,7 @@ from nacl.signing import SigningKey, VerifyKey
 _KEY_HEX_LENGTH = 64
 
 
-def _is_hex_string(
-    value: str, *, expected_length: int = _KEY_HEX_LENGTH
-) -> bool:
+def _is_hex_string(value: str, *, expected_length: int = _KEY_HEX_LENGTH) -> bool:
     if len(value) != expected_length:
         return False
     try:
@@ -46,7 +44,7 @@ def verify_message(public_key: str, message: str, signature: str) -> bool:
             message.encode("utf-8"),
             bytes.fromhex(signature),
         )
-    except (BadSignatureError, ValueError):
+    except BadSignatureError, ValueError:
         return False
     return True
 

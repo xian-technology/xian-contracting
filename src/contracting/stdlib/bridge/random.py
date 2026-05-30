@@ -13,9 +13,7 @@ class DeterministicRandom:
     buffer: bytearray = field(default_factory=bytearray)
 
     def _refill(self) -> None:
-        digest = hashlib.sha3_256(
-            f"{self.seed_material}|{self.counter}".encode("utf-8")
-        ).digest()
+        digest = hashlib.sha3_256(f"{self.seed_material}|{self.counter}".encode("utf-8")).digest()
         self.counter += 1
         self.buffer.extend(digest)
 

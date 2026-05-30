@@ -17,8 +17,4 @@ def module_name_from_path(path: Path) -> str:
 
 
 def iter_authored_contract_sources(paths: list[Path]) -> list[Path]:
-    return [
-        path
-        for path in iter_contract_sources(paths)
-        if "__pycache__" not in path.parts
-    ]
+    return [path for path in iter_contract_sources(paths) if "__pycache__" not in path.parts]

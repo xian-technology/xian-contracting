@@ -61,9 +61,7 @@ class _AuthoredConformanceVisitor(ast.NodeVisitor):
             CONTRACT_LANGUAGE_MANIFEST["python_contracting"]["allowed_builtins"]
         )
         self._public_env = set(
-            CONTRACT_LANGUAGE_MANIFEST["python_contracting"][
-                "public_env_surface"
-            ]
+            CONTRACT_LANGUAGE_MANIFEST["python_contracting"]["public_env_surface"]
         )
 
     def visit_Name(self, node: ast.Name) -> None:
@@ -86,10 +84,7 @@ class _AuthoredConformanceVisitor(ast.NodeVisitor):
             elif isinstance(decorator, ast.Name) and decorator.id == "export":
                 self.used_features.add("decorators.export")
             elif isinstance(decorator, ast.Call):
-                if (
-                    isinstance(decorator.func, ast.Name)
-                    and decorator.func.id == "export"
-                ):
+                if isinstance(decorator.func, ast.Name) and decorator.func.id == "export":
                     self.used_features.add("decorators.export")
                     if any(
                         keyword.arg == "typecheck"
@@ -211,9 +206,7 @@ class AuthoredConformanceReport:
 
     @property
     def compatible(self) -> bool:
-        return not (
-            self.missing_builtins or self.missing_env or self.missing_features
-        )
+        return not (self.missing_builtins or self.missing_env or self.missing_features)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -250,14 +243,12 @@ class AuthoredConformanceAuditor:
         missing_builtins = sorted(
             value
             for value in visitor.used_builtins
-            if value not in self._covered_builtins
-            and value not in CONFORMANCE_BUILTIN_EXCLUSIONS
+            if value not in self._covered_builtins and value not in CONFORMANCE_BUILTIN_EXCLUSIONS
         )
         missing_env = sorted(
             value
             for value in visitor.used_env
-            if value not in self._covered_env
-            and value not in CONFORMANCE_ENV_EXCLUSIONS
+            if value not in self._covered_env and value not in CONFORMANCE_ENV_EXCLUSIONS
         )
         missing_features = sorted(
             value

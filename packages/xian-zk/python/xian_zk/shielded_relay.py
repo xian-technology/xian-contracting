@@ -189,9 +189,7 @@ class ShieldedRelayTransferWallet(ShieldedWallet):
         if append_state is None:
             append_state = self.tree_state()
 
-        commitments = self._validated_membership_commitments(
-            old_root, membership_commitments
-        )
+        commitments = self._validated_membership_commitments(old_root, membership_commitments)
         input_notes = self.select_notes(required_amount, max_inputs=max_inputs)
         total_input = sum(note.amount for note in input_notes)
         change_amount = total_input - required_amount
@@ -272,9 +270,7 @@ class ShieldedRelayTransferProver:
         normalized_bundle = validate_shielded_command_bundle(bundle_json)
         self.bundle = normalized_bundle
         self.bundle_json = json.dumps(normalized_bundle, sort_keys=True)
-        self._bundle_handle = load_shielded_command_prover_bundle(
-            self.bundle_json
-        )
+        self._bundle_handle = load_shielded_command_prover_bundle(self.bundle_json)
 
     @classmethod
     def build_insecure_dev_bundle(cls) -> "ShieldedRelayTransferProver":
@@ -294,20 +290,14 @@ class ShieldedRelayTransferProver:
             )
         )
 
-    def registry_manifest(
-        self, *, artifact_contract_name: str | None = None
-    ) -> dict[str, Any]:
-        return shielded_relay_registry_manifest(
-            self, artifact_contract_name=artifact_contract_name
-        )
+    def registry_manifest(self, *, artifact_contract_name: str | None = None) -> dict[str, Any]:
+        return shielded_relay_registry_manifest(self, artifact_contract_name=artifact_contract_name)
 
     def prove_relay_transfer(
         self, request: ShieldedRelayTransferRequest
     ) -> ShieldedRelayTransferProofResult:
         if len(request.inputs) == 0:
-            raise ValueError(
-                "shielded relay transfer requires at least one input"
-            )
+            raise ValueError("shielded relay transfer requires at least one input")
 
         input_nullifiers = []
         for shielded_input in request.inputs:
@@ -332,9 +322,7 @@ class ShieldedRelayTransferProver:
             "append_state": asdict(request.append_state),
             "fee": request.fee,
             "public_amount": 0,
-            "inputs": [
-                asdict(shielded_input) for shielded_input in request.inputs
-            ],
+            "inputs": [asdict(shielded_input) for shielded_input in request.inputs],
             "outputs": [asdict(output) for output in request.outputs],
             "command_binding": binding,
             "output_payload_hashes": list(request.output_payload_hashes),
@@ -367,9 +355,7 @@ def shielded_relay_registry_manifest(
     if isinstance(bundle, ShieldedRelayTransferProver):
         payload = bundle.bundle
     elif isinstance(bundle, dict):
-        payload = validate_shielded_command_bundle(
-            bundle, require_private_keys=False
-        )
+        payload = validate_shielded_command_bundle(bundle, require_private_keys=False)
     else:
         raise TypeError("bundle must be a ShieldedRelayTransferProver or dict")
 
@@ -409,9 +395,7 @@ def shielded_relay_registry_manifest(
         "setup_ceremony": payload.get("setup_ceremony", ""),
         "bundle_hash": bundle_hash,
         "registry_entries": [entry],
-        "configure_actions": [
-            {"action": _RELAY_ACTION, "vk_id": circuit["vk_id"]}
-        ],
+        "configure_actions": [{"action": _RELAY_ACTION, "vk_id": circuit["vk_id"]}],
     }
 
 

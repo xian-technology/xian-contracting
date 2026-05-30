@@ -70,10 +70,7 @@ def _payload_metering_cost(
     payload_bytes += sum(_hex_payload_bytes(value) for value in public_inputs)
     return (
         constants.ZK_VERIFY_GROTH16_BASE_COST
-        + (
-            len(public_inputs)
-            * constants.ZK_VERIFY_GROTH16_PER_PUBLIC_INPUT_COST
-        )
+        + (len(public_inputs) * constants.ZK_VERIFY_GROTH16_PER_PUBLIC_INPUT_COST)
         + (payload_bytes * constants.ZK_VERIFY_GROTH16_PER_PAYLOAD_BYTE_COST)
     )
 
@@ -89,14 +86,8 @@ def _registry_metering_cost(
     return (
         constants.ZK_VERIFY_GROTH16_REGISTRY_BASE_COST
         + constants.ZK_VERIFY_GROTH16_REGISTRY_PREPARE_COST
-        + (
-            len(public_inputs)
-            * constants.ZK_VERIFY_GROTH16_REGISTRY_PER_PUBLIC_INPUT_COST
-        )
-        + (
-            payload_bytes
-            * constants.ZK_VERIFY_GROTH16_REGISTRY_PER_PAYLOAD_BYTE_COST
-        )
+        + (len(public_inputs) * constants.ZK_VERIFY_GROTH16_REGISTRY_PER_PUBLIC_INPUT_COST)
+        + (payload_bytes * constants.ZK_VERIFY_GROTH16_REGISTRY_PER_PAYLOAD_BYTE_COST)
     )
 
 
@@ -106,9 +97,7 @@ def _validate_hex_payload(name: str, value: str, max_chars: int):
     assert len(value) > 2, f"{name} must not be empty!"
     assert len(value) <= max_chars, f"{name} exceeds the maximum size!"
     assert len(value) % 2 == 0, f"{name} must contain whole bytes of hex!"
-    assert all(char in "0123456789abcdefABCDEF" for char in value[2:]), (
-        f"{name} must be valid hex!"
-    )
+    assert all(char in "0123456789abcdefABCDEF" for char in value[2:]), f"{name} must be valid hex!"
 
 
 def _validate_public_inputs(public_inputs):
@@ -122,9 +111,7 @@ def _validate_public_inputs(public_inputs):
             value,
             66,
         )
-        assert len(value) == 66, (
-            f"public_inputs[{index}] must be exactly 32 bytes!"
-        )
+        assert len(value) == 66, f"public_inputs[{index}] must be exactly 32 bytes!"
 
 
 def _validate_field_values(label: str, values, *, minimum: int, maximum: int):
@@ -145,17 +132,14 @@ def _shielded_command_nullifier_digest_cost(
     input_nullifiers: list[str],
 ) -> int:
     return constants.ZK_SHIELDED_COMMAND_NULLIFIER_DIGEST_BASE_COST + (
-        len(input_nullifiers)
-        * constants.ZK_SHIELDED_COMMAND_NULLIFIER_DIGEST_PER_INPUT_COST
+        len(input_nullifiers) * constants.ZK_SHIELDED_COMMAND_NULLIFIER_DIGEST_PER_INPUT_COST
     )
 
 
 def _validate_vk_id(vk_id: str):
     assert isinstance(vk_id, str), "vk_id must be a string!"
     assert vk_id != "", "vk_id must not be empty!"
-    assert len(vk_id) <= constants.MAX_ZK_VERIFYING_KEY_ID_CHARS, (
-        "vk_id exceeds the maximum size!"
-    )
+    assert len(vk_id) <= constants.MAX_ZK_VERIFYING_KEY_ID_CHARS, "vk_id exceeds the maximum size!"
 
 
 def _driver():
@@ -185,12 +169,8 @@ def _registered_vk_record(vk_id: str):
         "active": _registry_field(vk_id, "active"),
     }
 
-    assert record["scheme"] == "groth16", (
-        f"Verifying key '{vk_id}' must use Groth16!"
-    )
-    assert record["curve"] == "bn254", (
-        f"Verifying key '{vk_id}' must use BN254!"
-    )
+    assert record["scheme"] == "groth16", f"Verifying key '{vk_id}' must use Groth16!"
+    assert record["curve"] == "bn254", f"Verifying key '{vk_id}' must use BN254!"
     assert record["active"] is True, f"Verifying key '{vk_id}' is inactive!"
     assert isinstance(record["vk_hash"], str) and record["vk_hash"] != "", (
         f"Verifying key '{vk_id}' is missing vk_hash!"
@@ -260,9 +240,7 @@ def get_vk_info(vk_id: str):
         "circuit_family": _registry_field(vk_id, "circuit_family"),
         "statement_version": _registry_field(vk_id, "statement_version"),
         "contract_name": _registry_field(vk_id, "contract_name"),
-        "artifact_contract_name": _registry_field(
-            vk_id, "artifact_contract_name"
-        ),
+        "artifact_contract_name": _registry_field(vk_id, "artifact_contract_name"),
         "tree_depth": _registry_field(vk_id, "tree_depth"),
         "leaf_capacity": _registry_field(vk_id, "leaf_capacity"),
         "max_inputs": _registry_field(vk_id, "max_inputs"),
@@ -292,9 +270,7 @@ def verify_groth16_bn254(vk_hex: str, proof_hex: str, public_inputs: list[str]):
     )
     _validate_public_inputs(public_inputs)
 
-    rt.deduct_execution_cost(
-        _payload_metering_cost(vk_hex, proof_hex, public_inputs)
-    )
+    rt.deduct_execution_cost(_payload_metering_cost(vk_hex, proof_hex, public_inputs))
 
     bindings = _native_verifier_bindings()
     assert bindings is not None, (
@@ -324,9 +300,7 @@ def verify_groth16(vk_id: str, proof_hex: str, public_inputs: list[str]):
     )
     _validate_public_inputs(public_inputs)
 
-    rt.deduct_execution_cost(
-        _registry_metering_cost(vk_id, proof_hex, public_inputs)
-    )
+    rt.deduct_execution_cost(_registry_metering_cost(vk_id, proof_hex, public_inputs))
 
     bindings = _native_verifier_bindings()
     assert bindings is not None, (
@@ -436,9 +410,7 @@ def warm_verified_proofs(requests: list[dict]) -> list[bool]:
         try:
             native_results = json.loads(encoded)
         except json.JSONDecodeError as exc:
-            raise AssertionError(
-                "Native grouped zk verification returned invalid JSON"
-            ) from exc
+            raise AssertionError("Native grouped zk verification returned invalid JSON") from exc
         assert isinstance(native_results, list) and len(native_results) == len(
             pending_cache_keys
         ), "Native grouped zk verification returned invalid results!"
@@ -498,12 +470,8 @@ def shielded_note_append_commitments(
     try:
         decoded = json.loads(encoded)
     except json.JSONDecodeError as exc:
-        raise AssertionError(
-            "Native shielded tree append returned invalid JSON"
-        ) from exc
-    assert isinstance(decoded, dict), (
-        "Native shielded tree append returned invalid result!"
-    )
+        raise AssertionError("Native shielded tree append returned invalid JSON") from exc
+    assert isinstance(decoded, dict), "Native shielded tree append returned invalid result!"
     return decoded
 
 
@@ -514,9 +482,7 @@ def shielded_command_nullifier_digest(input_nullifiers: list[str]):
         minimum=1,
         maximum=constants.MAX_ZK_PUBLIC_INPUTS,
     )
-    rt.deduct_execution_cost(
-        _shielded_command_nullifier_digest_cost(input_nullifiers)
-    )
+    rt.deduct_execution_cost(_shielded_command_nullifier_digest_cost(input_nullifiers))
 
     bindings = _native_verifier_bindings()
     assert bindings is not None, (
@@ -560,9 +526,7 @@ def shielded_command_binding(
         minimum=8,
         maximum=8,
     )
-    assert isinstance(fee, int) and fee >= 0, (
-        "fee must be a non-negative integer!"
-    )
+    assert isinstance(fee, int) and fee >= 0, "fee must be a non-negative integer!"
     assert isinstance(public_amount, int) and public_amount >= 0, (
         "public_amount must be a non-negative integer!"
     )
@@ -698,9 +662,7 @@ def shielded_deposit_public_inputs(
     assert isinstance(contract_name, str) and contract_name != "", (
         "contract_name must be a non-empty string!"
     )
-    assert isinstance(amount, int) and amount >= 0, (
-        "amount must be a non-negative integer!"
-    )
+    assert isinstance(amount, int) and amount >= 0, "amount must be a non-negative integer!"
     _validate_field_values(
         "commitments",
         commitments,
@@ -713,9 +675,7 @@ def shielded_deposit_public_inputs(
         minimum=len(commitments),
         maximum=4,
     )
-    assert len(payload_hashes) == len(commitments), (
-        "payload_hashes length must match commitments!"
-    )
+    assert len(payload_hashes) == len(commitments), "payload_hashes length must match commitments!"
     _validate_hex_payload("old_root", old_root, 66)
 
     bindings = _native_verifier_bindings()
@@ -768,9 +728,7 @@ def shielded_transfer_public_inputs(
         minimum=len(commitments),
         maximum=4,
     )
-    assert len(payload_hashes) == len(commitments), (
-        "payload_hashes length must match commitments!"
-    )
+    assert len(payload_hashes) == len(commitments), "payload_hashes length must match commitments!"
 
     bindings = _native_verifier_bindings()
     assert bindings is not None, (
@@ -805,12 +763,8 @@ def shielded_withdraw_public_inputs(
     assert isinstance(contract_name, str) and contract_name != "", (
         "contract_name must be a non-empty string!"
     )
-    assert isinstance(amount, int) and amount >= 0, (
-        "amount must be a non-negative integer!"
-    )
-    assert isinstance(recipient, str) and recipient != "", (
-        "recipient must be a non-empty string!"
-    )
+    assert isinstance(amount, int) and amount >= 0, "amount must be a non-negative integer!"
+    assert isinstance(recipient, str) and recipient != "", "recipient must be a non-empty string!"
     _validate_hex_payload("old_root", old_root, 66)
     _validate_field_values(
         "input_nullifiers",
@@ -830,9 +784,7 @@ def shielded_withdraw_public_inputs(
         minimum=len(commitments),
         maximum=4,
     )
-    assert len(payload_hashes) == len(commitments), (
-        "payload_hashes length must match commitments!"
-    )
+    assert len(payload_hashes) == len(commitments), "payload_hashes length must match commitments!"
 
     bindings = _native_verifier_bindings()
     assert bindings is not None, (
@@ -878,9 +830,7 @@ def shielded_command_public_inputs(
         minimum=2,
         maximum=2,
     )
-    assert isinstance(fee, int) and fee >= 0, (
-        "fee must be a non-negative integer!"
-    )
+    assert isinstance(fee, int) and fee >= 0, "fee must be a non-negative integer!"
     assert isinstance(public_amount, int) and public_amount >= 0, (
         "public_amount must be a non-negative integer!"
     )
@@ -902,9 +852,7 @@ def shielded_command_public_inputs(
         minimum=len(commitments),
         maximum=4,
     )
-    assert len(payload_hashes) == len(commitments), (
-        "payload_hashes length must match commitments!"
-    )
+    assert len(payload_hashes) == len(commitments), "payload_hashes length must match commitments!"
 
     bindings = _native_verifier_bindings()
     assert bindings is not None, (

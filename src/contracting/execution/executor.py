@@ -142,9 +142,7 @@ class Executor:
                         balance = 9999999
 
                     else:
-                        balance = self._coerce_balance_value(
-                            driver.get(balances_key)
-                        )
+                        balance = self._coerce_balance_value(driver.get(balances_key))
 
                     if balance * chi_cost < chi:
                         raise AssertionError(
@@ -187,9 +185,7 @@ class Executor:
                 func = getattr(module, function_name)
 
                 if contract_name == constants.SUBMISSION_CONTRACT_NAME:
-                    runtime.rt.context._base_state["submission_name"] = (
-                        kwargs.get("name")
-                    )
+                    runtime.rt.context._base_state["submission_name"] = kwargs.get("name")
 
                 result = func(**kwargs)
                 runtime.rt.deduct_return_value(result)
@@ -240,9 +236,7 @@ class Executor:
                 # resulting float in ContractingDecimal preserved the
                 # imprecise value. Convert to Decimal first so the division
                 # itself happens in Decimal space.
-                to_deduct = ContractingDecimal(chi_used) / ContractingDecimal(
-                    chi_cost
-                )
+                to_deduct = ContractingDecimal(chi_used) / ContractingDecimal(chi_cost)
 
                 balance = self._coerce_balance_value(driver.get(balances_key))
 
@@ -266,9 +260,7 @@ class Executor:
                 "prefix_reads": frozenset(driver.transaction_read_prefixes),
                 "events": events,
                 "contract_costs": contract_costs,
-                "error_class": _classify_execution_error(
-                    result if status_code != 0 else None
-                ),
+                "error_class": _classify_execution_error(result if status_code != 0 else None),
             }
 
             disable_restricted_imports()

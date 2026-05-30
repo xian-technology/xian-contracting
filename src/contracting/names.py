@@ -13,9 +13,7 @@ def is_safe_contract_name(name: object) -> bool:
 
 
 def assert_safe_contract_name(name: object) -> str:
-    assert isinstance(name, str) and name != "", (
-        "Contract name must be a non-empty string."
-    )
+    assert isinstance(name, str) and name != "", "Contract name must be a non-empty string."
     assert len(name) <= MAX_CONTRACT_NAME_LENGTH, (
         f"Contract name length exceeds {MAX_CONTRACT_NAME_LENGTH} characters!"
     )

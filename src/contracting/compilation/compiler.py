@@ -107,9 +107,7 @@ class ContractingCompiler(ast.NodeTransformer):
 
         return compiled_code
 
-    def normalize_source(
-        self, source: str, lint=True, vm_profile: str | None = None
-    ):
+    def normalize_source(self, source: str, lint=True, vm_profile: str | None = None):
         tree = ast.parse(source)
 
         if lint:
@@ -181,9 +179,7 @@ class ContractingCompiler(ast.NodeTransformer):
 
             if isinstance(decorator, ast.Name):
                 decorator_name = decorator.id
-            elif isinstance(decorator, ast.Call) and isinstance(
-                decorator.func, ast.Name
-            ):
+            elif isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name):
                 decorator_name = decorator.func.id
                 decorator_keywords = decorator.keywords
 
@@ -195,9 +191,7 @@ class ContractingCompiler(ast.NodeTransformer):
                 # Transform @export decorators to @__export(contract_name) decorators
                 new_node = ast.Call(
                     func=ast.Name(
-                        id="{}{}".format(
-                            "__", constants.EXPORT_DECORATOR_STRING
-                        ),
+                        id="{}{}".format("__", constants.EXPORT_DECORATOR_STRING),
                         ctx=ast.Load(),
                     ),
                     args=[ast.Constant(value=self.module_name)],
@@ -283,9 +277,7 @@ class ContractingCompiler(ast.NodeTransformer):
 
     def visit_Constant(self, node):
         if isinstance(node.value, float):
-            literal = ast.get_source_segment(self.source, node) or str(
-                node.value
-            )
+            literal = ast.get_source_segment(self.source, node) or str(node.value)
             return ast.Call(
                 func=ast.Name(id="decimal", ctx=ast.Load()),
                 args=[ast.Constant(value=literal)],

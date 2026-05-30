@@ -70,9 +70,7 @@ def _sha256_text(value: str) -> str:
 
 def _is_contract_source(path: Path) -> bool:
     name = path.name
-    return name.endswith(".s.py") or (
-        name.startswith("con_") and name.endswith(".py")
-    )
+    return name.endswith(".s.py") or (name.startswith("con_") and name.endswith(".py"))
 
 
 def _is_excluded(path: Path) -> bool:
@@ -303,12 +301,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
 
-    mismatches = [
-        record for record in records if record["status"] == "mismatch"
-    ]
-    both_rejected = [
-        record for record in records if record["status"] == "both_rejected"
-    ]
+    mismatches = [record for record in records if record["status"] == "mismatch"]
+    both_rejected = [record for record in records if record["status"] == "both_rejected"]
     output_records = records if args.show_all else mismatches + both_rejected
 
     print(
@@ -318,9 +312,7 @@ def main(argv: list[str] | None = None) -> int:
                 "profile": args.profile,
                 "sources": len(source_paths),
                 "comparisons": len(records),
-                "matched": sum(
-                    1 for record in records if record["status"] == "matched"
-                ),
+                "matched": sum(1 for record in records if record["status"] == "matched"),
                 "both_rejected": len(both_rejected),
                 "mismatches": len(mismatches),
                 "records": output_records,

@@ -243,8 +243,7 @@ def get_default_cost_opcodes() -> list[str]:
     return sorted(
         opname
         for opname in opcode.opmap
-        if _opcode_cost(opname) == DEFAULT_COST
-        and not _is_explicitly_costed(opname)
+        if _opcode_cost(opname) == DEFAULT_COST and not _is_explicitly_costed(opname)
     )
 
 

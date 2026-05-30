@@ -3,9 +3,7 @@ import builtins
 
 
 def _existing_ast_types(*names):
-    return {
-        node for name in names if (node := ast.__dict__.get(name)) is not None
-    }
+    return {node for name in names if (node := ast.__dict__.get(name)) is not None}
 
 
 ALLOWED_BUILTINS = {

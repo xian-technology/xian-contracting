@@ -43,8 +43,7 @@ def _assert_native_compiler_host_surface_current() -> None:
         for field in ("id", "kind", "category"):
             if actual.get(field) != expected[field]:
                 mismatched.append(
-                    f"{binding}.{field}: expected {expected[field]!r}, "
-                    f"got {actual.get(field)!r}"
+                    f"{binding}.{field}: expected {expected[field]!r}, got {actual.get(field)!r}"
                 )
 
     if missing or mismatched:
@@ -55,8 +54,7 @@ def _assert_native_compiler_host_surface_current() -> None:
             details.append("mismatched bindings: " + "; ".join(mismatched))
         raise RuntimeError(
             "xian_compiler_core host catalog is stale relative to "
-            "contracting.compilation.ir; rebuild xian-tech-compiler-core. "
-            + " ".join(details)
+            "contracting.compilation.ir; rebuild xian-tech-compiler-core. " + " ".join(details)
         )
 
 
@@ -108,13 +106,9 @@ def validate_contract_artifacts(
     if artifacts.get("format") != CONTRACT_ARTIFACT_FORMAT_V1:
         raise ValueError("deployment_artifacts has an unsupported format.")
     if artifacts.get("module_name") != module_name:
-        raise ValueError(
-            "deployment_artifacts module_name does not match the target contract."
-        )
+        raise ValueError("deployment_artifacts module_name does not match the target contract.")
     if artifacts.get("vm_profile") != vm_profile:
-        raise ValueError(
-            "deployment_artifacts vm_profile does not match the execution profile."
-        )
+        raise ValueError("deployment_artifacts vm_profile does not match the execution profile.")
 
     source = artifacts.get("source")
     vm_ir_json = artifacts.get("vm_ir_json")
@@ -123,13 +117,9 @@ def validate_contract_artifacts(
         raise ValueError("deployment_artifacts must not include runtime_code.")
 
     if not isinstance(source, str) or source == "":
-        raise ValueError(
-            "deployment_artifacts must include a non-empty 'source' string."
-        )
+        raise ValueError("deployment_artifacts must include a non-empty 'source' string.")
     if not isinstance(hashes, dict):
-        raise ValueError(
-            "deployment_artifacts must include a 'hashes' dictionary."
-        )
+        raise ValueError("deployment_artifacts must include a 'hashes' dictionary.")
 
     try:
         native_validated = xian_compiler_core.validate_contract_artifact(
@@ -145,27 +135,21 @@ def validate_contract_artifacts(
 
     has_vm_ir_json = isinstance(vm_ir_json, str) and vm_ir_json != ""
     if not has_vm_ir_json:
-        raise ValueError(
-            "deployment_artifacts must include a non-empty 'vm_ir_json' string."
-        )
+        raise ValueError("deployment_artifacts must include a non-empty 'vm_ir_json' string.")
 
     required_hashes = {
         "source_sha256": _sha256_text(source),
         "vm_ir_sha256": _sha256_text(vm_ir_json),
     }
     if "runtime_code_sha256" in hashes:
-        raise ValueError(
-            "deployment_artifacts hashes must not include runtime_code_sha256."
-        )
+        raise ValueError("deployment_artifacts hashes must not include runtime_code_sha256.")
     if input_source is not None:
         required_hashes["input_source_sha256"] = _sha256_text(input_source)
 
     for hash_name, expected in required_hashes.items():
         actual = hashes.get(hash_name)
         if actual != expected:
-            raise ValueError(
-                f"deployment_artifacts hash mismatch for '{hash_name}'."
-            )
+            raise ValueError(f"deployment_artifacts hash mismatch for '{hash_name}'.")
 
     canonical_source = xian_compiler_core.normalize_source(
         module_name,
@@ -174,9 +158,7 @@ def validate_contract_artifacts(
         vm_profile=vm_profile,
     )
     if canonical_source != source:
-        raise ValueError(
-            "deployment_artifacts source does not match canonical normalized source."
-        )
+        raise ValueError("deployment_artifacts source does not match canonical normalized source.")
 
     canonical_vm_ir_json = _compile_canonical_ir(
         module_name=module_name,

@@ -116,18 +116,14 @@ class LMDBStore:
         after_key: str | None = None,
     ) -> tuple[list[str], bool]:
         prefix_bytes = prefix.encode("utf-8")
-        after_key_bytes = (
-            after_key.encode("utf-8") if after_key is not None else None
-        )
+        after_key_bytes = after_key.encode("utf-8") if after_key is not None else None
         normalized_limit = max(int(limit), 0)
         if normalized_limit == 0:
             return [], False
 
         keys: list[str] = []
         has_more = False
-        start_bytes = (
-            after_key_bytes if after_key_bytes is not None else prefix_bytes
-        )
+        start_bytes = after_key_bytes if after_key_bytes is not None else prefix_bytes
 
         with self._require_open().begin() as txn:
             cursor = txn.cursor()
@@ -187,9 +183,7 @@ class LMDBStore:
         self._run_write_transaction(operation)
 
     def flush(self):
-        self._run_write_transaction(
-            lambda txn: txn.drop(self._db, delete=False)
-        )
+        self._run_write_transaction(lambda txn: txn.drop(self._db, delete=False))
 
     def exists(self, key: str) -> bool:
         with self._require_open().begin() as txn:

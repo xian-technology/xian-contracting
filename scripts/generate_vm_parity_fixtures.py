@@ -43,15 +43,9 @@ SHIELDED_COMMANDS_SOURCE = (
     / "src"
     / "con_shielded_commands.py"
 )
-ZK_REGISTRY_SOURCE = (
-    WORKSPACE_ROOT / "xian-configs" / "contracts" / "zk_registry.s.py"
-)
-GENESIS_CURRENCY_SOURCE = (
-    WORKSPACE_ROOT / "xian-configs" / "contracts" / "currency.s.py"
-)
-STABLE_TOKEN_SOURCE = (
-    WORKSPACE_ROOT / "xian-stable-protocol" / "contracts" / "stable_token.s.py"
-)
+ZK_REGISTRY_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "zk_registry.s.py"
+GENESIS_CURRENCY_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "currency.s.py"
+STABLE_TOKEN_SOURCE = WORKSPACE_ROOT / "xian-stable-protocol" / "contracts" / "stable_token.s.py"
 REFLECTION_TOKEN_SOURCE = (
     WORKSPACE_ROOT
     / "xian-contracts"
@@ -76,13 +70,9 @@ TURN_BASED_GAMES_SOURCE = (
     / "src"
     / "con_turn_based_games.py"
 )
-ORACLE_SOURCE = (
-    WORKSPACE_ROOT / "xian-stable-protocol" / "contracts" / "oracle.s.py"
-)
+ORACLE_SOURCE = WORKSPACE_ROOT / "xian-stable-protocol" / "contracts" / "oracle.s.py"
 DAO_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "dao.s.py"
-CHI_COST_SOURCE = (
-    WORKSPACE_ROOT / "xian-configs" / "contracts" / "chi_cost.s.py"
-)
+CHI_COST_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "chi_cost.s.py"
 REWARDS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "rewards.s.py"
 MEMBERS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "members.s.py"
 DEFAULT_DEX_BUNDLE_SOURCE = (
@@ -172,9 +162,7 @@ def _module_source(spec: dict[str, Any]) -> str:
         resolved = source
     else:
         source_path = spec.get("source_path")
-        assert source_path is not None, (
-            "fixture module/source must define source or source_path"
-        )
+        assert source_path is not None, "fixture module/source must define source or source_path"
         path = Path(source_path)
         if not path.is_absolute():
             path = WORKSPACE_ROOT / path
@@ -190,19 +178,14 @@ def _field_hex(value: int) -> str:
 
 
 def _field_int_from_text(value: str) -> int:
-    assert isinstance(value, str) and value != "", (
-        "field text must be non-empty"
-    )
-    return (
-        int(hashlib.sha3_256(value.encode("utf-8")).hexdigest(), 16)
-        % FIELD_MODULUS
-    )
+    assert isinstance(value, str) and value != "", "field text must be non-empty"
+    return int(hashlib.sha3_256(value.encode("utf-8")).hexdigest(), 16) % FIELD_MODULUS
 
 
 def _field_int(value: str) -> int:
-    assert (
-        isinstance(value, str) and value.startswith("0x") and len(value) == 66
-    ), "field value must be 0x-prefixed 32-byte hex"
+    assert isinstance(value, str) and value.startswith("0x") and len(value) == 66, (
+        "field value must be 0x-prefixed 32-byte hex"
+    )
     parsed = int(value[2:], 16)
     assert parsed < FIELD_MODULUS, "field value must be canonical"
     return parsed
@@ -233,9 +216,7 @@ def _mimc_hash_many_int(values: list[int]) -> int:
 def _fallback_shielded_command_nullifier_digest(
     input_nullifiers: list[str],
 ) -> str:
-    assert 1 <= len(input_nullifiers) <= MAX_ZK_INPUTS, (
-        "invalid input nullifier count"
-    )
+    assert 1 <= len(input_nullifiers) <= MAX_ZK_INPUTS, "invalid input nullifier count"
     parsed = [_field_int(value) for value in input_nullifiers]
     while len(parsed) < MAX_ZK_INPUTS:
         parsed.append(0)
@@ -314,18 +295,12 @@ def _set_local_hash_entry(
     value: Any,
 ) -> None:
     arguments = list(key) if isinstance(key, tuple) else [key]
-    client.raw_driver.set_var(
-        module_name, binding, arguments=arguments, value=value
-    )
+    client.raw_driver.set_var(module_name, binding, arguments=arguments, value=value)
 
 
-def _set_seed_state(
-    client: ContractingClient, module_name: str, seed: dict[str, Any]
-) -> None:
+def _set_seed_state(client: ContractingClient, module_name: str, seed: dict[str, Any]) -> None:
     for item in seed.get("variables", []):
-        client.raw_driver.set_var(
-            module_name, item["binding"], value=item["value"]
-        )
+        client.raw_driver.set_var(module_name, item["binding"], value=item["value"])
     for item in seed.get("hashes", []):
         for entry in item.get("entries", []):
             _set_local_hash_entry(
@@ -343,11 +318,7 @@ def _set_seed_state(
         )
     for item in seed.get("foreign_hashes", []):
         for entry in item.get("entries", []):
-            arguments = (
-                list(entry["key"])
-                if isinstance(entry["key"], tuple)
-                else [entry["key"]]
-            )
+            arguments = list(entry["key"]) if isinstance(entry["key"], tuple) else [entry["key"]]
             client.raw_driver.set_var(
                 item["contract"],
                 item["name"],
@@ -365,9 +336,7 @@ def _query_state(
         result["variables"].append(
             {
                 "binding": binding,
-                "value": _json_value(
-                    client.raw_driver.get_var(module_name, binding)
-                ),
+                "value": _json_value(client.raw_driver.get_var(module_name, binding)),
             }
         )
     for query in queries.get("hashes", []):
@@ -376,9 +345,7 @@ def _query_state(
             arguments = list(key) if isinstance(key, tuple) else [key]
             entries.append(
                 {
-                    "key": _json_value(
-                        list(key) if isinstance(key, tuple) else key
-                    ),
+                    "key": _json_value(list(key) if isinstance(key, tuple) else key),
                     "value": _json_value(
                         client.raw_driver.get_var(
                             module_name,
@@ -388,9 +355,7 @@ def _query_state(
                     ),
                 }
             )
-        result["hashes"].append(
-            {"binding": query["binding"], "entries": entries}
-        )
+        result["hashes"].append({"binding": query["binding"], "entries": entries})
     return result
 
 
@@ -409,9 +374,7 @@ def _seed_to_json(seed: dict[str, Any]) -> dict[str, Any]:
                 "entries": [
                     {
                         "key": _json_value(
-                            list(entry["key"])
-                            if isinstance(entry["key"], tuple)
-                            else entry["key"]
+                            list(entry["key"]) if isinstance(entry["key"], tuple) else entry["key"]
                         ),
                         "value": _json_value(entry["value"]),
                     }
@@ -435,9 +398,7 @@ def _seed_to_json(seed: dict[str, Any]) -> dict[str, Any]:
                 "entries": [
                     {
                         "key": _json_value(
-                            list(entry["key"])
-                            if isinstance(entry["key"], tuple)
-                            else entry["key"]
+                            list(entry["key"]) if isinstance(entry["key"], tuple) else entry["key"]
                         ),
                         "value": _json_value(entry["value"]),
                     }
@@ -645,9 +606,7 @@ def inspect(account: str):
             "chain_id": "localnet",
         },
         "seed": {
-            "foreign_variables": [
-                {"contract": "bank", "name": "owner", "value": "banker"}
-            ],
+            "foreign_variables": [{"contract": "bank", "name": "owner", "value": "banker"}],
             "foreign_hashes": [
                 {
                     "contract": "bank",
@@ -2249,9 +2208,7 @@ def build_fixture(spec: dict[str, Any]) -> dict[str, Any]:
             storage_home=Path(tempdir),
             metering=False,
         )
-        default_module_name = (
-            spec["call"]["module"] if "modules" in spec else spec["module_name"]
-        )
+        default_module_name = spec["call"]["module"] if "modules" in spec else spec["module_name"]
         modules = spec["modules"] if "modules" in spec else [spec]
 
         for module in modules:
@@ -2266,9 +2223,7 @@ def build_fixture(spec: dict[str, Any]) -> dict[str, Any]:
             module["_resolved_source"] = source
 
         for module in modules:
-            _set_seed_state(
-                client, module["module_name"], module.get("seed", {})
-            )
+            _set_seed_state(client, module["module_name"], module.get("seed", {}))
 
         for setup_call in spec.get("setup_calls", []):
             _execute_call(
@@ -2298,9 +2253,9 @@ def build_fixture(spec: dict[str, Any]) -> dict[str, Any]:
             {
                 "module_name": module["module_name"],
                 "owner": module.get("owner"),
-                "ir": ContractingCompiler(
-                    module_name=module["module_name"]
-                ).lower_to_ir(module["_resolved_source"]),
+                "ir": ContractingCompiler(module_name=module["module_name"]).lower_to_ir(
+                    module["_resolved_source"]
+                ),
                 "initial_state": module_initial_states[module["module_name"]],
             }
             for module in modules
@@ -2323,19 +2278,13 @@ def build_fixture(spec: dict[str, Any]) -> dict[str, Any]:
         return {
             "name": spec["name"],
             "modules": fixture_modules,
-            "context": {
-                key: _json_value(value)
-                for key, value in spec["context"].items()
-            },
+            "context": {key: _json_value(value) for key, value in spec["context"].items()},
             "call": {
                 "module": default_module_name,
                 "function": spec["call"]["function"],
-                "args": [
-                    _json_value(value) for value in spec["call"].get("args", [])
-                ],
+                "args": [_json_value(value) for value in spec["call"].get("args", [])],
                 "kwargs": {
-                    key: _json_value(value)
-                    for key, value in spec["call"].get("kwargs", {}).items()
+                    key: _json_value(value) for key, value in spec["call"].get("kwargs", {}).items()
                 },
             },
             "expected": {

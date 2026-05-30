@@ -4,9 +4,7 @@ from contracting import constants
 
 
 def _allocation_limit_error(kind: str, limit: int) -> AssertionError:
-    return AssertionError(
-        f"{kind} exceeds the maximum allowed allocation size of {limit}"
-    )
+    return AssertionError(f"{kind} exceeds the maximum allowed allocation size of {limit}")
 
 
 def _ensure_sequence_length(length: int, *, kind: str) -> None:
@@ -24,8 +22,7 @@ def _ensure_binary_size(size: int, *, kind: str) -> None:
 
 def _integer_limit_error(kind: str) -> AssertionError:
     return AssertionError(
-        f"{kind} exceeds the maximum allowed integer size of "
-        f"{constants.MAX_INTEGER_BITS} bits"
+        f"{kind} exceeds the maximum allowed integer size of {constants.MAX_INTEGER_BITS} bits"
     )
 
 
@@ -181,13 +178,8 @@ def safe_pow(*args):
         elif isinstance(modulus, int):
             _ensure_integer_size(modulus, kind="modular exponentiation modulus")
             if exponent < 0:
-                raise ValueError(
-                    "pow() 3rd argument not allowed unless exponent is non-negative"
-                )
-            if (
-                exponent.bit_length()
-                > constants.MAX_MODULAR_POW_EXPONENT_BITS
-            ):
+                raise ValueError("pow() 3rd argument not allowed unless exponent is non-negative")
+            if exponent.bit_length() > constants.MAX_MODULAR_POW_EXPONENT_BITS:
                 raise _integer_limit_error("modular exponentiation exponent")
 
     result = builtins.pow(*args)

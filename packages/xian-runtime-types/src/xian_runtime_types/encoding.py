@@ -32,10 +32,7 @@ def safe_repr(obj, max_len=1024):
 
 class Encoder(json.JSONEncoder):
     def default(self, value, *args):
-        if (
-            isinstance(value, Datetime)
-            or value.__class__.__name__ == Datetime.__name__
-        ):
+        if isinstance(value, Datetime) or value.__class__.__name__ == Datetime.__name__:
             return {
                 "__time__": [
                     value.year,
@@ -47,10 +44,7 @@ class Encoder(json.JSONEncoder):
                     value.microsecond,
                 ]
             }
-        if (
-            isinstance(value, Timedelta)
-            or value.__class__.__name__ == Timedelta.__name__
-        ):
+        if isinstance(value, Timedelta) or value.__class__.__name__ == Timedelta.__name__:
             return {
                 "__delta__": [
                     value._timedelta.days,
@@ -117,9 +111,7 @@ def as_object(value):
     if "__time__" in value:
         return Datetime(*value["__time__"])
     if "__delta__" in value:
-        return Timedelta(
-            days=value["__delta__"][0], seconds=value["__delta__"][1]
-        )
+        return Timedelta(days=value["__delta__"][0], seconds=value["__delta__"][1])
     if "__set__" in value:
         return ContractingSet(value["__set__"])
     if "__frozenset__" in value:

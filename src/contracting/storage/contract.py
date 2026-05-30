@@ -43,9 +43,7 @@ class Contract:
         if active_contract is None:
             return resolved_driver
         if active_contract != constants.SUBMISSION_CONTRACT_NAME:
-            raise AssertionError(
-                "Contract metadata changes are restricted to submission."
-            )
+            raise AssertionError("Contract metadata changes are restricted to submission.")
         return resolved_driver
 
     @classmethod
@@ -90,16 +88,13 @@ class Contract:
             )
 
             raw_source_bytes = len(source_obj.encode("utf-8"))
-            assert (
-                raw_source_bytes <= constants.MAX_CONTRACT_SUBMISSION_BYTES
-            ), "Contract source exceeds the maximum allowed size."
+            assert raw_source_bytes <= constants.MAX_CONTRACT_SUBMISSION_BYTES, (
+                "Contract source exceeds the maximum allowed size."
+            )
 
             rt.deduct_execution_cost(
                 constants.DEPLOYMENT_BASE_COST
-                + (
-                    len(source_obj.encode("utf-8"))
-                    * constants.DEPLOYMENT_COST_PER_SOURCE_BYTE
-                )
+                + (len(source_obj.encode("utf-8")) * constants.DEPLOYMENT_COST_PER_SOURCE_BYTE)
             )
 
             from contracting.stdlib import env
@@ -114,15 +109,9 @@ class Contract:
             rt.tracer.register_code(compiled)
             current_state = rt.context._get_state()
             deployment_owner = owner
-            deployment_developer = (
-                current_state["caller"] if developer is None else developer
-            )
-            deployment_deployer = (
-                current_state["caller"] if deployer is None else deployer
-            )
-            deployment_initiator = (
-                current_state["signer"] if initiator is None else initiator
-            )
+            deployment_developer = current_state["caller"] if developer is None else developer
+            deployment_deployer = current_state["caller"] if deployer is None else deployer
+            deployment_initiator = current_state["signer"] if initiator is None else initiator
             deployment_state = {
                 "owner": deployment_owner,
                 "caller": deployment_deployer,

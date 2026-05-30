@@ -158,9 +158,7 @@ class PythonLineTracer:
         self.call_count += 1
         if self.call_count > self._max_events:
             self.stop()
-            raise CallLimitExceededError(
-                "Call count exceeded threshold! Infinite Loop?"
-            )
+            raise CallLimitExceededError("Call count exceeded threshold! Infinite Loop?")
 
         self.cost += self._line_cost(code, line_number)
         if self.cost > self.chi_supplied or self.cost > self._max_chi:
@@ -176,9 +174,7 @@ class PythonLineTracer:
                 lineno = _instruction_line_number(instruction)
                 if lineno is None:
                     continue
-                line_costs[lineno] = line_costs.get(lineno, 0) + _opcode_cost(
-                    instruction.opname
-                )
+                line_costs[lineno] = line_costs.get(lineno, 0) + _opcode_cost(instruction.opname)
             self._line_costs[code_id] = line_costs
 
         return line_costs.get(line_number, DEFAULT_COST)

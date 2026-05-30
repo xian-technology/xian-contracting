@@ -86,8 +86,7 @@ class Variable(Datum):
         if self._type is not None and value is not None:
             if not isinstance(value, self._type):
                 raise TypeError(
-                    f"Wrong type passed to variable! "
-                    f"Expected {self._type}, got {type(value)}."
+                    f"Wrong type passed to variable! Expected {self._type}, got {type(value)}."
                 )
 
         self._driver.set(self._key, value, True)
@@ -102,25 +101,20 @@ class Variable(Datum):
         value = self.get()
         if not isinstance(value, (list, dict)):
             raise TypeError(
-                f"Variable.{method_name}() requires the stored value "
-                f"to be a list or dict."
+                f"Variable.{method_name}() requires the stored value to be a list or dict."
             )
         return value
 
     def _get_list_value(self, method_name: str):
         value = self.get()
         if not isinstance(value, list):
-            raise TypeError(
-                f"Variable.{method_name}() requires the stored value to be a list."
-            )
+            raise TypeError(f"Variable.{method_name}() requires the stored value to be a list.")
         return value
 
     def _get_dict_value(self, method_name: str):
         value = self.get()
         if not isinstance(value, dict):
-            raise TypeError(
-                f"Variable.{method_name}() requires the stored value to be a dict."
-            )
+            raise TypeError(f"Variable.{method_name}() requires the stored value to be a dict.")
         return value
 
     def __getitem__(self, key):
@@ -191,9 +185,7 @@ class Variable(Datum):
                 value = current.pop(key, default)
         else:
             if default is not _MISSING:
-                raise TypeError(
-                    "Variable.pop() does not accept a default for list values."
-                )
+                raise TypeError("Variable.pop() does not accept a default for list values.")
             if key is _MISSING:
                 key = -1
             value = current.pop(key)
@@ -236,8 +228,7 @@ class Hash(Datum):
     def _validate_key(self, key):
         if isinstance(key, tuple):
             assert len(key) <= constants.MAX_HASH_DIMENSIONS, (
-                f"Too many dimensions ({len(key)}) for hash. "
-                f"Max is {constants.MAX_HASH_DIMENSIONS}"
+                f"Too many dimensions ({len(key)}) for hash. Max is {constants.MAX_HASH_DIMENSIONS}"
             )
 
             new_key_str = ""
@@ -247,9 +238,7 @@ class Hash(Datum):
                 k = str(k)
 
                 assert constants.DELIMITER not in k, "Illegal delimiter in key."
-                assert constants.INDEX_SEPARATOR not in k, (
-                    "Illegal separator in key."
-                )
+                assert constants.INDEX_SEPARATOR not in k, "Illegal separator in key."
 
                 new_key_str += f"{k}{self._delimiter}"
 
@@ -258,9 +247,7 @@ class Hash(Datum):
             key = str(key)
 
             assert constants.DELIMITER not in key, "Illegal delimiter in key."
-            assert constants.INDEX_SEPARATOR not in key, (
-                "Illegal separator in key."
-            )
+            assert constants.INDEX_SEPARATOR not in key, "Illegal separator in key."
 
         assert len(key) <= constants.MAX_KEY_SIZE, (
             f"Key is too long ({len(key)}). Max is {constants.MAX_KEY_SIZE}."
@@ -290,9 +277,7 @@ class Hash(Datum):
             self._driver.delete(k)
 
     def clone_from(self, source):
-        assert isinstance(source, Hash), (
-            "Hash.clone_from() requires a Hash or ForeignHash source."
-        )
+        assert isinstance(source, Hash), "Hash.clone_from() requires a Hash or ForeignHash source."
 
         source_items = source._items()
         source_prefix = f"{source._key}{self._delimiter}"
@@ -406,15 +391,13 @@ class LogEvent(Datum):
                 "or a dict with a 'type' field."
             )
 
-        assert len(normalized_types) > 0, (
-            f"Argument {arg_name} must declare at least one type."
-        )
+        assert len(normalized_types) > 0, f"Argument {arg_name} must declare at least one type."
         assert all(isinstance(t, type) for t in normalized_types), (
             f"Argument {arg_name} type spec must contain only types."
         )
-        assert all(
-            issubclass(t, EVENT_ALLOWED_TYPES) for t in normalized_types
-        ), "Each type in args must be str, int, float, decimal or bool."
+        assert all(issubclass(t, EVENT_ALLOWED_TYPES) for t in normalized_types), (
+            "Each type in args must be str, int, float, decimal or bool."
+        )
 
         return tuple(_canonicalize_event_type(t) for t in normalized_types)
 
@@ -427,9 +410,7 @@ class LogEvent(Datum):
             )
             assert "type" in param, f"Argument {arg_name} must declare a type."
             idx = param.get("idx", False)
-            assert isinstance(idx, bool), (
-                f"Argument {arg_name} idx must be a boolean."
-            )
+            assert isinstance(idx, bool), f"Argument {arg_name} idx must be a boolean."
             type_spec = param["type"]
         else:
             idx = False
@@ -452,9 +433,7 @@ class LogEvent(Datum):
             normalized[arg_name] = cls._normalize_param(arg_name, param)
 
         indexed_args_count = sum(1 for arg in normalized.values() if arg["idx"])
-        assert indexed_args_count <= 3, (
-            "Args must have at most three indexed arguments."
-        )
+        assert indexed_args_count <= 3, "Args must have at most three indexed arguments."
 
         return normalized
 
@@ -468,15 +447,11 @@ class LogEvent(Datum):
 
         # Check for unexpected arguments
         for arg in event_data:
-            assert arg in self._params, (
-                f"Unexpected argument {arg} in the data dictionary."
-            )
+            assert arg in self._params, f"Unexpected argument {arg} in the data dictionary."
 
         # Check for missing and type-mismatched arguments
         for arg in self._params:
-            assert arg in event_data, (
-                f"Argument {arg} is missing from the data dictionary."
-            )
+            assert arg in event_data, f"Argument {arg} is missing from the data dictionary."
 
             # Check the type of the argument
             assert isinstance(event_data[arg], self._params[arg]["type"]), (
@@ -496,9 +471,7 @@ class LogEvent(Datum):
             "signer": signer,
             "caller": caller,
             "data_indexed": {
-                arg: event_data[arg]
-                for arg in self._params
-                if self._params[arg].get("idx", False)
+                arg: event_data[arg] for arg in self._params if self._params[arg].get("idx", False)
             },
             "data": {
                 arg: event_data[arg]

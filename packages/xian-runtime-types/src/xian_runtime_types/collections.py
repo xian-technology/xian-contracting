@@ -77,9 +77,7 @@ def _iterable_values(iterable=None):
     try:
         return tuple(iterable)
     except TypeError as exc:
-        raise TypeError(
-            f"'{type(iterable).__name__}' object is not iterable"
-        ) from exc
+        raise TypeError(f"'{type(iterable).__name__}' object is not iterable") from exc
 
 
 class _ContractingSetBase:
@@ -99,9 +97,7 @@ class _ContractingSetBase:
 
     def __eq__(self, other):
         if isinstance(other, _ContractingSetBase):
-            return len(self) == len(other) and all(
-                item in other for item in self
-            )
+            return len(self) == len(other) and all(item in other for item in self)
         return False
 
     def __le__(self, other):
@@ -225,9 +221,7 @@ class ContractingSet(_ContractingSetBase):
     def remove(self, value):
         if value not in self:
             raise KeyError(value)
-        self._values = tuple(
-            item for item in self._values if not _values_equal(item, value)
-        )
+        self._values = tuple(item for item in self._values if not _values_equal(item, value))
 
     def discard(self, value):
         if value in self:
@@ -259,11 +253,7 @@ class ContractingFrozenSet(_ContractingSetBase):
     def __repr__(self):
         if not self._values:
             return "frozenset()"
-        return (
-            "frozenset({"
-            + ", ".join(repr(item) for item in self._values)
-            + "})"
-        )
+        return "frozenset({" + ", ".join(repr(item) for item in self._values) + "})"
 
     def __hash__(self):
         return self._hash

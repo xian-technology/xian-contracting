@@ -14,9 +14,7 @@ CallLimitExceededError = common.CallLimitExceededError
 ChiExceededError = common.ChiExceededError
 get_default_cost_opcodes = common.get_default_cost_opcodes
 get_tracer_policy = common.get_tracer_policy
-get_uncategorized_default_cost_opcodes = (
-    common.get_uncategorized_default_cost_opcodes
-)
+get_uncategorized_default_cost_opcodes = common.get_uncategorized_default_cost_opcodes
 
 
 def create_tracer():

@@ -164,10 +164,7 @@ class _LintVisitor(ast.NodeVisitor):
             return
 
         for alias in node.names:
-            if (
-                alias.name in sys.stdlib_module_names
-                or alias.name in sys.builtin_module_names
-            ):
+            if alias.name in sys.stdlib_module_names or alias.name in sys.builtin_module_names:
                 self.add(ErrorCode.E005, node, name=alias.name)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
@@ -194,9 +191,7 @@ class _LintVisitor(ast.NodeVisitor):
             decorator = decorators[0]
             if isinstance(decorator, ast.Name):
                 decorator_name = decorator.id
-            elif isinstance(decorator, ast.Call) and isinstance(
-                decorator.func, ast.Name
-            ):
+            elif isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name):
                 decorator_name = decorator.func.id
             if decorator_name not in constants.VALID_DECORATORS:
                 self.add(
@@ -234,9 +229,7 @@ class _LintVisitor(ast.NodeVisitor):
         self._check_single_line_body(node, node.body, node.orelse)
         ast.NodeVisitor.generic_visit(self, node)
 
-    def _check_decorator_args(
-        self, decorator: ast.Call, decorator_name: str
-    ) -> None:
+    def _check_decorator_args(self, decorator: ast.Call, decorator_name: str) -> None:
         if decorator_name == constants.INIT_DECORATOR_STRING:
             if decorator.args or decorator.keywords:
                 self.add(
@@ -269,8 +262,7 @@ class _LintVisitor(ast.NodeVisitor):
                 continue
 
             if not (
-                isinstance(keyword.value, ast.Constant)
-                and isinstance(keyword.value.value, bool)
+                isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, bool)
             ):
                 self.add(
                     ErrorCode.E021,
@@ -285,14 +277,10 @@ class _LintVisitor(ast.NodeVisitor):
             if arg.annotation is None:
                 self.arg_annotations.append((None, arg))
             else:
-                self.arg_annotations.append(
-                    (self._resolve_annotation(arg.annotation), arg)
-                )
+                self.arg_annotations.append((self._resolve_annotation(arg.annotation), arg))
 
         if node.returns is not None:
-            self.return_annotations.append(
-                (self._resolve_annotation(node.returns), node)
-            )
+            self.return_annotations.append((self._resolve_annotation(node.returns), node))
 
     @staticmethod
     def _resolve_annotation(node: ast.AST) -> str | None:
@@ -335,16 +323,11 @@ class _LintVisitor(ast.NodeVisitor):
                 return
 
     def visit_Assign(self, node: ast.Assign) -> None:
-        if isinstance(node.value, ast.Call) and isinstance(
-            node.value.func, ast.Name
-        ):
+        if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
             func_name = node.value.func.id
             if func_name in constants.ORM_CLASS_NAMES:
                 self._check_orm_assign(node, func_name)
-        elif (
-            isinstance(node.value, ast.Name)
-            and node.value.id in constants.ORM_CLASS_NAMES
-        ):
+        elif isinstance(node.value, ast.Name) and node.value.id in constants.ORM_CLASS_NAMES:
             self.add(ErrorCode.E014, node, name=node.value.id)
 
         ast.NodeVisitor.generic_visit(self, node)
@@ -361,10 +344,7 @@ class _LintVisitor(ast.NodeVisitor):
                 self.add(
                     ErrorCode.E001,
                     node,
-                    detail=(
-                        f"Augmented {name} is not allowed; use "
-                        "x = x <operator> y"
-                    ),
+                    detail=(f"Augmented {name} is not allowed; use x = x <operator> y"),
                 )
                 break
         ast.NodeVisitor.generic_visit(self, node)
@@ -437,11 +417,7 @@ class Linter:
     def _final_checks(self, visitor: _LintVisitor, tree: ast.AST) -> None:
         if not visitor.has_export:
             first_func = next(
-                (
-                    node
-                    for node in ast.walk(tree)
-                    if isinstance(node, ast.FunctionDef)
-                ),
+                (node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)),
                 None,
             )
             visitor.add(ErrorCode.E013, first_func)
@@ -454,10 +430,7 @@ class Linter:
         for annotation_name, arg_node in visitor.arg_annotations:
             if annotation_name is None:
                 visitor.add(ErrorCode.E017, arg_node)
-            elif (
-                visitor._annotation_base(annotation_name)
-                not in ALLOWED_ANNOTATION_TYPES
-            ):
+            elif visitor._annotation_base(annotation_name) not in ALLOWED_ANNOTATION_TYPES:
                 visitor.add(
                     ErrorCode.E016,
                     arg_node,
@@ -468,8 +441,7 @@ class Linter:
         for annotation_name, func_node in visitor.return_annotations:
             if (
                 annotation_name is not None
-                and visitor._annotation_base(annotation_name)
-                not in ALLOWED_ANNOTATION_TYPES
+                and visitor._annotation_base(annotation_name) not in ALLOWED_ANNOTATION_TYPES
             ):
                 visitor.add(
                     ErrorCode.E018,

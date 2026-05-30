@@ -32,9 +32,7 @@ def make_max_decimal_str(upper_prec, lower_prec=0):
     return f"{whole}.{'9' * lower_prec}"
 
 
-MAX_DECIMAL = Decimal(
-    make_max_decimal_str(MAX_UPPER_PRECISION, MAX_LOWER_PRECISION)
-)
+MAX_DECIMAL = Decimal(make_max_decimal_str(MAX_UPPER_PRECISION, MAX_LOWER_PRECISION))
 MIN_DECIMAL = Decimal(make_min_decimal_str(MAX_LOWER_PRECISION))
 
 
@@ -65,17 +63,13 @@ def _div_trunc(numerator: int, denominator: int) -> int:
 
 def _decimal_to_scaled(value: Decimal) -> int:
     if not value.is_finite():
-        raise DecimalOverflowError(
-            f"Value {value} exceeds the supported decimal range."
-        )
+        raise DecimalOverflowError(f"Value {value} exceeds the supported decimal range.")
 
     sign, digits, exponent = value.as_tuple()
     if not any(digits):
         return 0
     if value.adjusted() >= MAX_UPPER_PRECISION:
-        raise DecimalOverflowError(
-            f"Value {value} exceeds the supported decimal range."
-        )
+        raise DecimalOverflowError(f"Value {value} exceeds the supported decimal range.")
 
     coefficient = "".join(str(digit) for digit in digits)
     shift = exponent + MAX_LOWER_PRECISION
@@ -104,9 +98,7 @@ def _scaled_to_decimal(scaled: int) -> Decimal:
 def _check_scaled(scaled: int, source=None) -> int:
     if abs(scaled) > MAX_SCALED:
         value = source if source is not None else f"scaled integer {scaled}"
-        raise DecimalOverflowError(
-            f"Value {value} exceeds the supported decimal range."
-        )
+        raise DecimalOverflowError(f"Value {value} exceeds the supported decimal range.")
     return 0 if scaled == 0 else scaled
 
 
@@ -121,9 +113,7 @@ def fix_precision(x: Decimal):
         scaled = _decimal_to_scaled(_coerce_decimal(x))
         return _scaled_to_decimal(scaled)
     except (InvalidOperation, ValueError) as exc:
-        raise DecimalOverflowError(
-            f"Value {x} exceeds the supported decimal range."
-        ) from exc
+        raise DecimalOverflowError(f"Value {x} exceeds the supported decimal range.") from exc
 
 
 class ContractingDecimal:
@@ -194,23 +184,17 @@ class ContractingDecimal:
         return self._from_scaled(_coerce_scaled(other) - self._scaled)
 
     def __mul__(self, other):
-        return self._from_scaled(
-            _div_trunc(self._scaled * _coerce_scaled(other), SCALE)
-        )
+        return self._from_scaled(_div_trunc(self._scaled * _coerce_scaled(other), SCALE))
 
     def __rmul__(self, other):
-        return self._from_scaled(
-            _div_trunc(_coerce_scaled(other) * self._scaled, SCALE)
-        )
+        return self._from_scaled(_div_trunc(_coerce_scaled(other) * self._scaled, SCALE))
 
     def __truediv__(self, other):
         other_scaled = _coerce_scaled(other)
         return self._from_scaled(_div_trunc(self._scaled * SCALE, other_scaled))
 
     def __rtruediv__(self, other):
-        return self._from_scaled(
-            _div_trunc(_coerce_scaled(other) * SCALE, self._scaled)
-        )
+        return self._from_scaled(_div_trunc(_coerce_scaled(other) * SCALE, self._scaled))
 
     def __mod__(self, other):
         other_scaled = _coerce_scaled(other)
@@ -235,14 +219,10 @@ class ContractingDecimal:
         return self._from_scaled(quotient * SCALE)
 
     def __pow__(self, other):
-        return self._from_scaled(
-            _pow_scaled(self._scaled, _coerce_scaled(other))
-        )
+        return self._from_scaled(_pow_scaled(self._scaled, _coerce_scaled(other)))
 
     def __rpow__(self, other):
-        return self._from_scaled(
-            _pow_scaled(_coerce_scaled(other), self._scaled)
-        )
+        return self._from_scaled(_pow_scaled(_coerce_scaled(other), self._scaled))
 
     def __int__(self):
         return _div_trunc(self._scaled, SCALE)
@@ -267,12 +247,8 @@ def _pow_scaled(base_scaled: int, exponent_scaled: int) -> int:
     exponent = exponent_scaled // SCALE
     if exponent < 0:
         if base_scaled == 0:
-            raise DecimalOverflowError(
-                "Value Infinity exceeds the supported decimal range."
-            )
-        return _div_trunc(
-            SCALE * SCALE, _pow_scaled(base_scaled, -exponent * SCALE)
-        )
+            raise DecimalOverflowError("Value Infinity exceeds the supported decimal range.")
+        return _div_trunc(SCALE * SCALE, _pow_scaled(base_scaled, -exponent * SCALE))
 
     result = SCALE
     base = base_scaled

@@ -82,9 +82,7 @@ def _validate_bind_configuration(
             "--unsafe-allow-remote-host"
         )
     if auth_token is None or auth_token.strip() == "":
-        raise ValueError(
-            "remote prover service requires a non-empty --auth-token"
-        )
+        raise ValueError("remote prover service requires a non-empty --auth-token")
 
 
 def _tree_state_from_value(
@@ -202,9 +200,7 @@ class _BaseProverClient:
         self.base_url = base_url.rstrip("/")
         self.auth_token = auth_token
 
-    def _request(
-        self, method: str, path: str, payload: Any | None = None
-    ) -> dict[str, Any]:
+    def _request(self, method: str, path: str, payload: Any | None = None) -> dict[str, Any]:
         headers = {
             "Accept": "application/json",
         }
@@ -273,27 +269,21 @@ class ShieldedCommandProverClient(_BaseProverClient):
         self, request: ShieldedDepositRequest | dict[str, Any]
     ) -> ShieldedProofResult:
         return ShieldedProofResult(
-            **self._request(
-                "POST", "/v1/shielded-command/prove/deposit", request
-            )
+            **self._request("POST", "/v1/shielded-command/prove/deposit", request)
         )
 
     def prove_execute(
         self, request: ShieldedCommandRequest | dict[str, Any]
     ) -> ShieldedCommandProofResult:
         return ShieldedCommandProofResult(
-            **self._request(
-                "POST", "/v1/shielded-command/prove/execute", request
-            )
+            **self._request("POST", "/v1/shielded-command/prove/execute", request)
         )
 
     def prove_withdraw(
         self, request: ShieldedWithdrawRequest | dict[str, Any]
     ) -> ShieldedProofResult:
         return ShieldedProofResult(
-            **self._request(
-                "POST", "/v1/shielded-command/prove/withdraw", request
-            )
+            **self._request("POST", "/v1/shielded-command/prove/withdraw", request)
         )
 
 
@@ -305,9 +295,7 @@ class ShieldedRelayTransferProverClient(_BaseProverClient):
         self, request: ShieldedRelayTransferRequest | dict[str, Any]
     ) -> ShieldedRelayTransferProofResult:
         return ShieldedRelayTransferProofResult(
-            **self._request(
-                "POST", "/v1/shielded-relay/prove/transfer", request
-            )
+            **self._request("POST", "/v1/shielded-relay/prove/transfer", request)
         )
 
 
@@ -323,26 +311,16 @@ class ShieldedZkProverService:
         auth_token: str | None = None,
         allow_remote_host: bool = False,
     ):
-        if (
-            note_prover is None
-            and command_prover is None
-            and relay_prover is None
-        ):
+        if note_prover is None and command_prover is None and relay_prover is None:
             raise ValueError("at least one prover must be configured")
         _validate_bind_configuration(
             host,
             auth_token=auth_token,
             allow_remote_host=allow_remote_host,
         )
-        self._note_bundle_json = (
-            None if note_prover is None else note_prover.bundle_json
-        )
-        self._command_bundle_json = (
-            None if command_prover is None else command_prover.bundle_json
-        )
-        self._relay_bundle_json = (
-            None if relay_prover is None else relay_prover.bundle_json
-        )
+        self._note_bundle_json = None if note_prover is None else note_prover.bundle_json
+        self._command_bundle_json = None if command_prover is None else command_prover.bundle_json
+        self._relay_bundle_json = None if relay_prover is None else relay_prover.bundle_json
         if self._relay_bundle_json is None:
             self._relay_bundle_json = self._command_bundle_json
         self.auth_token = auth_token
@@ -440,14 +418,10 @@ class ShieldedZkProverService:
             if method == "GET":
                 payload = self._handle_get(handler.path)
             else:
-                payload = self._handle_post(
-                    handler.path, self._read_json(handler)
-                )
+                payload = self._handle_post(handler.path, self._read_json(handler))
             self._send_json(handler, 200, payload)
         except KeyError as exc:
-            self._send_json(
-                handler, 400, {"error": f"missing field: {exc.args[0]}"}
-            )
+            self._send_json(handler, 400, {"error": f"missing field: {exc.args[0]}"})
         except ValueError as exc:
             self._send_json(handler, 400, {"error": str(exc)})
         except LookupError as exc:
@@ -480,64 +454,42 @@ class ShieldedZkProverService:
             return prover.registry_manifest()
         raise LookupError("unknown endpoint")
 
-    def _handle_post(
-        self, path: str, payload: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _handle_post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         if path == "/v1/shielded-note/prove/deposit":
             prover = self._note_prover()
             if prover is None:
                 raise LookupError("shielded note prover not configured")
-            return asdict(
-                prover.prove_deposit(_note_deposit_request_from_value(payload))
-            )
+            return asdict(prover.prove_deposit(_note_deposit_request_from_value(payload)))
         if path == "/v1/shielded-note/prove/transfer":
             prover = self._note_prover()
             if prover is None:
                 raise LookupError("shielded note prover not configured")
-            return asdict(
-                prover.prove_transfer(
-                    _note_transfer_request_from_value(payload)
-                )
-            )
+            return asdict(prover.prove_transfer(_note_transfer_request_from_value(payload)))
         if path == "/v1/shielded-note/prove/withdraw":
             prover = self._note_prover()
             if prover is None:
                 raise LookupError("shielded note prover not configured")
-            return asdict(
-                prover.prove_withdraw(
-                    _note_withdraw_request_from_value(payload)
-                )
-            )
+            return asdict(prover.prove_withdraw(_note_withdraw_request_from_value(payload)))
         if path == "/v1/shielded-command/prove/deposit":
             prover = self._command_prover()
             if prover is None:
                 raise LookupError("shielded command prover not configured")
-            return asdict(
-                prover.prove_deposit(_note_deposit_request_from_value(payload))
-            )
+            return asdict(prover.prove_deposit(_note_deposit_request_from_value(payload)))
         if path == "/v1/shielded-command/prove/execute":
             prover = self._command_prover()
             if prover is None:
                 raise LookupError("shielded command prover not configured")
-            return asdict(
-                prover.prove_execute(_command_request_from_value(payload))
-            )
+            return asdict(prover.prove_execute(_command_request_from_value(payload)))
         if path == "/v1/shielded-command/prove/withdraw":
             prover = self._command_prover()
             if prover is None:
                 raise LookupError("shielded command prover not configured")
-            return asdict(
-                prover.prove_withdraw(
-                    _note_withdraw_request_from_value(payload)
-                )
-            )
+            return asdict(prover.prove_withdraw(_note_withdraw_request_from_value(payload)))
         if path == "/v1/shielded-relay/prove/transfer":
             prover = self._relay_prover()
             if prover is None:
                 raise LookupError("shielded relay prover not configured")
-            return asdict(
-                prover.prove_relay_transfer(_relay_request_from_value(payload))
-            )
+            return asdict(prover.prove_relay_transfer(_relay_request_from_value(payload)))
         raise LookupError("unknown endpoint")
 
     def serve_forever(self) -> None:
@@ -583,10 +535,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--auth-token",
         default=None,
-        help=(
-            "Bearer token required by clients. Mandatory for non-loopback "
-            "binds."
-        ),
+        help=("Bearer token required by clients. Mandatory for non-loopback binds."),
     )
     parser.add_argument("--note-bundle", default=None)
     parser.add_argument("--command-bundle", default=None)

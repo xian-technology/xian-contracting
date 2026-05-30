@@ -42,11 +42,7 @@ def _public_env_surface() -> dict[str, Any]:
         if isinstance(value, ModuleType):
             surface[name] = {
                 "kind": "module",
-                "exports": sorted(
-                    member
-                    for member in dir(value)
-                    if not member.startswith("_")
-                ),
+                "exports": sorted(member for member in dir(value) if not member.startswith("_")),
             }
             continue
         surface[name] = {
@@ -61,9 +57,7 @@ def build_contract_language_manifest() -> dict[str, Any]:
         "manifest_version": CONTRACT_LANGUAGE_MANIFEST_VERSION,
         "python_contracting": {
             "allowed_builtins": sorted(ALLOWED_BUILTINS),
-            "illegal_ast_nodes": sorted(
-                node.__name__ for node in ILLEGAL_AST_TYPES
-            ),
+            "illegal_ast_nodes": sorted(node.__name__ for node in ILLEGAL_AST_TYPES),
             "allowed_annotations": sorted(ALLOWED_ANNOTATION_TYPES),
             "public_env_surface": _public_env_surface(),
         },

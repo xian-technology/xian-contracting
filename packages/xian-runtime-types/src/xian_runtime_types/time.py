@@ -37,9 +37,7 @@ def to_contract_time(py_dt):
 
 
 class Datetime:
-    def __init__(
-        self, year, month, day, hour=0, minute=0, second=0, microsecond=0
-    ):
+    def __init__(self, year, month, day, hour=0, minute=0, second=0, microsecond=0):
         self._datetime = dt(
             year=year,
             month=month,

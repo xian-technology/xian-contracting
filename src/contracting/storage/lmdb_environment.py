@@ -160,10 +160,7 @@ class LMDBEnvironmentPool:
     ) -> None:
         if existing.compatibility_key() == requested.compatibility_key():
             return
-        raise ValueError(
-            "LMDB environment already open with incompatible options for "
-            f"{path}"
-        )
+        raise ValueError(f"LMDB environment already open with incompatible options for {path}")
 
     @staticmethod
     def _close_environment(env: lmdb.Environment) -> None:

@@ -81,10 +81,7 @@ class Driver:
         if save:
             if self.pending_reads.get(key) is None:
                 self.pending_reads[key] = value
-            if (
-                self.track_transaction_reads
-                and self.transaction_reads.get(key) is None
-            ):
+            if self.track_transaction_reads and self.transaction_reads.get(key) is None:
                 self.transaction_reads[key] = value
         return value
 
@@ -193,9 +190,7 @@ class Driver:
     def make_key(self, contract, variable, args=None):
         contract_variable = INDEX_SEPARATOR.join((contract, variable))
         if args:
-            return HASH_DELIMITER.join(
-                (contract_variable, *[str(arg) for arg in args])
-            )
+            return HASH_DELIMITER.join((contract_variable, *[str(arg) for arg in args]))
         return contract_variable
 
     def set_var(
@@ -335,9 +330,7 @@ class Driver:
             timestamp = Datetime._from_datetime(datetime.now())
 
         if source is None and vm_ir_json is None:
-            raise TypeError(
-                "set_contract requires at least one contract artifact."
-            )
+            raise TypeError("set_contract requires at least one contract artifact.")
 
         if source is not None:
             if not isinstance(source, str):

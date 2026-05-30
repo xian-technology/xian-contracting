@@ -60,9 +60,7 @@ def _canonical_hex(raw: bytes) -> str:
     return "0x" + raw.hex()
 
 
-def _normalize_hex_bytes(
-    value: str, *, expected_len: int | None = None
-) -> bytes:
+def _normalize_hex_bytes(value: str, *, expected_len: int | None = None) -> bytes:
     if not isinstance(value, str):
         raise ValueError("hex value must be a string")
     trimmed = value[2:] if value.startswith("0x") else value
@@ -92,9 +90,7 @@ def _x25519_private_key_from_ed25519(private_key: str) -> PrivateKey:
 
 
 def _encode_payload_json(value: object) -> str:
-    payload = json.dumps(value, sort_keys=True, separators=(",", ":")).encode(
-        "utf-8"
-    )
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return _canonical_hex(payload)
 
 
@@ -121,9 +117,7 @@ def _normalize_viewer(
         )
     if isinstance(viewer, str):
         return ShieldedViewer(viewing_public_key=viewer)
-    raise TypeError(
-        "viewer must be a ShieldedViewer, ShieldedRecipient, or hex key"
-    )
+    raise TypeError("viewer must be a ShieldedViewer, ShieldedRecipient, or hex key")
 
 
 def _shared_key_from_public_key(
@@ -135,9 +129,7 @@ def _shared_key_from_public_key(
     )
 
 
-def _shared_key_from_private_key(
-    viewing_private_key: str, ephemeral_public_key: str
-) -> bytes:
+def _shared_key_from_private_key(viewing_private_key: str, ephemeral_public_key: str) -> bytes:
     return crypto_box_beforenm(
         _normalize_hex_bytes(ephemeral_public_key, expected_len=32),
         bytes(_x25519_private_key_from_ed25519(viewing_private_key)),
@@ -146,17 +138,14 @@ def _shared_key_from_private_key(
 
 def _discovery_tag(shared_key: bytes) -> str:
     return _canonical_hex(
-        hashlib.sha3_256(b"xian-zk-note-discovery-v1" + shared_key).digest()[
-            :_DISCOVERY_TAG_BYTES
-        ]
+        hashlib.sha3_256(b"xian-zk-note-discovery-v1" + shared_key).digest()[:_DISCOVERY_TAG_BYTES]
     )
 
 
 def _sync_hint(viewing_public_key: str) -> str:
     return _canonical_hex(
         hashlib.sha3_256(
-            b"xian-zk-note-sync-v1"
-            + _normalize_hex_bytes(viewing_public_key, expected_len=32)
+            b"xian-zk-note-sync-v1" + _normalize_hex_bytes(viewing_public_key, expected_len=32)
         ).digest()[:_SYNC_HINT_BYTES]
     )
 
@@ -165,21 +154,15 @@ def _encrypt_message_for_viewer(
     message: str, viewer: "ShieldedViewer"
 ) -> "ShieldedPayloadCiphertext":
     ephemeral_private_key = PrivateKey.generate()
-    shared_key = _shared_key_from_public_key(
-        viewer.viewing_public_key, ephemeral_private_key
-    )
+    shared_key = _shared_key_from_public_key(viewer.viewing_public_key, ephemeral_private_key)
     nonce = secrets.token_bytes(crypto_box_NONCEBYTES)
-    ciphertext = crypto_box_easy_afternm(
-        message.encode("utf-8"), nonce, shared_key
-    )
+    ciphertext = crypto_box_easy_afternm(message.encode("utf-8"), nonce, shared_key)
     return ShieldedPayloadCiphertext(
         ciphertext=_canonical_hex(ciphertext),
         label=viewer.label,
         discovery_tag=_discovery_tag(shared_key),
         sync_hint=_sync_hint(viewer.viewing_public_key),
-        ephemeral_public_key=_canonical_hex(
-            bytes(ephemeral_private_key.public_key)
-        ),
+        ephemeral_public_key=_canonical_hex(bytes(ephemeral_private_key.public_key)),
         nonce=_canonical_hex(nonce),
     )
 
@@ -257,14 +240,10 @@ class ShieldedViewingKeyBundle:
         )
 
     @classmethod
-    def from_private_key(
-        cls, viewing_private_key: str
-    ) -> "ShieldedViewingKeyBundle":
+    def from_private_key(cls, viewing_private_key: str) -> "ShieldedViewingKeyBundle":
         return cls(
             viewing_private_key=viewing_private_key,
-            viewing_public_key=_public_key_from_private_key(
-                viewing_private_key
-            ),
+            viewing_public_key=_public_key_from_private_key(viewing_private_key),
         )
 
     @property
@@ -484,9 +463,7 @@ class ShieldedNoteMessage:
             blind=self.blind,
         )
         if note.commitment(self.asset_id) != self.commitment:
-            raise ValueError(
-                "note message commitment does not match note fields"
-            )
+            raise ValueError("note message commitment does not match note fields")
         return note
 
 
@@ -524,9 +501,7 @@ class ShieldedPayloadCiphertext:
         )
         plaintext = crypto_box_open_easy_afternm(
             _normalize_hex_bytes(self.ciphertext),
-            _normalize_hex_bytes(
-                self.nonce, expected_len=crypto_box_NONCEBYTES
-            ),
+            _normalize_hex_bytes(self.nonce, expected_len=crypto_box_NONCEBYTES),
             shared_key,
         )
         return plaintext.decode("utf-8")
@@ -547,9 +522,7 @@ class ShieldedNotePayload:
         unique: dict[str, ShieldedPayloadCiphertext] = {}
         for raw_viewer in viewers:
             viewer = _normalize_viewer(raw_viewer)
-            unique[viewer.viewing_public_key] = _encrypt_message_for_viewer(
-                plaintext, viewer
-            )
+            unique[viewer.viewing_public_key] = _encrypt_message_for_viewer(plaintext, viewer)
         return cls(ciphertexts=list(unique.values()))
 
     @classmethod
@@ -725,9 +698,7 @@ class ShieldedDiscoveredNote:
     merkle_path: list[str]
 
     def to_input(self) -> ShieldedInput:
-        return ShieldedInput.from_note(
-            self.note, self.leaf_index, self.merkle_path
-        )
+        return ShieldedInput.from_note(self.note, self.leaf_index, self.merkle_path)
 
 
 @dataclass(frozen=True)
@@ -751,15 +722,11 @@ class ShieldedNoteRecord:
     created_at: Any = None
 
     @classmethod
-    def from_value(
-        cls, value: "ShieldedNoteRecord | dict[str, Any]"
-    ) -> "ShieldedNoteRecord":
+    def from_value(cls, value: "ShieldedNoteRecord | dict[str, Any]") -> "ShieldedNoteRecord":
         if isinstance(value, cls):
             return value
         if not isinstance(value, dict):
-            raise TypeError(
-                "note record must be a ShieldedNoteRecord or mapping"
-            )
+            raise TypeError("note record must be a ShieldedNoteRecord or mapping")
 
         index = value.get("index")
         commitment = value.get("commitment")
@@ -774,17 +741,13 @@ class ShieldedNoteRecord:
         if payload is not None and not isinstance(payload, str):
             raise ValueError("note record payload must be a string or None")
         if payload_hash is not None and not isinstance(payload_hash, str):
-            raise ValueError(
-                "note record payload_hash must be a string or None"
-            )
+            raise ValueError("note record payload_hash must be a string or None")
         if not isinstance(payload_tags, (list, tuple)):
             raise ValueError("note record payload_tags must be a list or tuple")
         normalized_tags: list[str] = []
         for tag in payload_tags:
             if not isinstance(tag, str):
-                raise ValueError(
-                    "note record payload_tags must contain strings"
-                )
+                raise ValueError("note record payload_tags must contain strings")
             normalized_tags.append(tag)
 
         return cls(
@@ -944,9 +907,7 @@ def note_records_from_transactions(
         elif not isinstance(payloads, list):
             raise ValueError("transaction output_payloads must be a list")
         elif len(payloads) != len(commitments):
-            raise ValueError(
-                "transaction output_payloads length must match commitments"
-            )
+            raise ValueError("transaction output_payloads length must match commitments")
 
         created_at = raw.get("created_at") or raw.get("created")
         for commitment, payload_hex in zip(commitments, payloads, strict=True):
@@ -965,9 +926,7 @@ def note_records_from_transactions(
                     commitment=commitment,
                     payload=normalized_payload,
                     payload_hash=output_payload_hash(normalized_payload),
-                    payload_tags=tuple(
-                        payload_discovery_tags(normalized_payload)
-                    ),
+                    payload_tags=tuple(payload_discovery_tags(normalized_payload)),
                     created_at=created_at,
                 )
             )
@@ -995,9 +954,7 @@ class ShieldedWalletNote:
         if self.leaf_index >= len(commitment_list):
             raise ValueError("wallet note leaf_index is out of range")
         if commitment_list[self.leaf_index] != self.commitment:
-            raise ValueError(
-                "wallet note commitment does not match membership set"
-            )
+            raise ValueError("wallet note commitment does not match membership set")
         return ShieldedInput.from_note(
             self.note,
             self.leaf_index,
@@ -1081,9 +1038,7 @@ class ShieldedWallet:
         self.asset_id = asset_id
         self.key_bundle = key_bundle
         self._commitments = list(commitments)
-        self._notes: dict[str, ShieldedWalletNote] = {
-            note.commitment: note for note in notes
-        }
+        self._notes: dict[str, ShieldedWalletNote] = {note.commitment: note for note in notes}
         self.last_scanned_index = last_scanned_index
         self.last_output_event_id = last_output_event_id
         self.last_tag_id = last_tag_id
@@ -1129,12 +1084,8 @@ class ShieldedWallet:
                 viewing_private_key=decoded["viewing_private_key"],
             ),
             commitments=commitments,
-            notes=[
-                ShieldedWalletNote.from_dict(note) for note in notes_payload
-            ],
-            last_scanned_index=decoded.get(
-                "last_scanned_index", len(commitments)
-            ),
+            notes=[ShieldedWalletNote.from_dict(note) for note in notes_payload],
+            last_scanned_index=decoded.get("last_scanned_index", len(commitments)),
             last_output_event_id=decoded.get("last_output_event_id"),
             last_tag_id=decoded.get("last_tag_id"),
         )
@@ -1198,9 +1149,7 @@ class ShieldedWallet:
                 "last_output_event_id": self.last_output_event_id,
                 "last_tag_id": self.last_tag_id,
                 "commitments": list(self._commitments),
-                "notes": [
-                    note.to_dict() for note in self.notes(include_spent=True)
-                ],
+                "notes": [note.to_dict() for note in self.notes(include_spent=True)],
             },
             sort_keys=True,
         )
@@ -1209,9 +1158,7 @@ class ShieldedWallet:
         return list(self._commitments)
 
     def current_root(self) -> str:
-        return (
-            merkle_root(self._commitments) if self._commitments else zero_root()
-        )
+        return merkle_root(self._commitments) if self._commitments else zero_root()
 
     def tree_state(self) -> ShieldedTreeState:
         return tree_state(self._commitments)
@@ -1245,15 +1192,11 @@ class ShieldedWallet:
 
             if record.index < len(self._commitments):
                 if self._commitments[record.index] != record.commitment:
-                    raise ValueError(
-                        "wallet commitment history does not match record"
-                    )
+                    raise ValueError("wallet commitment history does not match record")
             elif record.index == len(self._commitments):
                 self._commitments.append(record.commitment)
             else:
-                raise ValueError(
-                    "note records must be synced without index gaps"
-                )
+                raise ValueError("note records must be synced without index gaps")
 
             if record.index + 1 > self.last_scanned_index:
                 self.last_scanned_index = record.index + 1
@@ -1306,9 +1249,7 @@ class ShieldedWallet:
         self,
         records: Sequence[ShieldedNoteRecord | dict[str, Any]],
     ) -> list[ShieldedNoteRecord]:
-        normalized = [
-            ShieldedNoteRecord.from_value(record) for record in records
-        ]
+        normalized = [ShieldedNoteRecord.from_value(record) for record in records]
         return [
             record
             for record in normalized
@@ -1344,9 +1285,7 @@ class ShieldedWallet:
         if page_size <= 0:
             raise ValueError("page_size must be positive")
 
-        history_reader = getattr(
-            indexed_client, "list_shielded_wallet_history", None
-        )
+        history_reader = getattr(indexed_client, "list_shielded_wallet_history", None)
         if callable(history_reader):
             discovered_notes: list[ShieldedWalletNote] = []
             scanned_record_count = 0
@@ -1367,17 +1306,14 @@ class ShieldedWallet:
                     break
 
                 raw_page = [
-                    _record_mapping(row, label="shielded wallet history row")
-                    for row in page
+                    _record_mapping(row, label="shielded wallet history row") for row in page
                 ]
                 records: list[ShieldedNoteRecord] = []
                 for row in raw_page:
                     note_index = _mapping_optional_int(row, "note_index")
                     commitment = _mapping_str(row, "commitment")
                     if note_index is None or commitment is None:
-                        raise ValueError(
-                            "shielded wallet history row is missing note metadata"
-                        )
+                        raise ValueError("shielded wallet history row is missing note metadata")
                     output_payload = _mapping_str(row, "output_payload")
                     payload_tags = tuple(
                         dict.fromkeys(
@@ -1394,8 +1330,7 @@ class ShieldedWallet:
                             payload=output_payload,
                             payload_hash=output_payload_hash(output_payload),
                             payload_tags=payload_tags,
-                            created_at=row.get("created_at")
-                            or row.get("created"),
+                            created_at=row.get("created_at") or row.get("created"),
                         )
                     )
 
@@ -1431,9 +1366,7 @@ class ShieldedWallet:
                 raise TypeError("indexed client must return a list of events")
             if len(page) == 0:
                 break
-            raw_page = [
-                _record_mapping(event, label="indexed event") for event in page
-            ]
+            raw_page = [_record_mapping(event, label="indexed event") for event in page]
             output_events.extend(raw_page)
             output_cursor = _mapping_optional_int(raw_page[-1], "id")
             if len(raw_page) < page_size:
@@ -1454,18 +1387,12 @@ class ShieldedWallet:
             output_count = _mapping_optional_int(data, "output_count")
             commitments_blob = _mapping_str(data, "commitments_blob")
             if note_index_start is None or commitments_blob is None:
-                raise ValueError(
-                    "shielded output event is missing note metadata"
-                )
-            commitments = [
-                item for item in commitments_blob.split("|") if item != ""
-            ]
+                raise ValueError("shielded output event is missing note metadata")
+            commitments = [item for item in commitments_blob.split("|") if item != ""]
             if output_count is None:
                 output_count = len(commitments)
             if len(commitments) < output_count:
-                raise ValueError(
-                    "shielded output event commitments do not match output_count"
-                )
+                raise ValueError("shielded output event commitments do not match output_count")
             for output_index in range(output_count):
                 note_index = note_index_start + output_index
                 records_by_index[note_index] = ShieldedNoteRecord(
@@ -1490,10 +1417,7 @@ class ShieldedWallet:
                 raise TypeError("indexed client must return a list of tag rows")
             if len(page) == 0:
                 break
-            raw_page = [
-                _record_mapping(row, label="shielded output tag row")
-                for row in page
-            ]
+            raw_page = [_record_mapping(row, label="shielded output tag row") for row in page]
             tag_matches.extend(raw_page)
             tag_cursor = _mapping_optional_int(raw_page[-1], "id")
             if len(raw_page) < page_size:
@@ -1507,9 +1431,7 @@ class ShieldedWallet:
             receipt = indexed_client.get_tx(tx_hash)
             payload = _tx_payload_mapping_from_receipt(receipt)
             if payload is None:
-                raise ValueError(
-                    f"transaction receipt for {tx_hash} is missing payload"
-                )
+                raise ValueError(f"transaction receipt for {tx_hash} is missing payload")
             tx_payloads[tx_hash] = payload
 
         for match in tag_matches:
@@ -1530,25 +1452,17 @@ class ShieldedWallet:
                 continue
             commitments = kwargs.get("output_commitments")
             payloads = kwargs.get("output_payloads")
-            if not isinstance(commitments, list) or not isinstance(
-                payloads, list
-            ):
+            if not isinstance(commitments, list) or not isinstance(payloads, list):
                 continue
-            if output_index >= len(commitments) or output_index >= len(
-                payloads
-            ):
+            if output_index >= len(commitments) or output_index >= len(payloads):
                 continue
 
             commitment = commitments[output_index]
             output_payload = payloads[output_index]
-            if not isinstance(commitment, str) or not isinstance(
-                output_payload, str
-            ):
+            if not isinstance(commitment, str) or not isinstance(output_payload, str):
                 continue
             if commitment != record.commitment:
-                raise ValueError(
-                    "indexed shielded output tag does not match commitment history"
-                )
+                raise ValueError("indexed shielded output tag does not match commitment history")
 
             payload_tags = tuple(
                 dict.fromkeys(
@@ -1566,20 +1480,13 @@ class ShieldedWallet:
             )
 
         result = self.sync_records(
-            [
-                record
-                for _, record in sorted(
-                    records_by_index.items(), key=lambda item: item[0]
-                )
-            ]
+            [record for _, record in sorted(records_by_index.items(), key=lambda item: item[0])]
         )
         self.last_output_event_id = output_cursor
         self.last_tag_id = tag_cursor
         return result
 
-    def apply_spent_nullifiers(
-        self, spent_nullifiers: Sequence[str]
-    ) -> list[str]:
+    def apply_spent_nullifiers(self, spent_nullifiers: Sequence[str]) -> list[str]:
         spent_set = set(spent_nullifiers)
         updated: list[str] = []
         for commitment, note in list(self._notes.items()):
@@ -1589,9 +1496,7 @@ class ShieldedWallet:
             updated.append(commitment)
         return updated
 
-    def refresh_spent_status(
-        self, is_nullifier_spent: Callable[[str], bool]
-    ) -> list[str]:
+    def refresh_spent_status(self, is_nullifier_spent: Callable[[str], bool]) -> list[str]:
         spent: list[str] = []
         for note in self.notes(include_spent=False):
             if is_nullifier_spent(note.nullifier):
@@ -1652,10 +1557,7 @@ class ShieldedWallet:
                 return
             if best_key is not None and len(selection) >= best_key[0]:
                 return
-            if (
-                total + max_reachable(start, max_inputs - len(selection))
-                < amount
-            ):
+            if total + max_reachable(start, max_inputs - len(selection)) < amount:
                 return
 
             for index in range(start, len(candidates)):
@@ -1681,9 +1583,7 @@ class ShieldedWallet:
         old_root: str,
         membership_commitments: Sequence[str] | None,
     ) -> list[str]:
-        commitments = self._default_membership_commitments(
-            membership_commitments
-        )
+        commitments = self._default_membership_commitments(membership_commitments)
         derived_root = merkle_root(commitments) if commitments else zero_root()
         if derived_root != old_root:
             raise ValueError("membership commitments do not match old_root")
@@ -1775,9 +1675,7 @@ class ShieldedWallet:
         if append_state is None:
             append_state = self.tree_state()
 
-        commitments = self._validated_membership_commitments(
-            old_root, membership_commitments
-        )
+        commitments = self._validated_membership_commitments(old_root, membership_commitments)
         input_notes = self.select_notes(amount, max_inputs=max_inputs)
         total_input = sum(note.amount for note in input_notes)
         change_amount = total_input - amount
@@ -1848,9 +1746,7 @@ class ShieldedWallet:
         if append_state is None:
             append_state = self.tree_state()
 
-        commitments = self._validated_membership_commitments(
-            old_root, membership_commitments
-        )
+        commitments = self._validated_membership_commitments(old_root, membership_commitments)
         input_notes = self.select_notes(amount, max_inputs=max_inputs)
         total_input = sum(note.amount for note in input_notes)
         change_amount = total_input - amount
@@ -1922,9 +1818,7 @@ class ShieldedNoteProver:
     def registry_manifest(self) -> dict[str, Any]:
         return shielded_registry_manifest(self)
 
-    def prove_deposit(
-        self, request: ShieldedDepositRequest
-    ) -> ShieldedProofResult:
+    def prove_deposit(self, request: ShieldedDepositRequest) -> ShieldedProofResult:
         return ShieldedProofResult.from_json(
             prove_shielded_note_deposit(
                 self._bundle_handle,
@@ -1932,9 +1826,7 @@ class ShieldedNoteProver:
             )
         )
 
-    def prove_transfer(
-        self, request: ShieldedTransferRequest
-    ) -> ShieldedProofResult:
+    def prove_transfer(self, request: ShieldedTransferRequest) -> ShieldedProofResult:
         return ShieldedProofResult.from_json(
             prove_shielded_note_transfer(
                 self._bundle_handle,
@@ -1942,9 +1834,7 @@ class ShieldedNoteProver:
             )
         )
 
-    def prove_withdraw(
-        self, request: ShieldedWithdrawRequest
-    ) -> ShieldedProofResult:
+    def prove_withdraw(self, request: ShieldedWithdrawRequest) -> ShieldedProofResult:
         return ShieldedProofResult.from_json(
             prove_shielded_note_withdraw(
                 self._bundle_handle,
@@ -1971,9 +1861,7 @@ def shielded_registry_manifest(
     if isinstance(bundle, ShieldedNoteProver):
         payload = bundle.bundle
     elif isinstance(bundle, dict):
-        payload = validate_shielded_note_bundle(
-            bundle, require_private_keys=False
-        )
+        payload = validate_shielded_note_bundle(bundle, require_private_keys=False)
     else:
         raise TypeError("bundle must be a ShieldedNoteProver or dict")
 
@@ -2032,9 +1920,7 @@ def merkle_root(commitments: Sequence[str]) -> str:
 
 
 def tree_state(commitments: Sequence[str]) -> ShieldedTreeState:
-    return ShieldedTreeState(
-        **json.loads(shielded_note_tree_state_json(list(commitments)))
-    )
+    return ShieldedTreeState(**json.loads(shielded_note_tree_state_json(list(commitments))))
 
 
 def encrypt_note_message(
@@ -2112,9 +1998,7 @@ def scan_notes(
     *, asset_id: str, commitments: Sequence[str], notes: Sequence[ShieldedNote]
 ) -> list[ShieldedDiscoveredNote]:
     commitment_list = list(commitments)
-    indexed_commitments = {
-        commitment: index for index, commitment in enumerate(commitment_list)
-    }
+    indexed_commitments = {commitment: index for index, commitment in enumerate(commitment_list)}
     discovered: list[ShieldedDiscoveredNote] = []
     for note in notes:
         commitment = note.commitment(asset_id)
@@ -2126,9 +2010,7 @@ def scan_notes(
                 note=note,
                 commitment=commitment,
                 leaf_index=leaf_index,
-                merkle_path=shielded_note_auth_path(
-                    commitment_list, leaf_index
-                ),
+                merkle_path=shielded_note_auth_path(commitment_list, leaf_index),
             )
         )
     return discovered
@@ -2212,9 +2094,7 @@ def recover_encrypted_notes(
                 note=note,
                 commitment=viewable.commitment,
                 leaf_index=viewable.leaf_index,
-                merkle_path=shielded_note_auth_path(
-                    commitment_list, viewable.leaf_index
-                ),
+                merkle_path=shielded_note_auth_path(commitment_list, viewable.leaf_index),
             )
         )
     return discovered

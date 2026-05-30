@@ -86,9 +86,7 @@ class AbstractContract:
             for arg in args:
                 a.append(arg)
 
-        k = self.executor.driver.make_key(
-            contract=self.name, variable=variable, args=a
-        )
+        k = self.executor.driver.make_key(contract=self.name, variable=variable, args=a)
         return self.executor.driver.get(k)
 
     def quick_write(self, variable, key=None, value=None, args=None):
@@ -101,9 +99,7 @@ class AbstractContract:
             for arg in args:
                 a.append(arg)
 
-        k = self.executor.driver.make_key(
-            contract=self.name, variable=variable, args=a
-        )
+        k = self.executor.driver.make_key(contract=self.name, variable=variable, args=a)
 
         self.executor.driver.set(k, value)
         self.executor.driver.commit()
@@ -145,9 +141,7 @@ class AbstractContract:
 
             # if the raw name exists, it is a __protected__ or a variable, so prepare for those
             if fullname in self.keys():
-                variable = Variable(
-                    contract=self.name, name=item, driver=self.executor.driver
-                )
+                variable = Variable(contract=self.name, name=item, driver=self.executor.driver)
 
                 # return just the value if it is __protected__ to prevent sets
                 if item.startswith("__"):
@@ -157,18 +151,9 @@ class AbstractContract:
                 return variable
 
             # otherwise, see if contract.items: has more than one entry
-            if (
-                len(
-                    self.executor.driver.values(
-                        prefix=self.name + "." + item + ":"
-                    )
-                )
-                > 0
-            ):
+            if len(self.executor.driver.values(prefix=self.name + "." + item + ":")) > 0:
                 # if so, it is a hash. return the hash object
-                return Hash(
-                    contract=self.name, name=item, driver=self.executor.driver
-                )
+                return Hash(contract=self.name, name=item, driver=self.executor.driver)
 
             # otherwise, the attribut does not exist, so throw the error.
             raise e
@@ -231,21 +216,17 @@ class ContractingClient:
         environment: dict | None = None,
     ):
         self._owns_driver = driver is None
-        driver = (
-            driver if driver is not None else Driver(storage_home=storage_home)
-        )
+        driver = driver if driver is not None else Driver(storage_home=storage_home)
         self.executor = Executor(metering=metering, driver=driver)
         self.raw_driver = driver
         self.signer = signer
-        self.compiler = (
-            compiler if compiler is not None else ContractingCompiler()
-        )
+        self.compiler = compiler if compiler is not None else ContractingCompiler()
         self.submission_filename = submission_filename
         self.environment = environment if environment is not None else {}
         # Get submission contract from file
         if submission_filename is not None:
-            local_source, source_code, vm_ir_json = (
-                self._load_submission_artifacts(self.submission_filename)
+            local_source, source_code, vm_ir_json = self._load_submission_artifacts(
+                self.submission_filename
             )
             self.raw_driver.set_contract(
                 name="submission",
@@ -274,14 +255,10 @@ class ContractingClient:
             filename = self.submission_filename
 
         if filename is None and state_contract is None:
-            raise AssertionError(
-                "No submission contract provided or found in state."
-            )
+            raise AssertionError("No submission contract provided or found in state.")
 
         if filename is not None:
-            local_source, source_code, vm_ir_json = (
-                self._load_submission_artifacts(filename)
-            )
+            local_source, source_code, vm_ir_json = self._load_submission_artifacts(filename)
             self.raw_driver.delete_contract(name="submission")
             self.raw_driver.set_contract(
                 name="submission",
@@ -304,9 +281,7 @@ class ContractingClient:
         source_code = None
         vm_ir_json = None
         if runtime_path == BUILTIN_SUBMISSION_RUNTIME_PATH:
-            source_code = BUILTIN_SUBMISSION_SOURCE_PATH.read_text(
-                encoding="utf-8"
-            )
+            source_code = BUILTIN_SUBMISSION_SOURCE_PATH.read_text(encoding="utf-8")
             previous_module_name = self.compiler.module_name
             self.compiler.module_name = "submission"
             try:
@@ -359,9 +334,7 @@ class ContractingClient:
 
         tree = ast.parse(contract)
 
-        function_defs = [
-            n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
-        ]
+        function_defs = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
 
         funcs = []
         for definition in function_defs:
@@ -490,9 +463,7 @@ class ContractingClient:
             arguments = []
         return self.raw_driver.get_var(contract, variable, arguments, mark)
 
-    def set_var(
-        self, contract, variable, arguments=None, value=None, mark=False
-    ):
+    def set_var(self, contract, variable, arguments=None, value=None, mark=False):
         if arguments is None:
             arguments = []
         self.raw_driver.set_var(contract, variable, arguments, value, mark)

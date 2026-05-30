@@ -28,9 +28,7 @@ def _default_vk_id_prefix(contract_name: str, *, bundle_type: str) -> str:
 
 def _write_text(path: Path, content: str, *, overwrite: bool) -> None:
     if path.exists() and not overwrite:
-        raise FileExistsError(
-            f"{path} already exists; pass --overwrite to replace it"
-        )
+        raise FileExistsError(f"{path} already exists; pass --overwrite to replace it")
     path.write_text(content)
 
 
@@ -113,9 +111,7 @@ def _deployment_instructions(
             ]
         )
 
-    if isinstance(registry_entries, list) and isinstance(
-        configure_actions, list
-    ):
+    if isinstance(registry_entries, list) and isinstance(configure_actions, list):
         lines.extend(["", "## Generated IDs", ""])
         for entry in registry_entries:
             if not isinstance(entry, dict):
@@ -190,14 +186,10 @@ def _add_output_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _add_generate_arguments(
-    parser: argparse.ArgumentParser, *, bundle_type: str
-) -> None:
+def _add_generate_arguments(parser: argparse.ArgumentParser, *, bundle_type: str) -> None:
     _add_output_arguments(parser)
     default_contract_name = (
-        "con_shielded_note_token"
-        if bundle_type == "shielded-note"
-        else "con_shielded_commands"
+        "con_shielded_note_token" if bundle_type == "shielded-note" else "con_shielded_commands"
     )
     parser.add_argument(
         "--contract-name",
@@ -207,10 +199,7 @@ def _add_generate_arguments(
     parser.add_argument(
         "--vk-id-prefix",
         default=None,
-        help=(
-            "Prefix used to derive vk ids. Defaults to a timestamped "
-            "contract-specific prefix."
-        ),
+        help=("Prefix used to derive vk ids. Defaults to a timestamped contract-specific prefix."),
     )
 
 
@@ -235,8 +224,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="xian-zk-shielded-bundle",
         description=(
-            "Generate, import, or validate shielded proving bundles and "
-            "registry manifests."
+            "Generate, import, or validate shielded proving bundles and registry manifests."
         ),
     )
     subparsers = parser.add_subparsers(dest="command")
@@ -302,9 +290,7 @@ def _handle_generate_note(args: argparse.Namespace) -> int:
 
 def _handle_import_note(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir).expanduser().resolve()
-    bundle_json, _ = load_and_validate_bundle_text(
-        args.bundle, bundle_type="note"
-    )
+    bundle_json, _ = load_and_validate_bundle_text(args.bundle, bundle_type="note")
     prover = ShieldedNoteProver(bundle_json)
     _write_artifacts(
         output_dir=output_dir,
@@ -320,12 +306,8 @@ def _handle_import_note(args: argparse.Namespace) -> int:
 
 
 def _handle_validate_note(args: argparse.Namespace) -> int:
-    _, normalized = load_and_validate_bundle_text(
-        args.bundle, bundle_type="note"
-    )
-    print(
-        f"valid note bundle: {bundle_summary(normalized, bundle_type='note')}"
-    )
+    _, normalized = load_and_validate_bundle_text(args.bundle, bundle_type="note")
+    print(f"valid note bundle: {bundle_summary(normalized, bundle_type='note')}")
     print(f"contract_name={normalized['contract_name']}")
     print(f"setup_ceremony={normalized['setup_ceremony'] or '-'}")
     return 0
@@ -355,9 +337,7 @@ def _handle_generate_command(args: argparse.Namespace) -> int:
 
 def _handle_import_command(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir).expanduser().resolve()
-    bundle_json, _ = load_and_validate_bundle_text(
-        args.bundle, bundle_type="command"
-    )
+    bundle_json, _ = load_and_validate_bundle_text(args.bundle, bundle_type="command")
     prover = ShieldedCommandProver(bundle_json)
     _write_artifacts(
         output_dir=output_dir,
@@ -373,12 +353,8 @@ def _handle_import_command(args: argparse.Namespace) -> int:
 
 
 def _handle_validate_command(args: argparse.Namespace) -> int:
-    _, normalized = load_and_validate_bundle_text(
-        args.bundle, bundle_type="command"
-    )
-    print(
-        f"valid command bundle: {bundle_summary(normalized, bundle_type='command')}"
-    )
+    _, normalized = load_and_validate_bundle_text(args.bundle, bundle_type="command")
+    print(f"valid command bundle: {bundle_summary(normalized, bundle_type='command')}")
     print(f"contract_name={normalized['contract_name']}")
     print(f"setup_ceremony={normalized['setup_ceremony'] or '-'}")
     return 0

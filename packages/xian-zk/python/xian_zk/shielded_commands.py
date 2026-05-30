@@ -78,10 +78,7 @@ def canonicalize_command_payload(value: Any) -> str:
             )
         return f"d:{len(value)}:" + "".join(items)
     if isinstance(value, list):
-        items = [
-            _encode_payload_part("e", canonicalize_command_payload(item))
-            for item in value
-        ]
+        items = [_encode_payload_part("e", canonicalize_command_payload(item)) for item in value]
         return f"l:{len(value)}:" + "".join(items)
     raise TypeError("unsupported payload value type")
 
@@ -257,9 +254,7 @@ class ShieldedCommandWallet(ShieldedWallet):
         if append_state is None:
             append_state = self.tree_state()
 
-        commitments = self._validated_membership_commitments(
-            old_root, membership_commitments
-        )
+        commitments = self._validated_membership_commitments(old_root, membership_commitments)
         input_notes = self.select_notes(required_amount, max_inputs=max_inputs)
         total_input = sum(note.amount for note in input_notes)
         change_amount = total_input - required_amount
@@ -331,9 +326,7 @@ class ShieldedCommandProver:
         normalized_bundle = validate_shielded_command_bundle(bundle_json)
         self.bundle = normalized_bundle
         self.bundle_json = json.dumps(normalized_bundle, sort_keys=True)
-        self._bundle_handle = load_shielded_command_prover_bundle(
-            self.bundle_json
-        )
+        self._bundle_handle = load_shielded_command_prover_bundle(self.bundle_json)
 
     @classmethod
     def build_insecure_dev_bundle(cls) -> "ShieldedCommandProver":
@@ -356,9 +349,7 @@ class ShieldedCommandProver:
     def registry_manifest(self) -> dict[str, Any]:
         return shielded_command_registry_manifest(self)
 
-    def prove_deposit(
-        self, request: ShieldedDepositRequest
-    ) -> ShieldedProofResult:
+    def prove_deposit(self, request: ShieldedDepositRequest) -> ShieldedProofResult:
         return ShieldedProofResult.from_json(
             prove_shielded_command_deposit(
                 self._bundle_handle,
@@ -366,13 +357,9 @@ class ShieldedCommandProver:
             )
         )
 
-    def prove_execute(
-        self, request: ShieldedCommandRequest
-    ) -> ShieldedCommandProofResult:
+    def prove_execute(self, request: ShieldedCommandRequest) -> ShieldedCommandProofResult:
         if len(request.inputs) == 0:
-            raise ValueError(
-                "Shielded command execution requires at least one input"
-            )
+            raise ValueError("Shielded command execution requires at least one input")
 
         input_nullifiers = []
         for shielded_input in request.inputs:
@@ -400,9 +387,7 @@ class ShieldedCommandProver:
             "append_state": asdict(request.append_state),
             "fee": request.fee,
             "public_amount": request.public_amount,
-            "inputs": [
-                asdict(shielded_input) for shielded_input in request.inputs
-            ],
+            "inputs": [asdict(shielded_input) for shielded_input in request.inputs],
             "outputs": [asdict(output) for output in request.outputs],
             "command_binding": binding,
             "output_payload_hashes": list(request.output_payload_hashes),
@@ -414,9 +399,7 @@ class ShieldedCommandProver:
             )
         )
 
-    def prove_withdraw(
-        self, request: ShieldedWithdrawRequest
-    ) -> ShieldedProofResult:
+    def prove_withdraw(self, request: ShieldedWithdrawRequest) -> ShieldedProofResult:
         return ShieldedProofResult.from_json(
             prove_shielded_command_withdraw(
                 self._bundle_handle,
@@ -431,9 +414,7 @@ def shielded_command_registry_manifest(
     if isinstance(bundle, ShieldedCommandProver):
         payload = bundle.bundle
     elif isinstance(bundle, dict):
-        payload = validate_shielded_command_bundle(
-            bundle, require_private_keys=False
-        )
+        payload = validate_shielded_command_bundle(bundle, require_private_keys=False)
     else:
         raise TypeError("bundle must be a ShieldedCommandProver or dict")
 

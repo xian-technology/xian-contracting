@@ -19,9 +19,7 @@ DEFAULT_OUTPUT_DIR = Path("packages/xian-compiler-core/tests/fixtures")
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description=(
-            "Generate compiler fixtures from the current Python compiler output."
-        )
+        description=("Generate compiler fixtures from the current Python compiler output.")
     )
     parser.add_argument(
         "paths",
