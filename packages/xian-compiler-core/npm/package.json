@@ -10,6 +10,11 @@
     }
   },
   "types": "./dist/xian_compiler_core.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xian-technology/xian-contracting"
+  },
+  "homepage": "https://github.com/xian-technology/xian-contracting",
   "files": [
     "dist",
     "README.md"
