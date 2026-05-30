@@ -81,6 +81,9 @@ class LMDBStore:
         return decode(value)
 
     def batch_set(self, writes: dict[str, object]):
+        if not writes:
+            return
+
         def operation(txn):
             for key, value in writes.items():
                 encoded_key = key.encode("utf-8")

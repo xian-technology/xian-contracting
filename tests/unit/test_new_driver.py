@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import Mock
 
 from contracting.storage.driver import Driver
 
@@ -150,6 +151,14 @@ class TestDriver(unittest.TestCase):
         self.driver.commit()
         retrieved_value = self.driver.get(key)
         self.assertEqual(retrieved_value, value)
+
+    def test_hard_apply_skips_store_write_transaction_when_empty(self):
+        self.driver._store.batch_set = Mock()
+
+        self.driver.hard_apply("1")
+
+        self.driver._store.batch_set.assert_not_called()
+        self.assertFalse(self.driver.pending_deltas)
 
     def test_get_all_contract_state(self):
         key = 'contract.key'

@@ -469,7 +469,8 @@ class Driver:
         to_delete = []
         for delta_nanos, deltas in sorted(self.pending_deltas.items()):
             writes = {key: delta[1] for key, delta in deltas["writes"].items()}
-            self._store.batch_set(writes)
+            if writes:
+                self._store.batch_set(writes)
             to_delete.append(delta_nanos)
             if delta_nanos == nanos:
                 break
