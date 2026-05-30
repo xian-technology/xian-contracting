@@ -208,7 +208,7 @@ class Driver:
 
     def get_var(self, contract, variable, arguments=None, mark=True):
         key = self.make_key(contract, variable, arguments)
-        return self.get(key)
+        return self.get(key, save=mark)
 
     def get_owner(self, name):
         owner = self.get_var(name, OWNER_KEY)

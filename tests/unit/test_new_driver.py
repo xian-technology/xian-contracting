@@ -39,6 +39,26 @@ class TestDriver(unittest.TestCase):
         finally:
             driver.flush_full()
 
+    def test_get_var_respects_mark_false(self):
+        self.driver.set_var("currency", "balances", ["alice"], 42)
+        self.driver.commit()
+
+        value = self.driver.get_var("currency", "balances", ["alice"], mark=False)
+
+        self.assertEqual(value, 42)
+        self.assertFalse(self.driver.pending_reads)
+        self.assertFalse(self.driver.transaction_reads)
+
+    def test_get_var_marks_reads_by_default(self):
+        self.driver.set_var("currency", "balances", ["alice"], 42)
+        self.driver.commit()
+
+        value = self.driver.get_var("currency", "balances", ["alice"])
+
+        self.assertEqual(value, 42)
+        self.assertIn("currency.balances:alice", self.driver.pending_reads)
+        self.assertIn("currency.balances:alice", self.driver.transaction_reads)
+
     def test_keys_from_disk(self):
         key1 = 'test_key1'
         key2 = 'test_key2'
