@@ -182,6 +182,17 @@ def huge_positive_exponent():
 """.strip()
 
 
+TYPECHECK_REJECTION_SOURCE = """
+@export(typecheck=True)
+def summarize(items: list[int], metadata: dict[str, list[int]]) -> int:
+    return len(items) + len(metadata['counts'])
+
+@export(typecheck=True)
+def label(limit: float) -> str:
+    return 123
+""".strip()
+
+
 @pytest.mark.parametrize(
     ("function_name", "expected_native_result"),
     [
@@ -210,3 +221,32 @@ def test_python_and_xian_vm_reject_decimal_edge_cases(
     assert native_output["result"] == expected_native_result
     assert native_output["writes"] == python_output["writes"] == {}
     assert native_output["events"] == python_output["events"] == []
+
+
+@pytest.mark.parametrize(
+    ("function_name", "kwargs"),
+    [
+        (
+            "summarize",
+            {
+                "items": [1, 2],
+                "metadata": {"counts": [1, "2"]},
+            },
+        ),
+        ("label", {"limit": 1}),
+    ],
+)
+def test_python_and_xian_vm_match_for_typecheck_rejections(
+    tmp_path: Path, function_name: str, kwargs: dict
+):
+    case = {
+        "id": f"typecheck_reject_{function_name}",
+        "description": f"Both engines reject typecheck mismatch {function_name}.",
+        "source": TYPECHECK_REJECTION_SOURCE,
+        "function_name": function_name,
+        "kwargs": kwargs,
+    }
+    python_output = _run_python_case(case, tmp_path / "python")
+    native_output = _run_native_case(case, tmp_path / "native")
+
+    assert native_output == python_output

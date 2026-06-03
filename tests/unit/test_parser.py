@@ -62,6 +62,101 @@ def thing(arg: datetime.datetime, arg2: datetime.timedelta):
 
         self.assertEqual(expected, got)
 
+    def test_methods_for_contract_subscript_annotations(self):
+        code = '''
+@export
+def route(amounts: list[float], path: list[int]):
+    return amounts, path
+'''
+        got = parser.methods_for_contract(code)
+
+        expected = [
+            {
+                'name': 'route',
+                'arguments': [
+                    {
+                        'name': 'amounts',
+                        'type': 'list[float]'
+                    },
+                    {
+                        'name': 'path',
+                        'type': 'list[int]'
+                    }
+                ]
+            }
+        ]
+
+        self.assertEqual(expected, got)
+
+    def test_methods_for_contract_nested_subscript_annotations(self):
+        code = '''
+@export
+def route(routes: dict[str, list[int]], range_: tuple[int, ...]):
+    return routes, range_
+'''
+        got = parser.methods_for_contract(code)
+
+        expected = [
+            {
+                'name': 'route',
+                'arguments': [
+                    {
+                        'name': 'routes',
+                        'type': 'dict[str, list[int]]'
+                    },
+                    {
+                        'name': 'range_',
+                        'type': 'tuple[int, ...]'
+                    }
+                ]
+            }
+        ]
+
+        self.assertEqual(expected, got)
+
+    def test_methods_for_contract_ignores_complex_annotation_expressions(self):
+        code = '''
+@export
+def route(value: __import__('os').system('true')):
+    return value
+'''
+        got = parser.methods_for_contract(code)
+
+        expected = [
+            {
+                'name': 'route',
+                'arguments': [
+                    {
+                        'name': 'value'
+                    }
+                ]
+            }
+        ]
+
+        self.assertEqual(expected, got)
+
+    def test_methods_for_contract_ignores_excessive_annotation_depth(self):
+        annotation = 'list[' * 20 + 'int' + ']' * 20
+        code = f'''
+@export
+def route(value: {annotation}):
+    return value
+'''
+        got = parser.methods_for_contract(code)
+
+        expected = [
+            {
+                'name': 'route',
+                'arguments': [
+                    {
+                        'name': 'value'
+                    }
+                ]
+            }
+        ]
+
+        self.assertEqual(expected, got)
+
     def test_methods_for_contract_multiple_functions_and_privates(self):
         code = '''
 @export
@@ -233,6 +328,26 @@ def something():
         expected = {
             'variables': ['v1', 'v2', 'v3'],
             'hashes': ['h1', 'h2', 'h3']
+        }
+
+        self.assertDictEqual(got, expected)
+
+    def test_variables_for_contract_ignores_non_storage_calls(self):
+        code = '''
+metadata = I.Func('vote')
+settings['owner'] = Hash()
+storage = Hash()
+
+@export
+def something():
+   return 1
+        '''
+
+        got = parser.variables_for_contract(code)
+
+        expected = {
+            'variables': [],
+            'hashes': ['storage']
         }
 
         self.assertDictEqual(got, expected)

@@ -106,6 +106,31 @@ def render(values: list[int]) -> int:
         self.assertEqual(decoded["module_name"], "counter")
         self.assertEqual(decoded["functions"][0]["name"], "render")
 
+    def test_lower_to_ir_and_python_codegen_preserve_subscripted_annotations(self):
+        source = """
+@export(typecheck=True)
+def route(
+    amounts: list[float],
+    path: list[int],
+    metadata: dict[str, list[int]],
+) -> dict[str, int]:
+    return {"amounts": len(amounts), "path": len(path), "legs": len(metadata["legs"])}
+"""
+        compiler = ContractingCompiler(module_name="typed_route")
+
+        code = compiler.parse_to_code(source, vm_profile=XIAN_VM_V1_PROFILE)
+        ir = compiler.lower_to_ir(source)
+        route = next(function for function in ir["functions"] if function["name"] == "route")
+
+        self.assertIn("amounts: list[float]", code)
+        self.assertIn("path: list[int]", code)
+        self.assertIn("metadata: dict[str, list[int]]", code)
+        self.assertEqual(
+            [parameter["annotation"] for parameter in route["parameters"]],
+            ["list[float]", "list[int]", "dict[str, list[int]]"],
+        )
+        self.assertEqual(route["returns"], "dict[str, int]")
+
     def test_lower_to_ir_raises_on_vm_profile_violation(self):
         source = """
 @export

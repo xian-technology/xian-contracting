@@ -427,6 +427,41 @@ def probe(value: int):
         "kwargs": {"value": 13},
     },
     {
+        "id": "subscripted_export_typecheck",
+        "description": "Subscripted export annotations are accepted by both VM paths.",
+        "covers_builtins": ("dict", "len"),
+        "covers_env": ("Hash",),
+        "covers_features": (
+            "annotations.subscripted",
+            "decorators.export.typecheck",
+            "storage.hash",
+        ),
+        "source": """
+snapshots = Hash(default_value=0)
+
+@export(typecheck=True)
+def probe(
+    amounts: list[float],
+    path: list[int],
+    metadata: dict[str, list[int]],
+) -> dict[str, int]:
+    snapshots["amounts"] = len(amounts)
+    snapshots["path"] = len(path)
+    snapshots["legs"] = len(metadata["legs"])
+    return {
+        "amounts": snapshots["amounts"],
+        "path": snapshots["path"],
+        "legs": snapshots["legs"],
+    }
+""",
+        "function_name": "probe",
+        "kwargs": {
+            "amounts": [1, 0.25],
+            "path": [3, 5, 8],
+            "metadata": {"legs": [13, 21]},
+        },
+    },
+    {
         "id": "raise_exception_instance",
         "description": "Explicit Exception(...) raising matches the Xian VM error path.",
         "covers_builtins": ("Exception",),

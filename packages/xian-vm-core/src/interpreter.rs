@@ -218,6 +218,341 @@ fn function_entry_gas_cost(function: &FunctionIr) -> u64 {
         .saturating_mul(VM_GAS_FUNCTION_ENTRY_EXCESS_NODE)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TypeAnnotation {
+    base: String,
+    args: Vec<TypeAnnotation>,
+}
+
+impl TypeAnnotation {
+    fn source(&self) -> String {
+        if self.args.is_empty() {
+            return self.base.clone();
+        }
+        format!(
+            "{}[{}]",
+            self.base,
+            self.args
+                .iter()
+                .map(TypeAnnotation::source)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
+fn parse_type_annotation(annotation: &str) -> Option<TypeAnnotation> {
+    let trimmed = annotation.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let Some(open_index) = trimmed.find('[') else {
+        if trimmed.contains([']', ',']) {
+            return None;
+        }
+        return Some(TypeAnnotation {
+            base: trimmed.to_owned(),
+            args: Vec::new(),
+        });
+    };
+
+    let base = trimmed[..open_index].trim();
+    if base.is_empty() {
+        return None;
+    }
+
+    let mut depth = 0i32;
+    let mut close_index = None;
+    for (index, ch) in trimmed
+        .char_indices()
+        .skip_while(|(index, _)| *index < open_index)
+    {
+        match ch {
+            '[' => depth += 1,
+            ']' => {
+                depth -= 1;
+                if depth < 0 {
+                    return None;
+                }
+                if depth == 0 {
+                    close_index = Some(index);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let close_index = close_index?;
+    if close_index != trimmed.len() - 1 {
+        return None;
+    }
+
+    let args = split_type_annotation_args(&trimmed[open_index + 1..close_index])?;
+    Some(TypeAnnotation {
+        base: base.to_owned(),
+        args,
+    })
+}
+
+fn split_type_annotation_args(input: &str) -> Option<Vec<TypeAnnotation>> {
+    let mut args = Vec::new();
+    let mut depth = 0i32;
+    let mut start = 0usize;
+
+    for (index, ch) in input.char_indices() {
+        match ch {
+            '[' => depth += 1,
+            ']' => {
+                depth -= 1;
+                if depth < 0 {
+                    return None;
+                }
+            }
+            ',' if depth == 0 => {
+                args.push(parse_type_annotation(input[start..index].trim())?);
+                start = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+
+    if depth != 0 {
+        return None;
+    }
+
+    let tail = input[start..].trim();
+    if tail.is_empty() {
+        return None;
+    }
+    args.push(parse_type_annotation(tail)?);
+    Some(args)
+}
+
+fn export_typecheck_enabled(function: &FunctionIr) -> bool {
+    let Some(decorator) = &function.decorator else {
+        return false;
+    };
+    if decorator.name != "export" {
+        return false;
+    }
+
+    decorator.keywords.iter().any(|keyword| {
+        let Some(object) = keyword.as_object() else {
+            return false;
+        };
+        if object.get("arg").and_then(Value::as_str) != Some("typecheck") {
+            return false;
+        }
+        let Some(value) = object.get("value").and_then(Value::as_object) else {
+            return false;
+        };
+        value.get("node").and_then(Value::as_str) == Some("constant")
+            && value.get("value_type").and_then(Value::as_str) == Some("bool")
+            && value.get("value").and_then(Value::as_bool) == Some(true)
+    })
+}
+
+fn typecheck_error(label: &str, annotation: &TypeAnnotation, value: &VmValue) -> VmExecutionError {
+    let message = format!(
+        "{label} must be {}, got {}!",
+        annotation_label(annotation),
+        value_typecheck_name(value)
+    );
+    VmExecutionError::new(format!("TypeError({message:?})"))
+}
+
+fn annotation_label(annotation: &TypeAnnotation) -> String {
+    if !annotation.args.is_empty() {
+        return annotation.source();
+    }
+    match annotation.base.as_str() {
+        "Any" => "Any".to_owned(),
+        "datetime.datetime" => "datetime.datetime".to_owned(),
+        "datetime.timedelta" => "datetime.timedelta".to_owned(),
+        "set" => "set".to_owned(),
+        "frozenset" => "frozenset".to_owned(),
+        "int" => "<class 'int'>".to_owned(),
+        "bytes" => "<class 'bytes'>".to_owned(),
+        "bytearray" => "<class 'bytearray'>".to_owned(),
+        base => format!("<class '{base}'>"),
+    }
+}
+
+fn value_typecheck_name(value: &VmValue) -> &'static str {
+    match value {
+        VmValue::None => "NoneType",
+        VmValue::Decimal(_) => "ContractingDecimal",
+        VmValue::DateTime(_) => "Datetime",
+        VmValue::TimeDelta(_) => "Timedelta",
+        other => other.type_name(),
+    }
+}
+
+fn check_function_arguments(
+    function: &FunctionIr,
+    scope: &HashMap<String, VmValue>,
+) -> Result<(), VmExecutionError> {
+    for parameter in &function.parameters {
+        let Some(annotation) = &parameter.annotation else {
+            continue;
+        };
+        let Some(value) = scope.get(&parameter.name) else {
+            continue;
+        };
+        let parsed = parse_type_annotation(annotation).ok_or_else(|| {
+            VmExecutionError::new(format!("unsupported type annotation '{annotation}'"))
+        })?;
+        check_typed_value(value, &parsed, &format!("Argument '{}'", parameter.name))?;
+    }
+    Ok(())
+}
+
+fn check_function_return(function: &FunctionIr, value: &VmValue) -> Result<(), VmExecutionError> {
+    let Some(annotation) = &function.returns else {
+        return Ok(());
+    };
+    let parsed = parse_type_annotation(annotation).ok_or_else(|| {
+        VmExecutionError::new(format!("unsupported type annotation '{annotation}'"))
+    })?;
+    check_typed_value(value, &parsed, "Return value")
+}
+
+fn check_typed_value(
+    value: &VmValue,
+    annotation: &TypeAnnotation,
+    label: &str,
+) -> Result<(), VmExecutionError> {
+    if annotation.base == "Any" {
+        return Ok(());
+    }
+
+    match annotation.base.as_str() {
+        "list" => {
+            let VmValue::List(items) = value else {
+                return Err(typecheck_error(label, annotation, value));
+            };
+            if let Some(item_annotation) = annotation.args.first() {
+                for (index, item) in items.iter().enumerate() {
+                    check_typed_value(item, item_annotation, &format!("{label}[{index}]"))?;
+                }
+            }
+            Ok(())
+        }
+        "dict" => {
+            let VmValue::Dict(entries) = value else {
+                return Err(typecheck_error(label, annotation, value));
+            };
+            if annotation.args.len() >= 2 {
+                let key_annotation = &annotation.args[0];
+                let value_annotation = &annotation.args[1];
+                for (key, item) in entries {
+                    check_typed_value(key, key_annotation, &format!("{label} key"))?;
+                    check_typed_value(
+                        item,
+                        value_annotation,
+                        &format!("{label}[{}]", typecheck_dict_key_repr(key)),
+                    )?;
+                }
+            }
+            Ok(())
+        }
+        "set" => {
+            let VmValue::Set(items) = value else {
+                return Err(typecheck_error(label, annotation, value));
+            };
+            if let Some(item_annotation) = annotation.args.first() {
+                for (index, item) in items.iter().enumerate() {
+                    check_typed_value(item, item_annotation, &format!("{label}[{index}]"))?;
+                }
+            }
+            Ok(())
+        }
+        "frozenset" => {
+            let VmValue::FrozenSet(items) = value else {
+                return Err(typecheck_error(label, annotation, value));
+            };
+            if let Some(item_annotation) = annotation.args.first() {
+                for (index, item) in items.iter().enumerate() {
+                    check_typed_value(item, item_annotation, &format!("{label}[{index}]"))?;
+                }
+            }
+            Ok(())
+        }
+        "bool" => {
+            if matches!(value, VmValue::Bool(_)) {
+                Ok(())
+            } else {
+                Err(typecheck_error(label, annotation, value))
+            }
+        }
+        "int" => {
+            if matches!(value, VmValue::Int(_)) {
+                Ok(())
+            } else {
+                Err(typecheck_error(label, annotation, value))
+            }
+        }
+        "float" => {
+            if matches!(
+                value,
+                VmValue::Int(_) | VmValue::Float(_) | VmValue::Decimal(_)
+            ) {
+                Ok(())
+            } else {
+                Err(typecheck_error(label, annotation, value))
+            }
+        }
+        "str" => {
+            if matches!(value, VmValue::String(_)) {
+                Ok(())
+            } else {
+                Err(typecheck_error(label, annotation, value))
+            }
+        }
+        "bytes" => {
+            if matches!(value, VmValue::Bytes(_)) {
+                Ok(())
+            } else {
+                Err(typecheck_error(label, annotation, value))
+            }
+        }
+        "bytearray" => {
+            if matches!(value, VmValue::ByteArray(_)) {
+                Ok(())
+            } else {
+                Err(typecheck_error(label, annotation, value))
+            }
+        }
+        "datetime.datetime" => {
+            if matches!(value, VmValue::DateTime(_)) {
+                Ok(())
+            } else {
+                Err(typecheck_error(label, annotation, value))
+            }
+        }
+        "datetime.timedelta" => {
+            if matches!(value, VmValue::TimeDelta(_)) {
+                Ok(())
+            } else {
+                Err(typecheck_error(label, annotation, value))
+            }
+        }
+        _ => Err(VmExecutionError::new(format!(
+            "unsupported type annotation '{}'",
+            annotation.source()
+        ))),
+    }
+}
+
+fn typecheck_dict_key_repr(key: &VmValue) -> String {
+    match key {
+        VmValue::String(value) => ascii_string_repr(value),
+        other => other.python_repr(),
+    }
+}
+
 pub trait VmHost {
     fn charge_execution_cost(&mut self, _cost: u64) -> Result<(), VmExecutionError> {
         Ok(())
@@ -858,13 +1193,21 @@ impl VmInstance {
             .ok_or_else(|| VmExecutionError::new(format!("unknown function '{name}'")))?;
         host.charge_execution_cost(function_entry_gas_cost(&function))?;
         let mut scope = self.bind_function_arguments(&function, args, kwargs, host)?;
-        match self.execute_block(&function.body, &mut scope, host)? {
+        let typecheck = export_typecheck_enabled(&function);
+        if typecheck {
+            check_function_arguments(&function, &scope)?;
+        }
+        let result = match self.execute_block(&function.body, &mut scope, host)? {
             ControlFlow::Next => Ok(VmValue::None),
             ControlFlow::Return(value) => Ok(value),
             ControlFlow::Break | ControlFlow::Continue => Err(VmExecutionError::new(format!(
                 "function '{name}' leaked loop control"
             ))),
+        }?;
+        if typecheck {
+            check_function_return(&function, &result)?;
         }
+        Ok(result)
     }
 
     fn call_callable_value(
