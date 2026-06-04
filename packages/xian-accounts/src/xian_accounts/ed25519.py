@@ -44,7 +44,7 @@ def verify_message(public_key: str, message: str, signature: str) -> bool:
             message.encode("utf-8"),
             bytes.fromhex(signature),
         )
-    except BadSignatureError, ValueError:
+    except (BadSignatureError, ValueError):
         return False
     return True
 
