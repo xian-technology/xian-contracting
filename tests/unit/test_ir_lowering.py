@@ -11,6 +11,21 @@ from contracting.compilation.vm import XIAN_VM_V1_PROFILE, VmCompatibilityError
 
 
 class TestCompilerIrLowering(TestCase):
+    ANNOTATION_MATRIX = [
+        "bool",
+        "int",
+        "float",
+        "str",
+        "list[int]",
+        "list[float]",
+        "dict[str, int]",
+        "dict[str, list[int]]",
+        "set[int]",
+        "frozenset[str]",
+        "datetime.datetime",
+        "datetime.timedelta",
+    ]
+
     def test_lower_to_ir_emits_structural_module(self):
         source = """
 import currency
@@ -105,6 +120,31 @@ def render(values: list[int]) -> int:
 
         self.assertEqual(decoded["module_name"], "counter")
         self.assertEqual(decoded["functions"][0]["name"], "render")
+
+    def test_lower_to_ir_and_python_codegen_preserve_annotation_matrix(self):
+        args = ", ".join(
+            f"arg_{index}: {annotation}"
+            for index, annotation in enumerate(self.ANNOTATION_MATRIX)
+        )
+        source = f"""
+@export
+def typed({args}) -> dict[str, list[int]]:
+    return {{}}
+"""
+        compiler = ContractingCompiler(module_name="typed_matrix")
+
+        code = compiler.parse_to_code(source, vm_profile=XIAN_VM_V1_PROFILE)
+        ir = compiler.lower_to_ir(source)
+        typed = next(function for function in ir["functions"] if function["name"] == "typed")
+
+        for index, annotation in enumerate(self.ANNOTATION_MATRIX):
+            with self.subTest(annotation=annotation):
+                self.assertIn(f"arg_{index}: {annotation}", code)
+        self.assertEqual(
+            [parameter["annotation"] for parameter in typed["parameters"]],
+            self.ANNOTATION_MATRIX,
+        )
+        self.assertEqual(typed["returns"], "dict[str, list[int]]")
 
     def test_lower_to_ir_and_python_codegen_preserve_subscripted_annotations(self):
         source = """

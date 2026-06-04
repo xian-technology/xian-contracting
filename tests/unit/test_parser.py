@@ -8,6 +8,46 @@ class TestParser(TestCase):
     def setUp(self):
         self.compiler = ContractingCompiler()
 
+    def test_methods_for_contract_annotation_matrix(self):
+        annotations = [
+            "bool",
+            "int",
+            "float",
+            "str",
+            "list[int]",
+            "list[float]",
+            "dict[str, int]",
+            "dict[str, list[int]]",
+            "set[int]",
+            "frozenset[str]",
+            "datetime.datetime",
+            "datetime.timedelta",
+        ]
+        args = ", ".join(
+            f"arg_{index}: {annotation}"
+            for index, annotation in enumerate(annotations)
+        )
+        code = f"""
+@export
+def typed({args}):
+    return None
+"""
+
+        got = parser.methods_for_contract(code)
+
+        self.assertEqual(
+            [
+                {
+                    "name": "typed",
+                    "arguments": [
+                        {"name": f"arg_{index}", "type": annotation}
+                        for index, annotation in enumerate(annotations)
+                    ],
+                }
+            ],
+            got,
+        )
+
     def test_methods_for_contract_single_function(self):
         code = '''
 @export
