@@ -144,9 +144,9 @@ def test_insecure_dev_bundle_matches_existing_shielded_fixture_keys():
     prover = load_dev_prover()
     by_id = {vk["vk_id"]: vk["vk_hex"] for vk in fixture["verifying_keys"]}
 
-    assert prover.bundle["deposit"]["vk_hex"] == by_id["shielded-deposit-v3"]
-    assert prover.bundle["transfer"]["vk_hex"] == by_id["shielded-transfer-v3"]
-    assert prover.bundle["withdraw"]["vk_hex"] == by_id["shielded-withdraw-v3"]
+    assert prover.bundle["deposit"]["vk_hex"] == by_id["shielded-deposit-v4"]
+    assert prover.bundle["transfer"]["vk_hex"] == by_id["shielded-transfer-v4"]
+    assert prover.bundle["withdraw"]["vk_hex"] == by_id["shielded-withdraw-v4"]
 
 
 def test_prover_can_generate_and_verify_shielded_note_flow():

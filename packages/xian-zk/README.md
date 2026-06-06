@@ -68,12 +68,19 @@ generation helpers used by the Python bindings and tests.
 - `cd packages/xian-zk && uv sync --group dev && uv run maturin develop && uv run pytest -q`
 - `cd packages/xian-zk && uv run pytest -q -m slow`
 
+Build performance: the `[profile.dev]` block in `Cargo.toml` sets `opt-level = 3`,
+so even a plain `maturin develop` produces optimized proving/setup. Without it an
+unoptimized build is ~25x slower (Groth16 setup ~100s vs ~4s) — do not lower it.
+Published/CI wheels build `--release` regardless.
+
 ## Notes
 - The runtime-facing verifier surface is still intentionally narrow.
 - The shielded-note proving helpers are the first external proving toolkit
   slice, not a broad proving framework.
 - The shielded-note circuits now use Merkle auth paths instead of witnessing
-  the whole leaf set, and the shipped dev bundle / fixture ids are `v2`.
+  the whole leaf set, and the shipped dev bundle / fixture ids are `v4` for the
+  note family and `v5` for the command family. The circuits hash with
+  Poseidon-BN254 (see `src/poseidon.rs`).
 - Shielded outputs are now addressed to `owner_public`, not to the recipient's
   spending secret. That lets senders create recipient outputs without learning
   the recipient's private shielded spend key.

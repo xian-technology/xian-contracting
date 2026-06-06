@@ -964,7 +964,7 @@ def test_registry_manifest_maps_bundle_to_registry_entries():
     manifest = shielded_registry_manifest(
         {
             "contract_name": "con_private_usd",
-            "circuit_family": "shielded_note_v3",
+            "circuit_family": "shielded_note_v4",
             "tree_depth": 20,
             "leaf_capacity": 1_048_576,
             "max_inputs": 4,
@@ -975,30 +975,30 @@ def test_registry_manifest_maps_bundle_to_registry_entries():
             "deposit": {
                 "vk_id": "private-usd-deposit",
                 "vk_hex": "0x01",
-                "circuit_name": "shielded_note_deposit_v3",
-                "version": "3",
+                "circuit_name": "shielded_note_deposit_v4",
+                "version": "4",
             },
             "transfer": {
                 "vk_id": "private-usd-transfer",
                 "vk_hex": "0x02",
-                "circuit_name": "shielded_note_transfer_v3",
-                "version": "3",
+                "circuit_name": "shielded_note_transfer_v4",
+                "version": "4",
             },
             "withdraw": {
                 "vk_id": "private-usd-withdraw",
                 "vk_hex": "0x03",
-                "circuit_name": "shielded_note_withdraw_v3",
-                "version": "3",
+                "circuit_name": "shielded_note_withdraw_v4",
+                "version": "4",
             },
         }
     )
 
     assert manifest["contract_name"] == "con_private_usd"
-    assert manifest["circuit_family"] == "shielded_note_v3"
+    assert manifest["circuit_family"] == "shielded_note_v4"
     assert manifest["setup_mode"] == "single-party"
     assert manifest["bundle_hash"].startswith("0x")
     assert manifest["registry_entries"][0]["vk_id"] == "private-usd-deposit"
-    assert manifest["registry_entries"][0]["statement_version"] == "3"
+    assert manifest["registry_entries"][0]["statement_version"] == "4"
     assert manifest["registry_entries"][2]["vk_hex"] == "0x03"
     assert manifest["configure_actions"] == [
         {"action": "deposit", "vk_id": "private-usd-deposit"},
