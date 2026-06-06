@@ -15,7 +15,7 @@ const VM_MAX_RAW_CHI: u64 = 50_000_000_000;
 const VM_WRITE_MAX_BYTES: usize = 1024 * 128;
 
 pub(crate) const VM_GAS_CROSS_CONTRACT_CALL_BASE: u64 = 10_000;
-pub(crate) const VM_GAS_CROSS_CONTRACT_CALL_REPEAT: u64 = 10_000;
+pub(crate) const VM_GAS_CROSS_CONTRACT_CALL_REPEAT: u64 = 0;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VmMeterConfig {
@@ -384,7 +384,10 @@ fn python_timedelta_parts(raw_seconds: i64) -> (i64, i64) {
 
 #[cfg(test)]
 mod tests {
-    use super::{VmMeter, VmMeterConfig, VM_TRANSACTION_BASE_CHI, VM_TRANSACTION_BASE_CHI_RAW};
+    use super::{
+        VmMeter, VmMeterConfig, VM_GAS_CROSS_CONTRACT_CALL_BASE, VM_GAS_CROSS_CONTRACT_CALL_REPEAT,
+        VM_TRANSACTION_BASE_CHI, VM_TRANSACTION_BASE_CHI_RAW,
+    };
 
     #[test]
     fn disabled_meter_still_reports_base_chi_and_fixed_overhead() {
@@ -407,5 +410,11 @@ mod tests {
             stats.contract_costs.get("currency"),
             Some(&VM_TRANSACTION_BASE_CHI_RAW)
         );
+    }
+
+    #[test]
+    fn cross_contract_dispatch_keeps_fixed_cost_without_repeat_surcharge() {
+        assert_eq!(VM_GAS_CROSS_CONTRACT_CALL_BASE, 10_000);
+        assert_eq!(VM_GAS_CROSS_CONTRACT_CALL_REPEAT, 0);
     }
 }
