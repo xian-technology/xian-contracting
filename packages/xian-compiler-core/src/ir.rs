@@ -15,9 +15,9 @@ use crate::normalize::{
 use crate::source::SourceUnit;
 use crate::syntax::{
     build_syntax_tree, SyntaxBinaryOperator, SyntaxBoolOperator, SyntaxCompareOperator,
-    SyntaxComprehension, SyntaxConstant, SyntaxDictEntry, SyntaxExpression, SyntaxImportAlias,
-    SyntaxKeyword, SyntaxModule, SyntaxParameter, SyntaxParameterKind, SyntaxStatement,
-    SyntaxUnaryOperator,
+    SyntaxComprehension, SyntaxConstant, SyntaxDictEntry, SyntaxExpression,
+    SyntaxExpressionContext, SyntaxImportAlias, SyntaxKeyword, SyntaxModule, SyntaxParameter,
+    SyntaxParameterKind, SyntaxStatement, SyntaxUnaryOperator,
 };
 
 const STORAGE_CONSTRUCTORS: &[(&str, &str)] = &[
@@ -527,6 +527,7 @@ struct IrLowerer<'a> {
     static_import_bindings: HashSet<String>,
     host_module_aliases: HashMap<String, String>,
     contract_handle_factories: HashSet<String>,
+    contract_handle_parameters: HashMap<String, HashSet<String>>,
     local_contract_handles: HashMap<String, SyntaxExpression>,
 }
 
@@ -541,6 +542,7 @@ impl<'a> IrLowerer<'a> {
             static_import_bindings: HashSet::new(),
             host_module_aliases: HashMap::new(),
             contract_handle_factories: HashSet::new(),
+            contract_handle_parameters: HashMap::new(),
             local_contract_handles: HashMap::new(),
         }
     }
@@ -555,7 +557,7 @@ impl<'a> IrLowerer<'a> {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        self.contract_handle_factories = self.discover_contract_handle_factories(&functions);
+        self.refresh_contract_handle_inference(&functions);
 
         let mut imports = Vec::new();
         let mut global_declarations = Vec::new();
@@ -659,9 +661,30 @@ impl<'a> IrLowerer<'a> {
         }
     }
 
+    fn refresh_contract_handle_inference(&mut self, functions: &[&SyntaxStatement]) {
+        let mut factories = HashSet::new();
+        let mut parameters: HashMap<String, HashSet<String>> = HashMap::new();
+
+        loop {
+            let next_factories = self.discover_contract_handle_factories(functions, &parameters);
+            let next_parameters =
+                self.discover_contract_handle_parameters(functions, &next_factories, &parameters);
+
+            if next_factories == factories && next_parameters == parameters {
+                self.contract_handle_factories = next_factories;
+                self.contract_handle_parameters = next_parameters;
+                return;
+            }
+
+            factories = next_factories;
+            parameters = next_parameters;
+        }
+    }
+
     fn discover_contract_handle_factories(
         &self,
         functions: &[&SyntaxStatement],
+        parameter_handles: &HashMap<String, HashSet<String>>,
     ) -> HashSet<String> {
         let mut discovered = HashSet::new();
         let mut changed = true;
@@ -674,7 +697,7 @@ impl<'a> IrLowerer<'a> {
                 if discovered.contains(name) {
                     continue;
                 }
-                if self.function_returns_contract_handle(function, &discovered) {
+                if self.function_returns_contract_handle(function, &discovered, parameter_handles) {
                     discovered.insert(name.clone());
                     changed = true;
                 }
@@ -687,11 +710,17 @@ impl<'a> IrLowerer<'a> {
         &self,
         function: &SyntaxStatement,
         known_factories: &HashSet<String>,
+        parameter_handles: &HashMap<String, HashSet<String>>,
     ) -> bool {
-        let SyntaxStatement::FunctionDef { body, .. } = function else {
+        let SyntaxStatement::FunctionDef { name, body, .. } = function else {
             return false;
         };
-        let local_bindings = self.collect_local_contract_handle_bindings(body, known_factories);
+        let initial_bindings = parameter_handles
+            .get(name)
+            .map(|handles| self.parameter_contract_handle_bindings(function, handles))
+            .unwrap_or_default();
+        let local_bindings =
+            self.collect_local_contract_handle_bindings(body, known_factories, initial_bindings);
         let mut returns = Vec::new();
         collect_return_values(body, &mut returns);
         !returns.is_empty()
@@ -700,12 +729,134 @@ impl<'a> IrLowerer<'a> {
             })
     }
 
+    fn discover_contract_handle_parameters(
+        &self,
+        functions: &[&SyntaxStatement],
+        known_factories: &HashSet<String>,
+        initial: &HashMap<String, HashSet<String>>,
+    ) -> HashMap<String, HashSet<String>> {
+        let functions_by_name = functions
+            .iter()
+            .filter_map(|function| match function {
+                SyntaxStatement::FunctionDef { name, .. } => Some((name.as_str(), *function)),
+                _ => None,
+            })
+            .collect::<HashMap<_, _>>();
+        let mut discovered = initial.clone();
+        let mut changed = true;
+
+        while changed {
+            changed = false;
+            let mut evidence: HashMap<String, HashMap<String, Vec<bool>>> = HashMap::new();
+
+            for caller in functions {
+                let SyntaxStatement::FunctionDef {
+                    name: caller_name,
+                    body,
+                    ..
+                } = caller
+                else {
+                    continue;
+                };
+                let initial_bindings = discovered
+                    .get(caller_name)
+                    .map(|handles| self.parameter_contract_handle_bindings(caller, handles))
+                    .unwrap_or_default();
+                let caller_bindings = self.collect_local_contract_handle_bindings(
+                    body,
+                    known_factories,
+                    initial_bindings,
+                );
+                let mut calls = Vec::new();
+                collect_call_expressions(body, &mut calls);
+
+                for call in calls {
+                    let SyntaxExpression::Call {
+                        func,
+                        args,
+                        keywords,
+                        ..
+                    } = call
+                    else {
+                        continue;
+                    };
+                    let Some(callee_name) = name_id(func) else {
+                        continue;
+                    };
+                    let Some(callee) = functions_by_name.get(callee_name) else {
+                        continue;
+                    };
+
+                    for (parameter_name, argument) in
+                        call_parameter_arguments(callee, args, keywords)
+                    {
+                        let is_handle = self.expression_is_contract_handle(
+                            argument,
+                            &caller_bindings,
+                            known_factories,
+                        );
+                        evidence
+                            .entry(callee_name.to_string())
+                            .or_default()
+                            .entry(parameter_name)
+                            .or_default()
+                            .push(is_handle);
+                    }
+                }
+            }
+
+            for (function_name, parameters) in evidence {
+                let current = discovered.entry(function_name).or_default();
+                for (parameter_name, values) in parameters {
+                    if !values.is_empty()
+                        && values.iter().all(|is_handle| *is_handle)
+                        && !current.contains(&parameter_name)
+                    {
+                        current.insert(parameter_name);
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+        discovered
+            .into_iter()
+            .filter(|(_, values)| !values.is_empty())
+            .collect()
+    }
+
+    fn parameter_contract_handle_bindings(
+        &self,
+        function: &SyntaxStatement,
+        parameter_handles: &HashSet<String>,
+    ) -> HashMap<String, SyntaxExpression> {
+        let SyntaxStatement::FunctionDef { parameters, .. } = function else {
+            return HashMap::new();
+        };
+
+        parameters
+            .iter()
+            .filter(|parameter| parameter_handles.contains(&parameter.name))
+            .map(|parameter| {
+                (
+                    parameter.name.clone(),
+                    SyntaxExpression::Name {
+                        span: parameter.span,
+                        id: parameter.name.clone(),
+                        context: SyntaxExpressionContext::Load,
+                    },
+                )
+            })
+            .collect()
+    }
+
     fn collect_local_contract_handle_bindings(
         &self,
         body: &[SyntaxStatement],
         known_factories: &HashSet<String>,
+        initial_bindings: HashMap<String, SyntaxExpression>,
     ) -> HashMap<String, SyntaxExpression> {
-        let mut bindings = HashMap::new();
+        let mut bindings = initial_bindings;
         let mut pending = Vec::new();
         collect_named_assignments(body, &mut pending);
 
@@ -983,8 +1134,16 @@ impl<'a> IrLowerer<'a> {
         };
         let (docstring, body) = split_docstring(body);
         let decorator = self.lower_decorator(statement)?;
-        let local_handles =
-            self.collect_local_contract_handle_bindings(body, &self.contract_handle_factories);
+        let initial_handles = self
+            .contract_handle_parameters
+            .get(name)
+            .map(|handles| self.parameter_contract_handle_bindings(statement, handles))
+            .unwrap_or_default();
+        let local_handles = self.collect_local_contract_handle_bindings(
+            body,
+            &self.contract_handle_factories,
+            initial_handles,
+        );
         let previous_local_handles =
             std::mem::replace(&mut self.local_contract_handles, local_handles);
         let lowered_body = body
@@ -1788,6 +1947,239 @@ fn collect_named_assignments(
             _ => {}
         }
     }
+}
+
+fn collect_call_expressions<'a>(
+    statements: &'a [SyntaxStatement],
+    output: &mut Vec<&'a SyntaxExpression>,
+) {
+    for statement in statements {
+        match statement {
+            SyntaxStatement::FunctionDef { .. } => {}
+            SyntaxStatement::Return {
+                value: Some(value), ..
+            }
+            | SyntaxStatement::Expr { value, .. } => collect_calls_from_expression(value, output),
+            SyntaxStatement::Assign { targets, value, .. } => {
+                for target in targets {
+                    collect_calls_from_expression(target, output);
+                }
+                collect_calls_from_expression(value, output);
+            }
+            SyntaxStatement::AugAssign { target, value, .. } => {
+                collect_calls_from_expression(target, output);
+                collect_calls_from_expression(value, output);
+            }
+            SyntaxStatement::For {
+                target,
+                iter,
+                body,
+                orelse,
+                ..
+            } => {
+                collect_calls_from_expression(target, output);
+                collect_calls_from_expression(iter, output);
+                collect_call_expressions(body, output);
+                collect_call_expressions(orelse, output);
+            }
+            SyntaxStatement::While {
+                test, body, orelse, ..
+            }
+            | SyntaxStatement::If {
+                test, body, orelse, ..
+            } => {
+                collect_calls_from_expression(test, output);
+                collect_call_expressions(body, output);
+                collect_call_expressions(orelse, output);
+            }
+            SyntaxStatement::Assert { test, message, .. } => {
+                collect_calls_from_expression(test, output);
+                if let Some(message) = message {
+                    collect_calls_from_expression(message, output);
+                }
+            }
+            SyntaxStatement::Raise {
+                exception, cause, ..
+            } => {
+                if let Some(exception) = exception {
+                    collect_calls_from_expression(exception, output);
+                }
+                if let Some(cause) = cause {
+                    collect_calls_from_expression(cause, output);
+                }
+            }
+            SyntaxStatement::Import { .. }
+            | SyntaxStatement::Pass { .. }
+            | SyntaxStatement::Break { .. }
+            | SyntaxStatement::Continue { .. }
+            | SyntaxStatement::Return { value: None, .. } => {}
+        }
+    }
+}
+
+fn collect_calls_from_expression<'a>(
+    expression: &'a SyntaxExpression,
+    output: &mut Vec<&'a SyntaxExpression>,
+) {
+    if let SyntaxExpression::Call { .. } = expression {
+        output.push(expression);
+    }
+
+    match expression {
+        SyntaxExpression::Name { .. } | SyntaxExpression::Constant { .. } => {}
+        SyntaxExpression::List { elements, .. } | SyntaxExpression::Tuple { elements, .. } => {
+            for element in elements {
+                collect_calls_from_expression(element, output);
+            }
+        }
+        SyntaxExpression::ListComp {
+            element,
+            generators,
+            ..
+        } => {
+            collect_calls_from_expression(element, output);
+            collect_calls_from_comprehensions(generators, output);
+        }
+        SyntaxExpression::DictComp {
+            key,
+            value,
+            generators,
+            ..
+        } => {
+            collect_calls_from_expression(key, output);
+            collect_calls_from_expression(value, output);
+            collect_calls_from_comprehensions(generators, output);
+        }
+        SyntaxExpression::Dict { entries, .. } => {
+            for entry in entries {
+                if let Some(key) = &entry.key {
+                    collect_calls_from_expression(key, output);
+                }
+                collect_calls_from_expression(&entry.value, output);
+            }
+        }
+        SyntaxExpression::Attribute { value, .. } => {
+            collect_calls_from_expression(value, output);
+        }
+        SyntaxExpression::Subscript { value, slice, .. } => {
+            collect_calls_from_expression(value, output);
+            collect_calls_from_expression(slice, output);
+        }
+        SyntaxExpression::Slice {
+            lower, upper, step, ..
+        } => {
+            if let Some(lower) = lower {
+                collect_calls_from_expression(lower, output);
+            }
+            if let Some(upper) = upper {
+                collect_calls_from_expression(upper, output);
+            }
+            if let Some(step) = step {
+                collect_calls_from_expression(step, output);
+            }
+        }
+        SyntaxExpression::Call {
+            func,
+            args,
+            keywords,
+            ..
+        } => {
+            collect_calls_from_expression(func, output);
+            for arg in args {
+                collect_calls_from_expression(arg, output);
+            }
+            for keyword in keywords {
+                collect_calls_from_expression(&keyword.value, output);
+            }
+        }
+        SyntaxExpression::Compare {
+            left, comparators, ..
+        } => {
+            collect_calls_from_expression(left, output);
+            for comparator in comparators {
+                collect_calls_from_expression(comparator, output);
+            }
+        }
+        SyntaxExpression::BoolOp { values, .. } | SyntaxExpression::FString { values, .. } => {
+            for value in values {
+                collect_calls_from_expression(value, output);
+            }
+        }
+        SyntaxExpression::BinOp { left, right, .. } => {
+            collect_calls_from_expression(left, output);
+            collect_calls_from_expression(right, output);
+        }
+        SyntaxExpression::UnaryOp { operand, .. } => {
+            collect_calls_from_expression(operand, output);
+        }
+        SyntaxExpression::IfExpr {
+            test, body, orelse, ..
+        } => {
+            collect_calls_from_expression(test, output);
+            collect_calls_from_expression(body, output);
+            collect_calls_from_expression(orelse, output);
+        }
+        SyntaxExpression::FormattedValue {
+            value, format_spec, ..
+        } => {
+            collect_calls_from_expression(value, output);
+            if let Some(format_spec) = format_spec {
+                collect_calls_from_expression(format_spec, output);
+            }
+        }
+    }
+}
+
+fn collect_calls_from_comprehensions<'a>(
+    generators: &'a [SyntaxComprehension],
+    output: &mut Vec<&'a SyntaxExpression>,
+) {
+    for generator in generators {
+        collect_calls_from_expression(&generator.target, output);
+        collect_calls_from_expression(&generator.iter, output);
+        for condition in &generator.ifs {
+            collect_calls_from_expression(condition, output);
+        }
+    }
+}
+
+fn call_parameter_arguments<'a>(
+    callee: &SyntaxStatement,
+    args: &'a [SyntaxExpression],
+    keywords: &'a [SyntaxKeyword],
+) -> Vec<(String, &'a SyntaxExpression)> {
+    let SyntaxStatement::FunctionDef { parameters, .. } = callee else {
+        return Vec::new();
+    };
+    let positional = parameters
+        .iter()
+        .filter(|parameter| {
+            matches!(
+                parameter.kind,
+                SyntaxParameterKind::PositionalOnly | SyntaxParameterKind::PositionalOrKeyword
+            )
+        })
+        .collect::<Vec<_>>();
+    let named_parameters = parameters
+        .iter()
+        .map(|parameter| parameter.name.as_str())
+        .collect::<HashSet<_>>();
+
+    let mut output = Vec::new();
+    for (index, argument) in args.iter().enumerate() {
+        if let Some(parameter) = positional.get(index) {
+            output.push((parameter.name.clone(), argument));
+        }
+    }
+    for keyword in keywords {
+        let Some(arg) = &keyword.arg else {
+            continue;
+        };
+        if named_parameters.contains(arg.as_str()) {
+            output.push((arg.clone(), &keyword.value));
+        }
+    }
+    output
 }
 
 fn host_binding_value(binding: &HostBinding) -> Value {

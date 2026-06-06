@@ -396,10 +396,13 @@ class NativeVmHost:
                 )
                 if int(raw["status_code"]) != 0:
                     raise VmRuntimeExecutionError(f"contract constructor failed: {raw['result']}")
-                constructor_writes = _snapshots_to_writes(
-                    self.driver,
-                    raw["snapshots"],
-                )
+                constructor_writes = {
+                    **_snapshots_to_writes(
+                        self.driver,
+                        raw["snapshots"],
+                    ),
+                    **dict(raw.get("storage_writes") or {}),
+                }
                 constructor_events = list(raw["events"])
                 self._extra_contract_costs = _merge_contract_costs(
                     self._extra_contract_costs,
@@ -581,7 +584,10 @@ def execute_contract(
         raw["result"],
     )
     status_code = int(raw["status_code"])
-    writes = _snapshots_to_writes(driver, raw["snapshots"])
+    writes = {
+        **_snapshots_to_writes(driver, raw["snapshots"]),
+        **dict(raw.get("storage_writes") or {}),
+    }
     events = list(raw["events"])
     if status_code == 0:
         writes = {**writes, **host.pending_writes}

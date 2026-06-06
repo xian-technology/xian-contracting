@@ -1,3 +1,4 @@
+use crate::interpreter::{vm_hash_storage_key, vm_variable_storage_key};
 use crate::{
     parse_module_ir, VmContractCall, VmContractTarget, VmDateTime, VmDecimal, VmEvent,
     VmExecutionContext, VmExecutionError, VmExecutionStats, VmHost, VmInstance, VmMeterConfig,
@@ -11,7 +12,7 @@ use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyByteArray, PyBytes, PyDict, PyList, PyModule, PyTuple};
 use serde_json::{json, Value as JsonValue};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 create_exception!(xian_vm_core, VmIrValidationError, PyValueError);
@@ -21,6 +22,7 @@ struct PythonBundleExecutor {
     host: Py<PyAny>,
     modules: HashMap<String, crate::ModuleIr>,
     instances: HashMap<String, VmInstance>,
+    storage_overlay: HashMap<String, VmValue>,
     events: Vec<VmEvent>,
     meter: crate::VmMeter,
     contract_call_count: u64,
@@ -50,6 +52,7 @@ impl PythonBundleExecutor {
             host,
             modules,
             instances: HashMap::new(),
+            storage_overlay: HashMap::new(),
             events: Vec::new(),
             meter: crate::VmMeter::new(meter_config),
             contract_call_count: 0,
@@ -90,6 +93,7 @@ impl PythonBundleExecutor {
                     status_code: 0,
                     result,
                     snapshots,
+                    storage_writes: self.storage_overlay.clone(),
                     events: self.events.clone(),
                     stats,
                 }
@@ -98,6 +102,7 @@ impl PythonBundleExecutor {
                 status_code: 1,
                 result: VmValue::String(error.to_string()),
                 snapshots: Vec::new(),
+                storage_writes: HashMap::new(),
                 events: Vec::new(),
                 stats,
             },
@@ -218,6 +223,18 @@ impl VmHost for PythonBundleExecutor {
         self.meter.charge_write(key, value)
     }
 
+    fn record_storage_write(&mut self, key: &str, value: &VmValue) -> Result<(), VmExecutionError> {
+        self.storage_overlay.insert(key.to_owned(), value.clone());
+        Ok(())
+    }
+
+    fn read_recorded_storage_write(
+        &mut self,
+        key: &str,
+    ) -> Result<Option<VmValue>, VmExecutionError> {
+        Ok(self.storage_overlay.get(key).cloned())
+    }
+
     fn emit_event(&mut self, event: VmEvent) -> Result<(), VmExecutionError> {
         self.events.push(event);
         Ok(())
@@ -228,6 +245,10 @@ impl VmHost for PythonBundleExecutor {
         contract: &str,
         binding: &str,
     ) -> Result<Option<VmValue>, VmExecutionError> {
+        let storage_key = vm_variable_storage_key(contract, binding);
+        if let Some(value) = self.storage_overlay.get(&storage_key) {
+            return Ok(Some(value.clone()));
+        }
         if let Some(instance) = self.instances.get(contract) {
             if let Some(value) = instance.peek_variable_value(binding) {
                 return Ok(Some(value));
@@ -248,6 +269,10 @@ impl VmHost for PythonBundleExecutor {
         binding: &str,
         key: &VmValue,
     ) -> Result<Option<VmValue>, VmExecutionError> {
+        let storage_key = vm_hash_storage_key(contract, binding, key)?;
+        if let Some(value) = self.storage_overlay.get(&storage_key) {
+            return Ok(Some(value.clone()));
+        }
         if let Some(instance) = self.instances.get(contract) {
             if let Some(value) = instance.peek_hash_entry(binding, key)? {
                 return Ok(Some(value));
@@ -270,12 +295,38 @@ impl VmHost for PythonBundleExecutor {
         binding: &str,
         prefix: &str,
     ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
+        let base_key = vm_variable_storage_key(contract, binding);
+        let full_prefix = if prefix.is_empty() {
+            format!("{base_key}:")
+        } else {
+            format!("{base_key}:{prefix}:")
+        };
+        let suffix_offset = base_key.len() + 1;
+        let mut entries = Vec::new();
+        let mut seen = HashSet::new();
+        for (storage_key, value) in &self.storage_overlay {
+            if storage_key.starts_with(&full_prefix) {
+                let suffix = storage_key[suffix_offset..].to_owned();
+                seen.insert(suffix.clone());
+                if !matches!(value, VmValue::None) {
+                    entries.push((suffix, value.clone()));
+                }
+            }
+        }
         Python::attach(|py| -> Result<Vec<(String, VmValue)>, VmExecutionError> {
             let host = self.host.bind(py);
             let response = host
                 .call_method1("scan_hash_entries", (contract, binding, prefix))
                 .map_err(|error| VmExecutionError::new(error.to_string()))?;
             py_hash_entries_to_vm(response)
+        })
+        .map(|host_entries| {
+            for (suffix, value) in host_entries {
+                if seen.insert(suffix.clone()) {
+                    entries.push((suffix, value));
+                }
+            }
+            entries
         })
     }
 
@@ -381,6 +432,7 @@ struct PyExecutionResult {
     status_code: i32,
     result: VmValue,
     snapshots: Vec<crate::interpreter::VmModuleStorageSnapshot>,
+    storage_writes: HashMap<String, VmValue>,
     events: Vec<VmEvent>,
     stats: VmExecutionStats,
 }
@@ -808,6 +860,12 @@ fn execution_result_to_py(py: Python<'_>, result: PyExecutionResult) -> PyResult
         snapshots.append(snapshot_dict)?;
     }
     payload.set_item("snapshots", snapshots)?;
+
+    let storage_writes = PyDict::new(py);
+    for (key, value) in result.storage_writes {
+        storage_writes.set_item(key, vm_to_py(py, &value)?)?;
+    }
+    payload.set_item("storage_writes", storage_writes)?;
 
     let events = PyList::empty(py);
     for event in result.events {

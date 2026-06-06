@@ -149,6 +149,7 @@ class XianIrLowerer:
         self._static_import_bindings: set[str] = set()
         self._host_module_aliases: dict[str, str] = {}
         self._contract_handle_factories: set[str] = set()
+        self._contract_handle_parameters: dict[str, set[str]] = {}
         self._local_contract_handles: dict[str, ast.AST] = {}
 
     def lower(self, tree: ast.Module, *, source: str) -> dict[str, Any]:
@@ -159,6 +160,7 @@ class XianIrLowerer:
         self._static_import_bindings = set()
         self._host_module_aliases = {}
         self._contract_handle_factories = set()
+        self._contract_handle_parameters = {}
         self._local_contract_handles = {}
 
         body = list(tree.body)
@@ -168,9 +170,8 @@ class XianIrLowerer:
             body = body[1:]
 
         self._inspect_module_bindings(body)
-        self._contract_handle_factories = self._discover_contract_handle_factories(
-            [node for node in body if isinstance(node, ast.FunctionDef)]
-        )
+        functions_to_infer = [node for node in body if isinstance(node, ast.FunctionDef)]
+        self._refresh_contract_handle_inference(functions_to_infer)
 
         imports: list[dict[str, Any]] = []
         global_declarations: list[dict[str, Any]] = []
@@ -293,9 +294,33 @@ class XianIrLowerer:
             return f"{canonical_root}.{remainder}"
         return canonical_root
 
+    def _refresh_contract_handle_inference(
+        self,
+        functions: list[ast.FunctionDef],
+    ) -> None:
+        factories: set[str] = set()
+        parameters: dict[str, set[str]] = {}
+        while True:
+            next_factories = self._discover_contract_handle_factories(
+                functions,
+                parameters,
+            )
+            next_parameters = self._discover_contract_handle_parameters(
+                functions,
+                next_factories,
+                parameters,
+            )
+            if next_factories == factories and next_parameters == parameters:
+                self._contract_handle_factories = next_factories
+                self._contract_handle_parameters = next_parameters
+                return
+            factories = next_factories
+            parameters = next_parameters
+
     def _discover_contract_handle_factories(
         self,
         functions: list[ast.FunctionDef],
+        parameter_handles: dict[str, set[str]],
     ) -> set[str]:
         discovered: set[str] = set()
         changed = True
@@ -304,7 +329,11 @@ class XianIrLowerer:
             for function in functions:
                 if function.name in discovered:
                     continue
-                if self._function_returns_contract_handle(function, discovered):
+                if self._function_returns_contract_handle(
+                    function,
+                    discovered,
+                    parameter_handles,
+                ):
                     discovered.add(function.name)
                     changed = True
         return discovered
@@ -313,10 +342,12 @@ class XianIrLowerer:
         self,
         function: ast.FunctionDef,
         known_factories: set[str],
+        parameter_handles: dict[str, set[str]],
     ) -> bool:
         local_bindings = self._collect_local_contract_handle_bindings(
             function,
             known_factories,
+            parameter_handles.get(function.name, set()),
         )
         returns = [
             node.value
@@ -334,12 +365,77 @@ class XianIrLowerer:
             for value in returns
         )
 
+    def _discover_contract_handle_parameters(
+        self,
+        functions: list[ast.FunctionDef],
+        known_factories: set[str],
+        initial: dict[str, set[str]],
+    ) -> dict[str, set[str]]:
+        functions_by_name = {function.name: function for function in functions}
+        discovered = {
+            function_name: set(parameter_names)
+            for function_name, parameter_names in initial.items()
+        }
+        changed = True
+        while changed:
+            changed = False
+            evidence: dict[str, dict[str, list[bool]]] = {}
+            for caller in functions:
+                caller_bindings = self._collect_local_contract_handle_bindings(
+                    caller,
+                    known_factories,
+                    discovered.get(caller.name, set()),
+                )
+                for call in _iter_calls(caller):
+                    if not isinstance(call.func, ast.Name):
+                        continue
+                    callee = functions_by_name.get(call.func.id)
+                    if callee is None:
+                        continue
+                    for parameter_name, argument in _call_parameter_arguments(callee, call):
+                        is_handle = self._expression_is_contract_handle(
+                            argument,
+                            local_bindings=caller_bindings,
+                            known_factories=known_factories,
+                        )
+                        evidence.setdefault(callee.name, {}).setdefault(
+                            parameter_name,
+                            [],
+                        ).append(is_handle)
+
+            for function_name, parameters in evidence.items():
+                current = discovered.setdefault(function_name, set())
+                for parameter_name, values in parameters.items():
+                    if values and all(values) and parameter_name not in current:
+                        current.add(parameter_name)
+                        changed = True
+
+        return {name: values for name, values in discovered.items() if values}
+
+    def _parameter_contract_handle_bindings(
+        self,
+        function: ast.FunctionDef,
+        parameter_handles: set[str],
+    ) -> dict[str, ast.AST]:
+        bindings: dict[str, ast.AST] = {}
+        for parameter in _function_parameters(function):
+            if parameter.arg not in parameter_handles:
+                continue
+            handle_name = ast.Name(id=parameter.arg, ctx=ast.Load())
+            ast.copy_location(handle_name, parameter)
+            bindings[parameter.arg] = handle_name
+        return bindings
+
     def _collect_local_contract_handle_bindings(
         self,
         function: ast.FunctionDef,
         known_factories: set[str],
+        parameter_handles: set[str] | None = None,
     ) -> dict[str, ast.AST]:
-        bindings: dict[str, ast.AST] = {}
+        bindings = self._parameter_contract_handle_bindings(
+            function,
+            parameter_handles or set(),
+        )
         pending: list[tuple[str, ast.AST]] = []
         for node in ast.walk(function):
             if not isinstance(node, ast.Assign):
@@ -552,6 +648,7 @@ class XianIrLowerer:
         self._local_contract_handles = self._collect_local_contract_handle_bindings(
             node,
             self._contract_handle_factories,
+            self._contract_handle_parameters.get(node.name, set()),
         )
         try:
             lowered_body = [self._lower_statement(statement) for statement in body]
@@ -1115,6 +1212,44 @@ def _is_docstring_expr(node: ast.stmt) -> bool:
         and isinstance(getattr(node, "value", None), ast.Constant)
         and isinstance(node.value.value, str)
     )
+
+
+def _function_parameters(function: ast.FunctionDef) -> list[ast.arg]:
+    parameters = list(function.args.posonlyargs)
+    parameters.extend(function.args.args)
+    parameters.extend(function.args.kwonlyargs)
+    if function.args.vararg is not None:
+        parameters.append(function.args.vararg)
+    if function.args.kwarg is not None:
+        parameters.append(function.args.kwarg)
+    return parameters
+
+
+def _iter_calls(node: ast.AST):
+    if isinstance(node, ast.Call):
+        yield node
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, ast.FunctionDef):
+            continue
+        yield from _iter_calls(child)
+
+
+def _call_parameter_arguments(
+    callee: ast.FunctionDef,
+    call: ast.Call,
+):
+    positional = list(callee.args.posonlyargs)
+    positional.extend(callee.args.args)
+    all_named_parameters = {parameter.arg for parameter in _function_parameters(callee)}
+
+    for index, argument in enumerate(call.args):
+        if index < len(positional):
+            yield positional[index].arg, argument
+
+    for keyword in call.keywords:
+        if keyword.arg is None or keyword.arg not in all_named_parameters:
+            continue
+        yield keyword.arg, keyword.value
 
 
 def _operator_name(mapping, node, source_node: ast.AST) -> str:

@@ -228,6 +228,86 @@ def _run_native_step(
     }
 
 
+def test_native_nested_callback_sees_parent_pending_storage_writes(tmp_path: Path):
+    import xian_vm_core
+
+    controller_name = "con_vm_pending_controller"
+    adapter_name = "con_vm_pending_adapter"
+    controller_source = """
+active = Variable(default_value=0)
+values = Hash(default_value=0)
+
+@export
+def execute(adapter: str):
+    active.set(5)
+    values["direct"] = 7
+    adapter_module = importlib.import_module(adapter)
+    return adapter_module.check()
+
+@export
+def get_active():
+    return active.get()
+
+@export
+def scan_values():
+    return values.all()
+
+@export
+def store_from_child():
+    values["child"] = active.get()
+    return values["child"]
+""".strip()
+    adapter_source = f"""
+def controller_module():
+    return importlib.import_module("{controller_name}")
+
+@export
+def check():
+    controller = controller_module()
+    assert controller.get_active() == 5, "pending variable not visible"
+    assert 7 in controller.scan_values(), "pending hash entry not visible"
+    return controller.store_from_child()
+""".strip()
+
+    driver = Driver(storage_home=tmp_path)
+    driver.flush_full()
+    driver.set_contract_from_source(
+        controller_name,
+        controller_source,
+        owner=None,
+        overwrite=True,
+        timestamp=FIXED_TIMESTAMP,
+    )
+    driver.set_contract_from_source(
+        adapter_name,
+        adapter_source,
+        owner=None,
+        overwrite=True,
+        timestamp=FIXED_TIMESTAMP,
+    )
+    driver.commit()
+
+    output = xian_vm_core.execute_contract(
+        driver=driver,
+        contract_name=controller_name,
+        function_name="execute",
+        kwargs={"adapter": adapter_name},
+        context=_execution_context(
+            controller_name,
+            "execute",
+            None,
+            block_num=1,
+        ),
+        meter=False,
+    )
+
+    assert output.status_code == 0, output.result
+    assert output.result == 5
+    assert output.writes[f"{controller_name}.active"] == 5
+    assert output.writes[f"{controller_name}.values:direct"] == 7
+    assert output.writes[f"{controller_name}.values:child"] == 5
+
+
 FUZZ_OPERATION = st.one_of(
     st.builds(
         lambda key, value: {

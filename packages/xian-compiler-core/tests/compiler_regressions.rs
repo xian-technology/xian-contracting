@@ -100,3 +100,49 @@ def interface():
     assert!(dependency_ids.contains("storage.foreign_hash.new"));
     assert!(dependency_ids.contains("storage.foreign_variable.new"));
 }
+
+#[test]
+fn lower_source_treats_contract_handle_helper_parameters_as_export_targets() {
+    let source = r#"
+def load_token(token: str):
+    return importlib.import_module(token)
+
+def assert_balance(token, account: str):
+    return token.balance_of(address=account)
+
+@export
+def inspect(token_name: str, account: str):
+    token = load_token(token_name)
+    return assert_balance(token, account)
+"#;
+
+    let payload = lower_source_to_ir_json("handle_helper", source, &CompileOptions::default())
+        .expect("helper source should lower");
+    let ir: Value = serde_json::from_str(&payload).expect("IR JSON should parse");
+    let functions = ir["functions"]
+        .as_array()
+        .expect("functions should be an array");
+    let assert_balance = functions
+        .iter()
+        .find(|function| function["name"] == "assert_balance")
+        .expect("assert_balance should be lowered");
+    let lowered_call = &assert_balance["body"][0]["value"];
+
+    assert_eq!(lowered_call["syscall_id"], "contract.export_call");
+    assert_eq!(lowered_call["function_name"], "balance_of");
+    assert_eq!(lowered_call["contract_target"]["kind"], "local_handle");
+    assert_eq!(lowered_call["contract_target"]["binding"], "token");
+    assert_eq!(lowered_call["contract_target"]["source"]["id"], "token");
+
+    let dependency_ids = ir["host_dependencies"]
+        .as_array()
+        .expect("host dependencies should be an array")
+        .iter()
+        .map(|item| {
+            item["id"]
+                .as_str()
+                .expect("host dependency should include an id")
+        })
+        .collect::<BTreeSet<_>>();
+    assert!(dependency_ids.contains("contract.export_call"));
+}

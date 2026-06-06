@@ -68,6 +68,20 @@ fn vm_trace_enabled(flag: &str) -> bool {
     env::var_os(flag).is_some()
 }
 
+#[cfg(feature = "python-extension")]
+pub(crate) fn vm_variable_storage_key(contract: &str, binding: &str) -> String {
+    variable_storage_key(contract, binding)
+}
+
+#[cfg(feature = "python-extension")]
+pub(crate) fn vm_hash_storage_key(
+    contract: &str,
+    binding: &str,
+    key: &VmValue,
+) -> Result<String, VmExecutionError> {
+    hash_storage_key(contract, binding, key)
+}
+
 fn vm_statement_gas_cost(
     node: &str,
     _object: &Map<String, Value>,
@@ -572,6 +586,21 @@ pub trait VmHost {
         _value: &VmValue,
     ) -> Result<(), VmExecutionError> {
         Ok(())
+    }
+
+    fn record_storage_write(
+        &mut self,
+        _key: &str,
+        _value: &VmValue,
+    ) -> Result<(), VmExecutionError> {
+        Ok(())
+    }
+
+    fn read_recorded_storage_write(
+        &mut self,
+        _key: &str,
+    ) -> Result<Option<VmValue>, VmExecutionError> {
+        Ok(None)
     }
 
     fn emit_event(&mut self, _event: VmEvent) -> Result<(), VmExecutionError> {
@@ -1373,10 +1402,9 @@ impl VmInstance {
                 let key = self.eval_expression(required_value(object, "key")?, scope, host)?;
                 let value = self.eval_expression(required_value(object, "value")?, scope, host)?;
                 self.hash_set(binding, &key, value.clone())?;
-                host.charge_storage_write(
-                    &hash_storage_key(&self.module.module_name, binding, &key)?,
-                    &value,
-                )?;
+                let storage_key = hash_storage_key(&self.module.module_name, binding, &key)?;
+                host.record_storage_write(&storage_key, &value)?;
+                host.charge_storage_write(&storage_key, &value)?;
                 Ok(ControlFlow::Next)
             }
             "storage_mutate" => {
@@ -1388,10 +1416,9 @@ impl VmInstance {
                 let operator = required_string(object, "operator")?;
                 let result = apply_binary_operator(operator, current, operand)?;
                 self.hash_set(binding, &key, result.clone())?;
-                host.charge_storage_write(
-                    &hash_storage_key(&self.module.module_name, binding, &key)?,
-                    &result,
-                )?;
+                let storage_key = hash_storage_key(&self.module.module_name, binding, &key)?;
+                host.record_storage_write(&storage_key, &result)?;
+                host.charge_storage_write(&storage_key, &result)?;
                 Ok(ControlFlow::Next)
             }
             "aug_assign" => {
@@ -2146,10 +2173,9 @@ impl VmInstance {
                     .cloned()
                     .ok_or_else(|| VmExecutionError::new("Variable.set expects one argument"))?;
                 self.variable_set(binding, value.clone())?;
-                host.charge_storage_write(
-                    &variable_storage_key(&self.module.module_name, binding),
-                    &value,
-                )?;
+                let storage_key = variable_storage_key(&self.module.module_name, binding);
+                host.record_storage_write(&storage_key, &value)?;
+                host.charge_storage_write(&storage_key, &value)?;
                 Ok(VmValue::None)
             }
             "storage.foreign_variable.get" => {
@@ -3241,6 +3267,15 @@ impl VmInstance {
             )?;
             return Ok(value);
         }
+        let storage_key = variable_storage_key(&module_name, binding);
+        if let Some(value) = host.read_recorded_storage_write(&storage_key)? {
+            let state = self.variables.get_mut(binding).ok_or_else(|| {
+                VmExecutionError::new(format!("unknown variable binding '{binding}'"))
+            })?;
+            state.value = Some(value.clone());
+            charge_storage_read(host, &storage_key, &value)?;
+            return Ok(value);
+        }
         if current_value.is_none() {
             let loaded = host.read_variable(&module_name, binding)?;
             let state = self.variables.get_mut(binding).ok_or_else(|| {
@@ -3253,11 +3288,11 @@ impl VmInstance {
                 .value
                 .clone()
                 .unwrap_or_else(|| state.default_value.clone());
-            charge_storage_read(host, &variable_storage_key(&module_name, binding), &value)?;
+            charge_storage_read(host, &storage_key, &value)?;
             return Ok(value);
         }
         let value = current_value.unwrap_or(default_value);
-        charge_storage_read(host, &variable_storage_key(&module_name, binding), &value)?;
+        charge_storage_read(host, &storage_key, &value)?;
         Ok(value)
     }
 
@@ -3318,6 +3353,15 @@ impl VmInstance {
             )?;
             return Ok(value);
         }
+        let full_storage_key = hash_storage_key(&module_name, binding, key)?;
+        if let Some(value) = host.read_recorded_storage_write(&full_storage_key)? {
+            let state = self.hashes.get_mut(binding).ok_or_else(|| {
+                VmExecutionError::new(format!("unknown hash binding '{binding}'"))
+            })?;
+            state.entries.insert(storage_key.clone(), value.clone());
+            charge_storage_read(host, &full_storage_key, &value)?;
+            return Ok(value);
+        }
         if current_entry.is_none() {
             let loaded = host.read_hash(&module_name, binding, key)?;
             let state = self.hashes.get_mut(binding).ok_or_else(|| {
@@ -3331,11 +3375,11 @@ impl VmInstance {
                 .get(&storage_key)
                 .cloned()
                 .unwrap_or_else(|| state.default_value.clone());
-            charge_storage_read(host, &hash_storage_key(&module_name, binding, key)?, &value)?;
+            charge_storage_read(host, &full_storage_key, &value)?;
             return Ok(value);
         }
         let value = current_entry.unwrap_or(default_value);
-        charge_storage_read(host, &hash_storage_key(&module_name, binding, key)?, &value)?;
+        charge_storage_read(host, &full_storage_key, &value)?;
         Ok(value)
     }
 

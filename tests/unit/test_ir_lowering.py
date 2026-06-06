@@ -225,6 +225,35 @@ def load_token(token: str):
         self.assertIn("module.importlib", dependency_ids)
         self.assertIn("contract.import", dependency_ids)
 
+    def test_lower_to_ir_treats_contract_handle_helper_parameters_as_export_targets(self):
+        source = """
+def load_token(token: str):
+    return importlib.import_module(token)
+
+def assert_balance(token, account: str):
+    return token.balance_of(address=account)
+
+@export
+def inspect(token_name: str, account: str):
+    token = load_token(token_name)
+    return assert_balance(token, account)
+"""
+        compiler = ContractingCompiler(module_name="handle_helper")
+
+        ir = compiler.lower_to_ir(source)
+        assert_balance = next(
+            function for function in ir["functions"] if function["name"] == "assert_balance"
+        )
+        lowered_call = assert_balance["body"][0]["value"]
+
+        self.assertEqual(lowered_call["syscall_id"], "contract.export_call")
+        self.assertEqual(lowered_call["function_name"], "balance_of")
+        self.assertEqual(lowered_call["contract_target"]["kind"], "local_handle")
+        self.assertEqual(lowered_call["contract_target"]["binding"], "token")
+        self.assertEqual(lowered_call["contract_target"]["source"]["id"], "token")
+        dependency_ids = {item["id"] for item in ir["host_dependencies"]}
+        self.assertIn("contract.export_call", dependency_ids)
+
     def test_lower_to_ir_preserves_interface_storage_type_host_bindings(self):
         source = """
 TOKEN_INTERFACE = [
