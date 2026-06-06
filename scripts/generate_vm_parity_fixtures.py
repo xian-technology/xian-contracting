@@ -76,7 +76,9 @@ CHI_COST_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "chi_cost.s.py
 REWARDS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "rewards.s.py"
 MEMBERS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "members.s.py"
 DEFAULT_DEX_BUNDLE_SOURCE = (
-    WORKSPACE_ROOT / "xian-configs" / "modules" / "dex" / "contract-bundle.json"
+    WORKSPACE_ROOT
+    / "xian-dex"
+    / "contract-bundle.json"
 )
 FIELD_ONE_HEX = "0x" + "00" * 31 + "01"
 FIELD_TWO_HEX = "0x" + "00" * 31 + "02"
@@ -90,17 +92,20 @@ def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _dex_bundle_path() -> Path:
+    configured = os.environ.get("XIAN_DEX_BUNDLE") or os.environ.get("XIAN_DEX_BUNDLE_PATH")
+    bundle_path = Path(configured).expanduser() if configured else DEFAULT_DEX_BUNDLE_SOURCE
+    if bundle_path.is_dir():
+        bundle_path = bundle_path / "contract-bundle.json"
+    return bundle_path.resolve()
+
+
 def _dex_source_path(role: str, fallback_name: str) -> Path:
     src_override = os.environ.get("XIAN_DEX_SRC_DIR")
     if src_override:
         return Path(src_override).expanduser() / fallback_name
 
-    bundle_path = Path(
-        os.environ.get(
-            "XIAN_DEX_BUNDLE",
-            os.environ.get("XIAN_DEX_BUNDLE_PATH", DEFAULT_DEX_BUNDLE_SOURCE),
-        )
-    ).expanduser()
+    bundle_path = _dex_bundle_path()
     payload = json.loads(bundle_path.read_text(encoding="utf-8"))
     for contract in payload.get("contracts", []):
         if contract.get("role") != role:
@@ -1685,11 +1690,23 @@ def interact(payload: dict = None):
             {
                 "module_name": "con_dao",
                 "source_path": str(DAO_SOURCE),
+                "source_replacements": [
+                    (
+                        'CONTROL_CONTRACT = "masternodes"',
+                        'CONTROL_CONTRACT = "con_members"',
+                    ),
+                ],
                 "initial_state_queries": {"variables": [], "hashes": []},
             },
             {
                 "module_name": "con_rewards",
                 "source_path": str(REWARDS_SOURCE),
+                "source_replacements": [
+                    (
+                        'CONTROL_CONTRACT = "masternodes"',
+                        'CONTROL_CONTRACT = "con_members"',
+                    ),
+                ],
                 "initial_state_queries": {
                     "variables": [],
                     "hashes": [{"binding": "S", "keys": ["value"]}],
@@ -1698,6 +1715,12 @@ def interact(payload: dict = None):
             {
                 "module_name": "con_chi_cost",
                 "source_path": str(CHI_COST_SOURCE),
+                "source_replacements": [
+                    (
+                        'CONTROL_CONTRACT = "masternodes"',
+                        'CONTROL_CONTRACT = "con_members"',
+                    ),
+                ],
                 "initial_state_queries": {
                     "variables": [],
                     "hashes": [{"binding": "S", "keys": ["value"]}],

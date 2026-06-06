@@ -218,16 +218,16 @@
                   "span": {
                     "col": 13,
                     "end_col": 15,
-                    "end_line": 25,
-                    "line": 25
+                    "end_line": 27,
+                    "line": 27
                   }
                 },
                 "node": "storage_set",
                 "span": {
                   "col": 4,
                   "end_col": 29,
-                  "end_line": 25,
-                  "line": 25
+                  "end_line": 27,
+                  "line": 27
                 },
                 "storage_type": "Hash",
                 "syscall_id": "storage.hash.set",
@@ -237,8 +237,8 @@
                   "span": {
                     "col": 19,
                     "end_col": 29,
-                    "end_line": 25,
-                    "line": 25
+                    "end_line": 27,
+                    "line": 27
                   },
                   "value": 5555555.55,
                   "value_type": "float"
@@ -251,8 +251,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 24,
-                    "end_line": 26,
-                    "line": 26
+                    "end_line": 28,
+                    "line": 28
                   },
                   "value": "team_lock",
                   "value_type": "str"
@@ -261,8 +261,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 39,
-                  "end_line": 26,
-                  "line": 26
+                  "end_line": 28,
+                  "line": 28
                 },
                 "storage_type": "Hash",
                 "syscall_id": "storage.hash.set",
@@ -272,8 +272,8 @@
                   "span": {
                     "col": 28,
                     "end_col": 39,
-                    "end_line": 26,
-                    "line": 26
+                    "end_line": 28,
+                    "line": 28
                   },
                   "value": 16666666.65,
                   "value_type": "float"
@@ -286,8 +286,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 18,
-                    "end_line": 27,
-                    "line": 27
+                    "end_line": 29,
+                    "line": 29
                   },
                   "value": "dao",
                   "value_type": "str"
@@ -296,8 +296,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 32,
-                  "end_line": 27,
-                  "line": 27
+                  "end_line": 29,
+                  "line": 29
                 },
                 "storage_type": "Hash",
                 "syscall_id": "storage.hash.set",
@@ -307,8 +307,8 @@
                   "span": {
                     "col": 22,
                     "end_col": 32,
-                    "end_line": 27,
-                    "line": 27
+                    "end_line": 29,
+                    "line": 29
                   },
                   "value": 33333333.3,
                   "value_type": "float"
@@ -321,8 +321,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 24,
-                    "end_line": 28,
-                    "line": 28
+                    "end_line": 30,
+                    "line": 30
                   },
                   "value": "team_lock",
                   "value_type": "str"
@@ -333,8 +333,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 40,
-                  "end_line": 28,
-                  "line": 28
+                  "end_line": 30,
+                  "line": 30
                 },
                 "storage_type": "Hash",
                 "value": {
@@ -343,8 +343,8 @@
                   "span": {
                     "col": 29,
                     "end_col": 40,
-                    "end_line": 28,
-                    "line": 28
+                    "end_line": 30,
+                    "line": 30
                   },
                   "value": 49999999.95,
                   "value_type": "float"
@@ -360,8 +360,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 15,
-                    "end_line": 29,
-                    "line": 29
+                    "end_line": 31,
+                    "line": 31
                   }
                 },
                 "node": "storage_mutate",
@@ -370,8 +370,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 30,
-                  "end_line": 29,
-                  "line": 29
+                  "end_line": 31,
+                  "line": 31
                 },
                 "storage_type": "Hash",
                 "value": {
@@ -380,8 +380,8 @@
                   "span": {
                     "col": 20,
                     "end_col": 30,
-                    "end_line": 29,
-                    "line": 29
+                    "end_line": 31,
+                    "line": 31
                   },
                   "value": 5555555.55,
                   "value_type": "float"
@@ -395,8 +395,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 25,
-                    "end_line": 31,
-                    "line": 31
+                    "end_line": 33,
+                    "line": 33
                   },
                   "value": "token_name",
                   "value_type": "str"
@@ -405,8 +405,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 35,
-                  "end_line": 31,
-                  "line": 31
+                  "end_line": 33,
+                  "line": 33
                 },
                 "storage_type": "Hash",
                 "syscall_id": "storage.hash.set",
@@ -415,8 +415,8 @@
                   "span": {
                     "col": 29,
                     "end_col": 35,
-                    "end_line": 31,
-                    "line": 31
+                    "end_line": 33,
+                    "line": 33
                   },
                   "value": "XIAN",
                   "value_type": "str"
@@ -429,8 +429,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 27,
-                    "end_line": 32,
-                    "line": 32
+                    "end_line": 34,
+                    "line": 34
                   },
                   "value": "token_symbol",
                   "value_type": "str"
@@ -439,8 +439,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 37,
-                  "end_line": 32,
-                  "line": 32
+                  "end_line": 34,
+                  "line": 34
                 },
                 "storage_type": "Hash",
                 "syscall_id": "storage.hash.set",
@@ -449,8 +449,8 @@
                   "span": {
                     "col": 31,
                     "end_col": 37,
-                    "end_line": 32,
-                    "line": 32
+                    "end_line": 34,
+                    "line": 34
                   },
                   "value": "XIAN",
                   "value_type": "str"
@@ -463,8 +463,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 29,
-                    "end_line": 33,
-                    "line": 33
+                    "end_line": 35,
+                    "line": 35
                   },
                   "value": "token_logo_url",
                   "value_type": "str"
@@ -473,8 +473,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 71,
-                  "end_line": 33,
-                  "line": 33
+                  "end_line": 35,
+                  "line": 35
                 },
                 "storage_type": "Hash",
                 "syscall_id": "storage.hash.set",
@@ -483,8 +483,8 @@
                   "span": {
                     "col": 33,
                     "end_col": 71,
-                    "end_line": 33,
-                    "line": 33
+                    "end_line": 35,
+                    "line": 35
                   },
                   "value": "https://xian.org/assets/img/logo.svg",
                   "value_type": "str"
@@ -497,8 +497,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 29,
-                    "end_line": 34,
-                    "line": 34
+                    "end_line": 36,
+                    "line": 36
                   },
                   "value": "token_logo_svg",
                   "value_type": "str"
@@ -507,8 +507,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 35,
-                  "end_line": 34,
-                  "line": 34
+                  "end_line": 36,
+                  "line": 36
                 },
                 "storage_type": "Hash",
                 "syscall_id": "storage.hash.set",
@@ -517,8 +517,8 @@
                   "span": {
                     "col": 33,
                     "end_col": 35,
-                    "end_line": 34,
-                    "line": 34
+                    "end_line": 36,
+                    "line": 36
                   },
                   "value": "",
                   "value_type": "str"
@@ -531,8 +531,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 28,
-                    "end_line": 35,
-                    "line": 35
+                    "end_line": 37,
+                    "line": 37
                   },
                   "value": "token_website",
                   "value_type": "str"
@@ -541,8 +541,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 50,
-                  "end_line": 35,
-                  "line": 35
+                  "end_line": 37,
+                  "line": 37
                 },
                 "storage_type": "Hash",
                 "syscall_id": "storage.hash.set",
@@ -551,8 +551,8 @@
                   "span": {
                     "col": 32,
                     "end_col": 50,
-                    "end_line": 35,
-                    "line": 35
+                    "end_line": 37,
+                    "line": 37
                   },
                   "value": "https://xian.org",
                   "value_type": "str"
@@ -565,8 +565,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 27,
-                    "end_line": 36,
-                    "line": 36
+                    "end_line": 38,
+                    "line": 38
                   },
                   "value": "total_supply",
                   "value_type": "str"
@@ -575,8 +575,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 5,
-                  "end_line": 38,
-                  "line": 36
+                  "end_line": 40,
+                  "line": 38
                 },
                 "storage_type": "Hash",
                 "syscall_id": "storage.hash.set",
@@ -591,16 +591,16 @@
                         "span": {
                           "col": 17,
                           "end_col": 19,
-                          "end_line": 37,
-                          "line": 37
+                          "end_line": 39,
+                          "line": 39
                         }
                       },
                       "node": "storage_get",
                       "span": {
                         "col": 8,
                         "end_col": 20,
-                        "end_line": 37,
-                        "line": 37
+                        "end_line": 39,
+                        "line": 39
                       },
                       "storage_type": "Hash",
                       "syscall_id": "storage.hash.get"
@@ -614,8 +614,8 @@
                         "span": {
                           "col": 32,
                           "end_col": 43,
-                          "end_line": 37,
-                          "line": 37
+                          "end_line": 39,
+                          "line": 39
                         },
                         "value": "team_lock",
                         "value_type": "str"
@@ -624,8 +624,8 @@
                       "span": {
                         "col": 23,
                         "end_col": 44,
-                        "end_line": 37,
-                        "line": 37
+                        "end_line": 39,
+                        "line": 39
                       },
                       "storage_type": "Hash",
                       "syscall_id": "storage.hash.get"
@@ -633,8 +633,8 @@
                     "span": {
                       "col": 8,
                       "end_col": 44,
-                      "end_line": 37,
-                      "line": 37
+                      "end_line": 39,
+                      "line": 39
                     }
                   },
                   "node": "bin_op",
@@ -646,8 +646,8 @@
                       "span": {
                         "col": 56,
                         "end_col": 61,
-                        "end_line": 37,
-                        "line": 37
+                        "end_line": 39,
+                        "line": 39
                       },
                       "value": "dao",
                       "value_type": "str"
@@ -656,8 +656,8 @@
                     "span": {
                       "col": 47,
                       "end_col": 62,
-                      "end_line": 37,
-                      "line": 37
+                      "end_line": 39,
+                      "line": 39
                     },
                     "storage_type": "Hash",
                     "syscall_id": "storage.hash.get"
@@ -665,8 +665,8 @@
                   "span": {
                     "col": 8,
                     "end_col": 62,
-                    "end_line": 37,
-                    "line": 37
+                    "end_line": 39,
+                    "line": 39
                   }
                 }
               },
@@ -677,8 +677,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 23,
-                    "end_line": 39,
-                    "line": 39
+                    "end_line": 41,
+                    "line": 41
                   },
                   "value": "operator",
                   "value_type": "str"
@@ -687,8 +687,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 38,
-                  "end_line": 39,
-                  "line": 39
+                  "end_line": 41,
+                  "line": 41
                 },
                 "storage_type": "Hash",
                 "syscall_id": "storage.hash.set",
@@ -697,8 +697,8 @@
                   "span": {
                     "col": 27,
                     "end_col": 38,
-                    "end_line": 39,
-                    "line": 39
+                    "end_line": 41,
+                    "line": 41
                   },
                   "value": "team_lock",
                   "value_type": "str"
@@ -711,8 +711,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 32,
-                    "end_line": 40,
-                    "line": 40
+                    "end_line": 42,
+                    "line": 42
                   },
                   "value": "permit_authorizer",
                   "value_type": "str"
@@ -721,8 +721,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 55,
-                  "end_line": 40,
-                  "line": 40
+                  "end_line": 42,
+                  "line": 42
                 },
                 "storage_type": "Hash",
                 "syscall_id": "storage.hash.set",
@@ -731,8 +731,8 @@
                   "span": {
                     "col": 36,
                     "end_col": 55,
-                    "end_line": 40,
-                    "line": 40
+                    "end_line": 42,
+                    "line": 42
                   },
                   "value": "permit_authorizer",
                   "value_type": "str"
@@ -747,8 +747,8 @@
               "span": {
                 "col": 1,
                 "end_col": 10,
-                "end_line": 23,
-                "line": 23
+                "end_line": 25,
+                "line": 25
               }
             },
             "docstring": null,
@@ -763,8 +763,8 @@
                 "span": {
                   "col": 9,
                   "end_col": 16,
-                  "end_line": 24,
-                  "line": 24
+                  "end_line": 26,
+                  "line": 26
                 }
               }
             ],
@@ -772,8 +772,8 @@
             "span": {
               "col": 0,
               "end_col": 55,
-              "end_line": 40,
-              "line": 24
+              "end_line": 42,
+              "line": 26
             },
             "visibility": "construct"
           },
@@ -785,8 +785,8 @@
                   "span": {
                     "col": 47,
                     "end_col": 80,
-                    "end_line": 45,
-                    "line": 45
+                    "end_line": 47,
+                    "line": 47
                   },
                   "value": "Only operator can set metadata.",
                   "value_type": "str"
@@ -795,8 +795,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 80,
-                  "end_line": 45,
-                  "line": 45
+                  "end_line": 47,
+                  "line": 47
                 },
                 "test": {
                   "comparators": [
@@ -807,8 +807,8 @@
                         "span": {
                           "col": 34,
                           "end_col": 44,
-                          "end_line": 45,
-                          "line": 45
+                          "end_line": 47,
+                          "line": 47
                         },
                         "value": "operator",
                         "value_type": "str"
@@ -817,8 +817,8 @@
                       "span": {
                         "col": 25,
                         "end_col": 45,
-                        "end_line": 45,
-                        "line": 45
+                        "end_line": 47,
+                        "line": 47
                       },
                       "storage_type": "Hash",
                       "syscall_id": "storage.hash.get"
@@ -832,8 +832,8 @@
                     "span": {
                       "col": 11,
                       "end_col": 21,
-                      "end_line": 45,
-                      "line": 45
+                      "end_line": 47,
+                      "line": 47
                     },
                     "value": {
                       "host_binding_id": null,
@@ -842,8 +842,8 @@
                       "span": {
                         "col": 11,
                         "end_col": 14,
-                        "end_line": 45,
-                        "line": 45
+                        "end_line": 47,
+                        "line": 47
                       }
                     }
                   },
@@ -854,8 +854,8 @@
                   "span": {
                     "col": 11,
                     "end_col": 45,
-                    "end_line": 45,
-                    "line": 45
+                    "end_line": 47,
+                    "line": 47
                   }
                 }
               },
@@ -865,8 +865,8 @@
                   "span": {
                     "col": 34,
                     "end_col": 76,
-                    "end_line": 46,
-                    "line": 46
+                    "end_line": 48,
+                    "line": 48
                   },
                   "value": "total_supply is managed by the contract.",
                   "value_type": "str"
@@ -875,8 +875,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 76,
-                  "end_line": 46,
-                  "line": 46
+                  "end_line": 48,
+                  "line": 48
                 },
                 "test": {
                   "comparators": [
@@ -885,8 +885,8 @@
                       "span": {
                         "col": 18,
                         "end_col": 32,
-                        "end_line": 46,
-                        "line": 46
+                        "end_line": 48,
+                        "line": 48
                       },
                       "value": "total_supply",
                       "value_type": "str"
@@ -899,8 +899,8 @@
                     "span": {
                       "col": 11,
                       "end_col": 14,
-                      "end_line": 46,
-                      "line": 46
+                      "end_line": 48,
+                      "line": 48
                     }
                   },
                   "node": "compare",
@@ -910,8 +910,120 @@
                   "span": {
                     "col": 11,
                     "end_col": 32,
-                    "end_line": 46,
-                    "line": 46
+                    "end_line": 48,
+                    "line": 48
+                  }
+                }
+              },
+              {
+                "message": {
+                  "node": "constant",
+                  "span": {
+                    "col": 30,
+                    "end_col": 66,
+                    "end_line": 49,
+                    "line": 49
+                  },
+                  "value": "operator is managed by governance.",
+                  "value_type": "str"
+                },
+                "node": "assert",
+                "span": {
+                  "col": 4,
+                  "end_col": 66,
+                  "end_line": 49,
+                  "line": 49
+                },
+                "test": {
+                  "comparators": [
+                    {
+                      "node": "constant",
+                      "span": {
+                        "col": 18,
+                        "end_col": 28,
+                        "end_line": 49,
+                        "line": 49
+                      },
+                      "value": "operator",
+                      "value_type": "str"
+                    }
+                  ],
+                  "left": {
+                    "host_binding_id": null,
+                    "id": "key",
+                    "node": "name",
+                    "span": {
+                      "col": 11,
+                      "end_col": 14,
+                      "end_line": 49,
+                      "line": 49
+                    }
+                  },
+                  "node": "compare",
+                  "operators": [
+                    "not_eq"
+                  ],
+                  "span": {
+                    "col": 11,
+                    "end_col": 28,
+                    "end_line": 49,
+                    "line": 49
+                  }
+                }
+              },
+              {
+                "message": {
+                  "node": "constant",
+                  "span": {
+                    "col": 7,
+                    "end_col": 52,
+                    "end_line": 52,
+                    "line": 52
+                  },
+                  "value": "permit_authorizer is managed by governance.",
+                  "value_type": "str"
+                },
+                "node": "assert",
+                "span": {
+                  "col": 4,
+                  "end_col": 52,
+                  "end_line": 52,
+                  "line": 50
+                },
+                "test": {
+                  "comparators": [
+                    {
+                      "node": "constant",
+                      "span": {
+                        "col": 15,
+                        "end_col": 34,
+                        "end_line": 51,
+                        "line": 51
+                      },
+                      "value": "permit_authorizer",
+                      "value_type": "str"
+                    }
+                  ],
+                  "left": {
+                    "host_binding_id": null,
+                    "id": "key",
+                    "node": "name",
+                    "span": {
+                      "col": 8,
+                      "end_col": 11,
+                      "end_line": 51,
+                      "line": 51
+                    }
+                  },
+                  "node": "compare",
+                  "operators": [
+                    "not_eq"
+                  ],
+                  "span": {
+                    "col": 8,
+                    "end_col": 34,
+                    "end_line": 51,
+                    "line": 51
                   }
                 }
               },
@@ -924,16 +1036,16 @@
                   "span": {
                     "col": 13,
                     "end_col": 16,
-                    "end_line": 47,
-                    "line": 47
+                    "end_line": 53,
+                    "line": 53
                   }
                 },
                 "node": "storage_set",
                 "span": {
                   "col": 4,
                   "end_col": 25,
-                  "end_line": 47,
-                  "line": 47
+                  "end_line": 53,
+                  "line": 53
                 },
                 "storage_type": "Hash",
                 "syscall_id": "storage.hash.set",
@@ -944,8 +1056,8 @@
                   "span": {
                     "col": 20,
                     "end_col": 25,
-                    "end_line": 47,
-                    "line": 47
+                    "end_line": 53,
+                    "line": 53
                   }
                 }
               }
@@ -958,8 +1070,8 @@
               "span": {
                 "col": 1,
                 "end_col": 7,
-                "end_line": 43,
-                "line": 43
+                "end_line": 45,
+                "line": 45
               }
             },
             "docstring": null,
@@ -974,8 +1086,8 @@
                 "span": {
                   "col": 20,
                   "end_col": 28,
-                  "end_line": 44,
-                  "line": 44
+                  "end_line": 46,
+                  "line": 46
                 }
               },
               {
@@ -986,8 +1098,8 @@
                 "span": {
                   "col": 30,
                   "end_col": 40,
-                  "end_line": 44,
-                  "line": 44
+                  "end_line": 46,
+                  "line": 46
                 }
               }
             ],
@@ -995,8 +1107,863 @@
             "span": {
               "col": 0,
               "end_col": 25,
-              "end_line": 47,
-              "line": 44
+              "end_line": 53,
+              "line": 46
+            },
+            "visibility": "export"
+          },
+          {
+            "body": [
+              {
+                "message": {
+                  "node": "constant",
+                  "span": {
+                    "col": 7,
+                    "end_col": 64,
+                    "end_line": 59,
+                    "line": 59
+                  },
+                  "value": "Only governance can change sensitive currency settings.",
+                  "value_type": "str"
+                },
+                "node": "assert",
+                "span": {
+                  "col": 4,
+                  "end_col": 64,
+                  "end_line": 59,
+                  "line": 57
+                },
+                "test": {
+                  "comparators": [
+                    {
+                      "host_binding_id": null,
+                      "id": "GOVERNANCE_CONTRACT",
+                      "node": "name",
+                      "span": {
+                        "col": 22,
+                        "end_col": 41,
+                        "end_line": 58,
+                        "line": 58
+                      }
+                    }
+                  ],
+                  "left": {
+                    "attr": "caller",
+                    "host_binding_id": "context.caller",
+                    "node": "attribute",
+                    "path": "ctx.caller",
+                    "span": {
+                      "col": 8,
+                      "end_col": 18,
+                      "end_line": 58,
+                      "line": 58
+                    },
+                    "value": {
+                      "host_binding_id": null,
+                      "id": "ctx",
+                      "node": "name",
+                      "span": {
+                        "col": 8,
+                        "end_col": 11,
+                        "end_line": 58,
+                        "line": 58
+                      }
+                    }
+                  },
+                  "node": "compare",
+                  "operators": [
+                    "eq"
+                  ],
+                  "span": {
+                    "col": 8,
+                    "end_col": 41,
+                    "end_line": 58,
+                    "line": 58
+                  }
+                }
+              }
+            ],
+            "decorator": null,
+            "docstring": null,
+            "name": "require_governance",
+            "node": "function",
+            "parameters": [],
+            "returns": null,
+            "span": {
+              "col": 0,
+              "end_col": 64,
+              "end_line": 59,
+              "line": 56
+            },
+            "visibility": "private"
+          },
+          {
+            "body": [
+              {
+                "message": {
+                  "left": {
+                    "host_binding_id": null,
+                    "id": "label",
+                    "node": "name",
+                    "span": {
+                      "col": 49,
+                      "end_col": 54,
+                      "end_line": 63,
+                      "line": 63
+                    }
+                  },
+                  "node": "bin_op",
+                  "operator": "add",
+                  "right": {
+                    "node": "constant",
+                    "span": {
+                      "col": 57,
+                      "end_col": 78,
+                      "end_line": 63,
+                      "line": 63
+                    },
+                    "value": " must be non-empty.",
+                    "value_type": "str"
+                  },
+                  "span": {
+                    "col": 49,
+                    "end_col": 78,
+                    "end_line": 63,
+                    "line": 63
+                  }
+                },
+                "node": "assert",
+                "span": {
+                  "col": 4,
+                  "end_col": 78,
+                  "end_line": 63,
+                  "line": 63
+                },
+                "test": {
+                  "node": "bool_op",
+                  "operator": "and",
+                  "span": {
+                    "col": 11,
+                    "end_col": 47,
+                    "end_line": 63,
+                    "line": 63
+                  },
+                  "values": [
+                    {
+                      "args": [
+                        {
+                          "host_binding_id": null,
+                          "id": "name",
+                          "node": "name",
+                          "span": {
+                            "col": 22,
+                            "end_col": 26,
+                            "end_line": 63,
+                            "line": 63
+                          }
+                        },
+                        {
+                          "host_binding_id": null,
+                          "id": "str",
+                          "node": "name",
+                          "span": {
+                            "col": 28,
+                            "end_col": 31,
+                            "end_line": 63,
+                            "line": 63
+                          }
+                        }
+                      ],
+                      "event_binding": null,
+                      "func": {
+                        "host_binding_id": null,
+                        "id": "isinstance",
+                        "node": "name",
+                        "span": {
+                          "col": 11,
+                          "end_col": 21,
+                          "end_line": 63,
+                          "line": 63
+                        }
+                      },
+                      "keywords": [],
+                      "node": "call",
+                      "span": {
+                        "col": 11,
+                        "end_col": 32,
+                        "end_line": 63,
+                        "line": 63
+                      },
+                      "syscall_id": null
+                    },
+                    {
+                      "comparators": [
+                        {
+                          "node": "constant",
+                          "span": {
+                            "col": 45,
+                            "end_col": 47,
+                            "end_line": 63,
+                            "line": 63
+                          },
+                          "value": "",
+                          "value_type": "str"
+                        }
+                      ],
+                      "left": {
+                        "host_binding_id": null,
+                        "id": "name",
+                        "node": "name",
+                        "span": {
+                          "col": 37,
+                          "end_col": 41,
+                          "end_line": 63,
+                          "line": 63
+                        }
+                      },
+                      "node": "compare",
+                      "operators": [
+                        "not_eq"
+                      ],
+                      "span": {
+                        "col": 37,
+                        "end_col": 47,
+                        "end_line": 63,
+                        "line": 63
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "node": "return",
+                "span": {
+                  "col": 4,
+                  "end_col": 15,
+                  "end_line": 64,
+                  "line": 64
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "name",
+                  "node": "name",
+                  "span": {
+                    "col": 11,
+                    "end_col": 15,
+                    "end_line": 64,
+                    "line": 64
+                  }
+                }
+              }
+            ],
+            "decorator": null,
+            "docstring": null,
+            "name": "require_name",
+            "node": "function",
+            "parameters": [
+              {
+                "annotation": "str",
+                "default": null,
+                "kind": "positional_or_keyword",
+                "name": "name",
+                "span": {
+                  "col": 17,
+                  "end_col": 26,
+                  "end_line": 62,
+                  "line": 62
+                }
+              },
+              {
+                "annotation": "str",
+                "default": null,
+                "kind": "positional_or_keyword",
+                "name": "label",
+                "span": {
+                  "col": 28,
+                  "end_col": 38,
+                  "end_line": 62,
+                  "line": 62
+                }
+              }
+            ],
+            "returns": null,
+            "span": {
+              "col": 0,
+              "end_col": 15,
+              "end_line": 64,
+              "line": 62
+            },
+            "visibility": "private"
+          },
+          {
+            "body": [
+              {
+                "node": "assign",
+                "span": {
+                  "col": 4,
+                  "end_col": 36,
+                  "end_line": 68,
+                  "line": 68
+                },
+                "targets": [
+                  {
+                    "host_binding_id": null,
+                    "id": "name",
+                    "node": "name",
+                    "span": {
+                      "col": 4,
+                      "end_col": 8,
+                      "end_line": 68,
+                      "line": 68
+                    }
+                  }
+                ],
+                "value": {
+                  "args": [
+                    {
+                      "host_binding_id": null,
+                      "id": "name",
+                      "node": "name",
+                      "span": {
+                        "col": 24,
+                        "end_col": 28,
+                        "end_line": 68,
+                        "line": 68
+                      }
+                    },
+                    {
+                      "host_binding_id": null,
+                      "id": "label",
+                      "node": "name",
+                      "span": {
+                        "col": 30,
+                        "end_col": 35,
+                        "end_line": 68,
+                        "line": 68
+                      }
+                    }
+                  ],
+                  "event_binding": null,
+                  "func": {
+                    "host_binding_id": null,
+                    "id": "require_name",
+                    "node": "name",
+                    "span": {
+                      "col": 11,
+                      "end_col": 23,
+                      "end_line": 68,
+                      "line": 68
+                    }
+                  },
+                  "keywords": [],
+                  "node": "call",
+                  "span": {
+                    "col": 11,
+                    "end_col": 36,
+                    "end_line": 68,
+                    "line": 68
+                  },
+                  "syscall_id": null
+                }
+              },
+              {
+                "message": {
+                  "left": {
+                    "host_binding_id": null,
+                    "id": "label",
+                    "node": "name",
+                    "span": {
+                      "col": 35,
+                      "end_col": 40,
+                      "end_line": 69,
+                      "line": 69
+                    }
+                  },
+                  "node": "bin_op",
+                  "operator": "add",
+                  "right": {
+                    "node": "constant",
+                    "span": {
+                      "col": 43,
+                      "end_col": 70,
+                      "end_line": 69,
+                      "line": 69
+                    },
+                    "value": " contract does not exist.",
+                    "value_type": "str"
+                  },
+                  "span": {
+                    "col": 35,
+                    "end_col": 70,
+                    "end_line": 69,
+                    "line": 69
+                  }
+                },
+                "node": "assert",
+                "span": {
+                  "col": 4,
+                  "end_col": 70,
+                  "end_line": 69,
+                  "line": 69
+                },
+                "test": {
+                  "args": [
+                    {
+                      "host_binding_id": null,
+                      "id": "name",
+                      "node": "name",
+                      "span": {
+                        "col": 28,
+                        "end_col": 32,
+                        "end_line": 69,
+                        "line": 69
+                      }
+                    }
+                  ],
+                  "event_binding": null,
+                  "func": {
+                    "attr": "exists",
+                    "host_binding_id": "contract.exists",
+                    "node": "attribute",
+                    "path": "importlib.exists",
+                    "span": {
+                      "col": 11,
+                      "end_col": 27,
+                      "end_line": 69,
+                      "line": 69
+                    },
+                    "value": {
+                      "host_binding_id": "module.importlib",
+                      "id": "importlib",
+                      "node": "name",
+                      "span": {
+                        "col": 11,
+                        "end_col": 20,
+                        "end_line": 69,
+                        "line": 69
+                      }
+                    }
+                  },
+                  "keywords": [],
+                  "node": "call",
+                  "span": {
+                    "col": 11,
+                    "end_col": 33,
+                    "end_line": 69,
+                    "line": 69
+                  },
+                  "syscall_id": "contract.exists"
+                }
+              },
+              {
+                "node": "return",
+                "span": {
+                  "col": 4,
+                  "end_col": 15,
+                  "end_line": 70,
+                  "line": 70
+                },
+                "value": {
+                  "host_binding_id": null,
+                  "id": "name",
+                  "node": "name",
+                  "span": {
+                    "col": 11,
+                    "end_col": 15,
+                    "end_line": 70,
+                    "line": 70
+                  }
+                }
+              }
+            ],
+            "decorator": null,
+            "docstring": null,
+            "name": "require_contract_name",
+            "node": "function",
+            "parameters": [
+              {
+                "annotation": "str",
+                "default": null,
+                "kind": "positional_or_keyword",
+                "name": "name",
+                "span": {
+                  "col": 26,
+                  "end_col": 35,
+                  "end_line": 67,
+                  "line": 67
+                }
+              },
+              {
+                "annotation": "str",
+                "default": null,
+                "kind": "positional_or_keyword",
+                "name": "label",
+                "span": {
+                  "col": 37,
+                  "end_col": 47,
+                  "end_line": 67,
+                  "line": 67
+                }
+              }
+            ],
+            "returns": null,
+            "span": {
+              "col": 0,
+              "end_col": 15,
+              "end_line": 70,
+              "line": 67
+            },
+            "visibility": "private"
+          },
+          {
+            "body": [
+              {
+                "node": "expr",
+                "span": {
+                  "col": 4,
+                  "end_col": 24,
+                  "end_line": 75,
+                  "line": 75
+                },
+                "value": {
+                  "args": [],
+                  "event_binding": null,
+                  "func": {
+                    "host_binding_id": null,
+                    "id": "require_governance",
+                    "node": "name",
+                    "span": {
+                      "col": 4,
+                      "end_col": 22,
+                      "end_line": 75,
+                      "line": 75
+                    }
+                  },
+                  "keywords": [],
+                  "node": "call",
+                  "span": {
+                    "col": 4,
+                    "end_col": 24,
+                    "end_line": 75,
+                    "line": 75
+                  },
+                  "syscall_id": null
+                }
+              },
+              {
+                "binding": "metadata",
+                "key": {
+                  "node": "constant",
+                  "span": {
+                    "col": 13,
+                    "end_col": 23,
+                    "end_line": 76,
+                    "line": 76
+                  },
+                  "value": "operator",
+                  "value_type": "str"
+                },
+                "node": "storage_set",
+                "span": {
+                  "col": 4,
+                  "end_col": 69,
+                  "end_line": 76,
+                  "line": 76
+                },
+                "storage_type": "Hash",
+                "syscall_id": "storage.hash.set",
+                "value": {
+                  "args": [
+                    {
+                      "host_binding_id": null,
+                      "id": "new_operator",
+                      "node": "name",
+                      "span": {
+                        "col": 40,
+                        "end_col": 52,
+                        "end_line": 76,
+                        "line": 76
+                      }
+                    },
+                    {
+                      "node": "constant",
+                      "span": {
+                        "col": 54,
+                        "end_col": 68,
+                        "end_line": 76,
+                        "line": 76
+                      },
+                      "value": "new_operator",
+                      "value_type": "str"
+                    }
+                  ],
+                  "event_binding": null,
+                  "func": {
+                    "host_binding_id": null,
+                    "id": "require_name",
+                    "node": "name",
+                    "span": {
+                      "col": 27,
+                      "end_col": 39,
+                      "end_line": 76,
+                      "line": 76
+                    }
+                  },
+                  "keywords": [],
+                  "node": "call",
+                  "span": {
+                    "col": 27,
+                    "end_col": 69,
+                    "end_line": 76,
+                    "line": 76
+                  },
+                  "syscall_id": null
+                }
+              },
+              {
+                "node": "return",
+                "span": {
+                  "col": 4,
+                  "end_col": 31,
+                  "end_line": 77,
+                  "line": 77
+                },
+                "value": {
+                  "binding": "metadata",
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 20,
+                      "end_col": 30,
+                      "end_line": 77,
+                      "line": 77
+                    },
+                    "value": "operator",
+                    "value_type": "str"
+                  },
+                  "node": "storage_get",
+                  "span": {
+                    "col": 11,
+                    "end_col": 31,
+                    "end_line": 77,
+                    "line": 77
+                  },
+                  "storage_type": "Hash",
+                  "syscall_id": "storage.hash.get"
+                }
+              }
+            ],
+            "decorator": {
+              "args": [],
+              "keywords": [],
+              "name": "export",
+              "node": "decorator",
+              "span": {
+                "col": 1,
+                "end_col": 7,
+                "end_line": 73,
+                "line": 73
+              }
+            },
+            "docstring": null,
+            "name": "set_operator",
+            "node": "function",
+            "parameters": [
+              {
+                "annotation": "str",
+                "default": null,
+                "kind": "positional_or_keyword",
+                "name": "new_operator",
+                "span": {
+                  "col": 17,
+                  "end_col": 34,
+                  "end_line": 74,
+                  "line": 74
+                }
+              }
+            ],
+            "returns": null,
+            "span": {
+              "col": 0,
+              "end_col": 31,
+              "end_line": 77,
+              "line": 74
+            },
+            "visibility": "export"
+          },
+          {
+            "body": [
+              {
+                "node": "expr",
+                "span": {
+                  "col": 4,
+                  "end_col": 24,
+                  "end_line": 82,
+                  "line": 82
+                },
+                "value": {
+                  "args": [],
+                  "event_binding": null,
+                  "func": {
+                    "host_binding_id": null,
+                    "id": "require_governance",
+                    "node": "name",
+                    "span": {
+                      "col": 4,
+                      "end_col": 22,
+                      "end_line": 82,
+                      "line": 82
+                    }
+                  },
+                  "keywords": [],
+                  "node": "call",
+                  "span": {
+                    "col": 4,
+                    "end_col": 24,
+                    "end_line": 82,
+                    "line": 82
+                  },
+                  "syscall_id": null
+                }
+              },
+              {
+                "binding": "metadata",
+                "key": {
+                  "node": "constant",
+                  "span": {
+                    "col": 13,
+                    "end_col": 32,
+                    "end_line": 83,
+                    "line": 83
+                  },
+                  "value": "permit_authorizer",
+                  "value_type": "str"
+                },
+                "node": "storage_set",
+                "span": {
+                  "col": 4,
+                  "end_col": 5,
+                  "end_line": 85,
+                  "line": 83
+                },
+                "storage_type": "Hash",
+                "syscall_id": "storage.hash.set",
+                "value": {
+                  "args": [
+                    {
+                      "host_binding_id": null,
+                      "id": "new_authorizer",
+                      "node": "name",
+                      "span": {
+                        "col": 8,
+                        "end_col": 22,
+                        "end_line": 84,
+                        "line": 84
+                      }
+                    },
+                    {
+                      "node": "constant",
+                      "span": {
+                        "col": 24,
+                        "end_col": 40,
+                        "end_line": 84,
+                        "line": 84
+                      },
+                      "value": "new_authorizer",
+                      "value_type": "str"
+                    }
+                  ],
+                  "event_binding": null,
+                  "func": {
+                    "host_binding_id": null,
+                    "id": "require_contract_name",
+                    "node": "name",
+                    "span": {
+                      "col": 36,
+                      "end_col": 57,
+                      "end_line": 83,
+                      "line": 83
+                    }
+                  },
+                  "keywords": [],
+                  "node": "call",
+                  "span": {
+                    "col": 36,
+                    "end_col": 5,
+                    "end_line": 85,
+                    "line": 83
+                  },
+                  "syscall_id": null
+                }
+              },
+              {
+                "node": "return",
+                "span": {
+                  "col": 4,
+                  "end_col": 40,
+                  "end_line": 86,
+                  "line": 86
+                },
+                "value": {
+                  "binding": "metadata",
+                  "key": {
+                    "node": "constant",
+                    "span": {
+                      "col": 20,
+                      "end_col": 39,
+                      "end_line": 86,
+                      "line": 86
+                    },
+                    "value": "permit_authorizer",
+                    "value_type": "str"
+                  },
+                  "node": "storage_get",
+                  "span": {
+                    "col": 11,
+                    "end_col": 40,
+                    "end_line": 86,
+                    "line": 86
+                  },
+                  "storage_type": "Hash",
+                  "syscall_id": "storage.hash.get"
+                }
+              }
+            ],
+            "decorator": {
+              "args": [],
+              "keywords": [],
+              "name": "export",
+              "node": "decorator",
+              "span": {
+                "col": 1,
+                "end_col": 7,
+                "end_line": 80,
+                "line": 80
+              }
+            },
+            "docstring": null,
+            "name": "set_permit_authorizer",
+            "node": "function",
+            "parameters": [
+              {
+                "annotation": "str",
+                "default": null,
+                "kind": "positional_or_keyword",
+                "name": "new_authorizer",
+                "span": {
+                  "col": 26,
+                  "end_col": 45,
+                  "end_line": 81,
+                  "line": 81
+                }
+              }
+            ],
+            "returns": null,
+            "span": {
+              "col": 0,
+              "end_col": 40,
+              "end_line": 86,
+              "line": 81
             },
             "visibility": "export"
           },
@@ -1008,8 +1975,8 @@
                   "span": {
                     "col": 23,
                     "end_col": 55,
-                    "end_line": 52,
-                    "line": 52
+                    "end_line": 91,
+                    "line": 91
                   },
                   "value": "Cannot send negative balances.",
                   "value_type": "str"
@@ -1018,8 +1985,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 55,
-                  "end_line": 52,
-                  "line": 52
+                  "end_line": 91,
+                  "line": 91
                 },
                 "test": {
                   "comparators": [
@@ -1028,8 +1995,8 @@
                       "span": {
                         "col": 20,
                         "end_col": 21,
-                        "end_line": 52,
-                        "line": 52
+                        "end_line": 91,
+                        "line": 91
                       },
                       "value": 0,
                       "value_type": "int"
@@ -1042,8 +2009,8 @@
                     "span": {
                       "col": 11,
                       "end_col": 17,
-                      "end_line": 52,
-                      "line": 52
+                      "end_line": 91,
+                      "line": 91
                     }
                   },
                   "node": "compare",
@@ -1053,8 +2020,8 @@
                   "span": {
                     "col": 11,
                     "end_col": 21,
-                    "end_line": 52,
-                    "line": 52
+                    "end_line": 91,
+                    "line": 91
                   }
                 }
               },
@@ -1064,8 +2031,8 @@
                   "span": {
                     "col": 43,
                     "end_col": 70,
-                    "end_line": 53,
-                    "line": 53
+                    "end_line": 92,
+                    "line": 92
                   },
                   "value": "Not enough coins to send.",
                   "value_type": "str"
@@ -1074,8 +2041,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 70,
-                  "end_line": 53,
-                  "line": 53
+                  "end_line": 92,
+                  "line": 92
                 },
                 "test": {
                   "comparators": [
@@ -1086,8 +2053,8 @@
                       "span": {
                         "col": 35,
                         "end_col": 41,
-                        "end_line": 53,
-                        "line": 53
+                        "end_line": 92,
+                        "line": 92
                       }
                     }
                   ],
@@ -1101,8 +2068,8 @@
                       "span": {
                         "col": 20,
                         "end_col": 30,
-                        "end_line": 53,
-                        "line": 53
+                        "end_line": 92,
+                        "line": 92
                       },
                       "value": {
                         "host_binding_id": null,
@@ -1111,8 +2078,8 @@
                         "span": {
                           "col": 20,
                           "end_col": 23,
-                          "end_line": 53,
-                          "line": 53
+                          "end_line": 92,
+                          "line": 92
                         }
                       }
                     },
@@ -1120,8 +2087,8 @@
                     "span": {
                       "col": 11,
                       "end_col": 31,
-                      "end_line": 53,
-                      "line": 53
+                      "end_line": 92,
+                      "line": 92
                     },
                     "storage_type": "Hash",
                     "syscall_id": "storage.hash.get"
@@ -1133,8 +2100,8 @@
                   "span": {
                     "col": 11,
                     "end_col": 41,
-                    "end_line": 53,
-                    "line": 53
+                    "end_line": 92,
+                    "line": 92
                   }
                 }
               },
@@ -1148,8 +2115,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 23,
-                    "end_line": 55,
-                    "line": 55
+                    "end_line": 94,
+                    "line": 94
                   },
                   "value": {
                     "host_binding_id": null,
@@ -1158,8 +2125,8 @@
                     "span": {
                       "col": 13,
                       "end_col": 16,
-                      "end_line": 55,
-                      "line": 55
+                      "end_line": 94,
+                      "line": 94
                     }
                   }
                 },
@@ -1169,8 +2136,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 34,
-                  "end_line": 55,
-                  "line": 55
+                  "end_line": 94,
+                  "line": 94
                 },
                 "storage_type": "Hash",
                 "value": {
@@ -1180,8 +2147,8 @@
                   "span": {
                     "col": 28,
                     "end_col": 34,
-                    "end_line": 55,
-                    "line": 55
+                    "end_line": 94,
+                    "line": 94
                   }
                 },
                 "write_syscall_id": "storage.hash.set"
@@ -1195,8 +2162,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 15,
-                    "end_line": 56,
-                    "line": 56
+                    "end_line": 95,
+                    "line": 95
                   }
                 },
                 "node": "storage_mutate",
@@ -1205,8 +2172,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 26,
-                  "end_line": 56,
-                  "line": 56
+                  "end_line": 95,
+                  "line": 95
                 },
                 "storage_type": "Hash",
                 "value": {
@@ -1216,8 +2183,8 @@
                   "span": {
                     "col": 20,
                     "end_col": 26,
-                    "end_line": 56,
-                    "line": 56
+                    "end_line": 95,
+                    "line": 95
                   }
                 },
                 "write_syscall_id": "storage.hash.set"
@@ -1227,8 +2194,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 67,
-                  "end_line": 58,
-                  "line": 58
+                  "end_line": 97,
+                  "line": 97
                 },
                 "value": {
                   "args": [
@@ -1240,8 +2207,8 @@
                             "span": {
                               "col": 19,
                               "end_col": 25,
-                              "end_line": 58,
-                              "line": 58
+                              "end_line": 97,
+                              "line": 97
                             },
                             "value": "from",
                             "value_type": "str"
@@ -1254,8 +2221,8 @@
                             "span": {
                               "col": 27,
                               "end_col": 37,
-                              "end_line": 58,
-                              "line": 58
+                              "end_line": 97,
+                              "line": 97
                             },
                             "value": {
                               "host_binding_id": null,
@@ -1264,8 +2231,8 @@
                               "span": {
                                 "col": 27,
                                 "end_col": 30,
-                                "end_line": 58,
-                                "line": 58
+                                "end_line": 97,
+                                "line": 97
                               }
                             }
                           }
@@ -1276,8 +2243,8 @@
                             "span": {
                               "col": 39,
                               "end_col": 43,
-                              "end_line": 58,
-                              "line": 58
+                              "end_line": 97,
+                              "line": 97
                             },
                             "value": "to",
                             "value_type": "str"
@@ -1289,8 +2256,8 @@
                             "span": {
                               "col": 45,
                               "end_col": 47,
-                              "end_line": 58,
-                              "line": 58
+                              "end_line": 97,
+                              "line": 97
                             }
                           }
                         },
@@ -1300,8 +2267,8 @@
                             "span": {
                               "col": 49,
                               "end_col": 57,
-                              "end_line": 58,
-                              "line": 58
+                              "end_line": 97,
+                              "line": 97
                             },
                             "value": "amount",
                             "value_type": "str"
@@ -1313,8 +2280,8 @@
                             "span": {
                               "col": 59,
                               "end_col": 65,
-                              "end_line": 58,
-                              "line": 58
+                              "end_line": 97,
+                              "line": 97
                             }
                           }
                         }
@@ -1323,8 +2290,8 @@
                       "span": {
                         "col": 18,
                         "end_col": 66,
-                        "end_line": 58,
-                        "line": 58
+                        "end_line": 97,
+                        "line": 97
                       }
                     }
                   ],
@@ -1336,8 +2303,8 @@
                     "span": {
                       "col": 4,
                       "end_col": 17,
-                      "end_line": 58,
-                      "line": 58
+                      "end_line": 97,
+                      "line": 97
                     }
                   },
                   "keywords": [],
@@ -1345,8 +2312,8 @@
                   "span": {
                     "col": 4,
                     "end_col": 67,
-                    "end_line": 58,
-                    "line": 58
+                    "end_line": 97,
+                    "line": 97
                   },
                   "syscall_id": "event.log.emit"
                 }
@@ -1360,8 +2327,8 @@
               "span": {
                 "col": 1,
                 "end_col": 7,
-                "end_line": 50,
-                "line": 50
+                "end_line": 89,
+                "line": 89
               }
             },
             "docstring": null,
@@ -1376,8 +2343,8 @@
                 "span": {
                   "col": 13,
                   "end_col": 26,
-                  "end_line": 51,
-                  "line": 51
+                  "end_line": 90,
+                  "line": 90
                 }
               },
               {
@@ -1388,8 +2355,8 @@
                 "span": {
                   "col": 28,
                   "end_col": 35,
-                  "end_line": 51,
-                  "line": 51
+                  "end_line": 90,
+                  "line": 90
                 }
               }
             ],
@@ -1397,8 +2364,8 @@
             "span": {
               "col": 0,
               "end_col": 67,
-              "end_line": 58,
-              "line": 51
+              "end_line": 97,
+              "line": 90
             },
             "visibility": "export"
           },
@@ -1410,8 +2377,8 @@
                   "span": {
                     "col": 24,
                     "end_col": 59,
-                    "end_line": 63,
-                    "line": 63
+                    "end_line": 102,
+                    "line": 102
                   },
                   "value": "Cannot approve negative balances.",
                   "value_type": "str"
@@ -1420,8 +2387,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 59,
-                  "end_line": 63,
-                  "line": 63
+                  "end_line": 102,
+                  "line": 102
                 },
                 "test": {
                   "comparators": [
@@ -1430,8 +2397,8 @@
                       "span": {
                         "col": 21,
                         "end_col": 22,
-                        "end_line": 63,
-                        "line": 63
+                        "end_line": 102,
+                        "line": 102
                       },
                       "value": 0,
                       "value_type": "int"
@@ -1444,8 +2411,8 @@
                     "span": {
                       "col": 11,
                       "end_col": 17,
-                      "end_line": 63,
-                      "line": 63
+                      "end_line": 102,
+                      "line": 102
                     }
                   },
                   "node": "compare",
@@ -1455,8 +2422,8 @@
                   "span": {
                     "col": 11,
                     "end_col": 22,
-                    "end_line": 63,
-                    "line": 63
+                    "end_line": 102,
+                    "line": 102
                   }
                 }
               },
@@ -1472,8 +2439,8 @@
                       "span": {
                         "col": 14,
                         "end_col": 24,
-                        "end_line": 64,
-                        "line": 64
+                        "end_line": 103,
+                        "line": 103
                       },
                       "value": {
                         "host_binding_id": null,
@@ -1482,8 +2449,8 @@
                         "span": {
                           "col": 14,
                           "end_col": 17,
-                          "end_line": 64,
-                          "line": 64
+                          "end_line": 103,
+                          "line": 103
                         }
                       }
                     },
@@ -1494,8 +2461,8 @@
                       "span": {
                         "col": 26,
                         "end_col": 28,
-                        "end_line": 64,
-                        "line": 64
+                        "end_line": 103,
+                        "line": 103
                       }
                     }
                   ],
@@ -1503,16 +2470,16 @@
                   "span": {
                     "col": 14,
                     "end_col": 28,
-                    "end_line": 64,
-                    "line": 64
+                    "end_line": 103,
+                    "line": 103
                   }
                 },
                 "node": "storage_set",
                 "span": {
                   "col": 4,
                   "end_col": 38,
-                  "end_line": 64,
-                  "line": 64
+                  "end_line": 103,
+                  "line": 103
                 },
                 "storage_type": "Hash",
                 "syscall_id": "storage.hash.set",
@@ -1523,8 +2490,8 @@
                   "span": {
                     "col": 32,
                     "end_col": 38,
-                    "end_line": 64,
-                    "line": 64
+                    "end_line": 103,
+                    "line": 103
                   }
                 }
               },
@@ -1533,8 +2500,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 66,
-                  "end_line": 66,
-                  "line": 66
+                  "end_line": 105,
+                  "line": 105
                 },
                 "value": {
                   "args": [
@@ -1546,8 +2513,8 @@
                             "span": {
                               "col": 18,
                               "end_col": 24,
-                              "end_line": 66,
-                              "line": 66
+                              "end_line": 105,
+                              "line": 105
                             },
                             "value": "from",
                             "value_type": "str"
@@ -1560,8 +2527,8 @@
                             "span": {
                               "col": 26,
                               "end_col": 36,
-                              "end_line": 66,
-                              "line": 66
+                              "end_line": 105,
+                              "line": 105
                             },
                             "value": {
                               "host_binding_id": null,
@@ -1570,8 +2537,8 @@
                               "span": {
                                 "col": 26,
                                 "end_col": 29,
-                                "end_line": 66,
-                                "line": 66
+                                "end_line": 105,
+                                "line": 105
                               }
                             }
                           }
@@ -1582,8 +2549,8 @@
                             "span": {
                               "col": 38,
                               "end_col": 42,
-                              "end_line": 66,
-                              "line": 66
+                              "end_line": 105,
+                              "line": 105
                             },
                             "value": "to",
                             "value_type": "str"
@@ -1595,8 +2562,8 @@
                             "span": {
                               "col": 44,
                               "end_col": 46,
-                              "end_line": 66,
-                              "line": 66
+                              "end_line": 105,
+                              "line": 105
                             }
                           }
                         },
@@ -1606,8 +2573,8 @@
                             "span": {
                               "col": 48,
                               "end_col": 56,
-                              "end_line": 66,
-                              "line": 66
+                              "end_line": 105,
+                              "line": 105
                             },
                             "value": "amount",
                             "value_type": "str"
@@ -1619,8 +2586,8 @@
                             "span": {
                               "col": 58,
                               "end_col": 64,
-                              "end_line": 66,
-                              "line": 66
+                              "end_line": 105,
+                              "line": 105
                             }
                           }
                         }
@@ -1629,8 +2596,8 @@
                       "span": {
                         "col": 17,
                         "end_col": 65,
-                        "end_line": 66,
-                        "line": 66
+                        "end_line": 105,
+                        "line": 105
                       }
                     }
                   ],
@@ -1642,8 +2609,8 @@
                     "span": {
                       "col": 4,
                       "end_col": 16,
-                      "end_line": 66,
-                      "line": 66
+                      "end_line": 105,
+                      "line": 105
                     }
                   },
                   "keywords": [],
@@ -1651,8 +2618,8 @@
                   "span": {
                     "col": 4,
                     "end_col": 66,
-                    "end_line": 66,
-                    "line": 66
+                    "end_line": 105,
+                    "line": 105
                   },
                   "syscall_id": "event.log.emit"
                 }
@@ -1666,8 +2633,8 @@
               "span": {
                 "col": 1,
                 "end_col": 7,
-                "end_line": 61,
-                "line": 61
+                "end_line": 100,
+                "line": 100
               }
             },
             "docstring": null,
@@ -1682,8 +2649,8 @@
                 "span": {
                   "col": 12,
                   "end_col": 25,
-                  "end_line": 62,
-                  "line": 62
+                  "end_line": 101,
+                  "line": 101
                 }
               },
               {
@@ -1694,8 +2661,8 @@
                 "span": {
                   "col": 27,
                   "end_col": 34,
-                  "end_line": 62,
-                  "line": 62
+                  "end_line": 101,
+                  "line": 101
                 }
               }
             ],
@@ -1703,8 +2670,8 @@
             "span": {
               "col": 0,
               "end_col": 66,
-              "end_line": 66,
-              "line": 62
+              "end_line": 105,
+              "line": 101
             },
             "visibility": "export"
           },
@@ -1715,8 +2682,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 69,
-                  "end_line": 71,
-                  "line": 71
+                  "end_line": 110,
+                  "line": 110
                 },
                 "targets": [
                   {
@@ -1726,8 +2693,8 @@
                     "span": {
                       "col": 4,
                       "end_col": 14,
-                      "end_line": 71,
-                      "line": 71
+                      "end_line": 110,
+                      "line": 110
                     }
                   }
                 ],
@@ -1737,8 +2704,8 @@
                   "span": {
                     "col": 17,
                     "end_col": 69,
-                    "end_line": 71,
-                    "line": 71
+                    "end_line": 110,
+                    "line": 110
                   },
                   "values": [
                     {
@@ -1748,8 +2715,8 @@
                         "span": {
                           "col": 26,
                           "end_col": 45,
-                          "end_line": 71,
-                          "line": 71
+                          "end_line": 110,
+                          "line": 110
                         },
                         "value": "permit_authorizer",
                         "value_type": "str"
@@ -1758,8 +2725,8 @@
                       "span": {
                         "col": 17,
                         "end_col": 46,
-                        "end_line": 71,
-                        "line": 71
+                        "end_line": 110,
+                        "line": 110
                       },
                       "storage_type": "Hash",
                       "syscall_id": "storage.hash.get"
@@ -1769,8 +2736,8 @@
                       "span": {
                         "col": 50,
                         "end_col": 69,
-                        "end_line": 71,
-                        "line": 71
+                        "end_line": 110,
+                        "line": 110
                       },
                       "value": "permit_authorizer",
                       "value_type": "str"
@@ -1784,8 +2751,8 @@
                   "span": {
                     "col": 7,
                     "end_col": 64,
-                    "end_line": 75,
-                    "line": 75
+                    "end_line": 114,
+                    "line": 114
                   },
                   "value": "Only permit authorizer can approve on behalf of others.",
                   "value_type": "str"
@@ -1794,8 +2761,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 64,
-                  "end_line": 75,
-                  "line": 73
+                  "end_line": 114,
+                  "line": 112
                 },
                 "test": {
                   "comparators": [
@@ -1806,8 +2773,8 @@
                       "span": {
                         "col": 22,
                         "end_col": 32,
-                        "end_line": 74,
-                        "line": 74
+                        "end_line": 113,
+                        "line": 113
                       }
                     }
                   ],
@@ -1819,8 +2786,8 @@
                     "span": {
                       "col": 8,
                       "end_col": 18,
-                      "end_line": 74,
-                      "line": 74
+                      "end_line": 113,
+                      "line": 113
                     },
                     "value": {
                       "host_binding_id": null,
@@ -1829,8 +2796,8 @@
                       "span": {
                         "col": 8,
                         "end_col": 11,
-                        "end_line": 74,
-                        "line": 74
+                        "end_line": 113,
+                        "line": 113
                       }
                     }
                   },
@@ -1841,8 +2808,8 @@
                   "span": {
                     "col": 8,
                     "end_col": 32,
-                    "end_line": 74,
-                    "line": 74
+                    "end_line": 113,
+                    "line": 113
                   }
                 }
               },
@@ -1852,8 +2819,8 @@
                   "span": {
                     "col": 24,
                     "end_col": 59,
-                    "end_line": 76,
-                    "line": 76
+                    "end_line": 115,
+                    "line": 115
                   },
                   "value": "Cannot approve negative balances.",
                   "value_type": "str"
@@ -1862,8 +2829,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 59,
-                  "end_line": 76,
-                  "line": 76
+                  "end_line": 115,
+                  "line": 115
                 },
                 "test": {
                   "comparators": [
@@ -1872,8 +2839,8 @@
                       "span": {
                         "col": 21,
                         "end_col": 22,
-                        "end_line": 76,
-                        "line": 76
+                        "end_line": 115,
+                        "line": 115
                       },
                       "value": 0,
                       "value_type": "int"
@@ -1886,8 +2853,8 @@
                     "span": {
                       "col": 11,
                       "end_col": 17,
-                      "end_line": 76,
-                      "line": 76
+                      "end_line": 115,
+                      "line": 115
                     }
                   },
                   "node": "compare",
@@ -1897,8 +2864,8 @@
                   "span": {
                     "col": 11,
                     "end_col": 22,
-                    "end_line": 76,
-                    "line": 76
+                    "end_line": 115,
+                    "line": 115
                   }
                 }
               },
@@ -1913,8 +2880,8 @@
                       "span": {
                         "col": 14,
                         "end_col": 19,
-                        "end_line": 78,
-                        "line": 78
+                        "end_line": 117,
+                        "line": 117
                       }
                     },
                     {
@@ -1924,8 +2891,8 @@
                       "span": {
                         "col": 21,
                         "end_col": 28,
-                        "end_line": 78,
-                        "line": 78
+                        "end_line": 117,
+                        "line": 117
                       }
                     }
                   ],
@@ -1933,16 +2900,16 @@
                   "span": {
                     "col": 14,
                     "end_col": 28,
-                    "end_line": 78,
-                    "line": 78
+                    "end_line": 117,
+                    "line": 117
                   }
                 },
                 "node": "storage_set",
                 "span": {
                   "col": 4,
                   "end_col": 38,
-                  "end_line": 78,
-                  "line": 78
+                  "end_line": 117,
+                  "line": 117
                 },
                 "storage_type": "Hash",
                 "syscall_id": "storage.hash.set",
@@ -1953,8 +2920,8 @@
                   "span": {
                     "col": 32,
                     "end_col": 38,
-                    "end_line": 78,
-                    "line": 78
+                    "end_line": 117,
+                    "line": 117
                   }
                 }
               },
@@ -1963,8 +2930,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 66,
-                  "end_line": 80,
-                  "line": 80
+                  "end_line": 119,
+                  "line": 119
                 },
                 "value": {
                   "args": [
@@ -1976,8 +2943,8 @@
                             "span": {
                               "col": 18,
                               "end_col": 24,
-                              "end_line": 80,
-                              "line": 80
+                              "end_line": 119,
+                              "line": 119
                             },
                             "value": "from",
                             "value_type": "str"
@@ -1989,8 +2956,8 @@
                             "span": {
                               "col": 26,
                               "end_col": 31,
-                              "end_line": 80,
-                              "line": 80
+                              "end_line": 119,
+                              "line": 119
                             }
                           }
                         },
@@ -2000,8 +2967,8 @@
                             "span": {
                               "col": 33,
                               "end_col": 37,
-                              "end_line": 80,
-                              "line": 80
+                              "end_line": 119,
+                              "line": 119
                             },
                             "value": "to",
                             "value_type": "str"
@@ -2013,8 +2980,8 @@
                             "span": {
                               "col": 39,
                               "end_col": 46,
-                              "end_line": 80,
-                              "line": 80
+                              "end_line": 119,
+                              "line": 119
                             }
                           }
                         },
@@ -2024,8 +2991,8 @@
                             "span": {
                               "col": 48,
                               "end_col": 56,
-                              "end_line": 80,
-                              "line": 80
+                              "end_line": 119,
+                              "line": 119
                             },
                             "value": "amount",
                             "value_type": "str"
@@ -2037,8 +3004,8 @@
                             "span": {
                               "col": 58,
                               "end_col": 64,
-                              "end_line": 80,
-                              "line": 80
+                              "end_line": 119,
+                              "line": 119
                             }
                           }
                         }
@@ -2047,8 +3014,8 @@
                       "span": {
                         "col": 17,
                         "end_col": 65,
-                        "end_line": 80,
-                        "line": 80
+                        "end_line": 119,
+                        "line": 119
                       }
                     }
                   ],
@@ -2060,8 +3027,8 @@
                     "span": {
                       "col": 4,
                       "end_col": 16,
-                      "end_line": 80,
-                      "line": 80
+                      "end_line": 119,
+                      "line": 119
                     }
                   },
                   "keywords": [],
@@ -2069,8 +3036,8 @@
                   "span": {
                     "col": 4,
                     "end_col": 66,
-                    "end_line": 80,
-                    "line": 80
+                    "end_line": 119,
+                    "line": 119
                   },
                   "syscall_id": "event.log.emit"
                 }
@@ -2084,8 +3051,8 @@
               "span": {
                 "col": 1,
                 "end_col": 7,
-                "end_line": 69,
-                "line": 69
+                "end_line": 108,
+                "line": 108
               }
             },
             "docstring": null,
@@ -2100,8 +3067,8 @@
                 "span": {
                   "col": 28,
                   "end_col": 38,
-                  "end_line": 70,
-                  "line": 70
+                  "end_line": 109,
+                  "line": 109
                 }
               },
               {
@@ -2112,8 +3079,8 @@
                 "span": {
                   "col": 40,
                   "end_col": 52,
-                  "end_line": 70,
-                  "line": 70
+                  "end_line": 109,
+                  "line": 109
                 }
               },
               {
@@ -2124,8 +3091,8 @@
                 "span": {
                   "col": 54,
                   "end_col": 67,
-                  "end_line": 70,
-                  "line": 70
+                  "end_line": 109,
+                  "line": 109
                 }
               }
             ],
@@ -2133,8 +3100,8 @@
             "span": {
               "col": 0,
               "end_col": 66,
-              "end_line": 80,
-              "line": 70
+              "end_line": 119,
+              "line": 109
             },
             "visibility": "export"
           },
@@ -2146,8 +3113,8 @@
                   "span": {
                     "col": 23,
                     "end_col": 55,
-                    "end_line": 85,
-                    "line": 85
+                    "end_line": 124,
+                    "line": 124
                   },
                   "value": "Cannot send negative balances.",
                   "value_type": "str"
@@ -2156,8 +3123,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 55,
-                  "end_line": 85,
-                  "line": 85
+                  "end_line": 124,
+                  "line": 124
                 },
                 "test": {
                   "comparators": [
@@ -2166,8 +3133,8 @@
                       "span": {
                         "col": 20,
                         "end_col": 21,
-                        "end_line": 85,
-                        "line": 85
+                        "end_line": 124,
+                        "line": 124
                       },
                       "value": 0,
                       "value_type": "int"
@@ -2180,8 +3147,8 @@
                     "span": {
                       "col": 11,
                       "end_col": 17,
-                      "end_line": 85,
-                      "line": 85
+                      "end_line": 124,
+                      "line": 124
                     }
                   },
                   "node": "compare",
@@ -2191,8 +3158,8 @@
                   "span": {
                     "col": 11,
                     "end_col": 21,
-                    "end_line": 85,
-                    "line": 85
+                    "end_line": 124,
+                    "line": 124
                   }
                 }
               },
@@ -2202,8 +3169,8 @@
                   "span": {
                     "col": 7,
                     "end_col": 133,
-                    "end_line": 88,
-                    "line": 88
+                    "end_line": 127,
+                    "line": 127
                   },
                   "values": [
                     {
@@ -2211,8 +3178,8 @@
                       "span": {
                         "col": 9,
                         "end_col": 53,
-                        "end_line": 88,
-                        "line": 88
+                        "end_line": 127,
+                        "line": 127
                       },
                       "value": "Not enough coins approved to send. You have ",
                       "value_type": "str"
@@ -2224,8 +3191,8 @@
                       "span": {
                         "col": 53,
                         "end_col": 90,
-                        "end_line": 88,
-                        "line": 88
+                        "end_line": 127,
+                        "line": 127
                       },
                       "value": {
                         "binding": "approvals",
@@ -2238,8 +3205,8 @@
                               "span": {
                                 "col": 64,
                                 "end_col": 76,
-                                "end_line": 88,
-                                "line": 88
+                                "end_line": 127,
+                                "line": 127
                               }
                             },
                             {
@@ -2250,8 +3217,8 @@
                               "span": {
                                 "col": 78,
                                 "end_col": 88,
-                                "end_line": 88,
-                                "line": 88
+                                "end_line": 127,
+                                "line": 127
                               },
                               "value": {
                                 "host_binding_id": null,
@@ -2260,8 +3227,8 @@
                                 "span": {
                                   "col": 78,
                                   "end_col": 81,
-                                  "end_line": 88,
-                                  "line": 88
+                                  "end_line": 127,
+                                  "line": 127
                                 }
                               }
                             }
@@ -2270,16 +3237,16 @@
                           "span": {
                             "col": 64,
                             "end_col": 88,
-                            "end_line": 88,
-                            "line": 88
+                            "end_line": 127,
+                            "line": 127
                           }
                         },
                         "node": "storage_get",
                         "span": {
                           "col": 54,
                           "end_col": 89,
-                          "end_line": 88,
-                          "line": 88
+                          "end_line": 127,
+                          "line": 127
                         },
                         "storage_type": "Hash",
                         "syscall_id": "storage.hash.get"
@@ -2290,8 +3257,8 @@
                       "span": {
                         "col": 90,
                         "end_col": 124,
-                        "end_line": 88,
-                        "line": 88
+                        "end_line": 127,
+                        "line": 127
                       },
                       "value": " approved and are trying to spend ",
                       "value_type": "str"
@@ -2303,8 +3270,8 @@
                       "span": {
                         "col": 124,
                         "end_col": 132,
-                        "end_line": 88,
-                        "line": 88
+                        "end_line": 127,
+                        "line": 127
                       },
                       "value": {
                         "host_binding_id": null,
@@ -2313,8 +3280,8 @@
                         "span": {
                           "col": 125,
                           "end_col": 131,
-                          "end_line": 88,
-                          "line": 88
+                          "end_line": 127,
+                          "line": 127
                         }
                       }
                     }
@@ -2324,8 +3291,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 133,
-                  "end_line": 88,
-                  "line": 86
+                  "end_line": 127,
+                  "line": 125
                 },
                 "test": {
                   "comparators": [
@@ -2336,8 +3303,8 @@
                       "span": {
                         "col": 47,
                         "end_col": 53,
-                        "end_line": 87,
-                        "line": 87
+                        "end_line": 126,
+                        "line": 126
                       }
                     }
                   ],
@@ -2352,8 +3319,8 @@
                           "span": {
                             "col": 18,
                             "end_col": 30,
-                            "end_line": 87,
-                            "line": 87
+                            "end_line": 126,
+                            "line": 126
                           }
                         },
                         {
@@ -2364,8 +3331,8 @@
                           "span": {
                             "col": 32,
                             "end_col": 42,
-                            "end_line": 87,
-                            "line": 87
+                            "end_line": 126,
+                            "line": 126
                           },
                           "value": {
                             "host_binding_id": null,
@@ -2374,8 +3341,8 @@
                             "span": {
                               "col": 32,
                               "end_col": 35,
-                              "end_line": 87,
-                              "line": 87
+                              "end_line": 126,
+                              "line": 126
                             }
                           }
                         }
@@ -2384,16 +3351,16 @@
                       "span": {
                         "col": 18,
                         "end_col": 42,
-                        "end_line": 87,
-                        "line": 87
+                        "end_line": 126,
+                        "line": 126
                       }
                     },
                     "node": "storage_get",
                     "span": {
                       "col": 8,
                       "end_col": 43,
-                      "end_line": 87,
-                      "line": 87
+                      "end_line": 126,
+                      "line": 126
                     },
                     "storage_type": "Hash",
                     "syscall_id": "storage.hash.get"
@@ -2405,8 +3372,8 @@
                   "span": {
                     "col": 8,
                     "end_col": 53,
-                    "end_line": 87,
-                    "line": 87
+                    "end_line": 126,
+                    "line": 126
                   }
                 }
               },
@@ -2416,8 +3383,8 @@
                   "span": {
                     "col": 45,
                     "end_col": 72,
-                    "end_line": 89,
-                    "line": 89
+                    "end_line": 128,
+                    "line": 128
                   },
                   "value": "Not enough coins to send.",
                   "value_type": "str"
@@ -2426,8 +3393,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 72,
-                  "end_line": 89,
-                  "line": 89
+                  "end_line": 128,
+                  "line": 128
                 },
                 "test": {
                   "comparators": [
@@ -2438,8 +3405,8 @@
                       "span": {
                         "col": 37,
                         "end_col": 43,
-                        "end_line": 89,
-                        "line": 89
+                        "end_line": 128,
+                        "line": 128
                       }
                     }
                   ],
@@ -2452,16 +3419,16 @@
                       "span": {
                         "col": 20,
                         "end_col": 32,
-                        "end_line": 89,
-                        "line": 89
+                        "end_line": 128,
+                        "line": 128
                       }
                     },
                     "node": "storage_get",
                     "span": {
                       "col": 11,
                       "end_col": 33,
-                      "end_line": 89,
-                      "line": 89
+                      "end_line": 128,
+                      "line": 128
                     },
                     "storage_type": "Hash",
                     "syscall_id": "storage.hash.get"
@@ -2473,8 +3440,8 @@
                   "span": {
                     "col": 11,
                     "end_col": 43,
-                    "end_line": 89,
-                    "line": 89
+                    "end_line": 128,
+                    "line": 128
                   }
                 }
               },
@@ -2489,8 +3456,8 @@
                       "span": {
                         "col": 14,
                         "end_col": 26,
-                        "end_line": 91,
-                        "line": 91
+                        "end_line": 130,
+                        "line": 130
                       }
                     },
                     {
@@ -2501,8 +3468,8 @@
                       "span": {
                         "col": 28,
                         "end_col": 38,
-                        "end_line": 91,
-                        "line": 91
+                        "end_line": 130,
+                        "line": 130
                       },
                       "value": {
                         "host_binding_id": null,
@@ -2511,8 +3478,8 @@
                         "span": {
                           "col": 28,
                           "end_col": 31,
-                          "end_line": 91,
-                          "line": 91
+                          "end_line": 130,
+                          "line": 130
                         }
                       }
                     }
@@ -2521,8 +3488,8 @@
                   "span": {
                     "col": 14,
                     "end_col": 38,
-                    "end_line": 91,
-                    "line": 91
+                    "end_line": 130,
+                    "line": 130
                   }
                 },
                 "node": "storage_mutate",
@@ -2531,8 +3498,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 49,
-                  "end_line": 91,
-                  "line": 91
+                  "end_line": 130,
+                  "line": 130
                 },
                 "storage_type": "Hash",
                 "value": {
@@ -2542,8 +3509,8 @@
                   "span": {
                     "col": 43,
                     "end_col": 49,
-                    "end_line": 91,
-                    "line": 91
+                    "end_line": 130,
+                    "line": 130
                   }
                 },
                 "write_syscall_id": "storage.hash.set"
@@ -2557,8 +3524,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 25,
-                    "end_line": 92,
-                    "line": 92
+                    "end_line": 131,
+                    "line": 131
                   }
                 },
                 "node": "storage_mutate",
@@ -2567,8 +3534,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 36,
-                  "end_line": 92,
-                  "line": 92
+                  "end_line": 131,
+                  "line": 131
                 },
                 "storage_type": "Hash",
                 "value": {
@@ -2578,8 +3545,8 @@
                   "span": {
                     "col": 30,
                     "end_col": 36,
-                    "end_line": 92,
-                    "line": 92
+                    "end_line": 131,
+                    "line": 131
                   }
                 },
                 "write_syscall_id": "storage.hash.set"
@@ -2593,8 +3560,8 @@
                   "span": {
                     "col": 13,
                     "end_col": 15,
-                    "end_line": 93,
-                    "line": 93
+                    "end_line": 132,
+                    "line": 132
                   }
                 },
                 "node": "storage_mutate",
@@ -2603,8 +3570,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 26,
-                  "end_line": 93,
-                  "line": 93
+                  "end_line": 132,
+                  "line": 132
                 },
                 "storage_type": "Hash",
                 "value": {
@@ -2614,8 +3581,8 @@
                   "span": {
                     "col": 20,
                     "end_col": 26,
-                    "end_line": 93,
-                    "line": 93
+                    "end_line": 132,
+                    "line": 132
                   }
                 },
                 "write_syscall_id": "storage.hash.set"
@@ -2625,8 +3592,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 69,
-                  "end_line": 95,
-                  "line": 95
+                  "end_line": 134,
+                  "line": 134
                 },
                 "value": {
                   "args": [
@@ -2638,8 +3605,8 @@
                             "span": {
                               "col": 19,
                               "end_col": 25,
-                              "end_line": 95,
-                              "line": 95
+                              "end_line": 134,
+                              "line": 134
                             },
                             "value": "from",
                             "value_type": "str"
@@ -2651,8 +3618,8 @@
                             "span": {
                               "col": 27,
                               "end_col": 39,
-                              "end_line": 95,
-                              "line": 95
+                              "end_line": 134,
+                              "line": 134
                             }
                           }
                         },
@@ -2662,8 +3629,8 @@
                             "span": {
                               "col": 41,
                               "end_col": 45,
-                              "end_line": 95,
-                              "line": 95
+                              "end_line": 134,
+                              "line": 134
                             },
                             "value": "to",
                             "value_type": "str"
@@ -2675,8 +3642,8 @@
                             "span": {
                               "col": 47,
                               "end_col": 49,
-                              "end_line": 95,
-                              "line": 95
+                              "end_line": 134,
+                              "line": 134
                             }
                           }
                         },
@@ -2686,8 +3653,8 @@
                             "span": {
                               "col": 51,
                               "end_col": 59,
-                              "end_line": 95,
-                              "line": 95
+                              "end_line": 134,
+                              "line": 134
                             },
                             "value": "amount",
                             "value_type": "str"
@@ -2699,8 +3666,8 @@
                             "span": {
                               "col": 61,
                               "end_col": 67,
-                              "end_line": 95,
-                              "line": 95
+                              "end_line": 134,
+                              "line": 134
                             }
                           }
                         }
@@ -2709,8 +3676,8 @@
                       "span": {
                         "col": 18,
                         "end_col": 68,
-                        "end_line": 95,
-                        "line": 95
+                        "end_line": 134,
+                        "line": 134
                       }
                     }
                   ],
@@ -2722,8 +3689,8 @@
                     "span": {
                       "col": 4,
                       "end_col": 17,
-                      "end_line": 95,
-                      "line": 95
+                      "end_line": 134,
+                      "line": 134
                     }
                   },
                   "keywords": [],
@@ -2731,8 +3698,8 @@
                   "span": {
                     "col": 4,
                     "end_col": 69,
-                    "end_line": 95,
-                    "line": 95
+                    "end_line": 134,
+                    "line": 134
                   },
                   "syscall_id": "event.log.emit"
                 }
@@ -2746,8 +3713,8 @@
               "span": {
                 "col": 1,
                 "end_col": 7,
-                "end_line": 83,
-                "line": 83
+                "end_line": 122,
+                "line": 122
               }
             },
             "docstring": null,
@@ -2762,8 +3729,8 @@
                 "span": {
                   "col": 18,
                   "end_col": 31,
-                  "end_line": 84,
-                  "line": 84
+                  "end_line": 123,
+                  "line": 123
                 }
               },
               {
@@ -2774,8 +3741,8 @@
                 "span": {
                   "col": 33,
                   "end_col": 40,
-                  "end_line": 84,
-                  "line": 84
+                  "end_line": 123,
+                  "line": 123
                 }
               },
               {
@@ -2786,8 +3753,8 @@
                 "span": {
                   "col": 42,
                   "end_col": 59,
-                  "end_line": 84,
-                  "line": 84
+                  "end_line": 123,
+                  "line": 123
                 }
               }
             ],
@@ -2795,8 +3762,8 @@
             "span": {
               "col": 0,
               "end_col": 69,
-              "end_line": 95,
-              "line": 84
+              "end_line": 134,
+              "line": 123
             },
             "visibility": "export"
           },
@@ -2807,8 +3774,8 @@
                 "span": {
                   "col": 4,
                   "end_col": 28,
-                  "end_line": 100,
-                  "line": 100
+                  "end_line": 139,
+                  "line": 139
                 },
                 "value": {
                   "binding": "balances",
@@ -2819,16 +3786,16 @@
                     "span": {
                       "col": 20,
                       "end_col": 27,
-                      "end_line": 100,
-                      "line": 100
+                      "end_line": 139,
+                      "line": 139
                     }
                   },
                   "node": "storage_get",
                   "span": {
                     "col": 11,
                     "end_col": 28,
-                    "end_line": 100,
-                    "line": 100
+                    "end_line": 139,
+                    "line": 139
                   },
                   "storage_type": "Hash",
                   "syscall_id": "storage.hash.get"
@@ -2843,8 +3810,8 @@
               "span": {
                 "col": 1,
                 "end_col": 7,
-                "end_line": 98,
-                "line": 98
+                "end_line": 137,
+                "line": 137
               }
             },
             "docstring": null,
@@ -2859,8 +3826,8 @@
                 "span": {
                   "col": 15,
                   "end_col": 27,
-                  "end_line": 99,
-                  "line": 99
+                  "end_line": 138,
+                  "line": 138
                 }
               }
             ],
@@ -2868,8 +3835,8 @@
             "span": {
               "col": 0,
               "end_col": 28,
-              "end_line": 100,
-              "line": 99
+              "end_line": 139,
+              "line": 138
             },
             "visibility": "export"
           }
@@ -2962,6 +3929,27 @@
             "syscall_id": "storage.hash.new"
           },
           {
+            "name": "GOVERNANCE_CONTRACT",
+            "node": "binding_decl",
+            "span": {
+              "col": 0,
+              "end_col": 34,
+              "end_line": 5,
+              "line": 5
+            },
+            "value": {
+              "node": "constant",
+              "span": {
+                "col": 22,
+                "end_col": 34,
+                "end_line": 5,
+                "line": 5
+              },
+              "value": "governance",
+              "value_type": "str"
+            }
+          },
+          {
             "event_name": "Transfer",
             "name": "TransferEvent",
             "node": "event_decl",
@@ -2973,8 +3961,8 @@
                     "span": {
                       "col": 8,
                       "end_col": 14,
-                      "end_line": 8,
-                      "line": 8
+                      "end_line": 10,
+                      "line": 10
                     },
                     "value": "from",
                     "value_type": "str"
@@ -2988,8 +3976,8 @@
                         "span": {
                           "col": 24,
                           "end_col": 27,
-                          "end_line": 8,
-                          "line": 8
+                          "end_line": 10,
+                          "line": 10
                         }
                       }
                     ],
@@ -3001,8 +3989,8 @@
                       "span": {
                         "col": 16,
                         "end_col": 23,
-                        "end_line": 8,
-                        "line": 8
+                        "end_line": 10,
+                        "line": 10
                       }
                     },
                     "keywords": [],
@@ -3010,8 +3998,8 @@
                     "span": {
                       "col": 16,
                       "end_col": 28,
-                      "end_line": 8,
-                      "line": 8
+                      "end_line": 10,
+                      "line": 10
                     },
                     "syscall_id": "event.indexed"
                   }
@@ -3022,8 +4010,8 @@
                     "span": {
                       "col": 8,
                       "end_col": 12,
-                      "end_line": 9,
-                      "line": 9
+                      "end_line": 11,
+                      "line": 11
                     },
                     "value": "to",
                     "value_type": "str"
@@ -3037,8 +4025,8 @@
                         "span": {
                           "col": 22,
                           "end_col": 25,
-                          "end_line": 9,
-                          "line": 9
+                          "end_line": 11,
+                          "line": 11
                         }
                       }
                     ],
@@ -3050,8 +4038,8 @@
                       "span": {
                         "col": 14,
                         "end_col": 21,
-                        "end_line": 9,
-                        "line": 9
+                        "end_line": 11,
+                        "line": 11
                       }
                     },
                     "keywords": [],
@@ -3059,8 +4047,8 @@
                     "span": {
                       "col": 14,
                       "end_col": 26,
-                      "end_line": 9,
-                      "line": 9
+                      "end_line": 11,
+                      "line": 11
                     },
                     "syscall_id": "event.indexed"
                   }
@@ -3071,8 +4059,8 @@
                     "span": {
                       "col": 8,
                       "end_col": 16,
-                      "end_line": 10,
-                      "line": 10
+                      "end_line": 12,
+                      "line": 12
                     },
                     "value": "amount",
                     "value_type": "str"
@@ -3086,8 +4074,8 @@
                         "span": {
                           "col": 19,
                           "end_col": 22,
-                          "end_line": 10,
-                          "line": 10
+                          "end_line": 12,
+                          "line": 12
                         }
                       },
                       {
@@ -3097,8 +4085,8 @@
                         "span": {
                           "col": 24,
                           "end_col": 29,
-                          "end_line": 10,
-                          "line": 10
+                          "end_line": 12,
+                          "line": 12
                         }
                       },
                       {
@@ -3108,8 +4096,8 @@
                         "span": {
                           "col": 31,
                           "end_col": 38,
-                          "end_line": 10,
-                          "line": 10
+                          "end_line": 12,
+                          "line": 12
                         }
                       }
                     ],
@@ -3117,8 +4105,8 @@
                     "span": {
                       "col": 18,
                       "end_col": 39,
-                      "end_line": 10,
-                      "line": 10
+                      "end_line": 12,
+                      "line": 12
                     }
                   }
                 }
@@ -3127,15 +4115,15 @@
               "span": {
                 "col": 4,
                 "end_col": 5,
-                "end_line": 11,
-                "line": 7
+                "end_line": 13,
+                "line": 9
               }
             },
             "span": {
               "col": 0,
               "end_col": 1,
-              "end_line": 12,
-              "line": 5
+              "end_line": 14,
+              "line": 7
             },
             "syscall_id": "event.log.new"
           },
@@ -3151,8 +4139,8 @@
                     "span": {
                       "col": 8,
                       "end_col": 14,
-                      "end_line": 16,
-                      "line": 16
+                      "end_line": 18,
+                      "line": 18
                     },
                     "value": "from",
                     "value_type": "str"
@@ -3166,8 +4154,8 @@
                         "span": {
                           "col": 24,
                           "end_col": 27,
-                          "end_line": 16,
-                          "line": 16
+                          "end_line": 18,
+                          "line": 18
                         }
                       }
                     ],
@@ -3179,8 +4167,8 @@
                       "span": {
                         "col": 16,
                         "end_col": 23,
-                        "end_line": 16,
-                        "line": 16
+                        "end_line": 18,
+                        "line": 18
                       }
                     },
                     "keywords": [],
@@ -3188,8 +4176,8 @@
                     "span": {
                       "col": 16,
                       "end_col": 28,
-                      "end_line": 16,
-                      "line": 16
+                      "end_line": 18,
+                      "line": 18
                     },
                     "syscall_id": "event.indexed"
                   }
@@ -3200,8 +4188,8 @@
                     "span": {
                       "col": 8,
                       "end_col": 12,
-                      "end_line": 17,
-                      "line": 17
+                      "end_line": 19,
+                      "line": 19
                     },
                     "value": "to",
                     "value_type": "str"
@@ -3215,8 +4203,8 @@
                         "span": {
                           "col": 22,
                           "end_col": 25,
-                          "end_line": 17,
-                          "line": 17
+                          "end_line": 19,
+                          "line": 19
                         }
                       }
                     ],
@@ -3228,8 +4216,8 @@
                       "span": {
                         "col": 14,
                         "end_col": 21,
-                        "end_line": 17,
-                        "line": 17
+                        "end_line": 19,
+                        "line": 19
                       }
                     },
                     "keywords": [],
@@ -3237,8 +4225,8 @@
                     "span": {
                       "col": 14,
                       "end_col": 26,
-                      "end_line": 17,
-                      "line": 17
+                      "end_line": 19,
+                      "line": 19
                     },
                     "syscall_id": "event.indexed"
                   }
@@ -3249,8 +4237,8 @@
                     "span": {
                       "col": 8,
                       "end_col": 16,
-                      "end_line": 18,
-                      "line": 18
+                      "end_line": 20,
+                      "line": 20
                     },
                     "value": "amount",
                     "value_type": "str"
@@ -3264,8 +4252,8 @@
                         "span": {
                           "col": 19,
                           "end_col": 22,
-                          "end_line": 18,
-                          "line": 18
+                          "end_line": 20,
+                          "line": 20
                         }
                       },
                       {
@@ -3275,8 +4263,8 @@
                         "span": {
                           "col": 24,
                           "end_col": 29,
-                          "end_line": 18,
-                          "line": 18
+                          "end_line": 20,
+                          "line": 20
                         }
                       },
                       {
@@ -3286,8 +4274,8 @@
                         "span": {
                           "col": 31,
                           "end_col": 38,
-                          "end_line": 18,
-                          "line": 18
+                          "end_line": 20,
+                          "line": 20
                         }
                       }
                     ],
@@ -3295,8 +4283,8 @@
                     "span": {
                       "col": 18,
                       "end_col": 39,
-                      "end_line": 18,
-                      "line": 18
+                      "end_line": 20,
+                      "line": 20
                     }
                   }
                 }
@@ -3305,15 +4293,15 @@
               "span": {
                 "col": 4,
                 "end_col": 5,
-                "end_line": 19,
-                "line": 15
+                "end_line": 21,
+                "line": 17
               }
             },
             "span": {
               "col": 0,
               "end_col": 1,
-              "end_line": 20,
-              "line": 13
+              "end_line": 22,
+              "line": 15
             },
             "syscall_id": "event.log.new"
           }
@@ -3325,6 +4313,12 @@
             "category": "context",
             "id": "context.caller",
             "kind": "context_field"
+          },
+          {
+            "binding": "importlib.exists",
+            "category": "import",
+            "id": "contract.exists",
+            "kind": "syscall"
           },
           {
             "binding": "indexed",
@@ -3343,6 +4337,12 @@
             "category": "event",
             "id": "event.log.new",
             "kind": "syscall"
+          },
+          {
+            "binding": "importlib",
+            "category": "import",
+            "id": "module.importlib",
+            "kind": "value"
           },
           {
             "binding": "decimal",
@@ -3379,7 +4379,7 @@
         "ir_version": "xian_ir_v1",
         "module_body": [],
         "module_name": "con_currency_vm",
-        "source_hash": "a22e927aebb3ac69774e6cf3e04bd61d839e9eedc27642fabf88621d417ffcea",
+        "source_hash": "0b06d59e0d7680e29192a6416fd8ac3afbdbcc1684891f9765b7503f84859444",
         "vm_profile": "xian_vm_v1"
       },
       "module_name": "con_currency_vm",
