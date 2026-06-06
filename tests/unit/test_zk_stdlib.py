@@ -51,7 +51,7 @@ class TestZkStdlib(TestCase):
                 ("zk_registry", "verifying_keys", ("demo", "circuit_name")): "demo",
                 ("zk_registry", "verifying_keys", ("demo", "version")): "1",
                 ("zk_registry", "verifying_keys", ("demo", "created_at")): 123,
-                ("zk_registry", "verifying_keys", ("demo", "circuit_family")): "shielded_note_v3",
+                ("zk_registry", "verifying_keys", ("demo", "circuit_family")): "shielded_note_v4",
                 ("zk_registry", "verifying_keys", ("demo", "statement_version")): "3",
                 ("zk_registry", "verifying_keys", ("demo", "contract_name")): "artifact",
                 ("zk_registry", "verifying_keys", ("demo", "artifact_contract_name")): "artifact",
@@ -75,7 +75,7 @@ class TestZkStdlib(TestCase):
 
         self.assertEqual(info["vk_id"], "demo")
         self.assertEqual(info["vk_hash"], "0x56")
-        self.assertEqual(info["circuit_family"], "shielded_note_v3")
+        self.assertEqual(info["circuit_family"], "shielded_note_v4")
         self.assertEqual(info["max_outputs"], 4)
         self.assertFalse(info["deprecated"])
 

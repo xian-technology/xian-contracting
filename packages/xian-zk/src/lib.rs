@@ -1,4 +1,5 @@
 mod core;
+mod poseidon;
 mod shielded_notes;
 
 pub use crate::core::{

@@ -73,7 +73,7 @@ def test_command_registry_manifest_includes_registry_metadata():
     manifest = shielded_command_registry_manifest(
         {
             "contract_name": "con_shielded_commands",
-            "circuit_family": "shielded_command_v4",
+            "circuit_family": "shielded_command_v5",
             "tree_depth": 20,
             "leaf_capacity": 1_048_576,
             "max_inputs": 4,
@@ -82,28 +82,28 @@ def test_command_registry_manifest_includes_registry_metadata():
             "setup_mode": "single-party",
             "setup_ceremony": "",
             "deposit": {
-                "vk_id": "shielded-command-deposit-v4",
+                "vk_id": "shielded-command-deposit-v5",
                 "vk_hex": "0x01",
-                "circuit_name": "shielded_command_deposit_v4",
-                "version": "4",
+                "circuit_name": "shielded_command_deposit_v5",
+                "version": "5",
             },
             "command": {
-                "vk_id": "shielded-command-execute-v4",
+                "vk_id": "shielded-command-execute-v5",
                 "vk_hex": "0x02",
-                "circuit_name": "shielded_command_execute_v4",
-                "version": "4",
+                "circuit_name": "shielded_command_execute_v5",
+                "version": "5",
             },
             "withdraw": {
-                "vk_id": "shielded-command-withdraw-v4",
+                "vk_id": "shielded-command-withdraw-v5",
                 "vk_hex": "0x03",
-                "circuit_name": "shielded_command_withdraw_v4",
-                "version": "4",
+                "circuit_name": "shielded_command_withdraw_v5",
+                "version": "5",
             },
         }
     )
 
-    assert manifest["circuit_family"] == "shielded_command_v4"
+    assert manifest["circuit_family"] == "shielded_command_v5"
     assert manifest["setup_mode"] == "single-party"
     assert manifest["registry_entries"][1]["action"] == "command"
-    assert manifest["registry_entries"][1]["statement_version"] == "4"
+    assert manifest["registry_entries"][1]["statement_version"] == "5"
     assert manifest["registry_entries"][1]["bundle_hash"].startswith("0x")

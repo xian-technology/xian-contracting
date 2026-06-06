@@ -1,5 +1,5 @@
 use ark_bn254::{Bn254, Fr};
-use ark_ff::{BigInteger, Field, PrimeField, Zero};
+use ark_ff::{BigInteger, PrimeField, Zero};
 use ark_groth16::{Groth16, Proof, ProvingKey, VerifyingKey};
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::boolean::Boolean;
@@ -16,22 +16,23 @@ use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 use std::error::Error;
 
+use crate::poseidon::{domain, poseidon_hash, poseidon_hash_var};
+
 pub const SHIELDED_NOTE_TREE_DEPTH: usize = 20;
 pub const SHIELDED_NOTE_TREE_LEAF_COUNT: usize = 1 << SHIELDED_NOTE_TREE_DEPTH;
 pub const SHIELDED_NOTE_MAX_INPUTS: usize = 4;
 pub const SHIELDED_NOTE_MAX_OUTPUTS: usize = 4;
 pub const SHIELDED_NOTE_AMOUNT_BITS: usize = 64;
-const MIMC_ROUNDS: usize = 91;
-const SHIELDED_NOTE_CIRCUIT_FAMILY: &str = "shielded_note_v3";
-const SHIELDED_NOTE_DEPOSIT_CIRCUIT_NAME: &str = "shielded_note_deposit_v3";
-const SHIELDED_NOTE_TRANSFER_CIRCUIT_NAME: &str = "shielded_note_transfer_v3";
-const SHIELDED_NOTE_WITHDRAW_CIRCUIT_NAME: &str = "shielded_note_withdraw_v3";
-const SHIELDED_NOTE_CIRCUIT_VERSION: &str = "3";
-const SHIELDED_COMMAND_CIRCUIT_FAMILY: &str = "shielded_command_v4";
-const SHIELDED_COMMAND_DEPOSIT_CIRCUIT_NAME: &str = "shielded_command_deposit_v4";
-const SHIELDED_COMMAND_EXECUTE_CIRCUIT_NAME: &str = "shielded_command_execute_v4";
-const SHIELDED_COMMAND_WITHDRAW_CIRCUIT_NAME: &str = "shielded_command_withdraw_v4";
-const SHIELDED_COMMAND_CIRCUIT_VERSION: &str = "4";
+const SHIELDED_NOTE_CIRCUIT_FAMILY: &str = "shielded_note_v4";
+const SHIELDED_NOTE_DEPOSIT_CIRCUIT_NAME: &str = "shielded_note_deposit_v4";
+const SHIELDED_NOTE_TRANSFER_CIRCUIT_NAME: &str = "shielded_note_transfer_v4";
+const SHIELDED_NOTE_WITHDRAW_CIRCUIT_NAME: &str = "shielded_note_withdraw_v4";
+const SHIELDED_NOTE_CIRCUIT_VERSION: &str = "4";
+const SHIELDED_COMMAND_CIRCUIT_FAMILY: &str = "shielded_command_v5";
+const SHIELDED_COMMAND_DEPOSIT_CIRCUIT_NAME: &str = "shielded_command_deposit_v5";
+const SHIELDED_COMMAND_EXECUTE_CIRCUIT_NAME: &str = "shielded_command_execute_v5";
+const SHIELDED_COMMAND_WITHDRAW_CIRCUIT_NAME: &str = "shielded_command_withdraw_v5";
+const SHIELDED_COMMAND_CIRCUIT_VERSION: &str = "5";
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ShieldedVkFixture {
@@ -335,11 +336,6 @@ struct FrontierState {
     filled_subtrees: Vec<Fr>,
 }
 
-fn mimc_round_constant(round: usize) -> Fr {
-    let digest = Sha3_256::digest(format!("xian-mimc-bn254-{round}").as_bytes());
-    Fr::from_be_bytes_mod_order(&digest)
-}
-
 fn field_hex(value: Fr) -> String {
     let mut bytes = value.into_bigint().to_bytes_be();
     if bytes.len() < 32 {
@@ -434,31 +430,15 @@ fn canonicalize_command_payload(
     }
 }
 
-fn mimc_permute_native(mut state: Fr) -> Fr {
-    for round in 0..MIMC_ROUNDS {
-        state += mimc_round_constant(round);
-        let square = state.square();
-        let fourth = square.square();
-        let sixth = fourth * square;
-        state = sixth * state;
-    }
-    state
-}
-
-fn mimc_hash_many_native(values: &[Fr]) -> Fr {
-    let mut state = Fr::zero();
-    for value in values {
-        state = mimc_permute_native(state + value);
-    }
-    state
-}
-
 fn owner_public(owner_secret: Fr) -> Fr {
-    mimc_hash_many_native(&[owner_secret])
+    poseidon_hash(domain::OWNER_PUBLIC, &[owner_secret])
 }
 
 fn output_commitment(asset_id: Fr, owner_public: Fr, amount: u64, rho: Fr, blind: Fr) -> Fr {
-    mimc_hash_many_native(&[asset_id, owner_public, Fr::from(amount), rho, blind])
+    poseidon_hash(
+        domain::NOTE_COMMITMENT,
+        &[asset_id, owner_public, Fr::from(amount), rho, blind],
+    )
 }
 
 fn note_commitment(asset_id: Fr, note: &NoteWitness) -> Fr {
@@ -472,11 +452,11 @@ fn note_commitment(asset_id: Fr, note: &NoteWitness) -> Fr {
 }
 
 fn note_nullifier(asset_id: Fr, note: &NoteWitness) -> Fr {
-    mimc_hash_many_native(&[asset_id, note.owner_secret, note.rho])
+    poseidon_hash(domain::NULLIFIER, &[asset_id, note.owner_secret, note.rho])
 }
 
 fn command_nullifier_digest(input_nullifiers: &[Fr]) -> Fr {
-    mimc_hash_many_native(input_nullifiers)
+    poseidon_hash(domain::COMMAND_NULLIFIER_DIGEST, input_nullifiers)
 }
 
 fn command_binding(
@@ -491,26 +471,32 @@ fn command_binding(
     fee: u64,
     public_amount: u64,
 ) -> Fr {
-    mimc_hash_many_native(&[
-        nullifier_digest,
-        target_digest,
-        payload_digest,
-        relayer_digest,
-        expiry_digest,
-        chain_digest,
-        entrypoint_digest,
-        version_digest,
-        Fr::from(fee),
-        Fr::from(public_amount),
-    ])
+    poseidon_hash(
+        domain::COMMAND_BINDING,
+        &[
+            nullifier_digest,
+            target_digest,
+            payload_digest,
+            relayer_digest,
+            expiry_digest,
+            chain_digest,
+            entrypoint_digest,
+            version_digest,
+            Fr::from(fee),
+            Fr::from(public_amount),
+        ],
+    )
 }
 
 fn command_execution_tag(nullifier_digest: Fr, command_binding: Fr) -> Fr {
-    mimc_hash_many_native(&[nullifier_digest, command_binding])
+    poseidon_hash(
+        domain::COMMAND_EXECUTION_TAG,
+        &[nullifier_digest, command_binding],
+    )
 }
 
 fn merkle_parent(left: Fr, right: Fr) -> Fr {
-    mimc_hash_many_native(&[left, right])
+    poseidon_hash(domain::MERKLE, &[left, right])
 }
 
 fn zero_hashes() -> Vec<Fr> {
@@ -1135,77 +1121,84 @@ fn amount_bits_to_var(
     Ok(acc)
 }
 
-fn mimc_permute_var(mut state: FpVar<Fr>) -> FpVar<Fr> {
-    for round in 0..MIMC_ROUNDS {
-        state += mimc_round_constant(round);
-        let square = state.square().expect("square should succeed");
-        let fourth = square.square().expect("square should succeed");
-        let sixth = fourth * square;
-        state = sixth * state;
-    }
-    state
-}
-
-fn mimc_hash_many_var(values: &[FpVar<Fr>]) -> FpVar<Fr> {
-    let mut state = FpVar::constant(Fr::zero());
-    for value in values {
-        state = mimc_permute_var(state + value);
-    }
-    state
-}
-
-fn owner_public_var(owner_secret: &FpVar<Fr>) -> FpVar<Fr> {
-    mimc_hash_many_var(std::slice::from_ref(owner_secret))
+fn owner_public_var(
+    cs: ConstraintSystemRef<Fr>,
+    owner_secret: &FpVar<Fr>,
+) -> Result<FpVar<Fr>, SynthesisError> {
+    poseidon_hash_var(cs, domain::OWNER_PUBLIC, std::slice::from_ref(owner_secret))
 }
 
 fn output_commitment_var(
+    cs: ConstraintSystemRef<Fr>,
     asset_id: &FpVar<Fr>,
     owner_public: &FpVar<Fr>,
     amount: &FpVar<Fr>,
     rho: &FpVar<Fr>,
     blind: &FpVar<Fr>,
-) -> FpVar<Fr> {
-    mimc_hash_many_var(&[
-        asset_id.clone(),
-        owner_public.clone(),
-        amount.clone(),
-        rho.clone(),
-        blind.clone(),
-    ])
+) -> Result<FpVar<Fr>, SynthesisError> {
+    poseidon_hash_var(
+        cs,
+        domain::NOTE_COMMITMENT,
+        &[
+            asset_id.clone(),
+            owner_public.clone(),
+            amount.clone(),
+            rho.clone(),
+            blind.clone(),
+        ],
+    )
 }
 
 fn note_commitment_var(
+    cs: ConstraintSystemRef<Fr>,
     asset_id: &FpVar<Fr>,
     owner_secret: &FpVar<Fr>,
     amount: &FpVar<Fr>,
     rho: &FpVar<Fr>,
     blind: &FpVar<Fr>,
-) -> FpVar<Fr> {
-    let owner_public = owner_public_var(owner_secret);
-    output_commitment_var(asset_id, &owner_public, amount, rho, blind)
+) -> Result<FpVar<Fr>, SynthesisError> {
+    let owner_public = owner_public_var(cs.clone(), owner_secret)?;
+    output_commitment_var(cs, asset_id, &owner_public, amount, rho, blind)
 }
 
 fn note_nullifier_var(
+    cs: ConstraintSystemRef<Fr>,
     asset_id: &FpVar<Fr>,
     owner_secret: &FpVar<Fr>,
     rho: &FpVar<Fr>,
-) -> FpVar<Fr> {
-    mimc_hash_many_var(&[asset_id.clone(), owner_secret.clone(), rho.clone()])
+) -> Result<FpVar<Fr>, SynthesisError> {
+    poseidon_hash_var(
+        cs,
+        domain::NULLIFIER,
+        &[asset_id.clone(), owner_secret.clone(), rho.clone()],
+    )
 }
 
-fn command_nullifier_digest_var(input_nullifiers: &[FpVar<Fr>]) -> FpVar<Fr> {
-    mimc_hash_many_var(input_nullifiers)
+fn command_nullifier_digest_var(
+    cs: ConstraintSystemRef<Fr>,
+    input_nullifiers: &[FpVar<Fr>],
+) -> Result<FpVar<Fr>, SynthesisError> {
+    poseidon_hash_var(cs, domain::COMMAND_NULLIFIER_DIGEST, input_nullifiers)
 }
 
 fn command_execution_tag_var(
+    cs: ConstraintSystemRef<Fr>,
     nullifier_digest: &FpVar<Fr>,
     command_binding: &FpVar<Fr>,
-) -> FpVar<Fr> {
-    mimc_hash_many_var(&[nullifier_digest.clone(), command_binding.clone()])
+) -> Result<FpVar<Fr>, SynthesisError> {
+    poseidon_hash_var(
+        cs,
+        domain::COMMAND_EXECUTION_TAG,
+        &[nullifier_digest.clone(), command_binding.clone()],
+    )
 }
 
-fn merkle_parent_var(left: &FpVar<Fr>, right: &FpVar<Fr>) -> FpVar<Fr> {
-    mimc_hash_many_var(&[left.clone(), right.clone()])
+fn merkle_parent_var(
+    cs: ConstraintSystemRef<Fr>,
+    left: &FpVar<Fr>,
+    right: &FpVar<Fr>,
+) -> Result<FpVar<Fr>, SynthesisError> {
+    poseidon_hash_var(cs, domain::MERKLE, &[left.clone(), right.clone()])
 }
 
 fn merkle_root_from_auth_path_var(
@@ -1219,7 +1212,7 @@ fn merkle_root_from_auth_path_var(
         let is_right = Boolean::new_witness(cs.clone(), || Ok(path_directions[level]))?;
         let left = is_right.select(sibling, &current)?;
         let right = is_right.select(&current, sibling)?;
-        current = merkle_parent_var(&left, &right);
+        current = merkle_parent_var(cs.clone(), &left, &right)?;
     }
     Ok(current)
 }
@@ -1294,7 +1287,7 @@ impl ConstraintSynthesizer<Fr> for DepositCircuit {
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), output.amount)?;
             let commitment =
-                output_commitment_var(asset_id, &owner_public, &note_amount, &rho, &blind);
+                output_commitment_var(cs.clone(), asset_id, &owner_public, &note_amount, &rho, &blind)?;
 
             public_commitments[index].enforce_equal(&(commitment * enabled_fp.clone()))?;
             output_sum += note_amount * enabled_fp;
@@ -1376,7 +1369,7 @@ impl ConstraintSynthesizer<Fr> for TransferCircuit {
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(input.note.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), input.note.amount)?;
             let commitment =
-                note_commitment_var(asset_id, &owner_secret, &note_amount, &rho, &blind);
+                note_commitment_var(cs.clone(), asset_id, &owner_secret, &note_amount, &rho, &blind)?;
             let auth_path = witness_path_var(cs.clone(), &input.merkle_path)?;
             let membership_root = merkle_root_from_auth_path_var(
                 cs.clone(),
@@ -1387,7 +1380,8 @@ impl ConstraintSynthesizer<Fr> for TransferCircuit {
             ((membership_root - old_root.clone()) * enabled_fp.clone())
                 .enforce_equal(&FpVar::constant(Fr::zero()))?;
 
-            let nullifier = note_nullifier_var(asset_id, &owner_secret, &rho) * enabled_fp.clone();
+            let nullifier =
+                note_nullifier_var(cs.clone(), asset_id, &owner_secret, &rho)? * enabled_fp.clone();
             public_nullifiers[index].enforce_equal(&nullifier)?;
             input_sum += note_amount * enabled_fp;
         }
@@ -1403,7 +1397,7 @@ impl ConstraintSynthesizer<Fr> for TransferCircuit {
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), output.amount)?;
             let commitment =
-                output_commitment_var(asset_id, &owner_public, &note_amount, &rho, &blind);
+                output_commitment_var(cs.clone(), asset_id, &owner_public, &note_amount, &rho, &blind)?;
             public_commitments[index].enforce_equal(&(commitment * enabled_fp.clone()))?;
             output_sum += note_amount * enabled_fp;
         }
@@ -1491,7 +1485,7 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(input.note.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), input.note.amount)?;
             let commitment =
-                note_commitment_var(asset_id, &owner_secret, &note_amount, &rho, &blind);
+                note_commitment_var(cs.clone(), asset_id, &owner_secret, &note_amount, &rho, &blind)?;
             let auth_path = witness_path_var(cs.clone(), &input.merkle_path)?;
             let membership_root = merkle_root_from_auth_path_var(
                 cs.clone(),
@@ -1502,7 +1496,8 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
             ((membership_root - old_root.clone()) * enabled_fp.clone())
                 .enforce_equal(&FpVar::constant(Fr::zero()))?;
 
-            let nullifier = note_nullifier_var(asset_id, &owner_secret, &rho) * enabled_fp.clone();
+            let nullifier =
+                note_nullifier_var(cs.clone(), asset_id, &owner_secret, &rho)? * enabled_fp.clone();
             public_nullifiers[index].enforce_equal(&nullifier)?;
             input_sum += note_amount * enabled_fp;
         }
@@ -1518,7 +1513,7 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), output.amount)?;
             let commitment =
-                output_commitment_var(asset_id, &owner_public, &note_amount, &rho, &blind);
+                output_commitment_var(cs.clone(), asset_id, &owner_public, &note_amount, &rho, &blind)?;
             public_commitments[index].enforce_equal(&(commitment * enabled_fp.clone()))?;
             output_sum += note_amount * enabled_fp;
         }
@@ -1616,7 +1611,7 @@ impl ConstraintSynthesizer<Fr> for CommandCircuit {
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(input.note.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), input.note.amount)?;
             let commitment =
-                note_commitment_var(asset_id, &owner_secret, &note_amount, &rho, &blind);
+                note_commitment_var(cs.clone(), asset_id, &owner_secret, &note_amount, &rho, &blind)?;
             let auth_path = witness_path_var(cs.clone(), &input.merkle_path)?;
             let membership_root = merkle_root_from_auth_path_var(
                 cs.clone(),
@@ -1627,13 +1622,14 @@ impl ConstraintSynthesizer<Fr> for CommandCircuit {
             ((membership_root - old_root.clone()) * enabled_fp.clone())
                 .enforce_equal(&FpVar::constant(Fr::zero()))?;
 
-            let nullifier = note_nullifier_var(asset_id, &owner_secret, &rho) * enabled_fp.clone();
+            let nullifier =
+                note_nullifier_var(cs.clone(), asset_id, &owner_secret, &rho)? * enabled_fp.clone();
             public_nullifiers[index].enforce_equal(&nullifier)?;
             input_sum += note_amount * enabled_fp;
         }
 
-        let nullifier_digest = command_nullifier_digest_var(public_nullifiers);
-        let execution_tag = command_execution_tag_var(&nullifier_digest, command_binding);
+        let nullifier_digest = command_nullifier_digest_var(cs.clone(), public_nullifiers)?;
+        let execution_tag = command_execution_tag_var(cs.clone(), &nullifier_digest, command_binding)?;
         public_execution_tag.enforce_equal(&execution_tag)?;
 
         for (index, output) in self.outputs.iter().enumerate() {
@@ -1647,7 +1643,7 @@ impl ConstraintSynthesizer<Fr> for CommandCircuit {
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), output.amount)?;
             let commitment =
-                output_commitment_var(asset_id, &owner_public, &note_amount, &rho, &blind);
+                output_commitment_var(cs.clone(), asset_id, &owner_public, &note_amount, &rho, &blind)?;
             public_commitments[index].enforce_equal(&(commitment * enabled_fp.clone()))?;
             output_sum += note_amount * enabled_fp;
         }
@@ -1977,21 +1973,21 @@ pub fn build_shielded_note_fixture() -> Result<ShieldedFixture, Box<dyn Error>> 
         max_outputs: SHIELDED_NOTE_MAX_OUTPUTS,
         verifying_keys: vec![
             ShieldedVkFixture {
-                vk_id: "shielded-deposit-v3".to_string(),
-                circuit_name: "shielded_note_deposit_v3".to_string(),
-                version: "3".to_string(),
+                vk_id: "shielded-deposit-v4".to_string(),
+                circuit_name: "shielded_note_deposit_v4".to_string(),
+                version: "4".to_string(),
                 vk_hex: serialize_hex(&deposit_vk)?,
             },
             ShieldedVkFixture {
-                vk_id: "shielded-transfer-v3".to_string(),
-                circuit_name: "shielded_note_transfer_v3".to_string(),
-                version: "3".to_string(),
+                vk_id: "shielded-transfer-v4".to_string(),
+                circuit_name: "shielded_note_transfer_v4".to_string(),
+                version: "4".to_string(),
                 vk_hex: serialize_hex(&transfer_vk)?,
             },
             ShieldedVkFixture {
-                vk_id: "shielded-withdraw-v3".to_string(),
-                circuit_name: "shielded_note_withdraw_v3".to_string(),
-                version: "3".to_string(),
+                vk_id: "shielded-withdraw-v4".to_string(),
+                circuit_name: "shielded_note_withdraw_v4".to_string(),
+                version: "4".to_string(),
                 vk_hex: serialize_hex(&withdraw_vk)?,
             },
         ],
@@ -2140,9 +2136,9 @@ pub fn build_insecure_dev_shielded_note_bundle() -> Result<ShieldedProverBundle,
         warning: "INSECURE DEV BUNDLE: deterministic setup seed exposes toxic waste and must never be used on a real network.",
         setup_mode: "insecure-dev",
         setup_ceremony: "",
-        deposit_vk_id: "shielded-deposit-v3",
-        transfer_vk_id: "shielded-transfer-v3",
-        withdraw_vk_id: "shielded-withdraw-v3",
+        deposit_vk_id: "shielded-deposit-v4",
+        transfer_vk_id: "shielded-transfer-v4",
+        withdraw_vk_id: "shielded-withdraw-v4",
     };
     build_shielded_note_bundle_with_rng(&mut rng, &descriptor)
 }
@@ -2245,9 +2241,9 @@ pub fn build_insecure_dev_shielded_command_bundle(
         warning: "INSECURE DEV BUNDLE: deterministic setup seed exposes toxic waste and must never be used on a real network.",
         setup_mode: "insecure-dev",
         setup_ceremony: "",
-        deposit_vk_id: "shielded-command-deposit-v4",
-        command_vk_id: "shielded-command-execute-v4",
-        withdraw_vk_id: "shielded-command-withdraw-v4",
+        deposit_vk_id: "shielded-command-deposit-v5",
+        command_vk_id: "shielded-command-execute-v5",
+        withdraw_vk_id: "shielded-command-withdraw-v5",
     };
     build_shielded_command_bundle_with_rng(&mut rng, &descriptor)
 }
@@ -2752,6 +2748,100 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
 mod tests {
     use super::*;
     use crate::core::verify_groth16_bn254;
+    use ark_relations::r1cs::ConstraintSystem;
+
+    /// Builds a single-note tree and a `WithdrawCircuit` that spends that note.
+    ///
+    /// `committed_amount` is the value baked into the on-chain commitment;
+    /// `witness_amount` is the value the prover *claims* when spending;
+    /// `withdraw_amount` is the public amount released. Returns a circuit whose
+    /// constraint satisfiability can be asserted directly (no trusted setup).
+    fn withdraw_circuit_for_amounts(
+        committed_amount: u64,
+        witness_amount: u64,
+        withdraw_amount: u64,
+    ) -> WithdrawCircuit {
+        let asset_id = asset_id_for_contract("con_binding_test");
+        let owner_secret = hash_to_field("binding:secret");
+        let rho = hash_to_field("binding:rho");
+        let blind = hash_to_field("binding:blind");
+
+        let committed_note = NoteWitness {
+            owner_secret,
+            amount: committed_amount,
+            rho,
+            blind,
+        };
+        let commitment = note_commitment(asset_id, &committed_note);
+        let commitment_hex = vec![field_hex(commitment)];
+        let old_root = tree_state_from_commitments(&commitment_hex).unwrap().root;
+        let leaves = leaf_fields_from_commitments(&commitment_hex).unwrap();
+        let merkle_path = auth_path_from_leaves(&leaves, 0).unwrap();
+
+        // The nullifier depends only on (asset, secret, rho), not the amount.
+        let nullifier = note_nullifier(asset_id, &committed_note);
+
+        let spend_note = NoteWitness {
+            owner_secret,
+            amount: witness_amount,
+            rho,
+            blind,
+        };
+        let mut inputs = vec![InputWitness {
+            enabled: true,
+            note: spend_note,
+            merkle_path,
+            path_directions: path_directions_for_leaf_index(0),
+        }];
+        while inputs.len() < SHIELDED_NOTE_MAX_INPUTS {
+            inputs.push(blank_input_witness());
+        }
+
+        WithdrawCircuit {
+            asset_id,
+            old_root,
+            amount: withdraw_amount,
+            recipient_digest: recipient_digest("binding-recipient"),
+            input_count: 1,
+            output_count: 0,
+            input_nullifiers: pad_fields(vec![nullifier], SHIELDED_NOTE_MAX_INPUTS),
+            output_commitments: pad_fields(vec![], SHIELDED_NOTE_MAX_OUTPUTS),
+            output_payload_hashes: vec![Fr::zero(); SHIELDED_NOTE_MAX_OUTPUTS],
+            inputs,
+            outputs: (0..SHIELDED_NOTE_MAX_OUTPUTS)
+                .map(|_| blank_output_witness())
+                .collect(),
+        }
+    }
+
+    fn circuit_is_satisfied(circuit: WithdrawCircuit) -> bool {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+        circuit.generate_constraints(cs.clone()).unwrap();
+        cs.is_satisfied().unwrap()
+    }
+
+    /// Control: spending a note for exactly its value satisfies the circuit.
+    #[test]
+    fn honest_withdraw_is_satisfiable() {
+        assert!(circuit_is_satisfied(withdraw_circuit_for_amounts(70, 70, 70)));
+    }
+
+    /// F-1 regression: withdrawing more than the note holds violates value
+    /// conservation (`input_sum == output_sum + amount`) and is unsatisfiable.
+    #[test]
+    fn inflated_withdraw_violates_value_conservation() {
+        assert!(!circuit_is_satisfied(withdraw_circuit_for_amounts(70, 70, 1000)));
+    }
+
+    /// F-1 regression: claiming a different amount than the one bound into the
+    /// committed leaf changes the recomputed commitment, so Merkle membership
+    /// against `old_root` fails. With the old non-binding hash an attacker could
+    /// find a compensating opening; with Poseidon this is infeasible, and a
+    /// naive amount swap is rejected here.
+    #[test]
+    fn forged_input_amount_breaks_membership() {
+        assert!(!circuit_is_satisfied(withdraw_circuit_for_amounts(70, 999, 999)));
+    }
 
     #[test]
     fn recipient_digest_matches_contract_text_hashing_for_hex_like_values() {

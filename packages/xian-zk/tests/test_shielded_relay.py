@@ -123,7 +123,7 @@ def test_relay_registry_manifest_rebinds_command_vk_for_note_token():
     manifest = shielded_relay_registry_manifest(
         {
             "contract_name": "con_shielded_commands",
-            "circuit_family": "shielded_command_v4",
+            "circuit_family": "shielded_command_v5",
             "tree_depth": 20,
             "leaf_capacity": 1_048_576,
             "max_inputs": 4,
@@ -132,22 +132,22 @@ def test_relay_registry_manifest_rebinds_command_vk_for_note_token():
             "setup_mode": "single-party",
             "setup_ceremony": "",
             "deposit": {
-                "vk_id": "shielded-command-deposit-v4",
+                "vk_id": "shielded-command-deposit-v5",
                 "vk_hex": "0x01",
-                "circuit_name": "shielded_command_deposit_v4",
-                "version": "4",
+                "circuit_name": "shielded_command_deposit_v5",
+                "version": "5",
             },
             "command": {
-                "vk_id": "shielded-command-execute-v4",
+                "vk_id": "shielded-command-execute-v5",
                 "vk_hex": "0x02",
-                "circuit_name": "shielded_command_execute_v4",
-                "version": "4",
+                "circuit_name": "shielded_command_execute_v5",
+                "version": "5",
             },
             "withdraw": {
-                "vk_id": "shielded-command-withdraw-v4",
+                "vk_id": "shielded-command-withdraw-v5",
                 "vk_hex": "0x03",
-                "circuit_name": "shielded_command_withdraw_v4",
-                "version": "4",
+                "circuit_name": "shielded_command_withdraw_v5",
+                "version": "5",
             },
         },
         artifact_contract_name="con_shielded_note_token",
@@ -155,10 +155,10 @@ def test_relay_registry_manifest_rebinds_command_vk_for_note_token():
 
     assert manifest["contract_name"] == "con_shielded_note_token"
     assert manifest["registry_entries"][0]["action"] == "relay_transfer"
-    assert manifest["registry_entries"][0]["vk_id"] == "shielded-command-execute-v4"
+    assert manifest["registry_entries"][0]["vk_id"] == "shielded-command-execute-v5"
     assert manifest["configure_actions"] == [
         {
             "action": "relay_transfer",
-            "vk_id": "shielded-command-execute-v4",
+            "vk_id": "shielded-command-execute-v5",
         }
     ]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hmac
 import ipaddress
 import json
 import threading
@@ -31,6 +32,12 @@ from xian_zk.shielded_relay import (
     ShieldedRelayTransferProver,
     ShieldedRelayTransferRequest,
 )
+
+
+# Maximum request body the prover service will read, to bound memory use on a
+# malformed or hostile Content-Length. Witness payloads are small (a few field
+# elements plus Merkle paths), so 16 MiB is generous.
+MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024
 
 
 class ZkProverClientError(RuntimeError):
@@ -71,6 +78,12 @@ def _validate_bind_configuration(
     auth_token: str | None,
     allow_remote_host: bool,
 ) -> None:
+    # Privacy/custody note: this service receives the full proving *witness*,
+    # which includes the note owner secret. Whoever runs a prover the wallet
+    # talks to can therefore spend the user's notes and de-anonymise them. The
+    # safe default is loopback-only (run your own prover locally). Binding to a
+    # remote host is gated behind an explicit opt-in and a mandatory auth token,
+    # but operators must still treat a shared prover as fully trusted.
     normalized = host.strip()
     if normalized == "":
         raise ValueError("host must be non-empty")
@@ -384,7 +397,11 @@ class ShieldedZkProverService:
         if self.auth_token is None:
             return True
         header = handler.headers.get("Authorization")
-        return header == f"Bearer {self.auth_token}"
+        if header is None:
+            return False
+        # Constant-time comparison so the bearer token cannot be recovered via a
+        # timing side channel.
+        return hmac.compare_digest(header, f"Bearer {self.auth_token}")
 
     def _send_json(
         self,
@@ -401,7 +418,14 @@ class ShieldedZkProverService:
 
     def _read_json(self, handler: BaseHTTPRequestHandler) -> dict[str, Any]:
         raw_length = handler.headers.get("Content-Length", "0")
-        length = int(raw_length)
+        try:
+            length = int(raw_length)
+        except (TypeError, ValueError):
+            raise ValueError("invalid Content-Length header")
+        if length < 0:
+            raise ValueError("invalid Content-Length header")
+        if length > MAX_REQUEST_BODY_BYTES:
+            raise ValueError("request body exceeds the maximum allowed size")
         body = handler.rfile.read(length).decode("utf-8")
         if body == "":
             return {}
