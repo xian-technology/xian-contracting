@@ -10,6 +10,11 @@ from xian_runtime_types.encoding import encode_kv
 from contracting import constants
 from contracting.execution.runtime import WRITE_MAX, rt
 from contracting.names import assert_safe_contract_name
+from contracting.runtime_features import (
+    RUNTIME_FEATURE_ZK,
+    module_ir_uses_runtime_feature,
+    runtime_feature_enabled,
+)
 from contracting.stdlib.bridge import zk as zk_bridge
 from contracting.stdlib.bridge.random import seed as random_seed
 from contracting.storage.driver import (
@@ -217,13 +222,29 @@ class NativeVmHost:
     def load_module_ir(self, module_name: str) -> dict[str, Any] | None:
         cached = self._parsed_ir_cache.get(module_name)
         if cached is not None:
+            self._reject_disabled_runtime_features(module_name, cached)
             return cached
         module_ir_json = self.load_module_ir_json(module_name)
         if not module_ir_json:
             return None
         module_ir = json.loads(module_ir_json)
+        self._reject_disabled_runtime_features(module_name, module_ir)
         self._parsed_ir_cache[module_name] = module_ir
         return module_ir
+
+    def _reject_disabled_runtime_features(self, module_name: str, module_ir: dict[str, Any]) -> None:
+        if module_ir_uses_runtime_feature(
+            module_ir,
+            RUNTIME_FEATURE_ZK,
+        ) and not runtime_feature_enabled(
+            self.driver,
+            RUNTIME_FEATURE_ZK,
+            default_enabled=True,
+        ):
+            raise VmRuntimeExecutionError(
+                f"contract '{module_name}' uses zk host syscalls, "
+                "but the chain zk runtime feature is disabled"
+            )
 
     def _contract_exists(self, contract: str) -> bool:
         for artifact_key in (XIAN_VM_V1_IR_KEY, SOURCE_KEY):
@@ -347,6 +368,7 @@ class NativeVmHost:
 
         module_ir = json.loads(vm_ir_json)
         validate_module_ir(module_ir)
+        self._reject_disabled_runtime_features(name, module_ir)
 
         deployment_developer = developer or self._context.get("caller")
         deployment_deployer = deployer or self._context.get("caller")

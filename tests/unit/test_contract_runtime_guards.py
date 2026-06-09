@@ -112,6 +112,12 @@ class TestAllocationBuiltins(TestCase):
         self.assertIs(builtins_dict["int"], safe_int)
         self.assertIs(builtins_dict["pow"], safe_pow)
 
+    def test_print_is_not_available_in_contract_builtins(self):
+        from contracting.execution.sandbox import build_contract_builtins
+
+        builtins_dict = build_contract_builtins(lambda *a, **k: None)
+        self.assertNotIn("print", builtins_dict)
+
     def test_indirect_int_reference_still_guarded(self):
         from contracting.execution.sandbox import build_contract_builtins
 

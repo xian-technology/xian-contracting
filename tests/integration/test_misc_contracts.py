@@ -718,7 +718,7 @@ def exec_contract():
             pass
 
     wExec = builtins__["exec"]
-    wExec("print('hello world')")
+    wExec("result = 1")
 
 
 def type_exploit():
@@ -727,22 +727,18 @@ def type_exploit():
         # before
         # assert amount > 0, 'Cannot send negative balances!'
         def gt(a, b):
-            print("gt", a, b)
             return True
 
         # assert balances[sender] >= amount, 'Not enough coins to send!'
         def le(a, b):
-            print("lt", a, b)
             return True
 
         # balances[sender] -= amount
         def rsub(a, b):
-            print("rsub", a, b)
             return b
 
         # balances[to] += amount
         def radd(a, b):
-            print("radd", a, b)
             return 100
 
         wAmount = type(

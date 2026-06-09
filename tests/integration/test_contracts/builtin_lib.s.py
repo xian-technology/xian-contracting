@@ -1,9 +1,7 @@
-import token
-
 @export
 def hahaha():
-    print('I work, fool!')
+    return 'I work'
 
 @export
-def return_token():
-    return vars(token)
+def uses_locked_builtin():
+    return open('locked')

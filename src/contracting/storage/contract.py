@@ -1,9 +1,16 @@
+import json
+
 from contracting import constants
 from contracting.artifacts import validate_contract_artifacts
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution.runtime import rt
 from contracting.execution.sandbox import build_contract_builtins
 from contracting.names import assert_safe_contract_name
+from contracting.runtime_features import (
+    RUNTIME_FEATURE_ZK,
+    module_ir_uses_runtime_feature,
+    runtime_feature_enabled,
+)
 from contracting.storage.driver import (
     DEPLOYER_KEY,
     DEVELOPER_KEY,
@@ -81,6 +88,19 @@ class Contract:
 
             source_obj = artifacts["source"]
             vm_ir_json = artifacts["vm_ir_json"]
+            module_ir = json.loads(vm_ir_json)
+            if module_ir_uses_runtime_feature(
+                module_ir,
+                RUNTIME_FEATURE_ZK,
+            ) and not runtime_feature_enabled(
+                driver,
+                RUNTIME_FEATURE_ZK,
+                default_enabled=True,
+            ):
+                raise AssertionError(
+                    f"contract '{name}' uses zk host syscalls, "
+                    "but the chain zk runtime feature is disabled"
+                )
             code_obj = ContractingCompiler(module_name=name).parse_to_code(
                 source_obj,
                 lint=False,

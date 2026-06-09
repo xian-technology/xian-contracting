@@ -5,6 +5,6 @@ def set_c():
     code = '''
 @export
 def a():
-    print('gottem')    
+    return 'gottem'
 '''
     c.submit(name='baloney', deployment_artifacts={}, author='sys')
