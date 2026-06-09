@@ -7,6 +7,7 @@ from contracting.compilation.lowering import XianIrLowerer
 from contracting.compilation.vm import (
     XIAN_VM_V1_PROFILE,
     VmCompatibilityChecker,
+    VmCompatibilityError,
 )
 
 
@@ -28,42 +29,38 @@ class ContractingCompiler(ast.NodeTransformer):
 
         tree = ast.parse(source)
 
-        if lint:
-            self.lint_alerts = self.linter.check(tree)
-        else:
+        try:
+            if lint:
+                self.lint_alerts = self.linter.check(tree)
+            vm_report = None
+            if vm_profile is not None:
+                vm_report = self.vm_checker.check(tree, profile=vm_profile)
+
+            tree = self.visit(tree)
+
+            if self.lint_alerts is not None:
+                raise LintingError(self.lint_alerts)
+            if vm_report is not None and not vm_report.compatible:
+                raise VmCompatibilityError(vm_report)
+
+            # References to private functions and ORM instances may appear
+            # before their definitions, so they are rewritten in a second
+            # pass once visiting has collected the full name sets.
+            for node in self.visited_names:
+                if node.id in self.private_names or node.id in self.orm_names:
+                    node.id = self.privatize(node.id)
+
+            ast.fix_missing_locations(tree)
+
+            return tree
+        finally:
+            # Reset on every exit so a failed parse cannot leak one
+            # contract's names into the next parse on this instance.
+            self.private_names = set()
+            self.orm_names = set()
+            self.visited_names = set()
             self.lint_alerts = None
-        vm_report = None
-        if vm_profile is not None:
-            vm_report = self.vm_checker.check(tree, profile=vm_profile)
-
-        tree = self.visit(tree)
-
-        if self.lint_alerts is not None:
-            raise LintingError(self.lint_alerts)
-        if vm_report is not None and not vm_report.compatible:
-            from contracting.compilation.vm import VmCompatibilityError
-
-            raise VmCompatibilityError(vm_report)
-
-        # check all visited nodes and see if they are actually private
-
-        # An Expr node can have a value func of compilation.Name, or compilation.
-        # Attribute which you much access the value of.
-        # TODO: This code branching is not ideal and should be investigated for simplicity.
-        for node in self.visited_names:
-            if node.id in self.private_names or node.id in self.orm_names:
-                node.id = self.privatize(node.id)
-
-        ast.fix_missing_locations(tree)
-
-        # reset state
-        self.private_names = set()
-        self.orm_names = set()
-        self.visited_names = set()
-        self.lint_alerts = None
-        self.source = None
-
-        return tree
+            self.source = None
 
     @staticmethod
     def privatize(s):

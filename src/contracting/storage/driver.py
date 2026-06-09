@@ -439,6 +439,78 @@ class Driver:
         for delta_nanos in to_delete:
             self.pending_deltas.pop(delta_nanos, None)
 
+    def snapshot_state(self) -> dict:
+        """Deep-copy the in-flight execution state for later ``restore_state``.
+
+        Includes ``pending_deltas`` so the driver can be returned to the exact
+        captured point even if ``hard_apply`` or ``rollback`` ran in between.
+        Safe for simulation/replay flows that keep mutating the driver after
+        taking the snapshot; the snapshot can be restored more than once.
+        """
+        return {
+            "pending_deltas": deepcopy(self.pending_deltas),
+            "pending_writes": deepcopy(self.pending_writes),
+            "pending_reads": deepcopy(self.pending_reads),
+            "transaction_reads": deepcopy(self.transaction_reads),
+            "transaction_read_prefixes": deepcopy(self.transaction_read_prefixes),
+            "transaction_writes": deepcopy(self.transaction_writes),
+            "log_events": deepcopy(self.log_events),
+        }
+
+    def restore_state(self, snapshot: dict | None) -> None:
+        """Restore state captured by ``snapshot_state``; ``None`` is a no-op.
+
+        Deep-copies out of the snapshot so the same snapshot stays valid for
+        repeated restores.
+        """
+        if not snapshot:
+            return
+        self.pending_deltas = deepcopy(snapshot["pending_deltas"])
+        self.pending_writes = deepcopy(snapshot["pending_writes"])
+        self.pending_reads = deepcopy(snapshot["pending_reads"])
+        self.transaction_reads = deepcopy(snapshot["transaction_reads"])
+        self.transaction_read_prefixes = deepcopy(snapshot["transaction_read_prefixes"])
+        self.transaction_writes = deepcopy(snapshot["transaction_writes"])
+        self.log_events = deepcopy(snapshot["log_events"])
+
+    def detach_pending_state(self) -> dict:
+        """Move the pending per-block state off the driver without copying.
+
+        Returns the live containers and leaves the driver with fresh empty
+        ones, so the cost is constant regardless of how much the block wrote.
+        ``pending_deltas`` deliberately stays on the driver: it is the journal
+        ``hard_apply`` and ``rollback`` consume at commit time and must
+        survive the window between detaching and re-attaching.
+        """
+        detached = {
+            "pending_writes": self.pending_writes,
+            "pending_reads": self.pending_reads,
+            "transaction_reads": self.transaction_reads,
+            "transaction_read_prefixes": self.transaction_read_prefixes,
+            "transaction_writes": self.transaction_writes,
+            "log_events": self.log_events,
+        }
+        self.pending_writes = {}
+        self.pending_reads = {}
+        self.transaction_reads = {}
+        self.transaction_read_prefixes = set()
+        self.transaction_writes = {}
+        self.log_events = []
+        return detached
+
+    def attach_pending_state(self, detached: dict) -> None:
+        """Re-attach pending state previously moved off by ``detach_pending_state``.
+
+        Anything accumulated on the driver since the detach is discarded in
+        favor of the detached containers.
+        """
+        self.pending_writes = detached["pending_writes"]
+        self.pending_reads = detached["pending_reads"]
+        self.transaction_reads = detached["transaction_reads"]
+        self.transaction_read_prefixes = detached["transaction_read_prefixes"]
+        self.transaction_writes = detached["transaction_writes"]
+        self.log_events = detached["log_events"]
+
     def commit(self):
         if self.pending_writes:
             self._store.batch_set(self.pending_writes)
