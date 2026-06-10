@@ -56,11 +56,14 @@ Run a contract in the local harness:
 from contracting.local import ContractingClient
 
 client = ContractingClient()
-client.submit(name="con_token", code=contract_source)
+client.submit(contract_source, name="con_token")
 
 token = client.get_contract_proxy("con_token")
 token.transfer(amount=100, to="bob")
 ```
+
+`submit(...)` accepts contract source as a string or a Python function whose
+body is the contract.
 
 Use the storage driver directly:
 
@@ -107,7 +110,7 @@ print(driver.get("example.key"))
   - `stdlib/` — contract-side standard-library bridge.
 - `packages/` — independently released sibling packages:
   `xian-accounts`, `xian-compiler-core`, `xian-contract-tools`,
-  `xian-fastpath-core`,
+  `xian-fastpath-core`, `xian-native-tracer`,
   `xian-runtime-types`, `xian-vm-core`, `xian-zk`.
 - `scripts/` — audit and fixture-generation tools used by VM/runtime work.
 - `tests/` — `unit/`, `integration/`, `security/`, `performance/` coverage.
