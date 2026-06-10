@@ -232,7 +232,9 @@ class NativeVmHost:
         self._parsed_ir_cache[module_name] = module_ir
         return module_ir
 
-    def _reject_disabled_runtime_features(self, module_name: str, module_ir: dict[str, Any]) -> None:
+    def _reject_disabled_runtime_features(
+        self, module_name: str, module_ir: dict[str, Any]
+    ) -> None:
         if module_ir_uses_runtime_feature(
             module_ir,
             RUNTIME_FEATURE_ZK,

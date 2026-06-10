@@ -33,7 +33,6 @@ from xian_zk.shielded_relay import (
     ShieldedRelayTransferRequest,
 )
 
-
 # Maximum request body the prover service will read, to bound memory use on a
 # malformed or hostile Content-Length. Witness payloads are small (a few field
 # elements plus Merkle paths), so 16 MiB is generous.

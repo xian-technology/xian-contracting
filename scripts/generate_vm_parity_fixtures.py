@@ -75,11 +75,7 @@ DAO_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "dao.s.py"
 CHI_COST_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "chi_cost.s.py"
 REWARDS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "rewards.s.py"
 MEMBERS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "members.s.py"
-DEFAULT_DEX_BUNDLE_SOURCE = (
-    WORKSPACE_ROOT
-    / "xian-dex"
-    / "contract-bundle.json"
-)
+DEFAULT_DEX_BUNDLE_SOURCE = WORKSPACE_ROOT / "xian-dex" / "contract-bundle.json"
 FIELD_ONE_HEX = "0x" + "00" * 31 + "01"
 FIELD_TWO_HEX = "0x" + "00" * 31 + "02"
 FIELD_ZERO_HEX = "0x" + "00" * 32
