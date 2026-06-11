@@ -51,6 +51,8 @@ CLI entrypoints:
 - `uv run xian-zk-shielded-bundle import-command --bundle ... --output-dir ...`
 - `uv run xian-zk-shielded-bundle validate-note --bundle ...`
 - `uv run xian-zk-shielded-bundle validate-command --bundle ...`
+- `uv run xian-zk-shielded-bundle promote --network ... --contract-name ...`
+  `--note-bundle ... --relay-command-bundle ... --output-dir ...`
 - `uv run xian-zk-prover-service --host 127.0.0.1 --port 8787 ...`
 
 The Rust crate exposes the verifier core, shielded fixture builders, and proof
@@ -90,10 +92,11 @@ Published/CI wheels build `--release` regardless.
 - The Python toolkit now also ships a first-class `ShieldedWallet` abstraction
   for seed backup, state snapshots, record sync, note selection, and request
   planning for deposit / transfer / withdraw flows.
-- The package now also ships a deployment CLI that generates a random
-  shielded-note proving bundle plus a public registry manifest. Keep the
-  bundle private; only the manifest should be used for `zk_registry`
-  registration.
+- The package now also ships deployment CLI helpers that generate or import
+  proving bundles, emit public registry manifests, write `register_and_bind.py`
+  operator helpers, and create catalog snippets for promoted ceremony
+  artifacts. Keep private bundles offline; only registry manifests should be
+  used for `zk_registry` registration.
 - The encrypted payload format now supports owner delivery plus optional
   disclosed viewers inside a single on-chain payload blob.
 - The encrypted payload format uses anonymous per-viewer discovery tags and

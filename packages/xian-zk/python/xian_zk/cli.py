@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 from datetime import datetime, timezone
@@ -9,11 +10,20 @@ from pathlib import Path
 from xian_zk import (
     ShieldedCommandProver,
     ShieldedNoteProver,
+    ShieldedRelayTransferProver,
     bundle_summary,
     shielded_command_registry_manifest,
+    shielded_relay_registry_manifest,
     shielded_registry_manifest,
 )
 from xian_zk.bundles import load_and_validate_bundle_text
+
+
+_ARTIFACT_KINDS = {
+    "note": "shielded_note",
+    "command": "shielded_command",
+    "relay": "shielded_relay",
+}
 
 
 def _slugify(value: str) -> str:
@@ -30,6 +40,71 @@ def _write_text(path: Path, content: str, *, overwrite: bool) -> None:
     if path.exists() and not overwrite:
         raise FileExistsError(f"{path} already exists; pass --overwrite to replace it")
     path.write_text(content)
+
+
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _operator_script(
+    *,
+    manifest_filenames: list[str],
+    configure_target: str = "contract",
+) -> str:
+    manifest_lines = ",\n".join(f'    "{filename}"' for filename in manifest_filenames)
+    return f'''from __future__ import annotations
+
+import json
+from pathlib import Path
+
+
+REGISTRY_SIGNER = "sys"
+CONTRACT_SIGNER = "sys"
+MANIFEST_FILENAMES = [
+{manifest_lines}
+]
+
+
+def _load_manifest(filename: str) -> dict:
+    return json.loads((Path(__file__).resolve().parent / filename).read_text())
+
+
+def register_manifests(zk_registry) -> list[str]:
+    registered = []
+    seen_vk_ids = set()
+    for filename in MANIFEST_FILENAMES:
+        manifest = _load_manifest(filename)
+        for entry in manifest["registry_entries"]:
+            if entry["vk_id"] in seen_vk_ids:
+                continue
+            args = dict(entry)
+            args.pop("action", None)
+            zk_registry.register_vk(**args, signer=REGISTRY_SIGNER)
+            registered.append(entry["vk_id"])
+            seen_vk_ids.add(entry["vk_id"])
+    return registered
+
+
+def bind_manifests({configure_target}) -> list[tuple[str, str]]:
+    configured = []
+    for filename in MANIFEST_FILENAMES:
+        manifest = _load_manifest(filename)
+        for binding in manifest["configure_actions"]:
+            {configure_target}.configure_vk(
+                action=binding["action"],
+                vk_id=binding["vk_id"],
+                signer=CONTRACT_SIGNER,
+            )
+            configured.append((binding["action"], binding["vk_id"]))
+    return configured
+
+
+def register_and_bind(zk_registry, {configure_target}) -> dict[str, list]:
+    return {{
+        "registered": register_manifests(zk_registry),
+        "configured": bind_manifests({configure_target}),
+    }}
+'''
 
 
 def _deployment_instructions(
@@ -51,19 +126,16 @@ def _deployment_instructions(
         f"- `{bundle_filename}`: private proving bundle. Keep this offline and access-controlled.",
         f"- `{manifest_filename}`: public verifying-key manifest for `zk_registry`.",
         f"- `{_slugify(title)}-deployment.md`: this operator guide.",
+        "- `register_and_bind.py`: importable helper for registration and binding.",
         "",
         "## Register Verifying Keys",
         "",
         "```python",
         f'manifest = json.loads(Path("{manifest_filename}").read_text())',
         'for entry in manifest["registry_entries"]:',
-        "    zk_registry.register_vk(",
-        '        vk_id=entry["vk_id"],',
-        '        vk_hex=entry["vk_hex"],',
-        '        circuit_name=entry["circuit_name"],',
-        '        version=entry["version"],',
-        '        signer="sys",',
-        "    )",
+        "    args = dict(entry)",
+        '    args.pop("action", None)',
+        '    zk_registry.register_vk(**args, signer="sys")',
         "```",
         "",
         "## Bind The Contract",
@@ -76,6 +148,13 @@ def _deployment_instructions(
         '        vk_id=binding["vk_id"],',
         '        signer="sys",',
         "    )",
+        "```",
+        "",
+        "Or import the generated helper and call:",
+        "",
+        "```python",
+        "from register_and_bind import register_and_bind",
+        f"register_and_bind(zk_registry, {configure_target})",
         "```",
         "",
         "## Warning",
@@ -131,11 +210,13 @@ def _write_artifacts(
     bundle_filename: str,
     manifest_filename: str,
     instructions_filename: str,
+    script_filename: str = "register_and_bind.py",
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     bundle_path = output_dir / bundle_filename
     manifest_path = output_dir / manifest_filename
     instructions_path = output_dir / instructions_filename
+    script_path = output_dir / script_filename
 
     _write_text(bundle_path, bundle_json, overwrite=overwrite)
     _write_text(
@@ -154,10 +235,16 @@ def _write_artifacts(
         ),
         overwrite=overwrite,
     )
+    _write_text(
+        script_path,
+        _operator_script(manifest_filenames=[manifest_filename]),
+        overwrite=overwrite,
+    )
 
     print(f"Generated bundle: {bundle_path}")
     print(f"Generated registry manifest: {manifest_path}")
     print(f"Generated operator guide: {instructions_path}")
+    print(f"Generated operator script: {script_path}")
     print()
     print("Bundle warning:")
     print(manifest["warning"])
@@ -171,6 +258,17 @@ def _command_manifest_from_prover(
     prover: ShieldedCommandProver,
 ) -> dict[str, object]:
     return shielded_command_registry_manifest(prover)
+
+
+def _relay_manifest_from_prover(
+    prover: ShieldedRelayTransferProver,
+    *,
+    artifact_contract_name: str | None = None,
+) -> dict[str, object]:
+    return shielded_relay_registry_manifest(
+        prover,
+        artifact_contract_name=artifact_contract_name,
+    )
 
 
 def _add_output_arguments(parser: argparse.ArgumentParser) -> None:
@@ -189,7 +287,9 @@ def _add_output_arguments(parser: argparse.ArgumentParser) -> None:
 def _add_generate_arguments(parser: argparse.ArgumentParser, *, bundle_type: str) -> None:
     _add_output_arguments(parser)
     default_contract_name = (
-        "con_shielded_note_token" if bundle_type == "shielded-note" else "con_shielded_commands"
+        "con_shielded_note_token"
+        if bundle_type == "shielded-note"
+        else "con_shielded_commands"
     )
     parser.add_argument(
         "--contract-name",
@@ -199,7 +299,10 @@ def _add_generate_arguments(parser: argparse.ArgumentParser, *, bundle_type: str
     parser.add_argument(
         "--vk-id-prefix",
         default=None,
-        help=("Prefix used to derive vk ids. Defaults to a timestamped contract-specific prefix."),
+        help=(
+            "Prefix used to derive vk ids. Defaults to a timestamped "
+            "contract-specific prefix."
+        ),
     )
 
 
@@ -217,6 +320,38 @@ def _add_validate_arguments(parser: argparse.ArgumentParser) -> None:
         "--bundle",
         required=True,
         help="Path to a prover bundle JSON file to validate.",
+    )
+
+
+def _add_promote_arguments(parser: argparse.ArgumentParser) -> None:
+    _add_output_arguments(parser)
+    parser.add_argument(
+        "--network",
+        required=True,
+        help="Network name recorded in the generated catalog snippet.",
+    )
+    parser.add_argument(
+        "--contract-name",
+        required=True,
+        help="Contract name used when building relay artifact metadata.",
+    )
+    parser.add_argument(
+        "--note-bundle",
+        default=None,
+        help="Ceremony-generated shielded-note bundle to import.",
+    )
+    parser.add_argument(
+        "--command-bundle",
+        default=None,
+        help="Ceremony-generated shielded-command bundle to import.",
+    )
+    parser.add_argument(
+        "--relay-command-bundle",
+        default=None,
+        help=(
+            "Ceremony-generated shielded-command bundle to expose as a "
+            "shielded-note relay_transfer manifest."
+        ),
     )
 
 
@@ -263,6 +398,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Validate a shielded-command bundle and print a summary.",
     )
     _add_validate_arguments(validate_command)
+
+    promote = subparsers.add_parser(
+        "promote",
+        help="Import ceremony bundles and write combined operator handoff artifacts.",
+    )
+    _add_promote_arguments(promote)
     return parser
 
 
@@ -360,6 +501,193 @@ def _handle_validate_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _artifact_record(
+    *,
+    kind: str,
+    manifest_path: Path,
+    manifest_filename: str,
+    manifest: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "kind": kind,
+        "contract_name": manifest["contract_name"],
+        "registry_manifest_path": f"./{manifest_filename}",
+        "sha256": _sha256_file(manifest_path),
+        "setup_mode": manifest.get("setup_mode", ""),
+        "setup_ceremony": manifest.get("setup_ceremony", ""),
+        "bundle_hash": manifest.get("bundle_hash", ""),
+    }
+
+
+def _write_promoted_artifact(
+    *,
+    output_dir: Path,
+    overwrite: bool,
+    bundle_json: str,
+    manifest: dict[str, object],
+    bundle_filename: str,
+    manifest_filename: str,
+) -> tuple[Path, Path]:
+    bundle_path = output_dir / bundle_filename
+    manifest_path = output_dir / manifest_filename
+    _write_text(bundle_path, bundle_json, overwrite=overwrite)
+    _write_text(
+        manifest_path,
+        json.dumps(manifest, sort_keys=True, indent=2) + "\n",
+        overwrite=overwrite,
+    )
+    return bundle_path, manifest_path
+
+
+def _handle_promote(args: argparse.Namespace) -> int:
+    if not (args.note_bundle or args.command_bundle or args.relay_command_bundle):
+        raise SystemExit(
+            "promote requires at least one of --note-bundle, --command-bundle, "
+            "or --relay-command-bundle"
+        )
+
+    output_dir = Path(args.output_dir).expanduser().resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    manifest_filenames: list[str] = []
+    artifact_records: list[dict[str, object]] = []
+    written_bundles: list[Path] = []
+    written_manifests: list[Path] = []
+
+    if args.note_bundle:
+        bundle_json, _ = load_and_validate_bundle_text(
+            args.note_bundle,
+            bundle_type="note",
+        )
+        prover = ShieldedNoteProver(bundle_json)
+        manifest_filename = "shielded-note-registry-manifest.json"
+        bundle_path, manifest_path = _write_promoted_artifact(
+            output_dir=output_dir,
+            overwrite=args.overwrite,
+            bundle_json=bundle_json,
+            manifest=_note_manifest_from_prover(prover),
+            bundle_filename="shielded-note-bundle.json",
+            manifest_filename=manifest_filename,
+        )
+        manifest = json.loads(manifest_path.read_text())
+        manifest_filenames.append(manifest_filename)
+        written_bundles.append(bundle_path)
+        written_manifests.append(manifest_path)
+        artifact_records.append(
+            _artifact_record(
+                kind=_ARTIFACT_KINDS["note"],
+                manifest_path=manifest_path,
+                manifest_filename=manifest_filename,
+                manifest=manifest,
+            )
+        )
+
+    if args.command_bundle:
+        bundle_json, _ = load_and_validate_bundle_text(
+            args.command_bundle,
+            bundle_type="command",
+        )
+        prover = ShieldedCommandProver(bundle_json)
+        manifest_filename = "shielded-command-registry-manifest.json"
+        bundle_path, manifest_path = _write_promoted_artifact(
+            output_dir=output_dir,
+            overwrite=args.overwrite,
+            bundle_json=bundle_json,
+            manifest=_command_manifest_from_prover(prover),
+            bundle_filename="shielded-command-bundle.json",
+            manifest_filename=manifest_filename,
+        )
+        manifest = json.loads(manifest_path.read_text())
+        manifest_filenames.append(manifest_filename)
+        written_bundles.append(bundle_path)
+        written_manifests.append(manifest_path)
+        artifact_records.append(
+            _artifact_record(
+                kind=_ARTIFACT_KINDS["command"],
+                manifest_path=manifest_path,
+                manifest_filename=manifest_filename,
+                manifest=manifest,
+            )
+        )
+
+    if args.relay_command_bundle:
+        bundle_json, _ = load_and_validate_bundle_text(
+            args.relay_command_bundle,
+            bundle_type="command",
+        )
+        prover = ShieldedRelayTransferProver(bundle_json)
+        manifest_filename = "shielded-relay-registry-manifest.json"
+        bundle_path, manifest_path = _write_promoted_artifact(
+            output_dir=output_dir,
+            overwrite=args.overwrite,
+            bundle_json=bundle_json,
+            manifest=_relay_manifest_from_prover(
+                prover,
+                artifact_contract_name=args.contract_name,
+            ),
+            bundle_filename="shielded-relay-command-bundle.json",
+            manifest_filename=manifest_filename,
+        )
+        manifest = json.loads(manifest_path.read_text())
+        manifest_filenames.append(manifest_filename)
+        written_bundles.append(bundle_path)
+        written_manifests.append(manifest_path)
+        artifact_records.append(
+            _artifact_record(
+                kind=_ARTIFACT_KINDS["relay"],
+                manifest_path=manifest_path,
+                manifest_filename=manifest_filename,
+                manifest=manifest,
+            )
+        )
+
+    script_path = output_dir / "register_and_bind.py"
+    _write_text(
+        script_path,
+        _operator_script(manifest_filenames=manifest_filenames),
+        overwrite=args.overwrite,
+    )
+    summary_path = output_dir / "promotion-summary.json"
+    _write_text(
+        summary_path,
+        json.dumps(
+            {
+                "schema_version": 1,
+                "network": args.network,
+                "contract_name": args.contract_name,
+                "registry_manifests": [path.name for path in written_manifests],
+                "private_bundles": [path.name for path in written_bundles],
+                "operator_script": script_path.name,
+                "artifact_catalog_entries": artifact_records,
+            },
+            sort_keys=True,
+            indent=2,
+        )
+        + "\n",
+        overwrite=args.overwrite,
+    )
+    catalog_snippet_path = output_dir / "catalog-artifacts-snippet.json"
+    _write_text(
+        catalog_snippet_path,
+        json.dumps(artifact_records, sort_keys=True, indent=2) + "\n",
+        overwrite=args.overwrite,
+    )
+
+    print(f"Promoted artifacts for network: {args.network}")
+    for path in written_bundles:
+        print(f"Generated bundle: {path}")
+    for path in written_manifests:
+        print(f"Generated registry manifest: {path}")
+    print(f"Generated operator script: {script_path}")
+    print(f"Generated promotion summary: {summary_path}")
+    print(f"Generated catalog snippet: {catalog_snippet_path}")
+    print()
+    print(
+        "Private bundle files contain proving keys; keep them offline and "
+        "access-controlled."
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -370,6 +698,7 @@ def main(argv: list[str] | None = None) -> int:
         "generate-command": _handle_generate_command,
         "import-command": _handle_import_command,
         "validate-command": _handle_validate_command,
+        "promote": _handle_promote,
     }
     if args.command is None:
         raise SystemExit("a bundle subcommand is required")
