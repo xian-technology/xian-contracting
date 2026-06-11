@@ -170,15 +170,23 @@ jobs:
           python - <<'PY'
           import os
           import pathlib
-          import sys
+          import re
+
+          def python_dist_version(version):
+              match = re.fullmatch(r"(\d+\.\d+\.\d+)-(alpha|beta|rc)\.(\d+)", version)
+              if not match:
+                  return version
+              marker = {"alpha": "a", "beta": "b", "rc": "rc"}[match.group(2)]
+              return f"{match.group(1)}{marker}{match.group(3)}"
 
           package_dir = pathlib.Path(os.environ["PACKAGE_DIR"])
           expected = os.environ["EXPECTED_VERSION"]
+          accepted = {expected, python_dist_version(expected)}
           dist_dir = package_dir / "dist"
           files = [path.name for path in dist_dir.iterdir() if path.is_file()]
           if not files:
               raise SystemExit(f"No distribution artifacts were built in {dist_dir}")
-          if not all(expected in name for name in files):
+          if not all(any(version in name for version in accepted) for name in files):
               raise SystemExit(
                   f"Built artifacts do not match tag version {expected}: {files}"
               )
@@ -388,13 +396,22 @@ jobs:
           python - <<'PY'
           import os
           import pathlib
+          import re
+
+          def python_dist_version(version):
+              match = re.fullmatch(r"(\d+\.\d+\.\d+)-(alpha|beta|rc)\.(\d+)", version)
+              if not match:
+                  return version
+              marker = {"alpha": "a", "beta": "b", "rc": "rc"}[match.group(2)]
+              return f"{match.group(1)}{marker}{match.group(3)}"
 
           expected = os.environ["EXPECTED_VERSION"]
+          accepted = {expected, python_dist_version(expected)}
           dist_dir = pathlib.Path("dist")
           files = sorted(path.name for path in dist_dir.iterdir() if path.is_file())
           if not files:
               raise SystemExit(f"No distribution artifacts were collected in {dist_dir}")
-          if not all(expected in name for name in files):
+          if not all(any(version in name for version in accepted) for name in files):
               raise SystemExit(
                   f"Built artifacts do not match tag version {expected}: {files}"
               )
@@ -471,7 +488,11 @@ jobs:
               echo "${name}@${version} is already published; skipping"
               continue
             fi
-            npm publish "./$package" --provenance --access public
+            publish_tag="latest"
+            if [[ "${version}" == *"-"* ]]; then
+              publish_tag="beta"
+            fi
+            npm publish "./$package" --provenance --access public --tag "${publish_tag}"
           done
 
   github-release:
@@ -505,8 +526,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          release_flags=()
+          if [[ "${GITHUB_REF_NAME}" == *"-"* ]]; then
+            release_flags+=(--prerelease)
+          fi
           gh release create "${GITHUB_REF_NAME}" dist/* \
             --repo "${GITHUB_REPOSITORY}" \
             --verify-tag \
             --title "${{ needs.release-context.outputs.release_name }}" \
-            --generate-notes
+            --generate-notes \
+            "${release_flags[@]}"
