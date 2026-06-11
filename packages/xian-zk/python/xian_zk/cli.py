@@ -13,11 +13,10 @@ from xian_zk import (
     ShieldedRelayTransferProver,
     bundle_summary,
     shielded_command_registry_manifest,
-    shielded_relay_registry_manifest,
     shielded_registry_manifest,
+    shielded_relay_registry_manifest,
 )
 from xian_zk.bundles import load_and_validate_bundle_text
-
 
 _ARTIFACT_KINDS = {
     "note": "shielded_note",
@@ -52,7 +51,7 @@ def _operator_script(
     configure_target: str = "contract",
 ) -> str:
     manifest_lines = ",\n".join(f'    "{filename}"' for filename in manifest_filenames)
-    return f'''from __future__ import annotations
+    return f"""from __future__ import annotations
 
 import json
 from pathlib import Path
@@ -104,7 +103,7 @@ def register_and_bind(zk_registry, {configure_target}) -> dict[str, list]:
         "registered": register_manifests(zk_registry),
         "configured": bind_manifests({configure_target}),
     }}
-'''
+"""
 
 
 def _deployment_instructions(
@@ -287,9 +286,7 @@ def _add_output_arguments(parser: argparse.ArgumentParser) -> None:
 def _add_generate_arguments(parser: argparse.ArgumentParser, *, bundle_type: str) -> None:
     _add_output_arguments(parser)
     default_contract_name = (
-        "con_shielded_note_token"
-        if bundle_type == "shielded-note"
-        else "con_shielded_commands"
+        "con_shielded_note_token" if bundle_type == "shielded-note" else "con_shielded_commands"
     )
     parser.add_argument(
         "--contract-name",
@@ -299,10 +296,7 @@ def _add_generate_arguments(parser: argparse.ArgumentParser, *, bundle_type: str
     parser.add_argument(
         "--vk-id-prefix",
         default=None,
-        help=(
-            "Prefix used to derive vk ids. Defaults to a timestamped "
-            "contract-specific prefix."
-        ),
+        help=("Prefix used to derive vk ids. Defaults to a timestamped contract-specific prefix."),
     )
 
 
@@ -681,10 +675,7 @@ def _handle_promote(args: argparse.Namespace) -> int:
     print(f"Generated promotion summary: {summary_path}")
     print(f"Generated catalog snippet: {catalog_snippet_path}")
     print()
-    print(
-        "Private bundle files contain proving keys; keep them offline and "
-        "access-controlled."
-    )
+    print("Private bundle files contain proving keys; keep them offline and access-controlled.")
     return 0
 
 

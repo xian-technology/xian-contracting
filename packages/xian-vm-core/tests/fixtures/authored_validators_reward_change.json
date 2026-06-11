@@ -212,6 +212,25 @@
         "hashes": [],
         "variables": []
       },
+      "con_rewards": {
+        "hashes": [
+          {
+            "binding": "S",
+            "entries": [
+              {
+                "key": "value",
+                "value": [
+                  0.25,
+                  0.25,
+                  0.25,
+                  0.25
+                ]
+              }
+            ]
+          }
+        ],
+        "variables": []
+      },
       "con_validators": {
         "hashes": [
           {
@@ -330,25 +349,6 @@
             "value": 25
           }
         ]
-      },
-      "con_rewards": {
-        "hashes": [
-          {
-            "binding": "S",
-            "entries": [
-              {
-                "key": "value",
-                "value": [
-                  0.25,
-                  0.25,
-                  0.25,
-                  0.25
-                ]
-              }
-            ]
-          }
-        ],
-        "variables": []
       }
     }
   },
@@ -368,7 +368,7 @@
                   "node": "constant",
                   "span": {
                     "col": 43,
-                    "end_col": 85,
+                    "end_col": 84,
                     "end_line": 5,
                     "line": 5
                   },
@@ -378,7 +378,7 @@
                 "node": "assert",
                 "span": {
                   "col": 4,
-                  "end_col": 85,
+                  "end_col": 84,
                   "end_line": 5,
                   "line": 5
                 },
@@ -440,7 +440,7 @@
             "returns": null,
             "span": {
               "col": 0,
-              "end_col": 85,
+              "end_col": 84,
               "end_line": 5,
               "line": 4
             },
@@ -1121,7 +1121,7 @@
             "node": "binding_decl",
             "span": {
               "col": 0,
-              "end_col": 32,
+              "end_col": 35,
               "end_line": 1,
               "line": 1
             },
@@ -1129,7 +1129,7 @@
               "node": "constant",
               "span": {
                 "col": 19,
-                "end_col": 32,
+                "end_col": 35,
                 "end_line": 1,
                 "line": 1
               },
@@ -1169,7 +1169,7 @@
         "ir_version": "xian_ir_v1",
         "module_body": [],
         "module_name": "con_dao",
-        "source_hash": "39ad53b6a6302de4dd1cf6898ea6807f8ce5e743df3d60391731e6242d7af37c",
+        "source_hash": "fc817737899725cadd2fc4167185bafde7c756793805fa2acca7bc24cd752124",
         "vm_profile": "xian_vm_v1"
       },
       "module_name": "con_dao",
@@ -1217,7 +1217,7 @@
                   "node": "constant",
                   "span": {
                     "col": 43,
-                    "end_col": 81,
+                    "end_col": 80,
                     "end_line": 6,
                     "line": 6
                   },
@@ -1227,7 +1227,7 @@
                 "node": "assert",
                 "span": {
                   "col": 4,
-                  "end_col": 81,
+                  "end_col": 80,
                   "end_line": 6,
                   "line": 6
                 },
@@ -1289,7 +1289,7 @@
             "returns": null,
             "span": {
               "col": 0,
-              "end_col": 81,
+              "end_col": 80,
               "end_line": 6,
               "line": 5
             },
@@ -1869,7 +1869,7 @@
             "node": "binding_decl",
             "span": {
               "col": 0,
-              "end_col": 32,
+              "end_col": 35,
               "end_line": 2,
               "line": 2
             },
@@ -1877,7 +1877,7 @@
               "node": "constant",
               "span": {
                 "col": 19,
-                "end_col": 32,
+                "end_col": 35,
                 "end_line": 2,
                 "line": 2
               },
@@ -1917,7 +1917,7 @@
         "ir_version": "xian_ir_v1",
         "module_body": [],
         "module_name": "con_rewards",
-        "source_hash": "60df32c409229f5629d0c81961a9c04b6aadf6f8dd1d03bccecd29d2861e184c",
+        "source_hash": "4438d7adfdb72ca98e88b1dacd3a0f4913f426ba0f0c3e6c08a48cd7633e4236",
         "vm_profile": "xian_vm_v1"
       },
       "module_name": "con_rewards",
@@ -1948,7 +1948,7 @@
                   "node": "constant",
                   "span": {
                     "col": 43,
-                    "end_col": 82,
+                    "end_col": 81,
                     "end_line": 6,
                     "line": 6
                   },
@@ -1958,7 +1958,7 @@
                 "node": "assert",
                 "span": {
                   "col": 4,
-                  "end_col": 82,
+                  "end_col": 81,
                   "end_line": 6,
                   "line": 6
                 },
@@ -2020,7 +2020,7 @@
             "returns": null,
             "span": {
               "col": 0,
-              "end_col": 82,
+              "end_col": 81,
               "end_line": 6,
               "line": 5
             },
@@ -2356,7 +2356,7 @@
             "node": "binding_decl",
             "span": {
               "col": 0,
-              "end_col": 32,
+              "end_col": 35,
               "end_line": 2,
               "line": 2
             },
@@ -2364,7 +2364,7 @@
               "node": "constant",
               "span": {
                 "col": 19,
-                "end_col": 32,
+                "end_col": 35,
                 "end_line": 2,
                 "line": 2
               },
@@ -2404,7 +2404,7 @@
         "ir_version": "xian_ir_v1",
         "module_body": [],
         "module_name": "con_chi_cost",
-        "source_hash": "05e6954a4b94b9314643dc514066c34d083ebee287b9504401516aa72d196784",
+        "source_hash": "a471a02413e5a18f0f5c360592fd859300685d1ee8f97d94359b8c7eb061b5f4",
         "vm_profile": "xian_vm_v1"
       },
       "module_name": "con_chi_cost",
@@ -7604,7 +7604,7 @@
                 "node": "expr",
                 "span": {
                   "col": 4,
-                  "end_col": 17,
+                  "end_col": 29,
                   "end_line": 178,
                   "line": 178
                 },
@@ -7614,8 +7614,8 @@
                       "elements": [],
                       "node": "list",
                       "span": {
-                        "col": 14,
-                        "end_col": 16,
+                        "col": 26,
+                        "end_col": 28,
                         "end_line": 178,
                         "line": 178
                       }
@@ -7625,10 +7625,10 @@
                     "attr": "set",
                     "host_binding_id": null,
                     "node": "attribute",
-                    "path": "nodes.set",
+                    "path": "active_validators.set",
                     "span": {
                       "col": 4,
-                      "end_col": 13,
+                      "end_col": 25,
                       "end_line": 178,
                       "line": 178
                     },
@@ -7638,7 +7638,7 @@
                       "node": "name",
                       "span": {
                         "col": 4,
-                        "end_col": 9,
+                        "end_col": 21,
                         "end_line": 178,
                         "line": 178
                       }
@@ -7651,7 +7651,7 @@
                   "receiver_type": "Variable",
                   "span": {
                     "col": 4,
-                    "end_col": 17,
+                    "end_col": 29,
                     "end_line": 178,
                     "line": 178
                   },
@@ -9473,8 +9473,8 @@
                       "id": "node",
                       "node": "name",
                       "span": {
-                        "col": 24,
-                        "end_col": 28,
+                        "col": 15,
+                        "end_col": 19,
                         "end_line": 226,
                         "line": 226
                       }
@@ -9482,7 +9482,7 @@
                     "node": "storage_set",
                     "span": {
                       "col": 8,
-                      "end_col": 53,
+                      "end_col": 44,
                       "end_line": 226,
                       "line": 226
                     },
@@ -9495,16 +9495,16 @@
                         "id": "node",
                         "node": "name",
                         "span": {
-                          "col": 48,
-                          "end_col": 52,
+                          "col": 39,
+                          "end_col": 43,
                           "end_line": 226,
                           "line": 226
                         }
                       },
                       "node": "storage_get",
                       "span": {
-                        "col": 32,
-                        "end_col": 53,
+                        "col": 23,
+                        "end_col": 44,
                         "end_line": 226,
                         "line": 226
                       },
@@ -9618,7 +9618,7 @@
                 "node": "expr",
                 "span": {
                   "col": 4,
-                  "end_col": 27,
+                  "end_col": 39,
                   "end_line": 229,
                   "line": 229
                 },
@@ -9629,8 +9629,8 @@
                       "id": "active_nodes",
                       "node": "name",
                       "span": {
-                        "col": 14,
-                        "end_col": 26,
+                        "col": 26,
+                        "end_col": 38,
                         "end_line": 229,
                         "line": 229
                       }
@@ -9640,10 +9640,10 @@
                     "attr": "set",
                     "host_binding_id": null,
                     "node": "attribute",
-                    "path": "nodes.set",
+                    "path": "active_validators.set",
                     "span": {
                       "col": 4,
-                      "end_col": 13,
+                      "end_col": 25,
                       "end_line": 229,
                       "line": 229
                     },
@@ -9653,7 +9653,7 @@
                       "node": "name",
                       "span": {
                         "col": 4,
-                        "end_col": 9,
+                        "end_col": 21,
                         "end_line": 229,
                         "line": 229
                       }
@@ -9666,7 +9666,7 @@
                   "receiver_type": "Variable",
                   "span": {
                     "col": 4,
-                    "end_col": 27,
+                    "end_col": 39,
                     "end_line": 229,
                     "line": 229
                   },
@@ -10158,7 +10158,7 @@
             "returns": null,
             "span": {
               "col": 0,
-              "end_col": 27,
+              "end_col": 39,
               "end_line": 229,
               "line": 139
             },
@@ -11637,7 +11637,7 @@
                 "node": "assign",
                 "span": {
                   "col": 4,
-                  "end_col": 31,
+                  "end_col": 43,
                   "end_line": 289,
                   "line": 289
                 },
@@ -11660,10 +11660,10 @@
                     "attr": "get",
                     "host_binding_id": null,
                     "node": "attribute",
-                    "path": "nodes.get",
+                    "path": "active_validators.get",
                     "span": {
                       "col": 20,
-                      "end_col": 29,
+                      "end_col": 41,
                       "end_line": 289,
                       "line": 289
                     },
@@ -11673,7 +11673,7 @@
                       "node": "name",
                       "span": {
                         "col": 20,
-                        "end_col": 25,
+                        "end_col": 37,
                         "end_line": 289,
                         "line": 289
                       }
@@ -11686,7 +11686,7 @@
                   "receiver_type": "Variable",
                   "span": {
                     "col": 20,
-                    "end_col": 31,
+                    "end_col": 43,
                     "end_line": 289,
                     "line": 289
                   },
@@ -13079,7 +13079,7 @@
                 "node": "assign",
                 "span": {
                   "col": 4,
-                  "end_col": 36,
+                  "end_col": 27,
                   "end_line": 348,
                   "line": 348
                 },
@@ -13103,8 +13103,8 @@
                     "id": "account",
                     "node": "name",
                     "span": {
-                      "col": 28,
-                      "end_col": 35,
+                      "col": 19,
+                      "end_col": 26,
                       "end_line": 348,
                       "line": 348
                     }
@@ -13112,7 +13112,7 @@
                   "node": "storage_get",
                   "span": {
                     "col": 12,
-                    "end_col": 36,
+                    "end_col": 27,
                     "end_line": 348,
                     "line": 348
                   },
@@ -29244,8 +29244,8 @@
                           "id": "account",
                           "node": "name",
                           "span": {
-                            "col": 28,
-                            "end_col": 35,
+                            "col": 19,
+                            "end_col": 26,
                             "end_line": 881,
                             "line": 881
                           }
@@ -29253,7 +29253,7 @@
                         "node": "storage_set",
                         "span": {
                           "col": 12,
-                          "end_col": 72,
+                          "end_col": 63,
                           "end_line": 881,
                           "line": 881
                         },
@@ -29266,8 +29266,8 @@
                               "id": "account",
                               "node": "name",
                               "span": {
-                                "col": 64,
-                                "end_col": 71,
+                                "col": 55,
+                                "end_col": 62,
                                 "end_line": 881,
                                 "line": 881
                               }
@@ -29279,8 +29279,8 @@
                             "id": "selected_validator_power",
                             "node": "name",
                             "span": {
-                              "col": 39,
-                              "end_col": 63,
+                              "col": 30,
+                              "end_col": 54,
                               "end_line": 881,
                               "line": 881
                             }
@@ -29288,8 +29288,8 @@
                           "keywords": [],
                           "node": "call",
                           "span": {
-                            "col": 39,
-                            "end_col": 72,
+                            "col": 30,
+                            "end_col": 63,
                             "end_line": 881,
                             "line": 881
                           },
@@ -29637,8 +29637,8 @@
                               "id": "account",
                               "node": "name",
                               "span": {
-                                "col": 32,
-                                "end_col": 39,
+                                "col": 23,
+                                "end_col": 30,
                                 "end_line": 892,
                                 "line": 892
                               }
@@ -29646,7 +29646,7 @@
                             "node": "storage_set",
                             "span": {
                               "col": 16,
-                              "end_col": 44,
+                              "end_col": 35,
                               "end_line": 892,
                               "line": 892
                             },
@@ -29655,8 +29655,8 @@
                             "value": {
                               "node": "constant",
                               "span": {
-                                "col": 43,
-                                "end_col": 44,
+                                "col": 34,
+                                "end_col": 35,
                                 "end_line": 892,
                                 "line": 892
                               },
@@ -29669,7 +29669,7 @@
                         "orelse": [],
                         "span": {
                           "col": 12,
-                          "end_col": 44,
+                          "end_col": 35,
                           "end_line": 892,
                           "line": 891
                         },
@@ -29773,7 +29773,7 @@
                     ],
                     "span": {
                       "col": 8,
-                      "end_col": 44,
+                      "end_col": 35,
                       "end_line": 892,
                       "line": 870
                     },
@@ -29830,7 +29830,7 @@
                 "orelse": [],
                 "span": {
                   "col": 4,
-                  "end_col": 44,
+                  "end_col": 35,
                   "end_line": 892,
                   "line": 869
                 },
@@ -29850,7 +29850,7 @@
                 "node": "expr",
                 "span": {
                   "col": 4,
-                  "end_col": 32,
+                  "end_col": 44,
                   "end_line": 894,
                   "line": 894
                 },
@@ -29861,8 +29861,8 @@
                       "id": "selected_accounts",
                       "node": "name",
                       "span": {
-                        "col": 14,
-                        "end_col": 31,
+                        "col": 26,
+                        "end_col": 43,
                         "end_line": 894,
                         "line": 894
                       }
@@ -29872,10 +29872,10 @@
                     "attr": "set",
                     "host_binding_id": null,
                     "node": "attribute",
-                    "path": "nodes.set",
+                    "path": "active_validators.set",
                     "span": {
                       "col": 4,
-                      "end_col": 13,
+                      "end_col": 25,
                       "end_line": 894,
                       "line": 894
                     },
@@ -29885,7 +29885,7 @@
                       "node": "name",
                       "span": {
                         "col": 4,
-                        "end_col": 9,
+                        "end_col": 21,
                         "end_line": 894,
                         "line": 894
                       }
@@ -29898,7 +29898,7 @@
                   "receiver_type": "Variable",
                   "span": {
                     "col": 4,
-                    "end_col": 32,
+                    "end_col": 44,
                     "end_line": 894,
                     "line": 894
                   },
@@ -34110,7 +34110,7 @@
                     "node": "expr",
                     "span": {
                       "col": 8,
-                      "end_col": 32,
+                      "end_col": 44,
                       "end_line": 1040,
                       "line": 1040
                     },
@@ -34121,8 +34121,8 @@
                           "id": "current_nodes",
                           "node": "name",
                           "span": {
-                            "col": 18,
-                            "end_col": 31,
+                            "col": 30,
+                            "end_col": 43,
                             "end_line": 1040,
                             "line": 1040
                           }
@@ -34132,10 +34132,10 @@
                         "attr": "set",
                         "host_binding_id": null,
                         "node": "attribute",
-                        "path": "nodes.set",
+                        "path": "active_validators.set",
                         "span": {
                           "col": 8,
-                          "end_col": 17,
+                          "end_col": 29,
                           "end_line": 1040,
                           "line": 1040
                         },
@@ -34145,7 +34145,7 @@
                           "node": "name",
                           "span": {
                             "col": 8,
-                            "end_col": 13,
+                            "end_col": 25,
                             "end_line": 1040,
                             "line": 1040
                           }
@@ -34158,7 +34158,7 @@
                       "receiver_type": "Variable",
                       "span": {
                         "col": 8,
-                        "end_col": 32,
+                        "end_col": 44,
                         "end_line": 1040,
                         "line": 1040
                       },
@@ -34170,7 +34170,7 @@
                 "orelse": [],
                 "span": {
                   "col": 4,
-                  "end_col": 32,
+                  "end_col": 44,
                   "end_line": 1040,
                   "line": 1038
                 },
@@ -34796,8 +34796,8 @@
                   "id": "account",
                   "node": "name",
                   "span": {
-                    "col": 20,
-                    "end_col": 27,
+                    "col": 11,
+                    "end_col": 18,
                     "end_line": 1057,
                     "line": 1057
                   }
@@ -34805,7 +34805,7 @@
                 "node": "storage_set",
                 "span": {
                   "col": 4,
-                  "end_col": 36,
+                  "end_col": 27,
                   "end_line": 1057,
                   "line": 1057
                 },
@@ -34816,8 +34816,8 @@
                   "id": "power",
                   "node": "name",
                   "span": {
-                    "col": 31,
-                    "end_col": 36,
+                    "col": 22,
+                    "end_col": 27,
                     "end_line": 1057,
                     "line": 1057
                   }
@@ -35176,7 +35176,7 @@
                 "node": "expr",
                 "span": {
                   "col": 4,
-                  "end_col": 57,
+                  "end_col": 69,
                   "end_line": 1069,
                   "line": 1069
                 },
@@ -35192,8 +35192,8 @@
                             "id": "active_nodes_list",
                             "node": "name",
                             "span": {
-                              "col": 27,
-                              "end_col": 44,
+                              "col": 39,
+                              "end_col": 56,
                               "end_line": 1069,
                               "line": 1069
                             }
@@ -35201,8 +35201,8 @@
                           "keywords": [],
                           "node": "call",
                           "span": {
-                            "col": 27,
-                            "end_col": 46,
+                            "col": 39,
+                            "end_col": 58,
                             "end_line": 1069,
                             "line": 1069
                           },
@@ -35213,8 +35213,8 @@
                           "id": "account",
                           "node": "name",
                           "span": {
-                            "col": 48,
-                            "end_col": 55,
+                            "col": 60,
+                            "end_col": 67,
                             "end_line": 1069,
                             "line": 1069
                           }
@@ -35226,8 +35226,8 @@
                         "id": "without_item",
                         "node": "name",
                         "span": {
-                          "col": 14,
-                          "end_col": 26,
+                          "col": 26,
+                          "end_col": 38,
                           "end_line": 1069,
                           "line": 1069
                         }
@@ -35235,8 +35235,8 @@
                       "keywords": [],
                       "node": "call",
                       "span": {
-                        "col": 14,
-                        "end_col": 56,
+                        "col": 26,
+                        "end_col": 68,
                         "end_line": 1069,
                         "line": 1069
                       },
@@ -35247,10 +35247,10 @@
                     "attr": "set",
                     "host_binding_id": null,
                     "node": "attribute",
-                    "path": "nodes.set",
+                    "path": "active_validators.set",
                     "span": {
                       "col": 4,
-                      "end_col": 13,
+                      "end_col": 25,
                       "end_line": 1069,
                       "line": 1069
                     },
@@ -35260,7 +35260,7 @@
                       "node": "name",
                       "span": {
                         "col": 4,
-                        "end_col": 9,
+                        "end_col": 21,
                         "end_line": 1069,
                         "line": 1069
                       }
@@ -35273,7 +35273,7 @@
                   "receiver_type": "Variable",
                   "span": {
                     "col": 4,
-                    "end_col": 57,
+                    "end_col": 69,
                     "end_line": 1069,
                     "line": 1069
                   },
@@ -35389,8 +35389,8 @@
                   "id": "account",
                   "node": "name",
                   "span": {
-                    "col": 20,
-                    "end_col": 27,
+                    "col": 11,
+                    "end_col": 18,
                     "end_line": 1073,
                     "line": 1073
                   }
@@ -35398,7 +35398,7 @@
                 "node": "storage_set",
                 "span": {
                   "col": 4,
-                  "end_col": 32,
+                  "end_col": 23,
                   "end_line": 1073,
                   "line": 1073
                 },
@@ -35407,8 +35407,8 @@
                 "value": {
                   "node": "constant",
                   "span": {
-                    "col": 31,
-                    "end_col": 32,
+                    "col": 22,
+                    "end_col": 23,
                     "end_line": 1073,
                     "line": 1073
                   },
@@ -35719,8 +35719,8 @@
                       "id": "account",
                       "node": "name",
                       "span": {
-                        "col": 24,
-                        "end_col": 31,
+                        "col": 15,
+                        "end_col": 22,
                         "end_line": 1086,
                         "line": 1086
                       }
@@ -35728,7 +35728,7 @@
                     "node": "storage_set",
                     "span": {
                       "col": 8,
-                      "end_col": 36,
+                      "end_col": 27,
                       "end_line": 1086,
                       "line": 1086
                     },
@@ -35737,8 +35737,8 @@
                     "value": {
                       "node": "constant",
                       "span": {
-                        "col": 35,
-                        "end_col": 36,
+                        "col": 26,
+                        "end_col": 27,
                         "end_line": 1086,
                         "line": 1086
                       },
@@ -36394,8 +36394,8 @@
                   "id": "account",
                   "node": "name",
                   "span": {
-                    "col": 20,
-                    "end_col": 27,
+                    "col": 11,
+                    "end_col": 18,
                     "end_line": 1102,
                     "line": 1102
                   }
@@ -36403,7 +36403,7 @@
                 "node": "storage_set",
                 "span": {
                   "col": 4,
-                  "end_col": 32,
+                  "end_col": 23,
                   "end_line": 1102,
                   "line": 1102
                 },
@@ -36412,8 +36412,8 @@
                 "value": {
                   "node": "constant",
                   "span": {
-                    "col": 31,
-                    "end_col": 32,
+                    "col": 22,
+                    "end_col": 23,
                     "end_line": 1102,
                     "line": 1102
                   },
@@ -36427,7 +36427,7 @@
                     "node": "expr",
                     "span": {
                       "col": 8,
-                      "end_col": 61,
+                      "end_col": 73,
                       "end_line": 1105,
                       "line": 1105
                     },
@@ -36443,8 +36443,8 @@
                                 "id": "active_nodes_list",
                                 "node": "name",
                                 "span": {
-                                  "col": 31,
-                                  "end_col": 48,
+                                  "col": 43,
+                                  "end_col": 60,
                                   "end_line": 1105,
                                   "line": 1105
                                 }
@@ -36452,8 +36452,8 @@
                               "keywords": [],
                               "node": "call",
                               "span": {
-                                "col": 31,
-                                "end_col": 50,
+                                "col": 43,
+                                "end_col": 62,
                                 "end_line": 1105,
                                 "line": 1105
                               },
@@ -36464,8 +36464,8 @@
                               "id": "account",
                               "node": "name",
                               "span": {
-                                "col": 52,
-                                "end_col": 59,
+                                "col": 64,
+                                "end_col": 71,
                                 "end_line": 1105,
                                 "line": 1105
                               }
@@ -36477,8 +36477,8 @@
                             "id": "without_item",
                             "node": "name",
                             "span": {
-                              "col": 18,
-                              "end_col": 30,
+                              "col": 30,
+                              "end_col": 42,
                               "end_line": 1105,
                               "line": 1105
                             }
@@ -36486,8 +36486,8 @@
                           "keywords": [],
                           "node": "call",
                           "span": {
-                            "col": 18,
-                            "end_col": 60,
+                            "col": 30,
+                            "end_col": 72,
                             "end_line": 1105,
                             "line": 1105
                           },
@@ -36498,10 +36498,10 @@
                         "attr": "set",
                         "host_binding_id": null,
                         "node": "attribute",
-                        "path": "nodes.set",
+                        "path": "active_validators.set",
                         "span": {
                           "col": 8,
-                          "end_col": 17,
+                          "end_col": 29,
                           "end_line": 1105,
                           "line": 1105
                         },
@@ -36511,7 +36511,7 @@
                           "node": "name",
                           "span": {
                             "col": 8,
-                            "end_col": 13,
+                            "end_col": 25,
                             "end_line": 1105,
                             "line": 1105
                           }
@@ -36524,7 +36524,7 @@
                       "receiver_type": "Variable",
                       "span": {
                         "col": 8,
-                        "end_col": 61,
+                        "end_col": 73,
                         "end_line": 1105,
                         "line": 1105
                       },
@@ -57410,8 +57410,8 @@
                                               "id": "member",
                                               "node": "name",
                                               "span": {
-                                                "col": 28,
-                                                "end_col": 34,
+                                                "col": 19,
+                                                "end_col": 25,
                                                 "end_line": 1696,
                                                 "line": 1696
                                               }
@@ -57419,7 +57419,7 @@
                                             "node": "storage_set",
                                             "span": {
                                               "col": 12,
-                                              "end_col": 43,
+                                              "end_col": 34,
                                               "end_line": 1696,
                                               "line": 1696
                                             },
@@ -57430,8 +57430,8 @@
                                               "id": "power",
                                               "node": "name",
                                               "span": {
-                                                "col": 38,
-                                                "end_col": 43,
+                                                "col": 29,
+                                                "end_col": 34,
                                                 "end_line": 1696,
                                                 "line": 1696
                                               }
@@ -71616,7 +71616,7 @@
             "node": "storage_decl",
             "span": {
               "col": 0,
-              "end_col": 18,
+              "end_col": 30,
               "end_line": 6,
               "line": 6
             },
@@ -72470,16 +72470,16 @@
                 "arg": "default_value",
                 "node": "keyword",
                 "span": {
-                  "col": 23,
-                  "end_col": 38,
+                  "col": 14,
+                  "end_col": 29,
                   "end_line": 37,
                   "line": 37
                 },
                 "value": {
                   "node": "constant",
                   "span": {
-                    "col": 37,
-                    "end_col": 38,
+                    "col": 28,
+                    "end_col": 29,
                     "end_line": 37,
                     "line": 37
                   },
@@ -72492,7 +72492,7 @@
             "node": "storage_decl",
             "span": {
               "col": 0,
-              "end_col": 39,
+              "end_col": 30,
               "end_line": 37,
               "line": 37
             },
@@ -75300,7 +75300,7 @@
         "ir_version": "xian_ir_v1",
         "module_body": [],
         "module_name": "con_validators",
-        "source_hash": "25de926bcab38e333548ef4705af70328f1bf64f0fc4e3458dbd96956a6e1fdc",
+        "source_hash": "bd28e6138212ee33e69b0677f8441fd11f9e2eb05f22054a25a151245bf6f960",
         "vm_profile": "xian_vm_v1"
       },
       "module_name": "con_validators",
