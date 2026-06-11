@@ -335,7 +335,7 @@ impl VmHost for ParityHarness {
 const PARITY_FIXTURES: &[&str] = &[
     "authored_currency_transfer.json",
     "authored_dex_swap_path.json",
-    "authored_members_reward_change.json",
+    "authored_validators_reward_change.json",
     "authored_oracle_price_info.json",
     "authored_profile_channel.json",
     "authored_reflection_transfer.json",
@@ -372,8 +372,8 @@ parity_fixture_test!(
     "authored_dex_swap_path.json"
 );
 parity_fixture_test!(
-    parity_fixture_authored_members_reward_change,
-    "authored_members_reward_change.json"
+    parity_fixture_authored_validators_reward_change,
+    "authored_validators_reward_change.json"
 );
 parity_fixture_test!(
     parity_fixture_authored_oracle_price_info,

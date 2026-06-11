@@ -11,7 +11,7 @@
       ],
       "type_of_vote": "reward_change"
     },
-    "module": "con_members"
+    "module": "con_validators"
   },
   "context": {
     "block_hash": "block20",
@@ -36,7 +36,7 @@
     "events": [
       {
         "caller": "genesis_alice",
-        "contract": "con_members",
+        "contract": "con_validators",
         "data": {
           "status": "pending"
         },
@@ -50,7 +50,7 @@
       },
       {
         "caller": "genesis_alice",
-        "contract": "con_members",
+        "contract": "con_validators",
         "data": {
           "no_votes": 0,
           "no_weight": 0,
@@ -68,7 +68,7 @@
       },
       {
         "caller": "genesis_alice",
-        "contract": "con_members",
+        "contract": "con_validators",
         "data": {
           "status": "approved"
         },
@@ -165,7 +165,7 @@
                 }
               },
               {
-                "key": "con_members",
+                "key": "con_validators",
                 "value": 25
               }
             ]
@@ -176,7 +176,7 @@
               {
                 "key": [
                   "validator_bob",
-                  "con_members"
+                  "con_validators"
                 ],
                 "value": {
                   "__vm_type__": "decimal",
@@ -212,7 +212,7 @@
         "hashes": [],
         "variables": []
       },
-      "con_members": {
+      "con_validators": {
         "hashes": [
           {
             "binding": "pending_registrations",
@@ -310,7 +310,7 @@
         ],
         "variables": [
           {
-            "binding": "nodes",
+            "binding": "active_validators",
             "value": [
               "genesis_alice"
             ]
@@ -372,7 +372,7 @@
                     "end_line": 5,
                     "line": 5
                   },
-                  "value": "Only masternodes can transfer DAO funds.",
+                  "value": "Only validators can transfer DAO funds.",
                   "value_type": "str"
                 },
                 "node": "assert",
@@ -1133,7 +1133,7 @@
                 "end_line": 1,
                 "line": 1
               },
-              "value": "con_members",
+              "value": "con_validators",
               "value_type": "str"
             }
           }
@@ -1221,7 +1221,7 @@
                     "end_line": 6,
                     "line": 6
                   },
-                  "value": "Only masternodes can change rewards.",
+                  "value": "Only validators can change rewards.",
                   "value_type": "str"
                 },
                 "node": "assert",
@@ -1881,7 +1881,7 @@
                 "end_line": 2,
                 "line": 2
               },
-              "value": "con_members",
+              "value": "con_validators",
               "value_type": "str"
             }
           }
@@ -1952,7 +1952,7 @@
                     "end_line": 6,
                     "line": 6
                   },
-                  "value": "Only masternodes can change chi cost.",
+                  "value": "Only validators can change chi cost.",
                   "value_type": "str"
                 },
                 "node": "assert",
@@ -2368,7 +2368,7 @@
                 "end_line": 2,
                 "line": 2
               },
-              "value": "con_members",
+              "value": "con_validators",
               "value_type": "str"
             }
           }
@@ -2431,7 +2431,7 @@
                 }
               },
               {
-                "key": "con_members",
+                "key": "con_validators",
                 "value": 25
               }
             ]
@@ -2442,7 +2442,7 @@
               {
                 "key": [
                   "validator_bob",
-                  "con_members"
+                  "con_validators"
                 ],
                 "value": {
                   "__vm_type__": "decimal",
@@ -6706,7 +6706,7 @@
         ],
         "variables": [
           {
-            "binding": "nodes",
+            "binding": "active_validators",
             "value": [
               "genesis_alice"
             ]
@@ -7634,7 +7634,7 @@
                     },
                     "value": {
                       "host_binding_id": null,
-                      "id": "nodes",
+                      "id": "active_validators",
                       "node": "name",
                       "span": {
                         "col": 4,
@@ -7647,7 +7647,7 @@
                   "keywords": [],
                   "method": "set",
                   "node": "call",
-                  "receiver_binding": "nodes",
+                  "receiver_binding": "active_validators",
                   "receiver_type": "Variable",
                   "span": {
                     "col": 4,
@@ -9467,7 +9467,7 @@
                     }
                   },
                   {
-                    "binding": "validator_power",
+                    "binding": "powers",
                     "key": {
                       "host_binding_id": null,
                       "id": "node",
@@ -9649,7 +9649,7 @@
                     },
                     "value": {
                       "host_binding_id": null,
-                      "id": "nodes",
+                      "id": "active_validators",
                       "node": "name",
                       "span": {
                         "col": 4,
@@ -9662,7 +9662,7 @@
                   "keywords": [],
                   "method": "set",
                   "node": "call",
-                  "receiver_binding": "nodes",
+                  "receiver_binding": "active_validators",
                   "receiver_type": "Variable",
                   "span": {
                     "col": 4,
@@ -11669,7 +11669,7 @@
                     },
                     "value": {
                       "host_binding_id": null,
-                      "id": "nodes",
+                      "id": "active_validators",
                       "node": "name",
                       "span": {
                         "col": 20,
@@ -11682,7 +11682,7 @@
                   "keywords": [],
                   "method": "get",
                   "node": "call",
-                  "receiver_binding": "nodes",
+                  "receiver_binding": "active_validators",
                   "receiver_type": "Variable",
                   "span": {
                     "col": 20,
@@ -13097,7 +13097,7 @@
                   }
                 ],
                 "value": {
-                  "binding": "validator_power",
+                  "binding": "powers",
                   "key": {
                     "host_binding_id": null,
                     "id": "account",
@@ -29238,7 +29238,7 @@
                         }
                       },
                       {
-                        "binding": "validator_power",
+                        "binding": "powers",
                         "key": {
                           "host_binding_id": null,
                           "id": "account",
@@ -29631,7 +29631,7 @@
                       {
                         "body": [
                           {
-                            "binding": "validator_power",
+                            "binding": "powers",
                             "key": {
                               "host_binding_id": null,
                               "id": "account",
@@ -29881,7 +29881,7 @@
                     },
                     "value": {
                       "host_binding_id": null,
-                      "id": "nodes",
+                      "id": "active_validators",
                       "node": "name",
                       "span": {
                         "col": 4,
@@ -29894,7 +29894,7 @@
                   "keywords": [],
                   "method": "set",
                   "node": "call",
-                  "receiver_binding": "nodes",
+                  "receiver_binding": "active_validators",
                   "receiver_type": "Variable",
                   "span": {
                     "col": 4,
@@ -34141,7 +34141,7 @@
                         },
                         "value": {
                           "host_binding_id": null,
-                          "id": "nodes",
+                          "id": "active_validators",
                           "node": "name",
                           "span": {
                             "col": 8,
@@ -34154,7 +34154,7 @@
                       "keywords": [],
                       "method": "set",
                       "node": "call",
-                      "receiver_binding": "nodes",
+                      "receiver_binding": "active_validators",
                       "receiver_type": "Variable",
                       "span": {
                         "col": 8,
@@ -34790,7 +34790,7 @@
                 }
               },
               {
-                "binding": "validator_power",
+                "binding": "powers",
                 "key": {
                   "host_binding_id": null,
                   "id": "account",
@@ -35256,7 +35256,7 @@
                     },
                     "value": {
                       "host_binding_id": null,
-                      "id": "nodes",
+                      "id": "active_validators",
                       "node": "name",
                       "span": {
                         "col": 4,
@@ -35269,7 +35269,7 @@
                   "keywords": [],
                   "method": "set",
                   "node": "call",
-                  "receiver_binding": "nodes",
+                  "receiver_binding": "active_validators",
                   "receiver_type": "Variable",
                   "span": {
                     "col": 4,
@@ -35383,7 +35383,7 @@
                 }
               },
               {
-                "binding": "validator_power",
+                "binding": "powers",
                 "key": {
                   "host_binding_id": null,
                   "id": "account",
@@ -35713,7 +35713,7 @@
                     }
                   },
                   {
-                    "binding": "validator_power",
+                    "binding": "powers",
                     "key": {
                       "host_binding_id": null,
                       "id": "account",
@@ -36388,7 +36388,7 @@
                 }
               },
               {
-                "binding": "validator_power",
+                "binding": "powers",
                 "key": {
                   "host_binding_id": null,
                   "id": "account",
@@ -36507,7 +36507,7 @@
                         },
                         "value": {
                           "host_binding_id": null,
-                          "id": "nodes",
+                          "id": "active_validators",
                           "node": "name",
                           "span": {
                             "col": 8,
@@ -36520,7 +36520,7 @@
                       "keywords": [],
                       "method": "set",
                       "node": "call",
-                      "receiver_binding": "nodes",
+                      "receiver_binding": "active_validators",
                       "receiver_type": "Variable",
                       "span": {
                         "col": 8,
@@ -57404,7 +57404,7 @@
                                       {
                                         "body": [
                                           {
-                                            "binding": "validator_power",
+                                            "binding": "powers",
                                             "key": {
                                               "host_binding_id": null,
                                               "id": "member",
@@ -71612,7 +71612,7 @@
           {
             "args": [],
             "keywords": [],
-            "name": "nodes",
+            "name": "active_validators",
             "node": "storage_decl",
             "span": {
               "col": 0,
@@ -72488,7 +72488,7 @@
                 }
               }
             ],
-            "name": "validator_power",
+            "name": "powers",
             "node": "storage_decl",
             "span": {
               "col": 0,
@@ -75299,13 +75299,13 @@
         ],
         "ir_version": "xian_ir_v1",
         "module_body": [],
-        "module_name": "con_members",
+        "module_name": "con_validators",
         "source_hash": "25de926bcab38e333548ef4705af70328f1bf64f0fc4e3458dbd96956a6e1fdc",
         "vm_profile": "xian_vm_v1"
       },
-      "module_name": "con_members",
+      "module_name": "con_validators",
       "owner": null
     }
   ],
-  "name": "authored_members_reward_change"
+  "name": "authored_validators_reward_change"
 }

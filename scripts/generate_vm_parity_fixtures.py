@@ -74,7 +74,7 @@ ORACLE_SOURCE = WORKSPACE_ROOT / "xian-stable-protocol" / "contracts" / "oracle.
 DAO_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "dao.s.py"
 CHI_COST_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "chi_cost.s.py"
 REWARDS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "rewards.s.py"
-MEMBERS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "members.s.py"
+VALIDATORS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "validators.s.py"
 DEFAULT_DEX_BUNDLE_SOURCE = WORKSPACE_ROOT / "xian-dex" / "contract-bundle.json"
 FIELD_ONE_HEX = "0x" + "00" * 31 + "01"
 FIELD_TWO_HEX = "0x" + "00" * 31 + "02"
@@ -1681,15 +1681,15 @@ def interact(payload: dict = None):
         },
     },
     {
-        "name": "authored_members_reward_change",
+        "name": "authored_validators_reward_change",
         "modules": [
             {
                 "module_name": "con_dao",
                 "source_path": str(DAO_SOURCE),
                 "source_replacements": [
                     (
-                        'CONTROL_CONTRACT = "masternodes"',
-                        'CONTROL_CONTRACT = "con_members"',
+                        'CONTROL_CONTRACT = "validators"',
+                        'CONTROL_CONTRACT = "con_validators"',
                     ),
                 ],
                 "initial_state_queries": {"variables": [], "hashes": []},
@@ -1699,8 +1699,8 @@ def interact(payload: dict = None):
                 "source_path": str(REWARDS_SOURCE),
                 "source_replacements": [
                     (
-                        'CONTROL_CONTRACT = "masternodes"',
-                        'CONTROL_CONTRACT = "con_members"',
+                        'CONTROL_CONTRACT = "validators"',
+                        'CONTROL_CONTRACT = "con_validators"',
                     ),
                 ],
                 "initial_state_queries": {
@@ -1713,8 +1713,8 @@ def interact(payload: dict = None):
                 "source_path": str(CHI_COST_SOURCE),
                 "source_replacements": [
                     (
-                        'CONTROL_CONTRACT = "masternodes"',
-                        'CONTROL_CONTRACT = "con_members"',
+                        'CONTROL_CONTRACT = "validators"',
+                        'CONTROL_CONTRACT = "con_validators"',
                     ),
                 ],
                 "initial_state_queries": {
@@ -1734,12 +1734,12 @@ def interact(payload: dict = None):
                             "keys": [
                                 "genesis_alice",
                                 "validator_bob",
-                                "con_members",
+                                "con_validators",
                             ],
                         },
                         {
                             "binding": "approvals",
-                            "keys": [("validator_bob", "con_members")],
+                            "keys": [("validator_bob", "con_validators")],
                         },
                         {
                             "binding": "metadata",
@@ -1753,8 +1753,8 @@ def interact(payload: dict = None):
                 },
             },
             {
-                "module_name": "con_members",
-                "source_path": str(MEMBERS_SOURCE),
+                "module_name": "con_validators",
+                "source_path": str(VALIDATORS_SOURCE),
                 "source_replacements": [
                     ("import dao", "import con_dao as dao"),
                     ("import rewards", "import con_rewards as rewards"),
@@ -1767,7 +1767,7 @@ def interact(payload: dict = None):
                 },
                 "initial_state_queries": {
                     "variables": [
-                        "nodes",
+                        "active_validators",
                         "candidates",
                         "types",
                         "total_votes",
@@ -1808,7 +1808,7 @@ def interact(payload: dict = None):
             {
                 "module": "con_currency",
                 "function": "approve",
-                "kwargs": {"amount": 25.0, "to": "con_members"},
+                "kwargs": {"amount": 25.0, "to": "con_validators"},
                 "context": {
                     "caller": "validator_bob",
                     "signer": "validator_bob",
@@ -1816,7 +1816,7 @@ def interact(payload: dict = None):
                 },
             },
             {
-                "module": "con_members",
+                "module": "con_validators",
                 "function": "register",
                 "kwargs": {
                     "reward_key": "validator_bob_rewards",
@@ -1834,7 +1834,7 @@ def interact(payload: dict = None):
             },
         ],
         "call": {
-            "module": "con_members",
+            "module": "con_validators",
             "function": "propose_vote",
             "kwargs": {
                 "type_of_vote": "reward_change",
@@ -1859,12 +1859,12 @@ def interact(payload: dict = None):
                         "keys": [
                             "genesis_alice",
                             "validator_bob",
-                            "con_members",
+                            "con_validators",
                         ],
                     },
                     {
                         "binding": "approvals",
-                        "keys": [("validator_bob", "con_members")],
+                        "keys": [("validator_bob", "con_validators")],
                     },
                     {
                         "binding": "metadata",
@@ -1872,9 +1872,9 @@ def interact(payload: dict = None):
                     },
                 ],
             },
-            "con_members": {
+            "con_validators": {
                 "variables": [
-                    "nodes",
+                    "active_validators",
                     "candidates",
                     "total_votes",
                     "registration_fee",
