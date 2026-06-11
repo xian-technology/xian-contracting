@@ -12,6 +12,7 @@ Current-state docs:
 - `EXECUTION_BACKLOG.md`
 - `PARALLEL_EXECUTION.md`
 - `SAFETY_INVARIANTS.md`
+- `SHIELDED_HASH_REDESIGN.md`
 - `SHIELDED_STATE_REDESIGN_V2.md`
 
 Active design / roadmap notes:
@@ -20,3 +21,4 @@ Active design / roadmap notes:
 - `RUST_COMPILER_CORE.md`
 - `compiler_fixture_v1.schema.json`
 - `ZK_PRIVACY_OPTIMIZATION_PLAN.md`
+- `ZK_TRUSTED_SETUP_OPTIONS.md`

@@ -1,6 +1,8 @@
 # Shielded Hash Redesign — Poseidon-BN254 (F-1 remediation)
 
-Status: **Design / approved for implementation**
+Status: **Implemented** — Poseidon-BN254 landed with the v4/v5 circuit ids
+(`shielded-*-v4`, `shielded-command-*-v5`); kept as the design record for the
+remediation.
 Author: Security audit (2026-06-06)
 Scope: replaces the unsound MiMC construction used by the shielded-note and
 shielded-command circuits, contracts, and tooling.
