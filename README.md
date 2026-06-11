@@ -109,8 +109,7 @@ print(driver.get("example.key"))
     contract).
   - `stdlib/` — contract-side standard-library bridge.
 - `packages/` — independently released sibling packages:
-  `xian-accounts`, `xian-compiler-core`, `xian-contract-tools`,
-  `xian-fastpath-core`, `xian-native-tracer`,
+  `xian-accounts`, `xian-compiler-core`, `xian-fastpath-core`,
   `xian-runtime-types`, `xian-vm-core`, `xian-zk`.
 - `scripts/` — audit and fixture-generation tools used by VM/runtime work.
 - `tests/` — `unit/`, `integration/`, `security/`, `performance/` coverage.
