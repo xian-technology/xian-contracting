@@ -8,6 +8,12 @@ the browser IDE, CI, and optional node-side validation should all call that same
 core through thin language bindings. The compiler core should be written in Rust
 and packaged for native Python, native/Node JavaScript, and browser WASM.
 
+Launch-readiness status is tracked in
+`../xian-meta/docs/COMPILER_RUNTIME_LAUNCH_STATUS.md`. This document defines
+the compiler architecture and authority criteria; the xian-meta page reconciles
+those criteria with the current VM/runtime implementation state and release
+tags.
+
 ## Goals
 
 - Make `source -> normalized source -> xian_vm_v1 IR -> deployment_artifacts`
