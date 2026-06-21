@@ -104,12 +104,12 @@ wheels = [
 
 [[package]]
 name = "xian-tech-compiler-core"
-version = "0.1.1"
+version = "0.1.4b1"
 source = { directory = "../xian-compiler-core" }
 
 [[package]]
 name = "xian-tech-contracting"
-version = "1.0.8"
+version = "1.0.11b1"
 source = { editable = "../../" }
 dependencies = [
     { name = "cachetools" },
@@ -141,7 +141,7 @@ dev = [
 
 [[package]]
 name = "xian-tech-runtime-types"
-version = "0.1.2"
+version = "0.1.4b1"
 source = { editable = "../xian-runtime-types" }
 
 [[package]]
