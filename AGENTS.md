@@ -36,3 +36,8 @@
 - The test suite now uses a repo-local HOME via `tests/conftest.py`, so it does not need host access to `~/.cometbft`.
 - Review `examples/` and release helpers critically before expanding them; do not add convenience tooling that belongs in `xian-cli` or `xian-stack`.
 - If you touch metering, tracing, imports, or storage encoding, assume the change is consensus-sensitive and test accordingly.
+
+## Local Knowledge Graph
+- If `graphify-out/graph.json` exists, prefer `graphify query`, `graphify path`, or `graphify explain` for broad architecture and impact questions before scanning files manually.
+- Treat `graphify-out/` as a generated local artifact; it is intentionally ignored by Git.
+- After structural code changes, refresh the local graph with `graphify update .` when useful.

@@ -22,3 +22,4 @@ logs
 *.pyc
 Cargo.lock
 target/
+graphify-out/
