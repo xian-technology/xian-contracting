@@ -5,9 +5,9 @@ workspace.
 
 ## Purpose
 - This package exposes the narrow verifier surface used by the Xian runtime.
-- It also now exposes the first external proving toolkit for the
-  shielded-note-token development flow.
-- It is still intentionally small. It is not a general-purpose zk framework.
+- It exposes an external proving toolkit for the shielded-note-token development
+  flow.
+- It is intentionally small. It is not a general-purpose zk framework.
 
 ## Current Scope
 - Groth16 verification
@@ -76,44 +76,44 @@ unoptimized build is ~25x slower (Groth16 setup ~100s vs ~4s) — do not lower i
 Published/CI wheels build `--release` regardless.
 
 ## Notes
-- The runtime-facing verifier surface is still intentionally narrow.
-- The shielded-note proving helpers are the first external proving toolkit
-  slice, not a broad proving framework.
-- The shielded-note circuits now use Merkle auth paths instead of witnessing
-  the whole leaf set, and the shipped dev bundle / fixture ids are `v4` for the
-  note family and `v5` for the command family. The circuits hash with
-  Poseidon-BN254 (see `src/poseidon.rs`).
-- Shielded outputs are now addressed to `owner_public`, not to the recipient's
+- The runtime-facing verifier surface is intentionally narrow.
+- The shielded-note proving helpers are an external proving toolkit slice, not a
+  broad proving framework.
+- The shielded-note circuits use Merkle auth paths instead of witnessing the
+  whole leaf set, and the shipped dev bundle / fixture ids are `v4` for the note
+  family and `v5` for the command family. The circuits hash with Poseidon-BN254
+  (see `src/poseidon.rs`).
+- Shielded outputs are addressed to `owner_public`, not to the recipient's
   spending secret. That lets senders create recipient outputs without learning
   the recipient's private shielded spend key.
-- The Python toolkit now separates spending and viewing authority. A wallet can
+- The Python toolkit separates spending and viewing authority. A wallet can
   disclose note contents by sharing only a viewing key or by adding explicit
   extra viewers to an encrypted note payload without exposing the spend key.
-- The Python toolkit now also ships a first-class `ShieldedWallet` abstraction
+- The Python toolkit ships a first-class `ShieldedWallet` abstraction
   for seed backup, state snapshots, record sync, note selection, and request
   planning for deposit / transfer / withdraw flows.
-- The package now also ships deployment CLI helpers that generate or import
-  proving bundles, emit public registry manifests, write `register_and_bind.py`
-  operator helpers, and create catalog snippets for promoted ceremony
-  artifacts. Keep private bundles offline; only registry manifests should be
-  used for `zk_registry` registration.
-- The encrypted payload format now supports owner delivery plus optional
+- The package ships deployment CLI helpers that generate or import proving
+  bundles, emit public registry manifests, write `register_and_bind.py`
+  operator helpers, and create catalog snippets for promoted ceremony artifacts.
+  Keep private bundles offline; only registry manifests should be used for
+  `zk_registry` registration.
+- The encrypted payload format supports owner delivery plus optional
   disclosed viewers inside a single on-chain payload blob.
 - The encrypted payload format uses anonymous per-viewer discovery tags and
-  ephemeral keys for new payloads, so recipient viewing keys are no longer
-  embedded in cleartext.
-- `ShieldedWallet.sync_records(...)` now prefilters candidate payloads before
-  full decryption, and note records now expose `payload_tags` so indexers can
-  persist discovery metadata for later selective queries.
+  ephemeral keys for payloads, so recipient viewing keys are not embedded in
+  cleartext.
+- `ShieldedWallet.sync_records(...)` prefilters candidate payloads before full
+  decryption, and note records expose `payload_tags` so indexers can persist
+  discovery metadata for later selective queries.
 - `xian-zk-prover-service` is a trusted local proving companion, not a true
   split-prover protocol. It improves deployability and wallet ergonomics, but
-  the service still sees witness material.
-- Exact withdraws no longer need a forced change note. A withdraw can spend a
+  the service sees witness material.
+- Exact withdraws do not need a forced change note. A withdraw can spend a
   note set down to zero shielded outputs when value conservation closes exactly.
 - The proving requests separate `old_root` from `append_state`, which lets a
-  client prove against a recent accepted root while still projecting the
+  client prove against a recent accepted root while projecting the
   canonical post-state from the current append frontier.
-- Python `pytest` now excludes the slow proof-generation tests by default.
+- Python `pytest` excludes the slow proof-generation tests by default.
   Run `pytest -m slow` explicitly when you want the proving-toolkit path.
 - The contract runtime prefers registry-backed verification by `vk_id`; this
   package exposes the lower-level raw and prepared-key verifier primitives that
@@ -123,7 +123,7 @@ Published/CI wheels build `--release` regardless.
   be used for a real network.
 - `ShieldedNoteProver.build_random_bundle(...)` and
   `xian-zk-shielded-bundle generate-note` generate a single-party random
-  trusted setup. That is appropriate for deployment tooling, but it is still
-  not an MPC ceremony.
+  trusted setup. That is appropriate for deployment tooling, but it is not an
+  MPC ceremony.
 - Proof generation uses real randomness even when the proving bundle is a
   deterministic dev bundle.

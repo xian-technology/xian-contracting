@@ -1,13 +1,13 @@
 # xian-compiler-core
 
-This crate is the landing zone for the central Rust/WASM compiler described in
+This crate is the Rust/WASM compiler core described in
 `../../docs/RUST_COMPILER_CORE.md`.
 
-The current slice owns the artifact model, hashing rules, diagnostics, source
+The crate owns the artifact model, hashing rules, diagnostics, source
 units, parser adapter, Xian-owned syntax tree, semantic linting, source
 normalization, structural `xian_ir_v1` lowering, and compiler fixture loader.
-The checked-in compiler fixtures are still generated from the current Python
-compiler and act as the parity oracle during the migration.
+The checked-in compiler fixtures are generated from the current Python compiler
+and act as the parity oracle during the compiler transition.
 
 ## Current Surface
 
