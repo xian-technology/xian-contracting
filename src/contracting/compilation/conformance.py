@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast
-from functools import lru_cache
 from types import ModuleType
 from typing import Any
 

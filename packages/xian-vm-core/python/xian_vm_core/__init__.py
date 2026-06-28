@@ -499,9 +499,7 @@ class NativeVmHost:
             deployer = kwargs.get("deployer")
             initiator = kwargs.get("initiator")
             if kwargs.get("deployment_artifacts") is not None:
-                raise VmRuntimeExecutionError(
-                    "native contract deployment accepts source code only"
-                )
+                raise VmRuntimeExecutionError("native contract deployment accepts source code only")
             self._stage_contract_deploy(
                 name=name,
                 code=code,
