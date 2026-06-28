@@ -1,9 +1,15 @@
 from xian_zk import (
     ShieldedCommandWallet,
     ShieldedNote,
+    ShieldedSchedulerAuthProver,
+    ShieldedSchedulerAuthRequest,
     command_binding,
     output_payload_hash,
+    scheduler_owner_commitment,
+    scheduler_update_public_inputs,
     shielded_command_registry_manifest,
+    shielded_scheduler_auth_registry_manifest,
+    verify_groth16_bn254,
 )
 
 
@@ -107,3 +113,57 @@ def test_command_registry_manifest_includes_registry_metadata():
     assert manifest["registry_entries"][1]["action"] == "command"
     assert manifest["registry_entries"][1]["statement_version"] == "5"
     assert manifest["registry_entries"][1]["bundle_hash"].startswith("0x")
+
+
+def test_scheduler_auth_proof_binds_owner_and_update_digest():
+    prover = ShieldedSchedulerAuthProver.build_insecure_dev_bundle()
+    proof = prover.prove_update(
+        ShieldedSchedulerAuthRequest(
+            owner_secret=field(5150),
+            update_digest=field(6160),
+        )
+    )
+
+    assert proof.owner_commitment == scheduler_owner_commitment(field(5150))
+    assert proof.public_inputs == scheduler_update_public_inputs(
+        owner_commitment=proof.owner_commitment,
+        update_digest=proof.update_digest,
+        update_nullifier=proof.update_nullifier,
+    )
+    assert verify_groth16_bn254(
+        prover.bundle["action"]["vk_hex"],
+        proof.proof_hex,
+        proof.public_inputs,
+    )
+
+    tampered = list(proof.public_inputs)
+    tampered[1] = field(6161)
+    assert not verify_groth16_bn254(
+        prover.bundle["action"]["vk_hex"],
+        proof.proof_hex,
+        tampered,
+    )
+
+
+def test_scheduler_auth_registry_manifest_includes_registry_metadata():
+    manifest = shielded_scheduler_auth_registry_manifest(
+        {
+            "contract_name": "con_shielded_scheduler_adapter",
+            "circuit_family": "shielded_scheduler_owner_v1",
+            "warning": "single-party setup",
+            "setup_mode": "single-party",
+            "setup_ceremony": "",
+            "action": {
+                "vk_id": "shielded-scheduler-owner-v1",
+                "vk_hex": "0x01",
+                "circuit_name": "shielded_scheduler_owner_v1",
+                "version": "1",
+            },
+        }
+    )
+
+    assert manifest["circuit_family"] == "shielded_scheduler_owner_v1"
+    assert manifest["registry_entries"][0]["action"] == "authorize_update"
+    assert manifest["registry_entries"][0]["tree_depth"] == 0
+    assert manifest["registry_entries"][0]["statement_version"] == "1"
+    assert manifest["registry_entries"][0]["bundle_hash"].startswith("0x")

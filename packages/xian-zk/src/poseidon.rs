@@ -69,6 +69,10 @@ pub mod domain {
     pub const COMMAND_BINDING: u64 = 6;
     /// `command_execution_tag = H([nullifier_digest, command_binding])`
     pub const COMMAND_EXECUTION_TAG: u64 = 7;
+    /// `scheduler_owner_commitment = H([owner_secret])`
+    pub const SCHEDULER_OWNER_COMMITMENT: u64 = 8;
+    /// `scheduler_update_nullifier = H([owner_secret, update_digest])`
+    pub const SCHEDULER_UPDATE_NULLIFIER: u64 = 9;
 }
 
 /// Returns the process-wide frozen Poseidon configuration, generating it once.
@@ -135,9 +139,9 @@ pub fn poseidon_hash_var(
 mod tests {
     use super::*;
     use ark_ff::{BigInteger, PrimeField};
-    use ark_relations::r1cs::ConstraintSystem;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::R1CSVar;
+    use ark_relations::r1cs::ConstraintSystem;
 
     fn hex(value: Fr) -> String {
         let mut bytes = value.into_bigint().to_bytes_be();
@@ -157,7 +161,10 @@ mod tests {
         assert_eq!(cfg.alpha, POSEIDON_ALPHA);
         assert_eq!(cfg.rate, POSEIDON_RATE);
         assert_eq!(cfg.capacity, POSEIDON_CAPACITY);
-        assert_eq!(cfg.ark.len(), POSEIDON_FULL_ROUNDS + POSEIDON_PARTIAL_ROUNDS);
+        assert_eq!(
+            cfg.ark.len(),
+            POSEIDON_FULL_ROUNDS + POSEIDON_PARTIAL_ROUNDS
+        );
         assert_eq!(cfg.mds.len(), POSEIDON_RATE + POSEIDON_CAPACITY);
         for row in &cfg.mds {
             assert_eq!(row.len(), POSEIDON_RATE + POSEIDON_CAPACITY);
@@ -176,7 +183,8 @@ mod tests {
                 .iter()
                 .map(|v| FpVar::new_witness(cs.clone(), || Ok(*v)).unwrap())
                 .collect();
-            let gadget = poseidon_hash_var(cs.clone(), domain::NOTE_COMMITMENT, &value_vars).unwrap();
+            let gadget =
+                poseidon_hash_var(cs.clone(), domain::NOTE_COMMITMENT, &value_vars).unwrap();
             assert!(cs.is_satisfied().unwrap());
             assert_eq!(gadget.value().unwrap(), native, "arity {arity}");
         }
@@ -217,7 +225,10 @@ mod tests {
             KAT_NOTE_COMMITMENT
         );
         assert_eq!(
-            hex(poseidon_hash(domain::MERKLE, &[Fr::from(7u64), Fr::from(9u64)])),
+            hex(poseidon_hash(
+                domain::MERKLE,
+                &[Fr::from(7u64), Fr::from(9u64)]
+            )),
             KAT_MERKLE
         );
     }
@@ -227,6 +238,5 @@ mod tests {
         "0x18befe7d64b6459c48322dbd5aeb949cadeea6ceb1a7ec3c17623c6654d36e39";
     const KAT_NOTE_COMMITMENT: &str =
         "0x1abdfd037bf86214811a19a556793b21a6e6024cdb394c7050882c46af3415a7";
-    const KAT_MERKLE: &str =
-        "0x183a75ea1bb4563d3e397f0d502da3fd4eb8397f6a17d02e1f55831cccb279b3";
+    const KAT_MERKLE: &str = "0x183a75ea1bb4563d3e397f0d502da3fd4eb8397f6a17d02e1f55831cccb279b3";
 }

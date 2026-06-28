@@ -18,6 +18,7 @@ from xian_zk.bundles import (
     bundle_summary,
     validate_shielded_command_bundle,
     validate_shielded_note_bundle,
+    validate_shielded_scheduler_auth_bundle,
 )
 from xian_zk.prover_service import (
     ShieldedCommandProverClient,
@@ -105,6 +106,15 @@ from xian_zk.shielded_relay import (
     relay_transfer_version_digest,
     shielded_relay_registry_manifest,
 )
+from xian_zk.shielded_scheduler_auth import (
+    ShieldedSchedulerAuthProofResult,
+    ShieldedSchedulerAuthProver,
+    ShieldedSchedulerAuthRequest,
+    scheduler_owner_commitment,
+    scheduler_update_nullifier,
+    scheduler_update_public_inputs,
+    shielded_scheduler_auth_registry_manifest,
+)
 
 __all__ = [
     "PreparedGroth16Bn254Key",
@@ -132,6 +142,9 @@ __all__ = [
     "ShieldedRelayTransferProverClient",
     "ShieldedRelayTransferRequest",
     "ShieldedRelayTransferWallet",
+    "ShieldedSchedulerAuthProofResult",
+    "ShieldedSchedulerAuthProver",
+    "ShieldedSchedulerAuthRequest",
     "ShieldedZkProverService",
     "ShieldedTreeState",
     "ShieldedTransferRequest",
@@ -189,13 +202,18 @@ __all__ = [
     "recover_encrypted_notes",
     "recover_viewable_notes",
     "recipient_digest",
+    "scheduler_owner_commitment",
+    "scheduler_update_nullifier",
+    "scheduler_update_public_inputs",
     "scan_notes",
     "shielded_command_registry_manifest",
     "shielded_relay_registry_manifest",
+    "shielded_scheduler_auth_registry_manifest",
     "shielded_registry_manifest",
     "tree_state",
     "validate_shielded_command_bundle",
     "validate_shielded_note_bundle",
+    "validate_shielded_scheduler_auth_bundle",
     "verify_groth16_bn254",
     "verify_groth16_bn254_grouped_json",
     "verify_groth16_bn254_prepared",

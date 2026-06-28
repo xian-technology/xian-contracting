@@ -1,34 +1,36 @@
 use crate::core::{
     prepare_groth16_bn254_vk as prepare_impl, verify_groth16_bn254 as verify_impl,
     verify_groth16_bn254_grouped as verify_grouped_impl,
-    verify_groth16_bn254_prepared as verify_prepared_impl,
-    Groth16Bn254BatchItem,
+    verify_groth16_bn254_prepared as verify_prepared_impl, Groth16Bn254BatchItem,
     PreparedGroth16Bn254Key as CorePreparedGroth16Bn254Key, VerifierError,
 };
 use crate::shielded_notes::{
     build_insecure_dev_shielded_command_bundle as build_dev_command_bundle_impl,
     build_insecure_dev_shielded_note_bundle as build_dev_bundle_impl,
+    build_insecure_dev_shielded_scheduler_auth_bundle as build_dev_scheduler_auth_bundle_impl,
     build_random_shielded_command_bundle as build_random_command_bundle_impl,
     build_random_shielded_note_bundle as build_random_bundle_impl,
+    build_random_shielded_scheduler_auth_bundle as build_random_scheduler_auth_bundle_impl,
     prove_shielded_command_deposit as prove_command_deposit_impl,
     prove_shielded_command_execute as prove_command_execute_impl,
     prove_shielded_command_withdraw as prove_command_withdraw_impl,
-    prove_shielded_deposit as prove_deposit_impl, prove_shielded_transfer as prove_transfer_impl,
-    prove_shielded_withdraw as prove_withdraw_impl, shielded_command_binding_hex,
-    shielded_command_execution_tag_hex, shielded_command_nullifier_digest_hex,
-    shielded_note_asset_id_hex,
-    shielded_note_append_tree_state, shielded_note_auth_path_hex,
-    shielded_note_commitment_hex, shielded_note_nullifier_hex,
-    shielded_note_output_commitment_hex, shielded_note_owner_public_hex,
-    shielded_note_recipient_digest_hex, shielded_note_root_hex, shielded_note_tree_state,
-    shielded_note_zero_root_hex, shielded_output_payload_hash_hex,
-    shielded_output_payload_hash_hexes, shielded_command_public_inputs_hex,
-    shielded_deposit_public_inputs_hex, shielded_transfer_public_inputs_hex,
-    shielded_withdraw_public_inputs_hex,
-    ShieldedCommandProverBundle as CoreShieldedCommandProverBundle,
-    ShieldedCommandRequest, ShieldedDepositRequest,
-    ShieldedProverBundle as CoreShieldedProverBundle, ShieldedTransferRequest,
-    ShieldedWithdrawRequest,
+    prove_shielded_deposit as prove_deposit_impl,
+    prove_shielded_scheduler_auth as prove_scheduler_auth_impl,
+    prove_shielded_transfer as prove_transfer_impl, prove_shielded_withdraw as prove_withdraw_impl,
+    shielded_command_binding_hex, shielded_command_execution_tag_hex,
+    shielded_command_nullifier_digest_hex, shielded_command_public_inputs_hex,
+    shielded_deposit_public_inputs_hex, shielded_note_append_tree_state,
+    shielded_note_asset_id_hex, shielded_note_auth_path_hex, shielded_note_commitment_hex,
+    shielded_note_nullifier_hex, shielded_note_output_commitment_hex,
+    shielded_note_owner_public_hex, shielded_note_recipient_digest_hex, shielded_note_root_hex,
+    shielded_note_tree_state, shielded_note_zero_root_hex, shielded_output_payload_hash_hex,
+    shielded_output_payload_hash_hexes, shielded_scheduler_owner_commitment_hex,
+    shielded_scheduler_update_nullifier_hex, shielded_scheduler_update_public_inputs_hex,
+    shielded_transfer_public_inputs_hex, shielded_withdraw_public_inputs_hex,
+    ShieldedCommandProverBundle as CoreShieldedCommandProverBundle, ShieldedCommandRequest,
+    ShieldedDepositRequest, ShieldedProverBundle as CoreShieldedProverBundle,
+    ShieldedSchedulerAuthProverBundle as CoreShieldedSchedulerAuthProverBundle,
+    ShieldedSchedulerAuthRequest, ShieldedTransferRequest, ShieldedWithdrawRequest,
 };
 use pyo3::create_exception;
 use pyo3::exceptions::PyValueError;
@@ -57,6 +59,11 @@ struct ShieldedNoteProverBundle {
 #[pyclass(unsendable)]
 struct ShieldedCommandProverBundle {
     inner: CoreShieldedCommandProverBundle,
+}
+
+#[pyclass(unsendable)]
+struct ShieldedSchedulerAuthProverBundle {
+    inner: CoreShieldedSchedulerAuthProverBundle,
 }
 
 #[pyfunction]
@@ -134,6 +141,27 @@ fn build_random_shielded_command_bundle_json(
 }
 
 #[pyfunction]
+fn build_insecure_dev_shielded_scheduler_auth_bundle_json() -> PyResult<String> {
+    serde_json::to_string_pretty(
+        &build_dev_scheduler_auth_bundle_impl()
+            .map_err(|error| PyValueError::new_err(error.to_string()))?,
+    )
+    .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
+fn build_random_shielded_scheduler_auth_bundle_json(
+    contract_name: &str,
+    vk_id_prefix: &str,
+) -> PyResult<String> {
+    serde_json::to_string_pretty(
+        &build_random_scheduler_auth_bundle_impl(contract_name, vk_id_prefix)
+            .map_err(|error| PyValueError::new_err(error.to_string()))?,
+    )
+    .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
 fn load_shielded_note_prover_bundle(bundle_json: &str) -> PyResult<ShieldedNoteProverBundle> {
     let inner: CoreShieldedProverBundle = serde_json::from_str(bundle_json)
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
@@ -141,12 +169,19 @@ fn load_shielded_note_prover_bundle(bundle_json: &str) -> PyResult<ShieldedNoteP
 }
 
 #[pyfunction]
-fn load_shielded_command_prover_bundle(
-    bundle_json: &str,
-) -> PyResult<ShieldedCommandProverBundle> {
+fn load_shielded_command_prover_bundle(bundle_json: &str) -> PyResult<ShieldedCommandProverBundle> {
     let inner: CoreShieldedCommandProverBundle = serde_json::from_str(bundle_json)
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
     Ok(ShieldedCommandProverBundle { inner })
+}
+
+#[pyfunction]
+fn load_shielded_scheduler_auth_prover_bundle(
+    bundle_json: &str,
+) -> PyResult<ShieldedSchedulerAuthProverBundle> {
+    let inner: CoreShieldedSchedulerAuthProverBundle = serde_json::from_str(bundle_json)
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    Ok(ShieldedSchedulerAuthProverBundle { inner })
 }
 
 #[pyfunction]
@@ -265,6 +300,35 @@ fn shielded_note_owner_public(owner_secret_hex: &str) -> PyResult<String> {
 }
 
 #[pyfunction]
+fn shielded_scheduler_owner_commitment(owner_secret_hex: &str) -> PyResult<String> {
+    shielded_scheduler_owner_commitment_hex(owner_secret_hex)
+        .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
+fn shielded_scheduler_update_nullifier(
+    owner_secret_hex: &str,
+    update_digest_hex: &str,
+) -> PyResult<String> {
+    shielded_scheduler_update_nullifier_hex(owner_secret_hex, update_digest_hex)
+        .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
+fn shielded_scheduler_update_public_inputs(
+    owner_commitment_hex: &str,
+    update_digest_hex: &str,
+    update_nullifier_hex: &str,
+) -> PyResult<Vec<String>> {
+    shielded_scheduler_update_public_inputs_hex(
+        owner_commitment_hex,
+        update_digest_hex,
+        update_nullifier_hex,
+    )
+    .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+#[pyfunction]
 fn shielded_note_note_commitment(
     asset_id_hex: &str,
     owner_secret_hex: &str,
@@ -284,14 +348,8 @@ fn shielded_note_output_commitment(
     rho_hex: &str,
     blind_hex: &str,
 ) -> PyResult<String> {
-    shielded_note_output_commitment_hex(
-        asset_id_hex,
-        owner_public_hex,
-        amount,
-        rho_hex,
-        blind_hex,
-    )
-    .map_err(|error| PyValueError::new_err(error.to_string()))
+    shielded_note_output_commitment_hex(asset_id_hex, owner_public_hex, amount, rho_hex, blind_hex)
+        .map_err(|error| PyValueError::new_err(error.to_string()))
 }
 
 #[pyfunction]
@@ -325,12 +383,8 @@ fn shielded_note_append_tree_state_json(
     commitments: Vec<String>,
 ) -> PyResult<String> {
     serde_json::to_string(
-        &shielded_note_append_tree_state(
-            note_count,
-            &filled_subtrees,
-            &commitments,
-        )
-        .map_err(|error| PyValueError::new_err(error.to_string()))?,
+        &shielded_note_append_tree_state(note_count, &filled_subtrees, &commitments)
+            .map_err(|error| PyValueError::new_err(error.to_string()))?,
     )
     .map_err(|error| PyValueError::new_err(error.to_string()))
 }
@@ -456,11 +510,24 @@ fn prove_shielded_command_withdraw(
     serde_json::to_string_pretty(&result).map_err(|error| PyValueError::new_err(error.to_string()))
 }
 
+#[pyfunction]
+fn prove_shielded_scheduler_auth(
+    bundle: &ShieldedSchedulerAuthProverBundle,
+    request_json: &str,
+) -> PyResult<String> {
+    let request: ShieldedSchedulerAuthRequest = serde_json::from_str(request_json)
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    let result = prove_scheduler_auth_impl(&bundle.inner, &request)
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    serde_json::to_string_pretty(&result).map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
 #[pymodule]
 fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PreparedGroth16Bn254Key>()?;
     module.add_class::<ShieldedNoteProverBundle>()?;
     module.add_class::<ShieldedCommandProverBundle>()?;
+    module.add_class::<ShieldedSchedulerAuthProverBundle>()?;
     module.add_function(wrap_pyfunction!(prepare_groth16_bn254_vk, module)?)?;
     module.add_function(wrap_pyfunction!(verify_groth16_bn254, module)?)?;
     module.add_function(wrap_pyfunction!(verify_groth16_bn254_prepared, module)?)?;
@@ -481,8 +548,23 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
         build_random_shielded_command_bundle_json,
         module
     )?)?;
+    module.add_function(wrap_pyfunction!(
+        build_insecure_dev_shielded_scheduler_auth_bundle_json,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        build_random_shielded_scheduler_auth_bundle_json,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(load_shielded_note_prover_bundle, module)?)?;
-    module.add_function(wrap_pyfunction!(load_shielded_command_prover_bundle, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        load_shielded_command_prover_bundle,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        load_shielded_scheduler_auth_prover_bundle,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(shielded_note_zero_root, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_asset_id, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_recipient_digest, module)?)?;
@@ -493,12 +575,27 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(shielded_withdraw_public_inputs, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_command_public_inputs, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_owner_public, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        shielded_scheduler_owner_commitment,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        shielded_scheduler_update_nullifier,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        shielded_scheduler_update_public_inputs,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(shielded_note_note_commitment, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_output_commitment, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_nullifier, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_root, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_note_tree_state_json, module)?)?;
-    module.add_function(wrap_pyfunction!(shielded_note_append_tree_state_json, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        shielded_note_append_tree_state_json,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(shielded_note_auth_path, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_command_nullifier_digest, module)?)?;
     module.add_function(wrap_pyfunction!(shielded_command_binding, module)?)?;
@@ -509,6 +606,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(prove_shielded_command_deposit, module)?)?;
     module.add_function(wrap_pyfunction!(prove_shielded_command_execute, module)?)?;
     module.add_function(wrap_pyfunction!(prove_shielded_command_withdraw, module)?)?;
+    module.add_function(wrap_pyfunction!(prove_shielded_scheduler_auth, module)?)?;
     module.add("ZkEncodingError", py.get_type::<ZkEncodingError>())?;
     module.add("ZkVerifierError", py.get_type::<ZkVerifierError>())?;
     Ok(())

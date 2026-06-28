@@ -5,11 +5,12 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal
 
-BundleType = Literal["note", "command"]
+BundleType = Literal["note", "command", "scheduler-auth"]
 
-_BUNDLE_ACTIONS: dict[BundleType, tuple[str, str, str]] = {
+_BUNDLE_ACTIONS: dict[BundleType, tuple[str, ...]] = {
     "note": ("deposit", "transfer", "withdraw"),
     "command": ("deposit", "command", "withdraw"),
+    "scheduler-auth": ("action",),
 }
 
 _SAFE_SINGLE_PARTY_MODES = {"insecure-dev", "single-party"}
@@ -78,13 +79,43 @@ def _validate_common_payload(
         "setup_mode": setup_mode,
         "setup_ceremony": setup_ceremony,
         "contract_name": _require_string(payload.get("contract_name"), label="contract_name"),
-        "tree_depth": _require_positive_int(payload.get("tree_depth"), label="tree_depth"),
-        "leaf_capacity": _require_positive_int(payload.get("leaf_capacity"), label="leaf_capacity"),
-        "max_inputs": _require_positive_int(payload.get("max_inputs"), label="max_inputs"),
-        "max_outputs": _require_positive_int(payload.get("max_outputs"), label="max_outputs"),
     }
-    if normalized["leaf_capacity"] < 2 ** normalized["tree_depth"]:
-        raise ValueError("leaf_capacity must be large enough to cover the declared tree_depth")
+    if bundle_type == "scheduler-auth":
+        normalized["tree_depth"] = _require_non_negative_int(
+            payload.get("tree_depth", 0),
+            label="tree_depth",
+        )
+        normalized["leaf_capacity"] = _require_non_negative_int(
+            payload.get("leaf_capacity", 0),
+            label="leaf_capacity",
+        )
+        normalized["max_inputs"] = _require_non_negative_int(
+            payload.get("max_inputs", 0),
+            label="max_inputs",
+        )
+        normalized["max_outputs"] = _require_non_negative_int(
+            payload.get("max_outputs", 0),
+            label="max_outputs",
+        )
+    else:
+        normalized["tree_depth"] = _require_positive_int(
+            payload.get("tree_depth"),
+            label="tree_depth",
+        )
+        normalized["leaf_capacity"] = _require_positive_int(
+            payload.get("leaf_capacity"),
+            label="leaf_capacity",
+        )
+        normalized["max_inputs"] = _require_positive_int(
+            payload.get("max_inputs"),
+            label="max_inputs",
+        )
+        normalized["max_outputs"] = _require_positive_int(
+            payload.get("max_outputs"),
+            label="max_outputs",
+        )
+        if normalized["leaf_capacity"] < 2 ** normalized["tree_depth"]:
+            raise ValueError("leaf_capacity must be large enough to cover the declared tree_depth")
 
     action_names = _BUNDLE_ACTIONS[bundle_type]
     vk_ids: set[str] = set()
@@ -163,6 +194,16 @@ def validate_shielded_command_bundle(
     )
 
 
+def validate_shielded_scheduler_auth_bundle(
+    bundle: str | Mapping[str, Any], *, require_private_keys: bool = True
+) -> dict[str, Any]:
+    return validate_shielded_bundle_payload(
+        bundle,
+        bundle_type="scheduler-auth",
+        require_private_keys=require_private_keys,
+    )
+
+
 def load_bundle_text(path: str | Path) -> str:
     return Path(path).expanduser().resolve().read_text()
 
@@ -197,4 +238,5 @@ __all__ = [
     "validate_shielded_bundle_payload",
     "validate_shielded_command_bundle",
     "validate_shielded_note_bundle",
+    "validate_shielded_scheduler_auth_bundle",
 ]

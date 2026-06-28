@@ -33,6 +33,9 @@ const SHIELDED_COMMAND_DEPOSIT_CIRCUIT_NAME: &str = "shielded_command_deposit_v5
 const SHIELDED_COMMAND_EXECUTE_CIRCUIT_NAME: &str = "shielded_command_execute_v5";
 const SHIELDED_COMMAND_WITHDRAW_CIRCUIT_NAME: &str = "shielded_command_withdraw_v5";
 const SHIELDED_COMMAND_CIRCUIT_VERSION: &str = "5";
+const SHIELDED_SCHEDULER_AUTH_CIRCUIT_FAMILY: &str = "shielded_scheduler_owner_v1";
+const SHIELDED_SCHEDULER_AUTH_CIRCUIT_NAME: &str = "shielded_scheduler_owner_v1";
+const SHIELDED_SCHEDULER_AUTH_CIRCUIT_VERSION: &str = "1";
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ShieldedVkFixture {
@@ -111,6 +114,16 @@ pub struct ShieldedCommandProverBundle {
     pub deposit: ShieldedCircuitBundle,
     pub command: ShieldedCircuitBundle,
     pub withdraw: ShieldedCircuitBundle,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ShieldedSchedulerAuthProverBundle {
+    pub circuit_family: String,
+    pub warning: String,
+    pub setup_mode: String,
+    pub setup_ceremony: String,
+    pub contract_name: String,
+    pub action: ShieldedCircuitBundle,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -210,6 +223,21 @@ pub struct ShieldedCommandProofResult {
     pub input_nullifiers: Vec<String>,
     pub output_commitments: Vec<String>,
     pub output_payload_hashes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ShieldedSchedulerAuthRequest {
+    pub owner_secret: String,
+    pub update_digest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ShieldedSchedulerAuthProofResult {
+    pub proof_hex: String,
+    pub public_inputs: Vec<String>,
+    pub owner_commitment: String,
+    pub update_digest: String,
+    pub update_nullifier: String,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -330,6 +358,14 @@ struct CommandCircuit {
 }
 
 #[derive(Clone)]
+struct SchedulerAuthCircuit {
+    owner_commitment: Fr,
+    update_digest: Fr,
+    update_nullifier: Fr,
+    owner_secret: Fr,
+}
+
+#[derive(Clone)]
 struct FrontierState {
     root: Fr,
     note_count: usize,
@@ -386,9 +422,7 @@ fn encode_command_payload_part(prefix: &str, value: &str) -> String {
     format!("{prefix}:{}:{value}", value.len())
 }
 
-fn canonicalize_command_payload(
-    value: &serde_json::Value,
-) -> Result<String, Box<dyn Error>> {
+fn canonicalize_command_payload(value: &serde_json::Value) -> Result<String, Box<dyn Error>> {
     match value {
         serde_json::Value::Null => Ok("n".to_string()),
         serde_json::Value::Bool(flag) => Ok(if *flag { "b:1" } else { "b:0" }.to_string()),
@@ -492,6 +526,17 @@ fn command_execution_tag(nullifier_digest: Fr, command_binding: Fr) -> Fr {
     poseidon_hash(
         domain::COMMAND_EXECUTION_TAG,
         &[nullifier_digest, command_binding],
+    )
+}
+
+fn scheduler_owner_commitment(owner_secret: Fr) -> Fr {
+    poseidon_hash(domain::SCHEDULER_OWNER_COMMITMENT, &[owner_secret])
+}
+
+fn scheduler_update_nullifier(owner_secret: Fr, update_digest: Fr) -> Fr {
+    poseidon_hash(
+        domain::SCHEDULER_UPDATE_NULLIFIER,
+        &[owner_secret, update_digest],
     )
 }
 
@@ -746,6 +791,36 @@ pub fn shielded_note_owner_public_hex(owner_secret_hex: &str) -> Result<String, 
     Ok(field_hex(owner_public(parse_field_hex(owner_secret_hex)?)))
 }
 
+pub fn shielded_scheduler_owner_commitment_hex(
+    owner_secret_hex: &str,
+) -> Result<String, Box<dyn Error>> {
+    Ok(field_hex(scheduler_owner_commitment(parse_field_hex(
+        owner_secret_hex,
+    )?)))
+}
+
+pub fn shielded_scheduler_update_nullifier_hex(
+    owner_secret_hex: &str,
+    update_digest_hex: &str,
+) -> Result<String, Box<dyn Error>> {
+    Ok(field_hex(scheduler_update_nullifier(
+        parse_field_hex(owner_secret_hex)?,
+        parse_field_hex(update_digest_hex)?,
+    )))
+}
+
+pub fn shielded_scheduler_update_public_inputs_hex(
+    owner_commitment_hex: &str,
+    update_digest_hex: &str,
+    update_nullifier_hex: &str,
+) -> Result<Vec<String>, Box<dyn Error>> {
+    Ok(vec![
+        field_hex(parse_field_hex(owner_commitment_hex)?),
+        field_hex(parse_field_hex(update_digest_hex)?),
+        field_hex(parse_field_hex(update_nullifier_hex)?),
+    ])
+}
+
 pub fn shielded_note_commitment_hex(
     asset_id_hex: &str,
     owner_secret_hex: &str,
@@ -860,9 +935,10 @@ pub fn shielded_command_nullifier_digest_hex(
         .iter()
         .map(|value| parse_field_hex(value))
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(field_hex(command_nullifier_digest(
-        &pad_fields(parsed, SHIELDED_NOTE_MAX_INPUTS),
-    )))
+    Ok(field_hex(command_nullifier_digest(&pad_fields(
+        parsed,
+        SHIELDED_NOTE_MAX_INPUTS,
+    ))))
 }
 
 pub fn shielded_command_binding_hex(
@@ -920,12 +996,8 @@ pub fn shielded_deposit_public_inputs_hex(
     commitments: &[String],
     payload_hashes: &[String],
 ) -> Result<Vec<String>, Box<dyn Error>> {
-    let commitments = parse_public_input_fields(
-        commitments,
-        1,
-        SHIELDED_NOTE_MAX_OUTPUTS,
-        "commitments",
-    )?;
+    let commitments =
+        parse_public_input_fields(commitments, 1, SHIELDED_NOTE_MAX_OUTPUTS, "commitments")?;
     let payload_hashes = parse_public_input_fields(
         payload_hashes,
         commitments.len(),
@@ -960,12 +1032,8 @@ pub fn shielded_transfer_public_inputs_hex(
         SHIELDED_NOTE_MAX_INPUTS,
         "input_nullifiers",
     )?;
-    let commitments = parse_public_input_fields(
-        commitments,
-        1,
-        SHIELDED_NOTE_MAX_OUTPUTS,
-        "commitments",
-    )?;
+    let commitments =
+        parse_public_input_fields(commitments, 1, SHIELDED_NOTE_MAX_OUTPUTS, "commitments")?;
     let payload_hashes = parse_public_input_fields(
         payload_hashes,
         commitments.len(),
@@ -1003,12 +1071,8 @@ pub fn shielded_withdraw_public_inputs_hex(
         SHIELDED_NOTE_MAX_INPUTS,
         "input_nullifiers",
     )?;
-    let commitments = parse_public_input_fields(
-        commitments,
-        0,
-        SHIELDED_NOTE_MAX_OUTPUTS,
-        "commitments",
-    )?;
+    let commitments =
+        parse_public_input_fields(commitments, 0, SHIELDED_NOTE_MAX_OUTPUTS, "commitments")?;
     let payload_hashes = parse_public_input_fields(
         payload_hashes,
         commitments.len(),
@@ -1050,12 +1114,8 @@ pub fn shielded_command_public_inputs_hex(
         SHIELDED_NOTE_MAX_INPUTS,
         "input_nullifiers",
     )?;
-    let commitments = parse_public_input_fields(
-        commitments,
-        0,
-        SHIELDED_NOTE_MAX_OUTPUTS,
-        "commitments",
-    )?;
+    let commitments =
+        parse_public_input_fields(commitments, 0, SHIELDED_NOTE_MAX_OUTPUTS, "commitments")?;
     let payload_hashes = parse_public_input_fields(
         payload_hashes,
         commitments.len(),
@@ -1193,6 +1253,29 @@ fn command_execution_tag_var(
     )
 }
 
+fn scheduler_owner_commitment_var(
+    cs: ConstraintSystemRef<Fr>,
+    owner_secret: &FpVar<Fr>,
+) -> Result<FpVar<Fr>, SynthesisError> {
+    poseidon_hash_var(
+        cs,
+        domain::SCHEDULER_OWNER_COMMITMENT,
+        &[owner_secret.clone()],
+    )
+}
+
+fn scheduler_update_nullifier_var(
+    cs: ConstraintSystemRef<Fr>,
+    owner_secret: &FpVar<Fr>,
+    update_digest: &FpVar<Fr>,
+) -> Result<FpVar<Fr>, SynthesisError> {
+    poseidon_hash_var(
+        cs,
+        domain::SCHEDULER_UPDATE_NULLIFIER,
+        &[owner_secret.clone(), update_digest.clone()],
+    )
+}
+
 fn merkle_parent_var(
     cs: ConstraintSystemRef<Fr>,
     left: &FpVar<Fr>,
@@ -1281,13 +1364,18 @@ impl ConstraintSynthesizer<Fr> for DepositCircuit {
             let enabled_fp = bool_to_fp(&enabled)?;
             enabled_sum += enabled_fp.clone();
 
-            let owner_public =
-                FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
+            let owner_public = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
             let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.rho))?;
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), output.amount)?;
-            let commitment =
-                output_commitment_var(cs.clone(), asset_id, &owner_public, &note_amount, &rho, &blind)?;
+            let commitment = output_commitment_var(
+                cs.clone(),
+                asset_id,
+                &owner_public,
+                &note_amount,
+                &rho,
+                &blind,
+            )?;
 
             public_commitments[index].enforce_equal(&(commitment * enabled_fp.clone()))?;
             output_sum += note_amount * enabled_fp;
@@ -1368,8 +1456,14 @@ impl ConstraintSynthesizer<Fr> for TransferCircuit {
             let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(input.note.rho))?;
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(input.note.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), input.note.amount)?;
-            let commitment =
-                note_commitment_var(cs.clone(), asset_id, &owner_secret, &note_amount, &rho, &blind)?;
+            let commitment = note_commitment_var(
+                cs.clone(),
+                asset_id,
+                &owner_secret,
+                &note_amount,
+                &rho,
+                &blind,
+            )?;
             let auth_path = witness_path_var(cs.clone(), &input.merkle_path)?;
             let membership_root = merkle_root_from_auth_path_var(
                 cs.clone(),
@@ -1391,13 +1485,18 @@ impl ConstraintSynthesizer<Fr> for TransferCircuit {
             let enabled_fp = bool_to_fp(&enabled)?;
             output_enabled_sum += enabled_fp.clone();
 
-            let owner_public =
-                FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
+            let owner_public = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
             let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.rho))?;
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), output.amount)?;
-            let commitment =
-                output_commitment_var(cs.clone(), asset_id, &owner_public, &note_amount, &rho, &blind)?;
+            let commitment = output_commitment_var(
+                cs.clone(),
+                asset_id,
+                &owner_public,
+                &note_amount,
+                &rho,
+                &blind,
+            )?;
             public_commitments[index].enforce_equal(&(commitment * enabled_fp.clone()))?;
             output_sum += note_amount * enabled_fp;
         }
@@ -1484,8 +1583,14 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
             let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(input.note.rho))?;
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(input.note.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), input.note.amount)?;
-            let commitment =
-                note_commitment_var(cs.clone(), asset_id, &owner_secret, &note_amount, &rho, &blind)?;
+            let commitment = note_commitment_var(
+                cs.clone(),
+                asset_id,
+                &owner_secret,
+                &note_amount,
+                &rho,
+                &blind,
+            )?;
             let auth_path = witness_path_var(cs.clone(), &input.merkle_path)?;
             let membership_root = merkle_root_from_auth_path_var(
                 cs.clone(),
@@ -1507,13 +1612,18 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
             let enabled_fp = bool_to_fp(&enabled)?;
             output_enabled_sum += enabled_fp.clone();
 
-            let owner_public =
-                FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
+            let owner_public = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
             let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.rho))?;
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), output.amount)?;
-            let commitment =
-                output_commitment_var(cs.clone(), asset_id, &owner_public, &note_amount, &rho, &blind)?;
+            let commitment = output_commitment_var(
+                cs.clone(),
+                asset_id,
+                &owner_public,
+                &note_amount,
+                &rho,
+                &blind,
+            )?;
             public_commitments[index].enforce_equal(&(commitment * enabled_fp.clone()))?;
             output_sum += note_amount * enabled_fp;
         }
@@ -1610,8 +1720,14 @@ impl ConstraintSynthesizer<Fr> for CommandCircuit {
             let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(input.note.rho))?;
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(input.note.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), input.note.amount)?;
-            let commitment =
-                note_commitment_var(cs.clone(), asset_id, &owner_secret, &note_amount, &rho, &blind)?;
+            let commitment = note_commitment_var(
+                cs.clone(),
+                asset_id,
+                &owner_secret,
+                &note_amount,
+                &rho,
+                &blind,
+            )?;
             let auth_path = witness_path_var(cs.clone(), &input.merkle_path)?;
             let membership_root = merkle_root_from_auth_path_var(
                 cs.clone(),
@@ -1629,7 +1745,8 @@ impl ConstraintSynthesizer<Fr> for CommandCircuit {
         }
 
         let nullifier_digest = command_nullifier_digest_var(cs.clone(), public_nullifiers)?;
-        let execution_tag = command_execution_tag_var(cs.clone(), &nullifier_digest, command_binding)?;
+        let execution_tag =
+            command_execution_tag_var(cs.clone(), &nullifier_digest, command_binding)?;
         public_execution_tag.enforce_equal(&execution_tag)?;
 
         for (index, output) in self.outputs.iter().enumerate() {
@@ -1637,13 +1754,18 @@ impl ConstraintSynthesizer<Fr> for CommandCircuit {
             let enabled_fp = bool_to_fp(&enabled)?;
             output_enabled_sum += enabled_fp.clone();
 
-            let owner_public =
-                FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
+            let owner_public = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.owner_public))?;
             let rho = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.rho))?;
             let blind = FpVar::<Fr>::new_witness(cs.clone(), || Ok(output.blind))?;
             let note_amount = amount_bits_to_var(cs.clone(), output.amount)?;
-            let commitment =
-                output_commitment_var(cs.clone(), asset_id, &owner_public, &note_amount, &rho, &blind)?;
+            let commitment = output_commitment_var(
+                cs.clone(),
+                asset_id,
+                &owner_public,
+                &note_amount,
+                &rho,
+                &blind,
+            )?;
             public_commitments[index].enforce_equal(&(commitment * enabled_fp.clone()))?;
             output_sum += note_amount * enabled_fp;
         }
@@ -1651,6 +1773,46 @@ impl ConstraintSynthesizer<Fr> for CommandCircuit {
         input_enabled_sum.enforce_equal(input_count)?;
         output_enabled_sum.enforce_equal(output_count)?;
         input_sum.enforce_equal(&(output_sum + fee.clone() + public_amount.clone()))?;
+        Ok(())
+    }
+}
+
+impl SchedulerAuthCircuit {
+    fn blank() -> Self {
+        let owner_secret = Fr::zero();
+        let update_digest = Fr::zero();
+        let owner_commitment = scheduler_owner_commitment(owner_secret);
+        let update_nullifier = scheduler_update_nullifier(owner_secret, update_digest);
+        Self {
+            owner_commitment,
+            update_digest,
+            update_nullifier,
+            owner_secret,
+        }
+    }
+
+    fn public_inputs(&self) -> Vec<Fr> {
+        vec![
+            self.owner_commitment,
+            self.update_digest,
+            self.update_nullifier,
+        ]
+    }
+}
+
+impl ConstraintSynthesizer<Fr> for SchedulerAuthCircuit {
+    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+        let public = public_inputs_var(cs.clone(), &self.public_inputs())?;
+        let public_owner_commitment = &public[0];
+        let update_digest = &public[1];
+        let public_update_nullifier = &public[2];
+
+        let owner_secret = FpVar::<Fr>::new_witness(cs.clone(), || Ok(self.owner_secret))?;
+        let owner_commitment = scheduler_owner_commitment_var(cs.clone(), &owner_secret)?;
+        public_owner_commitment.enforce_equal(&owner_commitment)?;
+
+        let update_nullifier = scheduler_update_nullifier_var(cs, &owner_secret, update_digest)?;
+        public_update_nullifier.enforce_equal(&update_nullifier)?;
         Ok(())
     }
 }
@@ -2248,9 +2410,79 @@ pub fn build_insecure_dev_shielded_command_bundle(
     build_shielded_command_bundle_with_rng(&mut rng, &descriptor)
 }
 
-fn note_shadow_bundle_from_command(
-    bundle: &ShieldedCommandProverBundle,
-) -> ShieldedProverBundle {
+struct ShieldedSchedulerAuthBundleDescriptor<'a> {
+    contract_name: &'a str,
+    warning: &'a str,
+    setup_mode: &'a str,
+    setup_ceremony: &'a str,
+    vk_id: &'a str,
+}
+
+fn build_shielded_scheduler_auth_bundle_with_rng(
+    rng: &mut StdRng,
+    descriptor: &ShieldedSchedulerAuthBundleDescriptor<'_>,
+) -> Result<ShieldedSchedulerAuthProverBundle, Box<dyn Error>> {
+    let (auth_pk, auth_vk, _) = prove_circuit(
+        rng,
+        SchedulerAuthCircuit::blank(),
+        SchedulerAuthCircuit::blank(),
+    )?;
+
+    Ok(ShieldedSchedulerAuthProverBundle {
+        circuit_family: SHIELDED_SCHEDULER_AUTH_CIRCUIT_FAMILY.to_string(),
+        warning: descriptor.warning.to_string(),
+        setup_mode: descriptor.setup_mode.to_string(),
+        setup_ceremony: descriptor.setup_ceremony.to_string(),
+        contract_name: descriptor.contract_name.to_string(),
+        action: ShieldedCircuitBundle {
+            vk_id: descriptor.vk_id.to_string(),
+            circuit_name: SHIELDED_SCHEDULER_AUTH_CIRCUIT_NAME.to_string(),
+            version: SHIELDED_SCHEDULER_AUTH_CIRCUIT_VERSION.to_string(),
+            vk_hex: serialize_hex(&auth_vk)?,
+            pk_hex: serialize_hex(&auth_pk)?,
+        },
+    })
+}
+
+pub fn build_random_shielded_scheduler_auth_bundle(
+    contract_name: &str,
+    vk_id_prefix: &str,
+) -> Result<ShieldedSchedulerAuthProverBundle, Box<dyn Error>> {
+    if contract_name.is_empty() {
+        return Err("contract_name must be non-empty".into());
+    }
+    if vk_id_prefix.is_empty() {
+        return Err("vk_id_prefix must be non-empty".into());
+    }
+
+    let vk_id = format!("{vk_id_prefix}-owner");
+    let descriptor = ShieldedSchedulerAuthBundleDescriptor {
+        contract_name,
+        warning: "SINGLE-PARTY RANDOM BUNDLE: generated from OS randomness for deployment use. This replaces the deterministic dev setup but is still not an MPC ceremony.",
+        setup_mode: "single-party",
+        setup_ceremony: "",
+        vk_id: &vk_id,
+    };
+
+    let mut rng = StdRng::from_rng(OsRng)
+        .map_err(|error| format!("failed to seed random setup rng: {error}"))?;
+    build_shielded_scheduler_auth_bundle_with_rng(&mut rng, &descriptor)
+}
+
+pub fn build_insecure_dev_shielded_scheduler_auth_bundle(
+) -> Result<ShieldedSchedulerAuthProverBundle, Box<dyn Error>> {
+    let mut rng = StdRng::seed_from_u64(20260628);
+    let descriptor = ShieldedSchedulerAuthBundleDescriptor {
+        contract_name: "con_shielded_scheduler_adapter",
+        warning: "INSECURE DEV BUNDLE: deterministic setup seed exposes toxic waste and must never be used on a real network.",
+        setup_mode: "insecure-dev",
+        setup_ceremony: "",
+        vk_id: "shielded-scheduler-owner-v1",
+    };
+    build_shielded_scheduler_auth_bundle_with_rng(&mut rng, &descriptor)
+}
+
+fn note_shadow_bundle_from_command(bundle: &ShieldedCommandProverBundle) -> ShieldedProverBundle {
     ShieldedProverBundle {
         circuit_family: SHIELDED_COMMAND_CIRCUIT_FAMILY.to_string(),
         warning: bundle.warning.clone(),
@@ -2289,10 +2521,7 @@ pub fn prove_shielded_deposit(
         amount: request.amount,
         output_count: request.outputs.len(),
         output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
-        output_payload_hashes: pad_fields(
-            output_payload_hashes.clone(),
-            SHIELDED_NOTE_MAX_OUTPUTS,
-        ),
+        output_payload_hashes: pad_fields(output_payload_hashes.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
         outputs: output_witnesses,
     };
     let proof = prove_with_pk(&bundle.deposit.pk_hex, circuit.clone())?;
@@ -2303,10 +2532,7 @@ pub fn prove_shielded_deposit(
         public_inputs: circuit.public_inputs().into_iter().map(field_hex).collect(),
         input_nullifiers: vec![],
         output_commitments: output_commitments.into_iter().map(field_hex).collect(),
-        output_payload_hashes: output_payload_hashes
-            .into_iter()
-            .map(field_hex)
-            .collect(),
+        output_payload_hashes: output_payload_hashes.into_iter().map(field_hex).collect(),
     })
 }
 
@@ -2348,10 +2574,7 @@ pub fn prove_shielded_transfer(
         output_count: request.outputs.len(),
         input_nullifiers: pad_fields(input_nullifiers.clone(), SHIELDED_NOTE_MAX_INPUTS),
         output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
-        output_payload_hashes: pad_fields(
-            output_payload_hashes.clone(),
-            SHIELDED_NOTE_MAX_OUTPUTS,
-        ),
+        output_payload_hashes: pad_fields(output_payload_hashes.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
         inputs: input_witnesses,
         outputs: output_witnesses,
     };
@@ -2363,10 +2586,7 @@ pub fn prove_shielded_transfer(
         public_inputs: circuit.public_inputs().into_iter().map(field_hex).collect(),
         input_nullifiers: input_nullifiers.into_iter().map(field_hex).collect(),
         output_commitments: output_commitments.into_iter().map(field_hex).collect(),
-        output_payload_hashes: output_payload_hashes
-            .into_iter()
-            .map(field_hex)
-            .collect(),
+        output_payload_hashes: output_payload_hashes.into_iter().map(field_hex).collect(),
     })
 }
 
@@ -2410,10 +2630,7 @@ pub fn prove_shielded_withdraw(
         output_count: request.outputs.len(),
         input_nullifiers: pad_fields(input_nullifiers.clone(), SHIELDED_NOTE_MAX_INPUTS),
         output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
-        output_payload_hashes: pad_fields(
-            output_payload_hashes.clone(),
-            SHIELDED_NOTE_MAX_OUTPUTS,
-        ),
+        output_payload_hashes: pad_fields(output_payload_hashes.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
         inputs: input_witnesses,
         outputs: output_witnesses,
     };
@@ -2425,10 +2642,7 @@ pub fn prove_shielded_withdraw(
         public_inputs: circuit.public_inputs().into_iter().map(field_hex).collect(),
         input_nullifiers: input_nullifiers.into_iter().map(field_hex).collect(),
         output_commitments: output_commitments.into_iter().map(field_hex).collect(),
-        output_payload_hashes: output_payload_hashes
-            .into_iter()
-            .map(field_hex)
-            .collect(),
+        output_payload_hashes: output_payload_hashes.into_iter().map(field_hex).collect(),
     })
 }
 
@@ -2486,10 +2700,7 @@ pub fn prove_shielded_command_execute(
         input_nullifiers: padded_input_nullifiers,
         output_count: request.outputs.len(),
         output_commitments: pad_fields(output_commitments.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
-        output_payload_hashes: pad_fields(
-            output_payload_hashes.clone(),
-            SHIELDED_NOTE_MAX_OUTPUTS,
-        ),
+        output_payload_hashes: pad_fields(output_payload_hashes.clone(), SHIELDED_NOTE_MAX_OUTPUTS),
         inputs: input_witnesses,
         outputs: output_witnesses,
     };
@@ -2504,10 +2715,7 @@ pub fn prove_shielded_command_execute(
         public_amount: request.public_amount,
         input_nullifiers: input_nullifiers.into_iter().map(field_hex).collect(),
         output_commitments: output_commitments.into_iter().map(field_hex).collect(),
-        output_payload_hashes: output_payload_hashes
-            .into_iter()
-            .map(field_hex)
-            .collect(),
+        output_payload_hashes: output_payload_hashes.into_iter().map(field_hex).collect(),
     })
 }
 
@@ -2516,6 +2724,30 @@ pub fn prove_shielded_command_withdraw(
     request: &ShieldedWithdrawRequest,
 ) -> Result<ShieldedProofResult, Box<dyn Error>> {
     prove_shielded_withdraw(&note_shadow_bundle_from_command(bundle), request)
+}
+
+pub fn prove_shielded_scheduler_auth(
+    bundle: &ShieldedSchedulerAuthProverBundle,
+    request: &ShieldedSchedulerAuthRequest,
+) -> Result<ShieldedSchedulerAuthProofResult, Box<dyn Error>> {
+    let owner_secret = parse_field_hex(&request.owner_secret)?;
+    let update_digest = parse_field_hex(&request.update_digest)?;
+    let owner_commitment = scheduler_owner_commitment(owner_secret);
+    let update_nullifier = scheduler_update_nullifier(owner_secret, update_digest);
+    let circuit = SchedulerAuthCircuit {
+        owner_commitment,
+        update_digest,
+        update_nullifier,
+        owner_secret,
+    };
+    let proof = prove_with_pk(&bundle.action.pk_hex, circuit.clone())?;
+    Ok(ShieldedSchedulerAuthProofResult {
+        proof_hex: serialize_hex(&proof)?,
+        public_inputs: circuit.public_inputs().into_iter().map(field_hex).collect(),
+        owner_commitment: field_hex(owner_commitment),
+        update_digest: field_hex(update_digest),
+        update_nullifier: field_hex(update_nullifier),
+    })
 }
 
 pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dyn Error>> {
@@ -2571,8 +2803,7 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
     let chain_digest = contract_sha3_to_field(chain_id);
     let entrypoint_digest = contract_sha3_to_field("interact");
     let version_digest = contract_sha3_to_field("shielded-command-v4");
-    let padded_input_nullifiers =
-        pad_fields(vec![nullifier_a1], SHIELDED_NOTE_MAX_INPUTS);
+    let padded_input_nullifiers = pad_fields(vec![nullifier_a1], SHIELDED_NOTE_MAX_INPUTS);
     let command_binding_value = command_binding(
         command_nullifier_digest(&padded_input_nullifiers),
         target_digest,
@@ -2820,17 +3051,27 @@ mod tests {
         cs.is_satisfied().unwrap()
     }
 
+    fn scheduler_auth_circuit_is_satisfied(circuit: SchedulerAuthCircuit) -> bool {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+        circuit.generate_constraints(cs.clone()).unwrap();
+        cs.is_satisfied().unwrap()
+    }
+
     /// Control: spending a note for exactly its value satisfies the circuit.
     #[test]
     fn honest_withdraw_is_satisfiable() {
-        assert!(circuit_is_satisfied(withdraw_circuit_for_amounts(70, 70, 70)));
+        assert!(circuit_is_satisfied(withdraw_circuit_for_amounts(
+            70, 70, 70
+        )));
     }
 
     /// F-1 regression: withdrawing more than the note holds violates value
     /// conservation (`input_sum == output_sum + amount`) and is unsatisfiable.
     #[test]
     fn inflated_withdraw_violates_value_conservation() {
-        assert!(!circuit_is_satisfied(withdraw_circuit_for_amounts(70, 70, 1000)));
+        assert!(!circuit_is_satisfied(withdraw_circuit_for_amounts(
+            70, 70, 1000
+        )));
     }
 
     /// F-1 regression: claiming a different amount than the one bound into the
@@ -2840,7 +3081,36 @@ mod tests {
     /// naive amount swap is rejected here.
     #[test]
     fn forged_input_amount_breaks_membership() {
-        assert!(!circuit_is_satisfied(withdraw_circuit_for_amounts(70, 999, 999)));
+        assert!(!circuit_is_satisfied(withdraw_circuit_for_amounts(
+            70, 999, 999
+        )));
+    }
+
+    #[test]
+    fn scheduler_auth_binds_owner_secret_and_update_digest() {
+        let owner_secret = hash_to_field("scheduler-auth:owner");
+        let update_digest = hash_to_field("scheduler-auth:update-1");
+        let owner_commitment = scheduler_owner_commitment(owner_secret);
+        let update_nullifier = scheduler_update_nullifier(owner_secret, update_digest);
+
+        assert!(scheduler_auth_circuit_is_satisfied(SchedulerAuthCircuit {
+            owner_commitment,
+            update_digest,
+            update_nullifier,
+            owner_secret,
+        }));
+        assert!(!scheduler_auth_circuit_is_satisfied(SchedulerAuthCircuit {
+            owner_commitment,
+            update_digest,
+            update_nullifier,
+            owner_secret: hash_to_field("scheduler-auth:attacker"),
+        }));
+        assert!(!scheduler_auth_circuit_is_satisfied(SchedulerAuthCircuit {
+            owner_commitment,
+            update_digest: hash_to_field("scheduler-auth:update-2"),
+            update_nullifier,
+            owner_secret,
+        }));
     }
 
     #[test]
@@ -2860,6 +3130,11 @@ mod tests {
         assert!(build_random_shielded_note_bundle("con_private_usd", "").is_err());
         assert!(build_random_shielded_command_bundle("", "bundle-id").is_err());
         assert!(build_random_shielded_command_bundle("con_private_usd", "").is_err());
+        assert!(build_random_shielded_scheduler_auth_bundle("", "bundle-id").is_err());
+        assert!(
+            build_random_shielded_scheduler_auth_bundle("con_shielded_scheduler_adapter", "",)
+                .is_err()
+        );
     }
 
     #[test]
@@ -2916,5 +3191,39 @@ mod tests {
             &fixture.withdraw.public_inputs,
         )
         .expect("withdraw verify should succeed"));
+    }
+
+    #[test]
+    fn shielded_scheduler_auth_proof_verifies_and_binds_digest() {
+        let bundle =
+            build_insecure_dev_shielded_scheduler_auth_bundle().expect("bundle should build");
+        let request = ShieldedSchedulerAuthRequest {
+            owner_secret: field_hex(hash_to_field("scheduler-auth:owner")),
+            update_digest: field_hex(hash_to_field("scheduler-auth:update-1")),
+        };
+        let proof = prove_shielded_scheduler_auth(&bundle, &request).expect("proof should build");
+
+        assert_eq!(
+            proof.public_inputs,
+            shielded_scheduler_update_public_inputs_hex(
+                &proof.owner_commitment,
+                &proof.update_digest,
+                &proof.update_nullifier,
+            )
+            .unwrap(),
+        );
+        assert!(verify_groth16_bn254(
+            &bundle.action.vk_hex,
+            &proof.proof_hex,
+            &proof.public_inputs,
+        )
+        .expect("scheduler auth verify should succeed"));
+
+        let mut tampered_inputs = proof.public_inputs.clone();
+        tampered_inputs[1] = field_hex(hash_to_field("scheduler-auth:update-2"));
+        assert!(
+            !verify_groth16_bn254(&bundle.action.vk_hex, &proof.proof_hex, &tampered_inputs,)
+                .expect("tampered scheduler auth verify should return false")
+        );
     }
 }

@@ -15,6 +15,7 @@ workspace.
 - Python bindings for runtime integration
 - A pure Rust verifier core for cargo-level testing and fixtures
 - Shielded-note proving circuits and proof generation helpers
+- Shielded scheduler-update authorization circuit and proof helpers
 - Deterministic dev bundle generation for local shielded-note workflows
 - Note math helpers for commitments, nullifiers, asset ids, and Merkle roots
 - Trusted local prover-service support for note, command, and relay proof generation
@@ -39,7 +40,9 @@ Python module `xian_zk` exposes:
 - shielded note request/result/prover/wallet types
 - shielded command request/result/prover/wallet types
 - shielded relay transfer request/result/prover/wallet types
-- registry manifest helpers for note, command, and relay verifying keys
+- shielded scheduler authorization request/result/prover types
+- registry manifest helpers for note, command, relay, and scheduler
+  authorization verifying keys
 - note encryption/decryption, discovery-tag, sync-hint, and wallet sync helpers
 - local prover service clients and `ShieldedZkProverService`
 
@@ -83,6 +86,9 @@ Published/CI wheels build `--release` regardless.
   whole leaf set, and the shipped dev bundle / fixture ids are `v4` for the note
   family and `v5` for the command family. The circuits hash with Poseidon-BN254
   (see `src/poseidon.rs`).
+- The scheduler authorization circuit is intentionally small: it proves
+  knowledge of a hidden owner secret for a public owner commitment and derives
+  an update nullifier from that secret plus the exact public update digest.
 - Shielded outputs are addressed to `owner_public`, not to the recipient's
   spending secret. That lets senders create recipient outputs without learning
   the recipient's private shielded spend key.
