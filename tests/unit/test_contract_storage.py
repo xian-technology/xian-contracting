@@ -20,16 +20,16 @@ class TestContractStorage(TestCase):
         finally:
             driver.flush_full()
 
-    def test_deploy_requires_artifacts(self):
+    def test_deploy_requires_source_code(self):
         driver = Driver()
         try:
             with self.assertRaisesRegex(
                 TypeError,
-                "requires artifacts",
+                "requires non-empty source code",
             ):
                 Contract.deploy(
                     name="con_vm_probe",
-                    deployment_artifacts=None,
+                    code=None,
                     driver=driver,
                 )
         finally:

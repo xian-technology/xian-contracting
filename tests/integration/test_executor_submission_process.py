@@ -2,19 +2,13 @@ import os
 from unittest import TestCase
 from unittest.mock import patch
 
-from contracting.artifacts import build_contract_artifacts
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 
 
 def build_submission_artifacts(name, source):
-    return build_contract_artifacts(
-        module_name=name,
-        source=source,
-        lint=True,
-        vm_profile="xian_vm_v1",
-    )
+    return source
 
 
 def submission_kwargs_for_file(f):
@@ -31,7 +25,7 @@ def submission_kwargs_for_file(f):
 
     return {
         "name": f"con_{contract_name}",
-        "deployment_artifacts": build_submission_artifacts(
+        "code": build_submission_artifacts(
             f"con_{contract_name}",
             contract_source,
         ),
@@ -76,7 +70,7 @@ def d():
 
         kwargs = {
             "name": "con_stubucks",
-            "deployment_artifacts": build_submission_artifacts(
+            "code": build_submission_artifacts(
                 "con_stubucks",
                 code,
             ),
@@ -142,7 +136,7 @@ def d():
 
         kwargs = {
             "name": "con_stubuckz",
-            "deployment_artifacts": build_submission_artifacts(
+            "code": build_submission_artifacts(
                 "con_stubuckz",
                 code,
             ),
@@ -177,7 +171,7 @@ def ping():
                 **TEST_SUBMISSION_KWARGS,
                 kwargs={
                     "name": bad_name,
-                    "deployment_artifacts": build_submission_artifacts(
+                    "code": build_submission_artifacts(
                         bad_name,
                         code,
                     ),
@@ -203,7 +197,7 @@ def ping():
             **TEST_SUBMISSION_KWARGS,
             kwargs={
                 "name": "con_valid_name",
-                "deployment_artifacts": build_submission_artifacts(
+                "code": build_submission_artifacts(
                     "con_valid_name",
                     code,
                 ),
@@ -226,7 +220,7 @@ def ping():
             **TEST_SUBMISSION_KWARGS,
             kwargs={
                 "name": "con_valid_name",
-                "deployment_artifacts": build_submission_artifacts(
+                "code": build_submission_artifacts(
                     "con_valid_name",
                     code,
                 ),
@@ -269,7 +263,7 @@ def get_v():
 
         self.assertEqual(k["name"], "con_orm_variable_contract")
         self.assertEqual(
-            k["deployment_artifacts"]["source"].strip(),
+            k["code"].strip(),
             code.strip(),
         )
 
@@ -369,7 +363,7 @@ def get_queue():
             **TEST_SUBMISSION_KWARGS,
             kwargs={
                 "name": "con_variable_collections",
-                "deployment_artifacts": build_submission_artifacts(
+                "code": build_submission_artifacts(
                     "con_variable_collections",
                     code,
                 ),
@@ -713,11 +707,15 @@ def get_queue():
             "orm_no_contract_access.s.py",
         )
 
-        with self.assertRaisesRegex(
-            Exception,
+        output = e.execute(
+            **TEST_SUBMISSION_KWARGS,
+            kwargs=submission_kwargs_for_file(test_orm_no_contract_access_path),
+        )
+        self.assertEqual(output["status_code"], 1)
+        self.assertIn(
             "Name '__Contract' must not start or end with underscore",
-        ):
-            submission_kwargs_for_file(test_orm_no_contract_access_path)
+            str(output["result"]),
+        )
 
     def test_construct_function_sets_properly(self):
         e = Executor(metering=False)

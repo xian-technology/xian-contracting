@@ -7,4 +7,4 @@ def set_c():
 def a():
     return 'gottem'
 '''
-    c.submit(name='baloney', deployment_artifacts={}, author='sys')
+    c.submit(name='baloney', code=code, author='sys')

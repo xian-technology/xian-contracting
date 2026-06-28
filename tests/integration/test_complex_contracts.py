@@ -3,19 +3,13 @@ from datetime import datetime
 from hashlib import sha3_256, sha256
 from unittest import TestCase
 
-from contracting.artifacts import build_contract_artifacts
 from contracting.execution.executor import Executor
 from contracting.stdlib.env import gather
 from contracting.storage.driver import Driver
 
 
 def build_submission_artifacts(name, source):
-    return build_contract_artifacts(
-        module_name=name,
-        source=source,
-        lint=True,
-        vm_profile="xian_vm_v1",
-    )
+    return source
 
 
 def submission_kwargs_for_file(f):
@@ -32,7 +26,7 @@ def submission_kwargs_for_file(f):
 
     return {
         'name': f'con_{contract_name}',
-        'deployment_artifacts': build_submission_artifacts(
+        'code': build_submission_artifacts(
             f'con_{contract_name}',
             contract_source,
         ),
@@ -274,11 +268,16 @@ class TestComplexContracts(TestCase):
 
         bad_time_path = os.path.join(os.path.dirname(__file__), "test_contracts", "bad_time.s.py")
 
-        with self.assertRaisesRegex(
-            Exception,
+        output = e.execute(
+            **TEST_SUBMISSION_KWARGS,
+            kwargs=submission_kwargs_for_file(bad_time_path),
+            environment=environment,
+        )
+        self.assertEqual(output["status_code"], 1)
+        self.assertIn(
             "Name '_datetime' must not start or end with underscore",
-        ):
-            submission_kwargs_for_file(bad_time_path)
+            str(output["result"]),
+        )
 
     def test_json_lists_work(self):
         e = Executor(metering=False)

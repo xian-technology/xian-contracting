@@ -196,10 +196,10 @@ class TestClient(TestCase):
         self.assertIn("touch", code)
         self.assertFalse(sentinel.exists())
 
-    def test_build_deployment_artifacts_returns_canonical_bundle(self):
+    def test_build_contract_artifacts_returns_canonical_bundle(self):
         self.client = ContractingClient(submission_filename=None, driver=self.driver)
 
-        artifacts = self.client.build_deployment_artifacts(
+        artifacts = self.client.build_contract_artifacts(
             """
 v = Variable()
 
@@ -222,7 +222,7 @@ def ping():
         self.assertIn("vm_ir_json", artifacts)
         self.assertIn("hashes", artifacts)
 
-    def test_submit_includes_deployment_artifacts(self):
+    def test_submit_includes_source_code(self):
         self.client = ContractingClient(submission_filename=None, driver=self.driver)
         self.client.submission_contract = Mock()
 
@@ -242,19 +242,8 @@ def ping():
         self.client.submission_contract.submit_contract.assert_called_once()
         kwargs = self.client.submission_contract.submit_contract.call_args.kwargs
         self.assertEqual(kwargs["name"], "con_submit_probe")
-        self.assertNotIn("code", kwargs)
-        self.assertEqual(
-            kwargs["deployment_artifacts"]["module_name"],
-            "con_submit_probe",
-        )
-        self.assertIn(
-            "def ping():",
-            kwargs["deployment_artifacts"]["source"],
-        )
-        self.assertEqual(
-            kwargs["deployment_artifacts"]["format"],
-            CONTRACT_ARTIFACT_FORMAT_V1,
-        )
+        self.assertIn("def ping():", kwargs["code"])
+        self.assertNotIn("deployment_artifacts", kwargs)
 
     def test_abstract_function_call_raises_result_on_error_by_default(self):
         error = RuntimeError("boom")

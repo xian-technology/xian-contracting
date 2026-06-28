@@ -1,19 +1,13 @@
 import os
 from unittest import TestCase
 
-from contracting.artifacts import build_contract_artifacts
 from contracting.constants import CHI_PER_T
 from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 
 
 def build_submission_artifacts(name, source):
-    return build_contract_artifacts(
-        module_name=name,
-        source=source,
-        lint=True,
-        vm_profile="xian_vm_v1",
-    )
+    return source
 
 
 def submission_kwargs_for_file(f):
@@ -30,7 +24,7 @@ def submission_kwargs_for_file(f):
 
     return {
         "name": f"con_{contract_name}",
-        "deployment_artifacts": build_submission_artifacts(
+        "code": build_submission_artifacts(
             f"con_{contract_name}",
             contract_source,
         ),
@@ -190,7 +184,7 @@ def get():
             **TEST_SUBMISSION_KWARGS,
             kwargs={
                 "name": "con_string_balance_probe",
-                "deployment_artifacts": build_submission_artifacts(
+                "code": build_submission_artifacts(
                     "con_string_balance_probe",
                     small_code,
                 ),
@@ -262,7 +256,7 @@ def get():
             **TEST_SUBMISSION_KWARGS,
             kwargs={
                 "name": "con_small_return",
-                "deployment_artifacts": build_submission_artifacts(
+                "code": build_submission_artifacts(
                     "con_small_return",
                     small_code,
                 ),
@@ -274,7 +268,7 @@ def get():
             **TEST_SUBMISSION_KWARGS,
             kwargs={
                 "name": "con_large_return",
-                "deployment_artifacts": build_submission_artifacts(
+                "code": build_submission_artifacts(
                     "con_large_return",
                     large_code,
                 ),
@@ -310,7 +304,7 @@ def get():
             **TEST_SUBMISSION_KWARGS,
             kwargs={
                 "name": "con_huge_return",
-                "deployment_artifacts": build_submission_artifacts(
+                "code": build_submission_artifacts(
                     "con_huge_return",
                     huge_code,
                 ),

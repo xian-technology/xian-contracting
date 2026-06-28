@@ -4,18 +4,12 @@ from unittest import TestCase
 from xian_runtime_types.time import Datetime
 
 import contracting
-from contracting.artifacts import build_contract_artifacts
 from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 
 
 def build_submission_artifacts(name, source):
-    return build_contract_artifacts(
-        module_name=name,
-        source=source,
-        lint=True,
-        vm_profile="xian_vm_v1",
-    )
+    return source
 
 
 def submission_kwargs_for_file(f):
@@ -32,7 +26,7 @@ def submission_kwargs_for_file(f):
 
     return {
         'name': f"con_{contract_name}",
-        'deployment_artifacts': build_submission_artifacts(
+        'code': build_submission_artifacts(
             f"con_{contract_name}",
             contract_source,
         ),

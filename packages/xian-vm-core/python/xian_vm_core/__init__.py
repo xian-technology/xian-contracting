@@ -8,6 +8,7 @@ from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.encoding import encode_kv
 
 from contracting import constants
+from contracting.artifacts import compile_contract_source
 from contracting.execution.runtime import WRITE_MAX, rt
 from contracting.names import assert_safe_contract_name
 from contracting.runtime_features import (
@@ -33,7 +34,6 @@ from ._native import (
     execute_bundle,
     runtime_info_json,
     supports_execution_policy,
-    validate_deployment_artifacts_json,
     validate_module_ir_json,
 )
 
@@ -332,7 +332,6 @@ class NativeVmHost:
         *,
         name: str,
         code: str | None,
-        deployment_artifacts: dict | None,
         owner: str | None,
         constructor_args: dict | None,
         developer: str | None,
@@ -342,31 +341,23 @@ class NativeVmHost:
         assert_safe_contract_name(name)
         if self._contract_exists(name):
             raise VmRuntimeExecutionError("Contract already exists.")
-        if deployment_artifacts is None:
+        if not isinstance(code, str) or code == "":
             raise VmRuntimeExecutionError(
-                "native contract deployment requires deployment_artifacts"
+                "native contract deployment requires non-empty source code"
             )
 
-        artifacts = validate_deployment_artifacts_json(
-            name,
-            json.dumps(
-                deployment_artifacts,
-                separators=(",", ":"),
-                sort_keys=True,
-            ),
-            input_source=code,
+        raw_source_bytes = len(code.encode("utf-8"))
+        if raw_source_bytes > constants.MAX_CONTRACT_SUBMISSION_BYTES:
+            raise VmRuntimeExecutionError("Contract source exceeds the maximum allowed size.")
+
+        artifacts = compile_contract_source(
+            module_name=name,
+            source=code,
+            lint=True,
             vm_profile=self.vm_profile,
         )
         source = artifacts["source"]
         vm_ir_json = artifacts["vm_ir_json"]
-        if vm_ir_json is None:
-            raise VmRuntimeExecutionError(
-                "native contract deployment requires persisted vm_ir_json"
-            )
-
-        raw_source_bytes = len(source.encode("utf-8"))
-        if raw_source_bytes > constants.MAX_CONTRACT_SUBMISSION_BYTES:
-            raise VmRuntimeExecutionError("Contract source exceeds the maximum allowed size.")
 
         module_ir = json.loads(vm_ir_json)
         validate_module_ir(module_ir)
@@ -507,11 +498,13 @@ class NativeVmHost:
             developer = kwargs.get("developer")
             deployer = kwargs.get("deployer")
             initiator = kwargs.get("initiator")
-            deployment_artifacts = kwargs.get("deployment_artifacts")
+            if kwargs.get("deployment_artifacts") is not None:
+                raise VmRuntimeExecutionError(
+                    "native contract deployment accepts source code only"
+                )
             self._stage_contract_deploy(
                 name=name,
                 code=code,
-                deployment_artifacts=deployment_artifacts,
                 owner=owner,
                 constructor_args=constructor_args,
                 developer=developer,

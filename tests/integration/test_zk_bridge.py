@@ -29,10 +29,7 @@ class TestZkBridge(TestCase):
             registry_source = registry_file.read()
             Contract(driver=self.c.raw_driver).submit(
                 name="zk_registry",
-                deployment_artifacts=self.c.build_deployment_artifacts(
-                    registry_source,
-                    name="zk_registry",
-                ),
+                code=registry_source,
                 constructor_args={"owner": "stu"},
             )
         self.c.raw_driver.commit()

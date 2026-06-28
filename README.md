@@ -1,8 +1,8 @@
 # xian-contracting
 
-`xian-contracting` is the contract compiler, artifact builder, local test
-harness, and standard-library bridge for Xian. Network execution is defined by
-the Xian VM (`xian_vm_v1`).
+`xian-contracting` is the contract compiler, source/artifact utility layer,
+local test harness, and standard-library bridge for Xian. Network execution is
+defined by the Xian VM (`xian_vm_v1`).
 
 The published PyPI package is `xian-tech-contracting`. The import package
 remains `contracting`. Side packages under `packages/` (deterministic runtime
@@ -15,9 +15,9 @@ node runtime.
 ```mermaid
 flowchart LR
   Source["Authored contract source"] --> Compiler["Compiler and linter"]
-  Compiler --> Artifact["Deployment artifacts"]
-  Artifact --> VM["xian_vm_v1 execution target"]
-  Artifact --> Executor["Local harness"]
+  Compiler --> Artifact["Offline artifacts"]
+  Compiler --> VM["xian_vm_v1 execution target"]
+  Source --> Executor["Local harness"]
   Executor --> Storage["Deterministic storage"]
   Executor --> Stdlib["Stdlib bridge"]
   Executor --> Events["LogEvent output"]
@@ -39,11 +39,15 @@ Optional zk helpers are kept off the default install:
 uv add 'xian-tech-contracting[zk]'
 ```
 
-Compile deployment artifacts:
+Compile source or build artifacts for offline inspection:
 
 ```python
-from contracting.artifacts import build_contract_artifacts
+from contracting.artifacts import build_contract_artifacts, compile_contract_source
 
+compiled = compile_contract_source(
+    module_name="con_token",
+    source=contract_source,
+)
 artifacts = build_contract_artifacts(
     module_name="con_token",
     source=contract_source,
@@ -82,12 +86,11 @@ print(driver.get("example.key"))
 - **Consensus parity comes first.** Metering, storage encoding, import
   restrictions, and runtime helpers must stay version-aligned across all
   validators.
-- **The Xian VM is the execution target.** The local harness is for contract
-  tests and developer ergonomics; the deployable artifact is source plus Xian
-  VM IR.
-- **Compiler and harness stay distinct.** SDKs and CLI deployment flows consume
-  deployment artifacts. The local harness may derive transient proxies for
-  testing, but those are not chain artifacts.
+- **The Xian VM is the execution target.** Validators accept cleartext source
+  and derive canonical Xian VM IR themselves before persisting deployed state.
+- **Compiler and harness stay distinct.** SDKs and CLI deployment flows submit
+  source. Offline artifacts are useful for diagnostics and CI, but are not the
+  public deployment payload.
 - **Stay scoped.** Built-in helpers serve the execution model. They do not grow
   into a general convenience framework.
 - **No node orchestration here.** Operator workflow, genesis distribution, and
@@ -99,7 +102,7 @@ print(driver.get("example.key"))
 
 - `src/contracting/` — compiler, artifacts, local harness, storage, and stdlib
   bridge.
-  - `artifacts/` — public deployment artifact builder and validator.
+  - `artifacts/` — public source compiler, artifact builder, and validator.
   - `compilation/` — parser, compiler, linter, and whitelist logic.
   - `compiler/` — public compiler import surface.
   - `execution/` — runtime, executor, module loading, and tracing.

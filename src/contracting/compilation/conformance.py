@@ -9,7 +9,6 @@ from typing import Any
 
 from xian_runtime_types.collections import ContractingFrozenSet
 
-from contracting.artifacts import build_contract_artifacts
 from contracting.compilation.ir import HOST_BINDINGS, XIAN_VM_HOST_CATALOG_V1
 from contracting.compilation.lowering import (
     XIAN_IR_V1_BIN_OPS,
@@ -98,20 +97,8 @@ CONFORMANCE_ENV_EXCLUSIONS: dict[str, str] = {
 }
 
 
-@lru_cache(maxsize=32)
-def _compact_artifacts(module_name: str, source: str) -> dict[str, object]:
-    return build_contract_artifacts(
-        module_name=module_name,
-        source=source,
-        lint=True,
-        compact=True,
-    )
-
-
 def _replay_submission_deploy_source() -> str:
-    artifacts = _compact_artifacts(
-        "con_replay_submission_child",
-        """
+    child_source = """
 value = Variable()
 
 @construct
@@ -121,8 +108,7 @@ def seed(label: str):
 @export
 def read():
     return value.get()
-""",
-    )
+"""
     return f"""
 ContractDeployedEvent = LogEvent(
     "ContractDeployed",
@@ -141,13 +127,13 @@ ContractOwnerChangedEvent = LogEvent(
     }},
 )
 
-ARTIFACTS = {artifacts!r}
+CHILD_SOURCE = {child_source!r}
 
 @export
 def probe():
     Contract.deploy(
         name="con_replay_submission_child",
-        deployment_artifacts=ARTIFACTS,
+        code=CHILD_SOURCE,
         owner=ctx.caller,
         constructor_args={{"label": "ready"}},
         developer=ctx.caller,

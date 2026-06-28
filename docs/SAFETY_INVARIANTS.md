@@ -10,8 +10,8 @@ This file records the runtime properties that must hold before a
 - Contract Python globals must not leak across transactions.
 - Prefix scans and collection helpers must not hand out live mutable references
   into stored state.
-- Submission metadata and deployment artifacts must stay deterministic for the
-  same source input.
+- Submission metadata and validator-derived VM IR must stay deterministic for
+  the same source input.
 
 ## Metering
 
@@ -28,7 +28,8 @@ This file records the runtime properties that must hold before a
   result, writes, events, and failure mode across the curated matrix.
 - Stateful contract sequences must preserve the same committed state across the
   oracle and VM checks, including rollback after deliberate post-write failure.
-- Deployment-artifact validation must reject malformed or incompatible VM IR.
+- Native deployment must reject client-supplied IR artifacts and derive VM IR
+  from submitted source before staging contract writes.
 
 ## Release Gate
 

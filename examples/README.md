@@ -10,7 +10,7 @@ Principles:
 - Contract names follow the current runtime rule: lowercase and starting with
   `con_`.
 - Human-readable contract source is inspected through `__source__`; executable
-  deployment artifacts are stored as `__xian_ir_v1__`.
+  validator-derived VM IR is stored as `__xian_ir_v1__`.
 - Outputs are cleared in git so the notebooks stay reviewable and rerunnable.
 
 Run them in Jupyter as usual, or validate the code cells without Jupyter:

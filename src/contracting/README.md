@@ -1,12 +1,12 @@
 # contracting
 
 This package is the core Xian contract toolkit. It compiles authored contract
-source, builds source-plus-IR deployment artifacts, provides the local test
+source, builds source-plus-IR artifacts for inspection, provides the local test
 harness, manages contract storage, and exposes the contract-side stdlib bridge.
 
 ## Contents
 
-- `artifacts/`: public deployment artifact builder and validator
+- `artifacts/`: public source compiler, artifact builder, and validator
 - `compiler/`: public compiler import surface
 - `local/`: `ContractingClient` facade used by tests, tools, and local callers
 - `compilation/`: linter, compiler internals, conformance checks, and
@@ -26,7 +26,7 @@ flowchart LR
   Client --> Execution["execution"]
   Execution --> Storage["storage"]
   Execution --> Stdlib["stdlib"]
-  Compilation --> Artifact["source + Xian VM IR"]
+  Compilation --> Artifact["canonical source + Xian VM IR"]
   Artifacts --> Artifact
   Artifact --> Execution
   Contracts["built-in contracts"] --> Execution

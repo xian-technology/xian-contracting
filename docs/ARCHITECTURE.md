@@ -2,8 +2,8 @@
 
 `xian-contracting` owns two related but separate surfaces:
 
-- the compiler/artifact surface, which turns authored source into
-  `xian_vm_v1` deployment artifacts
+- the compiler/artifact surface, which turns authored source into canonical
+  `xian_vm_v1` IR and optional offline artifacts
 - the local harness surface, which lets developers test contracts against
   deterministic storage and stdlib behavior without running a node
 
@@ -13,7 +13,7 @@ tool and parity oracle; it is not a second chain runtime.
 Main areas:
 
 - `src/contracting/compilation/`: compiler, linter, parser, and allowlists
-- `src/contracting/artifacts/`: public deployment artifact builder and
+- `src/contracting/artifacts/`: public source compiler, artifact builder, and
   validator
 - `src/contracting/local/`: local test harness entrypoint
 - `src/contracting/execution/`: runtime, executor, module loading, local
@@ -34,11 +34,11 @@ should be treated as protocol-affecting.
 
 ## Boundary Rules
 
-- SDK and CLI deployment flows should use deployment artifacts, not local harness
-  internals.
+- SDK and CLI deployment flows must submit cleartext source. Validators compile
+  that source and persist canonical IR.
 - The local harness may derive transient Python source/proxies for tests, but
   that output is not a deployable chain artifact.
-- `vm_ir_json` is the executable payload for `xian_vm_v1`; `source` is retained
-  for auditability, dashboards, BDS, and future source-to-IR validation.
+- Stored `vm_ir_json` is the executable payload for `xian_vm_v1`; it is derived
+  by validators from submitted source, not trusted from clients.
 - Any future Rust compiler core should replace the compiler/artifact authority
   behind the public artifact APIs before SDKs depend on it directly.

@@ -1,7 +1,7 @@
 import json
 
 from contracting import constants
-from contracting.artifacts import validate_contract_artifacts
+from contracting.artifacts import compile_contract_source
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution.runtime import rt
 from contracting.execution.sandbox import build_contract_builtins
@@ -59,7 +59,7 @@ class Contract:
         driver: Driver,
         *,
         name,
-        deployment_artifacts,
+        code,
         owner=None,
         constructor_args=None,
         developer=None,
@@ -72,22 +72,28 @@ class Contract:
             if driver.has_contract(name):
                 raise Exception("Contract already exists.")
 
-            if not isinstance(deployment_artifacts, dict):
-                raise TypeError("Contract deployment requires artifacts.")
+            if not isinstance(code, str) or code == "":
+                raise TypeError("Contract deployment requires non-empty source code.")
             if rt.env.get(XIAN_EXECUTION_MODE_ENV_KEY) == "xian_vm_v1":
                 raise TypeError(
                     "xian_vm_v1 contract deployment must execute through the "
                     "native VM host, not the local harness path."
                 )
 
-            artifacts = validate_contract_artifacts(
+            raw_source_bytes = len(code.encode("utf-8"))
+            assert raw_source_bytes <= constants.MAX_CONTRACT_SUBMISSION_BYTES, (
+                "Contract source exceeds the maximum allowed size."
+            )
+
+            compiled_artifacts = compile_contract_source(
                 module_name=name,
-                artifacts=deployment_artifacts,
+                source=code,
+                lint=True,
                 vm_profile="xian_vm_v1",
             )
 
-            source_obj = artifacts["source"]
-            vm_ir_json = artifacts["vm_ir_json"]
+            source_obj = compiled_artifacts["source"]
+            vm_ir_json = compiled_artifacts["vm_ir_json"]
             module_ir = json.loads(vm_ir_json)
             if module_ir_uses_runtime_feature(
                 module_ir,
@@ -105,11 +111,6 @@ class Contract:
                 source_obj,
                 lint=False,
                 vm_profile="xian_vm_v1",
-            )
-
-            raw_source_bytes = len(source_obj.encode("utf-8"))
-            assert raw_source_bytes <= constants.MAX_CONTRACT_SUBMISSION_BYTES, (
-                "Contract source exceeds the maximum allowed size."
             )
 
             rt.deduct_execution_cost(
@@ -185,7 +186,7 @@ class Contract:
     def submit(
         self,
         name,
-        deployment_artifacts,
+        code,
         owner=None,
         constructor_args=None,
         developer=None,
@@ -195,7 +196,7 @@ class Contract:
         self._submit_with_driver(
             self._driver,
             name=name,
-            deployment_artifacts=deployment_artifacts,
+            code=code,
             owner=owner,
             constructor_args=constructor_args,
             developer=developer,
@@ -208,7 +209,7 @@ class Contract:
         cls,
         *,
         name,
-        deployment_artifacts,
+        code,
         owner=None,
         constructor_args=None,
         developer=None,
@@ -219,7 +220,7 @@ class Contract:
         cls._submit_with_driver(
             cls._resolve_driver(driver),
             name=name,
-            deployment_artifacts=deployment_artifacts,
+            code=code,
             owner=owner,
             constructor_args=constructor_args,
             developer=developer,

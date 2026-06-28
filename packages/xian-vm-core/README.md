@@ -73,19 +73,17 @@ Metering covers both host-side data costs and VM execution:
   related contract metadata syscalls resolve directly against the driver/IR in
   the native host bridge
 - authored contract storage persists `__xian_ir_v1__`, and the native host
-  requires that artifact for `xian_vm_v1` execution; stored `__source__` remains
-  available for dashboards, BDS, and other inspection tooling
-- the VM-native artifact path treats `vm_ir_json` as the only executable
-  deployment artifact; local tooling may derive transient harness source when
-  it needs a standalone contract proxy
-- deployment artifacts are validated against canonical compiler output, not only
-  against self-declared hashes, so forged source/IR bundles are rejected before
-  they reach native deployment
+  requires that validator-derived artifact for `xian_vm_v1` execution; stored
+  `__source__` remains available for dashboards, BDS, and other inspection
+  tooling
+- native deployment accepts cleartext source only, rejects submitted
+  `deployment_artifacts`, and derives `vm_ir_json` through the pinned compiler
+  before staging writes
 - native deployment requires explicit deterministic `now` context from the
   caller; the host does not fall back to local wall-clock time for submission
   metadata
-- the native deployment path validates bundle shape, hashes, and IR/source
-  linkage in Rust before staging writes or executing constructors
+- the native deployment path validates the compiler-produced IR before staging
+  writes or executing constructors
 - the Python deployment path and offline tooling keep canonical
   source-to-runtime recompilation in the Python artifact validator; the native
   path is Rust-native for bundle validation, not a Rust recompiler

@@ -392,7 +392,7 @@ class ContractingClient:
         code = self.compiler.parse_to_code(f)
         return code
 
-    def build_deployment_artifacts(self, f, *, name=None):
+    def build_contract_artifacts(self, f, *, name=None):
         if isinstance(f, FunctionType):
             f, inferred_name = self.closure_to_code_string(f)
             if name is None:
@@ -436,13 +436,9 @@ class ContractingClient:
         if signer is None:
             signer = self.signer
 
-        deployment_artifacts = self.build_deployment_artifacts(
-            f,
-            name=name,
-        )
         self.submission_contract.submit_contract(
             name=name,
-            deployment_artifacts=deployment_artifacts,
+            code=f,
             owner=owner,
             constructor_args=constructor_args,
             metering=metering,

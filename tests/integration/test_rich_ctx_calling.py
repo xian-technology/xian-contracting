@@ -1,16 +1,10 @@
 from unittest import TestCase
 
-from contracting.artifacts import build_contract_artifacts
 from contracting.local import ContractingClient
 
 
 def build_submission_artifacts(name, source):
-    return build_contract_artifacts(
-        module_name=name,
-        source=source,
-        lint=True,
-        vm_profile="xian_vm_v1",
-    )
+    return source
 
 
 def con_module1():
@@ -330,20 +324,20 @@ def seed():
 def ready():
     return True
 """
-        child_artifacts = build_submission_artifacts(
+        child_source = build_submission_artifacts(
             "con_factory_child",
             child_source,
         )
         factory_code = f'''
 import submission
 
-CHILD_ARTIFACTS = {child_artifacts!r}
+CHILD_SOURCE = {child_source!r}
 
 @export
 def deploy_child(name: str, owner: str):
     submission.submit_contract(
         name=name,
-        deployment_artifacts=CHILD_ARTIFACTS,
+        code=CHILD_SOURCE,
         owner=owner,
     )
 '''

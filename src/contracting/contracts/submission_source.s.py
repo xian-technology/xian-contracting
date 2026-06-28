@@ -41,9 +41,9 @@ def assert_safe_contract_name(name: str):
 @export
 def submit_contract(
     name: str,
+    code: str,
     owner: str = None,
     constructor_args: dict = None,
-    deployment_artifacts: dict = None,
 ):
     assert_safe_contract_name(name)
     assert owner is None or (
@@ -51,13 +51,13 @@ def submit_contract(
     ), "Owner must be None or a non-empty string!"
     if constructor_args is None:
         constructor_args = {}
-    assert isinstance(
-        deployment_artifacts, dict
-    ), "deployment_artifacts must be a dict!"
+    assert isinstance(code, str) and code != "", (
+        "Contract source code must be a non-empty string!"
+    )
 
     Contract.deploy(
         name=name,
-        deployment_artifacts=deployment_artifacts,
+        code=code,
         owner=owner,
         constructor_args=constructor_args,
         developer=ctx.caller,

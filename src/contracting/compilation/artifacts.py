@@ -91,6 +91,35 @@ def build_contract_artifacts(
     )
 
 
+def compile_contract_source(
+    *,
+    module_name: str,
+    source: str,
+    lint: bool = True,
+    vm_profile: str = XIAN_VM_V1_PROFILE,
+) -> dict[str, str]:
+    _assert_native_compiler_host_surface_current()
+
+    if not isinstance(source, str) or source == "":
+        raise ValueError("contract source must be a non-empty string.")
+
+    canonical_source = xian_compiler_core.normalize_source(
+        module_name,
+        source,
+        lint=lint,
+        vm_profile=vm_profile,
+    )
+    canonical_vm_ir_json = _compile_canonical_ir(
+        module_name=module_name,
+        source=canonical_source,
+        vm_profile=vm_profile,
+    )
+    return {
+        "source": canonical_source,
+        "vm_ir_json": canonical_vm_ir_json,
+    }
+
+
 def validate_contract_artifacts(
     *,
     module_name: str,
@@ -151,20 +180,17 @@ def validate_contract_artifacts(
         if actual != expected:
             raise ValueError(f"deployment_artifacts hash mismatch for '{hash_name}'.")
 
-    canonical_source = xian_compiler_core.normalize_source(
-        module_name,
-        source,
+    compiled = compile_contract_source(
+        module_name=module_name,
+        source=source,
         lint=False,
         vm_profile=vm_profile,
     )
+    canonical_source = compiled["source"]
     if canonical_source != source:
         raise ValueError("deployment_artifacts source does not match canonical normalized source.")
 
-    canonical_vm_ir_json = _compile_canonical_ir(
-        module_name=module_name,
-        source=source,
-        vm_profile=vm_profile,
-    )
+    canonical_vm_ir_json = compiled["vm_ir_json"]
     if canonical_vm_ir_json != vm_ir_json:
         raise ValueError(
             "deployment_artifacts vm_ir_json does not match canonical compiler output."

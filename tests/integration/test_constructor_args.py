@@ -63,10 +63,7 @@ class TestSenecaClientReplacesExecutor(TestCase):
     def test_direct_contract_submit_uses_provided_driver_for_constructor(self):
         Contract(driver=self.c.raw_driver).submit(
             name="con_constructor_args_contract",
-            deployment_artifacts=self.c.build_deployment_artifacts(
-                self.code,
-                name="con_constructor_args_contract",
-            ),
+            code=self.code,
             constructor_args={"a": 123, "b": 321},
         )
         self.c.raw_driver.commit()

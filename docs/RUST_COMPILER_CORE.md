@@ -16,9 +16,9 @@ tags.
 
 ## Goals
 
-- Make `source -> normalized source -> xian_vm_v1 IR -> deployment_artifacts`
-  one canonical implementation.
-- Keep the deployment artifact contract stable:
+- Make `source -> normalized source -> xian_vm_v1 IR` one canonical
+  implementation used by validators and tooling.
+- Keep the offline artifact contract stable:
   - `format = xian_contract_artifact_v1`
   - `module_name`
   - `vm_profile = xian_vm_v1`
@@ -27,12 +27,11 @@ tags.
   - `hashes.source_sha256`
   - `hashes.vm_ir_sha256`
 - Give every public surface the same compiler behavior:
+  - `contracting.artifacts.compile_contract_source(...)`
   - `contracting.artifacts.build_contract_artifacts(...)`
-  - `xian-py deploy_contract(name, source, ...)`
-  - `xian-js deployContract({ name, source, ... })`
+  - node-side `source -> IR` deployment admission
   - `xian contract build-artifacts ...`
-  - `xian-ide-web` lint/diagnostics/deploy
-  - optional node-side `source -> IR` validation
+  - `xian-ide-web` lint/diagnostics
 - Keep compiler output reproducible across operating systems, CPU
   architectures, Python versions, Node versions, and browsers.
 - Remove the Python compiler after the Rust compiler is authoritative; do not
@@ -42,11 +41,10 @@ tags.
 
 - Do not revive the Python VM.
 - Do not implement a separate JavaScript compiler.
-- Do not compile contracts inside validators as part of normal execution.
+- Do not trust client-supplied IR for deployment.
 - Do not make arbitrary CPython behavior the language spec. Xian contracts are a
   deterministic Python-like subset owned by Xian.
-- Do not change the deployment transaction shape just because compiler
-  packaging changes. The protocol continues to accept deployment artifacts.
+- Do not require SDKs, wallets, or browser clients to submit IR artifacts.
 
 ## Current State
 
@@ -60,35 +58,35 @@ Current behavior:
 - normalizes source with Xian-owned Rust formatting
 - runs lint and VM compatibility checks
 - lowers accepted source to canonical `xian_vm_v1` JSON IR
-- builds `xian_contract_artifact_v1` deployment artifacts
+- builds `xian_contract_artifact_v1` artifacts for offline inspection
 - validates artifact shape, hashes, normalized source, and canonical compiler
-  output before deployment
+  output for offline consumers
 
 The old Python compiler remains only as a parity oracle while the Rust compiler
 is being integrated into all consumers.
 
-The Python SDK can deploy from source because it depends on
-`xian-tech-contracting`. The JavaScript SDK can deploy from source when
-`@xian-tech/compiler` is installed or injected. The browser IDE builds and
-deploys artifacts through the same WASM package and renders structured compiler
-diagnostics in Monaco.
+Validators compile submitted source with the Rust compiler binding and persist
+the canonical IR. Python and JavaScript SDKs submit cleartext source. The
+browser IDE submits source through the wallet provider and uses the WASM
+compiler for diagnostics and optional artifact inspection.
 
 ## Target Topology
 
 ```mermaid
 flowchart LR
   Source["Contract source"] --> Core["xian-compiler-core (Rust)"]
-  Core --> Artifacts["deployment_artifacts"]
+  Core --> Artifacts["offline artifacts"]
   Core --> Py["Python binding"]
   Core --> Js["JS/WASM package"]
-  Core --> Cli["xian-cli"]
-  Core --> Ide["xian-ide-web"]
-  Core --> Node["optional node validation"]
+  Core --> Cli["xian-cli artifact checks"]
+  Core --> Ide["xian-ide-web diagnostics"]
+  Core --> Node["validator deployment admission"]
   Py --> Contracting["xian-contracting public APIs"]
   Contracting --> XianPy["xian-py deploy_contract"]
   Js --> XianJs["xian-js deployContract"]
   Cli --> CI["CI/release artifact builds"]
-  Artifacts --> Submit["submission.submit_contract"]
+  Source --> Submit["submission.submit_contract(code)"]
+  Submit --> Node
 ```
 
 ## Package Layout
@@ -151,6 +149,7 @@ The Rust core should expose these logical operations. Bindings should preserve
 the same names and data shapes where language conventions allow it.
 
 ```text
+compile_contract_source(module_name, source, options) -> canonical_source_and_ir
 build_contract_artifacts(module_name, source, options) -> artifact
 validate_contract_artifacts(module_name, artifact, options) -> validated_artifact
 diagnose_contract(module_name, source, options) -> diagnostics
@@ -194,14 +193,12 @@ parsing exception strings.
 `xian-tech-contracting` remains the public Python import surface:
 
 ```python
-from contracting.artifacts import build_contract_artifacts
+from contracting.artifacts import compile_contract_source, build_contract_artifacts
 ```
 
-`xian-tech-contracting` delegates artifact builds to the Rust binding.
-`xian-py deploy_contract(...)` remains a thin convenience wrapper:
-
-1. call `build_contract_artifacts`
-2. call `submit_contract(name, artifacts, args=...)`
+`xian-tech-contracting` delegates source compilation and artifact builds to the
+Rust binding. `xian-py deploy_contract(...)` and `submit_contract(...)` submit
+source directly; validators compile and persist canonical IR.
 
 ### JavaScript
 
@@ -228,15 +225,15 @@ await client.deployContract({
 });
 ```
 
-Internally this compiles to artifacts and then calls the existing
-artifact-backed submission path. `submitContract({ deploymentArtifacts })`
-should remain for CI and advanced workflows that build artifacts elsewhere.
+Internally this submits source as `code` to `submission.submit_contract`.
+Client-side artifact compilation remains an offline utility for CI and
+inspection, not a network deployment payload.
 
 ### CLI
 
 `xian contract build-artifacts` remains the offline artifact builder.
 
-`xian client tx submit-artifacts` remains the signed network submitter.
+`xian client tx submit-source` is the signed network submitter.
 
 When the Rust compiler becomes authoritative, the CLI should get the new
 compiler behavior by dependency upgrade, not by implementing compiler logic in
@@ -247,19 +244,20 @@ compiler behavior by dependency upgrade, not by implementing compiler logic in
 The IDE imports `@xian-tech/compiler` directly:
 
 1. the check action calls `diagnoseContractJson`
-2. compile/deploy calls `compileContractArtifactJson`
-3. wallet submission sends `deployment_artifacts`
+2. optional artifact inspection calls `compileContractArtifactJson`
+3. wallet submission sends source as `code`
 4. diagnostics are rendered from structured ranges
 
-Deployment and compiler-backed diagnostics are implemented. A visible compiler
-provenance/debug surface remains optional follow-up IDE work.
+Source deployment and compiler-backed diagnostics are implemented. A visible
+compiler provenance/debug surface remains optional follow-up IDE work.
 
 ### Nodes
 
-Nodes should keep accepting deployment artifacts. Optional validation can use
-the same Rust core to prove submitted `source` produces submitted `vm_ir_json`.
+Nodes must reject submitted deployment artifacts. Native deployment uses the
+same Rust core to compile submitted `code` to canonical source plus
+`vm_ir_json`.
 
-That validation should be bounded and explicit. It is an admission/deployment
+That compilation must be bounded and explicit. It is an admission/deployment
 check, not contract execution.
 
 ## Determinism Requirements
@@ -274,9 +272,9 @@ check, not contract execution.
 
 ## Migration Plan
 
-1. Freeze the artifact contract.
-   - Document exact required fields and canonical JSON settings.
-   - Keep `xian_contract_artifact_v1` stable during migration.
+1. Freeze the source-to-IR contract.
+   - Document canonical source and canonical JSON IR settings.
+   - Keep `xian_contract_artifact_v1` stable as an offline inspection format.
 
 2. Build an executable compiler spec.
    - Add a fixture format that stores input source, expected normalized source,
@@ -288,7 +286,7 @@ check, not contract execution.
 3. Implement Rust compiler core behind the fixtures.
    - Start with parser, diagnostics, normalization, then lowering.
    - Use the current Python compiler only as the parity oracle during migration.
-   - Require byte-identical artifacts before switching authority.
+   - Require byte-identical canonical source and IR before switching authority.
 
 4. Add bindings.
    - Python binding through PyO3/maturin.
@@ -299,15 +297,15 @@ check, not contract execution.
    - `contracting.artifacts` delegates to Rust. Done.
    - `xian-py deploy_contract` stays unchanged externally. Done.
    - `xian-js deployContract` becomes available. Initial SDK surface done.
-   - `xian-ide-web` compiles with browser-local WASM and deploys artifacts. Done.
+   - `xian-ide-web` compiles with browser-local WASM diagnostics and deploys source. Done.
    - `xian-cli` builds artifacts through the same public API. Done.
 
 6. Switch authority and remove the old compiler.
    - Rust output becomes canonical.
    - Python compiler implementation is deleted or retained only as archived
      migration fixtures.
-   - Five-node E2E deployments must pass using Rust-built artifacts before this
-     step is complete.
+   - Five-node E2E deployments must pass using source submissions and
+     validator-derived IR before this step is complete.
 
 ## Validation Gates
 
@@ -315,11 +313,11 @@ The Rust compiler core should not become authoritative until:
 
 - the full fixture corpus is byte-identical for accepted contracts
 - rejected contracts produce stable diagnostics
-- Python and JS bindings produce identical artifacts for the same input
-- `xian-cli` can build and submit artifacts produced by the Rust core
-- `xian-ide-web` can compile in browser and deploy via wallet provider
-- node-side artifact validation accepts artifacts from both bindings
-- five-node E2E deployment flows pass with Rust-built artifacts
+- Python and JS bindings produce identical canonical source/IR for the same input
+- `xian-cli` can build artifacts for offline inspection and submit source
+- `xian-ide-web` can diagnose in browser and deploy source via wallet provider
+- node-side deployment compiles source and rejects client-supplied artifacts
+- five-node E2E deployment flows pass with validator-derived IR
 
 ## Risks And Decisions
 
@@ -330,8 +328,8 @@ The Rust compiler core should not become authoritative until:
   CPython `ast.unparse` forever is not a good long-term spec.
 - WASM package size and initialization time matter for `xian-ide-web`; the core
   should stay dependency-light.
-- Node validation adds security value but costs deployment admission time. It
-  should be measured behind limits before becoming mandatory.
+- Node-side compilation is the deployment authority and costs deployment
+  admission time. It should stay bounded and measured.
 - Keeping the Python compiler after the switch would recreate the dual-compiler
   complexity this design is meant to remove.
 
