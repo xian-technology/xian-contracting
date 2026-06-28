@@ -45,7 +45,9 @@ SHIELDED_COMMANDS_SOURCE = (
 )
 ZK_REGISTRY_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "zk_registry.s.py"
 GENESIS_CURRENCY_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "currency.s.py"
-STABLE_TOKEN_SOURCE = WORKSPACE_ROOT / "xian-stable-protocol" / "contracts" / "stable_token.s.py"
+STABLE_TOKEN_SOURCE = (
+    WORKSPACE_ROOT / "xian-stable-protocol" / "contracts" / "con_stable_token.s.py"
+)
 REFLECTION_TOKEN_SOURCE = (
     WORKSPACE_ROOT
     / "xian-contracts"
@@ -70,7 +72,7 @@ TURN_BASED_GAMES_SOURCE = (
     / "src"
     / "con_turn_based_games.py"
 )
-ORACLE_SOURCE = WORKSPACE_ROOT / "xian-stable-protocol" / "contracts" / "oracle.s.py"
+ORACLE_SOURCE = WORKSPACE_ROOT / "xian-stable-protocol" / "contracts" / "con_oracle.s.py"
 DAO_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "dao.s.py"
 CHI_COST_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "chi_cost.s.py"
 REWARDS_SOURCE = WORKSPACE_ROOT / "xian-configs" / "contracts" / "rewards.s.py"
@@ -1917,6 +1919,19 @@ def interact(payload: dict = None):
                             ],
                         },
                         {
+                            "binding": "registered_lp_tokens",
+                            "keys": [
+                                (
+                                    "con_currency_dex",
+                                    "con_stable_dex_token",
+                                )
+                            ],
+                        },
+                        {
+                            "binding": "registered_lp_token_pairs",
+                            "keys": ["con_dex_lp_token"],
+                        },
+                        {
                             "binding": "pairs",
                             "keys": [
                                 (1, "token0"),
@@ -2060,6 +2075,20 @@ def interact(payload: dict = None):
                 },
             },
             {
+                "module": "con_pairs",
+                "function": "registerLpToken",
+                "kwargs": {
+                    "tokenA": "con_currency_dex",
+                    "tokenB": "con_stable_dex_token",
+                    "lpToken": "con_dex_lp_token",
+                },
+                "context": {
+                    "caller": "dex_bob",
+                    "signer": "dex_bob",
+                    "now": Datetime(2024, 5, 8, 9, 59, 30),
+                },
+            },
+            {
                 "module": "con_currency_dex",
                 "function": "approve",
                 "kwargs": {"amount": 1000.0, "to": "con_dex"},
@@ -2144,6 +2173,19 @@ def interact(payload: dict = None):
                                 "con_stable_dex_token",
                             )
                         ],
+                    },
+                    {
+                        "binding": "registered_lp_tokens",
+                        "keys": [
+                            (
+                                "con_currency_dex",
+                                "con_stable_dex_token",
+                            )
+                        ],
+                    },
+                    {
+                        "binding": "registered_lp_token_pairs",
+                        "keys": ["con_dex_lp_token"],
                     },
                     {
                         "binding": "pairs",
