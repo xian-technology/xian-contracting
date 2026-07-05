@@ -4,6 +4,7 @@ import argparse
 import hmac
 import ipaddress
 import json
+import socket
 import threading
 import urllib.error
 import urllib.request
@@ -39,6 +40,10 @@ from xian_zk.shielded_relay import (
 MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024
 
 
+class _IPv6HTTPServer(HTTPServer):
+    address_family = socket.AF_INET6
+
+
 class ZkProverClientError(RuntimeError):
     def __init__(self, status_code: int, message: str):
         self.status_code = status_code
@@ -61,9 +66,42 @@ def _read_text(path: str | None) -> str | None:
     return Path(path).expanduser().resolve().read_text()
 
 
+def _normalize_bind_host(host: str) -> str:
+    normalized = host.strip()
+    if normalized.startswith("[") or normalized.endswith("]"):
+        if not normalized.startswith("[") or not normalized.endswith("]"):
+            raise ValueError("IPv6 host brackets must enclose the full address")
+        normalized = normalized[1:-1]
+    if normalized == "":
+        raise ValueError("host must be non-empty")
+    return normalized
+
+
+def _is_ipv6_literal(host: str) -> bool:
+    try:
+        return ipaddress.ip_address(host).version == 6
+    except ValueError:
+        return False
+
+
+def _format_host_for_url(host: str) -> str:
+    if _is_ipv6_literal(host):
+        return f"[{host}]"
+    return host
+
+
+def _server_class_for_host(host: str) -> type[HTTPServer]:
+    if _is_ipv6_literal(host):
+        return _IPv6HTTPServer
+    return HTTPServer
+
+
 def _is_loopback_host(host: str) -> bool:
-    normalized = host.strip().lower()
-    if normalized == "localhost":
+    try:
+        normalized = _normalize_bind_host(host)
+    except ValueError:
+        return False
+    if normalized.lower() == "localhost":
         return True
     try:
         return ipaddress.ip_address(normalized).is_loopback
@@ -83,9 +121,7 @@ def _validate_bind_configuration(
     # safe default is loopback-only (run your own prover locally). Binding to a
     # remote host is gated behind an explicit opt-in and a mandatory auth token,
     # but operators must still treat a shared prover as fully trusted.
-    normalized = host.strip()
-    if normalized == "":
-        raise ValueError("host must be non-empty")
+    normalized = _normalize_bind_host(host)
     if _is_loopback_host(normalized):
         return
     if not allow_remote_host:
@@ -330,6 +366,7 @@ class ShieldedZkProverService:
             auth_token=auth_token,
             allow_remote_host=allow_remote_host,
         )
+        host = _normalize_bind_host(host)
         self._note_bundle_json = None if note_prover is None else note_prover.bundle_json
         self._command_bundle_json = None if command_prover is None else command_prover.bundle_json
         self._relay_bundle_json = None if relay_prover is None else relay_prover.bundle_json
@@ -338,7 +375,7 @@ class ShieldedZkProverService:
         self.auth_token = auth_token
         self._thread_state = threading.local()
         self._thread: threading.Thread | None = None
-        self._server = HTTPServer((host, port), self._build_handler())
+        self._server = _server_class_for_host(host)((host, port), self._build_handler())
 
     @property
     def server_address(self) -> tuple[str, int]:
@@ -348,7 +385,7 @@ class ShieldedZkProverService:
     @property
     def base_url(self) -> str:
         host, port = self.server_address
-        return f"http://{host}:{port}"
+        return f"http://{_format_host_for_url(host)}:{port}"
 
     def _build_handler(self):
         service = self

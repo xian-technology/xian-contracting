@@ -1,3 +1,7 @@
+import json
+import socket
+import urllib.request
+
 import pytest
 from xian_zk import (
     ShieldedCommandProver,
@@ -14,8 +18,86 @@ from xian_zk import (
 )
 
 
+class _DummyProver:
+    bundle_json = "{}"
+
+
 def field(value: int) -> str:
     return f"0x{value:064x}"
+
+
+def _require_ipv6_bind(host: str) -> None:
+    if not socket.has_ipv6:
+        pytest.skip("IPv6 sockets are not available")
+    sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+    try:
+        sock.bind((host, 0))
+    except OSError as exc:
+        pytest.skip(f"IPv6 bind to {host} is not available: {exc}")
+    finally:
+        sock.close()
+
+
+def test_prover_service_default_bind_stays_ipv4_loopback():
+    with ShieldedZkProverService(note_prover=_DummyProver()) as service:
+        host, port = service.server_address
+        assert host == "127.0.0.1"
+        assert service.base_url == f"http://127.0.0.1:{port}"
+
+
+@pytest.mark.parametrize("host", ["::1", "[::1]"])
+def test_prover_service_accepts_ipv6_loopback_bind(host: str):
+    _require_ipv6_bind("::1")
+
+    with ShieldedZkProverService(
+        note_prover=_DummyProver(),
+        host=host,
+    ) as service:
+        host, port = service.server_address
+        assert host == "::1"
+        assert service.base_url == f"http://[::1]:{port}"
+
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(f"{service.base_url}/healthz", timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+
+    assert payload == {
+        "ok": True,
+        "note": True,
+        "command": False,
+        "relay": False,
+    }
+
+
+def test_prover_service_rejects_ipv6_remote_host_without_explicit_override():
+    with pytest.raises(ValueError, match="non-loopback host"):
+        ShieldedZkProverService(
+            note_prover=_DummyProver(),
+            host="::",
+        )
+
+
+def test_prover_service_requires_auth_token_for_ipv6_remote_host():
+    with pytest.raises(ValueError, match="auth-token"):
+        ShieldedZkProverService(
+            note_prover=_DummyProver(),
+            host="[::]",
+            allow_remote_host=True,
+        )
+
+
+def test_prover_service_allows_ipv6_remote_host_with_override_and_token():
+    _require_ipv6_bind("::")
+
+    with ShieldedZkProverService(
+        note_prover=_DummyProver(),
+        host="::",
+        auth_token="secret",
+        allow_remote_host=True,
+    ) as service:
+        host, port = service.server_address
+        assert host == "::"
+        assert service.base_url == f"http://[::]:{port}"
 
 
 def test_note_prover_service_round_trips_deposit_request():
@@ -31,9 +113,7 @@ def test_note_prover_service_round_trips_deposit_request():
         note_prover=ShieldedNoteProver.build_insecure_dev_bundle(),
         auth_token="secret",
     ) as service:
-        client = ShieldedNoteProverClient(
-            service.base_url, auth_token="secret"
-        )
+        client = ShieldedNoteProverClient(service.base_url, auth_token="secret")
 
         manifest = client.registry_manifest()
         proof = client.prove_deposit(plan.request)
@@ -129,9 +209,7 @@ def test_relay_prover_service_round_trips_hidden_sender_request():
         command_prover=ShieldedCommandProver.build_insecure_dev_bundle(),
         auth_token="secret",
     ) as service:
-        client = ShieldedRelayTransferProverClient(
-            service.base_url, auth_token="secret"
-        )
+        client = ShieldedRelayTransferProverClient(service.base_url, auth_token="secret")
 
         manifest = client.registry_manifest()
         proof = client.prove_relay_transfer(plan.request)

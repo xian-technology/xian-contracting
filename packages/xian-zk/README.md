@@ -114,6 +114,9 @@ Published/CI wheels build `--release` regardless.
 - `xian-zk-prover-service` is a trusted local proving companion, not a true
   split-prover protocol. It improves deployability and wallet ergonomics, but
   the service sees witness material.
+- `xian-zk-prover-service` defaults to `127.0.0.1`. IPv6 literal binds are
+  supported with `::1` or `[::1]`; non-loopback binds such as `::` still require
+  `--unsafe-allow-remote-host` and `--auth-token`.
 - Exact withdraws do not need a forced change note. A withdraw can spend a
   note set down to zero shielded outputs when value conservation closes exactly.
 - The proving requests separate `old_root` from `append_state`, which lets a
