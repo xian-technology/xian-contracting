@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python 3.14
         uses: actions/setup-python@v6
@@ -38,7 +38,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: xian-contracting-coverage
           path: coverage.xml
@@ -50,22 +50,22 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Checkout xian-configs
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: xian-technology/xian-configs
           path: .xian-workspace/xian-configs
 
       - name: Checkout xian-contracts
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: xian-technology/xian-contracts
           path: .xian-workspace/xian-contracts
 
       - name: Checkout xian-stable-protocol
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: xian-technology/xian-stable-protocol
           path: .xian-workspace/xian-stable-protocol

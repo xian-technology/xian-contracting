@@ -111,7 +111,7 @@ jobs:
       contents: read
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -149,7 +149,7 @@ jobs:
       contents: read
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -202,7 +202,7 @@ jobs:
           cp "${package_dir}"/dist/* /tmp/release-dist/
 
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-dist-python
           path: /tmp/release-dist/*
@@ -219,7 +219,7 @@ jobs:
       contents: read
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -246,7 +246,7 @@ jobs:
             --manifest-path "${package_dir}/Cargo.toml"
 
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-dist-rust-sdist
           path: dist/*
@@ -271,7 +271,7 @@ jobs:
       contents: read
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -290,7 +290,7 @@ jobs:
           manylinux: auto
 
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-dist-rust-wheel-${{ matrix.os }}
           path: dist/*
@@ -307,7 +307,7 @@ jobs:
       contents: read
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -359,7 +359,7 @@ jobs:
           )
 
       - name: Upload npm release artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: npm-compiler-dist
           path: release-dist-npm/*
@@ -385,7 +385,7 @@ jobs:
       contents: read
     steps:
       - name: Download release artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           pattern: release-dist-*
           path: dist
@@ -423,7 +423,7 @@ jobs:
           EXPECTED_VERSION: ${{ needs.release-context.outputs.version }}
 
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-dist
           path: dist/*
@@ -443,7 +443,7 @@ jobs:
       url: ${{ needs.release-context.outputs.pypi_url }}
     steps:
       - name: Download release artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: release-dist
           path: dist
@@ -470,7 +470,7 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Download npm release artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: npm-compiler-dist
           path: release-dist-npm
@@ -510,14 +510,14 @@ jobs:
       contents: write
     steps:
       - name: Download release artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: release-dist
           path: dist
 
       - name: Download npm release artifacts
         if: needs.release-context.outputs.has_npm_package == 'true'
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: npm-compiler-dist
           path: dist
