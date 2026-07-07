@@ -157,7 +157,7 @@ fn sha256_hex(value: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(value.as_bytes());
     let digest = hasher.finalize();
-    format!("{digest:x}")
+    hex::encode(digest)
 }
 
 #[cfg(test)]

@@ -32,7 +32,7 @@ use ark_crypto_primitives::sponge::poseidon::{
 use ark_crypto_primitives::sponge::{CryptographicSponge, FieldBasedCryptographicSponge};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
-use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
+use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 use std::sync::OnceLock;
 
 /// Number of full rounds in the Poseidon permutation.
@@ -140,8 +140,8 @@ mod tests {
     use super::*;
     use ark_ff::{BigInteger, PrimeField};
     use ark_r1cs_std::alloc::AllocVar;
-    use ark_r1cs_std::R1CSVar;
-    use ark_relations::r1cs::ConstraintSystem;
+    use ark_r1cs_std::GR1CSVar;
+    use ark_relations::gr1cs::ConstraintSystem;
 
     fn hex(value: Fr) -> String {
         let mut bytes = value.into_bigint().to_bytes_be();

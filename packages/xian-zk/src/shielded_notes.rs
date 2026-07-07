@@ -6,7 +6,7 @@ use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
-use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
+use ark_relations::gr1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_snark::SNARK;
 use ark_std::rand::rngs::StdRng;
@@ -1832,8 +1832,13 @@ fn prove_with_pk<C: ConstraintSynthesizer<Fr>>(
     circuit: C,
 ) -> Result<Proof<Bn254>, Box<dyn Error>> {
     let proving_key: ProvingKey<Bn254> = deserialize_hex(proving_key_hex)?;
-    let mut rng = OsRng;
+    let mut rng = seeded_std_rng()?;
     Ok(Groth16::<Bn254>::prove(&proving_key, circuit, &mut rng)?)
+}
+
+fn seeded_std_rng() -> Result<StdRng, Box<dyn Error>> {
+    StdRng::from_rng(OsRng)
+        .map_err(|error| format!("failed to seed random setup rng: {error}").into())
 }
 
 fn blank_output_witness() -> OutputWitness {
@@ -2286,8 +2291,7 @@ pub fn build_random_shielded_note_bundle(
         withdraw_vk_id: &withdraw_vk_id,
     };
 
-    let mut rng = StdRng::from_rng(OsRng)
-        .map_err(|error| format!("failed to seed random setup rng: {error}"))?;
+    let mut rng = seeded_std_rng()?;
     build_shielded_note_bundle_with_rng(&mut rng, &descriptor)
 }
 
@@ -2390,8 +2394,7 @@ pub fn build_random_shielded_command_bundle(
         withdraw_vk_id: &withdraw_vk_id,
     };
 
-    let mut rng = StdRng::from_rng(OsRng)
-        .map_err(|error| format!("failed to seed random setup rng: {error}"))?;
+    let mut rng = seeded_std_rng()?;
     build_shielded_command_bundle_with_rng(&mut rng, &descriptor)
 }
 
@@ -2464,8 +2467,7 @@ pub fn build_random_shielded_scheduler_auth_bundle(
         vk_id: &vk_id,
     };
 
-    let mut rng = StdRng::from_rng(OsRng)
-        .map_err(|error| format!("failed to seed random setup rng: {error}"))?;
+    let mut rng = seeded_std_rng()?;
     build_shielded_scheduler_auth_bundle_with_rng(&mut rng, &descriptor)
 }
 
@@ -2979,7 +2981,7 @@ pub fn build_shielded_command_fixture() -> Result<ShieldedCommandFixture, Box<dy
 mod tests {
     use super::*;
     use crate::core::verify_groth16_bn254;
-    use ark_relations::r1cs::ConstraintSystem;
+    use ark_relations::gr1cs::ConstraintSystem;
 
     /// Builds a single-note tree and a `WithdrawCircuit` that spends that note.
     ///

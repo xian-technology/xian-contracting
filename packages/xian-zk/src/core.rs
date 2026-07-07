@@ -2,7 +2,7 @@ use ark_bn254::{Bn254, Fr};
 use ark_ff::{BigInteger, PrimeField, UniformRand};
 use ark_groth16::{prepare_verifying_key, Groth16, PreparedVerifyingKey, Proof, VerifyingKey};
 use ark_relations::lc;
-use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
+use ark_relations::gr1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_snark::SNARK;
 use ark_std::rand::rngs::StdRng;
@@ -43,7 +43,7 @@ impl ConstraintSynthesizer<Fr> for SquareCircuit {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
         let x = cs.new_witness_variable(|| self.x.ok_or(SynthesisError::AssignmentMissing))?;
         let y = cs.new_input_variable(|| self.y.ok_or(SynthesisError::AssignmentMissing))?;
-        cs.enforce_constraint(lc!() + x, lc!() + x, lc!() + y)?;
+        cs.enforce_r1cs_constraint(|| lc!() + x, || lc!() + x, || lc!() + y)?;
         Ok(())
     }
 }
