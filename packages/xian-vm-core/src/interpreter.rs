@@ -1874,6 +1874,19 @@ impl VmInstance {
                 Ok(VmValue::String(buffer))
             }
             "formatted_value" => {
+                if optional_string(object, "conversion").is_some() {
+                    return Err(VmExecutionError::new(
+                        "f-string conversions are not supported in xian-vm-core",
+                    ));
+                }
+                if object
+                    .get("format_spec")
+                    .is_some_and(|value| !value.is_null())
+                {
+                    return Err(VmExecutionError::new(
+                        "f-string format specifications are not supported in xian-vm-core",
+                    ));
+                }
                 let value = self.eval_expression(required_value(object, "value")?, scope, host)?;
                 Ok(VmValue::String(value.python_repr()))
             }
@@ -2029,10 +2042,6 @@ impl VmInstance {
         object: &Map<String, Value>,
         scope: &HashMap<String, VmValue>,
     ) -> Result<VmValue, VmExecutionError> {
-        if let Some(host_binding_id) = optional_string(object, "host_binding_id") {
-            return self.resolve_host_binding(host_binding_id);
-        }
-
         let id = required_string(object, "id")?;
         if let Some(value) = scope.get(id) {
             return Ok(value.clone());
@@ -2045,6 +2054,9 @@ impl VmInstance {
         }
         if let Some(builtin) = builtin_name_value(id) {
             return Ok(builtin);
+        }
+        if let Some(host_binding_id) = optional_string(object, "host_binding_id") {
+            return self.resolve_host_binding(host_binding_id);
         }
         Err(VmExecutionError::new(format!("unknown name '{id}'")))
     }
@@ -2083,11 +2095,24 @@ impl VmInstance {
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
         if let Some(host_binding_id) = optional_string(object, "host_binding_id") {
-            return self.resolve_host_binding(host_binding_id);
+            if !self.host_binding_root_is_shadowed(object, scope)? {
+                return self.resolve_host_binding(host_binding_id);
+            }
         }
         let value = self.eval_expression(required_value(object, "value")?, scope, host)?;
         let attr = required_string(object, "attr")?;
         native_attribute_value(&value, attr)
+    }
+
+    fn host_binding_root_is_shadowed(
+        &self,
+        object: &Map<String, Value>,
+        scope: &HashMap<String, VmValue>,
+    ) -> Result<bool, VmExecutionError> {
+        let Some(root) = ir_root_name(required_value(object, "value")?)? else {
+            return Ok(false);
+        };
+        Ok(scope.contains_key(root) || self.globals.contains_key(root))
     }
 
     fn resolve_host_binding(&self, host_binding_id: &str) -> Result<VmValue, VmExecutionError> {
@@ -3609,6 +3634,15 @@ struct NoopHost;
 
 impl VmHost for NoopHost {}
 
+fn ir_root_name(value: &Value) -> Result<Option<&str>, VmExecutionError> {
+    let object = as_object(value, "expression")?;
+    match required_string(object, "node")? {
+        "name" => Ok(Some(required_string(object, "id")?)),
+        "attribute" | "subscript" => ir_root_name(required_value(object, "value")?),
+        _ => Ok(None),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3747,6 +3781,58 @@ mod tests {
             "value_type": "int",
             "value": value,
         })
+    }
+
+    #[test]
+    fn eval_name_prefers_scope_over_stale_host_binding() {
+        let mut instance = empty_test_instance("host_shadow_probe");
+        let mut scope = HashMap::from([("now".to_owned(), vm_int(7))]);
+        let mut host = NoopHost;
+        let expression = json!({
+            "node": "name",
+            "span": test_span(),
+            "id": "now",
+            "host_binding_id": "env.now",
+        });
+
+        let result = instance
+            .eval_expression(&expression, &mut scope, &mut host)
+            .expect("shadowed name should evaluate");
+
+        assert_eq!(result, vm_int(7));
+    }
+
+    #[test]
+    fn formatted_value_rejects_unsupported_format_spec() {
+        let mut instance = empty_test_instance("format_spec_probe");
+        let mut scope = HashMap::from([("value".to_owned(), vm_int(7))]);
+        let mut host = NoopHost;
+        let expression = json!({
+            "node": "formatted_value",
+            "span": test_span(),
+            "value": test_name("value"),
+            "conversion": null,
+            "format_spec": {
+                "node": "f_string",
+                "span": test_span(),
+                "values": [
+                    {
+                        "node": "constant",
+                        "span": test_span(),
+                        "value_type": "str",
+                        "value": "04d"
+                    }
+                ]
+            }
+        });
+
+        let error = instance
+            .eval_expression(&expression, &mut scope, &mut host)
+            .expect_err("format spec should fail closed");
+
+        assert!(error
+            .to_string()
+            .contains("f-string format specifications are not supported"));
     }
 
     #[test]

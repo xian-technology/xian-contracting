@@ -5,11 +5,8 @@ use crate::constants::{
     XIAN_VM_V1_PROFILE,
 };
 use crate::diagnostic::CompilerDiagnostic;
-use crate::frontend::parse_source;
 use crate::ir::compile_contract_artifact;
 use crate::limits::{compiler_limits, CompilerLimits};
-use crate::source::SourceUnit;
-use crate::syntax::build_syntax_tree;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -44,25 +41,6 @@ pub fn diagnose_contract(
     source: &str,
     options: &CompileOptions,
 ) -> Vec<CompilerDiagnostic> {
-    if !options.lint {
-        let unit = match SourceUnit::with_profile(module_name, source, &options.vm_profile) {
-            Ok(unit) => unit,
-            Err(error) => {
-                return vec![CompilerDiagnostic::error(
-                    "xian.source.invalid",
-                    error.to_string(),
-                )]
-            }
-        };
-        let parsed = match parse_source(&unit) {
-            Ok(parsed) => parsed,
-            Err(diagnostics) => return diagnostics,
-        };
-        return match build_syntax_tree(&parsed) {
-            Ok(_) => Vec::new(),
-            Err(diagnostics) => diagnostics,
-        };
-    }
     match compile_contract_artifact(module_name, source, options) {
         Ok(_) => Vec::new(),
         Err(diagnostics) => diagnostics,
@@ -130,5 +108,7 @@ mod tests {
         assert_eq!(version.limits.max_syntax_depth, 64);
         assert_eq!(version.limits.max_tokens, 100_000);
         assert_eq!(version.limits.max_logical_line_tokens, 4_096);
+        assert_eq!(version.limits.max_ir_json_bytes, 1_048_576);
+        assert_eq!(version.limits.max_contract_handle_inference_passes, 512);
     }
 }

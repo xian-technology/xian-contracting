@@ -959,7 +959,7 @@ mod tests {
 
     #[test]
     fn diagnose_contract_honors_lint_option() {
-        let source = "def helper():\n    return 1\n";
+        let source = "@export\ndef ping(value):\n    return value\n";
 
         let linted = diagnose_contract("con_lint", source, &CompileOptions::default());
         let unlinted = diagnose_contract(
@@ -971,7 +971,10 @@ mod tests {
             },
         );
 
-        assert_eq!(linted[0].code, "xian.lint.E013");
-        assert!(unlinted.is_empty());
+        assert_eq!(linted[0].code, "xian.lint.E017");
+        assert!(
+            unlinted.is_empty(),
+            "lint=false should suppress lint-only diagnostics, got {unlinted:?}"
+        );
     }
 }

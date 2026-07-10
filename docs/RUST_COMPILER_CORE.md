@@ -77,6 +77,8 @@ Compiler admission uses fixed consensus defaults across every binding:
 - syntax nesting depth 64
 - 100,000 lexical tokens
 - 4,096 tokens on one logical line
+- 1 MiB canonical IR JSON
+- 512 contract-handle inference passes
 
 Limit failures use stable `xian.limit.*` diagnostics before deployment work is
 accepted.

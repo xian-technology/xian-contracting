@@ -24,6 +24,7 @@ const TX_PAYLOAD_KEYS: [&str; 7] = [
     "sender",
     "chi_supplied",
 ];
+const MAX_CANONICAL_JSON_DEPTH: usize = 128;
 
 #[pyfunction]
 fn extract_payload_string(json_str: &str) -> PyResult<String> {
@@ -110,14 +111,23 @@ fn is_escaped(bytes: &[u8], index: usize) -> bool {
     slash_count % 2 == 1
 }
 
+fn json_parse_error(error: serde_json::Error) -> PyErr {
+    let message = error.to_string();
+    if message.contains("recursion limit exceeded") {
+        PyValueError::new_err("recursion limit exceeded")
+    } else {
+        PyValueError::new_err(message)
+    }
+}
+
 fn decode_transaction_bytes_impl(raw: &[u8]) -> PyResult<(Value, String)> {
     let tx_hex = std::str::from_utf8(raw).map_err(|err| PyValueError::new_err(err.to_string()))?;
     let decoded_bytes =
         hex::decode(tx_hex).map_err(|err| PyValueError::new_err(err.to_string()))?;
     let tx_str = std::str::from_utf8(&decoded_bytes)
         .map_err(|err| PyValueError::new_err(err.to_string()))?;
-    let tx_value: Value =
-        serde_json::from_str(tx_str).map_err(|err| PyValueError::new_err(err.to_string()))?;
+    let tx_value: Value = serde_json::from_str(tx_str).map_err(json_parse_error)?;
+    validate_json_depth(&tx_value, 0)?;
     let canonical_tx = canonical_json(&tx_value)?;
     if tx_str != canonical_tx {
         return Err(PyValueError::new_err("Transaction bytes are not canonical"));
@@ -337,11 +347,34 @@ fn contains_non_integer_number(value: &Value) -> bool {
 
 fn canonical_json(value: &Value) -> PyResult<String> {
     let mut output = String::new();
-    write_canonical_json(value, &mut output)?;
+    write_canonical_json(value, &mut output, 0)?;
     Ok(output)
 }
 
-fn write_canonical_json(value: &Value, output: &mut String) -> PyResult<()> {
+fn validate_json_depth(value: &Value, depth: usize) -> PyResult<()> {
+    if depth > MAX_CANONICAL_JSON_DEPTH {
+        return Err(PyValueError::new_err("recursion limit exceeded"));
+    }
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                validate_json_depth(item, depth + 1)?;
+            }
+        }
+        Value::Object(items) => {
+            for item in items.values() {
+                validate_json_depth(item, depth + 1)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn write_canonical_json(value: &Value, output: &mut String, depth: usize) -> PyResult<()> {
+    if depth > MAX_CANONICAL_JSON_DEPTH {
+        return Err(PyValueError::new_err("recursion limit exceeded"));
+    }
     match value {
         Value::Null => output.push_str("null"),
         Value::Bool(raw) => output.push_str(if *raw { "true" } else { "false" }),
@@ -355,7 +388,7 @@ fn write_canonical_json(value: &Value, output: &mut String) -> PyResult<()> {
                 if index > 0 {
                     output.push(',');
                 }
-                write_canonical_json(item, output)?;
+                write_canonical_json(item, output, depth + 1)?;
             }
             output.push(']');
         }
@@ -372,7 +405,7 @@ fn write_canonical_json(value: &Value, output: &mut String) -> PyResult<()> {
                         .map_err(|err| PyValueError::new_err(err.to_string()))?,
                 );
                 output.push(':');
-                write_canonical_json(items.get(*key).expect("key exists"), output)?;
+                write_canonical_json(items.get(*key).expect("key exists"), output, depth + 1)?;
             }
             output.push('}');
         }

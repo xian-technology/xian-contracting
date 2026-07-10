@@ -679,7 +679,7 @@ fn format_comprehensions(comprehensions: &[SyntaxComprehension]) -> String {
 
 fn format_fstring(values: &[SyntaxExpression]) -> String {
     let content = values.iter().map(format_fstring_part).collect::<String>();
-    format!("f'{}'", content.replace('\\', "\\\\").replace('\'', "\\'"))
+    format!("f'{}'", escape_fstring_content(&content))
 }
 
 fn format_fstring_part(expression: &SyntaxExpression) -> String {
@@ -712,6 +712,21 @@ fn format_fstring_part(expression: &SyntaxExpression) -> String {
         }
         other => format_expression(other),
     }
+}
+
+fn escape_fstring_content(value: &str) -> String {
+    let mut output = String::new();
+    for character in value.chars() {
+        match character {
+            '\\' => output.push_str("\\\\"),
+            '\'' => output.push_str("\\'"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            _ => output.push(character),
+        }
+    }
+    output
 }
 
 fn format_constant(constant: &SyntaxConstant) -> String {
@@ -903,6 +918,22 @@ mod tests {
             normalized,
             "a = 1\nb = 2\n\ndef helper():\n    return a + b"
         );
+    }
+
+    #[test]
+    fn normalize_syntax_escapes_newlines_inside_fstrings() {
+        let source = "@export\ndef render(value: str):\n    return f\"prefix\\n{value}\"\n";
+        let unit = SourceUnit::new("con_render", source).expect("source unit should build");
+        let syntax = parse_to_syntax(&unit).expect("syntax should build");
+        let normalized = normalize_syntax(&syntax);
+
+        assert_eq!(
+            normalized,
+            "@export\ndef render(value: str):\n    return f'prefix\\n{value}'"
+        );
+        let normalized_unit =
+            SourceUnit::new("con_render", &normalized).expect("normalized source unit");
+        parse_to_syntax(&normalized_unit).expect("normalized source should stay parseable");
     }
 
     #[test]

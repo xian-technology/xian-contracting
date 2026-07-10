@@ -10,6 +10,8 @@ pub const MAX_SYNTAX_NODES: usize = 50_000;
 pub const MAX_SYNTAX_DEPTH: usize = 64;
 pub const MAX_TOKENS: usize = 100_000;
 pub const MAX_LOGICAL_LINE_TOKENS: usize = 4_096;
+pub const MAX_IR_JSON_BYTES: usize = 1_048_576;
+pub const MAX_CONTRACT_HANDLE_INFERENCE_PASSES: usize = 512;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub struct CompilerLimits {
@@ -18,6 +20,8 @@ pub struct CompilerLimits {
     pub max_syntax_depth: usize,
     pub max_tokens: usize,
     pub max_logical_line_tokens: usize,
+    pub max_ir_json_bytes: usize,
+    pub max_contract_handle_inference_passes: usize,
 }
 
 pub const fn compiler_limits() -> CompilerLimits {
@@ -27,6 +31,8 @@ pub const fn compiler_limits() -> CompilerLimits {
         max_syntax_depth: MAX_SYNTAX_DEPTH,
         max_tokens: MAX_TOKENS,
         max_logical_line_tokens: MAX_LOGICAL_LINE_TOKENS,
+        max_ir_json_bytes: MAX_IR_JSON_BYTES,
+        max_contract_handle_inference_passes: MAX_CONTRACT_HANDLE_INFERENCE_PASSES,
     }
 }
 
@@ -114,6 +120,16 @@ pub(crate) fn validate_syntax_limits(suite: &[ast::Stmt]) -> Result<(), Compiler
         Some(LimitExceeded::Depth) => Err(syntax_depth_error()),
         None => Ok(()),
     }
+}
+
+pub(crate) fn validate_ir_json_limits(payload: &str) -> Result<(), CompilerDiagnostic> {
+    if payload.len() > MAX_IR_JSON_BYTES {
+        return Err(limit_error(
+            "xian.limit.ir_json_bytes",
+            format!("contract IR exceeds the maximum of {MAX_IR_JSON_BYTES} UTF-8 bytes"),
+        ));
+    }
+    Ok(())
 }
 
 fn syntax_depth_error() -> CompilerDiagnostic {
@@ -250,8 +266,8 @@ mod tests {
     use crate::source::SourceUnit;
 
     use super::{
-        validate_source_limits, MAX_LOGICAL_LINE_TOKENS, MAX_SOURCE_BYTES, MAX_SYNTAX_DEPTH,
-        MAX_SYNTAX_NODES, MAX_TOKENS,
+        validate_ir_json_limits, validate_source_limits, MAX_IR_JSON_BYTES,
+        MAX_LOGICAL_LINE_TOKENS, MAX_SOURCE_BYTES, MAX_SYNTAX_DEPTH, MAX_SYNTAX_NODES, MAX_TOKENS,
     };
 
     fn diagnostic_code(source: &str) -> String {
@@ -305,5 +321,13 @@ mod tests {
             "not ".repeat(MAX_SYNTAX_DEPTH)
         );
         assert_eq!(diagnostic_code(&source), "xian.limit.syntax_depth");
+    }
+
+    #[test]
+    fn ir_json_byte_limit_is_stable() {
+        assert!(validate_ir_json_limits(&"x".repeat(MAX_IR_JSON_BYTES)).is_ok());
+        let error = validate_ir_json_limits(&"x".repeat(MAX_IR_JSON_BYTES + 1))
+            .expect_err("oversized IR JSON should fail");
+        assert_eq!(error.code, "xian.limit.ir_json_bytes");
     }
 }

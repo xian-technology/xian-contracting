@@ -92,8 +92,9 @@ print(driver.get("example.key"))
   source. Offline artifacts are useful for diagnostics and CI, but are not the
   public deployment payload.
 - **Compilation is bounded.** The Rust compiler admits at most 128 KiB source,
-  50,000 syntax nodes, nesting depth 64, 100,000 tokens total, and 4,096 tokens
-  on one logical line. Every binding returns the same `xian.limit.*` diagnostic.
+  50,000 syntax nodes, syntax depth 64, 100,000 tokens total, 4,096 tokens on
+  one logical line, 1 MiB of canonical IR JSON, and 512 contract-handle
+  inference passes. Every binding returns the same `xian.limit.*` diagnostic.
 - **Stay scoped.** Built-in helpers serve the execution model. They do not grow
   into a general convenience framework.
 - **No node orchestration here.** Operator workflow, genesis distribution, and

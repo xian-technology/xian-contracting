@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::compiler::CompileOptions;
 use crate::constants::{CONTRACT_ARTIFACT_FORMAT_V1, XIAN_IR_V1, XIAN_VM_V1_PROFILE};
 use crate::error::{ensure_eq, ensure_non_empty, ensure_sha256_hex, ValidationError};
 use crate::hashing::sha256_hex;
+use crate::ir::lower_source_to_ir_json;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -106,12 +108,39 @@ pub fn validate_contract_artifact(
 
     let vm_ir = parse_vm_ir_json(&artifact.vm_ir_json)?;
     validate_ir_identity(&vm_ir, artifact)?;
+    validate_canonical_compiler_output(artifact)?;
 
     Ok(ValidatedArtifact {
         module_name: artifact.module_name.clone(),
         source: artifact.source.clone(),
         vm_ir,
     })
+}
+
+fn validate_canonical_compiler_output(artifact: &ContractArtifact) -> Result<(), ValidationError> {
+    let options = CompileOptions {
+        lint: false,
+        vm_profile: artifact.vm_profile.clone(),
+    };
+    let canonical_vm_ir_json =
+        lower_source_to_ir_json(&artifact.module_name, &artifact.source, &options).map_err(
+            |diagnostics| {
+                let message = diagnostics
+                    .into_iter()
+                    .map(|diagnostic| diagnostic.message)
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                ValidationError::field(
+                    "artifact.source",
+                    format!("could not compile canonical source: {message}"),
+                )
+            },
+        )?;
+    ensure_eq(
+        "artifact.vm_ir_json",
+        &artifact.vm_ir_json,
+        &canonical_vm_ir_json,
+    )
 }
 
 fn parse_vm_ir_json(raw: &str) -> Result<Value, ValidationError> {
@@ -156,6 +185,8 @@ fn required_ir_str<'a>(vm_ir: &'a Value, field: &str) -> Result<&'a str, Validat
 #[cfg(test)]
 mod tests {
     use super::{build_contract_artifact, validate_contract_artifact};
+    use crate::compiler::CompileOptions;
+    use crate::ir::compile_contract_artifact;
 
     #[test]
     fn build_contract_artifact_records_stable_hashes() {
@@ -177,17 +208,38 @@ mod tests {
 
     #[test]
     fn validate_contract_artifact_rejects_hash_mismatch() {
-        let source_hash = crate::hashing::sha256_hex("value = 1");
-        let vm_ir_json = format!(
-            r#"{{"ir_version":"xian_ir_v1","module_name":"con_counter","vm_profile":"xian_vm_v1","source_hash":"{source_hash}"}}"#
-        );
-        let mut artifact =
-            build_contract_artifact("con_counter", "value = 1", "value = 1", &vm_ir_json)
-                .expect("artifact should build");
+        let source = "@export\ndef read():\n    return 1\n";
+        let mut artifact = compile_contract_artifact(
+            "con_counter",
+            source,
+            &CompileOptions {
+                lint: false,
+                ..CompileOptions::default()
+            },
+        )
+        .expect("artifact should build");
         artifact.hashes.source_sha256 = "bad".to_string();
 
-        let error = validate_contract_artifact(&artifact, "con_counter", Some("value = 1"))
+        let error = validate_contract_artifact(&artifact, "con_counter", Some(source))
             .expect_err("artifact should fail validation");
         assert!(error.to_string().contains("artifact.hashes.source_sha256"));
+    }
+
+    #[test]
+    fn validate_contract_artifact_rejects_forged_canonical_ir() {
+        let mut artifact = compile_contract_artifact(
+            "con_counter",
+            "@export\ndef read():\n    return 1\n",
+            &CompileOptions::default(),
+        )
+        .expect("artifact should build");
+        artifact.vm_ir_json = artifact
+            .vm_ir_json
+            .replace(r#""value": 1"#, r#""value": 999"#);
+        artifact.hashes.vm_ir_sha256 = crate::hashing::sha256_hex(&artifact.vm_ir_json);
+
+        let error = validate_contract_artifact(&artifact, "con_counter", None)
+            .expect_err("forged artifact should fail validation");
+        assert!(error.to_string().contains("artifact.vm_ir_json"));
     }
 }

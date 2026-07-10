@@ -8,6 +8,7 @@ use crate::compiler::CompileOptions;
 use crate::constants::{XIAN_IR_V1, XIAN_VM_HOST_CATALOG_V1, XIAN_VM_V1_PROFILE};
 use crate::diagnostic::{CompilerDiagnostic, SourceRange};
 use crate::frontend::parse_source;
+use crate::limits::{validate_ir_json_limits, MAX_CONTRACT_HANDLE_INFERENCE_PASSES};
 use crate::lint::lint_syntax;
 use crate::normalize::{
     format_expression as format_syntax_expression, format_float, normalize_syntax,
@@ -381,7 +382,10 @@ pub fn lower_source_to_ir(
     options: &CompileOptions,
 ) -> Result<Value, Vec<CompilerDiagnostic>> {
     let (_, syntax) = normalize_and_build_syntax(module_name, source, options)?;
-    lower_syntax_to_ir(&syntax, &options.vm_profile).map_err(|error| vec![error.into_diagnostic()])
+    let ir = lower_syntax_to_ir(&syntax, &options.vm_profile)
+        .map_err(|error| vec![error.into_diagnostic()])?;
+    validate_ir_json_limits(&to_python_canonical_json(&ir)).map_err(|error| vec![error])?;
+    Ok(ir)
 }
 
 pub fn lower_source_to_ir_json(
@@ -390,7 +394,9 @@ pub fn lower_source_to_ir_json(
     options: &CompileOptions,
 ) -> Result<String, Vec<CompilerDiagnostic>> {
     let ir = lower_source_to_ir(module_name, source, options)?;
-    Ok(to_python_canonical_json(&ir))
+    let payload = to_python_canonical_json(&ir);
+    validate_ir_json_limits(&payload).map_err(|error| vec![error])?;
+    Ok(payload)
 }
 
 pub fn compile_contract_artifact(
@@ -402,6 +408,7 @@ pub fn compile_contract_artifact(
     let ir = lower_syntax_to_ir(&syntax, &options.vm_profile)
         .map_err(|error| vec![error.into_diagnostic()])?;
     let vm_ir_json = to_python_canonical_json(&ir);
+    validate_ir_json_limits(&vm_ir_json).map_err(|error| vec![error])?;
     build_contract_artifact(module_name, source, &normalized_source, &vm_ir_json).map_err(|error| {
         vec![CompilerDiagnostic::error(
             "xian.artifact.invalid",
@@ -476,9 +483,11 @@ fn normalize_and_build_syntax(
     };
     let parsed = parse_source(&unit)?;
     let initial_syntax = build_syntax_tree(&parsed)?;
-    let diagnostics = lint_syntax(&initial_syntax);
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
+    if options.lint {
+        let diagnostics = lint_syntax(&initial_syntax);
+        if !diagnostics.is_empty() {
+            return Err(diagnostics);
+        }
     }
     let normalized_source = normalize_syntax(&initial_syntax);
     let normalized_unit =
@@ -526,6 +535,8 @@ struct IrLowerer<'a> {
     event_bindings: HashSet<String>,
     storage_bindings: HashMap<String, String>,
     static_import_bindings: HashSet<String>,
+    global_bindings: HashSet<String>,
+    local_binding_stack: Vec<HashSet<String>>,
     host_module_aliases: HashMap<String, String>,
     contract_handle_factories: HashSet<String>,
     contract_handle_parameters: HashMap<String, HashSet<String>>,
@@ -541,6 +552,8 @@ impl<'a> IrLowerer<'a> {
             event_bindings: HashSet::new(),
             storage_bindings: HashMap::new(),
             static_import_bindings: HashSet::new(),
+            global_bindings: HashSet::new(),
+            local_binding_stack: Vec::new(),
             host_module_aliases: HashMap::new(),
             contract_handle_factories: HashSet::new(),
             contract_handle_parameters: HashMap::new(),
@@ -550,6 +563,7 @@ impl<'a> IrLowerer<'a> {
 
     fn lower(mut self) -> Result<Value, IrLoweringError> {
         let (docstring, body) = split_docstring(&self.module.body);
+        validate_unique_module_bindings(body)?;
         self.inspect_module_bindings(body);
         let functions = body
             .iter()
@@ -558,7 +572,7 @@ impl<'a> IrLowerer<'a> {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        self.refresh_contract_handle_inference(&functions);
+        self.refresh_contract_handle_inference(&functions)?;
 
         let mut imports = Vec::new();
         let mut global_declarations = Vec::new();
@@ -599,8 +613,8 @@ impl<'a> IrLowerer<'a> {
             match statement {
                 SyntaxStatement::Import { names, .. } => {
                     for alias in names {
-                        self.static_import_bindings
-                            .insert(alias.alias.clone().unwrap_or_else(|| alias.name.clone()));
+                        let binding = alias.alias.clone().unwrap_or_else(|| alias.name.clone());
+                        self.static_import_bindings.insert(binding);
                     }
                 }
                 SyntaxStatement::Assign { targets, value, .. } => {
@@ -610,6 +624,9 @@ impl<'a> IrLowerer<'a> {
                     let Some(target) = name_id(&targets[0]) else {
                         continue;
                     };
+                    if !self.host_module_aliases.contains_key(target) {
+                        self.global_bindings.insert(target.to_string());
+                    }
                     let SyntaxExpression::Call { func, .. } = value else {
                         continue;
                     };
@@ -621,6 +638,9 @@ impl<'a> IrLowerer<'a> {
                     } else if path == EVENT_CONSTRUCTOR {
                         self.event_bindings.insert(target.to_string());
                     }
+                }
+                SyntaxStatement::FunctionDef { name, .. } => {
+                    self.global_bindings.insert(name.to_string());
                 }
                 _ => {}
             }
@@ -662,11 +682,24 @@ impl<'a> IrLowerer<'a> {
         }
     }
 
-    fn refresh_contract_handle_inference(&mut self, functions: &[&SyntaxStatement]) {
+    fn refresh_contract_handle_inference(
+        &mut self,
+        functions: &[&SyntaxStatement],
+    ) -> Result<(), IrLoweringError> {
         let mut factories = HashSet::new();
         let mut parameters: HashMap<String, HashSet<String>> = HashMap::new();
+        let mut passes = 0usize;
 
         loop {
+            passes = passes.saturating_add(1);
+            if passes > MAX_CONTRACT_HANDLE_INFERENCE_PASSES {
+                return Err(IrLoweringError::new(
+                    format!(
+                        "contract handle inference exceeded the maximum of {MAX_CONTRACT_HANDLE_INFERENCE_PASSES} passes"
+                    ),
+                    None,
+                ));
+            }
             let next_factories = self.discover_contract_handle_factories(functions, &parameters);
             let next_parameters =
                 self.discover_contract_handle_parameters(functions, &next_factories, &parameters);
@@ -674,7 +707,7 @@ impl<'a> IrLowerer<'a> {
             if next_factories == factories && next_parameters == parameters {
                 self.contract_handle_factories = next_factories;
                 self.contract_handle_parameters = next_parameters;
-                return;
+                return Ok(());
             }
 
             factories = next_factories;
@@ -713,20 +746,36 @@ impl<'a> IrLowerer<'a> {
         known_factories: &HashSet<String>,
         parameter_handles: &HashMap<String, HashSet<String>>,
     ) -> bool {
-        let SyntaxStatement::FunctionDef { name, body, .. } = function else {
+        let SyntaxStatement::FunctionDef {
+            name,
+            parameters,
+            body,
+            ..
+        } = function
+        else {
             return false;
         };
+        let local_names = collect_function_local_bindings(parameters, body);
         let initial_bindings = parameter_handles
             .get(name)
             .map(|handles| self.parameter_contract_handle_bindings(function, handles))
             .unwrap_or_default();
-        let local_bindings =
-            self.collect_local_contract_handle_bindings(body, known_factories, initial_bindings);
+        let local_bindings = self.collect_local_contract_handle_bindings(
+            body,
+            known_factories,
+            initial_bindings,
+            &local_names,
+        );
         let mut returns = Vec::new();
         collect_return_values(body, &mut returns);
         !returns.is_empty()
             && returns.iter().all(|value| {
-                self.expression_is_contract_handle(value, &local_bindings, known_factories)
+                self.expression_is_contract_handle(
+                    value,
+                    &local_bindings,
+                    known_factories,
+                    &local_names,
+                )
             })
     }
 
@@ -753,12 +802,14 @@ impl<'a> IrLowerer<'a> {
             for caller in functions {
                 let SyntaxStatement::FunctionDef {
                     name: caller_name,
+                    parameters,
                     body,
                     ..
                 } = caller
                 else {
                     continue;
                 };
+                let caller_local_names = collect_function_local_bindings(parameters, body);
                 let initial_bindings = discovered
                     .get(caller_name)
                     .map(|handles| self.parameter_contract_handle_bindings(caller, handles))
@@ -767,6 +818,7 @@ impl<'a> IrLowerer<'a> {
                     body,
                     known_factories,
                     initial_bindings,
+                    &caller_local_names,
                 );
                 let mut calls = Vec::new();
                 collect_call_expressions(body, &mut calls);
@@ -795,6 +847,7 @@ impl<'a> IrLowerer<'a> {
                             argument,
                             &caller_bindings,
                             known_factories,
+                            &caller_local_names,
                         );
                         evidence
                             .entry(callee_name.to_string())
@@ -856,6 +909,7 @@ impl<'a> IrLowerer<'a> {
         body: &[SyntaxStatement],
         known_factories: &HashSet<String>,
         initial_bindings: HashMap<String, SyntaxExpression>,
+        local_names: &HashSet<String>,
     ) -> HashMap<String, SyntaxExpression> {
         let mut bindings = initial_bindings;
         let mut pending = Vec::new();
@@ -868,7 +922,12 @@ impl<'a> IrLowerer<'a> {
                 if bindings.contains_key(name) {
                     continue;
                 }
-                if self.expression_is_contract_handle(value, &bindings, known_factories) {
+                if self.expression_is_contract_handle(
+                    value,
+                    &bindings,
+                    known_factories,
+                    local_names,
+                ) {
                     bindings.insert(name.clone(), value.clone());
                     changed = true;
                 }
@@ -882,12 +941,18 @@ impl<'a> IrLowerer<'a> {
         expression: &SyntaxExpression,
         local_bindings: &HashMap<String, SyntaxExpression>,
         known_factories: &HashSet<String>,
+        local_names: &HashSet<String>,
     ) -> bool {
         if let Some(name) = name_id(expression) {
-            return self.static_import_bindings.contains(name) || local_bindings.contains_key(name);
+            if local_bindings.contains_key(name) {
+                return true;
+            }
+            return self.static_import_bindings.contains(name)
+                && !local_names.contains(name)
+                && !self.global_bindings.contains(name);
         }
         if let SyntaxExpression::Call { func, .. } = expression {
-            if self.is_importlib_import_call(expression) {
+            if self.is_importlib_import_call_in_scope(expression, local_names) {
                 return true;
             }
             if let Some(name) = name_id(func) {
@@ -897,10 +962,30 @@ impl<'a> IrLowerer<'a> {
         false
     }
 
+    fn is_importlib_import_call_in_scope(
+        &self,
+        expression: &SyntaxExpression,
+        local_names: &HashSet<String>,
+    ) -> bool {
+        let SyntaxExpression::Call { func, .. } = expression else {
+            return false;
+        };
+        let Some(root) = root_name(func) else {
+            return false;
+        };
+        if local_names.contains(root) || self.global_bindings.contains(root) {
+            return false;
+        }
+        self.canonical_dotted_path(func).as_deref() == Some("importlib.import_module")
+    }
+
     fn is_importlib_import_call(&self, expression: &SyntaxExpression) -> bool {
         let SyntaxExpression::Call { func, .. } = expression else {
             return false;
         };
+        if self.root_name_is_host_shadowed(func) {
+            return false;
+        }
         self.canonical_dotted_path(func).as_deref() == Some("importlib.import_module")
     }
 
@@ -910,7 +995,7 @@ impl<'a> IrLowerer<'a> {
         allow_local: bool,
     ) -> Result<Option<Value>, IrLoweringError> {
         if let Some(name) = name_id(expression) {
-            if self.static_import_bindings.contains(name) {
+            if self.static_import_bindings.contains(name) && !self.is_host_shadowed(name) {
                 return Ok(Some(json!({
                     "kind": "static_import",
                     "binding": name,
@@ -969,7 +1054,24 @@ impl<'a> IrLowerer<'a> {
         })
     }
 
+    fn root_name_is_host_shadowed(&self, expression: &SyntaxExpression) -> bool {
+        root_name(expression).is_some_and(|name| self.is_host_shadowed(name))
+    }
+
+    fn is_locally_shadowed(&self, name: &str) -> bool {
+        self.local_binding_stack
+            .last()
+            .is_some_and(|bindings| bindings.contains(name))
+    }
+
+    fn is_host_shadowed(&self, name: &str) -> bool {
+        self.is_locally_shadowed(name) || self.global_bindings.contains(name)
+    }
+
     fn record_host_dependency(&mut self, expression: &SyntaxExpression) -> Option<HostBinding> {
+        if self.root_name_is_host_shadowed(expression) {
+            return None;
+        }
         let path = self.canonical_dotted_path(expression)?;
         let spec = resolve_host_binding(&path)?;
         self.host_dependencies.insert(spec.id.to_string(), spec);
@@ -1140,17 +1242,21 @@ impl<'a> IrLowerer<'a> {
             .get(name)
             .map(|handles| self.parameter_contract_handle_bindings(statement, handles))
             .unwrap_or_default();
+        let local_bindings = collect_function_local_bindings(parameters, body);
         let local_handles = self.collect_local_contract_handle_bindings(
             body,
             &self.contract_handle_factories,
             initial_handles,
+            &local_bindings,
         );
         let previous_local_handles =
             std::mem::replace(&mut self.local_contract_handles, local_handles);
+        self.local_binding_stack.push(local_bindings);
         let lowered_body = body
             .iter()
             .map(|statement| self.lower_statement(statement))
             .collect::<Result<Vec<_>, _>>();
+        self.local_binding_stack.pop();
         self.local_contract_handles = previous_local_handles;
 
         Ok(json!({
@@ -1706,16 +1812,27 @@ impl<'a> IrLowerer<'a> {
                 value,
                 conversion,
                 format_spec,
-            } => Ok(json!({
-                "node": "formatted_value",
-                "span": span_value(*span),
-                "value": self.lower_expression(value)?,
-                "conversion": conversion.map(|value| value.to_string()),
-                "format_spec": match format_spec {
-                    Some(format_spec) => self.lower_expression(format_spec)?,
-                    None => Value::Null,
-                },
-            })),
+            } => {
+                if conversion.is_some() {
+                    return Err(IrLoweringError::new(
+                        "f-string conversions are not supported in Xian IR",
+                        Some(*span),
+                    ));
+                }
+                if format_spec.is_some() {
+                    return Err(IrLoweringError::new(
+                        "f-string format specifications are not supported in Xian IR",
+                        Some(*span),
+                    ));
+                }
+                Ok(json!({
+                    "node": "formatted_value",
+                    "span": span_value(*span),
+                    "value": self.lower_expression(value)?,
+                    "conversion": Value::Null,
+                    "format_spec": Value::Null,
+                }))
+            }
         }
     }
 
@@ -1851,6 +1968,9 @@ impl<'a> IrLowerer<'a> {
 
     fn storage_metadata_for_name(&self, expression: &SyntaxExpression) -> Option<(String, String)> {
         let name = name_id(expression)?;
+        if self.is_locally_shadowed(name) {
+            return None;
+        }
         let storage_type = self.storage_bindings.get(name)?;
         Some((name.to_string(), storage_type.clone()))
     }
@@ -1903,6 +2023,121 @@ fn split_docstring(statements: &[SyntaxStatement]) -> (Option<String>, &[SyntaxS
         (Some(value.clone()), &statements[1..])
     } else {
         (None, statements)
+    }
+}
+
+fn validate_unique_module_bindings(statements: &[SyntaxStatement]) -> Result<(), IrLoweringError> {
+    let mut imports = HashSet::new();
+    let mut globals = HashSet::new();
+    let mut functions = HashSet::new();
+
+    for statement in statements {
+        match statement {
+            SyntaxStatement::Import { names, .. } => {
+                for alias in names {
+                    let binding = alias.alias.as_deref().unwrap_or(&alias.name);
+                    if !imports.insert(binding.to_owned()) {
+                        return Err(IrLoweringError::new(
+                            format!("duplicate import binding '{binding}'"),
+                            Some(alias.span),
+                        ));
+                    }
+                }
+            }
+            SyntaxStatement::Assign { targets, .. } if targets.len() == 1 => {
+                if let Some(name) = name_id(&targets[0]) {
+                    if !globals.insert(name.to_owned()) {
+                        return Err(IrLoweringError::new(
+                            format!("duplicate global declaration '{name}'"),
+                            Some(expression_span(&targets[0])),
+                        ));
+                    }
+                }
+            }
+            SyntaxStatement::FunctionDef { name, span, .. } => {
+                if !functions.insert(name.to_owned()) {
+                    return Err(IrLoweringError::new(
+                        format!("duplicate function '{name}'"),
+                        Some(*span),
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
+}
+
+fn collect_function_local_bindings(
+    parameters: &[SyntaxParameter],
+    body: &[SyntaxStatement],
+) -> HashSet<String> {
+    let mut bindings = parameters
+        .iter()
+        .map(|parameter| parameter.name.clone())
+        .collect::<HashSet<_>>();
+    collect_statement_binding_names(body, &mut bindings);
+    bindings
+}
+
+fn collect_statement_binding_names(statements: &[SyntaxStatement], output: &mut HashSet<String>) {
+    for statement in statements {
+        match statement {
+            SyntaxStatement::Assign { targets, .. } => {
+                for target in targets {
+                    collect_target_binding_names(target, output);
+                }
+            }
+            SyntaxStatement::AugAssign { target, .. } => {
+                if matches!(target, SyntaxExpression::Name { .. }) {
+                    collect_target_binding_names(target, output);
+                }
+            }
+            SyntaxStatement::For {
+                target,
+                body,
+                orelse,
+                ..
+            } => {
+                collect_target_binding_names(target, output);
+                collect_statement_binding_names(body, output);
+                collect_statement_binding_names(orelse, output);
+            }
+            SyntaxStatement::While { body, orelse, .. }
+            | SyntaxStatement::If { body, orelse, .. } => {
+                collect_statement_binding_names(body, output);
+                collect_statement_binding_names(orelse, output);
+            }
+            SyntaxStatement::Import { names, .. } => {
+                for alias in names {
+                    output.insert(alias.alias.clone().unwrap_or_else(|| alias.name.clone()));
+                }
+            }
+            SyntaxStatement::FunctionDef { .. }
+            | SyntaxStatement::Return { .. }
+            | SyntaxStatement::Assert { .. }
+            | SyntaxStatement::Raise { .. }
+            | SyntaxStatement::Expr { .. }
+            | SyntaxStatement::Pass { .. }
+            | SyntaxStatement::Break { .. }
+            | SyntaxStatement::Continue { .. } => {}
+        }
+    }
+}
+
+fn collect_target_binding_names(expression: &SyntaxExpression, output: &mut HashSet<String>) {
+    match expression {
+        SyntaxExpression::Name { id, .. } => {
+            output.insert(id.clone());
+        }
+        SyntaxExpression::Tuple { elements, .. } | SyntaxExpression::List { elements, .. } => {
+            for element in elements {
+                collect_target_binding_names(element, output);
+            }
+        }
+        SyntaxExpression::Subscript { .. } | SyntaxExpression::Attribute { .. } => {}
+        _ => {}
     }
 }
 
@@ -2264,6 +2499,16 @@ fn name_id(expression: &SyntaxExpression) -> Option<&str> {
     }
 }
 
+fn root_name(expression: &SyntaxExpression) -> Option<&str> {
+    match expression {
+        SyntaxExpression::Name { id, .. } => Some(id.as_str()),
+        SyntaxExpression::Attribute { value, .. } | SyntaxExpression::Subscript { value, .. } => {
+            root_name(value)
+        }
+        _ => None,
+    }
+}
+
 fn dotted_path(expression: &SyntaxExpression) -> Option<String> {
     match expression {
         SyntaxExpression::Name { id, .. } => Some(id.clone()),
@@ -2507,6 +2752,58 @@ mod tests {
 
         assert_eq!(decoded["module_name"], "con_ping");
         assert_eq!(decoded["ir_version"], "xian_ir_v1");
+    }
+
+    #[test]
+    fn lowering_respects_function_local_host_shadowing() {
+        let source = "@export\ndef probe():\n    now = 7\n    return now\n";
+        let ir =
+            lower_source_to_ir("con_shadow", source, &CompileOptions::default()).expect("source");
+        let returned = &ir["functions"][0]["body"][1]["value"];
+
+        assert_eq!(returned["node"], "name");
+        assert_eq!(returned["id"], "now");
+        assert!(returned["host_binding_id"].is_null());
+        assert!(!ir["host_dependencies"]
+            .as_array()
+            .expect("dependencies")
+            .iter()
+            .any(|dependency| dependency["id"] == "env.now"));
+    }
+
+    #[test]
+    fn lowering_respects_function_local_storage_shadowing() {
+        let source = "balances = Hash(default_value=0)\n\n@export\ndef probe():\n    balances = {\"alice\": 7}\n    return balances[\"alice\"]\n";
+        let ir =
+            lower_source_to_ir("con_shadow", source, &CompileOptions::default()).expect("source");
+        let returned = &ir["functions"][0]["body"][1]["value"];
+
+        assert_eq!(returned["node"], "subscript");
+        assert_eq!(returned["value"]["node"], "name");
+        assert_eq!(returned["value"]["id"], "balances");
+    }
+
+    #[test]
+    fn lowering_rejects_unsupported_fstring_format_specs() {
+        let source = "@export\ndef probe():\n    value = 7\n    return f'{value:04d}'\n";
+        let diagnostics = lower_source_to_ir_json("con_format", source, &CompileOptions::default())
+            .expect_err("format specs should fail");
+
+        assert_eq!(diagnostics[0].code, "xian.ir.lowering_error");
+        assert!(diagnostics[0]
+            .message
+            .contains("f-string format specifications are not supported"));
+    }
+
+    #[test]
+    fn lowering_rejects_duplicate_module_bindings() {
+        let source = "@export\ndef ping():\n    return 1\n\n@export\ndef ping():\n    return 2\n";
+        let diagnostics =
+            lower_source_to_ir_json("con_duplicate", source, &CompileOptions::default())
+                .expect_err("duplicate functions should fail");
+
+        assert_eq!(diagnostics[0].code, "xian.ir.lowering_error");
+        assert!(diagnostics[0].message.contains("duplicate function 'ping'"));
     }
 
     #[test]
