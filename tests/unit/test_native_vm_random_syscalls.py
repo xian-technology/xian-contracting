@@ -19,6 +19,7 @@ def probe():
     random.shuffle(items)
     return {
         "items": items,
+        "random": random.random(),
         "randbits": random.getrandbits(8),
         "randrange": random.randrange(10),
         "randint": random.randint(5, 9),
@@ -52,11 +53,7 @@ class FakeDriver:
         return self.values.get(key)
 
     def items(self, prefix: str = "") -> dict[str, object]:
-        return {
-            key: value
-            for key, value in self.values.items()
-            if key.startswith(prefix)
-        }
+        return {key: value for key, value in self.values.items() if key.startswith(prefix)}
 
     def get_contract_ir(self, name: str, *, vm_profile: str = "xian_vm_v1"):
         assert vm_profile == "xian_vm_v1"
@@ -91,6 +88,7 @@ def _expected_random_result(context: dict[str, object]) -> dict[str, object]:
         random_bridge.shuffle(items)
         return {
             "items": items,
+            "random": random_bridge.random(),
             "randbits": random_bridge.getrandbits(8),
             "randrange": random_bridge.randrange(10),
             "randint": random_bridge.randint(5, 9),

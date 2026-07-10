@@ -344,6 +344,12 @@ _HOST_BINDINGS = (
         category="random",
     ),
     _host_binding(
+        "random.random",
+        "random.random",
+        kind="syscall",
+        category="random",
+    ),
+    _host_binding(
         "random.shuffle",
         "random.shuffle",
         kind="syscall",

@@ -246,6 +246,7 @@ pub const HOST_BINDINGS: &[HostBinding] = &[
         "contract",
     ),
     host_binding("random.seed", "random.seed", "syscall", "random"),
+    host_binding("random.random", "random.random", "syscall", "random"),
     host_binding("random.shuffle", "random.shuffle", "syscall", "random"),
     host_binding(
         "random.getrandbits",

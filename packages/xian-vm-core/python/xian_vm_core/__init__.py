@@ -39,6 +39,7 @@ from ._native import (
 
 _RANDOM_SYSCALLS = {
     "seed": random_bridge.seed,
+    "random": random_bridge.random,
     "shuffle": random_bridge.shuffle,
     "getrandbits": random_bridge.getrandbits,
     "randrange": random_bridge.randrange,

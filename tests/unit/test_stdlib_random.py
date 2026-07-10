@@ -1,5 +1,7 @@
 import unittest
 
+from contracting.execution.runtime import rt
+from contracting.stdlib.bridge import random as random_bridge
 from contracting.stdlib.bridge.random import DeterministicRandom
 
 
@@ -28,6 +30,29 @@ class TestDeterministicRandom(unittest.TestCase):
             value = rng.randbelow(7)
             self.assertGreaterEqual(value, 0)
             self.assertLess(value, 7)
+
+    def test_random_returns_deterministic_unit_interval_float(self):
+        previous_env = dict(rt.env)
+        rt.env = {
+            **previous_env,
+            "chain_id": "xian-test",
+            "block_num": 7,
+            "block_hash": "abcd1234",
+            "__input_hash": "input",
+        }
+        try:
+            random_bridge.seed("alpha")
+            first = random_bridge.random()
+            random_bridge.seed("alpha")
+            second = random_bridge.random()
+        finally:
+            random_bridge.clear_random_state()
+            rt.env = previous_env
+
+        self.assertEqual(first, second)
+        self.assertIsInstance(first, float)
+        self.assertGreaterEqual(first, 0)
+        self.assertLess(first, 1)
 
 
 if __name__ == "__main__":

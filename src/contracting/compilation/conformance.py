@@ -922,6 +922,7 @@ def probe():
         "sha256": hashlib.sha256_text("hello"),
         "sha3": hashlib.sha3_text("hello"),
         "key_valid": crypto.key_is_valid("0" * 64),
+        "random": random.random(),
         "randbits": random.getrandbits(8),
         "randrange": random.randrange(10),
         "randint": random.randint(5, 9),

@@ -85,6 +85,10 @@ def getrandbits(k):
     return _current_random().getrandbits(k)
 
 
+def random():
+    return _current_random().getrandbits(53) / (1 << 53)
+
+
 def shuffle(items):
     rng = _current_random()
     for idx in range(len(items) - 1, 0, -1):
@@ -116,6 +120,7 @@ def choices(items, k):
 
 random_module = ModuleType("random")
 random_module.seed = seed
+random_module.random = random
 random_module.shuffle = shuffle
 random_module.getrandbits = getrandbits
 random_module.randrange = randrange
