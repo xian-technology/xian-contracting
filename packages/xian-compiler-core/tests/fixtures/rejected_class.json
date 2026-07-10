@@ -1,0 +1,31 @@
+{
+  "artifact": null,
+  "diagnostics": [
+    {
+      "code": "xian.syntax.unsupported_statement.class_def",
+      "message": "class definitions are not supported",
+      "range": {
+        "end_column": 8,
+        "end_line": 2,
+        "start_column": 0,
+        "start_line": 1
+      },
+      "severity": "error"
+    }
+  ],
+  "expected": {
+    "accepted": false
+  },
+  "generator": {
+    "artifact_format": "xian_contract_artifact_v1",
+    "name": "xian-compiler-core"
+  },
+  "input_source": "class Bad:\n    pass\n",
+  "module_name": "con_rejected_class",
+  "name": "rejected_class",
+  "normalized_source": null,
+  "schema": "xian.compiler_fixture.v1",
+  "source_path": null,
+  "vm_ir": null,
+  "vm_profile": "xian_vm_v1"
+}

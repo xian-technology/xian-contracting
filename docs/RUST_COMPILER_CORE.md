@@ -34,8 +34,8 @@ tags.
   - `xian-ide-web` lint/diagnostics
 - Keep compiler output reproducible across operating systems, CPU
   architectures, Python versions, Node versions, and browsers.
-- Remove the Python compiler after the Rust compiler is authoritative; do not
-  keep two production compilers.
+- Retire the Python compiler from public and consensus surfaces after the Rust
+  compiler is authoritative; do not keep two production compilers.
 
 ## Non-Goals
 
@@ -62,13 +62,24 @@ Current behavior:
 - validates artifact shape, hashes, normalized source, and canonical compiler
   output for offline consumers
 
-The old Python compiler remains only as a parity oracle while the Rust compiler
-is being integrated into all consumers.
+The old Python compiler remains for the local Python execution harness and
+historical parity audits. It is not a public compiler or diagnostic authority.
 
 Validators compile submitted source with the Rust compiler binding and persist
 the canonical IR. Python and JavaScript SDKs submit cleartext source. The
 browser IDE submits source through the wallet provider and uses the WASM
 compiler for diagnostics and optional artifact inspection.
+
+Compiler admission uses fixed consensus defaults across every binding:
+
+- 131,072 UTF-8 source bytes
+- 50,000 statement/expression syntax nodes
+- syntax nesting depth 64
+- 100,000 lexical tokens
+- 4,096 tokens on one logical line
+
+Limit failures use stable `xian.limit.*` diagnostics before deployment work is
+accepted.
 
 ## Target Topology
 
@@ -165,7 +176,10 @@ Options:
 - `vm_profile`: only `xian_vm_v1` initially.
 - `lint`: default `true`.
 - `diagnostic_format`: default stable machine-readable diagnostics.
-- `limits`: optional source size / AST node / lowering step caps for tooling.
+
+Limits are not caller-configurable. They are consensus defaults published in
+compiler version metadata so tooling can report the validator boundary without
+creating a looser alternate policy.
 
 Diagnostics must be deterministic and structured:
 
@@ -300,20 +314,23 @@ check, not contract execution.
    - `xian-ide-web` compiles with browser-local WASM diagnostics and deploys source. Done.
    - `xian-cli` builds artifacts through the same public API. Done.
 
-6. Switch authority and remove the old compiler.
-   - Rust output becomes canonical.
-   - Python compiler implementation is deleted or retained only as archived
-     migration fixtures.
+6. Switch authority and retire the old compiler from public surfaces.
+   - Rust output and diagnostics are canonical. Done.
+   - Python compiler implementation is retained only for the local harness and
+     historical audit tooling. Done for public compiler/linter/node surfaces.
    - Five-node E2E deployments must pass using source submissions and
      validator-derived IR before this step is complete.
 
 ## Validation Gates
 
-The Rust compiler core should not become authoritative until:
+The Rust compiler authority is validated by:
 
-- the full fixture corpus is byte-identical for accepted contracts
-- rejected contracts produce stable diagnostics
-- Python and JS bindings produce identical canonical source/IR for the same input
+- the shared fixture corpus is byte-identical for accepted contracts across
+  Rust, Python, WASM/JavaScript, linter, and node admission
+- rejected contracts produce fixture-identical stable diagnostics across the
+  same surfaces
+- deterministic source, token, syntax-node, and syntax-depth bounds are
+  enforced by the core before node deployment admission
 - `xian-cli` can build artifacts for offline inspection and submit source
 - `xian-ide-web` can diagnose in browser and deploy source via wallet provider
 - node-side deployment compiles source and rejects client-supplied artifacts
@@ -330,8 +347,8 @@ The Rust compiler core should not become authoritative until:
   should stay dependency-light.
 - Node-side compilation is the deployment authority and costs deployment
   admission time. It should stay bounded and measured.
-- Keeping the Python compiler after the switch would recreate the dual-compiler
-  complexity this design is meant to remove.
+- The Python local harness transformer is not a consensus compiler. New public
+  tooling must call the Rust compiler rather than extending that transformer.
 
 ## First Implementation Slice
 

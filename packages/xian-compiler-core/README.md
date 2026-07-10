@@ -5,9 +5,10 @@ This crate is the Rust/WASM compiler core described in
 
 The crate owns the artifact model, hashing rules, diagnostics, source
 units, parser adapter, Xian-owned syntax tree, semantic linting, source
-normalization, structural `xian_ir_v1` lowering, and compiler fixture loader.
-The checked-in compiler fixtures are generated from the current Python compiler
-and act as the parity oracle during the compiler transition.
+normalization, structural `xian_ir_v1` lowering, bounded compile admission, and
+compiler fixture loader. The checked-in accepted and rejected fixtures are the
+shared parity oracle for Rust, Python, WASM/JavaScript, linter, and node
+admission surfaces.
 
 ## Current Surface
 
@@ -18,6 +19,8 @@ and act as the parity oracle during the compiler transition.
 - `validate_contract_artifact(...)`: verify artifact format, profile, hashes,
   JSON IR, and embedded IR identity fields
 - `CompilerDiagnostic`: stable structured diagnostic payload
+- `CompilerLimits`: consensus defaults for source bytes, syntax nodes/depth,
+  total tokens, and logical-line tokens
 - `parse_source(...)`: RustPython-backed parser adapter for the current
   Python-like contract syntax, returning an opaque parsed module
 - `parse_diagnostics(...)`: deterministic parser diagnostic adapter with
@@ -38,16 +41,15 @@ and act as the parity oracle during the compiler transition.
 - `compile_contract_artifact(...)`: normalize, lower, and build a hash-checked
   `xian_contract_artifact_v1`
 - `describe_vm_host_surface()`: expose the `xian_vm_v1_host_v1` host catalog
-- `diagnose_contract(...)`: first high-level compiler entrypoint; currently
-  validates source/profile, parser diagnostics, unsupported syntax nodes, and
-  semantic lint diagnostics when `lint` is enabled
+- `diagnose_contract(...)`: authoritative high-level compiler entrypoint;
+  validates the complete source-to-IR path and returns stable diagnostics
 - `compiler_version()`: machine-readable version and schema metadata
 - `CompilerFixture`: typed representation of `xian.compiler_fixture.v1`
 - `parse_compiler_fixture_json(...)`: load a fixture JSON document
 - `CompilerFixture::validate_basic()`: deterministic structural checks for
   accepted and rejected fixture records
 
-Fixtures are generated from the current Python compiler with:
+Fixtures are refreshed through the authoritative Python binding with:
 
 ```bash
 uv run python scripts/generate_compiler_fixtures.py \

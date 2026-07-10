@@ -15,6 +15,24 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def diagnose_contract_source(
+    *,
+    module_name: str,
+    source: str,
+    lint: bool = True,
+    vm_profile: str = XIAN_VM_V1_PROFILE,
+) -> list[dict[str, object]]:
+    """Return authoritative Rust compiler diagnostics for contract source."""
+
+    _assert_native_compiler_host_surface_current()
+    return xian_compiler_core.diagnose_contract(
+        module_name,
+        source,
+        lint=lint,
+        vm_profile=vm_profile,
+    )
+
+
 @lru_cache(maxsize=1)
 def _assert_native_compiler_host_surface_current() -> None:
     surface = xian_compiler_core.describe_vm_host_surface()

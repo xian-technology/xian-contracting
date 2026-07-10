@@ -710,6 +710,17 @@ enum NativeMethodResult {
     Mutated { receiver: VmValue, value: VmValue },
 }
 
+#[derive(Debug, Clone, PartialEq)]
+enum ResolvedAssignmentTarget {
+    Name(String),
+    Subscript {
+        parent: Box<ResolvedAssignmentTarget>,
+        container: VmValue,
+        index: VmValue,
+    },
+    Unsupported(String),
+}
+
 pub struct VmInstance {
     module: ModuleIr,
     functions: HashMap<String, FunctionIr>,
@@ -1393,7 +1404,7 @@ impl VmInstance {
             "assign" => {
                 let value = self.eval_expression(required_value(object, "value")?, scope, host)?;
                 for target in required_array(object, "targets")? {
-                    self.assign_target(target, value.clone(), scope, false)?;
+                    self.assign_target(target, value.clone(), scope, host, false)?;
                 }
                 Ok(ControlFlow::Next)
             }
@@ -1423,12 +1434,27 @@ impl VmInstance {
             }
             "aug_assign" => {
                 let target = required_value(object, "target")?;
-                let current = self.eval_target_value(target, scope, host)?;
+                let target_object = as_object(target, "target")?;
+                let target_node = required_string(target_object, "node")?;
+                let (resolved, current) = if matches!(target_node, "name" | "subscript") {
+                    let (resolved, current) =
+                        self.resolve_assignment_target(target, scope, host, true)?;
+                    let current = current.ok_or_else(|| {
+                        VmExecutionError::new("augmented assignment target has no value")
+                    })?;
+                    (Some(resolved), current)
+                } else {
+                    (None, self.eval_target_value(target, scope, host)?)
+                };
                 let operand =
                     self.eval_expression(required_value(object, "value")?, scope, host)?;
                 let result =
                     apply_binary_operator(required_string(object, "operator")?, current, operand)?;
-                self.assign_target(target, result, scope, false)?;
+                if let Some(resolved) = resolved {
+                    self.assign_resolved_target(resolved, result, scope, false)
+                } else {
+                    self.assign_target(target, result, scope, host, false)
+                }?;
                 Ok(ControlFlow::Next)
             }
             "return" => {
@@ -1528,7 +1554,7 @@ impl VmInstance {
         let mut broke = false;
         for item in values {
             host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
-            self.assign_target(required_value(object, "target")?, item, scope, false)?;
+            self.assign_target(required_value(object, "target")?, item, scope, host, false)?;
             match self.execute_block(body, scope, host)? {
                 ControlFlow::Next => {}
                 ControlFlow::Continue => continue,
@@ -1585,6 +1611,7 @@ impl VmInstance {
         target: &Value,
         value: VmValue,
         scope: &mut HashMap<String, VmValue>,
+        host: &mut dyn VmHost,
         module_scope: bool,
     ) -> Result<(), VmExecutionError> {
         let object = as_object(target, "target")?;
@@ -1614,34 +1641,113 @@ impl VmInstance {
                     ));
                 }
                 for (target, item) in elements.iter().zip(items.into_iter()) {
-                    self.assign_target(target, item, scope, module_scope)?;
+                    self.assign_target(target, item, scope, host, module_scope)?;
                 }
                 Ok(())
             }
             "subscript" => {
-                let container = self.eval_expression(
-                    required_value(object, "value")?,
-                    scope,
-                    &mut NoopHost {},
-                )?;
-                let index = self.eval_expression(
-                    required_value(object, "slice")?,
-                    scope,
-                    &mut NoopHost {},
-                )?;
-                let updated = assign_subscript(container, &index, value)?;
-                self.assign_target(
-                    required_value(object, "value")?,
-                    updated,
-                    scope,
-                    module_scope,
-                )
+                let (resolved, current) =
+                    self.resolve_assignment_target(target, scope, host, false)?;
+                debug_assert!(current.is_none());
+                self.assign_resolved_target(resolved, value, scope, module_scope)
             }
             "attribute" => Err(VmExecutionError::new(
                 "attribute assignment is not yet supported in xian-vm-core",
             )),
             other => Err(VmExecutionError::new(format!(
                 "unsupported assignment target '{other}'"
+            ))),
+        }
+    }
+
+    // Capture every container and index in an assignment path once. Native VM values are
+    // immutable, so writeback rebuilds the captured path instead of re-evaluating expressions.
+    fn resolve_assignment_target(
+        &mut self,
+        target: &Value,
+        scope: &mut HashMap<String, VmValue>,
+        host: &mut dyn VmHost,
+        load_value: bool,
+    ) -> Result<(ResolvedAssignmentTarget, Option<VmValue>), VmExecutionError> {
+        let object = as_object(target, "target")?;
+        match required_string(object, "node")? {
+            "name" => {
+                let current = if load_value {
+                    Some(self.eval_expression(target, scope, host)?)
+                } else {
+                    None
+                };
+                Ok((
+                    ResolvedAssignmentTarget::Name(required_string(object, "id")?.to_owned()),
+                    current,
+                ))
+            }
+            "subscript" => {
+                if load_value {
+                    host.charge_execution_cost(vm_expression_gas_cost("subscript", object)?)?;
+                }
+                let value_expression = required_value(object, "value")?;
+                let value_object = as_object(value_expression, "subscript target value")?;
+                let value_node = required_string(value_object, "node")?;
+                let (parent, container) = if matches!(value_node, "name" | "subscript") {
+                    let (parent, container) =
+                        self.resolve_assignment_target(value_expression, scope, host, true)?;
+                    let container = container.ok_or_else(|| {
+                        VmExecutionError::new("subscript assignment container has no value")
+                    })?;
+                    (parent, container)
+                } else {
+                    (
+                        ResolvedAssignmentTarget::Unsupported(value_node.to_owned()),
+                        self.eval_expression(value_expression, scope, host)?,
+                    )
+                };
+                let index = self.eval_expression(required_value(object, "slice")?, scope, host)?;
+                let current = if load_value {
+                    Some(subscript_value(container.clone(), &index)?)
+                } else {
+                    None
+                };
+                Ok((
+                    ResolvedAssignmentTarget::Subscript {
+                        parent: Box::new(parent),
+                        container,
+                        index,
+                    },
+                    current,
+                ))
+            }
+            other => Err(VmExecutionError::new(format!(
+                "unsupported assignment target '{other}'"
+            ))),
+        }
+    }
+
+    fn assign_resolved_target(
+        &mut self,
+        target: ResolvedAssignmentTarget,
+        value: VmValue,
+        scope: &mut HashMap<String, VmValue>,
+        module_scope: bool,
+    ) -> Result<(), VmExecutionError> {
+        match target {
+            ResolvedAssignmentTarget::Name(id) => {
+                if module_scope {
+                    self.globals.insert(id.clone(), value.clone());
+                }
+                scope.insert(id, value);
+                Ok(())
+            }
+            ResolvedAssignmentTarget::Subscript {
+                parent,
+                container,
+                index,
+            } => {
+                let updated = assign_subscript(container, &index, value)?;
+                self.assign_resolved_target(*parent, updated, scope, module_scope)
+            }
+            ResolvedAssignmentTarget::Unsupported(node) => Err(VmExecutionError::new(format!(
+                "unsupported assignment target '{node}'"
             ))),
         }
     }
@@ -1812,7 +1918,7 @@ impl VmInstance {
 
         for item in items {
             host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
-            self.assign_target(target, item, scope, false)?;
+            self.assign_target(target, item, scope, host, false)?;
             let mut allowed = true;
             for condition in required_array(generator, "ifs")? {
                 if !self.eval_expression(condition, scope, host)?.truthy() {
@@ -1886,7 +1992,7 @@ impl VmInstance {
 
         for item in items {
             host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
-            self.assign_target(target, item, scope, false)?;
+            self.assign_target(target, item, scope, host, false)?;
             let mut allowed = true;
             for condition in required_array(generator, "ifs")? {
                 if !self.eval_expression(condition, scope, host)?.truthy() {
@@ -2064,14 +2170,28 @@ impl VmInstance {
         }
 
         let receiver_expr = required_value(func_object, "value")?;
-        let receiver = self.eval_expression(receiver_expr, scope, host)?;
+        let receiver_object = as_object(receiver_expr, "native method receiver")?;
+        let receiver_node = required_string(receiver_object, "node")?;
+        let (resolved_receiver, receiver) = if matches!(receiver_node, "name" | "subscript") {
+            let (resolved, receiver) =
+                self.resolve_assignment_target(receiver_expr, scope, host, true)?;
+            let receiver = receiver
+                .ok_or_else(|| VmExecutionError::new("native method receiver has no value"))?;
+            (Some(resolved), receiver)
+        } else {
+            (None, self.eval_expression(receiver_expr, scope, host)?)
+        };
         let attr = required_string(func_object, "attr")?;
         let result = call_native_method(receiver, attr, args, kwargs)?;
         match result {
             NativeMethodResult::Value(value) => Ok(Some(value)),
             NativeMethodResult::Mutated { receiver, value } => {
                 let module_scope = target_writes_module_scope(receiver_expr, scope, &self.globals)?;
-                self.assign_target(receiver_expr, receiver, scope, module_scope)?;
+                if let Some(resolved) = resolved_receiver {
+                    self.assign_resolved_target(resolved, receiver, scope, module_scope)?;
+                } else {
+                    self.assign_target(receiver_expr, receiver, scope, host, module_scope)?;
+                }
                 Ok(Some(value))
             }
         }
@@ -3492,6 +3612,15 @@ mod tests {
         syscalls: Vec<(String, Vec<VmValue>, Vec<(String, VmValue)>)>,
     }
 
+    #[derive(Default)]
+    struct AssignmentMeteringHost {
+        budget: Option<u64>,
+        raw_cost: u64,
+        execution_costs: Vec<u64>,
+        hash_reads: Vec<(String, String, VmValue)>,
+        storage_reads: Vec<(String, VmValue)>,
+    }
+
     impl VmHost for RecordingHost {
         fn emit_event(&mut self, event: VmEvent) -> Result<(), VmExecutionError> {
             self.events.push(event);
@@ -3527,6 +3656,373 @@ mod tests {
                 ))),
             }
         }
+    }
+
+    impl VmHost for AssignmentMeteringHost {
+        fn charge_execution_cost(&mut self, cost: u64) -> Result<(), VmExecutionError> {
+            self.execution_costs.push(cost);
+            self.raw_cost = self
+                .raw_cost
+                .checked_add(cost)
+                .ok_or_else(|| VmExecutionError::new("chi metering overflow"))?;
+            if self.budget.is_some_and(|budget| self.raw_cost > budget) {
+                return Err(VmExecutionError::new("Out of chi."));
+            }
+            Ok(())
+        }
+
+        fn charge_storage_read(
+            &mut self,
+            key: &str,
+            value: &VmValue,
+        ) -> Result<(), VmExecutionError> {
+            self.storage_reads.push((key.to_owned(), value.clone()));
+            Ok(())
+        }
+
+        fn read_hash(
+            &mut self,
+            contract: &str,
+            binding: &str,
+            key: &VmValue,
+        ) -> Result<Option<VmValue>, VmExecutionError> {
+            self.hash_reads
+                .push((contract.to_owned(), binding.to_owned(), key.clone()));
+            Ok(Some(vm_int(1)))
+        }
+    }
+
+    fn empty_test_instance(module_name: &str) -> VmInstance {
+        VmInstance::new(
+            ModuleIr {
+                ir_version: XIAN_IR_V1.to_owned(),
+                vm_profile: XIAN_VM_V1_PROFILE.to_owned(),
+                host_catalog_version: XIAN_VM_HOST_CATALOG_V1.to_owned(),
+                module_name: module_name.to_owned(),
+                source_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                    .to_owned(),
+                docstring: None,
+                imports: Vec::new(),
+                global_declarations: Vec::new(),
+                functions: Vec::new(),
+                module_body: Vec::new(),
+                host_dependencies: Vec::new(),
+            },
+            VmExecutionContext::default(),
+        )
+        .expect("empty test module should instantiate")
+    }
+
+    fn test_span() -> Value {
+        json!({"line": 1, "col": 0, "end_line": 1, "end_col": 1})
+    }
+
+    fn test_name(id: &str) -> Value {
+        json!({
+            "node": "name",
+            "span": test_span(),
+            "id": id,
+            "host_binding_id": null,
+        })
+    }
+
+    fn test_int(value: i64) -> Value {
+        json!({
+            "node": "constant",
+            "span": test_span(),
+            "value_type": "int",
+            "value": value,
+        })
+    }
+
+    #[test]
+    fn subscript_assignment_uses_active_host_for_index_storage_reads() {
+        let mut instance = empty_test_instance("assignment_host_probe");
+        instance.hashes.insert(
+            "indexes".to_owned(),
+            HashState {
+                default_value: vm_int(0),
+                entries: HashMap::new(),
+                foreign_key: None,
+                snapshot_local: true,
+                dirty_entries: HashSet::new(),
+            },
+        );
+        let mut scope = HashMap::from([(
+            "values".to_owned(),
+            VmValue::List(vec![vm_int(10), vm_int(20)]),
+        )]);
+        let target = json!({
+            "node": "subscript",
+            "span": test_span(),
+            "value": test_name("values"),
+            "slice": {
+                "node": "storage_get",
+                "span": test_span(),
+                "binding": "indexes",
+                "storage_type": "Hash",
+                "syscall_id": "storage.hash.get",
+                "key": {
+                    "node": "constant",
+                    "span": test_span(),
+                    "value_type": "str",
+                    "value": "active",
+                },
+            },
+        });
+        let mut host = AssignmentMeteringHost::default();
+
+        instance
+            .assign_target(&target, vm_int(99), &mut scope, &mut host, false)
+            .expect("subscript assignment should use the host-provided index");
+
+        assert_eq!(
+            scope.get("values"),
+            Some(&VmValue::List(vec![vm_int(10), vm_int(99)]))
+        );
+        assert_eq!(
+            host.execution_costs,
+            vec![
+                VM_GAS_EXPR_NAME,
+                VM_GAS_EXPR_STORAGE_GET,
+                VM_GAS_EXPR_CONSTANT,
+            ]
+        );
+        assert_eq!(
+            host.hash_reads,
+            vec![(
+                "assignment_host_probe".to_owned(),
+                "indexes".to_owned(),
+                VmValue::String("active".to_owned()),
+            )]
+        );
+        assert_eq!(host.storage_reads.len(), 1);
+        assert_eq!(host.storage_reads[0].1, vm_int(1));
+    }
+
+    #[test]
+    fn nested_subscript_assignment_charges_container_path_once() {
+        let mut instance = empty_test_instance("nested_assignment_metering");
+        let mut scope = HashMap::from([(
+            "matrix".to_owned(),
+            VmValue::List(vec![
+                VmValue::List(vec![vm_int(1), vm_int(2)]),
+                VmValue::List(vec![vm_int(3), vm_int(4)]),
+            ]),
+        )]);
+        let target = json!({
+            "node": "subscript",
+            "span": test_span(),
+            "value": {
+                "node": "subscript",
+                "span": test_span(),
+                "value": test_name("matrix"),
+                "slice": test_int(0),
+            },
+            "slice": test_int(1),
+        });
+        let mut host = AssignmentMeteringHost::default();
+
+        instance
+            .assign_target(&target, vm_int(9), &mut scope, &mut host, false)
+            .expect("nested subscript assignment should succeed");
+
+        assert_eq!(
+            scope.get("matrix"),
+            Some(&VmValue::List(vec![
+                VmValue::List(vec![vm_int(1), vm_int(9)]),
+                VmValue::List(vec![vm_int(3), vm_int(4)]),
+            ]))
+        );
+        assert_eq!(
+            host.execution_costs,
+            vec![
+                VM_GAS_EXPR_SUBSCRIPT,
+                VM_GAS_EXPR_NAME,
+                VM_GAS_EXPR_CONSTANT,
+                VM_GAS_EXPR_CONSTANT,
+            ]
+        );
+    }
+
+    #[test]
+    fn augmented_subscript_assignment_charges_target_once() {
+        let mut instance = empty_test_instance("augmented_assignment_metering");
+        let mut scope = HashMap::from([("values".to_owned(), VmValue::List(vec![vm_int(3)]))]);
+        let statement = json!({
+            "node": "aug_assign",
+            "span": test_span(),
+            "operator": "add",
+            "target": {
+                "node": "subscript",
+                "span": test_span(),
+                "value": test_name("values"),
+                "slice": test_int(0),
+            },
+            "value": test_int(4),
+        });
+        let mut host = AssignmentMeteringHost::default();
+
+        instance
+            .execute_statement(&statement, &mut scope, &mut host)
+            .expect("augmented subscript assignment should succeed");
+
+        assert_eq!(scope.get("values"), Some(&VmValue::List(vec![vm_int(7)])));
+        assert_eq!(
+            host.execution_costs,
+            vec![
+                VM_GAS_STMT_AUG_ASSIGN,
+                VM_GAS_EXPR_SUBSCRIPT,
+                VM_GAS_EXPR_NAME,
+                VM_GAS_EXPR_CONSTANT,
+                VM_GAS_EXPR_CONSTANT,
+            ]
+        );
+    }
+
+    #[test]
+    fn mutable_subscript_receiver_is_evaluated_once() {
+        let mut instance = empty_test_instance("mutable_receiver_metering");
+        let mut scope = HashMap::from([(
+            "values".to_owned(),
+            VmValue::List(vec![VmValue::List(vec![vm_int(1)])]),
+        )]);
+        let statement = json!({
+            "node": "expr",
+            "span": test_span(),
+            "value": {
+                "node": "call",
+                "span": test_span(),
+                "func": {
+                    "node": "attribute",
+                    "span": test_span(),
+                    "value": {
+                        "node": "subscript",
+                        "span": test_span(),
+                        "value": test_name("values"),
+                        "slice": test_int(0),
+                    },
+                    "attr": "append",
+                    "path": null,
+                    "host_binding_id": null,
+                },
+                "args": [test_int(2)],
+                "keywords": [],
+                "syscall_id": null,
+            },
+        });
+        let mut host = AssignmentMeteringHost::default();
+
+        instance
+            .execute_statement(&statement, &mut scope, &mut host)
+            .expect("nested mutable receiver should be written back");
+
+        assert_eq!(
+            scope.get("values"),
+            Some(&VmValue::List(vec![VmValue::List(vec![
+                vm_int(1),
+                vm_int(2),
+            ])]))
+        );
+        assert_eq!(
+            host.execution_costs,
+            vec![
+                VM_GAS_STMT_EXPR,
+                VM_GAS_CALL_DISPATCH,
+                VM_GAS_EXPR_CONSTANT,
+                VM_GAS_EXPR_SUBSCRIPT,
+                VM_GAS_EXPR_NAME,
+                VM_GAS_EXPR_CONSTANT,
+            ]
+        );
+    }
+
+    #[test]
+    fn low_chi_during_subscript_target_evaluation_preserves_container() {
+        let mut instance = empty_test_instance("assignment_low_chi");
+        let original = VmValue::List(vec![vm_int(1), vm_int(2)]);
+        let mut scope = HashMap::from([("values".to_owned(), original.clone())]);
+        let statement = json!({
+            "node": "assign",
+            "span": test_span(),
+            "targets": [{
+                "node": "subscript",
+                "span": test_span(),
+                "value": test_name("values"),
+                "slice": test_int(1),
+            }],
+            "value": test_int(9),
+        });
+        let budget = VM_GAS_STMT_ASSIGN + VM_GAS_EXPR_CONSTANT + VM_GAS_EXPR_NAME;
+        let mut host = AssignmentMeteringHost {
+            budget: Some(budget),
+            ..AssignmentMeteringHost::default()
+        };
+
+        let error = instance
+            .execute_statement(&statement, &mut scope, &mut host)
+            .expect_err("index evaluation must exhaust the remaining chi");
+
+        assert_eq!(error.to_string(), "Out of chi.");
+        assert_eq!(scope.get("values"), Some(&original));
+        assert_eq!(
+            host.execution_costs,
+            vec![
+                VM_GAS_STMT_ASSIGN,
+                VM_GAS_EXPR_CONSTANT,
+                VM_GAS_EXPR_NAME,
+                VM_GAS_EXPR_CONSTANT,
+            ]
+        );
+    }
+
+    #[test]
+    fn unsupported_slice_assignment_is_metered_and_preserves_container() {
+        let mut instance = empty_test_instance("slice_assignment_metering");
+        let original = VmValue::List(vec![vm_int(1), vm_int(2), vm_int(3)]);
+        let mut scope = HashMap::from([("values".to_owned(), original.clone())]);
+        let statement = json!({
+            "node": "assign",
+            "span": test_span(),
+            "targets": [{
+                "node": "subscript",
+                "span": test_span(),
+                "value": test_name("values"),
+                "slice": {
+                    "node": "slice",
+                    "span": test_span(),
+                    "lower": test_int(1),
+                    "upper": test_int(2),
+                    "step": null,
+                },
+            }],
+            "value": {
+                "node": "list",
+                "span": test_span(),
+                "elements": [test_int(9)],
+            },
+        });
+        let mut host = AssignmentMeteringHost::default();
+
+        let error = instance
+            .execute_statement(&statement, &mut scope, &mut host)
+            .expect_err("slice assignment remains outside the native VM execution slice");
+
+        assert_eq!(
+            error.to_string(),
+            "slice expressions are only supported as subscripts"
+        );
+        assert_eq!(scope.get("values"), Some(&original));
+        assert_eq!(
+            host.execution_costs,
+            vec![
+                VM_GAS_STMT_ASSIGN,
+                VM_GAS_EXPR_LIST,
+                VM_GAS_EXPR_CONSTANT,
+                VM_GAS_EXPR_NAME,
+                VM_GAS_EXPR_SUBSCRIPT,
+            ]
+        );
     }
 
     #[test]

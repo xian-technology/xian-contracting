@@ -40,5 +40,5 @@ should be treated as protocol-affecting.
   that output is not a deployable chain artifact.
 - Stored `vm_ir_json` is the executable payload for `xian_vm_v1`; it is derived
   by validators from submitted source, not trusted from clients.
-- Any future Rust compiler core should replace the compiler/artifact authority
-  behind the public artifact APIs before SDKs depend on it directly.
+- The Rust compiler core is the compiler/artifact authority behind public APIs;
+  the Python transformer is limited to local-harness execution support.

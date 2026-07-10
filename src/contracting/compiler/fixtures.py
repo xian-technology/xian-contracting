@@ -5,11 +5,11 @@ import re
 from pathlib import Path
 from typing import Any
 
-from contracting.artifacts import build_contract_artifacts
+from contracting.artifacts import build_contract_artifacts, diagnose_contract_source
 from contracting.compilation.vm import XIAN_VM_V1_PROFILE
 
 COMPILER_FIXTURE_SCHEMA_V1 = "xian.compiler_fixture.v1"
-COMPILER_FIXTURE_GENERATOR = "python-contracting"
+COMPILER_FIXTURE_GENERATOR = "xian-compiler-core-python-binding"
 
 
 def infer_module_name(path: Path) -> str:
@@ -49,6 +49,17 @@ def build_compiler_fixture(
     if source_path is not None:
         fixture["source_path"] = source_path
 
+    diagnostics = diagnose_contract_source(
+        module_name=module_name,
+        source=source,
+        lint=lint,
+        vm_profile=vm_profile,
+    )
+    if diagnostics:
+        fixture["expected"] = {"accepted": False}
+        fixture["diagnostics"] = diagnostics
+        return fixture
+
     try:
         artifacts = build_contract_artifacts(
             module_name=module_name,
@@ -61,7 +72,7 @@ def build_compiler_fixture(
         fixture["diagnostics"] = [
             {
                 "severity": "error",
-                "code": f"python_contracting.{type(exc).__name__}",
+                "code": f"xian.binding.{type(exc).__name__}",
                 "message": str(exc),
             }
         ]

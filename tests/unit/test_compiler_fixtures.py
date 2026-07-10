@@ -44,10 +44,7 @@ def test_build_compiler_fixture_records_rejection() -> None:
 
     assert fixture["expected"] == {"accepted": False}
     assert fixture["diagnostics"][0]["severity"] == "error"
-    assert fixture["diagnostics"][0]["code"] in {
-        "python_contracting.CompilerError",
-        "python_contracting.SyntaxError",
-    }
+    assert fixture["diagnostics"][0]["code"] == "xian.syntax.parse_error"
     assert "artifact" not in fixture
 
 

@@ -2,6 +2,7 @@ use rustpython_parser::source_code::LinearLocator;
 use rustpython_parser::{ast, Parse, ParseError};
 
 use crate::diagnostic::{CompilerDiagnostic, SourceRange};
+use crate::limits::{validate_source_limits, validate_syntax_limits};
 use crate::source::SourceUnit;
 
 #[derive(Debug, Clone)]
@@ -33,11 +34,15 @@ impl ParsedModule {
 }
 
 pub fn parse_source(unit: &SourceUnit) -> Result<ParsedModule, Vec<CompilerDiagnostic>> {
+    validate_source_limits(unit.source()).map_err(|diagnostic| vec![diagnostic])?;
     match ast::Suite::parse(unit.source(), unit.module_name()) {
-        Ok(suite) => Ok(ParsedModule {
-            source: unit.clone(),
-            suite,
-        }),
+        Ok(suite) => {
+            validate_syntax_limits(&suite).map_err(|diagnostic| vec![diagnostic])?;
+            Ok(ParsedModule {
+                source: unit.clone(),
+                suite,
+            })
+        }
         Err(error) => Err(vec![parse_error_to_diagnostic(unit.source(), error)]),
     }
 }

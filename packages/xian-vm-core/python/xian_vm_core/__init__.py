@@ -346,10 +346,6 @@ class NativeVmHost:
                 "native contract deployment requires non-empty source code"
             )
 
-        raw_source_bytes = len(code.encode("utf-8"))
-        if raw_source_bytes > constants.MAX_CONTRACT_SUBMISSION_BYTES:
-            raise VmRuntimeExecutionError("Contract source exceeds the maximum allowed size.")
-
         artifacts = compile_contract_source(
             module_name=name,
             source=code,

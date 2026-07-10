@@ -16,9 +16,9 @@ runtime/VM work. They are not node operation scripts.
 - `audit_compiler_core_parity.py`: compares Rust compiler-core artifacts
   against the Python reference compiler across authored contracts and lint
   modes.
-- `generate_compiler_fixtures.py`: records current Python compiler source,
-  normalization, artifact, IR, hash, and rejection behavior as
-  `xian.compiler_fixture.v1` JSON for the Rust compiler migration.
+- `generate_compiler_fixtures.py`: records authoritative Rust compiler source,
+  normalization, artifact, IR, hash, and rejection behavior through the Python
+  binding as `xian.compiler_fixture.v1` JSON.
 - `generate_vm_parity_fixtures.py`: regenerates curated VM conformance fixtures
   from current local harness behavior and selected authored contract sources in
   the wider Xian workspace.

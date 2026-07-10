@@ -91,6 +91,9 @@ print(driver.get("example.key"))
 - **Compiler and harness stay distinct.** SDKs and CLI deployment flows submit
   source. Offline artifacts are useful for diagnostics and CI, but are not the
   public deployment payload.
+- **Compilation is bounded.** The Rust compiler admits at most 128 KiB source,
+  50,000 syntax nodes, nesting depth 64, 100,000 tokens total, and 4,096 tokens
+  on one logical line. Every binding returns the same `xian.limit.*` diagnostic.
 - **Stay scoped.** Built-in helpers serve the execution model. They do not grow
   into a general convenience framework.
 - **No node orchestration here.** Operator workflow, genesis distribution, and

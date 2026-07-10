@@ -21,6 +21,7 @@
   ],
   "scripts": {
     "build": "node scripts/build-wasm.mjs && node scripts/ensure-publishable-dist.mjs",
+    "test": "npm run build && node --test tests/*.test.mjs",
     "prepack": "npm run build"
   },
   "license": "MIT"

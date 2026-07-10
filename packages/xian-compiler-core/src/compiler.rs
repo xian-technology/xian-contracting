@@ -6,7 +6,8 @@ use crate::constants::{
 };
 use crate::diagnostic::CompilerDiagnostic;
 use crate::frontend::parse_source;
-use crate::lint::lint_syntax;
+use crate::ir::compile_contract_artifact;
+use crate::limits::{compiler_limits, CompilerLimits};
 use crate::source::SourceUnit;
 use crate::syntax::build_syntax_tree;
 
@@ -35,6 +36,7 @@ pub struct CompilerVersion {
     pub fixture_schema: String,
     pub vm_profile: String,
     pub host_catalog_version: String,
+    pub limits: CompilerLimits,
 }
 
 pub fn diagnose_contract(
@@ -42,27 +44,29 @@ pub fn diagnose_contract(
     source: &str,
     options: &CompileOptions,
 ) -> Vec<CompilerDiagnostic> {
-    let unit = match SourceUnit::with_profile(module_name, source, &options.vm_profile) {
-        Ok(unit) => unit,
-        Err(error) => {
-            return vec![CompilerDiagnostic::error(
-                "xian.source.invalid",
-                error.to_string(),
-            )]
-        }
-    };
-    let parsed = match parse_source(&unit) {
-        Ok(parsed) => parsed,
-        Err(diagnostics) => return diagnostics,
-    };
-    let syntax = match build_syntax_tree(&parsed) {
-        Ok(syntax) => syntax,
-        Err(diagnostics) => return diagnostics,
-    };
-    if options.lint {
-        return lint_syntax(&syntax);
+    if !options.lint {
+        let unit = match SourceUnit::with_profile(module_name, source, &options.vm_profile) {
+            Ok(unit) => unit,
+            Err(error) => {
+                return vec![CompilerDiagnostic::error(
+                    "xian.source.invalid",
+                    error.to_string(),
+                )]
+            }
+        };
+        let parsed = match parse_source(&unit) {
+            Ok(parsed) => parsed,
+            Err(diagnostics) => return diagnostics,
+        };
+        return match build_syntax_tree(&parsed) {
+            Ok(_) => Vec::new(),
+            Err(diagnostics) => diagnostics,
+        };
     }
-    Vec::new()
+    match compile_contract_artifact(module_name, source, options) {
+        Ok(_) => Vec::new(),
+        Err(diagnostics) => diagnostics,
+    }
 }
 
 pub fn compiler_version() -> CompilerVersion {
@@ -73,6 +77,7 @@ pub fn compiler_version() -> CompilerVersion {
         fixture_schema: COMPILER_FIXTURE_SCHEMA_V1.to_string(),
         vm_profile: XIAN_VM_V1_PROFILE.to_string(),
         host_catalog_version: XIAN_VM_HOST_CATALOG_V1.to_string(),
+        limits: compiler_limits(),
     }
 }
 
@@ -120,5 +125,10 @@ mod tests {
         assert_eq!(version.fixture_schema, "xian.compiler_fixture.v1");
         assert_eq!(version.vm_profile, "xian_vm_v1");
         assert_eq!(version.host_catalog_version, "xian_vm_v1_host_v1");
+        assert_eq!(version.limits.max_source_bytes, 131_072);
+        assert_eq!(version.limits.max_syntax_nodes, 50_000);
+        assert_eq!(version.limits.max_syntax_depth, 64);
+        assert_eq!(version.limits.max_tokens, 100_000);
+        assert_eq!(version.limits.max_logical_line_tokens, 4_096);
     }
 }

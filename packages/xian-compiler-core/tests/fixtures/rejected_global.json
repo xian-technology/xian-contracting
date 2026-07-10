@@ -1,0 +1,31 @@
+{
+  "artifact": null,
+  "diagnostics": [
+    {
+      "code": "xian.syntax.unsupported_statement.global",
+      "message": "global statements are not supported",
+      "range": {
+        "end_column": 16,
+        "end_line": 5,
+        "start_column": 4,
+        "start_line": 5
+      },
+      "severity": "error"
+    }
+  ],
+  "expected": {
+    "accepted": false
+  },
+  "generator": {
+    "artifact_format": "xian_contract_artifact_v1",
+    "name": "xian-compiler-core"
+  },
+  "input_source": "value = 1\n\n@export\ndef f() -> int:\n    global value\n    value = 2\n    return value\n",
+  "module_name": "con_rejected_global",
+  "name": "rejected_global",
+  "normalized_source": null,
+  "schema": "xian.compiler_fixture.v1",
+  "source_path": null,
+  "vm_ir": null,
+  "vm_profile": "xian_vm_v1"
+}
