@@ -27,11 +27,9 @@ pub fn normalize_source(
     };
     let parsed = parse_source(&unit)?;
     let syntax = build_syntax_tree(&parsed)?;
-    if options.lint {
-        let diagnostics = lint_syntax(&syntax);
-        if !diagnostics.is_empty() {
-            return Err(diagnostics);
-        }
+    let diagnostics = lint_syntax(&syntax);
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
     }
     Ok(normalize_syntax(&syntax))
 }
@@ -903,8 +901,8 @@ mod tests {
     }
 
     #[test]
-    fn normalize_source_can_skip_lint() {
-        let normalized = normalize_source(
+    fn normalize_source_enforces_profile_checks_when_lint_disabled() {
+        let error = normalize_source(
             "con_helper",
             "a=1\nb=2\n\ndef helper():\n return a+b\n",
             &CompileOptions {
@@ -912,12 +910,9 @@ mod tests {
                 ..CompileOptions::default()
             },
         )
-        .expect("source should normalize");
+        .expect_err("profile compatibility should reject missing export");
 
-        assert_eq!(
-            normalized,
-            "a = 1\nb = 2\n\ndef helper():\n    return a + b"
-        );
+        assert_eq!(error[0].code, "xian.lint.E013");
     }
 
     #[test]

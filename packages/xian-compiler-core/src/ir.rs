@@ -483,11 +483,9 @@ fn normalize_and_build_syntax(
     };
     let parsed = parse_source(&unit)?;
     let initial_syntax = build_syntax_tree(&parsed)?;
-    if options.lint {
-        let diagnostics = lint_syntax(&initial_syntax);
-        if !diagnostics.is_empty() {
-            return Err(diagnostics);
-        }
+    let diagnostics = lint_syntax(&initial_syntax);
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
     }
     let normalized_source = normalize_syntax(&initial_syntax);
     let normalized_unit =
