@@ -9,7 +9,7 @@ description = "Native VM capability surface for the future Xian execution engine
 readme = "README.md"
 license = "MIT"
 authors = [{ name = "Xian Network", email = "info@xian.org" }]
-requires-python = ">=3.14"
+requires-python = ">=3.14,<3.15"
 classifiers = [
     "Programming Language :: Python :: 3.14",
     "Programming Language :: Rust",

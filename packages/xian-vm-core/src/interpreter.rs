@@ -2447,6 +2447,20 @@ impl VmInstance {
                     (VmValue::String("idx".to_owned()), VmValue::Bool(true)),
                 ]))
             }
+            "random.shuffle" => {
+                let target = required_array(object, "args")?.first().ok_or_else(|| {
+                    VmExecutionError::new("random.shuffle() expects one argument")
+                })?;
+                let module_scope = target_writes_module_scope(target, scope, &self.globals)?;
+                let (resolved_target, _) =
+                    self.resolve_assignment_target(target, scope, host, false)?;
+                if let Some(cost) = explicit_syscall_metering_cost(syscall_id, &args, &kwargs)? {
+                    host.charge_execution_cost(cost)?;
+                }
+                let shuffled = host.handle_syscall(syscall_id, args, kwargs)?;
+                self.assign_resolved_target(resolved_target, shuffled, scope, module_scope)?;
+                Ok(VmValue::None)
+            }
             other => {
                 if let Some(cost) = explicit_syscall_metering_cost(other, &args, &kwargs)? {
                     host.charge_execution_cost(cost)?;

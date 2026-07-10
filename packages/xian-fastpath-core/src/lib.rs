@@ -118,16 +118,14 @@ fn decode_transaction_bytes_impl(raw: &[u8]) -> PyResult<(Value, String)> {
         .map_err(|err| PyValueError::new_err(err.to_string()))?;
     let tx_value: Value =
         serde_json::from_str(tx_str).map_err(|err| PyValueError::new_err(err.to_string()))?;
-    let payload_str = extract_payload_string_impl(tx_str)?;
-    let payload_value: Value =
-        serde_json::from_str(&payload_str).map_err(|err| PyValueError::new_err(err.to_string()))?;
-
+    let canonical_tx = canonical_json(&tx_value)?;
+    if tx_str != canonical_tx {
+        return Err(PyValueError::new_err("Transaction bytes are not canonical"));
+    }
     let parsed_payload = tx_value
         .get("payload")
         .ok_or_else(|| PyValueError::new_err("Invalid payload"))?;
-    if payload_value != *parsed_payload {
-        return Err(PyValueError::new_err("Invalid payload"));
-    }
+    let payload_str = canonical_json(parsed_payload)?;
 
     Ok((tx_value, payload_str))
 }

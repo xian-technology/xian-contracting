@@ -16,8 +16,8 @@ from contracting.runtime_features import (
     module_ir_uses_runtime_feature,
     runtime_feature_enabled,
 )
+from contracting.stdlib.bridge import random as random_bridge
 from contracting.stdlib.bridge import zk as zk_bridge
-from contracting.stdlib.bridge.random import seed as random_seed
 from contracting.storage.driver import (
     DEPLOYER_KEY,
     DEVELOPER_KEY,
@@ -36,6 +36,16 @@ from ._native import (
     supports_execution_policy,
     validate_module_ir_json,
 )
+
+_RANDOM_SYSCALLS = {
+    "seed": random_bridge.seed,
+    "shuffle": random_bridge.shuffle,
+    "getrandbits": random_bridge.getrandbits,
+    "randrange": random_bridge.randrange,
+    "randint": random_bridge.randint,
+    "choice": random_bridge.choice,
+    "choices": random_bridge.choices,
+}
 
 
 def _interface_type_name(value: Any) -> str:
@@ -537,8 +547,15 @@ class NativeVmHost:
             contract = args[0]
             interface = list(args[1])
             return self._contract_enforce_interface(contract, interface)
-        if syscall_id == "random.seed":
-            return random_seed(*args, **kwargs)
+        if syscall_id.startswith("random."):
+            function_name = syscall_id.split(".", 1)[1]
+            handler = _RANDOM_SYSCALLS.get(function_name)
+            if handler is None:
+                raise VmRuntimeExecutionError(f"unsupported host syscall '{syscall_id}'")
+            if function_name == "shuffle":
+                handler(*args, **kwargs)
+                return args[0]
+            return handler(*args, **kwargs)
         if syscall_id.startswith("zk."):
             function_name = syscall_id.split(".", 1)[1]
             handler = getattr(zk_bridge, function_name)
@@ -574,7 +591,8 @@ def execute_contract(
         )
     bundle_payload = {contract_name: module_ir}
     previous_env = dict(rt.env)
-    rt.env = {**previous_env, "__Driver": driver}
+    rt.env = {**previous_env, **dict(context or {}), "__Driver": driver}
+    random_bridge.clear_random_state()
     try:
         raw = execute_bundle(
             json.dumps(bundle_payload, separators=(",", ":"), sort_keys=True),
@@ -589,6 +607,7 @@ def execute_contract(
             transaction_size_bytes=max(int(transaction_size_bytes), 0),
         )
     finally:
+        random_bridge.clear_random_state()
         rt.env = previous_env
     result = _coerce_native_error_result(
         int(raw["status_code"]),

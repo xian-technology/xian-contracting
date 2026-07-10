@@ -898,6 +898,8 @@ ledger = ForeignHash(foreign_contract="conformance_host_helper", foreign_name="l
 def probe():
     helper = importlib.import_module("conformance_host_helper")
     random.seed("alpha")
+    shuffled = [1, 2, 3, 4]
+    random.shuffle(shuffled)
     return {
         "shadow": status.get(),
         "ledger": ledger["alice"],
@@ -923,6 +925,7 @@ def probe():
         "randbits": random.getrandbits(8),
         "randrange": random.randrange(10),
         "randint": random.randint(5, 9),
+        "shuffle": shuffled,
         "choice": random.choice(["a", "b", "c"]),
         "choices": random.choices(["x", "y"], 3),
         "zk_available": zk.is_available(),
