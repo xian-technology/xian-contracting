@@ -307,14 +307,16 @@ fn is_valid_submission_name(value: Option<&Value>) -> bool {
     let Some(Value::String(name)) = value else {
         return false;
     };
-    if name.len() > 255 {
-        return false;
-    }
     contract_name_is_formatted(name)
 }
 
 fn contract_name_is_formatted(value: &str) -> bool {
-    value.strip_prefix("con_").is_some_and(is_identifier)
+    // Match contracting.names plus the submission contract's public prefix.
+    value.len() <= 64
+        && value.starts_with("con_")
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
 }
 
 fn is_identifier(value: &str) -> bool {
