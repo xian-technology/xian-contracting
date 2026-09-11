@@ -982,6 +982,9 @@ fn vm_value_to_json(value: &VmValue) -> Value {
         }
         VmValue::ContractHandle(handle) => Value::String(handle.module.clone()),
         VmValue::StorageRef(storage) => Value::String(storage.binding.clone()),
+        VmValue::ForeignStorageRef(storage) => serde_json::json!({
+            "foreign_contract": storage.contract, "foreign_name": storage.binding, "is_hash": storage.is_hash
+        }),
         VmValue::EventRef(event) => Value::String(event.event_name.clone()),
         VmValue::Builtin(name) => Value::String(name.clone()),
         VmValue::FunctionRef(name) => Value::String(name.clone()),
@@ -1193,6 +1196,7 @@ fn vm_value_type_name(value: &VmValue) -> &'static str {
         VmValue::Dict(_) => "dict",
         VmValue::ContractHandle(_) => "contract_handle",
         VmValue::StorageRef(_) => "storage_ref",
+        VmValue::ForeignStorageRef(_) => "foreign_storage_ref",
         VmValue::EventRef(_) => "event_ref",
         VmValue::Builtin(_) => "builtin",
         VmValue::FunctionRef(_) => "function_ref",

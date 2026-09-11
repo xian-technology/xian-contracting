@@ -8,6 +8,7 @@ on:
       - "runtime-types-v*"
       - "compiler-core-v*"
       - "zk-v*"
+      - "vm-core-v*"
 
 concurrency:
   group: release-${{ github.ref }}
@@ -75,6 +76,13 @@ jobs:
               npm_package_name="@xian-tech/compiler"
               npm_environment="npm"
               npm_url="https://www.npmjs.com/package/@xian-tech/compiler"
+              ;;
+            vm-core-v*)
+              version="${tag#vm-core-v}"
+              package_dir="packages/xian-vm-core"
+              project_name="xian-tech-vm-core"
+              pypi_environment="pypi-xian-vm-core"
+              needs_rust="true"
               ;;
             zk-v*)
               version="${tag#zk-v}"

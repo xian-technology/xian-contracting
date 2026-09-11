@@ -1,0 +1,133 @@
+{
+  "description": "Canonical transaction vectors. Synthetic private key 01 repeated 32 times. Golden strings use Unicode code-point order.",
+  "private_key": "0101010101010101010101010101010101010101010101010101010101010101",
+  "cases": [
+    {
+      "name": "numeric_keys",
+      "payload": {
+        "chain_id": "xian-local-1",
+        "chi_supplied": 100,
+        "contract": "con_probe",
+        "function": "run",
+        "kwargs": {
+          "data": {
+            "2": "two",
+            "10": "ten",
+            "0": false
+          }
+        },
+        "nonce": 7,
+        "sender": "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c"
+      },
+      "canonical_payload": "{\"chain_id\":\"xian-local-1\",\"chi_supplied\":100,\"contract\":\"con_probe\",\"function\":\"run\",\"kwargs\":{\"data\":{\"0\":false,\"10\":\"ten\",\"2\":\"two\"}},\"nonce\":7,\"sender\":\"8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c\"}",
+      "signature": "991f4878ba759f0d68a91a0665eb83b5975c2bc5b29e244dfbc19a7e0b6f9bbb75690913c38333a15e82108c39df4346d086ee288702699c9632806fd3b75e06",
+      "transaction_json": "{\"metadata\":{\"signature\":\"991f4878ba759f0d68a91a0665eb83b5975c2bc5b29e244dfbc19a7e0b6f9bbb75690913c38333a15e82108c39df4346d086ee288702699c9632806fd3b75e06\"},\"payload\":{\"chain_id\":\"xian-local-1\",\"chi_supplied\":100,\"contract\":\"con_probe\",\"function\":\"run\",\"kwargs\":{\"data\":{\"0\":false,\"10\":\"ten\",\"2\":\"two\"}},\"nonce\":7,\"sender\":\"8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c\"}}"
+    },
+    {
+      "name": "own_proto_key",
+      "payload": {
+        "chain_id": "xian-local-1",
+        "chi_supplied": 100,
+        "contract": "con_probe",
+        "function": "run",
+        "kwargs": {
+          "data": {
+            "__proto__": {
+              "polluted": "kept as data"
+            },
+            "constructor": "value",
+            "ok": true
+          }
+        },
+        "nonce": 7,
+        "sender": "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c"
+      },
+      "canonical_payload": "{\"chain_id\":\"xian-local-1\",\"chi_supplied\":100,\"contract\":\"con_probe\",\"function\":\"run\",\"kwargs\":{\"data\":{\"__proto__\":{\"polluted\":\"kept as data\"},\"constructor\":\"value\",\"ok\":true}},\"nonce\":7,\"sender\":\"8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c\"}",
+      "signature": "6c0f7246eee8659657c806122b613df5da2a3ddf4dacb63155ef290a774b3df42c8076d6e703120fa0a38960caa70f359a12a93453e88681025632d6f519f706",
+      "transaction_json": "{\"metadata\":{\"signature\":\"6c0f7246eee8659657c806122b613df5da2a3ddf4dacb63155ef290a774b3df42c8076d6e703120fa0a38960caa70f359a12a93453e88681025632d6f519f706\"},\"payload\":{\"chain_id\":\"xian-local-1\",\"chi_supplied\":100,\"contract\":\"con_probe\",\"function\":\"run\",\"kwargs\":{\"data\":{\"__proto__\":{\"polluted\":\"kept as data\"},\"constructor\":\"value\",\"ok\":true}},\"nonce\":7,\"sender\":\"8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c\"}}"
+    },
+    {
+      "name": "unicode",
+      "payload": {
+        "chain_id": "xian-local-1",
+        "chi_supplied": 100,
+        "contract": "con_probe",
+        "function": "run",
+        "kwargs": {
+          "data": {
+            "😀": "face",
+            "": "private",
+            "é": "café\n☃"
+          }
+        },
+        "nonce": 7,
+        "sender": "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c"
+      },
+      "canonical_payload": "{\"chain_id\":\"xian-local-1\",\"chi_supplied\":100,\"contract\":\"con_probe\",\"function\":\"run\",\"kwargs\":{\"data\":{\"é\":\"café\\n☃\",\"\":\"private\",\"😀\":\"face\"}},\"nonce\":7,\"sender\":\"8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c\"}",
+      "signature": "efc22716e660bfaf253cbc6b66f8409341c316563869eee704002b45cbaf09c6cca16a2df7c69454e04d38116c7568120ce2d0c3791f4b452e254e8bba27410e",
+      "transaction_json": "{\"metadata\":{\"signature\":\"efc22716e660bfaf253cbc6b66f8409341c316563869eee704002b45cbaf09c6cca16a2df7c69454e04d38116c7568120ce2d0c3791f4b452e254e8bba27410e\"},\"payload\":{\"chain_id\":\"xian-local-1\",\"chi_supplied\":100,\"contract\":\"con_probe\",\"function\":\"run\",\"kwargs\":{\"data\":{\"é\":\"café\\n☃\",\"\":\"private\",\"😀\":\"face\"}},\"nonce\":7,\"sender\":\"8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c\"}}"
+    },
+    {
+      "name": "nested_wrappers",
+      "payload": {
+        "chain_id": "xian-local-1",
+        "chi_supplied": 100,
+        "contract": "con_probe",
+        "function": "run",
+        "kwargs": {
+          "data": [
+            [
+              {
+                "__big_int__": "1208925819614629174706176"
+              },
+              {
+                "__big_int__": "-1208925819614629174706176"
+              },
+              true,
+              null
+            ],
+            {
+              "amount": {
+                "__fixed__": "1.25"
+              },
+              "bytes": {
+                "__bytes__": "0102"
+              }
+            }
+          ]
+        },
+        "nonce": 7,
+        "sender": "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c"
+      },
+      "canonical_payload": "{\"chain_id\":\"xian-local-1\",\"chi_supplied\":100,\"contract\":\"con_probe\",\"function\":\"run\",\"kwargs\":{\"data\":[[{\"__big_int__\":\"1208925819614629174706176\"},{\"__big_int__\":\"-1208925819614629174706176\"},true,null],{\"amount\":{\"__fixed__\":\"1.25\"},\"bytes\":{\"__bytes__\":\"0102\"}}]},\"nonce\":7,\"sender\":\"8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c\"}",
+      "signature": "759fe138b56e64fb2b2917106c1d46378be62a9b47553ca01381b533015394e443576da3e7c2ad2773d7f5b4b78fa990495e56abe16974e288c941cd12e4940c",
+      "transaction_json": "{\"metadata\":{\"signature\":\"759fe138b56e64fb2b2917106c1d46378be62a9b47553ca01381b533015394e443576da3e7c2ad2773d7f5b4b78fa990495e56abe16974e288c941cd12e4940c\"},\"payload\":{\"chain_id\":\"xian-local-1\",\"chi_supplied\":100,\"contract\":\"con_probe\",\"function\":\"run\",\"kwargs\":{\"data\":[[{\"__big_int__\":\"1208925819614629174706176\"},{\"__big_int__\":\"-1208925819614629174706176\"},true,null],{\"amount\":{\"__fixed__\":\"1.25\"},\"bytes\":{\"__bytes__\":\"0102\"}}]},\"nonce\":7,\"sender\":\"8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c\"}}"
+    },
+    {
+      "name": "integer_boundaries",
+      "payload": {
+        "chain_id": "xian-local-1",
+        "chi_supplied": 100,
+        "contract": "con_probe",
+        "function": "run",
+        "kwargs": {
+          "data": [
+            {
+              "__big_int__": "-9223372036854775808"
+            },
+            {
+              "__big_int__": "9223372036854775807"
+            },
+            0,
+            42
+          ]
+        },
+        "nonce": 7,
+        "sender": "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c"
+      },
+      "canonical_payload": "{\"chain_id\":\"xian-local-1\",\"chi_supplied\":100,\"contract\":\"con_probe\",\"function\":\"run\",\"kwargs\":{\"data\":[{\"__big_int__\":\"-9223372036854775808\"},{\"__big_int__\":\"9223372036854775807\"},0,42]},\"nonce\":7,\"sender\":\"8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c\"}",
+      "signature": "47352c58fe56d772a38abe7fca2d3e073f122a107623163f0d8bb17c00557d01b0bc2e46b9c4f41d182e6449c1188d625dadadf592bbef8a2edb13a3a657c807",
+      "transaction_json": "{\"metadata\":{\"signature\":\"47352c58fe56d772a38abe7fca2d3e073f122a107623163f0d8bb17c00557d01b0bc2e46b9c4f41d182e6449c1188d625dadadf592bbef8a2edb13a3a657c807\"},\"payload\":{\"chain_id\":\"xian-local-1\",\"chi_supplied\":100,\"contract\":\"con_probe\",\"function\":\"run\",\"kwargs\":{\"data\":[{\"__big_int__\":\"-9223372036854775808\"},{\"__big_int__\":\"9223372036854775807\"},0,42]},\"nonce\":7,\"sender\":\"8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c\"}}"
+    }
+  ]
+}

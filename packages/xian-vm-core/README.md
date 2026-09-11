@@ -31,7 +31,8 @@ Execution coverage is intentionally narrow but real:
 - aggregate/container helpers such as `sorted`, `sum`, `min`, `max`, `all`,
   `any`, `reversed`, and `zip`
 - explicit storage ops for `Variable` and `Hash`
-- foreign storage reads for `ForeignVariable` and `ForeignHash`
+- foreign storage reads for `ForeignVariable` and `ForeignHash`, including
+  function-local references with dynamic contract/variable targets
 - arbitrary-precision integer values instead of `i64`-only VM integers
 - fixed-precision `decimal(...)` construction and arithmetic
 - native `datetime.datetime` / `datetime.timedelta` values, including
@@ -128,3 +129,16 @@ flows and the host-operation split between delegated calls and Rust-owned
 implementations. Integer width, basic authored shielded execution, and
 pre-call setup flows are covered by the authored parity corpus and fixture
 generator.
+
+## Releases
+
+Push a `vm-core-vX.Y.Z` tag with matching versions in `pyproject.toml` and
+`Cargo.toml` after `../../scripts/validate-release.sh` passes. The release
+workflow builds native wheels for Linux, macOS Intel/ARM and Windows, and a
+source distribution. PyPI Trusted Publishing uses project `xian-tech-vm-core`,
+owner `xian-technology`, repository `xian-contracting`, workflow `release.yml`
+and environment `pypi-xian-vm-core`.
+
+Runtime semantics are consensus-sensitive. Validators must use the same
+accepted VM version; existing histories containing previously failed dynamic
+foreign-storage calls need an explicit upgrade boundary.

@@ -335,7 +335,7 @@ source = { editable = "packages/xian-fastpath-core" }
 
 [[package]]
 name = "xian-tech-runtime-types"
-version = "0.1.4"
+version = "0.1.5"
 source = { editable = "packages/xian-runtime-types" }
 
 [[package]]

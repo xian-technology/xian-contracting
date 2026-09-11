@@ -1,6 +1,6 @@
 [package]
 name = "xian-vm-core"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
 description = "Core IR and validation types for the future Xian VM"

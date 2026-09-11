@@ -99,6 +99,9 @@ jobs:
       - name: Check VM core binding crate
         run: cargo check --manifest-path packages/xian-vm-core/Cargo.toml --features python-extension
 
+      - name: Run VM core Rust tests
+        run: cargo test --manifest-path packages/xian-vm-core/Cargo.toml
+
       - name: Run zk verifier Rust tests
         run: cargo test --manifest-path packages/xian-zk/Cargo.toml --no-default-features
 
@@ -119,4 +122,5 @@ jobs:
             --with ./packages/xian-vm-core \
             python -m pytest -q -m optional_native \
             tests/integration/test_vm_language_conformance.py \
-            tests/integration/test_vm_stateful_fuzz.py
+            tests/integration/test_vm_stateful_fuzz.py \
+            tests/integration/test_vm_dynamic_foreign_storage.py

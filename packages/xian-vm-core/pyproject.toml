@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "xian-tech-vm-core"
-version = "0.1.0"
+version = "0.1.1"
 description = "Native VM capability surface for the future Xian execution engine"
 readme = "README.md"
 license = "MIT"

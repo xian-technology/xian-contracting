@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal
 from unittest import TestCase
 
@@ -28,6 +29,19 @@ def make_key(contract, variable, args=None):
 
 
 class TestEncode(TestCase):
+    def test_nested_integer_normalization_and_conversion(self):
+        for number in (MIN_INT - 1, MIN_INT, MAX_INT, MAX_INT + 1, 2**80, -(2**80)):
+            for value in ([number], [[number]], {"data": [[number, True, False, None]]}):
+                encoded = encode(value)
+                self.assertIn('"__big_int__"', encoded)
+                self.assertEqual(decode(encoded), value)
+                self.assertEqual(convert_dict(json.loads(encoded)), value)
+
+    def test_nested_plain_values_and_wrappers_remain_compatible(self):
+        value = {"data": [[1, True, False, None, {"__big_int__": str(2**80)}]]}
+        self.assertEqual(json.loads(encode(value)), value)
+        self.assertEqual(convert_dict(value), {"data": [[1, True, False, None, 2**80]]})
+
     def test_int_to_bytes(self):
         i = 1000
         b = "1000"
@@ -122,21 +136,13 @@ class TestEncode(TestCase):
 
     def test_encode_ints_nested_list(self):
         d = {"lists": [{"i": 123, "bi": MAX_INT}]}
-        expected = (
-            '{"lists":[{"i":123,"bi":{"__big_int__":"'
-            + str(MAX_INT)
-            + '"}}]}'
-        )
+        expected = '{"lists":[{"i":123,"bi":{"__big_int__":"' + str(MAX_INT) + '"}}]}'
 
         self.assertEqual(encode(d), expected)
 
     def test_encode_dict_with_list_containing_different_types(self):
         d = {"lists": [{"i": 123, "bi": MAX_INT}, "hello"]}
-        expected = (
-            '{"lists":[{"i":123,"bi":{"__big_int__":"'
-            + str(MAX_INT)
-            + '"}},"hello"]}'
-        )
+        expected = '{"lists":[{"i":123,"bi":{"__big_int__":"' + str(MAX_INT) + '"}},"hello"]}'
 
         self.assertEqual(encode(d), expected)
 
@@ -148,11 +154,7 @@ class TestEncode(TestCase):
 
     def test_encode_ints_nested_dict(self):
         d = {"d": {"bi": MAX_INT, "str": "hello"}}
-        expected = (
-            '{"d":{"bi":{"__big_int__":"'
-            + str(MAX_INT)
-            + '"},"str":"hello"}}'
-        )
+        expected = '{"d":{"bi":{"__big_int__":"' + str(MAX_INT) + '"},"str":"hello"}}'
 
         self.assertEqual(encode(d), expected)
 

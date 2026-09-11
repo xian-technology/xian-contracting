@@ -12,6 +12,9 @@ Shared deterministic runtime types for the Xian stack.
 These types are used by `xian-contracting` and other packages that need the
 same deterministic value semantics without importing the full contract runtime.
 
+The encoder and `convert_dict` normalize nested lists and dictionaries recursively.
+Large integers use `__big_int__` at every depth; booleans retain their JSON type.
+
 ## Validation
 
 The package is covered by the root test suite:

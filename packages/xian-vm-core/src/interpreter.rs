@@ -61,6 +61,8 @@ const VM_GAS_EXPR_FORMATTED_VALUE: u64 = 96;
 
 #[path = "interpreter_support.rs"]
 mod support;
+#[path = "foreign_storage.rs"]
+mod foreign_storage;
 use crate::values::*;
 use support::*;
 
@@ -1033,6 +1035,18 @@ impl VmInstance {
         result
     }
 
+    fn read_subscript(
+        &mut self,
+        value: VmValue,
+        index: &VmValue,
+        host: &mut dyn VmHost,
+    ) -> Result<VmValue, VmExecutionError> {
+        if let VmValue::ForeignStorageRef(reference) = &value {
+            return foreign_storage::read_hash(reference, index, host);
+        }
+        subscript_value(value, index)
+    }
+
     fn eval_slice_subscript(
         &mut self,
         value: VmValue,
@@ -1704,7 +1718,7 @@ impl VmInstance {
                 };
                 let index = self.eval_expression(required_value(object, "slice")?, scope, host)?;
                 let current = if load_value {
-                    Some(subscript_value(container.clone(), &index)?)
+                    Some(self.read_subscript(container.clone(), &index, host)?)
                 } else {
                     None
                 };
@@ -1743,6 +1757,9 @@ impl VmInstance {
                 container,
                 index,
             } => {
+                if matches!(container, VmValue::ForeignStorageRef(_)) {
+                    return Err(VmExecutionError::new("cannot write to foreign storage"));
+                }
                 let updated = assign_subscript(container, &index, value)?;
                 self.assign_resolved_target(*parent, updated, scope, module_scope)
             }
@@ -1835,7 +1852,7 @@ impl VmInstance {
                     }
                 }
                 let index = self.eval_expression(slice, scope, host)?;
-                subscript_value(value, &index)
+                self.read_subscript(value, &index, host)
             }
             "storage_get" => {
                 let binding = required_string(object, "binding")?;
@@ -2207,6 +2224,9 @@ impl VmInstance {
             (None, self.eval_expression(receiver_expr, scope, host)?)
         };
         let attr = required_string(func_object, "attr")?;
+        if let VmValue::ForeignStorageRef(reference) = &receiver {
+            return foreign_storage::call_method(reference, attr, args, kwargs, host).map(Some);
+        }
         let result = call_native_method(receiver, attr, args, kwargs)?;
         match result {
             NativeMethodResult::Value(value) => Ok(Some(value)),
@@ -2288,6 +2308,8 @@ impl VmInstance {
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
         match syscall_id {
+            "storage.foreign_hash.new" => foreign_storage::new_reference("ForeignHash", args, kwargs),
+            "storage.foreign_variable.new" => foreign_storage::new_reference("ForeignVariable", args, kwargs),
             "numeric.decimal.new" => {
                 if !kwargs.is_empty() || args.len() != 1 {
                     return Err(VmExecutionError::new("decimal() expects one argument"));

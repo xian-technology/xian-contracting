@@ -688,6 +688,7 @@ pub enum VmValue {
     Dict(Vec<(VmValue, VmValue)>),
     ContractHandle(VmContractHandle),
     StorageRef(VmStorageRef),
+    ForeignStorageRef(VmForeignStorageRef),
     EventRef(Box<VmEventDefinition>),
     Builtin(String),
     FunctionRef(String),
@@ -712,6 +713,7 @@ impl VmValue {
             Self::Dict(entries) => !entries.is_empty(),
             Self::ContractHandle(_)
             | Self::StorageRef(_)
+            | Self::ForeignStorageRef(_)
             | Self::EventRef(_)
             | Self::Builtin(_)
             | Self::FunctionRef(_)
@@ -766,6 +768,7 @@ impl VmValue {
             ),
             Self::ContractHandle(handle) => format!("<contract:{}>", handle.module),
             Self::StorageRef(storage) => format!("<storage:{}>", storage.binding),
+            Self::ForeignStorageRef(storage) => format!("<foreign-storage:{}.{}>", storage.contract, storage.binding),
             Self::EventRef(event) => format!("<event:{}>", event.event_name),
             Self::Builtin(name) => format!("<builtin:{name}>"),
             Self::FunctionRef(name) => format!("<function:{name}>"),
@@ -841,6 +844,7 @@ impl VmValue {
             Self::Dict(_) => "dict",
             Self::ContractHandle(_) => "contract_handle",
             Self::StorageRef(_) => "storage_ref",
+            Self::ForeignStorageRef(_) => "foreign_storage_ref",
             Self::EventRef(_) => "event_ref",
             Self::Builtin(_) => "builtin",
             Self::FunctionRef(_) => "function_ref",
@@ -854,6 +858,14 @@ impl fmt::Display for VmValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.python_repr())
     }
+}
+
+/// Function-local foreign storage is a read-only capability, never persisted state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VmForeignStorageRef {
+    pub contract: String,
+    pub binding: String,
+    pub is_hash: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

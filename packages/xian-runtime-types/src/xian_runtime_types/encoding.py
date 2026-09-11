@@ -79,32 +79,23 @@ def encode_int(value: int):
 
 
 def encode_ints_in_dict(data: dict):
-    encoded = {}
-    for key, value in data.items():
-        if isinstance(value, int):
-            encoded[key] = encode_int(value)
-        elif isinstance(value, dict):
-            encoded[key] = encode_ints_in_dict(value)
-        elif isinstance(value, list):
-            encoded[key] = []
-            for item in value:
-                if isinstance(item, dict):
-                    encoded[key].append(encode_ints_in_dict(item))
-                elif isinstance(item, int):
-                    encoded[key].append(encode_int(item))
-                else:
-                    encoded[key].append(item)
-        else:
-            encoded[key] = value
-    return encoded
+    return {key: _encode_ints(value) for key, value in data.items()}
+
+
+def _encode_ints(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return encode_int(value)
+    if isinstance(value, dict):
+        return encode_ints_in_dict(value)
+    if isinstance(value, list):
+        return [_encode_ints(item) for item in value]
+    return value
 
 
 def encode(data):
-    if isinstance(data, int):
-        data = encode_int(data)
-    elif isinstance(data, dict):
-        data = encode_ints_in_dict(data)
-    return json.dumps(data, cls=Encoder, separators=(",", ":"))
+    return json.dumps(_encode_ints(data), cls=Encoder, separators=(",", ":"))
 
 
 def as_object(value):
@@ -167,6 +158,8 @@ def convert(key, value):
 
 
 def convert_dict(data):
+    if isinstance(data, list):
+        return [convert_dict(item) for item in data]
     if not isinstance(data, dict):
         return data
 
@@ -174,10 +167,5 @@ def convert_dict(data):
     for key, value in data.items():
         if key in TYPES:
             return convert(key, value)
-        if isinstance(value, dict):
-            converted[key] = convert_dict(value)
-        elif isinstance(value, list):
-            converted[key] = [convert_dict(item) for item in value]
-        else:
-            converted[key] = value
+        converted[key] = convert_dict(value)
     return converted
