@@ -8,6 +8,7 @@ use std::fmt;
 mod artifacts;
 mod interpreter;
 mod metering;
+mod storage_scan;
 mod values;
 
 pub const XIAN_IR_V1: &str = "xian_ir_v1";

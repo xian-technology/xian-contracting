@@ -330,6 +330,104 @@ impl VmHost for PythonBundleExecutor {
         })
     }
 
+    fn scan_hash_entries_metered(
+        &mut self,
+        contract: &str,
+        binding: &str,
+        prefix: &str,
+    ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
+        let base_key = vm_variable_storage_key(contract, binding);
+        let full_prefix = if prefix.is_empty() {
+            format!("{base_key}:")
+        } else {
+            format!("{base_key}:{prefix}:")
+        };
+        let suffix_offset = base_key.len() + 1;
+        let mut overlay = self
+            .storage_overlay
+            .iter()
+            .filter(|(key, _)| key.starts_with(&full_prefix))
+            .map(|(key, value)| (key[suffix_offset..].to_owned(), value.clone()))
+            .collect::<std::collections::BTreeMap<_, _>>()
+            .into_iter()
+            .peekable();
+        Python::attach(|py| {
+            let host_owner = self.host.clone_ref(py);
+            let host = host_owner.bind(py);
+            let streaming = host
+                .hasattr("iter_hash_entries")
+                .map_err(|e| VmExecutionError::new(e.to_string()))?;
+            let response = host
+                .call_method1(
+                    if streaming {
+                        "iter_hash_entries"
+                    } else {
+                        "scan_hash_entries"
+                    },
+                    (contract, binding, prefix),
+                )
+                .map_err(|e| VmExecutionError::new(e.to_string()))?;
+            let mut remote: Box<dyn Iterator<Item = Result<(String, VmValue), VmExecutionError>>> =
+                if streaming {
+                    Box::new(
+                        response
+                            .try_iter()
+                            .map_err(|e| VmExecutionError::new(e.to_string()))?
+                            .map(|item| {
+                                py_hash_entry_to_vm(
+                                    item.map_err(|e| VmExecutionError::new(e.to_string()))?,
+                                )
+                            }),
+                    )
+                } else {
+                    // Compatibility for trusted embedded hosts. The production host
+                    // always supplies the lazy ordered iterator above.
+                    let mut entries = py_hash_entries_to_vm(response)?;
+                    entries.sort_by(|a, b| a.0.cmp(&b.0));
+                    Box::new(entries.into_iter().map(Ok))
+                };
+            let mut entries = Vec::new();
+            let mut budget = crate::storage_scan::ScanBudget::default();
+            let mut previous: Option<String> = None;
+            let mut retain = |suffix: String, value: VmValue| -> Result<(), VmExecutionError> {
+                let key = format!("{base_key}:{suffix}");
+                self.meter.charge_read(&key, &value)?;
+                budget.observe(&key, &value)?;
+                entries.push((suffix, value));
+                Ok(())
+            };
+            for entry in remote.by_ref() {
+                let (suffix, value) = entry?;
+                if previous.as_ref().is_some_and(|key| key >= &suffix) {
+                    return Err(VmExecutionError::new(
+                        "storage scan host returned unordered or duplicate keys",
+                    ));
+                }
+                previous = Some(suffix.clone());
+                while overlay.peek().is_some_and(|(key, _)| key <= &suffix) {
+                    let (key, local) = overlay.next().unwrap();
+                    let same = key == suffix;
+                    retain(key, local)?;
+                    if same {
+                        break;
+                    }
+                }
+                // A tombstone is retained as an overlay entry so instance-local
+                // state cannot resurrect it after a nested contract call.
+                if !self
+                    .storage_overlay
+                    .contains_key(&format!("{base_key}:{suffix}"))
+                {
+                    retain(suffix, value)?;
+                }
+            }
+            for (suffix, value) in overlay {
+                retain(suffix, value)?;
+            }
+            Ok(entries)
+        })
+    }
+
     fn load_owner(&mut self, contract: &str) -> Result<Option<String>, VmExecutionError> {
         Python::attach(|py| -> Result<Option<String>, VmExecutionError> {
             let host = self.host.bind(py);
@@ -445,33 +543,34 @@ fn py_optional_to_vm(value: Bound<'_, PyAny>) -> Result<Option<VmValue>, VmExecu
     }
 }
 
+fn py_hash_entry_to_vm(item: Bound<'_, PyAny>) -> Result<(String, VmValue), VmExecutionError> {
+    let pair = item
+        .cast::<PyTuple>()
+        .map_err(|_| VmExecutionError::new("hash entry must be a tuple"))?;
+    if pair.len() != 2 {
+        return Err(VmExecutionError::new(
+            "hash entry tuples must contain key and value",
+        ));
+    }
+    let key = pair
+        .get_item(0)
+        .map_err(|e| VmExecutionError::new(e.to_string()))?
+        .extract::<String>()
+        .map_err(|e| VmExecutionError::new(e.to_string()))?;
+    let value = pair
+        .get_item(1)
+        .map_err(|e| VmExecutionError::new(e.to_string()))?;
+    Ok((key, py_to_vm(value)?))
+}
+
 fn py_hash_entries_to_vm(
     value: Bound<'_, PyAny>,
 ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
-    let sequence = value
-        .cast::<PyList>()
-        .map_err(|_| VmExecutionError::new("expected list of hash entries"))?;
-    let mut entries = Vec::with_capacity(sequence.len());
-    for item in sequence.iter() {
-        let pair = item
-            .cast::<PyTuple>()
-            .map_err(|_| VmExecutionError::new("hash entry must be a tuple"))?;
-        if pair.len() != 2 {
-            return Err(VmExecutionError::new(
-                "hash entry tuples must contain key and value",
-            ));
-        }
-        let key = pair
-            .get_item(0)
-            .map_err(|error| VmExecutionError::new(error.to_string()))?
-            .extract::<String>()
-            .map_err(|error| VmExecutionError::new(error.to_string()))?;
-        let item_value = pair
-            .get_item(1)
-            .map_err(|error| VmExecutionError::new(error.to_string()))?;
-        entries.push((key, py_to_vm(item_value)?));
-    }
-    Ok(entries)
+    value
+        .try_iter()
+        .map_err(|e| VmExecutionError::new(e.to_string()))?
+        .map(|item| py_hash_entry_to_vm(item.map_err(|e| VmExecutionError::new(e.to_string()))?))
+        .collect()
 }
 
 fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {

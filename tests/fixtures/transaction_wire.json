@@ -129,5 +129,15 @@
       "signature": "47352c58fe56d772a38abe7fca2d3e073f122a107623163f0d8bb17c00557d01b0bc2e46b9c4f41d182e6449c1188d625dadadf592bbef8a2edb13a3a657c807",
       "transaction_json": "{\"metadata\":{\"signature\":\"47352c58fe56d772a38abe7fca2d3e073f122a107623163f0d8bb17c00557d01b0bc2e46b9c4f41d182e6449c1188d625dadadf592bbef8a2edb13a3a657c807\"},\"payload\":{\"chain_id\":\"xian-local-1\",\"chi_supplied\":100,\"contract\":\"con_probe\",\"function\":\"run\",\"kwargs\":{\"data\":[{\"__big_int__\":\"-9223372036854775808\"},{\"__big_int__\":\"9223372036854775807\"},0,42]},\"nonce\":7,\"sender\":\"8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c\"}}"
     }
+  ],
+  "node_receipts": [
+    {
+      "name": "localnet_nft_block_82",
+      "chain_id": "xian-localnet-1",
+      "height": 82,
+      "block_tx_base64": "N2IyMjZkNjU3NDYxNjQ2MTc0NjEyMjNhN2IyMjczNjk2NzZlNjE3NDc1NzI2NTIyM2EyMjMxMzAzNTMzNjEzMzM4MzYzNTYyMzMzMTM3MzI2NDMwMzE2NDY1NjIzNzM3NjEzNjYzMzEzNzMwMzc2MzM1MzU2NTM0MzgzNTMzMzQ2MjMyNjMzMDY1NjMzNzMwMzQ2NjM2MzMzNTY2NjU2MjM0Mzg2NDMzMzYzMDM3MzUzMTM0NjY2MjYxMzkzMTM5MzczMTM5MzM2MjY0MzMzMjYyMzMzNjM2NjUzNDMyMzY2MzM4Mzc2NDYyMzczMjM1NjIzNzY0MzMzMjMzNjYzNjM2NjEzOTY1MzA2MzY0Mzg2MjM3NjIzOTYzMzU2NDM4MzAzNTM2MzM2MzYxNjU2MzMwNjMyMjdkMmMyMjcwNjE3OTZjNmY2MTY0MjIzYTdiMjI2MzY4NjE2OTZlNWY2OTY0MjIzYTIyNzg2OTYxNmUyZDZjNmY2MzYxNmM2ZTY1NzQyZDMxMjIyYzIyNjM2ODY5NWY3Mzc1NzA3MDZjNjk2NTY0MjIzYTMxMzIzMDMwMzAzMDJjMjI2MzZmNmU3NDcyNjE2Mzc0MjIzYTIyNjM2ZjZlNWY3ODczNjMzMDMwMzUyMjJjMjI2Njc1NmU2Mzc0Njk2ZjZlMjIzYTIyNjk3MzVmNTg1MzQzMzAzMDM1MjIyYzIyNmI3NzYxNzI2NzczMjIzYTdiMjI2MzZmNmU3NDcyNjE2Mzc0MjIzYTIyNjM2ZjZlNWY2MzZmNmU3MzVmNmU2Njc0MjI3ZDJjMjI2ZTZmNmU2MzY1MjIzYTM1MzkyYzIyNzM2NTZlNjQ2NTcyMjIzYTIyNjUzOTYyNjIzMjYxNjYzMDYxMzMzMTM0NjIzODMzNjUzNDM2MzAzMjMyMzk2MTY0NjEzOTMwNjEzNjYzNjI2NTMyMzkzNDM0MzE2MTY2MzYzODYyMzAzNDYxNjMzNTY0MzEzMjM3MzMzMTM2NjU2NjY0MzkzMzM0NjMzOTM2NjQyMjdkN2Q=",
+      "tx_hash": "0CBFE61960AE123B79E1DE3EDB8A68A375F1B3C2D9F1F20D3C5F85F20B8AC97A",
+      "code": 0
+    }
   ]
 }

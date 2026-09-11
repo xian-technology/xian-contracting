@@ -17,6 +17,7 @@ from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution.runtime import rt
 from contracting.names import assert_safe_contract_name
 from contracting.storage.lmdb_store import LMDBStore
+from contracting.storage.ordered import iter_overlay_items
 
 INDEX_SEPARATOR = constants.INDEX_SEPARATOR
 HASH_DELIMITER = constants.DELIMITER
@@ -157,29 +158,16 @@ class Driver:
     def value_from_disk(self, key):
         return self._store.get(key)
 
-    def items(self, prefix: str = ""):
+    def iter_items(self, prefix: str = ""):
+        """Read a canonical merged view without copying the complete disk range."""
         if self.track_transaction_reads:
             self.transaction_read_prefixes.add(prefix)
-        items = {}
-        seen = set()
+        cached = iter_overlay_items(self.cache, self._store.iter_items(prefix), prefix)
+        for key, value in iter_overlay_items(self.pending_writes, cached, prefix):
+            yield key, _copy_mutable_value(value)
 
-        for key, value in self.pending_writes.items():
-            if key.startswith(prefix):
-                seen.add(key)
-                if value is not None:
-                    items[key] = _copy_mutable_value(value)
-
-        for key, value in self.cache.items():
-            if key.startswith(prefix):
-                seen.add(key)
-                if value is not None:
-                    items[key] = _copy_mutable_value(value)
-
-        for key, value in self._store.items(prefix).items():
-            if key not in seen:
-                items[key] = _copy_mutable_value(value)
-
-        return items
+    def items(self, prefix: str = ""):
+        return dict(self.iter_items(prefix))
 
     def keys(self, prefix: str = ""):
         return list(self.items(prefix).keys())

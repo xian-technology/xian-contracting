@@ -27,6 +27,7 @@ from contracting.storage.driver import (
     TIME_KEY,
     XIAN_VM_V1_IR_KEY,
 )
+from contracting.storage.ordered import iter_overlay_items
 
 from ._native import (
     VmIrValidationError,
@@ -182,28 +183,19 @@ class NativeVmHost:
     def read_hash(self, contract: str, binding: str, key):
         return self._lookup_key(self._make_key(contract, binding, _hash_key_args(key)))
 
-    def scan_hash_entries(self, contract: str, binding: str, prefix: str) -> list[tuple[str, Any]]:
+    def iter_hash_entries(self, contract: str, binding: str, prefix: str):
         base_key = self._make_key(contract, binding)
         full_prefix = f"{base_key}{constants.DELIMITER}"
         if prefix:
             full_prefix = f"{full_prefix}{prefix}{constants.DELIMITER}"
-
-        entries: list[tuple[str, Any]] = []
-        seen: set[str] = set()
         suffix_offset = len(base_key) + len(constants.DELIMITER)
+        for key, value in iter_overlay_items(
+            self._pending_writes, self.driver.iter_items(full_prefix), full_prefix
+        ):
+            yield key[suffix_offset:], value
 
-        for key, value in self._pending_writes.items():
-            if key.startswith(full_prefix):
-                seen.add(key)
-                if value is not None:
-                    entries.append((key[suffix_offset:], value))
-
-        for key, value in self.driver.items(prefix=full_prefix).items():
-            if key in seen:
-                continue
-            entries.append((key[suffix_offset:], value))
-
-        return entries
+    def scan_hash_entries(self, contract: str, binding: str, prefix: str) -> list[tuple[str, Any]]:
+        return list(self.iter_hash_entries(contract, binding, prefix))
 
     def get_owner(self, contract: str):
         return self._contract_var(contract, OWNER_KEY)

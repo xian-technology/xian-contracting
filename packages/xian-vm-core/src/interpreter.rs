@@ -59,10 +59,10 @@ const VM_GAS_EXPR_IF_EXPR: u64 = 96;
 const VM_GAS_EXPR_F_STRING: u64 = 96;
 const VM_GAS_EXPR_FORMATTED_VALUE: u64 = 96;
 
-#[path = "interpreter_support.rs"]
-mod support;
 #[path = "foreign_storage.rs"]
 mod foreign_storage;
+#[path = "interpreter_support.rs"]
+mod support;
 use crate::values::*;
 use support::*;
 
@@ -633,6 +633,25 @@ pub trait VmHost {
         _prefix: &str,
     ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
         Ok(Vec::new())
+    }
+
+    /// Return canonically ordered entries, charged before they are retained.
+    /// Native hosts override this to consume persistent state incrementally.
+    fn scan_hash_entries_metered(
+        &mut self,
+        contract: &str,
+        binding: &str,
+        prefix: &str,
+    ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
+        let mut entries = self.scan_hash_entries(contract, binding, prefix)?;
+        entries.sort_by(|a, b| a.0.cmp(&b.0));
+        let mut budget = crate::storage_scan::ScanBudget::default();
+        for (suffix, value) in &entries {
+            let key = hash_storage_key_from_normalized(contract, binding, suffix);
+            self.charge_storage_read(&key, value)?;
+            budget.observe(&key, value)?;
+        }
+        Ok(entries)
     }
 
     fn load_owner(&mut self, _contract: &str) -> Result<Option<String>, VmExecutionError> {
@@ -2308,8 +2327,12 @@ impl VmInstance {
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
         match syscall_id {
-            "storage.foreign_hash.new" => foreign_storage::new_reference("ForeignHash", args, kwargs),
-            "storage.foreign_variable.new" => foreign_storage::new_reference("ForeignVariable", args, kwargs),
+            "storage.foreign_hash.new" => {
+                foreign_storage::new_reference("ForeignHash", args, kwargs)
+            }
+            "storage.foreign_variable.new" => {
+                foreign_storage::new_reference("ForeignVariable", args, kwargs)
+            }
             "numeric.decimal.new" => {
                 if !kwargs.is_empty() || args.len() != 1 {
                     return Err(VmExecutionError::new("decimal() expects one argument"));
@@ -3584,7 +3607,7 @@ impl VmInstance {
             }
         };
 
-        let scanned = host.scan_hash_entries(&scan_contract, &scan_binding, &prefix)?;
+        let scanned = host.scan_hash_entries_metered(&scan_contract, &scan_binding, &prefix)?;
         let state = self.hashes.entry(state_key).or_insert_with(|| HashState {
             default_value: VmValue::None,
             entries: HashMap::new(),
@@ -3592,38 +3615,33 @@ impl VmInstance {
             snapshot_local: false,
             dirty_entries: HashSet::new(),
         });
-
-        let mut ordered_keys = Vec::new();
-        for (storage_key, value) in scanned {
-            if !ordered_keys.iter().any(|existing| existing == &storage_key) {
-                ordered_keys.push(storage_key.clone());
+        let mut ordered = scanned
+            .into_iter()
+            .collect::<std::collections::BTreeMap<_, _>>();
+        // Only snapshot-local/dirty values can supplement the host. Cached reads
+        // must not resurrect a tombstone written by a nested contract call.
+        for (key, value) in &state.entries {
+            if prefix_matches_hash_entry(key, &prefix)
+                && (state.snapshot_local || state.dirty_entries.contains(key))
+                && !ordered.contains_key(key)
+                && !matches!(value, VmValue::None)
+            {
+                charge_storage_read(
+                    host,
+                    &hash_storage_key_from_normalized(&scan_contract, &scan_binding, key),
+                    value,
+                )?;
+                ordered.insert(key.clone(), value.clone());
             }
-            state.entries.insert(storage_key, value);
         }
-
-        let mut local_only_keys = state
-            .entries
-            .keys()
-            .filter(|key| prefix_matches_hash_entry(key, &prefix))
-            .filter(|key| !ordered_keys.iter().any(|existing| existing == *key))
-            .cloned()
-            .collect::<Vec<_>>();
-        local_only_keys.sort();
-        ordered_keys.extend(local_only_keys);
-
+        let mut budget = crate::storage_scan::ScanBudget::default();
         let mut values = Vec::new();
-        for storage_key in ordered_keys {
-            let Some(value) = state.entries.get(&storage_key).cloned() else {
-                continue;
-            };
+        for (key, value) in ordered {
             if matches!(value, VmValue::None) {
                 continue;
             }
-            charge_storage_read(
-                host,
-                &hash_storage_key_from_normalized(&scan_contract, &scan_binding, &storage_key),
-                &value,
-            )?;
+            budget.observe(&key, &value)?;
+            state.entries.insert(key, value.clone());
             values.push(value);
         }
 

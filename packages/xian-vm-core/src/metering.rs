@@ -239,7 +239,7 @@ impl VmMeter {
     }
 }
 
-fn encode_vm_value(value: &VmValue) -> Result<Vec<u8>, VmExecutionError> {
+pub(crate) fn encode_vm_value(value: &VmValue) -> Result<Vec<u8>, VmExecutionError> {
     serde_json::to_vec(&vm_value_to_json(value)?)
         .map_err(|error| VmExecutionError::new(error.to_string()))
 }

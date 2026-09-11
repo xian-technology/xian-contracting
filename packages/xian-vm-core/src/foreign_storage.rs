@@ -96,18 +96,12 @@ pub(super) fn call_method(
             host.charge_execution_cost(VM_GAS_HASH_SCAN)?;
             let prefix = normalize_hash_prefix(&args)?;
             let entries =
-                host.scan_hash_entries(&reference.contract, &reference.binding, &prefix)?;
+                host.scan_hash_entries_metered(&reference.contract, &reference.binding, &prefix)?;
             let mut values = Vec::new();
-            for (suffix, value) in entries {
+            for (_, value) in entries {
                 if matches!(value, VmValue::None) {
                     continue;
                 }
-                let key = hash_storage_key_from_normalized(
-                    &reference.contract,
-                    &reference.binding,
-                    &suffix,
-                );
-                charge_storage_read(host, &key, &value)?;
                 values.push(value);
             }
             Ok(VmValue::List(values))

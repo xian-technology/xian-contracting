@@ -148,6 +148,18 @@ class LMDBStore:
 
         return keys, has_more
 
+    def iter_items(self, prefix: str = ""):
+        """Yield decoded entries in UTF-8 key order from one read snapshot."""
+        prefix_bytes = prefix.encode("utf-8")
+        with self._require_open().begin() as txn:
+            cursor = txn.cursor()
+            if not cursor.set_range(prefix_bytes):
+                return
+            for key_bytes, value_bytes in cursor:
+                if not key_bytes.startswith(prefix_bytes):
+                    break
+                yield key_bytes.decode("utf-8"), decode(value_bytes)
+
     def items(self, prefix: str = ""):
         prefix_bytes = prefix.encode("utf-8")
         items = {}
