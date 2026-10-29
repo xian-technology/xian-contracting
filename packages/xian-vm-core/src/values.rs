@@ -768,7 +768,9 @@ impl VmValue {
             ),
             Self::ContractHandle(handle) => format!("<contract:{}>", handle.module),
             Self::StorageRef(storage) => format!("<storage:{}>", storage.binding),
-            Self::ForeignStorageRef(storage) => format!("<foreign-storage:{}.{}>", storage.contract, storage.binding),
+            Self::ForeignStorageRef(storage) => {
+                format!("<foreign-storage:{}.{}>", storage.contract, storage.binding)
+            }
             Self::EventRef(event) => format!("<event:{}>", event.event_name),
             Self::Builtin(name) => format!("<builtin:{name}>"),
             Self::FunctionRef(name) => format!("<function:{name}>"),

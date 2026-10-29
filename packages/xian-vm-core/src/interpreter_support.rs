@@ -1105,7 +1105,9 @@ pub(super) fn crypto_ed25519_verify(
         Err(_) => return Ok(VmValue::Bool(false)),
     };
     Ok(VmValue::Bool(
-        verifying_key.verify(message.as_bytes(), &signature).is_ok(),
+        verifying_key
+            .verify_strict(message.as_bytes(), &signature)
+            .is_ok(),
     ))
 }
 
@@ -3268,4 +3270,75 @@ pub(super) fn as_object<'a>(
             serde_json::to_string(value).unwrap_or_else(|_| "<unserializable>".to_owned())
         ))
     })
+}
+
+#[cfg(test)]
+mod signature_security_tests {
+    use super::*;
+
+    #[test]
+    fn crypto_verify_rejects_small_order_identity_forgery() {
+        let identity = format!("01{}", "00".repeat(31));
+        let signature = format!("{}{}", identity, "00".repeat(32));
+        let result = crypto_ed25519_verify(
+            vec![
+                VmValue::String(identity),
+                VmValue::String("xian parity test".into()),
+                VmValue::String(signature),
+            ],
+            vec![],
+        )
+        .unwrap();
+        assert!(matches!(result, VmValue::Bool(false)));
+    }
+
+    #[test]
+    fn crypto_verify_accepts_rfc8032_vector() {
+        let result = crypto_ed25519_verify(
+            vec![
+                VmValue::String(
+                    "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a".into(),
+                ),
+                VmValue::String(String::new()),
+                VmValue::String(
+                    concat!(
+                        "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb",
+                        "8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"
+                    )
+                    .into(),
+                ),
+            ],
+            vec![],
+        )
+        .unwrap();
+        assert!(matches!(result, VmValue::Bool(true)));
+    }
+
+    #[test]
+    fn crypto_verify_rejects_small_and_mixed_order_signature_points() {
+        // Known-scalar signatures with R = identity or B plus order-four torsion.
+        for signature in [
+            concat!(
+                "0100000000000000000000000000000000000000000000000000000000000000",
+                "edaf87719b1f81c47646a414a04a0710b9c7ff5918a34e01e53c30bb2e2f5f00"
+            ),
+            concat!(
+                "5252cc0a7f208133b620acbd4537eba2a4123bf0a8c2e4f980c3b31bb69765ea7",
+                "e38ee9f538979938c47d1e0f5577a489466ef86883378ba092d0b1de2f59307"
+            ),
+        ] {
+            let result = crypto_ed25519_verify(
+                vec![
+                    VmValue::String(
+                        "d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737".into(),
+                    ),
+                    VmValue::String("xian parity test".into()),
+                    VmValue::String(signature.into()),
+                ],
+                vec![],
+            )
+            .unwrap();
+            assert!(matches!(result, VmValue::Bool(false)));
+        }
+    }
 }
