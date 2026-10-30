@@ -1,5 +1,9 @@
 use super::*;
 
+#[path = "dictionary.rs"]
+mod dictionary;
+pub(super) use dictionary::*;
+
 pub(super) fn builtin_name_value(name: &str) -> Option<VmValue> {
     match name {
         "len" | "range" | "str" | "bool" | "int" | "float" | "bytes" | "bytearray" | "dict"
@@ -1349,9 +1353,7 @@ pub(super) fn call_native_method(
                 if args.len() != 1 {
                     return Err(VmExecutionError::new("list.remove() expects one argument"));
                 }
-                let index = values
-                    .iter()
-                    .position(|value| value == &args[0])
+                let index = equal_position(values.iter(), &args[0])?
                     .ok_or_else(|| VmExecutionError::new("list.remove(x): x not in list"))?;
                 values.remove(index);
                 Ok(NativeMethodResult::Mutated {
@@ -1980,10 +1982,10 @@ pub(super) fn call_native_method(
             }
             "get" => match args.as_slice() {
                 [key] => Ok(NativeMethodResult::Value(
-                    dict_get(&entries, key).unwrap_or(VmValue::None),
+                    dict_get(&entries, key)?.unwrap_or(VmValue::None),
                 )),
                 [key, default] => Ok(NativeMethodResult::Value(
-                    dict_get(&entries, key).unwrap_or_else(|| default.clone()),
+                    dict_get(&entries, key)?.unwrap_or_else(|| default.clone()),
                 )),
                 _ => Err(VmExecutionError::new(
                     "dict.get() expects one or two arguments",
@@ -1992,7 +1994,7 @@ pub(super) fn call_native_method(
             "pop" => match args.as_slice() {
                 [key] => {
                     let mut entries = entries;
-                    let value = dict_pop(&mut entries, key).ok_or_else(|| {
+                    let value = dict_pop(&mut entries, key)?.ok_or_else(|| {
                         VmExecutionError::new(format!("missing dict key {}", key.python_repr()))
                     })?;
                     Ok(NativeMethodResult::Mutated {
@@ -2002,7 +2004,7 @@ pub(super) fn call_native_method(
                 }
                 [key, default] => {
                     let mut entries = entries;
-                    let value = dict_pop(&mut entries, key).unwrap_or_else(|| default.clone());
+                    let value = dict_pop(&mut entries, key)?.unwrap_or_else(|| default.clone());
                     Ok(NativeMethodResult::Mutated {
                         receiver: VmValue::Dict(entries),
                         value,
@@ -2112,12 +2114,10 @@ pub(super) fn compare_vm_values(
         (VmValue::Float(left), VmValue::Float(right)) => left
             .partial_cmp(right)
             .ok_or_else(|| VmExecutionError::new("cannot compare NaN values")),
-        (VmValue::Int(left), VmValue::Float(right)) => bigint_to_f64(left, "left int operand")?
-            .partial_cmp(right)
-            .ok_or_else(|| VmExecutionError::new("cannot compare NaN values")),
-        (VmValue::Float(left), VmValue::Int(right)) => left
-            .partial_cmp(&bigint_to_f64(right, "right int operand")?)
-            .ok_or_else(|| VmExecutionError::new("cannot compare NaN values")),
+        (VmValue::Int(left), VmValue::Float(right)) => compare_int_float(left, *right),
+        (VmValue::Float(left), VmValue::Int(right)) => {
+            Ok(compare_int_float(right, *left)?.reverse())
+        }
         (VmValue::String(left), VmValue::String(right)) => Ok(left.cmp(right)),
         (left, right) if bytes_like_data(left).is_some() && bytes_like_data(right).is_some() => {
             Ok(compare_bytes_like(
@@ -2130,6 +2130,25 @@ pub(super) fn compare_vm_values(
             left.type_name(),
             right.type_name()
         ))),
+    }
+}
+
+fn compare_int_float(integer: &BigInt, float: f64) -> Result<std::cmp::Ordering, VmExecutionError> {
+    use num_traits::FromPrimitive;
+    use std::cmp::Ordering;
+
+    // Converting the integer to f64 collapses distinct keys above 2**53.
+    if let Some(truncated) = BigInt::from_f64(float) {
+        let ordering = integer.cmp(&truncated);
+        if ordering != Ordering::Equal {
+            return Ok(ordering);
+        }
+        return Ok(0.0_f64.partial_cmp(&float.fract()).expect("finite float"));
+    }
+    match float {
+        f64::INFINITY => Ok(Ordering::Less),
+        f64::NEG_INFINITY => Ok(Ordering::Greater),
+        _ => Err(VmExecutionError::new("cannot compare NaN values")),
     }
 }
 
@@ -2190,13 +2209,10 @@ pub(super) fn vm_values_equal(left: &VmValue, right: &VmValue) -> Result<bool, V
                 return Ok(false);
             }
             for (left_key, left_value) in left {
-                let Some((_, right_value)) = right
-                    .iter()
-                    .find(|(right_key, _)| vm_values_equal(left_key, right_key).unwrap_or(false))
-                else {
+                let Some(right_value) = dict_get(right, left_key)? else {
                     return Ok(false);
                 };
-                if !vm_values_equal(left_value, right_value)? {
+                if !vm_values_equal(left_value, &right_value)? {
                     return Ok(false);
                 }
             }
@@ -2242,14 +2258,7 @@ pub(super) fn contains_value(
             }
             Ok(false)
         }
-        VmValue::Dict(entries) => {
-            for (key, _) in entries {
-                if vm_values_equal(key, needle)? {
-                    return Ok(true);
-                }
-            }
-            Ok(false)
-        }
+        VmValue::Dict(entries) => Ok(dict_get(entries, needle)?.is_some()),
         other => Err(VmExecutionError::new(format!(
             "membership is not supported for {}",
             other.type_name()
@@ -2290,7 +2299,7 @@ pub(super) fn assign_subscript(
             Ok(VmValue::List(values))
         }
         VmValue::Dict(mut entries) => {
-            dict_set(&mut entries, index.clone(), value);
+            dict_set(&mut entries, index.clone(), value)?;
             Ok(VmValue::Dict(entries))
         }
         VmValue::ByteArray(mut bytes) => {
@@ -2318,7 +2327,7 @@ pub(super) fn subscript_value(
             let idx = normalize_sequence_index(index, values.len())?;
             Ok(values[idx].clone())
         }
-        VmValue::Dict(entries) => dict_get(&entries, index).ok_or_else(|| {
+        VmValue::Dict(entries) => dict_get(&entries, index)?.ok_or_else(|| {
             VmExecutionError::new(format!("missing dict key {}", index.python_repr()))
         }),
         VmValue::String(value) => {
@@ -2513,26 +2522,6 @@ pub(super) fn slice_positions(
         index = index.saturating_add(step_value);
     }
     Ok(positions)
-}
-
-pub(super) fn dict_set(entries: &mut Vec<(VmValue, VmValue)>, key: VmValue, value: VmValue) {
-    if let Some(existing) = entries.iter_mut().find(|(entry_key, _)| *entry_key == key) {
-        existing.1 = value;
-        return;
-    }
-    entries.push((key, value));
-}
-
-pub(super) fn dict_get(entries: &[(VmValue, VmValue)], key: &VmValue) -> Option<VmValue> {
-    entries
-        .iter()
-        .find(|(entry_key, _)| entry_key == key)
-        .map(|(_, value)| value.clone())
-}
-
-pub(super) fn dict_pop(entries: &mut Vec<(VmValue, VmValue)>, key: &VmValue) -> Option<VmValue> {
-    let index = entries.iter().position(|(entry_key, _)| entry_key == key)?;
-    Some(entries.remove(index).1)
 }
 
 pub(super) fn substring_by_char_bounds(value: &str, start: usize, end: usize) -> String {
@@ -2860,9 +2849,10 @@ pub(super) fn normalize_event_payload(
                 )))
             }
         };
-        let value = dict_get(&payload_entries, &VmValue::String(key.clone())).ok_or_else(|| {
-            VmExecutionError::new(format!("event payload is missing key '{}'", key))
-        })?;
+        let value =
+            dict_get(&payload_entries, &VmValue::String(key.clone()))?.ok_or_else(|| {
+                VmExecutionError::new(format!("event payload is missing key '{}'", key))
+            })?;
         if event_param_is_indexed(schema_value) {
             data_indexed.push((key, value));
         } else {
@@ -2880,7 +2870,10 @@ pub(super) fn normalize_event_payload(
 pub(super) fn event_param_is_indexed(schema_value: &VmValue) -> bool {
     match schema_value {
         VmValue::Dict(entries) => {
-            dict_get(entries, &VmValue::String("idx".to_owned())) == Some(VmValue::Bool(true))
+            matches!(
+                dict_get(entries, &VmValue::String("idx".to_owned())),
+                Ok(Some(VmValue::Bool(true)))
+            )
         }
         _ => false,
     }

@@ -1,4 +1,6 @@
 from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
+from xian_runtime_types.decimal import ContractingDecimal
+import pytest
 
 
 def test_contracting_set_normalizes_and_deduplicates():
@@ -39,3 +41,22 @@ def test_contracting_set_rejects_unhashable_members():
         assert "unhashable type" in str(exc)
     else:
         raise AssertionError("expected unhashable values to be rejected")
+
+
+@pytest.mark.parametrize(
+    "left,right",
+    [
+        (True, 1),
+        (1, 1.0),
+        (1, ContractingDecimal("1")),
+        ((True,), (1,)),
+        (ContractingFrozenSet([True]), ContractingFrozenSet([1])),
+    ],
+)
+def test_equal_frozen_sets_are_interchangeable_dictionary_keys(left, right):
+    first, second = ContractingFrozenSet([left]), ContractingFrozenSet([right])
+    assert first == second
+    assert hash(first) == hash(second)
+    values = {first: "old", second: "new"}
+    assert len(values) == 1
+    assert values[first] == "new"

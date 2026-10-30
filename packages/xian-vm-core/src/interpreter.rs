@@ -1850,7 +1850,7 @@ impl VmInstance {
                             ));
                         };
                         for (key, value) in unpacked_entries {
-                            entries.push((key, value));
+                            dict_set(&mut entries, key, value)?;
                         }
                     } else {
                         let key = self.eval_expression(
@@ -1863,7 +1863,7 @@ impl VmInstance {
                             scope,
                             host,
                         )?;
-                        entries.push((key, value));
+                        dict_set(&mut entries, key, value)?;
                     }
                 }
                 Ok(VmValue::Dict(entries))
@@ -2062,7 +2062,7 @@ impl VmInstance {
             if index + 1 == generators.len() {
                 let dict_key = self.eval_expression(key, scope, host)?;
                 let dict_value = self.eval_expression(value, scope, host)?;
-                dict_set(results, dict_key, dict_value);
+                dict_set(results, dict_key, dict_value)?;
             } else {
                 self.eval_dict_comprehension_generator(
                     generators,
@@ -3186,7 +3186,11 @@ impl VmInstance {
                                     VmValue::List(values) | VmValue::Tuple(values)
                                         if values.len() == 2 =>
                                     {
-                                        entries.push((values[0].clone(), values[1].clone()));
+                                        dict_set(
+                                            &mut entries,
+                                            values[0].clone(),
+                                            values[1].clone(),
+                                        )?;
                                     }
                                     other => {
                                         return Err(VmExecutionError::new(format!(
@@ -3206,7 +3210,7 @@ impl VmInstance {
                     }
                 }
                 for (key, value) in kwargs {
-                    dict_set(&mut entries, VmValue::String(key), value);
+                    dict_set(&mut entries, VmValue::String(key), value)?;
                 }
                 Ok(VmValue::Dict(entries))
             }
@@ -5418,11 +5422,11 @@ mod tests {
             panic!("expected dict result");
         };
         assert_eq!(
-            dict_get(&entries, &VmValue::String("verified".to_owned())),
+            dict_get(&entries, &VmValue::String("verified".to_owned())).unwrap(),
             Some(VmValue::Bool(true))
         );
         assert_eq!(
-            dict_get(&entries, &VmValue::String("digest".to_owned())),
+            dict_get(&entries, &VmValue::String("digest".to_owned())).unwrap(),
             Some(VmValue::String("0x".to_owned() + &"ab".repeat(32)))
         );
         assert_eq!(host.syscalls.len(), 2);
@@ -5704,11 +5708,11 @@ mod tests {
             panic!("expected dict result");
         };
         assert_eq!(
-            dict_get(&entries, &VmValue::String("3".to_owned())),
+            dict_get(&entries, &VmValue::String("3".to_owned())).unwrap(),
             Some(vm_int(6))
         );
         assert_eq!(
-            dict_get(&entries, &VmValue::String("5".to_owned())),
+            dict_get(&entries, &VmValue::String("5".to_owned())).unwrap(),
             Some(vm_int(10))
         );
         assert_eq!(entries.len(), 2);
@@ -5832,12 +5836,11 @@ mod tests {
                     VmValue::String("symbol".to_owned()),
                     VmValue::String("XIAN".to_owned())
                 ),
-                (VmValue::String("value".to_owned()), vm_int(42)),
+                (VmValue::String("value".to_owned()), vm_int(77)),
                 (
                     VmValue::String("kind".to_owned()),
                     VmValue::String("price".to_owned())
                 ),
-                (VmValue::String("value".to_owned()), vm_int(77)),
             ])
         );
     }

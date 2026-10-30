@@ -74,6 +74,7 @@ UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" \
   --with ./packages/xian-vm-core \
   python -m pytest -q -m optional_native \
   tests/integration/test_vm_language_conformance.py \
+  tests/integration/test_vm_legacy_compatibility.py \
   tests/integration/test_vm_builtin_edges.py \
   tests/integration/test_vm_stateful_fuzz.py \
   tests/integration/test_vm_dynamic_foreign_storage.py \

@@ -44,7 +44,6 @@ def _canonical_key(value):
     if isinstance(value, bytes):
         return (8, value)
     if isinstance(value, tuple):
-        _ensure_hashable(value)
         return (9, tuple(_canonical_key(item) for item in value))
     if isinstance(value, ContractingFrozenSet):
         return (10, tuple(_canonical_key(item) for item in value))
@@ -247,7 +246,11 @@ class ContractingFrozenSet(_ContractingSetBase):
         object.__setattr__(
             self,
             "_hash",
-            hash(tuple(_canonical_key(item) for item in values)),
+            # Canonical ordering distinguishes True/1/1.0 even though set
+            # equality does not. Equal frozen sets must hash equally as dict
+            # keys. Cardinality is stable under all supported numeric equality
+            # rules (including ContractingDecimal's float coercion).
+            hash(len(values)),
         )
 
     def __repr__(self):
