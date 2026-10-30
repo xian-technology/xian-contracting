@@ -2743,10 +2743,12 @@ impl VmInstance {
                 Ok(VmValue::List(values))
             }
             "str" => {
-                if !kwargs.is_empty() || args.len() != 1 {
-                    return Err(VmExecutionError::new("str() expects one argument"));
+                if !kwargs.is_empty() || args.len() > 1 {
+                    return Err(VmExecutionError::new("str() expects at most one argument"));
                 }
-                Ok(VmValue::String(args[0].python_repr()))
+                Ok(VmValue::String(
+                    args.first().map(VmValue::python_repr).unwrap_or_default(),
+                ))
             }
             "bytes" => {
                 if !kwargs.is_empty() || args.len() > 3 {
@@ -2861,16 +2863,17 @@ impl VmInstance {
                 Ok(VmValue::FrozenSet(normalize_set_items(values)?))
             }
             "bool" => {
-                if !kwargs.is_empty() || args.len() != 1 {
-                    return Err(VmExecutionError::new("bool() expects one argument"));
+                if !kwargs.is_empty() || args.len() > 1 {
+                    return Err(VmExecutionError::new("bool() expects at most one argument"));
                 }
-                Ok(VmValue::Bool(args[0].truthy()))
+                Ok(VmValue::Bool(args.first().is_some_and(VmValue::truthy)))
             }
             "abs" => {
                 if !kwargs.is_empty() || args.len() != 1 {
                     return Err(VmExecutionError::new("abs() expects one argument"));
                 }
                 match &args[0] {
+                    VmValue::Bool(value) => Ok(vm_int(if *value { 1 } else { 0 })),
                     VmValue::Int(value) => Ok(VmValue::Int(value.abs())),
                     VmValue::Float(value) => Ok(VmValue::Float(value.abs())),
                     VmValue::Decimal(value) => Ok(VmValue::Decimal(VmDecimal::from_scaled(
@@ -2887,10 +2890,13 @@ impl VmInstance {
                 }
             }
             "int" => {
-                if !kwargs.is_empty() || args.is_empty() || args.len() > 2 {
+                if !kwargs.is_empty() || args.len() > 2 {
                     return Err(VmExecutionError::new(
-                        "int() expects one or two positional arguments",
+                        "int() expects at most two positional arguments",
                     ));
+                }
+                if args.is_empty() {
+                    return Ok(vm_int(0));
                 }
                 match (&args[0], args.get(1)) {
                     (VmValue::String(value), Some(base)) => {
@@ -3019,8 +3025,13 @@ impl VmInstance {
                 Ok(VmValue::String(format_builtin_value(&args[0], &spec)?))
             }
             "float" => {
-                if !kwargs.is_empty() || args.len() != 1 {
-                    return Err(VmExecutionError::new("float() expects one argument"));
+                if !kwargs.is_empty() || args.len() > 1 {
+                    return Err(VmExecutionError::new(
+                        "float() expects at most one argument",
+                    ));
+                }
+                if args.is_empty() {
+                    return Ok(VmValue::Float(0.0));
                 }
                 match &args[0] {
                     VmValue::Int(value) => {
@@ -3029,21 +3040,27 @@ impl VmInstance {
                     VmValue::Bool(value) => Ok(VmValue::Float(if *value { 1.0 } else { 0.0 })),
                     VmValue::Float(value) => Ok(VmValue::Float(*value)),
                     VmValue::Decimal(value) => Ok(VmValue::Float(value.to_f64()?)),
-                    VmValue::String(value) => {
-                        value.parse::<f64>().map(VmValue::Float).map_err(|_| {
+                    VmValue::String(value) => value
+                        .trim()
+                        .parse::<f64>()
+                        .map(VmValue::Float)
+                        .map_err(|_| {
                             VmExecutionError::new(format!("cannot convert '{value}' to float"))
-                        })
-                    }
+                        }),
                     VmValue::Bytes(value) | VmValue::ByteArray(value) => {
                         let rendered = String::from_utf8(value.clone()).map_err(|_| {
                             VmExecutionError::new("cannot convert non-text bytes to float")
                         })?;
-                        rendered.parse::<f64>().map(VmValue::Float).map_err(|_| {
-                            VmExecutionError::new(format!(
-                                "cannot convert '{}' to float",
-                                String::from_utf8_lossy(value)
-                            ))
-                        })
+                        rendered
+                            .trim_matches(|character: char| character.is_ascii_whitespace())
+                            .parse::<f64>()
+                            .map(VmValue::Float)
+                            .map_err(|_| {
+                                VmExecutionError::new(format!(
+                                    "cannot convert '{}' to float",
+                                    String::from_utf8_lossy(value)
+                                ))
+                            })
                     }
                     other => Err(VmExecutionError::new(format!(
                         "float() does not support {}",
@@ -3385,10 +3402,8 @@ impl VmInstance {
                 Ok(VmValue::List(values))
             }
             "zip" => {
-                if args.is_empty() || !kwargs.is_empty() {
-                    return Err(VmExecutionError::new(
-                        "zip() expects one or more positional arguments",
-                    ));
+                if !kwargs.is_empty() {
+                    return Err(VmExecutionError::new("zip() expects positional arguments"));
                 }
                 let iterables = args
                     .iter()
@@ -3429,6 +3444,7 @@ impl VmInstance {
                     ));
                 }
                 let digits = match args.get(1) {
+                    None | Some(VmValue::None) => None,
                     Some(value) => Some(
                         bigint_to_i64(&value.as_bigint()?, "round() ndigits")?
                             .try_into()
@@ -3436,7 +3452,6 @@ impl VmInstance {
                                 VmExecutionError::new("round() ndigits is out of supported range")
                             })?,
                     ),
-                    None => None,
                 };
                 round_builtin_value(&args[0], digits)
             }

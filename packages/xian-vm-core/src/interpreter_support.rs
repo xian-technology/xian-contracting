@@ -2476,8 +2476,13 @@ pub(super) fn slice_positions(
         } else if raw < 0 {
             raw = 0;
         }
-        if raw > length_value {
-            raw = length_value;
+        let maximum = if allow_negative_endpoint {
+            length_value - 1
+        } else {
+            length_value
+        };
+        if raw > maximum {
+            raw = maximum;
         }
         Ok(raw)
     };
@@ -2492,7 +2497,7 @@ pub(super) fn slice_positions(
                 usize::try_from(index)
                     .map_err(|_| VmExecutionError::new("slice position out of bounds"))?,
             );
-            index += step_value;
+            index = index.saturating_add(step_value);
         }
         return Ok(positions);
     }
@@ -2505,7 +2510,7 @@ pub(super) fn slice_positions(
             usize::try_from(index)
                 .map_err(|_| VmExecutionError::new("slice position out of bounds"))?,
         );
-        index += step_value;
+        index = index.saturating_add(step_value);
     }
     Ok(positions)
 }
@@ -3340,5 +3345,39 @@ mod signature_security_tests {
             .unwrap();
             assert!(matches!(result, VmValue::Bool(false)));
         }
+    }
+}
+
+#[cfg(test)]
+mod slice_boundary_tests {
+    use super::*;
+
+    #[test]
+    fn reverse_slice_clips_start_and_stop_to_last_element() {
+        assert_eq!(
+            slice_positions(3, Some(99.into()), None, Some((-1).into())).unwrap(),
+            vec![2, 1, 0]
+        );
+        assert_eq!(
+            slice_positions(0, Some(99.into()), None, Some((-1).into())).unwrap(),
+            Vec::<usize>::new()
+        );
+        assert_eq!(
+            slice_positions(3, Some(2.into()), Some(99.into()), Some((-1).into())).unwrap(),
+            Vec::<usize>::new()
+        );
+    }
+
+    #[test]
+    fn slice_step_does_not_wrap() {
+        assert_eq!(
+            slice_positions(3, Some(1.into()), None, Some(i64::MAX.into())).unwrap(),
+            vec![1]
+        );
+        assert_eq!(
+            slice_positions(3, None, None, Some(i64::MIN.into())).unwrap(),
+            vec![2]
+        );
+        assert!(slice_positions(3, None, None, Some(0.into())).is_err());
     }
 }

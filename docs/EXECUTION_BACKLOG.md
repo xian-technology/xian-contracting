@@ -4,15 +4,11 @@
 
 The default Xian network execution path is `xian_vm_v1`.
 
-`xian-contracting` still needs to remain:
-
-- pure Python
-- self-contained
-- easy to install as a standalone library
-- usable outside the full blockchain stack
-
-Those properties apply to the compiler, artifact builder, and local test
-harness. They do not imply a second network VM.
+`xian-contracting` remains usable as a standalone library outside the full
+blockchain stack. Compilation and artifact building require the canonical
+`xian-compiler-core` Rust package. The Python execution harness is a local
+development surface, not a second network VM or a guarantee of complete
+Python/native semantic parity.
 
 ## Local Harness Metering Backlog
 
