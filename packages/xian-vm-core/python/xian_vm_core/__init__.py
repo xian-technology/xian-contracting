@@ -32,6 +32,7 @@ from contracting.storage.ordered import iter_overlay_items
 from ._native import (
     VmIrValidationError,
     VmRuntimeExecutionError,
+    _TransactionBudget,
     execute_bundle,
     runtime_info_json,
     supports_execution_policy,
@@ -92,6 +93,7 @@ class NativeVmHost:
         vm_profile: str = "xian_vm_v1",
         entry_contract: str | None = None,
         meter_enabled: bool = False,
+        chi_budget_raw: int = 0,
         context: dict[str, Any] | None = None,
     ) -> None:
         self.driver = driver
@@ -100,6 +102,7 @@ class NativeVmHost:
         self._parsed_ir_cache: dict[str, dict[str, Any]] = {}
         self._entry_contract = entry_contract
         self._meter_enabled = meter_enabled
+        self._budget = _TransactionBudget(max(int(chi_budget_raw), 0))
         self._context = dict(context or {})
         self._pending_writes: dict[str, Any] = {}
         self._pending_events: list[dict[str, Any]] = []
@@ -147,6 +150,8 @@ class NativeVmHost:
             self._extra_contract_costs[target_contract] = (
                 self._extra_contract_costs.get(target_contract, 0) + raw_cost
             )
+        if self._meter_enabled:
+            self._budget.charge(raw_cost)
 
     def _add_raw_cost(self, raw_cost: int) -> None:
         raw_cost = int(raw_cost)
@@ -199,6 +204,10 @@ class NativeVmHost:
 
     def get_owner(self, contract: str):
         return self._contract_var(contract, OWNER_KEY)
+
+    def caller_is_owner(self, contract: str, caller: str | None) -> bool:
+        owner = self.get_owner(contract)
+        return owner is None or owner == caller
 
     def load_module_ir_json(self, module_name: str):
         cached = self._ir_cache.get(module_name)
@@ -323,24 +332,7 @@ class NativeVmHost:
         self._stage_write(key, value)
         self._charge_host_write(key, value, enforce_write_cap=False)
 
-    def _require_submission_metadata_context(self) -> None:
-        active_contract = self._context.get("this")
-        if not isinstance(active_contract, str) or active_contract == "":
-            return
-        if active_contract != constants.SUBMISSION_CONTRACT_NAME:
-            raise AssertionError("Contract metadata changes are restricted to submission.")
-
-    def _stage_contract_deploy(
-        self,
-        *,
-        name: str,
-        code: str | None,
-        owner: str | None,
-        constructor_args: dict | None,
-        developer: str | None,
-        deployer: str | None,
-        initiator: str | None,
-    ) -> None:
+    def _deployment_artifacts(self, name: str, code: str | None):
         assert_safe_contract_name(name)
         if self._contract_exists(name):
             raise VmRuntimeExecutionError("Contract already exists.")
@@ -362,6 +354,69 @@ class NativeVmHost:
         validate_module_ir(module_ir)
         self._reject_disabled_runtime_features(name, module_ir)
 
+        return source, vm_ir_json, module_ir
+
+    def _execute_constructor(self, name, module_ir, construct_name, context, constructor_args):
+        raw = execute_bundle(
+            json.dumps({name: module_ir}, separators=(",", ":"), sort_keys=True),
+            name,
+            construct_name,
+            [],
+            _coerce_external_call_kwargs(dict(constructor_args or {})),
+            context,
+            self,
+            meter=self._meter_enabled,
+            transaction_size_bytes=0,
+            budget=self._budget,
+        )
+        # Native execution already debited the shared budget. Keep its measured
+        # work and attribution even when construction fails and state rolls back.
+        self._extra_contract_costs = _merge_contract_costs(
+            self._extra_contract_costs,
+            dict(raw.get("contract_costs") or {}),
+        )
+        self._add_raw_cost(int(raw.get("raw_cost", 0)))
+        if int(raw["status_code"]) != 0:
+            raise VmRuntimeExecutionError(f"contract constructor failed: {raw['result']}")
+        return {
+            **_snapshots_to_writes(self.driver, raw["snapshots"]),
+            **dict(raw.get("storage_writes") or {}),
+        }, list(raw["events"])
+
+    def _run_constructor(self, name, module_ir, vm_ir_json, context, constructor_args):
+        caches = [
+            (self._ir_cache, self._ir_cache.get(name)),
+            (self._parsed_ir_cache, self._parsed_ir_cache.get(name)),
+        ]
+        self._ir_cache[name] = vm_ir_json
+        self._parsed_ir_cache[name] = module_ir
+        try:
+            construct_name = _construct_function_name(module_ir)
+            if construct_name is not None:
+                return self._execute_constructor(
+                    name, module_ir, construct_name, context, constructor_args
+                )
+            return {}, []
+        except Exception:
+            for cache, previous in caches:
+                if previous is None:
+                    cache.pop(name, None)
+                else:
+                    cache[name] = previous
+            raise
+
+    def _stage_contract_deploy(
+        self,
+        *,
+        name: str,
+        code: str | None,
+        owner: str | None,
+        constructor_args: dict | None,
+        developer: str | None,
+        deployer: str | None,
+        initiator: str | None,
+    ) -> None:
+        source, vm_ir_json, module_ir = self._deployment_artifacts(name, code)
         deployment_developer = developer or self._context.get("caller")
         deployment_deployer = deployer or self._context.get("caller")
         deployment_initiator = initiator or self._context.get("signer")
@@ -370,69 +425,25 @@ class NativeVmHost:
             raise VmRuntimeExecutionError(
                 "native contract deployment requires deterministic now context"
             )
-
-        constructor_writes: dict[str, Any] = {}
-        constructor_events: list[dict[str, Any]] = []
-        previous_ir = self._ir_cache.get(name)
-        previous_parsed_ir = self._parsed_ir_cache.get(name)
-        self._ir_cache[name] = vm_ir_json
-        self._parsed_ir_cache[name] = module_ir
-        try:
-            construct_name = _construct_function_name(module_ir)
-            if construct_name is not None:
-                constructor_context = {
-                    "signer": deployment_initiator,
-                    "caller": deployment_deployer,
-                    "this": name,
-                    "entry": self._context.get("entry"),
-                    "owner": owner,
-                    "submission_name": name,
-                    "now": self._context.get("now"),
-                    "block_num": self._context.get("block_num"),
-                    "block_hash": self._context.get("block_hash"),
-                    "chain_id": self._context.get("chain_id"),
-                }
-                raw = execute_bundle(
-                    json.dumps(
-                        {name: module_ir},
-                        separators=(",", ":"),
-                        sort_keys=True,
-                    ),
-                    name,
-                    construct_name,
-                    [],
-                    _coerce_external_call_kwargs(dict(constructor_args or {})),
-                    constructor_context,
-                    self,
-                    meter=self._meter_enabled,
-                    chi_budget_raw=0,
-                    transaction_size_bytes=0,
-                )
-                if int(raw["status_code"]) != 0:
-                    raise VmRuntimeExecutionError(f"contract constructor failed: {raw['result']}")
-                constructor_writes = {
-                    **_snapshots_to_writes(
-                        self.driver,
-                        raw["snapshots"],
-                    ),
-                    **dict(raw.get("storage_writes") or {}),
-                }
-                constructor_events = list(raw["events"])
-                self._extra_contract_costs = _merge_contract_costs(
-                    self._extra_contract_costs,
-                    dict(raw.get("contract_costs") or {}),
-                )
-                self._add_raw_cost(int(raw.get("raw_cost", 0)))
-        except Exception:
-            if previous_ir is None:
-                self._ir_cache.pop(name, None)
-            else:
-                self._ir_cache[name] = previous_ir
-            if previous_parsed_ir is None:
-                self._parsed_ir_cache.pop(name, None)
-            else:
-                self._parsed_ir_cache[name] = previous_parsed_ir
-            raise
+        constructor_context = {
+            "signer": deployment_initiator,
+            "caller": deployment_deployer,
+            "this": name,
+            "entry": self._context.get("entry"),
+            "owner": owner,
+            "submission_name": name,
+            "now": submitted_at,
+            "block_num": self._context.get("block_num"),
+            "block_hash": self._context.get("block_hash"),
+            "chain_id": self._context.get("chain_id"),
+        }
+        constructor_writes, constructor_events = self._run_constructor(
+            name,
+            module_ir,
+            vm_ir_json,
+            constructor_context,
+            constructor_args,
+        )
 
         metadata_writes = {
             self._make_key(name, SOURCE_KEY): source,
@@ -478,11 +489,9 @@ class NativeVmHost:
                 "submitted": self._contract_var(args[0], TIME_KEY),
             }
         if syscall_id == "contract.set_owner":
-            self._require_submission_metadata_context()
             self._stage_contract_metadata_write(args[0], OWNER_KEY, args[1])
             return None
         if syscall_id == "contract.set_developer":
-            self._require_submission_metadata_context()
             self._stage_contract_metadata_write(args[0], DEVELOPER_KEY, args[1])
             return None
         if syscall_id == "contract.deploy":
@@ -568,13 +577,15 @@ def execute_contract(
     chi_budget_raw: int = 0,
     transaction_size_bytes: int = 0,
 ) -> NativeExecutionResult:
+    context = dict(context or {})
     coerced_args = _coerce_external_call_args(args or [])
     coerced_kwargs = _coerce_external_call_kwargs(kwargs or {})
     host = NativeVmHost(
         driver,
         entry_contract=contract_name,
         meter_enabled=meter,
-        context=dict(context or {}),
+        chi_budget_raw=chi_budget_raw,
+        context=context,
     )
     module_ir = host.load_module_ir(contract_name)
     if module_ir is None:
@@ -584,8 +595,7 @@ def execute_contract(
         )
     # A contract with an owner may only be called by that owner, whether the
     # call comes from another contract or straight from a transaction.
-    owner = host.get_owner(contract_name)
-    if owner is not None and owner != (context or {}).get("caller"):
+    if not host.caller_is_owner(contract_name, context.get("caller")):
         return NativeExecutionResult(
             status_code=1,
             result=_coerce_native_error_result(1, 'Exception("Caller is not the owner!")'),
@@ -598,7 +608,7 @@ def execute_contract(
         )
     bundle_payload = {contract_name: module_ir}
     previous_env = dict(rt.env)
-    rt.env = {**previous_env, **dict(context or {}), "__Driver": driver}
+    rt.env = {**previous_env, **context, "__Driver": driver}
     random_bridge.clear_random_state()
     try:
         raw = execute_bundle(
@@ -607,11 +617,12 @@ def execute_contract(
             function_name,
             coerced_args,
             coerced_kwargs,
-            dict(context or {}),
+            context,
             host,
             meter=meter,
             chi_budget_raw=max(int(chi_budget_raw), 0),
             transaction_size_bytes=max(int(transaction_size_bytes), 0),
+            budget=host._budget,
         )
     finally:
         random_bridge.clear_random_state()
@@ -640,7 +651,7 @@ def execute_contract(
             raw_chi_used=int(raw.get("chi_used", 0)),
             raw_cost=int(raw.get("raw_cost", 0)),
             extra_raw_cost=host.extra_raw_cost,
-            chi_budget_raw=max(int(chi_budget_raw), 0),
+            chi_budget_raw=host._budget.limit,
         ),
         contract_costs=_merge_contract_costs(
             dict(raw.get("contract_costs") or {}),

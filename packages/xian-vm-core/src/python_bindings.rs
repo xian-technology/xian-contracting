@@ -18,6 +18,32 @@ use std::str::FromStr;
 create_exception!(xian_vm_core, VmIrValidationError, PyValueError);
 create_exception!(xian_vm_core, VmRuntimeExecutionError, PyValueError);
 
+#[pyclass(name = "_TransactionBudget")]
+struct PyTransactionBudget {
+    budget: crate::VmBudget,
+}
+
+#[pymethods]
+impl PyTransactionBudget {
+    #[new]
+    fn new(chi_budget_raw: u64) -> Self {
+        Self {
+            budget: crate::VmBudget::new(chi_budget_raw),
+        }
+    }
+
+    #[getter]
+    fn limit(&self) -> u64 {
+        self.budget.limit()
+    }
+
+    fn charge(&self, raw_cost: u64) -> PyResult<()> {
+        self.budget
+            .charge(raw_cost)
+            .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))
+    }
+}
+
 struct PythonBundleExecutor {
     host: Py<PyAny>,
     modules: HashMap<String, crate::ModuleIr>,
@@ -33,6 +59,7 @@ impl PythonBundleExecutor {
         host: Py<PyAny>,
         bundle_ir_json: &str,
         meter_config: VmMeterConfig,
+        budget: Option<crate::VmBudget>,
     ) -> Result<Self, VmExecutionError> {
         let parsed: JsonValue = serde_json::from_str(bundle_ir_json)
             .map_err(|error| VmExecutionError::new(error.to_string()))?;
@@ -54,7 +81,10 @@ impl PythonBundleExecutor {
             instances: HashMap::new(),
             storage_overlay: HashMap::new(),
             events: Vec::new(),
-            meter: crate::VmMeter::new(meter_config),
+            meter: match budget {
+                Some(budget) => crate::VmMeter::with_budget(meter_config, budget),
+                None => crate::VmMeter::new(meter_config),
+            },
             contract_call_count: 0,
         })
     }
@@ -1059,7 +1089,8 @@ fn validate_deployment_artifacts_json(
     *,
     meter=false,
     chi_budget_raw=0,
-    transaction_size_bytes=0
+    transaction_size_bytes=0,
+    budget=None
 ))]
 fn execute_bundle(
     py: Python<'_>,
@@ -1073,6 +1104,7 @@ fn execute_bundle(
     meter: bool,
     chi_budget_raw: u64,
     transaction_size_bytes: usize,
+    budget: Option<PyRef<'_, PyTransactionBudget>>,
 ) -> PyResult<Py<PyAny>> {
     let args = args.bind(py);
     let kwargs = kwargs.bind(py);
@@ -1105,6 +1137,7 @@ fn execute_bundle(
             chi_budget_raw,
             transaction_size_bytes,
         },
+        budget.map(|shared| shared.budget.clone()),
     )
     .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?;
     let result =
@@ -1114,6 +1147,7 @@ fn execute_bundle(
 
 #[pymodule]
 fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<PyTransactionBudget>()?;
     module.add("VmIrValidationError", py.get_type::<VmIrValidationError>())?;
     module.add(
         "VmRuntimeExecutionError",

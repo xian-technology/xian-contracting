@@ -106,3 +106,66 @@ def test_submission_still_deploys_contracts(client):
 
     assert output.status_code == 0, output.result
     assert "con_plain.__xian_ir_v1__" in output.writes
+
+
+@pytest.mark.parametrize("field", ["owner", "developer"])
+def test_contract_owner_can_change_metadata_through_submission(client, field):
+    source = f"""
+import submission
+@export
+def transfer():
+    submission.change_{field}(contract="con_target", new_{field}="bob")
+"""
+    driver = client.raw_driver
+    driver.set_contract_from_source("con_parent", source, owner=None)
+    driver.set_var("con_target", "__owner__", value="con_parent")
+    driver.set_var("con_target", "__developer__", value="con_parent")
+    driver.commit()
+    import xian_vm_core
+
+    output = xian_vm_core.execute_contract(
+        driver=driver,
+        contract_name="con_parent",
+        function_name="transfer",
+        kwargs={},
+        context=_context("con_parent"),
+        meter=True,
+        chi_budget_raw=5_000_000,
+    )
+    assert output.status_code == 0, output.result
+    assert output.writes[f"con_target.__{field}__"] == "bob"
+
+
+@pytest.mark.parametrize("field", ["owner", "developer"])
+def test_constructor_cannot_rewrite_other_contract_metadata(client, field):
+    source = f"""
+@construct
+def seed():
+    Contract.set_{field}("con_target", "mallory")
+@export
+def ping():
+    return 1
+"""
+    output = _submit(client.raw_driver, "con_attack", source)
+    assert output.status_code == 1
+    assert "restricted to submission" in str(output.result)
+    assert output.writes == {}
+
+
+def test_non_owner_cannot_change_owner_via_submission(client):
+    client.raw_driver.set_var("con_target", "__owner__", value="legitimate")
+    client.raw_driver.commit()
+    import xian_vm_core
+
+    output = xian_vm_core.execute_contract(
+        driver=client.raw_driver,
+        contract_name="submission",
+        function_name="change_owner",
+        kwargs={"contract": "con_target", "new_owner": "mallory"},
+        context=_context("submission"),
+        meter=True,
+        chi_budget_raw=5_000_000,
+    )
+    assert output.status_code == 1
+    assert "current owner" in str(output.result)
+    assert output.writes == {}

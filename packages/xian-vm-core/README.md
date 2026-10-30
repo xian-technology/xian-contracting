@@ -57,6 +57,20 @@ Execution coverage is intentionally narrow but real:
 
 It is a bounded execution slice, not the full executor.
 
+Contract ownership is enforced on both direct transactions and cross-contract
+calls. A non-null stored owner must match the immediate caller: the sender for
+an entry call, or the calling contract for a nested call. Unowned contracts
+remain publicly callable.
+
+Only the currently executing `submission` contract may deploy contracts or
+change owner/developer metadata. Constructors and other user contracts cannot
+invoke those privileged syscalls directly. An owning contract can call
+`submission.change_owner`; the submission contract still checks its immediate
+caller before applying the change. Developer changes use the same pattern.
+
+These ownership and metering rules affect transaction outcomes and charges.
+Validators must activate a runtime version with these rules together.
+
 The crate includes curated conformance fixtures generated from the current local
 harness. Those fixtures are checked from Rust so the VM can match actual
 contract behavior on a controlled contract subset alongside hand-written
@@ -64,6 +78,13 @@ executor tests.
 
 Metering covers both host-side data costs and VM execution:
 
+- one transaction budget is shared by the entry executor, host operations, and
+  every serial or nested constructor; starting a constructor never resets it
+- metered execution uses the supplied raw-chi budget capped at 50,000,000,000;
+  a zero budget uses that cap, while explicitly unmetered execution remains
+  available for trusted local tooling
+- failed execution discards writes and events but retains measured work and
+  contract cost attribution, including failed constructors
 - storage reads, writes, transaction bytes, and return-value bytes are charged
   directly in the VM host path
 - execution cost is driven by an explicit `xian_vm_v1` gas schedule over VM

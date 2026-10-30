@@ -4,6 +4,8 @@ use crate::{VmExecutionError, VmValue};
 use num_traits::ToPrimitive;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 const VM_READ_COST_PER_BYTE: u64 = 2;
 const VM_WRITE_COST_PER_BYTE: u64 = 25;
@@ -48,10 +50,46 @@ struct ContractMeterFrame {
     child_cost: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// One budget spans every executor and host operation in a transaction.
+#[derive(Debug, Clone)]
+pub(crate) struct VmBudget {
+    raw_cost: Arc<AtomicU64>,
+    limit: u64,
+}
+
+impl VmBudget {
+    pub(crate) fn new(chi_budget_raw: u64) -> Self {
+        Self {
+            raw_cost: Arc::new(AtomicU64::new(0)),
+            limit: match chi_budget_raw {
+                0 => VM_MAX_RAW_CHI,
+                budget => budget.min(VM_MAX_RAW_CHI),
+            },
+        }
+    }
+
+    pub(crate) fn limit(&self) -> u64 {
+        self.limit
+    }
+
+    pub(crate) fn charge(&self, cost: u64) -> Result<(), VmExecutionError> {
+        let previous = self
+            .raw_cost
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |raw| {
+                raw.checked_add(cost)
+            })
+            .map_err(|_| VmExecutionError::new("chi metering overflow"))?;
+        if previous + cost > self.limit {
+            return Err(VmExecutionError::new("Out of chi."));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
 pub(crate) struct VmMeter {
     enabled: bool,
-    chi_budget_raw: u64,
+    budget: VmBudget,
     transaction_size_bytes: usize,
     raw_cost: u64,
     written_bytes: usize,
@@ -62,9 +100,14 @@ pub(crate) struct VmMeter {
 
 impl VmMeter {
     pub(crate) fn new(config: VmMeterConfig) -> Self {
+        let budget = VmBudget::new(config.chi_budget_raw);
+        Self::with_budget(config, budget)
+    }
+
+    pub(crate) fn with_budget(config: VmMeterConfig, budget: VmBudget) -> Self {
         Self {
             enabled: config.enabled,
-            chi_budget_raw: config.chi_budget_raw,
+            budget,
             transaction_size_bytes: config.transaction_size_bytes,
             raw_cost: 0,
             written_bytes: 0,
@@ -196,13 +239,8 @@ impl VmMeter {
     }
 
     pub(crate) fn execution_stats(&self, contract_costs: HashMap<String, u64>) -> VmExecutionStats {
-        let mut chi_used = (self.raw_cost / 1_000) + VM_TRANSACTION_BASE_CHI;
-        if self.chi_budget_raw > 0 {
-            let chi_budget = self.chi_budget_raw / 1_000;
-            if self.raw_cost > VM_MAX_RAW_CHI || chi_used > chi_budget {
-                chi_used = chi_budget;
-            }
-        }
+        let chi_used =
+            ((self.raw_cost / 1_000) + VM_TRANSACTION_BASE_CHI).min(self.budget.limit() / 1_000);
         VmExecutionStats {
             raw_cost: self.raw_cost,
             chi_used,
@@ -218,10 +256,7 @@ impl VmMeter {
             .raw_cost
             .checked_add(cost)
             .ok_or_else(|| VmExecutionError::new("chi metering overflow"))?;
-        if self.chi_budget_raw > 0 && self.raw_cost > self.chi_budget_raw {
-            return Err(VmExecutionError::new("Out of chi."));
-        }
-        Ok(())
+        self.budget.charge(cost)
     }
 
     fn finalize_contract_meter_frame(&mut self) {
@@ -385,8 +420,9 @@ fn python_timedelta_parts(raw_seconds: i64) -> (i64, i64) {
 #[cfg(test)]
 mod tests {
     use super::{
-        VmMeter, VmMeterConfig, VM_GAS_CROSS_CONTRACT_CALL_BASE, VM_GAS_CROSS_CONTRACT_CALL_REPEAT,
-        VM_TRANSACTION_BASE_CHI, VM_TRANSACTION_BASE_CHI_RAW,
+        VmBudget, VmMeter, VmMeterConfig, VM_GAS_CROSS_CONTRACT_CALL_BASE,
+        VM_GAS_CROSS_CONTRACT_CALL_REPEAT, VM_MAX_RAW_CHI, VM_TRANSACTION_BASE_CHI,
+        VM_TRANSACTION_BASE_CHI_RAW,
     };
 
     #[test]
@@ -416,5 +452,50 @@ mod tests {
     fn cross_contract_dispatch_keeps_fixed_cost_without_repeat_surcharge() {
         assert_eq!(VM_GAS_CROSS_CONTRACT_CALL_BASE, 10_000);
         assert_eq!(VM_GAS_CROSS_CONTRACT_CALL_REPEAT, 0);
+    }
+
+    #[test]
+    fn zero_and_oversized_budgets_enforce_the_vm_maximum() {
+        for supplied in [0, VM_MAX_RAW_CHI * 2] {
+            let mut meter = VmMeter::new(VmMeterConfig {
+                enabled: true,
+                chi_budget_raw: supplied,
+                transaction_size_bytes: 0,
+            });
+            assert!(meter.charge(VM_MAX_RAW_CHI).is_ok());
+            assert!(meter.charge(1).is_err());
+            assert_eq!(
+                meter.execution_stats(Default::default()).chi_used,
+                VM_MAX_RAW_CHI / 1000
+            );
+        }
+    }
+
+    #[test]
+    fn nested_meters_and_host_costs_share_one_budget() {
+        let budget = VmBudget::new(25_000);
+        let config = VmMeterConfig {
+            enabled: true,
+            chi_budget_raw: 25_000,
+            transaction_size_bytes: 0,
+        };
+        let mut parent = VmMeter::with_budget(config.clone(), budget.clone());
+        let mut child = VmMeter::with_budget(config, budget.clone());
+        parent.charge(10_000).unwrap();
+        child.charge(10_000).unwrap();
+        budget.charge(5_000).unwrap();
+        assert!(parent.charge(1).is_err());
+        assert_eq!(parent.raw_cost, 10_001);
+        assert_eq!(child.raw_cost, 10_000);
+    }
+
+    #[test]
+    fn budget_overflow_is_rejected() {
+        let budget = VmBudget::new(0);
+        assert!(budget.charge(u64::MAX).is_err());
+        assert_eq!(
+            budget.charge(1).unwrap_err().to_string(),
+            "chi metering overflow"
+        );
     }
 }

@@ -12,6 +12,10 @@ This file records the runtime properties that must hold before a
   into stored state.
 - Submission metadata and validator-derived VM IR must stay deterministic for
   the same source input.
+- A stored contract owner must match the immediate caller at both transaction
+  entry and nested contract calls.
+- Only the executing submission contract may invoke deployment and metadata
+  mutation syscalls; constructors do not inherit submission's authority.
 
 ## Signature Verification
 
@@ -32,6 +36,11 @@ This file records the runtime properties that must hold before a
   validators.
 - Native helper paths may over-charge conservatively, but they must not
   under-meter.
+- Entry execution, host costs, and serial or nested constructors share one
+  transaction budget. Zero and oversized metered budgets remain capped at
+  50,000,000,000 raw chi.
+- Failure rolls back state, not the cost of work already performed. Failed
+  constructor costs remain in the transaction's charge and attribution.
 
 ## VM Conformance
 
