@@ -1056,14 +1056,21 @@ pub(super) fn time_datetime_new(
     args: Vec<VmValue>,
     kwargs: Vec<(String, VmValue)>,
 ) -> Result<VmValue, VmExecutionError> {
-    let year = positional_or_keyword_i64(&args, &kwargs, 0, "year")?;
-    let month = positional_or_keyword_i64(&args, &kwargs, 1, "month")?;
-    let day = positional_or_keyword_i64(&args, &kwargs, 2, "day")?;
-    let hour = optional_positional_or_keyword_i64(&args, &kwargs, 3, "hour")?.unwrap_or(0);
-    let minute = optional_positional_or_keyword_i64(&args, &kwargs, 4, "minute")?.unwrap_or(0);
-    let second = optional_positional_or_keyword_i64(&args, &kwargs, 5, "second")?.unwrap_or(0);
-    let microsecond =
-        optional_positional_or_keyword_i64(&args, &kwargs, 6, "microsecond")?.unwrap_or(0);
+    let [year, month, day, hour, minute, second, microsecond] = time_arguments(
+        args,
+        kwargs,
+        [
+            "year",
+            "month",
+            "day",
+            "hour",
+            "minute",
+            "second",
+            "microsecond",
+        ],
+        3,
+        datetime_component,
+    )?;
     Ok(VmValue::DateTime(VmDateTime::new(
         year,
         month,
@@ -1093,11 +1100,13 @@ pub(super) fn time_timedelta_new(
     args: Vec<VmValue>,
     kwargs: Vec<(String, VmValue)>,
 ) -> Result<VmValue, VmExecutionError> {
-    let weeks = optional_positional_or_keyword_i64(&args, &kwargs, 0, "weeks")?.unwrap_or(0);
-    let days = optional_positional_or_keyword_i64(&args, &kwargs, 1, "days")?.unwrap_or(0);
-    let hours = optional_positional_or_keyword_i64(&args, &kwargs, 2, "hours")?.unwrap_or(0);
-    let minutes = optional_positional_or_keyword_i64(&args, &kwargs, 3, "minutes")?.unwrap_or(0);
-    let seconds = optional_positional_or_keyword_i64(&args, &kwargs, 4, "seconds")?.unwrap_or(0);
+    let [weeks, days, hours, minutes, seconds] = time_arguments(
+        args,
+        kwargs,
+        ["weeks", "days", "hours", "minutes", "seconds"],
+        0,
+        timedelta_component,
+    )?;
     Ok(VmValue::TimeDelta(VmTimeDelta::new(
         weeks, days, hours, minutes, seconds,
     )?))
@@ -1268,29 +1277,61 @@ pub(super) fn crypto_key_is_valid(
     ))
 }
 
-pub(super) fn positional_or_keyword_i64(
-    args: &[VmValue],
-    kwargs: &[(String, VmValue)],
-    index: usize,
-    name: &str,
-) -> Result<i64, VmExecutionError> {
-    optional_positional_or_keyword_i64(args, kwargs, index, name)?
-        .ok_or_else(|| VmExecutionError::new(format!("missing required argument '{name}'")))
+fn time_arguments<const N: usize>(
+    args: Vec<VmValue>,
+    kwargs: Vec<(String, VmValue)>,
+    names: [&str; N],
+    required: usize,
+    convert: fn(&VmValue) -> Result<i64, VmExecutionError>,
+) -> Result<[i64; N], VmExecutionError> {
+    if args.len() > N {
+        return Err(VmExecutionError::new("too many time constructor arguments"));
+    }
+    let mut bound: [Option<VmValue>; N] = std::array::from_fn(|_| None);
+    for (index, value) in args.into_iter().enumerate() {
+        bound[index] = Some(value);
+    }
+    bind_time_keywords(&mut bound, &names, kwargs)?;
+    if bound[..required].iter().any(Option::is_none) {
+        return Err(VmExecutionError::new("missing time constructor argument"));
+    }
+    let mut result = [0; N];
+    for (index, value) in bound.into_iter().enumerate() {
+        if let Some(value) = value {
+            result[index] = convert(&value)?;
+        }
+    }
+    Ok(result)
 }
 
-pub(super) fn optional_positional_or_keyword_i64(
-    args: &[VmValue],
-    kwargs: &[(String, VmValue)],
-    index: usize,
-    name: &str,
-) -> Result<Option<i64>, VmExecutionError> {
-    if let Some(value) = args.get(index) {
-        return Ok(Some(value.as_i64()?));
+fn bind_time_keywords<const N: usize>(
+    bound: &mut [Option<VmValue>; N],
+    names: &[&str; N],
+    kwargs: Vec<(String, VmValue)>,
+) -> Result<(), VmExecutionError> {
+    for (name, value) in kwargs {
+        let index = names
+            .iter()
+            .position(|candidate| *candidate == name)
+            .ok_or_else(|| VmExecutionError::new("unknown time constructor argument"))?;
+        if bound[index].replace(value).is_some() {
+            return Err(VmExecutionError::new("duplicate time constructor argument"));
+        }
     }
-    if let Some((_, value)) = kwargs.iter().find(|(key, _)| key == name) {
-        return Ok(Some(value.as_i64()?));
+    Ok(())
+}
+
+fn datetime_component(value: &VmValue) -> Result<i64, VmExecutionError> {
+    if !matches!(value.snapshot(), VmValue::Int(_) | VmValue::Bool(_)) {
+        return Err(VmExecutionError::new(
+            "datetime components must be integers",
+        ));
     }
-    Ok(None)
+    value.as_i64()
+}
+
+fn timedelta_component(value: &VmValue) -> Result<i64, VmExecutionError> {
+    numeric_text::int_value(vec![value.clone()], vec![])?.as_i64()
 }
 
 pub(super) fn format_builtin_value(
@@ -1414,6 +1455,7 @@ pub(super) fn render_simple_format(
     let mut rendered = String::new();
     let mut chars = template.chars().peekable();
     let mut next_arg = 0usize;
+    let mut automatic_numbering = None;
 
     while let Some(ch) = chars.next() {
         match ch {
@@ -1435,7 +1477,14 @@ pub(super) fn render_simple_format(
                     token.push(inner);
                 }
 
-                let index = if token.is_empty() {
+                let automatic = token.is_empty();
+                if automatic_numbering.is_some_and(|previous| previous != automatic) {
+                    return Err(VmExecutionError::new(
+                        "cannot mix automatic and manual field numbering",
+                    ));
+                }
+                automatic_numbering = Some(automatic);
+                let index = if automatic {
                     let index = next_arg;
                     next_arg += 1;
                     index
@@ -2118,7 +2167,8 @@ pub(super) fn split_string(
             Ok(parts)
         }
         None => {
-            let mut remaining = value.trim_start_matches(char::is_whitespace);
+            let mut remaining =
+                value.trim_start_matches(native_methods::unicode_strings::is_whitespace);
             if remaining.is_empty() {
                 return Ok(Vec::new());
             }
@@ -2131,7 +2181,7 @@ pub(super) fn split_string(
             while !remaining.is_empty() && maxsplit.is_none_or(|limit| splits < limit) {
                 let start = remaining
                     .char_indices()
-                    .find(|(_, ch)| !ch.is_whitespace())
+                    .find(|(_, ch)| !native_methods::unicode_strings::is_whitespace(*ch))
                     .map(|(index, _)| index)
                     .unwrap_or(remaining.len());
                 remaining = &remaining[start..];
@@ -2141,7 +2191,7 @@ pub(super) fn split_string(
 
                 let boundary = remaining
                     .char_indices()
-                    .find(|(_, ch)| ch.is_whitespace())
+                    .find(|(_, ch)| native_methods::unicode_strings::is_whitespace(*ch))
                     .map(|(index, _)| index)
                     .unwrap_or(remaining.len());
                 if boundary == remaining.len() {
@@ -2151,7 +2201,8 @@ pub(super) fn split_string(
 
                 parts.push(remaining[..boundary].to_owned());
                 remaining = &remaining[boundary..];
-                remaining = remaining.trim_start_matches(char::is_whitespace);
+                remaining =
+                    remaining.trim_start_matches(native_methods::unicode_strings::is_whitespace);
                 splits += 1;
             }
             if !remaining.is_empty() {
@@ -2193,39 +2244,6 @@ pub(super) fn type_matches_name(value: &VmValue, name: &str) -> bool {
         "frozenset" => matches!(value, VmValue::FrozenSet(_)),
         _ => false,
     }
-}
-
-pub(super) fn issubclass_matches(
-    candidate: &VmValue,
-    target: &VmValue,
-) -> Result<bool, VmExecutionError> {
-    let candidate_names = type_marker_names(candidate)?;
-    let target_names = type_marker_names(target)?;
-    Ok(candidate_names.iter().any(|candidate_name| {
-        target_names
-            .iter()
-            .any(|target_name| subclass_matches_name(candidate_name, target_name))
-    }))
-}
-
-fn type_marker_names(value: &VmValue) -> Result<Vec<String>, VmExecutionError> {
-    let value = &value.snapshot();
-    match value {
-        VmValue::TypeMarker(name) | VmValue::Builtin(name) => Ok(vec![name.clone()]),
-        VmValue::Tuple(markers) => markers
-            .iter()
-            .map(type_marker_names)
-            .collect::<Result<Vec<_>, _>>()
-            .map(|groups| groups.into_iter().flatten().collect()),
-        other => Err(VmExecutionError::new(format!(
-            "issubclass() arg 1 must be a class or tuple of classes, got {}",
-            other.type_name()
-        ))),
-    }
-}
-
-fn subclass_matches_name(candidate: &str, target: &str) -> bool {
-    candidate == target || target == "Any" || matches!((candidate, target), ("bool", "int"))
 }
 
 pub(super) fn ascii_render(value: &str) -> String {

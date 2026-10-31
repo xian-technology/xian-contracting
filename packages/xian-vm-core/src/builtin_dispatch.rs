@@ -1,6 +1,9 @@
 //! Dispatch builtins while preserving shared argument identity where required.
 use super::*;
 
+#[path = "type_checks.rs"]
+mod type_checks;
+
 impl VmInstance {
     pub(super) fn call_builtin(
         &mut self,
@@ -37,6 +40,7 @@ impl VmInstance {
             .map(|(k, v)| (k, v.snapshot()))
             .collect::<Vec<_>>();
         match name {
+            "datetime.datetime.strptime" => time_datetime_strptime(args, kwargs),
             "len" => self.builtin_len(args, kwargs),
             "range" => self.builtin_range(args, kwargs),
             "str" => self.builtin_str(args, kwargs, shared_args),
@@ -78,7 +82,10 @@ impl VmInstance {
                         "isinstance() expects two positional arguments",
                     ));
                 }
-                Ok(VmValue::Bool(type_matches(&args[0], &args[1])))
+                Ok(VmValue::Bool(type_checks::isinstance(
+                    &shared_args[0],
+                    &shared_args[1],
+                )?))
             }
             "issubclass" => {
                 if args.len() != 2 || !kwargs.is_empty() {
@@ -86,7 +93,10 @@ impl VmInstance {
                         "issubclass() expects two positional arguments",
                     ));
                 }
-                Ok(VmValue::Bool(issubclass_matches(&args[0], &args[1])?))
+                Ok(VmValue::Bool(type_checks::issubclass(
+                    &shared_args[0],
+                    &shared_args[1],
+                )?))
             }
             "round" => rounding::call(&args, &kwargs),
             other => Err(VmExecutionError::new(format!(
@@ -167,7 +177,7 @@ impl VmInstance {
         Ok(VmValue::String(
             shared_args
                 .first()
-                .map(VmValue::try_python_repr)
+                .map(|value| public_string(value, 0))
                 .transpose()?
                 .unwrap_or_default(),
         ))
@@ -395,6 +405,9 @@ impl VmInstance {
         };
         if matches!(args[0], VmValue::RawDecimal(_)) {
             host.charge_execution_cost(crate::VmRawDecimal::format_work_cost(&spec)?)?;
+        }
+        if spec.is_empty() && matches!(args[0], VmValue::Exception(_)) {
+            return Ok(VmValue::String(public_string(&args[0], 0)?));
         }
         Ok(VmValue::String(format_builtin_value(&args[0], &spec)?))
     }
@@ -646,5 +659,65 @@ impl VmInstance {
             }
         }
         Ok(VmValue::Bool(name == "all"))
+    }
+}
+
+// Exception.__str__ uses its argument payload; repr/ascii retain the class name.
+fn public_string(value: &VmValue, depth: usize) -> Result<String, VmExecutionError> {
+    if depth > 128 {
+        return Err(VmExecutionError::new(
+            "exception string traversal limit exceeded",
+        ));
+    }
+    if let VmValue::Reference(reference) = value {
+        if reference.with_value(|inner| matches!(inner, VmValue::Exception(_))) {
+            return reference.with_value(|inner| public_string(inner, depth));
+        }
+        // Keep the root identity so the renderer recognizes recursive containers.
+        return value.try_python_repr();
+    }
+    match value {
+        VmValue::Exception(exception) => match exception.args.as_slice() {
+            [] => Ok(String::new()),
+            [argument] => public_string(argument, depth + 1),
+            arguments => VmValue::Tuple(arguments.to_vec()).try_python_repr(),
+        },
+        _ => value.try_python_repr(),
+    }
+}
+
+#[cfg(test)]
+mod public_string_tests {
+    use super::*;
+
+    fn exception(args: Vec<VmValue>) -> VmValue {
+        VmValue::Exception(VmException {
+            name: "Exception".into(),
+            args,
+        })
+    }
+
+    #[test]
+    fn exception_strings_use_argument_payloads_and_preserve_repr() {
+        let message = VmValue::String("problem".into());
+        let one = exception(vec![message.clone()]);
+        assert_eq!(public_string(&exception(vec![]), 0).unwrap(), "");
+        assert_eq!(public_string(&one, 0).unwrap(), "problem");
+        assert_eq!(one.try_python_repr().unwrap(), "Exception('problem')");
+        assert_eq!(public_string(&exception(vec![one]), 0).unwrap(), "problem");
+        assert_eq!(
+            public_string(&exception(vec![message, vm_int(3)]), 0).unwrap(),
+            "('problem', 3)"
+        );
+    }
+
+    #[test]
+    fn exception_string_depth_accepts_the_limit_and_rejects_more() {
+        let mut value = VmValue::String("end".into());
+        for _ in 0..128 {
+            value = exception(vec![value]);
+        }
+        assert_eq!(public_string(&value, 0).unwrap(), "end");
+        assert!(public_string(&exception(vec![value]), 0).is_err());
     }
 }

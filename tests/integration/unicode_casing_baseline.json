@@ -1,0 +1,81 @@
+{
+  "python": "3.12.10",
+  "unicode": "15.0.0",
+  "cases": [
+    {
+      "text": "\u1c89\u1c8a",
+      "lower": "\u1c89\u1c8a",
+      "upper": "\u1c89\u1c8a"
+    },
+    {
+      "text": "\u039f\u03a3",
+      "lower": "\u03bf\u03c2",
+      "upper": "\u039f\u03a3"
+    },
+    {
+      "text": "\u039f\u03a3\u0391",
+      "lower": "\u03bf\u03c3\u03b1",
+      "upper": "\u039f\u03a3\u0391"
+    },
+    {
+      "text": "A\u03a3\u0345",
+      "lower": "a\u03c2\u0345",
+      "upper": "A\u03a3\u0399"
+    },
+    {
+      "text": "A\u03a3\u0345A",
+      "lower": "a\u03c3\u0345a",
+      "upper": "A\u03a3\u0399A"
+    },
+    {
+      "text": "A\u0345\u03a3",
+      "lower": "a\u0345\u03c2",
+      "upper": "A\u0399\u03a3"
+    },
+    {
+      "text": "\u0345\u03a3",
+      "lower": "\u0345\u03c3",
+      "upper": "\u0399\u03a3"
+    },
+    {
+      "text": "\u01c5\u03a3",
+      "lower": "\u01c6\u03c2",
+      "upper": "\u01c4\u03a3"
+    },
+    {
+      "text": "\u4e2d\u03a3",
+      "lower": "\u4e2d\u03c3",
+      "upper": "\u4e2d\u03a3"
+    },
+    {
+      "text": "A'\u03a3",
+      "lower": "a'\u03c2",
+      "upper": "A'\u03a3"
+    },
+    {
+      "text": "A\u03a3'A",
+      "lower": "a\u03c3'a",
+      "upper": "A\u03a3'A"
+    },
+    {
+      "text": "\u00df\ufb03\u0130",
+      "lower": "\u00df\ufb03i\u0307",
+      "upper": "SSFFI\u0130"
+    },
+    {
+      "text": "A\u200d\u03a3",
+      "lower": "a\u200d\u03c2",
+      "upper": "A\u200d\u03a3"
+    },
+    {
+      "text": "A\u03a3\u200dA",
+      "lower": "a\u03c3\u200da",
+      "upper": "A\u03a3\u200dA"
+    },
+    {
+      "text": "A\u03a3 \u4e2d",
+      "lower": "a\u03c2 \u4e2d",
+      "upper": "A\u03a3 \u4e2d"
+    }
+  ]
+}

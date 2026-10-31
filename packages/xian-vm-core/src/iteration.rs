@@ -103,6 +103,29 @@ pub struct VmIterator {
 }
 
 impl VmIterator {
+    pub(crate) fn matches_public_class(&self, name: &str) -> bool {
+        match &self.kind {
+            Kind::Map { .. } => name == "map",
+            Kind::Filter { .. } => name == "filter",
+            Kind::Zip { .. } => name == "zip",
+            Kind::Sequence {
+                source,
+                reverse: true,
+                ..
+            } if name == "reversed" => {
+                // list.__reversed__ returns its own iterator class. Generic
+                // reversed(str/tuple/bytes/bytearray) instances use reversed.
+                match source {
+                    VmValue::Reference(reference) => {
+                        reference.with_value(|value| !matches!(value, VmValue::List(_)))
+                    }
+                    value => !matches!(value, VmValue::List(_)),
+                }
+            }
+            _ => false,
+        }
+    }
+
     pub(crate) fn allocation_bytes(&self) -> usize {
         std::mem::size_of::<Self>()
             + match &self.kind {

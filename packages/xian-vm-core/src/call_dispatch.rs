@@ -31,8 +31,9 @@ impl VmInstance {
             "module.datetime" => Ok(VmValue::Builtin("datetime".to_owned())),
             "module.random" => Ok(VmValue::Builtin("random".to_owned())),
             "module.zk" => Ok(VmValue::Builtin("zk".to_owned())),
-            "time.datetime.new" | "time.datetime.strptime" => {
-                Ok(VmValue::TypeMarker("datetime.datetime".to_owned()))
+            "time.datetime.new" => Ok(VmValue::TypeMarker("datetime.datetime".to_owned())),
+            "time.datetime.strptime" => {
+                Ok(VmValue::Builtin("datetime.datetime.strptime".to_owned()))
             }
             "time.timedelta.new" => Ok(VmValue::TypeMarker("datetime.timedelta".to_owned())),
             "time.seconds" => Ok(VmValue::TimeDelta(VmTimeDelta::new(0, 0, 0, 0, 1)?)),
@@ -157,6 +158,17 @@ impl VmInstance {
                 method, &receiver, &args, &kwargs,
             ))?;
             return crate::decimal_methods::call(receiver, method, args, kwargs);
+        }
+        if method == "strptime" && matches!(receiver.snapshot(), VmValue::DateTime(_)) {
+            return time_datetime_strptime(args, kwargs);
+        }
+        if method == "copy" && matches!(receiver.snapshot(), VmValue::FrozenSet(_)) {
+            if !args.is_empty() || !kwargs.is_empty() {
+                return Err(VmExecutionError::new(
+                    "frozenset.copy() expects no arguments",
+                ));
+            }
+            return Ok(receiver);
         }
         if matches!(
             method,

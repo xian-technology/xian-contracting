@@ -33,11 +33,13 @@ def test_cyclic_or_exponential_values_are_bounded(tmp_path, sink):
     assert any(word in output["diagnostic"] for word in ("cyclic", "limit")), output
 
 
-def test_cycles_can_be_used_and_rendered_inside_execution(tmp_path):
+@pytest.mark.parametrize("render", ["str(a)", "str(Exception(a))"])
+def test_cycles_can_be_used_and_rendered_inside_execution(tmp_path, render):
     output = run_case(
         {
             "id": "cycle",
-            "source": "@export\ndef probe():\n    a = []\n    a.append(a)\n    return [a is a[0], a == a, str(a)]\n",
+            "source": "@export\ndef probe():\n    a = []\n    a.append(a)\n"
+            f"    return [a is a[0], a == a, {render}]\n",
         },
         tmp_path,
         native=True,

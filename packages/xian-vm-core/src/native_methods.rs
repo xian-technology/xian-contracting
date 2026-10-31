@@ -1,6 +1,9 @@
 //! Native receiver methods; mutation is returned for the caller to apply.
 use super::*;
 
+#[path = "unicode_strings.rs"]
+pub(super) mod unicode_strings;
+
 #[cfg(test)]
 pub(in crate::interpreter) fn call_native_method_with(
     receiver: VmValue,
@@ -179,13 +182,13 @@ fn call_string_method(
     match method {
         "upper" => match args.as_slice() {
             [] => Ok(NativeMethodResult::Value(VmValue::String(
-                value.to_uppercase(),
+                unicode_strings::upper(&value),
             ))),
             _ => Err(VmExecutionError::new("str.upper() expects no arguments")),
         },
         "lower" => match args.as_slice() {
             [] => Ok(NativeMethodResult::Value(VmValue::String(
-                value.to_lowercase(),
+                unicode_strings::lower(&value),
             ))),
             _ => Err(VmExecutionError::new("str.lower() expects no arguments")),
         },
@@ -193,42 +196,22 @@ fn call_string_method(
             [] => Ok(NativeMethodResult::Value(VmValue::Bool(value.is_ascii()))),
             _ => Err(VmExecutionError::new("str.isascii() expects no arguments")),
         },
-        "isalpha" => match args.as_slice() {
+        "isalpha" | "isdigit" | "islower" | "isalnum" => match args.as_slice() {
             [] => Ok(NativeMethodResult::Value(VmValue::Bool(
-                !value.is_empty() && value.chars().all(char::is_alphabetic),
+                unicode_strings::predicate(method, &value),
             ))),
-            _ => Err(VmExecutionError::new("str.isalpha() expects no arguments")),
-        },
-        "isdigit" => match args.as_slice() {
-            [] => Ok(NativeMethodResult::Value(VmValue::Bool(
-                !value.is_empty() && value.chars().all(char::is_numeric),
+            _ => Err(VmExecutionError::new(format!(
+                "str.{method}() expects no arguments"
             ))),
-            _ => Err(VmExecutionError::new("str.isdigit() expects no arguments")),
-        },
-        "islower" => match args.as_slice() {
-            [] => {
-                let has_cased = value.chars().any(char::is_alphabetic);
-                Ok(NativeMethodResult::Value(VmValue::Bool(
-                    has_cased
-                        && value
-                            .chars()
-                            .all(|ch| !ch.is_alphabetic() || ch.is_lowercase()),
-                )))
-            }
-            _ => Err(VmExecutionError::new("str.islower() expects no arguments")),
-        },
-        "isalnum" => match args.as_slice() {
-            [] => Ok(NativeMethodResult::Value(VmValue::Bool(
-                !value.is_empty() && value.chars().all(char::is_alphanumeric),
-            ))),
-            _ => Err(VmExecutionError::new("str.isalnum() expects no arguments")),
         },
         "startswith" | "endswith" | "find" | "count" => Ok(NativeMethodResult::Value(
             search_string(&value, method, &args)?,
         )),
         "strip" => match args.as_slice() {
-            [] => Ok(NativeMethodResult::Value(VmValue::String(
-                value.trim().to_owned(),
+            [] | [VmValue::None] => Ok(NativeMethodResult::Value(VmValue::String(
+                value
+                    .trim_matches(unicode_strings::is_whitespace)
+                    .to_owned(),
             ))),
             [chars] => {
                 let chars = chars.as_string()?;

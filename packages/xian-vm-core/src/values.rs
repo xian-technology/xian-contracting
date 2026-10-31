@@ -483,6 +483,9 @@ pub(crate) fn bigint_modulo(left: &BigInt, right: &BigInt) -> Result<BigInt, VmE
     Ok(left - (quotient * right))
 }
 
+#[path = "time_parsing.rs"]
+mod time_parsing;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VmDateTime {
     pub(crate) value: NaiveDateTime,
@@ -498,6 +501,16 @@ impl VmDateTime {
         second: i64,
         microsecond: i64,
     ) -> Result<Self, VmExecutionError> {
+        if !(1..=9999).contains(&year)
+            || !(1..=12).contains(&month)
+            || !(1..=31).contains(&day)
+            || !(0..=23).contains(&hour)
+            || !(0..=59).contains(&minute)
+            || !(0..=59).contains(&second)
+            || !(0..=999_999).contains(&microsecond)
+        {
+            return Err(VmExecutionError::new("invalid datetime components"));
+        }
         let date = NaiveDate::from_ymd_opt(year as i32, month as u32, day as u32)
             .ok_or_else(|| VmExecutionError::new("invalid datetime date"))?;
         let value = date
@@ -512,20 +525,24 @@ impl VmDateTime {
     }
 
     pub fn parse(date_string: &str, format: &str) -> Result<Self, VmExecutionError> {
-        NaiveDateTime::parse_from_str(date_string, format)
-            .map(|value| Self { value })
-            .map_err(|_| VmExecutionError::new("datetime.strptime() failed"))
+        time_parsing::parse(date_string, format).map(|value| Self { value })
     }
 
     pub fn add_timedelta(&self, delta: &VmTimeDelta) -> Result<Self, VmExecutionError> {
         self.value
             .checked_add_signed(delta.duration())
+            .filter(|value| (1..=9999).contains(&value.year()))
             .map(|value| Self { value })
             .ok_or_else(|| VmExecutionError::new("datetime overflow"))
     }
 
     pub fn sub_datetime(&self, other: &Self) -> Result<VmTimeDelta, VmExecutionError> {
-        VmTimeDelta::from_raw_seconds(self.value.signed_duration_since(other.value).num_seconds())
+        let microseconds = self
+            .value
+            .signed_duration_since(other.value)
+            .num_microseconds()
+            .ok_or_else(|| VmExecutionError::new("timedelta overflow"))?;
+        VmTimeDelta::from_raw_seconds(microseconds.div_euclid(1_000_000))
     }
 
     pub fn year(&self) -> i64 {
@@ -591,6 +608,10 @@ impl VmTimeDelta {
     }
 
     pub fn from_raw_seconds(raw_seconds: i64) -> Result<Self, VmExecutionError> {
+        // Python timedelta bounds normalized days, including the final day's seconds.
+        if !(-86_399_999_913_600..=86_399_999_999_999).contains(&raw_seconds) {
+            return Err(VmExecutionError::new("timedelta overflow"));
+        }
         Ok(Self { raw_seconds })
     }
 
@@ -635,39 +656,34 @@ impl VmTimeDelta {
     }
 
     pub fn minutes(&self) -> i64 {
-        self.raw_seconds / 60
+        self.raw_seconds.div_euclid(60)
     }
 
     pub fn hours(&self) -> i64 {
-        self.raw_seconds / 3_600
+        self.raw_seconds.div_euclid(3_600)
     }
 
     pub fn days(&self) -> i64 {
-        self.raw_seconds / 86_400
+        self.raw_seconds.div_euclid(86_400)
     }
 
     pub fn weeks(&self) -> i64 {
-        self.raw_seconds / 604_800
+        self.raw_seconds.div_euclid(604_800)
     }
 }
 
 impl fmt::Display for VmTimeDelta {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let negative = self.raw_seconds < 0;
-        let mut remaining = self.raw_seconds.abs();
-        let days = remaining / 86_400;
-        remaining %= 86_400;
+        let days = self.raw_seconds.div_euclid(86_400);
+        let remaining = self.raw_seconds.rem_euclid(86_400);
         let hours = remaining / 3_600;
-        remaining %= 3_600;
-        let minutes = remaining / 60;
+        let minutes = (remaining % 3_600) / 60;
         let seconds = remaining % 60;
-        let prefix = if negative { "-" } else { "" };
         if days == 0 {
-            write!(f, "{prefix}{hours}:{minutes:02}:{seconds:02}")
-        } else if days == 1 {
-            write!(f, "{prefix}1 day, {hours}:{minutes:02}:{seconds:02}")
+            write!(f, "{hours}:{minutes:02}:{seconds:02}")
         } else {
-            write!(f, "{prefix}{days} days, {hours}:{minutes:02}:{seconds:02}")
+            let unit = if days.abs() == 1 { "day" } else { "days" };
+            write!(f, "{days} {unit}, {hours}:{minutes:02}:{seconds:02}")
         }
     }
 }
