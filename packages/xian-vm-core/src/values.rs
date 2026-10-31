@@ -6,6 +6,24 @@ use std::fmt;
 use std::str::FromStr;
 use std::sync::OnceLock;
 
+/// Python's shortest binary64 display uses a signed, at-least-two-digit exponent.
+pub(crate) fn python_float_repr(value: f64) -> String {
+    if value.is_nan() {
+        return "nan".to_owned();
+    }
+    let rendered = format!("{value:?}");
+    let Some((mantissa, exponent)) = rendered.split_once('e') else {
+        return rendered;
+    };
+    let (sign, digits) = if let Some(digits) = exponent.strip_prefix('-') {
+        ('-', digits)
+    } else {
+        ('+', exponent.trim_start_matches('+'))
+    };
+    let padding = if digits.len() < 2 { "0" } else { "" };
+    format!("{mantissa}e{sign}{padding}{digits}")
+}
+
 const DECIMAL_SCALE: u32 = 30;
 const DECIMAL_MAX_SCALED_DIGITS: u32 = 91;
 
@@ -524,6 +542,10 @@ impl VmDateTime {
         Ok(Self { value })
     }
 
+    pub fn parse_work_cost(date_string: &str, format: &str) -> Result<u64, VmExecutionError> {
+        time_parsing::work_cost(date_string, format)
+    }
+
     pub fn parse(date_string: &str, format: &str) -> Result<Self, VmExecutionError> {
         time_parsing::parse(date_string, format).map(|value| Self { value })
     }
@@ -644,11 +666,14 @@ impl VmTimeDelta {
     }
 
     pub fn mul_timedelta(&self, other: &Self) -> Result<Self, VmExecutionError> {
-        Self::from_raw_seconds(
-            self.raw_seconds
-                .checked_mul(other.raw_seconds)
-                .ok_or_else(|| VmExecutionError::new("timedelta overflow"))?,
-        )
+        // Historical Timedelta multiplies normalized components, not total seconds.
+        let days = i128::from(self.raw_seconds.div_euclid(86_400))
+            * i128::from(other.raw_seconds.div_euclid(86_400));
+        let seconds = i128::from(self.raw_seconds.rem_euclid(86_400))
+            * i128::from(other.raw_seconds.rem_euclid(86_400));
+        let total = i64::try_from(days * 86_400 + seconds)
+            .map_err(|_| VmExecutionError::new("timedelta overflow"))?;
+        Self::from_raw_seconds(total)
     }
 
     pub fn seconds(&self) -> i64 {
@@ -715,6 +740,8 @@ pub enum VmValue {
     StorageRef(VmStorageRef),
     ForeignStorageRef(VmForeignStorageRef),
     EventRef(Box<VmEventDefinition>),
+    BoundMethod(Box<crate::VmBoundMethod>),
+    MappingProxy(Box<VmValue>),
     Builtin(String),
     FunctionRef(String),
     TypeMarker(String),
@@ -773,6 +800,8 @@ impl VmValue {
             Self::Iterator(_) => true,
             Self::View(view) => view.len() != 0,
             Self::Range(range) => !range.len().is_zero(),
+            Self::MappingProxy(value) => value.truthy(),
+            Self::BoundMethod(_) => true,
             Self::None => false,
             Self::Bool(value) => *value,
             Self::Int(value) => !value.is_zero(),
@@ -813,8 +842,7 @@ impl VmValue {
             Self::Bool(true) => "True".to_owned(),
             Self::Bool(false) => "False".to_owned(),
             Self::Int(value) => value.to_string(),
-            Self::Float(value) if value.is_nan() => "nan".to_owned(),
-            Self::Float(value) => format!("{value:?}"),
+            Self::Float(value) => python_float_repr(*value),
             Self::Decimal(value) => value.python_repr(),
             Self::RawDecimal(value) => value.to_string(),
             Self::DecimalTuple(_) => self.python_repr(),
@@ -860,6 +888,12 @@ impl VmValue {
                 format!("<foreign-storage:{}.{}>", storage.contract, storage.binding)
             }
             Self::EventRef(event) => format!("<event:{}>", event.event_name),
+            Self::BoundMethod(bound) => format!(
+                "<bound method {}.{}>",
+                bound.receiver.type_name(),
+                bound.method
+            ),
+            Self::MappingProxy(value) => format!("mappingproxy({})", value.python_repr()),
             Self::Builtin(name) => format!("<builtin:{name}>"),
             Self::FunctionRef(name) => format!("<function:{name}>"),
             Self::TypeMarker(name) => name.clone(),
@@ -952,6 +986,8 @@ impl VmValue {
             Self::StorageRef(_) => "storage_ref",
             Self::ForeignStorageRef(_) => "foreign_storage_ref",
             Self::EventRef(_) => "event_ref",
+            Self::BoundMethod(_) => "bound_method",
+            Self::MappingProxy(_) => "mappingproxy",
             Self::Builtin(_) => "builtin",
             Self::FunctionRef(_) => "function_ref",
             Self::TypeMarker(_) => "type_marker",

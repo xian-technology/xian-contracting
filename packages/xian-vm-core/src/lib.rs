@@ -11,6 +11,7 @@ mod heap;
 mod iteration;
 pub use iteration::{VmDictView, VmIterator, VmRange};
 mod rendering;
+mod scalar_methods;
 pub use heap::VmReference;
 mod decimal_backend;
 mod decimal_metering;

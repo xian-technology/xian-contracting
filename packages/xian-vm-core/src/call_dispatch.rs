@@ -32,9 +32,10 @@ impl VmInstance {
             "module.random" => Ok(VmValue::Builtin("random".to_owned())),
             "module.zk" => Ok(VmValue::Builtin("zk".to_owned())),
             "time.datetime.new" => Ok(VmValue::TypeMarker("datetime.datetime".to_owned())),
-            "time.datetime.strptime" => {
-                Ok(VmValue::Builtin("datetime.datetime.strptime".to_owned()))
-            }
+            "time.datetime.strptime" => Ok(VmValue::BoundMethod(Box::new(VmBoundMethod {
+                receiver: VmValue::TypeMarker("datetime.datetime".into()),
+                method: "strptime".into(),
+            }))),
             "time.timedelta.new" => Ok(VmValue::TypeMarker("datetime.timedelta".to_owned())),
             "time.seconds" => Ok(VmValue::TimeDelta(VmTimeDelta::new(0, 0, 0, 0, 1)?)),
             "time.minutes" => Ok(VmValue::TimeDelta(VmTimeDelta::new(0, 0, 0, 1, 0)?)),
@@ -73,6 +74,22 @@ impl VmInstance {
             let args = self.eval_call_arguments(required_array(object, "args")?, scope, host)?;
             let kwargs =
                 self.eval_call_keywords(required_array(object, "keywords")?, scope, host, None)?;
+            let (args, kwargs) = if let Some(binding) = optional_string(object, "receiver_binding")
+            {
+                let method = as_object(func, "callable")?
+                    .get("attr")
+                    .and_then(Value::as_str);
+                match (self.globals.get(binding), method) {
+                    (Some(receiver), Some(method))
+                        if method_signatures::supports(receiver, method) =>
+                    {
+                        method_signatures::bind(receiver, method, args, kwargs)?
+                    }
+                    _ => (args, kwargs),
+                }
+            } else {
+                (args, kwargs)
+            };
             return self.eval_syscall(object, syscall_id, args, kwargs, scope, host, target);
         }
         let callable = as_object(func, "callable")?;
@@ -81,10 +98,11 @@ impl VmInstance {
         {
             let receiver = self.eval_expression(required_value(callable, "value")?, scope, host)?;
             let method = required_string(callable, "attr")?;
+            let callee = self.read_attribute(receiver, method, host)?;
             let args = self.eval_call_arguments(required_array(object, "args")?, scope, host)?;
             let kwargs =
                 self.eval_call_keywords(required_array(object, "keywords")?, scope, host, None)?;
-            return self.call_receiver(receiver, method, args, kwargs, host);
+            return self.call_callable_value(host, callee, args, kwargs);
         }
         let callee = self.eval_expression(func, scope, host)?;
         let args = self.eval_call_arguments(required_array(object, "args")?, scope, host)?;
@@ -153,14 +171,99 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
+        if let Some(kind) = method_signatures::unbound_class(&receiver, method) {
+            let mut arguments = args.into_iter();
+            let instance = arguments.next().ok_or_else(|| {
+                VmExecutionError::new("unbound method requires a positional receiver")
+            })?;
+            if !method_signatures::receiver_matches(kind, &instance) {
+                return Err(VmExecutionError::new(
+                    "unbound method received an incompatible receiver",
+                ));
+            }
+            return self.call_receiver(instance, method, arguments.collect(), kwargs, host);
+        }
+        let (mut args, kwargs) = method_signatures::bind(&receiver, method, args, kwargs)?;
+        if let VmValue::MappingProxy(mapping) = receiver.snapshot() {
+            return self.call_receiver(*mapping, method, args, kwargs, host);
+        }
+        if let VmValue::String(template) = receiver.snapshot() {
+            if matches!(method, "format" | "format_map") {
+                return self.format_string(host, &template, args, kwargs, method == "format_map");
+            }
+            charge_method_work(
+                host,
+                support::string_methods::work_cost(&template, method, &args)?,
+            )?;
+            if method == "translate" {
+                let table = args[0].snapshot();
+                if matches!(
+                    table,
+                    VmValue::StorageRef(_) | VmValue::ForeignStorageRef(_)
+                ) {
+                    let text = support::string_methods::translate_with(&template, |character| {
+                        host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
+                        let key = vm_int(character as u32);
+                        let value = match &table {
+                            VmValue::StorageRef(reference) => {
+                                self.hash_get(&reference.binding, &key, host)?
+                            }
+                            VmValue::ForeignStorageRef(reference) => {
+                                foreign_storage::read_hash(reference, &key, host)?
+                            }
+                            _ => unreachable!(),
+                        };
+                        Ok(Some(value))
+                    })?;
+                    return Ok(VmValue::String(text));
+                }
+            }
+        }
+        if matches!(receiver.snapshot(), VmValue::Builtin(ref name) if name == "str")
+            && method == "maketrans"
+        {
+            charge_method_work(host, support::string_methods::work_cost("", method, &args)?)?;
+            return support::string_methods::call("", method, &args);
+        }
+        if matches!(
+            receiver.snapshot(),
+            VmValue::Bytes(_) | VmValue::ByteArray(_)
+        ) || matches!(receiver.snapshot(), VmValue::Builtin(ref name) if matches!(name.as_str(), "bytes" | "bytearray"))
+        {
+            charge_method_work(
+                host,
+                support::binary_methods::work_cost(&receiver, method, &args),
+            )?;
+        }
+        if crate::scalar_methods::supports(&receiver, method) {
+            charge_method_work(
+                host,
+                crate::scalar_methods::work_cost(&receiver, method, &args),
+            )?;
+            if method == "from_bytes"
+                && !matches!(
+                    args[0].snapshot(),
+                    VmValue::Bytes(_)
+                        | VmValue::ByteArray(_)
+                        | VmValue::List(_)
+                        | VmValue::Tuple(_)
+                )
+            {
+                args[0] = VmValue::List(self.collect_iterable(&args[0], host)?);
+            }
+            return crate::scalar_methods::call(&receiver, method, args);
+        }
         if matches!(receiver.snapshot(), VmValue::RawDecimal(_)) {
             host.charge_execution_cost(crate::decimal_methods::work_cost(
                 method, &receiver, &args, &kwargs,
             ))?;
             return crate::decimal_methods::call(receiver, method, args, kwargs);
         }
-        if method == "strptime" && matches!(receiver.snapshot(), VmValue::DateTime(_)) {
-            return time_datetime_strptime(args, kwargs);
+        if method == "strptime"
+            && (matches!(receiver.snapshot(), VmValue::DateTime(_))
+                || matches!(receiver.snapshot(), VmValue::TypeMarker(ref name) if name == "datetime.datetime"))
+        {
+            return time_datetime_strptime(args, kwargs, host);
         }
         if method == "copy" && matches!(receiver.snapshot(), VmValue::FrozenSet(_)) {
             if !args.is_empty() || !kwargs.is_empty() {
@@ -196,6 +299,9 @@ impl VmInstance {
             let mut values = vec![receiver.clone()];
             values.extend(args.iter().cloned());
             crate::decimal_metering::normalization(host, &values)?;
+        }
+        if method == "isdisjoint" && matches!(receiver.snapshot(), VmValue::View(_)) {
+            return self.view_isdisjoint(&receiver, &args[0], host);
         }
         if method == "update" && matches!(receiver.snapshot(), VmValue::Dict(_)) {
             return self.update_dictionary(&receiver, args, kwargs, host);
@@ -257,6 +363,16 @@ impl VmInstance {
             })));
         }
         if let VmValue::StorageRef(reference) = &receiver {
+            if matches!(
+                reference.storage_type.as_str(),
+                "Variable" | "ForeignVariable"
+            ) {
+                return self.variable_method(reference, method, args, kwargs, host);
+            }
+            if method == "all" {
+                host.charge_execution_cost(VM_GAS_HASH_SCAN)?;
+                return self.hash_all(&reference.binding, &args, host);
+            }
             if matches!(method, "clear" | "clone_from") {
                 return self.hash_bulk_method(reference, method, args, kwargs, host);
             }
@@ -287,6 +403,19 @@ impl VmInstance {
         };
         match call_native_method_collected(receiver.clone(), method, args, kwargs, &mut |source| {
             let values = self.collect_iterable(source, host)?;
+            if method == "join"
+                && matches!(
+                    receiver.snapshot(),
+                    VmValue::Bytes(_) | VmValue::ByteArray(_)
+                )
+            {
+                let content = values.iter().fold(0u64, |total, value| {
+                    total.saturating_add(binary_length(value))
+                });
+                let separators =
+                    binary_length(&receiver).saturating_mul(values.len().saturating_sub(1) as u64);
+                charge_method_work(host, content.saturating_add(separators))?;
+            }
             if let Some(inputs) = &mut set_inputs {
                 inputs.collected(host, &values)?;
             }
@@ -306,6 +435,53 @@ impl VmInstance {
                 Ok(value)
             }
         }
+    }
+
+    fn variable_method(
+        &mut self,
+        reference: &VmStorageRef,
+        method: &str,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+        host: &mut dyn VmHost,
+    ) -> Result<VmValue, VmExecutionError> {
+        let mut object = Map::new();
+        object.insert(
+            "receiver_binding".into(),
+            Value::String(reference.binding.clone()),
+        );
+        if matches!(method, "get" | "set") {
+            let syscall = if method == "get" {
+                "storage.variable.get"
+            } else {
+                "storage.variable.set"
+            };
+            return self.eval_syscall(
+                &object,
+                syscall,
+                args,
+                kwargs,
+                &mut HashMap::new(),
+                host,
+                None,
+            );
+        }
+        if reference.storage_type == "ForeignVariable" {
+            return Err(VmExecutionError::new("foreign variables are read-only"));
+        }
+        let value = self.variable_get(&reference.binding, host)?;
+        let value = self.heap.capture(value)?;
+        let result = self.call_receiver(value.clone(), method, args, kwargs, host)?;
+        self.eval_syscall(
+            &object,
+            "storage.variable.set",
+            vec![value],
+            vec![],
+            &mut HashMap::new(),
+            host,
+            None,
+        )?;
+        Ok(result)
     }
 
     pub(super) fn eval_call_arguments(
@@ -377,4 +553,19 @@ impl VmInstance {
         }
         Ok(values)
     }
+}
+
+fn binary_length(value: &VmValue) -> u64 {
+    match value {
+        VmValue::Reference(reference) => reference.with_value(binary_length),
+        VmValue::Bytes(value) | VmValue::ByteArray(value) => value.len() as u64,
+        _ => 0,
+    }
+}
+
+fn charge_method_work(host: &mut dyn VmHost, cost: u64) -> Result<(), VmExecutionError> {
+    if cost > 0 {
+        host.charge_execution_cost(cost)?;
+    }
+    Ok(())
 }

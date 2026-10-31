@@ -40,7 +40,7 @@ impl VmInstance {
             .map(|(k, v)| (k, v.snapshot()))
             .collect::<Vec<_>>();
         match name {
-            "datetime.datetime.strptime" => time_datetime_strptime(args, kwargs),
+            "datetime.datetime.strptime" => time_datetime_strptime(args, kwargs, host),
             "len" => self.builtin_len(args, kwargs),
             "range" => self.builtin_range(args, kwargs),
             "str" => self.builtin_str(args, kwargs, shared_args),
@@ -57,10 +57,10 @@ impl VmInstance {
             "abs" => self.builtin_abs(args, kwargs),
             "int" => numeric_text::int_value(args, kwargs),
             "pow" => self.builtin_pow(host, args, kwargs),
-            "format" => self.builtin_format(host, args, kwargs),
+            "format" => self.builtin_format(host, shared_args, kwargs),
             "float" => self.builtin_float(args, kwargs),
             "ord" => self.builtin_ord(args, kwargs),
-            "ascii" => self.builtin_ascii(args, kwargs, shared_args),
+            "ascii" => self.builtin_ascii(host, args, kwargs, shared_args),
             "bin" | "hex" | "oct" => self.builtin_integer_repr(name, args, kwargs),
             "chr" => self.builtin_chr(args, kwargs),
             "divmod" => {
@@ -132,6 +132,10 @@ impl VmInstance {
                 Ok(VmValue::Int(length))
             }
             VmValue::View(view) => Ok(vm_int(view.len())),
+            VmValue::MappingProxy(mapping) => match mapping.snapshot() {
+                VmValue::Dict(entries) => Ok(vm_int(entries.len())),
+                _ => Err(VmExecutionError::new("invalid mapping proxy source")),
+            },
             other => Err(VmExecutionError::new(format!(
                 "len() does not support {}",
                 other.type_name()
@@ -403,13 +407,10 @@ impl VmInstance {
         } else {
             String::new()
         };
-        if matches!(args[0], VmValue::RawDecimal(_)) {
-            host.charge_execution_cost(crate::VmRawDecimal::format_work_cost(&spec)?)?;
-        }
-        if spec.is_empty() && matches!(args[0], VmValue::Exception(_)) {
-            return Ok(VmValue::String(public_string(&args[0], 0)?));
-        }
-        Ok(VmValue::String(format_builtin_value(&args[0], &spec)?))
+        host.charge_execution_cost(super::value_formatting::format_work_cost(&args[0], &spec)?)?;
+        Ok(VmValue::String(super::value_formatting::format_value(
+            &args[0], &spec,
+        )?))
     }
 
     fn builtin_float(
@@ -486,6 +487,7 @@ impl VmInstance {
 
     fn builtin_ascii(
         &mut self,
+        host: &mut dyn VmHost,
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
         shared_args: Vec<VmValue>,
@@ -493,10 +495,11 @@ impl VmInstance {
         if args.len() != 1 || !kwargs.is_empty() {
             return Err(VmExecutionError::new("ascii() expects one argument"));
         }
-        Ok(VmValue::String(match &args[0] {
-            VmValue::String(value) => ascii_string_repr(value),
-            _ => ascii_render(&shared_args[0].try_python_repr()?),
-        }))
+        host.charge_execution_cost(super::value_formatting::format_work_cost(
+            &shared_args[0],
+            "",
+        )?)?;
+        super::value_formatting::convert(&shared_args[0], Some('a'))
     }
 
     fn builtin_integer_repr(
@@ -568,10 +571,14 @@ impl VmInstance {
         }
         let mut entries = Vec::new();
         if let Some(initial) = shared_args.first() {
+            let initial = match initial.snapshot() {
+                VmValue::MappingProxy(mapping) => *mapping,
+                _ => initial.clone(),
+            };
             if let VmValue::Dict(existing) = initial.snapshot() {
                 entries = existing;
             } else {
-                let iterator = crate::iteration::iter(initial, &self.heap)?;
+                let iterator = crate::iteration::iter(&initial, &self.heap)?;
                 while let Some(item) = self.next_item(&iterator, host)? {
                     let pair = self.collect_iterable(&item, host)?;
                     if pair.len() != 2 {
@@ -663,7 +670,7 @@ impl VmInstance {
 }
 
 // Exception.__str__ uses its argument payload; repr/ascii retain the class name.
-fn public_string(value: &VmValue, depth: usize) -> Result<String, VmExecutionError> {
+pub(super) fn public_string(value: &VmValue, depth: usize) -> Result<String, VmExecutionError> {
     if depth > 128 {
         return Err(VmExecutionError::new(
             "exception string traversal limit exceeded",

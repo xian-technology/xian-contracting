@@ -80,14 +80,30 @@ class _SafeBytesMeta(type):
         return isinstance(instance, builtins.bytes)
 
 
+def _binary_fromhex(string, factory):
+    kind = f"{factory.__name__}.fromhex()"
+    if not isinstance(string, str):
+        raise TypeError(f"{kind} requires a string")
+    digits = sum(ch not in " \t\n\r\v\f" for ch in string)
+    _ensure_binary_size((digits + 1) // 2, kind=kind)
+    return factory.fromhex(string)
+
+
+def _binary_maketrans(frm, to):
+    for value in (frm, to):
+        if isinstance(value, (builtins.bytes, builtins.bytearray)):
+            _ensure_binary_size(len(value), kind="binary maketrans()")
+    return builtins.bytes.maketrans(frm, to)
+
+
 class safe_bytes(metaclass=_SafeBytesMeta):
     @staticmethod
     def fromhex(string, /):
-        if not isinstance(string, str):
-            raise TypeError("bytes.fromhex() requires a string")
-        digits = sum(ch not in " \t\n\r\v\f" for ch in string)
-        _ensure_binary_size((digits + 1) // 2, kind="bytes.fromhex()")
-        return builtins.bytes.fromhex(string)
+        return _binary_fromhex(string, builtins.bytes)
+
+    @staticmethod
+    def maketrans(frm, to, /):
+        return _binary_maketrans(frm, to)
 
 
 class _SafeBytearrayMeta(type):
@@ -101,7 +117,13 @@ class _SafeBytearrayMeta(type):
 
 
 class safe_bytearray(metaclass=_SafeBytearrayMeta):
-    pass
+    @staticmethod
+    def fromhex(string, /):
+        return _binary_fromhex(string, builtins.bytearray)
+
+    @staticmethod
+    def maketrans(frm, to, /):
+        return _binary_maketrans(frm, to)
 
 
 class _SafeIntMeta(type):

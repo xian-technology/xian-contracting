@@ -3,6 +3,8 @@
 Fixtures are observations of commit 005a1048, not a second interpreter. Changing
 these values requires explaining a semantic or metering change, not regenerating
 snapshots to make a refactor pass.
+Explicit later metering adjustments are recorded with their derivation in the
+fixture metadata; all result, write and event fingerprints remain unchanged.
 """
 
 import json

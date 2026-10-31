@@ -554,10 +554,10 @@
         "result_repr": "[\"'\\\\xe9'\", '0b101', '0xf', '0o11', '\ud83d\ude00', 233, '0012']",
         "writes": {},
         "events": [],
-        "raw_cost": 40914,
-        "chi_used": 45,
+        "raw_cost": 41030,
+        "chi_used": 46,
         "contract_costs": {
-          "conformance_builtin_text_basics": 40914
+          "conformance_builtin_text_basics": 41030
         }
       }
     },
@@ -794,10 +794,10 @@
         "result_repr": "['12.34', '00012.34', '+1.23e+1', '12.34', '1234.5%', '     12.34']",
         "writes": {},
         "events": [],
-        "raw_cost": 46482,
-        "chi_used": 51,
+        "raw_cost": 47058,
+        "chi_used": 52,
         "contract_costs": {
-          "conformance_quantum_format": 46482
+          "conformance_quantum_format": 47058
         }
       }
     },
@@ -861,6 +861,16 @@
           "conformance_cross_contract_alias": 10288
         }
       }
+    }
+  },
+  "metering_adjustments": {
+    "builtin_text_basics": {
+      "raw_cost_delta": 116,
+      "reason": "Bounded ascii input rendering adds 88 raw units; integer formatting adds 12 input + 16 width units."
+    },
+    "quantum_format": {
+      "raw_cost_delta": 576,
+      "reason": "Six raw Decimal format calls retain their existing spec charges and add 96 input-render units each (24 estimated units times 4)."
     }
   }
 }

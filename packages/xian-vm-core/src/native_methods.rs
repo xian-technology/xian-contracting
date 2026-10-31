@@ -1,6 +1,11 @@
 //! Native receiver methods; mutation is returned for the caller to apply.
 use super::*;
 
+#[path = "binary_methods.rs"]
+pub(in crate::interpreter) mod binary_methods;
+
+#[path = "string_methods.rs"]
+pub(in crate::interpreter) mod string_methods;
 #[path = "unicode_strings.rs"]
 pub(super) mod unicode_strings;
 
@@ -42,7 +47,13 @@ pub(in crate::interpreter) fn call_native_method_collected(
         }
         VmValue::List(values) => call_list_method(values, method, args, collect),
         VmValue::String(value) => call_string_method(value, method, args, collect),
-        VmValue::Bytes(value) => call_bytes_method(value, method, args),
+        VmValue::Builtin(name)
+            if matches!(name.as_str(), "bytes" | "bytearray")
+                && matches!(method, "fromhex" | "maketrans") =>
+        {
+            binary_methods::call(Vec::new(), name == "bytearray", method, args, collect)
+        }
+        VmValue::Bytes(value) => call_bytes_method(value, method, args, collect),
         VmValue::ByteArray(value) => call_bytearray_method(value, method, args, collect),
         VmValue::Set(values) => call_set_method(values, method, args, collect),
         VmValue::FrozenSet(values) => call_frozenset_method(values, method, args, collect),
@@ -180,6 +191,9 @@ fn call_string_method(
     collect: &mut dyn FnMut(&VmValue) -> Result<Vec<VmValue>, VmExecutionError>,
 ) -> Result<NativeMethodResult, VmExecutionError> {
     match method {
+        "encode" => Ok(NativeMethodResult::Value(binary_methods::encode(
+            &value, &args,
+        )?)),
         "upper" => match args.as_slice() {
             [] => Ok(NativeMethodResult::Value(VmValue::String(
                 unicode_strings::upper(&value),
@@ -207,39 +221,19 @@ fn call_string_method(
         "startswith" | "endswith" | "find" | "count" => Ok(NativeMethodResult::Value(
             search_string(&value, method, &args)?,
         )),
-        "strip" => match args.as_slice() {
-            [] | [VmValue::None] => Ok(NativeMethodResult::Value(VmValue::String(
-                value
-                    .trim_matches(unicode_strings::is_whitespace)
-                    .to_owned(),
-            ))),
-            [chars] => {
-                let chars = chars.as_string()?;
-                let stripped = if chars.is_empty() {
-                    value.clone()
-                } else {
-                    value.trim_matches(|ch| chars.contains(ch)).to_owned()
-                };
-                Ok(NativeMethodResult::Value(VmValue::String(stripped)))
-            }
-            _ => Err(VmExecutionError::new(
-                "str.strip() expects zero or one argument",
-            )),
-        },
+        "strip" => Ok(NativeMethodResult::Value(VmValue::String(
+            string_methods::strip(&value, method, &args)?,
+        ))),
         "replace" => match args.as_slice() {
             [old, new] => Ok(NativeMethodResult::Value(VmValue::String(
                 value.replace(&old.as_string()?, &new.as_string()?),
             ))),
             [old, new, count] => {
-                let count = count.as_bigint()?;
-                let replaced = if count < BigInt::zero() {
+                let count = string_methods::index_size(count)?;
+                let replaced = if count < 0 {
                     value.replace(&old.as_string()?, &new.as_string()?)
                 } else {
-                    value.replacen(
-                        &old.as_string()?,
-                        &new.as_string()?,
-                        bigint_to_usize(&count, "str.replace count")?,
-                    )
+                    value.replacen(&old.as_string()?, &new.as_string()?, count as usize)
                 };
                 Ok(NativeMethodResult::Value(VmValue::String(replaced)))
             }
@@ -285,11 +279,11 @@ fn call_string_method(
                 } else {
                     Some(separator.as_string()?)
                 };
-                let maxsplit = maxsplit.as_bigint()?;
-                let limit = if maxsplit.sign() == Sign::Minus {
+                let maxsplit = string_methods::index_size(maxsplit)?;
+                let limit = if maxsplit < 0 {
                     None
                 } else {
-                    Some(bigint_to_usize(&maxsplit, "str.split maxsplit")?)
+                    Some(maxsplit as usize)
                 };
                 Ok(NativeMethodResult::Value(VmValue::List(
                     split_string(value.as_str(), separator.as_deref(), limit)?
@@ -302,13 +296,9 @@ fn call_string_method(
                 "str.split() expects between zero and two arguments",
             )),
         },
-        "format" => Ok(NativeMethodResult::Value(VmValue::String(
-            render_simple_format(&value, &args)?,
-        ))),
-        other => Err(VmExecutionError::new(format!(
-            "unsupported str method '{}()'",
-            other
-        ))),
+        other => Ok(NativeMethodResult::Value(string_methods::call(
+            &value, other, &args,
+        )?)),
     }
 }
 
@@ -316,108 +306,18 @@ fn call_bytes_method(
     value: Vec<u8>,
     method: &str,
     args: Vec<VmValue>,
+    collect: &mut dyn FnMut(&VmValue) -> Result<Vec<VmValue>, VmExecutionError>,
 ) -> Result<NativeMethodResult, VmExecutionError> {
-    match method {
-        "hex" => match args.as_slice() {
-            [] => Ok(NativeMethodResult::Value(VmValue::String(hex::encode(
-                value,
-            )))),
-            _ => Err(VmExecutionError::new("bytes.hex() expects no arguments")),
-        },
-        other => Err(VmExecutionError::new(format!(
-            "unsupported bytes method '{}()'",
-            other
-        ))),
-    }
+    binary_methods::call(value, false, method, args, collect)
 }
 
 fn call_bytearray_method(
-    mut value: Vec<u8>,
+    value: Vec<u8>,
     method: &str,
     args: Vec<VmValue>,
     collect: &mut dyn FnMut(&VmValue) -> Result<Vec<VmValue>, VmExecutionError>,
 ) -> Result<NativeMethodResult, VmExecutionError> {
-    match method {
-        "hex" => match args.as_slice() {
-            [] => Ok(NativeMethodResult::Value(VmValue::String(hex::encode(
-                &value,
-            )))),
-            _ => Err(VmExecutionError::new(
-                "bytearray.hex() expects no arguments",
-            )),
-        },
-        "append" => {
-            if args.len() != 1 {
-                return Err(VmExecutionError::new(
-                    "bytearray.append() expects one argument",
-                ));
-            }
-            value.push(byte_from_value(&args[0])?);
-            Ok(NativeMethodResult::Mutated {
-                receiver: VmValue::ByteArray(value),
-                value: VmValue::None,
-            })
-        }
-        "extend" => {
-            if args.len() != 1 {
-                return Err(VmExecutionError::new(
-                    "bytearray.extend() expects one argument",
-                ));
-            }
-            let bytes = collect(&args[0])?
-                .iter()
-                .map(byte_from_value)
-                .collect::<Result<Vec<_>, _>>()?;
-            value.extend(bytes);
-            Ok(NativeMethodResult::Mutated {
-                receiver: VmValue::ByteArray(value),
-                value: VmValue::None,
-            })
-        }
-        "pop" => {
-            let index = match args.as_slice() {
-                [] => value
-                    .len()
-                    .checked_sub(1)
-                    .ok_or_else(|| VmExecutionError::new("pop from empty bytearray"))?,
-                [index] => normalize_sequence_index(index, value.len())?,
-                _ => {
-                    return Err(VmExecutionError::new(
-                        "bytearray.pop() accepts at most one argument",
-                    ))
-                }
-            };
-            let popped = value.remove(index);
-            Ok(NativeMethodResult::Mutated {
-                receiver: VmValue::ByteArray(value),
-                value: vm_int(popped),
-            })
-        }
-        "clear" => {
-            if !args.is_empty() {
-                return Err(VmExecutionError::new(
-                    "bytearray.clear() expects no arguments",
-                ));
-            }
-            value.clear();
-            Ok(NativeMethodResult::Mutated {
-                receiver: VmValue::ByteArray(value),
-                value: VmValue::None,
-            })
-        }
-        "copy" => {
-            if !args.is_empty() {
-                return Err(VmExecutionError::new(
-                    "bytearray.copy() expects no arguments",
-                ));
-            }
-            Ok(NativeMethodResult::Value(VmValue::ByteArray(value.clone())))
-        }
-        other => Err(VmExecutionError::new(format!(
-            "unsupported bytearray method '{}()'",
-            other
-        ))),
-    }
+    binary_methods::call(value, true, method, args, collect)
 }
 
 fn call_set_method(
@@ -697,6 +597,19 @@ fn call_dict_method(
                 "dict.get() expects one or two arguments",
             )),
         },
+        "popitem" => {
+            if !args.is_empty() {
+                return Err(VmExecutionError::new("dict.popitem() expects no arguments"));
+            }
+            let mut entries = entries;
+            let (key, value) = entries
+                .pop()
+                .ok_or_else(|| VmExecutionError::new("popitem(): dictionary is empty"))?;
+            Ok(NativeMethodResult::Mutated {
+                receiver: VmValue::Dict(entries),
+                value: VmValue::Tuple(vec![key, value]),
+            })
+        }
         "pop" => match args.as_slice() {
             [key] => {
                 let mut entries = entries;

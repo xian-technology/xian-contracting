@@ -3,6 +3,10 @@ use super::*;
 #[path = "decimal_digits.rs"]
 mod decimal_digits;
 
+pub(super) fn normalized_digits(text: &str) -> String {
+    decimal_digits::normalize(text)
+}
+
 fn invalid() -> VmExecutionError {
     VmExecutionError::new("invalid numeric string")
 }

@@ -240,6 +240,8 @@ fn immutable_depth(value: &VmValue) -> usize {
                 .max()
                 .unwrap_or(0)
         }
+        VmValue::BoundMethod(bound) => 1 + immutable_depth(&bound.receiver),
+        VmValue::MappingProxy(value) => 1 + immutable_depth(value),
         VmValue::Exception(exception) => {
             1 + exception
                 .args
@@ -270,6 +272,10 @@ fn shallow_bytes(value: &VmValue) -> usize {
         VmValue::Iterator(v) => v.allocation_bytes(),
         VmValue::Range(v) => v.allocation_bytes(),
         VmValue::View(_) => std::mem::size_of::<crate::VmDictView>(),
+        VmValue::BoundMethod(bound) => {
+            std::mem::size_of::<crate::VmBoundMethod>() + bound.method.len()
+        }
+        VmValue::MappingProxy(_) => std::mem::size_of::<VmValue>(),
         _ => 0,
     }
 }
@@ -289,6 +295,11 @@ fn map_children(
                 .map(|(k, v)| Ok((map(k)?, map(v)?)))
                 .collect::<Result<_, VmExecutionError>>()?,
         ),
+        VmValue::BoundMethod(mut bound) => {
+            bound.receiver = map(bound.receiver)?;
+            VmValue::BoundMethod(bound)
+        }
+        VmValue::MappingProxy(value) => VmValue::MappingProxy(Box::new(map(*value)?)),
         VmValue::Exception(mut exception) => {
             exception.args = exception
                 .args
@@ -362,6 +373,21 @@ fn detach(
                 "cyclic value cannot cross a VM boundary",
             ));
         }
+    }
+    if matches!(value.snapshot(), VmValue::BoundMethod(_)) {
+        return Err(VmExecutionError::new(
+            "bound methods cannot cross the VM boundary",
+        ));
+    }
+    if matches!(value.snapshot(), VmValue::MappingProxy(_)) {
+        return Err(VmExecutionError::new(
+            "mapping proxies cannot cross the VM boundary; copy them first",
+        ));
+    }
+    if let Some(kind) = execution_local_capability(&value.snapshot()) {
+        return Err(VmExecutionError::new(format!(
+            "{kind} cannot cross the VM boundary"
+        )));
     }
     if matches!(
         value.snapshot(),
@@ -439,5 +465,202 @@ mod tests {
         });
         let captured = heap.capture(exception.clone()).unwrap();
         assert_eq!(captured.detached().unwrap(), exception);
+    }
+
+    #[test]
+    fn bound_receiver_cycles_are_broken_and_methods_count_toward_heap_limits() {
+        let heap = VmHeap::default();
+        let VmValue::Reference(items) = heap.capture(VmValue::List(vec![])).unwrap() else {
+            panic!()
+        };
+        let weak = Rc::downgrade(&items.0);
+        let method = heap
+            .capture(VmValue::BoundMethod(Box::new(crate::VmBoundMethod {
+                receiver: VmValue::Reference(items.clone()),
+                method: "append".into(),
+            })))
+            .unwrap();
+        assert_eq!(
+            method.try_python_repr().unwrap(),
+            "<bound method list.append>"
+        );
+        items.append_sequence(method.clone()).unwrap();
+        assert!(method.detached().is_err());
+        drop(method);
+        drop(items);
+        drop(heap);
+        assert!(weak.upgrade().is_none());
+
+        let heap = VmHeap::default();
+        heap.0.usage.borrow_mut().bytes = MAX_HEAP_BYTES - 1;
+        assert!(heap
+            .capture(VmValue::BoundMethod(Box::new(crate::VmBoundMethod {
+                receiver: VmValue::Builtin("str".into()),
+                method: "maketrans".into(),
+            })))
+            .is_err());
+    }
+}
+
+fn execution_local_capability(value: &VmValue) -> Option<&'static str> {
+    match value {
+        VmValue::BoundMethod(_) => Some("bound methods"),
+        VmValue::MappingProxy(_) => Some("mapping proxies"),
+        VmValue::StorageRef(_) => Some("global storage references"),
+        VmValue::FunctionRef(_) => Some("local functions"),
+        VmValue::EventRef(_) => Some("event definitions"),
+        _ => None,
+    }
+}
+
+/// Shared contract calls retain ordinary object identity, but must not transfer
+/// execution-local capabilities whose meaning belongs to the originating VM.
+pub(crate) fn validate_contract_values<'a>(
+    values: impl Iterator<Item = &'a VmValue>,
+) -> Result<(), VmExecutionError> {
+    let mut visitor = ContractValueVisitor {
+        seen: HashSet::new(),
+        nodes: 0,
+    };
+    for value in values {
+        visitor.visit(value, 0)?;
+    }
+    Ok(())
+}
+struct ContractValueVisitor {
+    seen: HashSet<usize>,
+    nodes: usize,
+}
+impl ContractValueVisitor {
+    fn visit(&mut self, value: &VmValue, depth: usize) -> Result<(), VmExecutionError> {
+        self.nodes += 1;
+        if self.nodes > MAX_VALUE_NODES || depth > MAX_VALUE_DEPTH {
+            return Err(VmExecutionError::new(
+                "shared contract value traversal limit exceeded",
+            ));
+        }
+        if let VmValue::Reference(reference) = value {
+            if !self.seen.insert(reference.id()) {
+                return Ok(());
+            }
+            return reference.with_value(|value| self.contents(value, depth));
+        }
+        self.contents(value, depth)
+    }
+    fn contents(&mut self, value: &VmValue, depth: usize) -> Result<(), VmExecutionError> {
+        if let Some(kind) = execution_local_capability(value) {
+            return Err(VmExecutionError::new(format!(
+                "{kind} cannot cross contract boundaries"
+            )));
+        }
+        match value {
+            VmValue::Dict(entries) => {
+                for (key, value) in entries {
+                    self.visit(key, depth + 1)?;
+                    self.visit(value, depth + 1)?;
+                }
+                Ok(())
+            }
+            VmValue::List(items)
+            | VmValue::Tuple(items)
+            | VmValue::Set(items)
+            | VmValue::FrozenSet(items) => self.items(items, depth),
+            VmValue::Exception(exception) => self.items(&exception.args, depth),
+            VmValue::DecimalTuple(tuple) => self.items(&tuple.as_values(), depth),
+            VmValue::View(view) => self.visit(&view.source, depth + 1),
+            VmValue::Iterator(iterator) => {
+                iterator.visit_children(&mut |value| self.visit(value, depth + 1))
+            }
+            _ => Ok(()),
+        }
+    }
+    fn items(&mut self, items: &[VmValue], depth: usize) -> Result<(), VmExecutionError> {
+        for item in items {
+            self.visit(item, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod contract_boundary_tests {
+    use super::*;
+
+    fn bound_storage_get() -> VmValue {
+        VmValue::BoundMethod(Box::new(crate::VmBoundMethod {
+            receiver: VmValue::StorageRef(crate::VmStorageRef {
+                binding: "state".into(),
+                storage_type: "Variable".into(),
+            }),
+            method: "get".into(),
+        }))
+    }
+
+    #[test]
+    fn methods_proxies_and_hidden_iterator_callbacks_are_rejected() {
+        let values = [
+            VmValue::StorageRef(crate::VmStorageRef {
+                binding: "state".into(),
+                storage_type: "Variable".into(),
+            }),
+            VmValue::FunctionRef("private_helper".into()),
+            VmValue::EventRef(Box::new(crate::VmEventDefinition {
+                binding: "event".into(),
+                event_name: "Notice".into(),
+                params: VmValue::Dict(vec![]),
+            })),
+            bound_storage_get(),
+            VmValue::List(vec![bound_storage_get()]),
+            VmValue::Dict(vec![(VmValue::String("f".into()), bound_storage_get())]),
+            VmValue::MappingProxy(Box::new(VmValue::Dict(vec![]))),
+        ];
+        for value in values {
+            assert!(validate_contract_values(std::iter::once(&value)).is_err());
+        }
+        let heap = VmHeap::default();
+        let iterator = crate::iteration::lazy(
+            "map",
+            &[bound_storage_get(), VmValue::List(vec![])],
+            &[],
+            &heap,
+        )
+        .unwrap();
+        assert!(validate_contract_values(std::iter::once(&iterator)).is_err());
+    }
+
+    #[test]
+    fn repeated_references_and_cycles_remain_shareable() {
+        let heap = VmHeap::default();
+        let value = heap.capture(VmValue::List(vec![])).unwrap();
+        let VmValue::Reference(reference) = &value else {
+            panic!()
+        };
+        reference.append_sequence(value.clone()).unwrap();
+        validate_contract_values(std::iter::once(&value)).unwrap();
+        let mut dag = VmValue::None;
+        for _ in 0..40 {
+            dag = heap
+                .capture(VmValue::Tuple(vec![dag.clone(), dag]))
+                .unwrap();
+        }
+        validate_contract_values(std::iter::once(&dag)).unwrap();
+        assert!(reference.with_value(|value| matches!(value,VmValue::List(items) if items[0].identical(&VmValue::Reference(reference.clone())))));
+    }
+
+    #[test]
+    fn shared_graph_limits_apply_across_all_call_arguments() {
+        let boundary = VmValue::List(vec![VmValue::None; 131_071]);
+        validate_contract_values(std::iter::once(&boundary)).unwrap();
+        let too_many = VmValue::List(vec![VmValue::None; 131_072]);
+        assert!(validate_contract_values(std::iter::once(&too_many)).is_err());
+        let first = VmValue::List(vec![VmValue::None; 70_000]);
+        let second = first.clone();
+        assert!(validate_contract_values([&first, &second].into_iter()).is_err());
+        let mut nested = VmValue::None;
+        for _ in 0..128 {
+            nested = VmValue::Tuple(vec![nested]);
+        }
+        validate_contract_values(std::iter::once(&nested)).unwrap();
+        assert!(validate_contract_values(std::iter::once(&VmValue::Tuple(vec![nested]))).is_err());
     }
 }

@@ -8,10 +8,21 @@ impl VmInstance {
         index: &VmValue,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
+        let value = match value.snapshot() {
+            VmValue::MappingProxy(mapping) => *mapping,
+            _ => value,
+        };
         if matches!(value.snapshot(), VmValue::Dict(_)) {
             crate::decimal_metering::comparison(host, &value, index, false)?;
         }
-        let value = if let VmValue::ForeignStorageRef(reference) = &value {
+        let value = if let VmValue::StorageRef(reference) = &value {
+            if reference.storage_type != "Hash" {
+                return Err(VmExecutionError::new(
+                    "storage value does not support indexing",
+                ));
+            }
+            self.hash_get(&reference.binding, index, host)?
+        } else if let VmValue::ForeignStorageRef(reference) = &value {
             foreign_storage::read_hash(reference, index, host)?
         } else {
             subscript_value(value, index)?
@@ -346,7 +357,7 @@ impl VmInstance {
         }
         let value = self.eval_expression(required_value(object, "value")?, scope, host)?;
         let attr = required_string(object, "attr")?;
-        native_attribute_value(&value, attr)
+        self.read_attribute(value, attr, host)
     }
 
     pub(super) fn eval_compare(
@@ -367,8 +378,12 @@ impl VmInstance {
         for (operator, comparator) in operators.iter().zip(comparators.iter()) {
             let right = self.eval_expression(comparator, scope, host)?;
             let operator = required_string_value(operator)?;
+            let view_cost = mapping_views::comparison_work(&left, &right);
+            if view_cost > 0 {
+                host.charge_execution_cost(view_cost)?;
+            }
             let passed = if matches!(operator, "in" | "not_in")
-                && matches!(right.snapshot(), VmValue::Iterator(_) | VmValue::View(_))
+                && matches!(right.snapshot(), VmValue::Iterator(_))
             {
                 let iterator = crate::iteration::iter(&right, &self.heap)?;
                 let mut found = false;
@@ -507,6 +522,15 @@ impl VmInstance {
         let left = self.eval_expression(required_value(object, "left")?, scope, host)?;
         let right = self.eval_expression(required_value(object, "right")?, scope, host)?;
         let operator = required_string(object, "operator")?;
+        if matches!(operator, "bitand" | "bitor" | "bitxor" | "sub")
+            && (mapping_views::is_set_view(&left) || mapping_views::is_set_view(&right))
+        {
+            return self.view_binary(operator, &left, &right, host);
+        }
+        let union_cost = mapping_views::union_work(operator, &left, &right);
+        if union_cost > 0 {
+            host.charge_execution_cost(union_cost)?;
+        }
         if matches!(left.snapshot(), VmValue::Set(_) | VmValue::FrozenSet(_))
             && matches!(operator, "bitand" | "bitor" | "bitxor" | "sub")
         {
@@ -522,20 +546,26 @@ impl VmInstance {
         scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
-        if optional_string(object, "conversion").is_some() {
-            return Err(VmExecutionError::new(
-                "f-string conversions are not supported in xian-vm-core",
-            ));
-        }
-        if object
-            .get("format_spec")
-            .is_some_and(|value| !value.is_null())
-        {
-            return Err(VmExecutionError::new(
-                "f-string format specifications are not supported in xian-vm-core",
-            ));
-        }
         let value = self.eval_expression(required_value(object, "value")?, scope, host)?;
-        Ok(VmValue::String(value.try_python_repr()?))
+        let spec = match object.get("format_spec") {
+            Some(spec) if !spec.is_null() => {
+                self.eval_expression(spec, scope, host)?.as_string()?
+            }
+            _ => String::new(),
+        };
+        let conversion = optional_string(object, "conversion")
+            .map(|text| match text {
+                "s" => Ok('s'),
+                "r" => Ok('r'),
+                "a" => Ok('a'),
+                _ => Err(VmExecutionError::new("invalid f-string conversion")),
+            })
+            .transpose()?;
+        host.charge_execution_cost(super::value_formatting::format_work_cost(&value, "")?)?;
+        let value = super::value_formatting::convert(&value, conversion)?;
+        host.charge_execution_cost(super::value_formatting::format_work_cost(&value, &spec)?)?;
+        Ok(VmValue::String(super::value_formatting::format_value(
+            &value, &spec,
+        )?))
     }
 }

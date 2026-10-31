@@ -59,6 +59,9 @@ const VM_GAS_EXPR_IF_EXPR: u64 = 96;
 const VM_GAS_EXPR_F_STRING: u64 = 96;
 const VM_GAS_EXPR_FORMATTED_VALUE: u64 = 96;
 
+#[path = "attributes.rs"]
+mod attributes;
+pub use attributes::VmBoundMethod;
 #[path = "builtin_collections.rs"]
 mod builtin_collections;
 #[path = "builtin_dispatch.rs"]
@@ -71,6 +74,10 @@ mod collection_methods;
 mod expression_evaluation;
 #[path = "foreign_storage.rs"]
 mod foreign_storage;
+#[path = "mapping_views.rs"]
+mod mapping_views;
+#[path = "method_signatures.rs"]
+mod method_signatures;
 #[path = "numeric_text.rs"]
 mod numeric_text;
 #[path = "rounding.rs"]
@@ -83,8 +90,13 @@ mod storage_access;
 mod storage_bulk;
 #[path = "storage_declarations.rs"]
 mod storage_declarations;
+#[path = "string_format.rs"]
+mod string_format;
 #[path = "interpreter_support.rs"]
 mod support;
+#[path = "value_formatting.rs"]
+mod value_formatting;
+pub(crate) use support::python_is_printable;
 #[path = "syscall_dispatch.rs"]
 mod syscall_dispatch;
 #[path = "unpacking.rs"]
@@ -1358,7 +1370,10 @@ impl VmInstance {
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
-        match callee {
+        match callee.snapshot() {
+            VmValue::BoundMethod(bound) => {
+                self.call_receiver(bound.receiver, &bound.method, args, kwargs, host)
+            }
             VmValue::Builtin(name) => self.call_builtin(host, &name, args, kwargs),
             VmValue::FunctionRef(name) => self.call_named_function(host, &name, args, kwargs),
             other => Err(VmExecutionError::new(format!(
@@ -1677,7 +1692,7 @@ mod tests {
     }
 
     #[test]
-    fn formatted_value_rejects_unsupported_format_spec() {
+    fn formatted_value_uses_shared_format_specification() {
         let mut instance = empty_test_instance("format_spec_probe");
         let mut scope = HashMap::from([("value".to_owned(), vm_int(7))]);
         let mut host = NoopHost;
@@ -1700,13 +1715,15 @@ mod tests {
             }
         });
 
-        let error = instance
+        let result = instance
             .eval_expression(&expression, &mut scope, &mut host)
-            .expect_err("format spec should fail closed");
-
-        assert!(error
-            .to_string()
-            .contains("f-string format specifications are not supported"));
+            .expect("format spec should be supported");
+        assert_eq!(result.as_string().unwrap(), "0007");
+        let mut invalid = expression;
+        invalid["conversion"] = json!("ra");
+        assert!(instance
+            .eval_expression(&invalid, &mut scope, &mut host)
+            .is_err());
     }
 
     #[test]
@@ -3991,5 +4008,52 @@ mod tests {
             .expect("call should execute");
 
         assert_eq!(result, vm_int(65));
+    }
+
+    #[test]
+    fn missing_method_lookup_happens_before_argument_side_effects() {
+        let mut instance = empty_test_instance("lookup_order");
+        let items = instance.heap.capture(VmValue::List(vec![])).unwrap();
+        let mut scope = HashMap::from([("items".into(), items.clone())]);
+        let method_call = |method: &str, args: Vec<Value>| {
+            json!({
+                "node":"call", "span":test_span(),
+                "func":{"node":"attribute", "span":test_span(),"value":test_name("items"),"attr":method},
+                "args":args,"keywords":[],
+            })
+        };
+        let expression = method_call("missing", vec![method_call("append", vec![test_int(7)])]);
+        let error = instance
+            .eval_expression(&expression, &mut scope, &mut NoopHost)
+            .unwrap_err();
+        assert!(error.to_string().contains("attribute"));
+        assert_eq!(items.detached().unwrap(), VmValue::List(vec![]));
+        let valid = method_call("append", vec![test_int(7)]);
+        instance
+            .eval_expression(&valid, &mut scope, &mut NoopHost)
+            .unwrap();
+        assert_eq!(items.detached().unwrap(), VmValue::List(vec![vm_int(7)]));
+    }
+
+    #[test]
+    fn bound_method_retains_receiver_and_cannot_escape_execution() {
+        let mut instance = empty_test_instance("bound_receiver");
+        let items = instance
+            .heap
+            .capture(VmValue::List(vec![vm_int(1)]))
+            .unwrap();
+        let method = instance
+            .read_attribute(items.clone(), "append", &mut NoopHost)
+            .unwrap();
+        let method = instance.heap.capture(method).unwrap();
+        assert!(method.detached().is_err());
+        assert!(VmValue::List(vec![method.clone()]).storage_value().is_err());
+        instance
+            .call_callable_value(&mut NoopHost, method, vec![vm_int(2)], vec![])
+            .unwrap();
+        assert_eq!(
+            items.detached().unwrap(),
+            VmValue::List(vec![vm_int(1), vm_int(2)])
+        );
     }
 }

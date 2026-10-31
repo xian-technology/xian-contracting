@@ -35,7 +35,7 @@ impl VmInstance {
                 )?))
             }
             "time.datetime.new" => time_datetime_new(args, kwargs),
-            "time.datetime.strptime" => time_datetime_strptime(args, kwargs),
+            "time.datetime.strptime" => time_datetime_strptime(args, kwargs, host),
             "time.timedelta.new" => time_timedelta_new(args, kwargs),
             "hash.sha3_256_text" => hash_sha3_256_text(args, kwargs),
             "hash.sha3_256_hex" => hash_sha3_256_hex(args, kwargs),

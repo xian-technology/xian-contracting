@@ -903,7 +903,12 @@ fn json_to_vm_value(value: &Value) -> VmValue {
 
 fn vm_value_to_json(value: &VmValue) -> Value {
     match value {
-        VmValue::Reference(_) | VmValue::Iterator(_) | VmValue::Range(_) | VmValue::View(_) => {
+        VmValue::Reference(_)
+        | VmValue::Iterator(_)
+        | VmValue::Range(_)
+        | VmValue::View(_)
+        | VmValue::BoundMethod(_)
+        | VmValue::MappingProxy(_) => {
             panic!("heap references must not escape the VM")
         }
         VmValue::DecimalTuple(value) => vm_value_to_json(&VmValue::Tuple(value.as_values())),
@@ -1190,7 +1195,12 @@ fn required_string_list_arg(
 
 fn vm_value_type_name(value: &VmValue) -> &'static str {
     match value {
-        VmValue::Reference(_) | VmValue::Iterator(_) | VmValue::Range(_) | VmValue::View(_) => {
+        VmValue::Reference(_)
+        | VmValue::Iterator(_)
+        | VmValue::Range(_)
+        | VmValue::View(_)
+        | VmValue::BoundMethod(_)
+        | VmValue::MappingProxy(_) => {
             panic!("heap references must not escape the VM")
         }
         VmValue::None => "NoneType",

@@ -12,6 +12,7 @@ fn check_key(key: &VmValue) -> Result<(), VmExecutionError> {
         | VmValue::Bytes(_)
         | VmValue::FrozenSet(_)
         | VmValue::Builtin(_)
+        | VmValue::BoundMethod(_)
         | VmValue::FunctionRef(_)
         | VmValue::TypeMarker(_) => Ok(()),
         VmValue::RawDecimal(value) if !value.is_snan() => Ok(()),

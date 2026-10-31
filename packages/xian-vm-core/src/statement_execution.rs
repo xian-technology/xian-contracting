@@ -339,7 +339,20 @@ impl VmInstance {
         };
         let operand = self.eval_expression(required_value(object, "value")?, scope, host)?;
         let operator = required_string(object, "operator")?;
-        let result = if operator == "add" && matches!(current.snapshot(), VmValue::List(_)) {
+        if operator == "bitor" && matches!(current.snapshot(), VmValue::MappingProxy(_)) {
+            return Err(VmExecutionError::new(
+                "mappingproxy does not support in-place union",
+            ));
+        }
+        let union_cost = mapping_views::union_work(operator, &current, &operand);
+        if union_cost > 0 {
+            host.charge_execution_cost(union_cost)?;
+        }
+        let result = if matches!(operator, "bitand" | "bitor" | "bitxor" | "sub")
+            && (mapping_views::is_set_view(&current) || mapping_views::is_set_view(&operand))
+        {
+            self.view_binary(operator, &current, &operand, host)?
+        } else if operator == "add" && matches!(current.snapshot(), VmValue::List(_)) {
             self.extend_sequence(&current, &operand, host)?;
             current
         } else {

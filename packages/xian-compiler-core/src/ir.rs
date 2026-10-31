@@ -1858,27 +1858,13 @@ impl<'a> IrLowerer<'a> {
                 value,
                 conversion,
                 format_spec,
-            } => {
-                if conversion.is_some() {
-                    return Err(IrLoweringError::new(
-                        "f-string conversions are not supported in Xian IR",
-                        Some(*span),
-                    ));
-                }
-                if format_spec.is_some() {
-                    return Err(IrLoweringError::new(
-                        "f-string format specifications are not supported in Xian IR",
-                        Some(*span),
-                    ));
-                }
-                Ok(json!({
-                    "node": "formatted_value",
-                    "span": span_value(*span),
-                    "value": self.lower_expression(value)?,
-                    "conversion": Value::Null,
-                    "format_spec": Value::Null,
-                }))
-            }
+            } => Ok(json!({
+                "node": "formatted_value",
+                "span": span_value(*span),
+                "value": self.lower_expression(value)?,
+                "conversion": conversion.map(|value| value.to_string()),
+                "format_spec": format_spec.as_ref().map(|spec| self.lower_expression(spec)).transpose()?,
+            })),
         }
     }
 
@@ -2864,15 +2850,14 @@ mod tests {
     }
 
     #[test]
-    fn lowering_rejects_unsupported_fstring_format_specs() {
-        let source = "@export\ndef probe():\n    value = 7\n    return f'{value:04d}'\n";
-        let diagnostics = lower_source_to_ir_json("con_format", source, &CompileOptions::default())
-            .expect_err("format specs should fail");
-
-        assert_eq!(diagnostics[0].code, "xian.ir.lowering_error");
-        assert!(diagnostics[0]
-            .message
-            .contains("f-string format specifications are not supported"));
+    fn lowering_preserves_fstring_conversions_and_nested_specs() {
+        let source = "@export\ndef probe():\n    value = 7\n    return f'{value!r:>{4}}'\n";
+        let ir = lower_source_to_ir("con_format", source, &CompileOptions::default()).unwrap();
+        let value = &ir["functions"][0]["body"][1]["value"]["values"][0];
+        assert_eq!(value["node"], "formatted_value");
+        assert_eq!(value["conversion"], "r");
+        assert_eq!(value["format_spec"]["node"], "f_string");
+        assert_eq!(value["format_spec"]["values"][1]["node"], "formatted_value");
     }
 
     #[test]

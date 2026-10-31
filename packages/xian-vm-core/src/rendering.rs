@@ -15,6 +15,12 @@ pub(crate) fn render(value: &VmValue) -> Result<String, VmExecutionError> {
     Ok(renderer.output)
 }
 
+pub(crate) fn render_repr(value: &VmValue) -> Result<String, VmExecutionError> {
+    let mut renderer = Renderer::default();
+    renderer.value(value, true, 0)?;
+    Ok(renderer.output)
+}
+
 impl Renderer {
     fn push(&mut self, text: &str) -> Result<(), VmExecutionError> {
         if self.output.len() + text.len() > 128 * 1024 {
@@ -65,8 +71,13 @@ impl Renderer {
         }
         match value {
             VmValue::RawDecimal(value) if nested => self.push(&format!("Decimal('{value}')")),
-            VmValue::String(text) if nested => self.push(&quoted(text)),
+            VmValue::String(text) if nested => self.push(&quoted(text)?),
             VmValue::Dict(entries) => self.dictionary(entries, depth),
+            VmValue::MappingProxy(mapping) => {
+                self.push("mappingproxy(")?;
+                self.value(mapping, true, depth + 1)?;
+                self.push(")")
+            }
             VmValue::DecimalTuple(tuple) => {
                 let fields = tuple.as_values();
                 self.push("DecimalTuple(sign=")?;
@@ -120,7 +131,7 @@ impl Renderer {
     }
 }
 
-fn quoted(value: &str) -> String {
+fn quoted(value: &str) -> Result<String, VmExecutionError> {
     let quote = if value.contains('\'') && !value.contains('"') {
         '"'
     } else {
@@ -130,9 +141,14 @@ fn quoted(value: &str) -> String {
     result.push(quote);
     for ch in value.chars() {
         escape_character(&mut result, ch, quote);
+        if result.len() + 1 > 128 * 1024 {
+            return Err(VmExecutionError::new(
+                "VM rendered value exceeds allocation limit",
+            ));
+        }
     }
     result.push(quote);
-    result
+    Ok(result)
 }
 
 fn sequence_parts(value: &VmValue) -> Option<(&[VmValue], &str, &str)> {
@@ -167,7 +183,29 @@ fn escape_character(result: &mut String, ch: char, quote: char) {
             result.push('\\');
             result.push(ch);
         }
-        ch if ch.is_control() => result.push_str(&format!("\\x{:02x}", ch as u32)),
+        ch if !crate::interpreter::python_is_printable(ch) => {
+            let code = ch as u32;
+            match code {
+                0..=255 => result.push_str(&format!("\\x{code:02x}")),
+                256..=65535 => result.push_str(&format!("\\u{code:04x}")),
+                _ => result.push_str(&format!("\\U{code:08x}")),
+            }
+        }
         ch => result.push(ch),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quoted_builder_never_returns_an_oversized_intermediate() {
+        let limit = 128 * 1024;
+        assert_eq!(quoted(&"a".repeat(limit - 2)).unwrap().len(), limit);
+        assert!(quoted(&"a".repeat(limit - 1)).is_err());
+        assert!(quoted(&"\0".repeat(limit / 4)).is_err());
+        assert_eq!(quoted("\0").unwrap(), "'\\x00'");
+        assert_eq!(quoted("don't").unwrap(), "\"don't\"");
     }
 }

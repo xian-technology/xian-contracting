@@ -10,8 +10,9 @@ fn error() -> VmExecutionError {
 }
 
 pub(super) fn parse(text: &str, format: &str) -> Result<NaiveDateTime> {
-    let mut parsed = Parsed::new();
-    parse_fields(&mut parsed, text, format)?;
+    let tokens = format_tokens(format)?;
+    work_bound(text, format, &tokens)?;
+    let mut parsed = parse_fields(Parsed::new(), text, &tokens, &mut Work::new())?;
     default_date(&mut parsed)?;
     parsed.hour_div_12.get_or_insert(0);
     parsed.hour_mod_12.get_or_insert(0);
@@ -26,70 +27,249 @@ pub(super) fn parse(text: &str, format: &str) -> Result<NaiveDateTime> {
     Ok(date.and_time(time))
 }
 
-fn parse_fields(parsed: &mut Parsed, mut text: &str, format: &str) -> Result<()> {
-    let mut segment = String::new();
-    let twelve_hour = has_directive(format, 'I');
+const MAX_PARSE_WORK: u64 = 1_000_000;
+
+pub(super) fn work_cost(text: &str, format: &str) -> Result<u64> {
+    work_bound(text, format, &format_tokens(format)?)
+}
+
+fn work_bound(text: &str, format: &str, tokens: &[Token]) -> Result<u64> {
+    let mut branches = 1u64;
+    let mut numeric = 0u64;
+    for token in tokens {
+        if let Token::Numeric(directive) = token {
+            let (minimum, maximum) = directive_width(*directive);
+            branches = branches.saturating_mul((maximum - minimum + 1) as u64);
+            numeric += 1;
+        }
+    }
+    let bytes = (text.len() as u64).saturating_add(format.len() as u64);
+    let work = bytes
+        .saturating_add(32 * numeric + 1)
+        .saturating_mul(branches);
+    if work > MAX_PARSE_WORK {
+        return Err(work_error());
+    }
+    Ok(work)
+}
+
+fn work_error() -> VmExecutionError {
+    VmExecutionError::new("datetime parse work limit exceeded")
+}
+
+struct Work {
+    remaining: u64,
+    exhausted: bool,
+}
+impl Work {
+    fn new() -> Self {
+        Self {
+            remaining: MAX_PARSE_WORK,
+            exhausted: false,
+        }
+    }
+    fn charge(&mut self, amount: u64) -> Result<()> {
+        match self.remaining.checked_sub(amount) {
+            Some(remaining) => {
+                self.remaining = remaining;
+                Ok(())
+            }
+            None => {
+                self.exhausted = true;
+                Err(work_error())
+            }
+        }
+    }
+}
+
+const NUMERIC_DIRECTIVES: &str = "YymdHIMSfjUWwuGV";
+
+#[derive(Debug)]
+enum Token {
+    Literal(String),
+    Numeric(char),
+}
+
+fn policy_error() -> VmExecutionError {
+    VmExecutionError::new("unsupported datetime format")
+}
+
+fn format_tokens(format: &str) -> Result<Vec<Token>> {
+    let mut tokens = Vec::new();
+    let mut literal = String::new();
+    let mut seen = std::collections::HashSet::new();
     let mut characters = format.chars();
     while let Some(character) = characters.next() {
         if character != '%' {
-            segment.push(character);
+            literal.push(character);
             continue;
         }
-        let directive = characters.next().ok_or_else(error)?;
-        text = parse_directive(parsed, text, directive, twelve_hour, &mut segment)?;
+        let directive = characters.next().ok_or_else(policy_error)?;
+        if directive == '%' {
+            literal.push('%');
+            continue;
+        }
+        if !NUMERIC_DIRECTIVES.contains(directive) || !seen.insert(directive) {
+            return Err(policy_error());
+        }
+        push_literal(&mut tokens, &mut literal);
+        tokens.push(Token::Numeric(directive));
     }
-    if !parse_segment(parsed, text, &segment)?.is_empty() {
-        return Err(error());
+    push_literal(&mut tokens, &mut literal);
+    validate_combinations(&seen)?;
+    Ok(tokens)
+}
+
+fn push_literal(tokens: &mut Vec<Token>, literal: &mut String) {
+    if !literal.is_empty() {
+        tokens.push(Token::Literal(std::mem::take(literal)));
+    }
+}
+
+fn validate_combinations(seen: &std::collections::HashSet<char>) -> Result<()> {
+    for (left, right) in [('Y', 'y'), ('H', 'I'), ('U', 'W'), ('w', 'u')] {
+        if seen.contains(&left) && seen.contains(&right) {
+            return Err(policy_error());
+        }
+    }
+    if seen.contains(&'G') || seen.contains(&'V') {
+        validate_iso(seen)?;
     }
     Ok(())
 }
 
-fn parse_directive<'a>(
-    parsed: &mut Parsed,
-    mut text: &'a str,
-    directive: char,
-    twelve_hour: bool,
-    segment: &mut String,
-) -> Result<&'a str> {
-    if directive == 'p' && !twelve_hour {
-        text = parse_segment(parsed, text, segment)?;
-        segment.clear();
-        text = parse_segment(&mut Parsed::new(), text, "%p")?;
-    } else if directive == 'f' {
-        text = parse_segment(parsed, text, segment)?;
-        segment.clear();
-        text = fraction(parsed, text)?;
-    } else {
-        segment.push('%');
-        segment.push(directive);
+fn validate_iso(seen: &std::collections::HashSet<char>) -> Result<()> {
+    let complete =
+        seen.contains(&'G') && seen.contains(&'V') && (seen.contains(&'u') || seen.contains(&'w'));
+    if !complete || "YymdjUW".chars().any(|field| seen.contains(&field)) {
+        return Err(policy_error());
+    }
+    Ok(())
+}
+
+fn parse_fields(parsed: Parsed, text: &str, tokens: &[Token], work: &mut Work) -> Result<Parsed> {
+    work.charge(1)?;
+    match tokens.split_first() {
+        None if text.is_empty() => Ok(parsed),
+        None => Err(error()),
+        Some((Token::Literal(literal), remaining)) => {
+            parse_fields(parsed, parse_literal(text, literal, work)?, remaining, work)
+        }
+        Some((Token::Numeric(directive), remaining)) => {
+            parse_numeric(parsed, text, *directive, remaining, work)
+        }
+    }
+}
+
+fn format_whitespace(character: char) -> bool {
+    matches!(character, '\u{9}'..='\u{d}' | '\u{1c}'..='\u{20}' | '\u{85}' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}')
+}
+
+fn parse_literal<'a>(mut text: &'a str, literal: &str, work: &mut Work) -> Result<&'a str> {
+    let mut characters = literal.chars().peekable();
+    while let Some(character) = characters.next() {
+        work.charge(character.len_utf8() as u64)?;
+        if format_whitespace(character) {
+            while characters.peek().is_some_and(|c| format_whitespace(*c)) {
+                characters.next();
+            }
+            text = consume_whitespace(text, work)?;
+        } else {
+            text = text.strip_prefix(character).ok_or_else(error)?;
+        }
     }
     Ok(text)
 }
 
-fn has_directive(format: &str, expected: char) -> bool {
-    let mut characters = format.chars();
-    while let Some(character) = characters.next() {
-        if character == '%' && characters.next() == Some(expected) {
-            return true;
-        }
+fn consume_whitespace<'a>(text: &'a str, work: &mut Work) -> Result<&'a str> {
+    let mut bytes = 0;
+    for character in text.chars().take_while(|c| format_whitespace(*c)) {
+        work.charge(character.len_utf8() as u64)?;
+        bytes += character.len_utf8();
     }
-    false
-}
-
-fn parse_segment<'a>(parsed: &mut Parsed, text: &'a str, format: &str) -> Result<&'a str> {
-    parse_and_remainder(parsed, text, StrftimeItems::new(format)).map_err(|_| error())
-}
-
-fn fraction<'a>(parsed: &mut Parsed, text: &'a str) -> Result<&'a str> {
-    let count = text.bytes().take(6).take_while(u8::is_ascii_digit).count();
-    if count == 0 {
+    if bytes == 0 {
         return Err(error());
     }
-    let value: i64 = text[..count].parse().map_err(|_| error())?;
-    parsed
-        .set_nanosecond(value * 10i64.pow(9 - count as u32))
-        .map_err(|_| error())?;
-    Ok(&text[count..])
+    Ok(&text[bytes..])
+}
+
+fn numeric_width(text: &str, directive: char) -> (usize, usize) {
+    if directive == 'd' && text.starts_with(' ') {
+        return (
+            2,
+            if text.as_bytes().get(1).is_some_and(u8::is_ascii_digit) {
+                2
+            } else {
+                0
+            },
+        );
+    }
+    let (minimum, maximum) = directive_width(directive);
+    let digits = text
+        .bytes()
+        .take(maximum)
+        .take_while(u8::is_ascii_digit)
+        .count();
+    (minimum, digits)
+}
+
+fn directive_width(directive: char) -> (usize, usize) {
+    match directive {
+        'Y' | 'G' => (4, 4),
+        'y' => (2, 2),
+        'f' => (1, 6),
+        'j' => (1, 3),
+        'w' | 'u' => (1, 1),
+        _ => (1, 2),
+    }
+}
+
+fn parse_numeric(
+    parsed: Parsed,
+    text: &str,
+    directive: char,
+    remaining: &[Token],
+    work: &mut Work,
+) -> Result<Parsed> {
+    let (minimum, maximum) = numeric_width(text, directive);
+    for length in (minimum..=maximum).rev() {
+        work.charge(8)?;
+        let mut candidate = parsed.clone();
+        if parse_number(&mut candidate, &text[..length], directive).is_err() {
+            continue;
+        }
+        match parse_fields(candidate, &text[length..], remaining, work) {
+            Ok(result) => return Ok(result),
+            Err(_) if work.exhausted => return Err(work_error()),
+            Err(_) => {}
+        }
+    }
+    Err(error())
+}
+
+fn parse_number(parsed: &mut Parsed, text: &str, directive: char) -> Result<()> {
+    if directive == 'f' {
+        let value: i64 = text.parse().map_err(|_| error())?;
+        return parsed
+            .set_nanosecond(value * 10i64.pow(9 - text.len() as u32))
+            .map_err(|_| error());
+    }
+    // Python's lexical second field admits60/61, then datetime rejects leap seconds.
+    if directive == 'S' {
+        let second: u32 = text.parse().map_err(|_| error())?;
+        if second > 61 {
+            return Err(error());
+        }
+        parsed.second = Some(second);
+        return Ok(());
+    }
+    let format = format!("%{directive}");
+    let remaining =
+        parse_and_remainder(parsed, text, StrftimeItems::new(&format)).map_err(|_| error())?;
+    if !remaining.is_empty() {
+        return Err(error());
+    }
+    Ok(())
 }
 
 fn default_year(parsed: &mut Parsed) {
@@ -210,7 +390,6 @@ mod tests {
             ("2026 00 0", "%Y %U %w", "2025-12-28 00:00:00"),
             ("2026 53 0", "%Y %U %w", "2027-01-03 00:00:00"),
             ("2023 366", "%Y %j", "2024-01-01 00:00:00"),
-            ("PM", "%p", "1900-01-01 00:00:00"),
         ] {
             assert_eq!(parse(text, format).unwrap().to_string(), expected);
         }

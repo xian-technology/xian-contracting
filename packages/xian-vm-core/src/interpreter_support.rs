@@ -1,8 +1,10 @@
 #[path = "native_methods.rs"]
 mod native_methods;
+pub(super) use native_methods::binary_methods;
 pub(super) use native_methods::call_native_method_collected;
 #[cfg(test)]
 pub(super) use native_methods::call_native_method_with;
+pub(super) use native_methods::string_methods;
 
 use super::*;
 
@@ -515,6 +517,16 @@ pub(super) fn apply_binary_operator(
 ) -> Result<VmValue, VmExecutionError> {
     let left = tuple_equivalent(left.snapshot());
     let right = tuple_equivalent(right.snapshot());
+    let left = if operator == "bitor" {
+        mapping_views::unwrap_mapping(left)
+    } else {
+        left
+    };
+    let right = if operator == "bitor" {
+        mapping_views::unwrap_mapping(right)
+    } else {
+        right
+    };
     let (left, right) = if matches!(operator, "bitand" | "bitor" | "bitxor") {
         (left, right)
     } else {
@@ -810,6 +822,17 @@ pub(super) fn apply_binary_operator(
             (left, right) => Ok(VmValue::Int(left.as_bigint()? & right.as_bigint()?)),
         },
         "bitor" => match (left, right) {
+            (VmValue::Dict(mut entries), VmValue::Dict(other)) => {
+                for (key, value) in other {
+                    if entries.len() >= MAX_SEQUENCE_LENGTH && dict_get(&entries, &key)?.is_none() {
+                        return Err(VmExecutionError::new(
+                            "dictionary union exceeds allocation limit",
+                        ));
+                    }
+                    dict_set(&mut entries, key, value)?;
+                }
+                Ok(VmValue::Dict(entries))
+            }
             (VmValue::Bool(left), VmValue::Bool(right)) => Ok(VmValue::Bool(left | right)),
             (VmValue::Set(values), right) if set_like_values(&right).is_some() => {
                 let right = set_like_values(&right).expect("checked above");
@@ -929,6 +952,9 @@ pub(super) fn apply_compare_operator(
     }
     if operator == "is_not" {
         return Ok(!left.identical(right));
+    }
+    if let Some(result) = mapping_views::compare(operator, left, right) {
+        return result;
     }
     if operator == "eq" {
         return operator_values_equal(left, right);
@@ -1085,14 +1111,17 @@ pub(super) fn time_datetime_new(
 pub(super) fn time_datetime_strptime(
     args: Vec<VmValue>,
     kwargs: Vec<(String, VmValue)>,
+    host: &mut dyn VmHost,
 ) -> Result<VmValue, VmExecutionError> {
-    if !kwargs.is_empty() || args.len() != 2 {
-        return Err(VmExecutionError::new(
-            "datetime.datetime.strptime() expects two positional arguments",
-        ));
-    }
+    let (args, _) = method_signatures::bind(
+        &VmValue::TypeMarker("datetime.datetime".into()),
+        "strptime",
+        args,
+        kwargs,
+    )?;
     let date_string = args[0].as_string()?;
     let format = args[1].as_string()?;
+    host.charge_execution_cost(VmDateTime::parse_work_cost(&date_string, &format)?)?;
     Ok(VmValue::DateTime(VmDateTime::parse(&date_string, &format)?))
 }
 
@@ -1334,83 +1363,8 @@ fn timedelta_component(value: &VmValue) -> Result<i64, VmExecutionError> {
     numeric_text::int_value(vec![value.clone()], vec![])?.as_i64()
 }
 
-pub(super) fn format_builtin_value(
-    value: &VmValue,
-    spec: &str,
-) -> Result<String, VmExecutionError> {
-    let value = &value.snapshot();
-    match value {
-        VmValue::Int(value) => format_bigint(value, spec),
-        VmValue::RawDecimal(value) => value.format(spec),
-        VmValue::String(value) if spec.is_empty() => Ok(value.clone()),
-        VmValue::Bool(_)
-        | VmValue::Float(_)
-        | VmValue::Decimal(_)
-        | VmValue::Bytes(_)
-        | VmValue::ByteArray(_)
-            if spec.is_empty() =>
-        {
-            Ok(value.python_repr())
-        }
-        other => Err(VmExecutionError::new(format!(
-            "format() does not support {} with spec '{}'",
-            other.type_name(),
-            spec
-        ))),
-    }
-}
-
-pub(super) fn format_bigint(value: &BigInt, spec: &str) -> Result<String, VmExecutionError> {
-    if spec.is_empty() || spec == "d" {
-        return Ok(value.to_string());
-    }
-
-    let (width_spec, format_type) = spec
-        .chars()
-        .last()
-        .map(|format_type| (&spec[..spec.len() - format_type.len_utf8()], format_type))
-        .ok_or_else(|| VmExecutionError::new("invalid format spec"))?;
-
-    let zero_pad = width_spec.starts_with('0');
-    let width = if width_spec.is_empty() {
-        0
-    } else {
-        width_spec.parse::<usize>().map_err(|_| {
-            VmExecutionError::new(format!("unsupported integer format spec '{spec}'"))
-        })?
-    };
-
-    let rendered = match format_type {
-        'b' => value.to_str_radix(2),
-        'o' => value.to_str_radix(8),
-        'x' => value.to_str_radix(16),
-        'X' => value.to_str_radix(16).to_uppercase(),
-        'd' => value.to_string(),
-        _ => {
-            return Err(VmExecutionError::new(format!(
-                "unsupported integer format spec '{spec}'"
-            )))
-        }
-    };
-
-    if width == 0 || rendered.len() >= width {
-        return Ok(rendered);
-    }
-
-    let pad_char = if zero_pad { '0' } else { ' ' };
-    let (sign, digits) = if let Some(stripped) = rendered.strip_prefix('-') {
-        ("-", stripped)
-    } else {
-        ("", rendered.as_str())
-    };
-    let padding = pad_char
-        .to_string()
-        .repeat(width.saturating_sub(sign.len() + digits.len()));
-    if zero_pad && !sign.is_empty() {
-        Ok(format!("{sign}{padding}{digits}"))
-    } else {
-        Ok(format!("{padding}{sign}{digits}"))
-    }
+pub(crate) fn python_is_printable(character: char) -> bool {
+    native_methods::unicode_strings::is_printable(character)
 }
 
 pub(super) fn repeat_values(
@@ -1446,71 +1400,6 @@ pub(super) fn repeat_string(value: &str, count: &BigInt) -> Result<String, VmExe
         ));
     }
     Ok(value.repeat(count))
-}
-
-pub(super) fn render_simple_format(
-    template: &str,
-    args: &[VmValue],
-) -> Result<String, VmExecutionError> {
-    let mut rendered = String::new();
-    let mut chars = template.chars().peekable();
-    let mut next_arg = 0usize;
-    let mut automatic_numbering = None;
-
-    while let Some(ch) = chars.next() {
-        match ch {
-            '{' => {
-                if chars.peek() == Some(&'{') {
-                    chars.next();
-                    rendered.push('{');
-                    continue;
-                }
-
-                let mut token = String::new();
-                loop {
-                    let Some(inner) = chars.next() else {
-                        return Err(VmExecutionError::new("str.format() missing closing '}'"));
-                    };
-                    if inner == '}' {
-                        break;
-                    }
-                    token.push(inner);
-                }
-
-                let automatic = token.is_empty();
-                if automatic_numbering.is_some_and(|previous| previous != automatic) {
-                    return Err(VmExecutionError::new(
-                        "cannot mix automatic and manual field numbering",
-                    ));
-                }
-                automatic_numbering = Some(automatic);
-                let index = if automatic {
-                    let index = next_arg;
-                    next_arg += 1;
-                    index
-                } else {
-                    token.parse::<usize>().map_err(|_| {
-                        VmExecutionError::new(format!("unsupported str.format() field '{token}'"))
-                    })?
-                };
-                let value = args.get(index).ok_or_else(|| {
-                    VmExecutionError::new("str.format() placeholder index out of range")
-                })?;
-                rendered.push_str(&value.python_repr());
-            }
-            '}' => {
-                if chars.peek() == Some(&'}') {
-                    chars.next();
-                    rendered.push('}');
-                } else {
-                    return Err(VmExecutionError::new("str.format() unmatched '}'"));
-                }
-            }
-            other => rendered.push(other),
-        }
-    }
-
-    Ok(rendered)
 }
 
 #[cfg(test)]
@@ -1719,6 +1608,12 @@ fn vm_values_equal_at(
             "maximum equality recursion depth exceeded",
         ));
     }
+    if let VmValue::MappingProxy(mapping) = left.snapshot() {
+        return vm_values_equal_at(&mapping, right, depth + 1);
+    }
+    if let VmValue::MappingProxy(mapping) = right.snapshot() {
+        return vm_values_equal_at(left, &mapping, depth + 1);
+    }
     let left = &tuple_equivalent(left.snapshot());
     let right = &tuple_equivalent(right.snapshot());
     if let Some(equal) = nan_equality(left, right)? {
@@ -1775,22 +1670,10 @@ pub(super) fn contains_value(
     let container = &tuple_equivalent(container.snapshot());
     match container {
         VmValue::Range(range) => {
-            let number = match needle.snapshot() {
-                VmValue::Int(value) => value,
-                VmValue::Bool(value) => BigInt::from(value as u8),
-                VmValue::Float(value) if value.fract() == 0.0 => {
-                    use num_traits::FromPrimitive;
-                    let Some(number) = BigInt::from_f64(value) else {
-                        return Ok(false);
-                    };
-                    number
-                }
-                _ => return Ok(false),
-            };
-            let offset = number - &range.start;
-            let index = &offset / &range.step;
-            Ok((&offset % &range.step).is_zero() && !index.is_negative() && index < range.len())
+            crate::scalar_methods::range_index(range, needle).map(|index| index.is_some())
         }
+        VmValue::MappingProxy(mapping) => contains_value(mapping, needle),
+        VmValue::View(view) => mapping_views::contains(view, needle),
         VmValue::String(value) => match &needle.snapshot() {
             VmValue::String(needle) => Ok(value.contains(needle)),
             _ => Err(VmExecutionError::new(
@@ -1894,6 +1777,7 @@ pub(super) fn subscript_value(
 ) -> Result<VmValue, VmExecutionError> {
     let container = tuple_equivalent(container.snapshot());
     match container {
+        VmValue::MappingProxy(mapping) => subscript_value(*mapping, index),
         VmValue::Range(range) => range
             .get(&index.as_bigint()?)
             .ok_or_else(|| VmExecutionError::new("range index out of bounds")),
@@ -2050,7 +1934,7 @@ fn string_search_bounds(
             let Some(value) = value else {
                 return Ok(default);
             };
-            let mut value = value.as_bigint()?;
+            let mut value = string_methods::index_integer(value)?;
             if value.is_negative() {
                 value += length;
             }
@@ -2244,18 +2128,6 @@ pub(super) fn type_matches_name(value: &VmValue, name: &str) -> bool {
         "frozenset" => matches!(value, VmValue::FrozenSet(_)),
         _ => false,
     }
-}
-
-pub(super) fn ascii_render(value: &str) -> String {
-    let mut rendered = String::new();
-    for ch in value.chars() {
-        if ch.is_ascii() {
-            rendered.push(ch);
-        } else {
-            rendered.extend(ch.escape_default());
-        }
-    }
-    rendered
 }
 
 pub(super) fn ascii_string_repr(value: &str) -> String {

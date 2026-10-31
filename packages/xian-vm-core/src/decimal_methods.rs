@@ -9,6 +9,10 @@ struct Signature {
     positional_only: bool,
 }
 
+pub(crate) fn supports(method: &str) -> bool {
+    signature(method).is_ok()
+}
+
 fn signature(method: &str) -> Result<Signature> {
     let (parameters, required, positional_only): (&[&str], usize, bool) = match method {
         "adjusted" | "as_integer_ratio" | "as_tuple" | "canonical" | "conjugate" | "copy_abs"

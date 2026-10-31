@@ -103,6 +103,26 @@ pub struct VmIterator {
 }
 
 impl VmIterator {
+    pub(crate) fn visit_children(
+        &self,
+        visit: &mut impl FnMut(&VmValue) -> Result<()>,
+    ) -> Result<()> {
+        match &self.kind {
+            Kind::View { view, .. } => visit(&view.source),
+            Kind::Sequence { source, .. } => visit(source),
+            Kind::Map { function, inputs } => {
+                visit(function)?;
+                inputs.iter().try_for_each(visit)
+            }
+            Kind::Filter { function, input } => {
+                visit(function)?;
+                visit(input)
+            }
+            Kind::Zip { inputs, .. } => inputs.iter().try_for_each(visit),
+            Kind::Range { .. } => Ok(()),
+        }
+    }
+
     pub(crate) fn matches_public_class(&self, name: &str) -> bool {
         match &self.kind {
             Kind::Map { .. } => name == "map",
@@ -185,6 +205,7 @@ pub(crate) fn iter(source: &VmValue, heap: &VmHeap) -> Result<VmValue> {
     let value = source.snapshot();
     match value {
         VmValue::Iterator(_) => Ok(source.clone()),
+        VmValue::MappingProxy(mapping) => iter(&mapping, heap),
         VmValue::View(view) => dictionary_cursor(*view, false, heap),
         VmValue::Range(range) => store(
             Kind::Range {
@@ -200,6 +221,7 @@ pub(crate) fn iter(source: &VmValue, heap: &VmHeap) -> Result<VmValue> {
 pub(crate) fn sequence(source: &VmValue, reverse: bool, heap: &VmHeap) -> Result<VmValue> {
     let value = source.snapshot();
     match &value {
+        VmValue::MappingProxy(mapping) => return sequence(mapping, reverse, heap),
         VmValue::View(view) => return dictionary_cursor(*view.clone(), reverse, heap),
         VmValue::Dict(_) => {
             return dictionary_cursor(

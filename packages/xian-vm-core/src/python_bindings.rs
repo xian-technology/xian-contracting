@@ -482,7 +482,18 @@ impl VmHost for PythonBundleExecutor {
     }
 
     fn call_contract_shared(&mut self, call: VmContractCall) -> Result<VmValue, VmExecutionError> {
-        self.call_contract(call)
+        // Retain aliases, not detached copies: a callee can mutate shared input
+        // graphs even when its explicit result is None.
+        let inputs = call
+            .args
+            .iter()
+            .chain(call.kwargs.iter().map(|(_, value)| value))
+            .cloned()
+            .collect::<Vec<_>>();
+        crate::heap::validate_contract_values(inputs.iter())?;
+        let result = self.call_contract(call)?;
+        crate::heap::validate_contract_values(inputs.iter().chain(std::iter::once(&result)))?;
+        Ok(result)
     }
 
     fn call_contract(&mut self, call: VmContractCall) -> Result<VmValue, VmExecutionError> {

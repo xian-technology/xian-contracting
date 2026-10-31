@@ -2,6 +2,8 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from types import ModuleType
 
+from .time_format import parse_datetime
+
 SECONDS_IN_MINUTE = 60
 SECONDS_IN_HOUR = 3600
 SECONDS_IN_DAY = 86400
@@ -116,7 +118,7 @@ class Datetime:
 
     @classmethod
     def strptime(cls, date_string, format):
-        return cls._from_datetime(dt.strptime(date_string, format))
+        return cls._from_datetime(parse_datetime(date_string, format))
 
 
 class Timedelta:
