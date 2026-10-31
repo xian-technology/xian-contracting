@@ -2110,5 +2110,2476 @@
       ],
       []
     ]
+  },
+  {
+    "id": "expansion_str_capitalize_nominal",
+    "covers": [
+      "method.str.capitalize"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'hELLO \u00df'.capitalize()\n",
+    "expected_result": "Hello \u00df"
+  },
+  {
+    "id": "expansion_str_casefold_nominal",
+    "covers": [
+      "method.str.casefold"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'Stra\u00dfe \u03a3'.casefold()\n",
+    "expected_result": "strasse \u03c3"
+  },
+  {
+    "id": "expansion_str_center_nominal",
+    "covers": [
+      "method.str.center"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'x'.center(4, '-')\n",
+    "expected_result": "-x--"
+  },
+  {
+    "id": "expansion_str_encode_nominal",
+    "covers": [
+      "method.str.encode"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'caf\u00e9'.encode('utf-8').hex()\n",
+    "expected_result": "636166c3a9"
+  },
+  {
+    "id": "expansion_str_expandtabs_nominal",
+    "covers": [
+      "method.str.expandtabs"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'a\\x09b\\x0a\\x09c'.expandtabs(4)\n",
+    "expected_result": "a   b\n    c"
+  },
+  {
+    "id": "expansion_str_format_map_nominal",
+    "covers": [
+      "method.str.format_map"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return '{name}: {count:02d}'.format_map({'name': 'x', 'count': 3})\n",
+    "expected_result": "x: 03"
+  },
+  {
+    "id": "expansion_str_index_nominal",
+    "covers": [
+      "method.str.index"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'abcabc'.index('bc', 2)\n",
+    "expected_result": 4
+  },
+  {
+    "id": "expansion_str_isdecimal_nominal",
+    "covers": [
+      "method.str.isdecimal"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return ['\u0663'.isdecimal(), '\u00b2'.isdecimal()]\n",
+    "expected_result": [
+      true,
+      false
+    ]
+  },
+  {
+    "id": "expansion_str_isidentifier_nominal",
+    "covers": [
+      "method.str.isidentifier"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return ['caf\u00e9'.isidentifier(), '1x'.isidentifier()]\n",
+    "expected_result": [
+      true,
+      false
+    ]
+  },
+  {
+    "id": "expansion_str_isnumeric_nominal",
+    "covers": [
+      "method.str.isnumeric"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return ['\u2163\u00bc'.isnumeric(), 'x'.isnumeric()]\n",
+    "expected_result": [
+      true,
+      false
+    ]
+  },
+  {
+    "id": "expansion_str_isprintable_nominal",
+    "covers": [
+      "method.str.isprintable"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return ['a b'.isprintable(), 'a\\x0ab'.isprintable()]\n",
+    "expected_result": [
+      true,
+      false
+    ]
+  },
+  {
+    "id": "expansion_str_isspace_nominal",
+    "covers": [
+      "method.str.isspace"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [' \\x09\\x1c'.isspace(), ''.isspace()]\n",
+    "expected_result": [
+      true,
+      false
+    ]
+  },
+  {
+    "id": "expansion_str_istitle_nominal",
+    "covers": [
+      "method.str.istitle"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return ['Hello World'.istitle(), 'Hello world'.istitle()]\n",
+    "expected_result": [
+      true,
+      false
+    ]
+  },
+  {
+    "id": "expansion_str_isupper_nominal",
+    "covers": [
+      "method.str.isupper"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return ['A\u4e2d'.isupper(), '\u4e2d'.isupper()]\n",
+    "expected_result": [
+      true,
+      false
+    ]
+  },
+  {
+    "id": "expansion_str_ljust_nominal",
+    "covers": [
+      "method.str.ljust"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'x'.ljust(3, '-')\n",
+    "expected_result": "x--"
+  },
+  {
+    "id": "expansion_str_lstrip_nominal",
+    "covers": [
+      "method.str.lstrip"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'xyxxhello xy'.lstrip('xy')\n",
+    "expected_result": "hello xy"
+  },
+  {
+    "id": "expansion_str_maketrans_nominal",
+    "covers": [
+      "method.str.maketrans"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [str.maketrans('ab', 'xy', 'c').get(97), str.maketrans('ab', 'xy', 'c').get(99)]\n",
+    "expected_result": [
+      120,
+      null
+    ]
+  },
+  {
+    "id": "expansion_str_partition_nominal",
+    "covers": [
+      "method.str.partition"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list('a:b:c'.partition(':'))\n",
+    "expected_result": [
+      "a",
+      ":",
+      "b:c"
+    ]
+  },
+  {
+    "id": "expansion_str_removeprefix_nominal",
+    "covers": [
+      "method.str.removeprefix"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'prefixprefix'.removeprefix('prefix')\n",
+    "expected_result": "prefix"
+  },
+  {
+    "id": "expansion_str_removesuffix_nominal",
+    "covers": [
+      "method.str.removesuffix"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'suffixsuffix'.removesuffix('suffix')\n",
+    "expected_result": "suffix"
+  },
+  {
+    "id": "expansion_str_rfind_nominal",
+    "covers": [
+      "method.str.rfind"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'abcabc'.rfind('bc', 0, 5)\n",
+    "expected_result": 1
+  },
+  {
+    "id": "expansion_str_rindex_nominal",
+    "covers": [
+      "method.str.rindex"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'abcabc'.rindex('bc')\n",
+    "expected_result": 4
+  },
+  {
+    "id": "expansion_str_rjust_nominal",
+    "covers": [
+      "method.str.rjust"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'x'.rjust(3, '-')\n",
+    "expected_result": "--x"
+  },
+  {
+    "id": "expansion_str_rpartition_nominal",
+    "covers": [
+      "method.str.rpartition"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list('a:b:c'.rpartition(':'))\n",
+    "expected_result": [
+      "a:b",
+      ":",
+      "c"
+    ]
+  },
+  {
+    "id": "expansion_str_rsplit_nominal",
+    "covers": [
+      "method.str.rsplit"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'a:b:c'.rsplit(':', 1)\n",
+    "expected_result": [
+      "a:b",
+      "c"
+    ]
+  },
+  {
+    "id": "expansion_str_rstrip_nominal",
+    "covers": [
+      "method.str.rstrip"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'xy hello xyxx'.rstrip('xy')\n",
+    "expected_result": "xy hello "
+  },
+  {
+    "id": "expansion_str_splitlines_nominal",
+    "covers": [
+      "method.str.splitlines"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'a\\x0d\\x0ab\u0085c\\x0a'.splitlines()\n",
+    "expected_result": [
+      "a",
+      "b",
+      "c"
+    ]
+  },
+  {
+    "id": "expansion_str_swapcase_nominal",
+    "covers": [
+      "method.str.swapcase"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'Ab\u03a3\u00df'.swapcase()\n",
+    "expected_result": "aB\u03c3SS"
+  },
+  {
+    "id": "expansion_str_title_nominal",
+    "covers": [
+      "method.str.title"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return \"they're hERE\".title()\n",
+    "expected_result": "They'Re Here"
+  },
+  {
+    "id": "expansion_str_translate_nominal",
+    "covers": [
+      "method.str.translate"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'caf\u00e9'.translate({99: 'XX', 97: None, 233: 101})\n",
+    "expected_result": "XXfe"
+  },
+  {
+    "id": "expansion_str_zfill_nominal",
+    "covers": [
+      "method.str.zfill"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return '-12'.zfill(5)\n",
+    "expected_result": "-0012"
+  },
+  {
+    "id": "expansion_str_center_invalid",
+    "covers": [
+      "method.str.center"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return 'x'.center(4, 'ab')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_str_index_invalid",
+    "covers": [
+      "method.str.index"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return 'a'.index('z')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_str_rindex_invalid",
+    "covers": [
+      "method.str.rindex"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return 'a'.rindex('z')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_str_partition_invalid",
+    "covers": [
+      "method.str.partition"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return 'a'.partition('')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_str_rpartition_invalid",
+    "covers": [
+      "method.str.rpartition"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return 'a'.rpartition('')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_str_translate_invalid",
+    "covers": [
+      "method.str.translate"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return 'a'.translate({97: []})\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_str_maketrans_invalid",
+    "covers": [
+      "method.str.maketrans"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return str.maketrans('ab', 'x')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_str_encode_invalid",
+    "covers": [
+      "method.str.encode"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return '\u00e9'.encode('ascii')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_str_format_map_invalid",
+    "covers": [
+      "method.str.format_map"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return '{0}'.format_map({'0': 'x'})\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_str_center_boundary",
+    "covers": [
+      "method.str.center"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return ''.center(0)\n",
+    "expected_result": ""
+  },
+  {
+    "id": "expansion_str_expandtabs_boundary",
+    "covers": [
+      "method.str.expandtabs"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return 'a\\x09b'.expandtabs(0)\n",
+    "expected_result": "ab"
+  },
+  {
+    "id": "expansion_str_index_boundary",
+    "covers": [
+      "method.str.index"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return 'abc'.index('', 3)\n",
+    "expected_result": 3
+  },
+  {
+    "id": "expansion_str_rfind_boundary",
+    "covers": [
+      "method.str.rfind"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return 'abc'.rfind('', 4)\n",
+    "expected_result": -1
+  },
+  {
+    "id": "expansion_str_partition_boundary",
+    "covers": [
+      "method.str.partition"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return list('abc'.partition(':'))\n",
+    "expected_result": [
+      "abc",
+      "",
+      ""
+    ]
+  },
+  {
+    "id": "expansion_str_rpartition_boundary",
+    "covers": [
+      "method.str.rpartition"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return list('abc'.rpartition(':'))\n",
+    "expected_result": [
+      "",
+      "",
+      "abc"
+    ]
+  },
+  {
+    "id": "expansion_str_removeprefix_boundary",
+    "covers": [
+      "method.str.removeprefix"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return 'abc'.removeprefix('')\n",
+    "expected_result": "abc"
+  },
+  {
+    "id": "expansion_str_removesuffix_boundary",
+    "covers": [
+      "method.str.removesuffix"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return 'abc'.removesuffix('')\n",
+    "expected_result": "abc"
+  },
+  {
+    "id": "expansion_str_rsplit_boundary",
+    "covers": [
+      "method.str.rsplit"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return '  a  b  '.rsplit(None, 0)\n",
+    "expected_result": [
+      "  a  b"
+    ]
+  },
+  {
+    "id": "expansion_str_splitlines_boundary",
+    "covers": [
+      "method.str.splitlines"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return ''.splitlines(True)\n",
+    "expected_result": []
+  },
+  {
+    "id": "expansion_str_zfill_boundary",
+    "covers": [
+      "method.str.zfill"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return '+'.zfill(3)\n",
+    "expected_result": "+00"
+  },
+  {
+    "id": "expansion_bytes_capitalize_nominal",
+    "covers": [
+      "method.bytes.capitalize"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'hELLO'.capitalize().hex()\n",
+    "expected_result": "48656c6c6f"
+  },
+  {
+    "id": "expansion_bytes_center_nominal",
+    "covers": [
+      "method.bytes.center"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'x'.center(4, b'-').hex()\n",
+    "expected_result": "2d782d2d"
+  },
+  {
+    "id": "expansion_bytes_expandtabs_nominal",
+    "covers": [
+      "method.bytes.expandtabs"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'a\\tb\\n\\tc'.expandtabs(4).hex()\n",
+    "expected_result": "61202020620a2020202063"
+  },
+  {
+    "id": "expansion_bytes_join_nominal",
+    "covers": [
+      "method.bytes.join"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'-'.join([b'a', bytearray(b'b')]).hex()\n",
+    "expected_result": "612d62"
+  },
+  {
+    "id": "expansion_bytes_ljust_nominal",
+    "covers": [
+      "method.bytes.ljust"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'x'.ljust(3, b'-').hex()\n",
+    "expected_result": "782d2d"
+  },
+  {
+    "id": "expansion_bytes_lower_nominal",
+    "covers": [
+      "method.bytes.lower"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'Ab\\xff'.lower().hex()\n",
+    "expected_result": "6162ff"
+  },
+  {
+    "id": "expansion_bytes_lstrip_nominal",
+    "covers": [
+      "method.bytes.lstrip"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b' xyxhello '.lstrip(b' xy').hex()\n",
+    "expected_result": "68656c6c6f20"
+  },
+  {
+    "id": "expansion_bytes_removeprefix_nominal",
+    "covers": [
+      "method.bytes.removeprefix"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'abcabc'.removeprefix(b'abc').hex()\n",
+    "expected_result": "616263"
+  },
+  {
+    "id": "expansion_bytes_removesuffix_nominal",
+    "covers": [
+      "method.bytes.removesuffix"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'abcabc'.removesuffix(b'abc').hex()\n",
+    "expected_result": "616263"
+  },
+  {
+    "id": "expansion_bytes_replace_nominal",
+    "covers": [
+      "method.bytes.replace"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'a:a:a'.replace(b'a', b'xx', 2).hex()\n",
+    "expected_result": "78783a78783a61"
+  },
+  {
+    "id": "expansion_bytes_rjust_nominal",
+    "covers": [
+      "method.bytes.rjust"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'x'.rjust(3, b'-').hex()\n",
+    "expected_result": "2d2d78"
+  },
+  {
+    "id": "expansion_bytes_rstrip_nominal",
+    "covers": [
+      "method.bytes.rstrip"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b' xyxhello xy'.rstrip(b' xy').hex()\n",
+    "expected_result": "2078797868656c6c6f"
+  },
+  {
+    "id": "expansion_bytes_strip_nominal",
+    "covers": [
+      "method.bytes.strip"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b' \\tvalue\\n'.strip().hex()\n",
+    "expected_result": "76616c7565"
+  },
+  {
+    "id": "expansion_bytes_swapcase_nominal",
+    "covers": [
+      "method.bytes.swapcase"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'Ab\\xff'.swapcase().hex()\n",
+    "expected_result": "6142ff"
+  },
+  {
+    "id": "expansion_bytes_title_nominal",
+    "covers": [
+      "method.bytes.title"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b\"they're hERE\".title().hex()\n",
+    "expected_result": "546865792752652048657265"
+  },
+  {
+    "id": "expansion_bytes_upper_nominal",
+    "covers": [
+      "method.bytes.upper"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'Ab\\xff'.upper().hex()\n",
+    "expected_result": "4142ff"
+  },
+  {
+    "id": "expansion_bytes_zfill_nominal",
+    "covers": [
+      "method.bytes.zfill"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'-12'.zfill(5).hex()\n",
+    "expected_result": "2d30303132"
+  },
+  {
+    "id": "expansion_bytes_count_nominal",
+    "covers": [
+      "method.bytes.count"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'abcabc'.count(b'a')\n",
+    "expected_result": 2
+  },
+  {
+    "id": "expansion_bytes_find_nominal",
+    "covers": [
+      "method.bytes.find"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'abcabc'.find(b'bc', 2)\n",
+    "expected_result": 4
+  },
+  {
+    "id": "expansion_bytes_index_nominal",
+    "covers": [
+      "method.bytes.index"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'abcabc'.index(b'bc', 2)\n",
+    "expected_result": 4
+  },
+  {
+    "id": "expansion_bytes_rfind_nominal",
+    "covers": [
+      "method.bytes.rfind"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'abcabc'.rfind(b'bc', 0, 5)\n",
+    "expected_result": 1
+  },
+  {
+    "id": "expansion_bytes_rindex_nominal",
+    "covers": [
+      "method.bytes.rindex"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'abcabc'.rindex(b'bc')\n",
+    "expected_result": 4
+  },
+  {
+    "id": "expansion_bytes_startswith_nominal",
+    "covers": [
+      "method.bytes.startswith"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'abcabc'.startswith((b'xx', b'ab'))\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytes_endswith_nominal",
+    "covers": [
+      "method.bytes.endswith"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'abcabc'.endswith(b'bc')\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytes_isalnum_nominal",
+    "covers": [
+      "method.bytes.isalnum"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'ab12'.isalnum()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytes_isalpha_nominal",
+    "covers": [
+      "method.bytes.isalpha"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'ab\\xff'.isalpha()\n",
+    "expected_result": false
+  },
+  {
+    "id": "expansion_bytes_isascii_nominal",
+    "covers": [
+      "method.bytes.isascii"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b''.isascii()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytes_isdigit_nominal",
+    "covers": [
+      "method.bytes.isdigit"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'123'.isdigit()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytes_islower_nominal",
+    "covers": [
+      "method.bytes.islower"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'ab1\\xff'.islower()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytes_isspace_nominal",
+    "covers": [
+      "method.bytes.isspace"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b' \\t\\n'.isspace()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytes_istitle_nominal",
+    "covers": [
+      "method.bytes.istitle"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'Hello World'.istitle()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytes_isupper_nominal",
+    "covers": [
+      "method.bytes.isupper"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'AB1\\xff'.isupper()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytes_partition_nominal",
+    "covers": [
+      "method.bytes.partition"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [item.hex() for item in b'a:b:c'.partition(b':')]\n",
+    "expected_result": [
+      "61",
+      "3a",
+      "623a63"
+    ]
+  },
+  {
+    "id": "expansion_bytes_rpartition_nominal",
+    "covers": [
+      "method.bytes.rpartition"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [item.hex() for item in b'a:b:c'.rpartition(b':')]\n",
+    "expected_result": [
+      "613a62",
+      "3a",
+      "63"
+    ]
+  },
+  {
+    "id": "expansion_bytes_split_nominal",
+    "covers": [
+      "method.bytes.split"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [item.hex() for item in b'a:b:c'.split(b':', 1)]\n",
+    "expected_result": [
+      "61",
+      "623a63"
+    ]
+  },
+  {
+    "id": "expansion_bytes_rsplit_nominal",
+    "covers": [
+      "method.bytes.rsplit"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [item.hex() for item in b'a:b:c'.rsplit(b':', 1)]\n",
+    "expected_result": [
+      "613a62",
+      "63"
+    ]
+  },
+  {
+    "id": "expansion_bytes_splitlines_nominal",
+    "covers": [
+      "method.bytes.splitlines"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [item.hex() for item in b'a\\r\\nb\\nc\\r'.splitlines(True)]\n",
+    "expected_result": [
+      "610d0a",
+      "620a",
+      "630d"
+    ]
+  },
+  {
+    "id": "expansion_bytes_decode_nominal",
+    "covers": [
+      "method.bytes.decode"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'caf\\xc3\\xa9'.decode(\"utf-8\")\n",
+    "expected_result": "caf\u00e9"
+  },
+  {
+    "id": "expansion_bytes_maketrans_nominal",
+    "covers": [
+      "method.bytes.maketrans"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    table = b''.maketrans(b\"ab\", b\"xy\")\n    return [len(table), table[97], table[98]]\n",
+    "expected_result": [
+      256,
+      120,
+      121
+    ]
+  },
+  {
+    "id": "expansion_bytes_translate_nominal",
+    "covers": [
+      "method.bytes.translate"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'abc'.translate(b\"\".maketrans(b\"ab\", b\"xy\"), b\"c\").hex()\n",
+    "expected_result": "7879"
+  },
+  {
+    "id": "expansion_bytes_index_invalid",
+    "covers": [
+      "method.bytes.index"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return b'abc'.index(b'z')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytes_rindex_invalid",
+    "covers": [
+      "method.bytes.rindex"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return b'abc'.rindex(b'z')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytes_partition_invalid",
+    "covers": [
+      "method.bytes.partition"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return b'abc'.partition(b'')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytes_rpartition_invalid",
+    "covers": [
+      "method.bytes.rpartition"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return b'abc'.rpartition(b'')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytes_split_invalid",
+    "covers": [
+      "method.bytes.split"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return b'abc'.split(b'')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytes_join_invalid",
+    "covers": [
+      "method.bytes.join"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return b'abc'.join([1])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytes_translate_invalid",
+    "covers": [
+      "method.bytes.translate"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return b'abc'.translate(b'abc')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytes_center_invalid",
+    "covers": [
+      "method.bytes.center"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return b'abc'.center(3,b'xx')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytes_decode_invalid",
+    "covers": [
+      "method.bytes.decode"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return b'\\xff'.decode('ascii')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytes_find_boundary",
+    "covers": [
+      "method.bytes.find"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return b'abc'.find(b'', 4)\n",
+    "expected_result": -1
+  },
+  {
+    "id": "expansion_bytes_count_boundary",
+    "covers": [
+      "method.bytes.count"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return b'abc'.count(b'')\n",
+    "expected_result": 4
+  },
+  {
+    "id": "expansion_bytes_rsplit_boundary",
+    "covers": [
+      "method.bytes.rsplit"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [item.hex() for item in b'  a  b  '.rsplit(None, 0)]\n",
+    "expected_result": [
+      "202061202062"
+    ]
+  },
+  {
+    "id": "expansion_bytes_splitlines_boundary",
+    "covers": [
+      "method.bytes.splitlines"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [item.hex() for item in b''.splitlines()]\n",
+    "expected_result": []
+  },
+  {
+    "id": "expansion_bytes_hex_separator",
+    "covers": [
+      "method.bytes.hex"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'\\x00\\x11\"3'.hex(\":\", 2)\n",
+    "expected_result": "0011:2233"
+  },
+  {
+    "id": "expansion_bytes_fromhex_instance",
+    "covers": [
+      "method.bytes.fromhex"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b''.fromhex(\"00 ff\\x0910\").hex()\n",
+    "expected_result": "00ff10"
+  },
+  {
+    "id": "expansion_bytearray_capitalize_nominal",
+    "covers": [
+      "method.bytearray.capitalize"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'hELLO').capitalize().hex()\n",
+    "expected_result": "48656c6c6f"
+  },
+  {
+    "id": "expansion_bytearray_center_nominal",
+    "covers": [
+      "method.bytearray.center"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'x').center(4, b'-').hex()\n",
+    "expected_result": "2d782d2d"
+  },
+  {
+    "id": "expansion_bytearray_expandtabs_nominal",
+    "covers": [
+      "method.bytearray.expandtabs"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'a\\tb\\n\\tc').expandtabs(4).hex()\n",
+    "expected_result": "61202020620a2020202063"
+  },
+  {
+    "id": "expansion_bytearray_join_nominal",
+    "covers": [
+      "method.bytearray.join"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'-').join([b'a', bytearray(b'b')]).hex()\n",
+    "expected_result": "612d62"
+  },
+  {
+    "id": "expansion_bytearray_ljust_nominal",
+    "covers": [
+      "method.bytearray.ljust"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'x').ljust(3, b'-').hex()\n",
+    "expected_result": "782d2d"
+  },
+  {
+    "id": "expansion_bytearray_lower_nominal",
+    "covers": [
+      "method.bytearray.lower"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'Ab\\xff').lower().hex()\n",
+    "expected_result": "6162ff"
+  },
+  {
+    "id": "expansion_bytearray_lstrip_nominal",
+    "covers": [
+      "method.bytearray.lstrip"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b' xyxhello ').lstrip(b' xy').hex()\n",
+    "expected_result": "68656c6c6f20"
+  },
+  {
+    "id": "expansion_bytearray_removeprefix_nominal",
+    "covers": [
+      "method.bytearray.removeprefix"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'abcabc').removeprefix(b'abc').hex()\n",
+    "expected_result": "616263"
+  },
+  {
+    "id": "expansion_bytearray_removesuffix_nominal",
+    "covers": [
+      "method.bytearray.removesuffix"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'abcabc').removesuffix(b'abc').hex()\n",
+    "expected_result": "616263"
+  },
+  {
+    "id": "expansion_bytearray_replace_nominal",
+    "covers": [
+      "method.bytearray.replace"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'a:a:a').replace(b'a', b'xx', 2).hex()\n",
+    "expected_result": "78783a78783a61"
+  },
+  {
+    "id": "expansion_bytearray_rjust_nominal",
+    "covers": [
+      "method.bytearray.rjust"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'x').rjust(3, b'-').hex()\n",
+    "expected_result": "2d2d78"
+  },
+  {
+    "id": "expansion_bytearray_rstrip_nominal",
+    "covers": [
+      "method.bytearray.rstrip"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b' xyxhello xy').rstrip(b' xy').hex()\n",
+    "expected_result": "2078797868656c6c6f"
+  },
+  {
+    "id": "expansion_bytearray_strip_nominal",
+    "covers": [
+      "method.bytearray.strip"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b' \\tvalue\\n').strip().hex()\n",
+    "expected_result": "76616c7565"
+  },
+  {
+    "id": "expansion_bytearray_swapcase_nominal",
+    "covers": [
+      "method.bytearray.swapcase"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'Ab\\xff').swapcase().hex()\n",
+    "expected_result": "6142ff"
+  },
+  {
+    "id": "expansion_bytearray_title_nominal",
+    "covers": [
+      "method.bytearray.title"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b\"they're hERE\").title().hex()\n",
+    "expected_result": "546865792752652048657265"
+  },
+  {
+    "id": "expansion_bytearray_upper_nominal",
+    "covers": [
+      "method.bytearray.upper"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'Ab\\xff').upper().hex()\n",
+    "expected_result": "4142ff"
+  },
+  {
+    "id": "expansion_bytearray_zfill_nominal",
+    "covers": [
+      "method.bytearray.zfill"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'-12').zfill(5).hex()\n",
+    "expected_result": "2d30303132"
+  },
+  {
+    "id": "expansion_bytearray_count_nominal",
+    "covers": [
+      "method.bytearray.count"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'abcabc').count(b'a')\n",
+    "expected_result": 2
+  },
+  {
+    "id": "expansion_bytearray_find_nominal",
+    "covers": [
+      "method.bytearray.find"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'abcabc').find(b'bc', 2)\n",
+    "expected_result": 4
+  },
+  {
+    "id": "expansion_bytearray_index_nominal",
+    "covers": [
+      "method.bytearray.index"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'abcabc').index(b'bc', 2)\n",
+    "expected_result": 4
+  },
+  {
+    "id": "expansion_bytearray_rfind_nominal",
+    "covers": [
+      "method.bytearray.rfind"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'abcabc').rfind(b'bc', 0, 5)\n",
+    "expected_result": 1
+  },
+  {
+    "id": "expansion_bytearray_rindex_nominal",
+    "covers": [
+      "method.bytearray.rindex"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'abcabc').rindex(b'bc')\n",
+    "expected_result": 4
+  },
+  {
+    "id": "expansion_bytearray_startswith_nominal",
+    "covers": [
+      "method.bytearray.startswith"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'abcabc').startswith((b'xx', b'ab'))\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytearray_endswith_nominal",
+    "covers": [
+      "method.bytearray.endswith"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'abcabc').endswith(b'bc')\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytearray_isalnum_nominal",
+    "covers": [
+      "method.bytearray.isalnum"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'ab12').isalnum()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytearray_isalpha_nominal",
+    "covers": [
+      "method.bytearray.isalpha"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'ab\\xff').isalpha()\n",
+    "expected_result": false
+  },
+  {
+    "id": "expansion_bytearray_isascii_nominal",
+    "covers": [
+      "method.bytearray.isascii"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'').isascii()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytearray_isdigit_nominal",
+    "covers": [
+      "method.bytearray.isdigit"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'123').isdigit()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytearray_islower_nominal",
+    "covers": [
+      "method.bytearray.islower"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'ab1\\xff').islower()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytearray_isspace_nominal",
+    "covers": [
+      "method.bytearray.isspace"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b' \\t\\n').isspace()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytearray_istitle_nominal",
+    "covers": [
+      "method.bytearray.istitle"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'Hello World').istitle()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytearray_isupper_nominal",
+    "covers": [
+      "method.bytearray.isupper"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'AB1\\xff').isupper()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bytearray_partition_nominal",
+    "covers": [
+      "method.bytearray.partition"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [item.hex() for item in bytearray(b'a:b:c').partition(b':')]\n",
+    "expected_result": [
+      "61",
+      "3a",
+      "623a63"
+    ]
+  },
+  {
+    "id": "expansion_bytearray_rpartition_nominal",
+    "covers": [
+      "method.bytearray.rpartition"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [item.hex() for item in bytearray(b'a:b:c').rpartition(b':')]\n",
+    "expected_result": [
+      "613a62",
+      "3a",
+      "63"
+    ]
+  },
+  {
+    "id": "expansion_bytearray_split_nominal",
+    "covers": [
+      "method.bytearray.split"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [item.hex() for item in bytearray(b'a:b:c').split(b':', 1)]\n",
+    "expected_result": [
+      "61",
+      "623a63"
+    ]
+  },
+  {
+    "id": "expansion_bytearray_rsplit_nominal",
+    "covers": [
+      "method.bytearray.rsplit"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [item.hex() for item in bytearray(b'a:b:c').rsplit(b':', 1)]\n",
+    "expected_result": [
+      "613a62",
+      "63"
+    ]
+  },
+  {
+    "id": "expansion_bytearray_splitlines_nominal",
+    "covers": [
+      "method.bytearray.splitlines"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [item.hex() for item in bytearray(b'a\\r\\nb\\nc\\r').splitlines(True)]\n",
+    "expected_result": [
+      "610d0a",
+      "620a",
+      "630d"
+    ]
+  },
+  {
+    "id": "expansion_bytearray_decode_nominal",
+    "covers": [
+      "method.bytearray.decode"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'caf\\xc3\\xa9').decode(\"utf-8\")\n",
+    "expected_result": "caf\u00e9"
+  },
+  {
+    "id": "expansion_bytearray_maketrans_nominal",
+    "covers": [
+      "method.bytearray.maketrans"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    table = bytearray(b'').maketrans(b\"ab\", b\"xy\")\n    return [len(table), table[97], table[98]]\n",
+    "expected_result": [
+      256,
+      120,
+      121
+    ]
+  },
+  {
+    "id": "expansion_bytearray_translate_nominal",
+    "covers": [
+      "method.bytearray.translate"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'abc').translate(b\"\".maketrans(b\"ab\", b\"xy\"), b\"c\").hex()\n",
+    "expected_result": "7879"
+  },
+  {
+    "id": "expansion_bytearray_index_invalid",
+    "covers": [
+      "method.bytearray.index"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytearray(b'abc').index(b'z')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytearray_rindex_invalid",
+    "covers": [
+      "method.bytearray.rindex"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytearray(b'abc').rindex(b'z')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytearray_partition_invalid",
+    "covers": [
+      "method.bytearray.partition"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytearray(b'abc').partition(b'')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytearray_rpartition_invalid",
+    "covers": [
+      "method.bytearray.rpartition"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytearray(b'abc').rpartition(b'')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytearray_split_invalid",
+    "covers": [
+      "method.bytearray.split"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytearray(b'abc').split(b'')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytearray_join_invalid",
+    "covers": [
+      "method.bytearray.join"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytearray(b'abc').join([1])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytearray_translate_invalid",
+    "covers": [
+      "method.bytearray.translate"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytearray(b'abc').translate(b'abc')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytearray_center_invalid",
+    "covers": [
+      "method.bytearray.center"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytearray(b'abc').center(3,b'xx')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytearray_decode_invalid",
+    "covers": [
+      "method.bytearray.decode"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytearray(b'\\xff').decode('ascii')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytearray_find_boundary",
+    "covers": [
+      "method.bytearray.find"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return bytearray(b'abc').find(b'', 4)\n",
+    "expected_result": -1
+  },
+  {
+    "id": "expansion_bytearray_count_boundary",
+    "covers": [
+      "method.bytearray.count"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return bytearray(b'abc').count(b'')\n",
+    "expected_result": 4
+  },
+  {
+    "id": "expansion_bytearray_rsplit_boundary",
+    "covers": [
+      "method.bytearray.rsplit"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [item.hex() for item in bytearray(b'  a  b  ').rsplit(None, 0)]\n",
+    "expected_result": [
+      "202061202062"
+    ]
+  },
+  {
+    "id": "expansion_bytearray_splitlines_boundary",
+    "covers": [
+      "method.bytearray.splitlines"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [item.hex() for item in bytearray(b'').splitlines()]\n",
+    "expected_result": []
+  },
+  {
+    "id": "expansion_bytearray_hex_separator",
+    "covers": [
+      "method.bytearray.hex"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'\\x00\\x11\"3').hex(\":\", 2)\n",
+    "expected_result": "0011:2233"
+  },
+  {
+    "id": "expansion_bytearray_fromhex_instance",
+    "covers": [
+      "method.bytearray.fromhex"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'').fromhex(\"00 ff\\x0910\").hex()\n",
+    "expected_result": "00ff10"
+  },
+  {
+    "id": "expansion_bytearray_insert_nominal",
+    "covers": [
+      "method.bytearray.insert"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value = bytearray(b\"ab\")\n    value.insert(-1, 120)\n    return value.hex()\n",
+    "expected_result": "617862"
+  },
+  {
+    "id": "expansion_bytearray_remove_nominal",
+    "covers": [
+      "method.bytearray.remove"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value = bytearray(b\"ab\")\n    value.remove(97)\n    return value.hex()\n",
+    "expected_result": "62"
+  },
+  {
+    "id": "expansion_bytearray_reverse_nominal",
+    "covers": [
+      "method.bytearray.reverse"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value = bytearray(b\"ab\")\n    value.reverse()\n    return value.hex()\n",
+    "expected_result": "6261"
+  },
+  {
+    "id": "expansion_bytearray_insert_invalid",
+    "covers": [
+      "method.bytearray.insert"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    value = bytearray(b\"ab\")\n    value.insert(0, 256)\n    return value.hex()\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytearray_remove_invalid",
+    "covers": [
+      "method.bytearray.remove"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    value = bytearray(b\"ab\")\n    value.remove(120)\n    return value.hex()\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_int_bit_length_nominal",
+    "covers": [
+      "method.int.bit_length"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return (-13).bit_length()\n",
+    "expected_result": 4
+  },
+  {
+    "id": "expansion_int_bit_count_nominal",
+    "covers": [
+      "method.int.bit_count"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return (-13).bit_count()\n",
+    "expected_result": 3
+  },
+  {
+    "id": "expansion_int_is_integer_nominal",
+    "covers": [
+      "method.int.is_integer"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return (-13).is_integer()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_int_conjugate_nominal",
+    "covers": [
+      "method.int.conjugate"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return (-13).conjugate()\n",
+    "expected_result": -13
+  },
+  {
+    "id": "expansion_int_as_integer_ratio_nominal",
+    "covers": [
+      "method.int.as_integer_ratio"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list((-13).as_integer_ratio())\n",
+    "expected_result": [
+      -13,
+      1
+    ]
+  },
+  {
+    "id": "expansion_int_real_nominal",
+    "covers": [
+      "attribute.int.real"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return (-13).real\n",
+    "expected_result": -13
+  },
+  {
+    "id": "expansion_int_imag_nominal",
+    "covers": [
+      "attribute.int.imag"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return (-13).imag\n",
+    "expected_result": 0
+  },
+  {
+    "id": "expansion_int_numerator_nominal",
+    "covers": [
+      "attribute.int.numerator"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return (-13).numerator\n",
+    "expected_result": -13
+  },
+  {
+    "id": "expansion_int_denominator_nominal",
+    "covers": [
+      "attribute.int.denominator"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return (-13).denominator\n",
+    "expected_result": 1
+  },
+  {
+    "id": "expansion_int_to_bytes_nominal",
+    "covers": [
+      "method.int.to_bytes"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return (-13).to_bytes(length=2, byteorder=\"big\", signed=True).hex()\n",
+    "expected_result": "fff3"
+  },
+  {
+    "id": "expansion_int_from_bytes_nominal",
+    "covers": [
+      "method.int.from_bytes"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return (-13).from_bytes(b\"\\x01\\x00\", byteorder=\"little\")\n",
+    "expected_result": 1
+  },
+  {
+    "id": "expansion_int_bit_length_invalid",
+    "covers": [
+      "method.int.bit_length"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return (-13).bit_length(1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_int_to_bytes_invalid",
+    "covers": [
+      "method.int.to_bytes"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return (-13).to_bytes(0)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bool_bit_length_nominal",
+    "covers": [
+      "method.bool.bit_length"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return True.bit_length()\n",
+    "expected_result": 1
+  },
+  {
+    "id": "expansion_bool_bit_count_nominal",
+    "covers": [
+      "method.bool.bit_count"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return True.bit_count()\n",
+    "expected_result": 1
+  },
+  {
+    "id": "expansion_bool_is_integer_nominal",
+    "covers": [
+      "method.bool.is_integer"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return True.is_integer()\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bool_conjugate_nominal",
+    "covers": [
+      "method.bool.conjugate"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return True.conjugate()\n",
+    "expected_result": 1
+  },
+  {
+    "id": "expansion_bool_as_integer_ratio_nominal",
+    "covers": [
+      "method.bool.as_integer_ratio"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(True.as_integer_ratio())\n",
+    "expected_result": [
+      1,
+      1
+    ]
+  },
+  {
+    "id": "expansion_bool_real_nominal",
+    "covers": [
+      "attribute.bool.real"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return True.real\n",
+    "expected_result": 1
+  },
+  {
+    "id": "expansion_bool_imag_nominal",
+    "covers": [
+      "attribute.bool.imag"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return True.imag\n",
+    "expected_result": 0
+  },
+  {
+    "id": "expansion_bool_numerator_nominal",
+    "covers": [
+      "attribute.bool.numerator"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return True.numerator\n",
+    "expected_result": 1
+  },
+  {
+    "id": "expansion_bool_denominator_nominal",
+    "covers": [
+      "attribute.bool.denominator"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return True.denominator\n",
+    "expected_result": 1
+  },
+  {
+    "id": "expansion_bool_to_bytes_nominal",
+    "covers": [
+      "method.bool.to_bytes"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return True.to_bytes(length=2, byteorder=\"big\", signed=True).hex()\n",
+    "expected_result": "0001"
+  },
+  {
+    "id": "expansion_bool_from_bytes_nominal",
+    "covers": [
+      "method.bool.from_bytes"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return True.from_bytes(b\"\\x01\\x00\", byteorder=\"little\")\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_bool_bit_length_invalid",
+    "covers": [
+      "method.bool.bit_length"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return True.bit_length(1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bool_to_bytes_invalid",
+    "covers": [
+      "method.bool.to_bytes"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return True.to_bytes(0)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_int_bit_length_boundary",
+    "covers": [
+      "method.int.bit_length"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return (0).bit_length()\n",
+    "expected_result": 0
+  },
+  {
+    "id": "expansion_int_bit_count_boundary",
+    "covers": [
+      "method.int.bit_count"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return (-(2**100 + 1)).bit_count()\n",
+    "expected_result": 2
+  },
+  {
+    "id": "expansion_int_from_bytes_class_signed",
+    "covers": [
+      "method.int.from_bytes"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return int.from_bytes([255,255], \"big\", signed=True)\n",
+    "expected_result": -1
+  },
+  {
+    "id": "expansion_int_from_bytes_invalid",
+    "covers": [
+      "method.int.from_bytes"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return int.from_bytes([256])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_float_real_nominal",
+    "covers": [
+      "attribute.float.real"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return str(float(\"1.5\").real)\n",
+    "expected_result": "1.5"
+  },
+  {
+    "id": "expansion_float_imag_nominal",
+    "covers": [
+      "attribute.float.imag"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return str(float(\"1.5\").imag)\n",
+    "expected_result": "0.0"
+  },
+  {
+    "id": "expansion_float_conjugate_nominal",
+    "covers": [
+      "method.float.conjugate"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return str(float(\"1.5\").conjugate())\n",
+    "expected_result": "1.5"
+  },
+  {
+    "id": "expansion_float_as_integer_ratio_nominal",
+    "covers": [
+      "method.float.as_integer_ratio"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(float(\"1.5\").as_integer_ratio())\n",
+    "expected_result": [
+      3,
+      2
+    ]
+  },
+  {
+    "id": "expansion_float_is_integer_nominal",
+    "covers": [
+      "method.float.is_integer"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [float(\"2\").is_integer(), float(\"1.5\").is_integer(), float(\"inf\").is_integer()]\n",
+    "expected_result": [
+      true,
+      false,
+      false
+    ]
+  },
+  {
+    "id": "expansion_float_hex_nominal",
+    "covers": [
+      "method.float.hex"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return float(\"1.5\").hex()\n",
+    "expected_result": "0x1.8000000000000p+0"
+  },
+  {
+    "id": "expansion_float_fromhex_nominal",
+    "covers": [
+      "method.float.fromhex"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return float.fromhex(\"0x1.8p+1\").hex()\n",
+    "expected_result": "0x1.8000000000000p+1"
+  },
+  {
+    "id": "expansion_float_as_integer_ratio_invalid",
+    "covers": [
+      "method.float.as_integer_ratio"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return float(\"inf\").as_integer_ratio()\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_float_fromhex_invalid",
+    "covers": [
+      "method.float.fromhex"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return float.fromhex(\"no\")\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_float_hex_boundary",
+    "covers": [
+      "method.float.hex"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return float(\"-0\").hex()\n",
+    "expected_result": "-0x0.0p+0"
+  },
+  {
+    "id": "expansion_range_start_nominal",
+    "covers": [
+      "attribute.range.start"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return range(9,1,-2).start\n",
+    "expected_result": 9
+  },
+  {
+    "id": "expansion_range_stop_nominal",
+    "covers": [
+      "attribute.range.stop"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return range(9,1,-2).stop\n",
+    "expected_result": 1
+  },
+  {
+    "id": "expansion_range_step_nominal",
+    "covers": [
+      "attribute.range.step"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return range(9,1,-2).step\n",
+    "expected_result": -2
+  },
+  {
+    "id": "expansion_range_count_nominal",
+    "covers": [
+      "method.range.count"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [range(9,1,-2).count(5), range(9,1,-2).count(4)]\n",
+    "expected_result": [
+      1,
+      0
+    ]
+  },
+  {
+    "id": "expansion_range_index_nominal",
+    "covers": [
+      "method.range.index"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return range(9,1,-2).index(5)\n",
+    "expected_result": 2
+  },
+  {
+    "id": "expansion_range_index_invalid",
+    "covers": [
+      "method.range.index"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return range(3).index(5)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_range_count_boundary",
+    "covers": [
+      "method.range.count"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return range(2**100, 2**100 + 5).count(2**100 + 3)\n",
+    "expected_result": 1
+  },
+  {
+    "id": "expansion_dict_popitem_nominal",
+    "covers": [
+      "method.dict.popitem"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value = {\"a\":1,\"b\":2}\n    key, item = value.popitem()\n    return [key,item,list(value)]\n",
+    "expected_result": [
+      "b",
+      2,
+      [
+        "a"
+      ]
+    ]
+  },
+  {
+    "id": "expansion_dict_popitem_invalid",
+    "covers": [
+      "method.dict.popitem"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return {}.popitem()\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_exception_args_nominal",
+    "covers": [
+      "attribute.Exception.args"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(Exception(\"message\", 3).args)\n",
+    "expected_result": [
+      "message",
+      3
+    ]
+  },
+  {
+    "id": "expansion_dict_keys_isdisjoint_nominal",
+    "covers": [
+      "method.dict_keys.isdisjoint"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return {\"a\":1}.keys().isdisjoint(['c'])\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_dict_keys_isdisjoint_invalid",
+    "covers": [
+      "method.dict_keys.isdisjoint"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return {\"a\":1}.keys().isdisjoint(1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_dict_items_isdisjoint_nominal",
+    "covers": [
+      "method.dict_items.isdisjoint"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return {\"a\":1}.items().isdisjoint([('a', 2)])\n",
+    "expected_result": true
+  },
+  {
+    "id": "expansion_dict_items_isdisjoint_invalid",
+    "covers": [
+      "method.dict_items.isdisjoint"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return {\"a\":1}.items().isdisjoint(1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_dict_keys_mapping_nominal",
+    "covers": [
+      "attribute.dict_keys.mapping"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value = {\"a\":1}\n    view = value.keys().mapping\n    value[\"a\"] = 2\n    return view[\"a\"]\n",
+    "expected_result": 2
+  },
+  {
+    "id": "expansion_dict_items_mapping_nominal",
+    "covers": [
+      "attribute.dict_items.mapping"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value = {\"a\":1}\n    view = value.items().mapping\n    value[\"a\"] = 2\n    return view[\"a\"]\n",
+    "expected_result": 2
+  },
+  {
+    "id": "expansion_dict_values_mapping_nominal",
+    "covers": [
+      "attribute.dict_values.mapping"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value = {\"a\":1}\n    view = value.values().mapping\n    value[\"a\"] = 2\n    return view[\"a\"]\n",
+    "expected_result": 2
+  },
+  {
+    "id": "expansion_mappingproxy_copy_nominal",
+    "covers": [
+      "method.mappingproxy.copy"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value = {\"a\":[1]}\n    view = value.keys().mapping\n    copy = view.copy()\n    copy[\"a\"].append(2)\n    copy[\"b\"] = 3\n    return [value, copy]\n",
+    "expected_result": [
+      {
+        "a": [
+          1,
+          2
+        ]
+      },
+      {
+        "a": [
+          1,
+          2
+        ],
+        "b": 3
+      }
+    ]
+  },
+  {
+    "id": "expansion_mappingproxy_get_nominal",
+    "covers": [
+      "method.mappingproxy.get"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return {\"a\":1}.keys().mapping.get(\"missing\",9)\n",
+    "expected_result": 9
+  },
+  {
+    "id": "expansion_mappingproxy_keys_nominal",
+    "covers": [
+      "method.mappingproxy.keys"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value = {\"a\":1}\n    keys = value.keys().mapping.keys()\n    value[\"b\"] = 2\n    return list(keys)\n",
+    "expected_result": [
+      "a",
+      "b"
+    ]
+  },
+  {
+    "id": "expansion_mappingproxy_values_nominal",
+    "covers": [
+      "method.mappingproxy.values"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value = {\"a\":1,\"b\":2}\n    values = value.keys().mapping.values()\n    value[\"a\"] = 3\n    return list(values)\n",
+    "expected_result": [
+      3,
+      2
+    ]
+  },
+  {
+    "id": "expansion_mappingproxy_items_nominal",
+    "covers": [
+      "method.mappingproxy.items"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value = {\"a\":1,\"b\":2}\n    items = value.keys().mapping.items()\n    value[\"a\"] = 3\n    return [[key,item] for key,item in items]\n",
+    "expected_result": [
+      [
+        "a",
+        3
+      ],
+      [
+        "b",
+        2
+      ]
+    ]
+  },
+  {
+    "id": "expansion_mappingproxy_live_nominal",
+    "covers": [
+      "protocol.mappingproxy.live"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value = {\"a\":1}\n    view = value.keys().mapping\n    value[\"b\"] = 2\n    return [len(view),\"b\" in view,view[\"b\"],list(view),list(reversed(view)),view == value]\n",
+    "expected_result": [
+      2,
+      true,
+      2,
+      [
+        "a",
+        "b"
+      ],
+      [
+        "b",
+        "a"
+      ],
+      true
+    ]
+  },
+  {
+    "id": "expansion_mappingproxy_read_only_invalid",
+    "covers": [
+      "protocol.mappingproxy.read_only"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    value = {\"a\":1}\n    view = value.keys().mapping\n    view[\"a\"] = 2\n    return value\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_mappingproxy_get_invalid",
+    "covers": [
+      "method.mappingproxy.get"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return {\"a\":1}.keys().mapping.get()\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_mappingproxy_keys_invalid",
+    "covers": [
+      "method.mappingproxy.keys"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return {\"a\":1}.keys().mapping.keys(1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bytes_maketrans_class_factory",
+    "covers": [
+      "method.bytes.maketrans"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    table = bytes.maketrans(b\"a\", b\"x\")\n    return [len(table),table[97],isinstance(table,bytes)]\n",
+    "expected_result": [
+      256,
+      120,
+      true
+    ]
+  },
+  {
+    "id": "expansion_bytearray_maketrans_class_factory",
+    "covers": [
+      "method.bytearray.maketrans"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    table = bytearray.maketrans(b\"a\", b\"x\")\n    return [len(table),table[97],isinstance(table,bytes)]\n",
+    "expected_result": [
+      256,
+      120,
+      true
+    ]
+  },
+  {
+    "id": "expansion_bytearray_fromhex_class_factory",
+    "covers": [
+      "method.bytearray.fromhex"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value = bytearray.fromhex(\"00 ff\")\n    return [value.hex(),isinstance(value,bytearray)]\n",
+    "expected_result": [
+      "00ff",
+      true
+    ]
+  },
+  {
+    "id": "expansion_dict_keys_set_algebra_nominal",
+    "covers": [
+      "protocol.dict_keys.set_algebra"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    view = {\"a\":1,\"b\":2}.keys()\n    return [sorted(view & [\"a\"]),sorted(view | [\"c\"]),sorted(view - [\"a\"]),sorted(view ^ [\"a\",\"c\"])]\n",
+    "expected_result": [
+      [
+        "a"
+      ],
+      [
+        "a",
+        "b",
+        "c"
+      ],
+      [
+        "b"
+      ],
+      [
+        "b",
+        "c"
+      ]
+    ]
+  },
+  {
+    "id": "expansion_dict_items_set_algebra_nominal",
+    "covers": [
+      "protocol.dict_items.set_algebra"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    view = {\"a\":1,\"b\":2}.items()\n    return [[list(item) for item in sorted(result)] for result in [view & [(\"a\",1)], view | [(\"c\",3)], view - [(\"a\",1)], view ^ [(\"a\",1),(\"c\",3)]]]\n",
+    "expected_result": [
+      [
+        [
+          "a",
+          1
+        ]
+      ],
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ],
+        [
+          "c",
+          3
+        ]
+      ],
+      [
+        [
+          "b",
+          2
+        ]
+      ],
+      [
+        [
+          "b",
+          2
+        ],
+        [
+          "c",
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "id": "expansion_dict_keys_set_algebra_invalid",
+    "covers": [
+      "protocol.dict_keys.set_algebra"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return {\"a\":1}.keys() & 1\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_dict_items_set_algebra_invalid",
+    "covers": [
+      "protocol.dict_items.set_algebra"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return {\"a\":1}.items() & 1\n",
+    "expected_failure": true
+  },
+  {
+    "id": "expansion_bound_method_capture_nominal",
+    "covers": [
+      "protocol.bound_method.capture",
+      "method.list.append"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value = [1]\n    append = value.append\n    original = value\n    value = [9]\n    append(2)\n    return [original,value]\n",
+    "expected_result": [
+      [
+        1,
+        2
+      ],
+      [
+        9
+      ]
+    ]
+  },
+  {
+    "id": "expansion_bound_method_capture_callback",
+    "covers": [
+      "protocol.bound_method.capture",
+      "method.list.append"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value = []\n    append = value.append\n    results = list(map(append,[2,3]))\n    return [results,value]\n",
+    "expected_result": [
+      [
+        null,
+        null
+      ],
+      [
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "id": "expansion_float_from_number_policy",
+    "covers": [
+      "method.float.from_number"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return float.from_number(1)\n",
+    "expected_failure": true,
+    "native_only": true,
+    "policy_reason": "Post-Python-3.12 API intentionally deferred; not part of the historical contract surface."
+  },
+  {
+    "id": "expansion_decimal_from_number_policy",
+    "covers": [
+      "method.Decimal.from_number"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return round(decimal(\"1\"), 2).from_number(1)\n",
+    "expected_failure": true,
+    "native_only": true,
+    "policy_reason": "Post-Python-3.12 API intentionally deferred; not part of the historical contract surface."
+  },
+  {
+    "id": "expansion_bytearray_resize_policy",
+    "covers": [
+      "method.bytearray.resize"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytearray(b\"x\").resize(2)\n",
+    "expected_failure": true,
+    "native_only": true,
+    "policy_reason": "Post-Python-3.12 API intentionally deferred; not part of the historical contract surface."
+  },
+  {
+    "id": "expansion_exception_with_traceback_policy",
+    "covers": [
+      "method.Exception.with_traceback"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return Exception(\"x\").with_traceback(None)\n",
+    "expected_failure": true,
+    "native_only": true,
+    "policy_reason": "Traceback access is intentionally excluded from the deterministic contract value API."
+  },
+  {
+    "id": "expansion_exception_add_note_policy",
+    "covers": [
+      "method.Exception.add_note"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return Exception(\"x\").add_note(\"note\")\n",
+    "expected_failure": true,
+    "native_only": true,
+    "policy_reason": "Diagnostic exception-note mutation is deferred; ordinary exception argument access is supported."
   }
 ]

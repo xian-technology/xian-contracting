@@ -13,6 +13,8 @@ from tests.surface.catalog import load_cases
     ids=["python", "native"],
 )
 def test_runtime_surface_case(tmp_path, case, native):
+    if case.get("native_only") and not native:
+        pytest.skip(case["policy_reason"])
     actual = run_case(case, tmp_path, native=native)
     assert actual["admission"] == "accepted", actual
     assert actual["status_code"] == int(case.get("expected_failure", False)), actual

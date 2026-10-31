@@ -5,10 +5,11 @@ from collections import Counter, defaultdict
 from decimal import Decimal
 from pathlib import Path
 
-from contracting.compilation.conformance import CONTRACT_LANGUAGE_MANIFEST
 from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime, Timedelta
+
+from contracting.compilation.conformance import CONTRACT_LANGUAGE_MANIFEST
 
 DIRECTORY = Path(__file__).parent
 
@@ -31,6 +32,8 @@ def value_examples():
         "dict_keys": {"a": 1}.keys(),
         "dict_values": {"a": 1}.values(),
         "dict_items": {"a": 1}.items(),
+        "mappingproxy": {"a": 1}.keys().mapping,
+        "bound_method": [].append,
         "bool": True,
         "int": 2,
         "float": 1.5,
@@ -76,8 +79,9 @@ def load_cases():
 
 def coverage_report():
     catalog = json.loads((DIRECTORY / "catalog.json").read_text())
+    cases = load_cases()
     dimensions = defaultdict(lambda: defaultdict(list))
-    for case in load_cases():
+    for case in cases:
         for name in case["covers"]:
             dimensions[name][case["dimension"]].append(case["id"])
     rows = []
@@ -88,9 +92,17 @@ def coverage_report():
         "discovery_matches": discover() == catalog["discovery"],
         "counts": {
             "inventory_items": len(rows),
-            "authored_cases": len(load_cases()),
+            "authored_cases": len(cases),
+            "native_only_policy_cases": sum(bool(case.get("native_only")) for case in cases),
+            "shared_compatibility_cases": sum(not case.get("native_only") for case in cases),
             "items_with_direct_cases": sum(bool(row["direct_cases"]) for row in rows),
             "implementation_status": dict(Counter(row["implementation"] for row in rows)),
+            "policy_disposition": dict(
+                Counter(row["disposition"] for row in rows if row.get("disposition"))
+            ),
+            "unresolved_missing_items": sum(
+                row["implementation"] == "missing" and not row.get("disposition") for row in rows
+            ),
         },
         "interpretation": "Direct cases verify only their explicit assertions; source references and dispatch presence are not behavioral coverage or full parity.",
         "items": rows,

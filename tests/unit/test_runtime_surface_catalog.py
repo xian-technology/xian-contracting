@@ -23,6 +23,9 @@ def test_cases_reference_reviewed_items_and_explicit_expectations():
         assert case["dimension"] in {"nominal", "boundary", "invalid"}, case["id"]
         assert ("expected_result" in case) != case.get("expected_failure", False), case["id"]
         assert case["id"].isidentifier() and case["id"] == case["id"].lower()
+        if case.get("native_only"):
+            assert case["expected_failure"] and case["policy_reason"], case["id"]
+            assert case["dimension"] == "invalid", case["id"]
         tree = ast.parse(case["source"])
         calls = {
             node.func.id
@@ -51,6 +54,18 @@ def test_explicit_gaps_are_not_reported_as_behaviorally_covered():
             assert row["reason"], row["id"]
         for path in row.get("existing_test_files", []):
             assert (DIRECTORY.parents[1] / path).is_file(), (row["id"], path)
+
+
+def test_present_value_members_have_successful_shared_cases():
+    successful_members = {
+        name
+        for case in load_cases()
+        if not case.get("expected_failure") and not case.get("native_only")
+        for name in case["covers"]
+    }
+    for row in coverage_report()["items"]:
+        if row["implementation"] == "present" and row["kind"] in {"method", "attribute"}:
+            assert row["id"] in successful_members, row["id"]
 
 
 def test_inventory_detects_new_builtin_without_a_catalog_update(monkeypatch):
@@ -83,3 +98,30 @@ def test_report_counts_direct_cases_without_counting_source_references(monkeypat
     assert rows["builtin.abs"]["direct_cases"] == {"nominal": ["example"]}
     assert rows["builtin.len"]["existing_test_files"]
     assert rows["builtin.len"]["direct_cases"] == {}
+
+
+def test_policy_cases_are_distinct_from_shared_compatibility_cases():
+    report = coverage_report()
+    cases = load_cases()
+    policy_cases = [case for case in cases if case.get("native_only")]
+    assert report["counts"]["native_only_policy_cases"] == len(policy_cases)
+    assert report["counts"]["shared_compatibility_cases"] == len(cases) - len(policy_cases)
+    assert report["counts"]["policy_disposition"] == {"deferred": 4, "excluded": 1}
+    rows = {row["id"]: row for row in report["items"]}
+    for case in policy_cases:
+        for name in case["covers"]:
+            assert rows[name]["disposition"] in {"deferred", "excluded"}, name
+            assert rows[name]["implementation"] == "missing", name
+    unresolved = [
+        row
+        for row in report["items"]
+        if row["implementation"] == "missing" and not row.get("disposition")
+    ]
+    assert report["counts"]["unresolved_missing_items"] == len(unresolved)
+
+
+def test_historical_and_newer_policy_members_have_explicit_scope():
+    rows = {row["id"]: row for row in CATALOG["items"]}
+    for name in ("float.from_number", "Decimal.from_number", "bytearray.resize"):
+        assert rows["method." + name]["historical_python_312"] is False
+    assert rows["method.Exception.with_traceback"]["historical_python_312"] is True

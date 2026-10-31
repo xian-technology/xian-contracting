@@ -975,6 +975,14 @@
         "isdisjoint": "method",
         "mapping": "attribute"
       },
+      "mappingproxy": {
+        "copy": "method",
+        "get": "method",
+        "items": "method",
+        "keys": "method",
+        "values": "method"
+      },
+      "bound_method": {},
       "bool": {
         "as_integer_ratio": "method",
         "bit_count": "method",
@@ -1862,37 +1870,52 @@
     {
       "id": "attribute.Exception.args",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python exception member has no matching native attribute/method dispatch; string construction and rendering have separate behavioral tests.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.bool.denominator",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.bool.imag",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.bool.numerator",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.bool.real",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.datetime.day",
@@ -1946,86 +1969,122 @@
     {
       "id": "attribute.dict_items.mapping",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.dict_keys.mapping",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.dict_values.mapping",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.float.imag",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.float.real",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.int.denominator",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.int.imag",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.int.numerator",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.int.real",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.range.start",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.range.step",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.range.stop",
       "kind": "attribute",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "attribute.timedelta.days",
@@ -3266,11 +3325,13 @@
       "id": "method.Decimal.from_number",
       "kind": "method",
       "implementation": "missing",
-      "reason": "Introduced after the pinned Python 3.12 historical baseline; exposed by the current Python harness but not native. Decide explicitly whether to expand the contract API.",
+      "reason": "Post-Python-3.12 API; deliberately deferred rather than treated as a historical compatibility gap.",
       "existing_test_files": [],
       "notes": [
         "Added by host Python 3.14; absent from pinned Python3.12 historical method inventory. Requires a scope decision, not a historical-regression claim."
-      ]
+      ],
+      "disposition": "deferred",
+      "historical_python_312": false
     },
     {
       "id": "method.Decimal.is_canonical",
@@ -3569,68 +3630,91 @@
       "id": "method.Exception.add_note",
       "kind": "method",
       "implementation": "missing",
-      "reason": "Public Python exception member has no matching native attribute/method dispatch; string construction and rendering have separate behavioral tests.",
-      "existing_test_files": []
+      "reason": "Historical diagnostic-note mutation remains explicitly deferred; ordinary exception payload access is supported separately.",
+      "existing_test_files": [],
+      "disposition": "deferred",
+      "historical_python_312": true
     },
     {
       "id": "method.Exception.with_traceback",
       "kind": "method",
       "implementation": "missing",
-      "reason": "Public Python exception member has no matching native attribute/method dispatch; string construction and rendering have separate behavioral tests.",
-      "existing_test_files": []
+      "reason": "Traceback access is deliberately excluded from deterministic contract execution.",
+      "existing_test_files": [],
+      "disposition": "excluded",
+      "historical_python_312": true
     },
     {
       "id": "method.bool.as_integer_ratio",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_methods.py"
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.bool.bit_count",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bool.bit_length",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bool.conjugate",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_methods.py"
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.bool.from_bytes",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bool.is_integer",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bool.to_bytes",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.append",
@@ -3649,16 +3733,22 @@
     {
       "id": "method.bytearray.capitalize",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.center",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.clear",
@@ -3683,34 +3773,44 @@
     {
       "id": "method.bytearray.count",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py"
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.bytearray.decode",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.endswith",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_language_conformance.py"
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.bytearray.expandtabs",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.extend",
@@ -3722,17 +3822,22 @@
     {
       "id": "method.bytearray.find",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.fromhex",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_collection_methods.py"
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_collection_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
@@ -3747,129 +3852,171 @@
     {
       "id": "method.bytearray.index",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
         "tests/integration/test_vm_decimal_metering.py",
-        "tests/integration/test_vm_decimal_methods.py"
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.bytearray.insert",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.isalnum",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py",
         "tests/integration/test_vm_unicode_strings.py"
       ]
     },
     {
       "id": "method.bytearray.isalpha",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py",
         "tests/integration/test_vm_unicode_strings.py"
       ]
     },
     {
       "id": "method.bytearray.isascii",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.isdigit",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py",
         "tests/integration/test_vm_unicode_strings.py"
       ]
     },
     {
       "id": "method.bytearray.islower",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py",
         "tests/integration/test_vm_unicode_strings.py"
       ]
     },
     {
       "id": "method.bytearray.isspace",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.istitle",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.isupper",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.join",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
         "tests/integration/test_vm_dynamic_foreign_storage.py",
         "tests/integration/test_vm_float_sets.py",
-        "tests/integration/test_vm_raw_decimal.py"
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.bytearray.ljust",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.lower",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.lstrip",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.maketrans",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.partition",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.pop",
@@ -3884,32 +4031,42 @@
     {
       "id": "method.bytearray.remove",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py"
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_float_sets.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.bytearray.removeprefix",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.removesuffix",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.replace",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py",
         "tests/integration/test_vm_transaction_budget.py"
       ]
     },
@@ -3917,186 +4074,251 @@
       "id": "method.bytearray.resize",
       "kind": "method",
       "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "reason": "Post-Python-3.12 API; deliberately deferred rather than treated as a historical compatibility gap.",
+      "existing_test_files": [],
+      "disposition": "deferred",
+      "historical_python_312": false
     },
     {
       "id": "method.bytearray.reverse",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.rfind",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.rindex",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.rjust",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.rpartition",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.rsplit",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.rstrip",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.split",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py",
         "tests/integration/test_vm_unicode_strings.py"
       ]
     },
     {
       "id": "method.bytearray.splitlines",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
         "tests/integration/test_vm_dynamic_foreign_storage.py",
         "tests/integration/test_vm_float_sets.py",
-        "tests/integration/test_vm_raw_decimal.py"
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.bytearray.startswith",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_metadata_syscalls.py"
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_metadata_syscalls.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.bytearray.strip",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
         "tests/integration/test_vm_language_conformance.py",
         "tests/integration/test_vm_stateful_fuzz.py",
         "tests/integration/test_vm_storage_scans.py",
+        "tests/integration/test_vm_surface_matrix.py",
         "tests/integration/test_vm_unicode_strings.py"
       ]
     },
     {
       "id": "method.bytearray.swapcase",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.title",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.translate",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.upper",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytearray.zfill",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.capitalize",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.center",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.count",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py"
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.bytes.decode",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.endswith",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_language_conformance.py"
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.bytes.expandtabs",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.find",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.fromhex",
@@ -4122,263 +4344,351 @@
     {
       "id": "method.bytes.index",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
         "tests/integration/test_vm_decimal_metering.py",
-        "tests/integration/test_vm_decimal_methods.py"
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.bytes.isalnum",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py",
         "tests/integration/test_vm_unicode_strings.py"
       ]
     },
     {
       "id": "method.bytes.isalpha",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py",
         "tests/integration/test_vm_unicode_strings.py"
       ]
     },
     {
       "id": "method.bytes.isascii",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.isdigit",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py",
         "tests/integration/test_vm_unicode_strings.py"
       ]
     },
     {
       "id": "method.bytes.islower",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py",
         "tests/integration/test_vm_unicode_strings.py"
       ]
     },
     {
       "id": "method.bytes.isspace",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.istitle",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.isupper",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.join",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
         "tests/integration/test_vm_dynamic_foreign_storage.py",
         "tests/integration/test_vm_float_sets.py",
-        "tests/integration/test_vm_raw_decimal.py"
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.bytes.ljust",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.lower",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.lstrip",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.maketrans",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.partition",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.removeprefix",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.removesuffix",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.replace",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py",
         "tests/integration/test_vm_transaction_budget.py"
       ]
     },
     {
       "id": "method.bytes.rfind",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.rindex",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.rjust",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.rpartition",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.rsplit",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.rstrip",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.split",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py",
         "tests/integration/test_vm_unicode_strings.py"
       ]
     },
     {
       "id": "method.bytes.splitlines",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
         "tests/integration/test_vm_dynamic_foreign_storage.py",
         "tests/integration/test_vm_float_sets.py",
-        "tests/integration/test_vm_raw_decimal.py"
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.bytes.startswith",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_metadata_syscalls.py"
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_metadata_syscalls.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.bytes.strip",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
         "tests/integration/test_vm_language_conformance.py",
         "tests/integration/test_vm_stateful_fuzz.py",
         "tests/integration/test_vm_storage_scans.py",
+        "tests/integration/test_vm_surface_matrix.py",
         "tests/integration/test_vm_unicode_strings.py"
       ]
     },
     {
       "id": "method.bytes.swapcase",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.title",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.translate",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.upper",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.bytes.zfill",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.datetime.strptime",
@@ -4465,9 +4775,12 @@
     {
       "id": "method.dict.popitem",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.dict.setdefault",
@@ -4497,66 +4810,85 @@
     {
       "id": "method.dict_items.isdisjoint",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.dict_keys.isdisjoint",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.float.as_integer_ratio",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_methods.py"
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.float.conjugate",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_methods.py"
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.float.from_number",
       "kind": "method",
       "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "reason": "Post-Python-3.12 API; deliberately deferred rather than treated as a historical compatibility gap.",
+      "existing_test_files": [],
+      "disposition": "deferred",
+      "historical_python_312": false
     },
     {
       "id": "method.float.fromhex",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_collection_methods.py"
+        "tests/integration/test_vm_collection_methods.py",
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.float.hex",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_language_conformance.py"
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.float.is_integer",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.frozenset.copy",
@@ -4631,55 +4963,74 @@
     {
       "id": "method.int.as_integer_ratio",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_methods.py"
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.int.bit_count",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.int.bit_length",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.int.conjugate",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_methods.py"
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.int.from_bytes",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.int.is_integer",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.int.to_bytes",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.list.append",
@@ -4784,22 +5135,76 @@
       ]
     },
     {
+      "id": "method.mappingproxy.copy",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
+    },
+    {
+      "id": "method.mappingproxy.get",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
+    },
+    {
+      "id": "method.mappingproxy.items",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
+    },
+    {
+      "id": "method.mappingproxy.keys",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
+    },
+    {
+      "id": "method.mappingproxy.values",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
+    },
+    {
       "id": "method.range.count",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py"
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
       "id": "method.range.index",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
         "tests/integration/test_vm_decimal_metering.py",
-        "tests/integration/test_vm_decimal_methods.py"
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
@@ -4918,23 +5323,32 @@
     {
       "id": "method.str.capitalize",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.casefold",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.center",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.count",
@@ -4948,9 +5362,12 @@
     {
       "id": "method.str.encode",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_binary_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.endswith",
@@ -4964,9 +5381,12 @@
     {
       "id": "method.str.expandtabs",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.find",
@@ -4988,18 +5408,23 @@
     {
       "id": "method.str.format_map",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_format_templates.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.index",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
         "tests/integration/test_vm_decimal_metering.py",
-        "tests/integration/test_vm_decimal_methods.py"
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
@@ -5036,9 +5461,12 @@
     {
       "id": "method.str.isdecimal",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.isdigit",
@@ -5055,9 +5483,12 @@
     {
       "id": "method.str.isidentifier",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.islower",
@@ -5074,37 +5505,52 @@
     {
       "id": "method.str.isnumeric",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.isprintable",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.isspace",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.istitle",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.isupper",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.join",
@@ -5120,9 +5566,12 @@
     {
       "id": "method.str.ljust",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.lower",
@@ -5134,37 +5583,52 @@
     {
       "id": "method.str.lstrip",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.maketrans",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.partition",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.removeprefix",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.removesuffix",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.replace",
@@ -5178,44 +5642,62 @@
     {
       "id": "method.str.rfind",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.rindex",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.rjust",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.rpartition",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.rsplit",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.rstrip",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.split",
@@ -5232,12 +5714,14 @@
     {
       "id": "method.str.splitlines",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
         "tests/integration/test_vm_dynamic_foreign_storage.py",
         "tests/integration/test_vm_float_sets.py",
-        "tests/integration/test_vm_raw_decimal.py"
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
       ]
     },
     {
@@ -5267,23 +5751,32 @@
     {
       "id": "method.str.swapcase",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.title",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.translate",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.str.upper",
@@ -5295,9 +5788,12 @@
     {
       "id": "method.str.zfill",
       "kind": "method",
-      "implementation": "missing",
-      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_string_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "method.tuple.count",
@@ -5333,6 +5829,16 @@
       "existing_test_files": []
     },
     {
+      "id": "protocol.bound_method.capture",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_bound_methods.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
+    },
+    {
       "id": "protocol.dict_items.live",
       "kind": "protocol",
       "implementation": "present",
@@ -5340,11 +5846,31 @@
       "existing_test_files": []
     },
     {
+      "id": "protocol.dict_items.set_algebra",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
+    },
+    {
       "id": "protocol.dict_keys.live",
       "kind": "protocol",
       "implementation": "present",
       "reason": "Value behavior exercised by authored cases; not a separately callable API.",
       "existing_test_files": []
+    },
+    {
+      "id": "protocol.dict_keys.set_algebra",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "protocol.dict_values.live",
@@ -5408,6 +5934,26 @@
       "implementation": "present",
       "reason": "Live view or consumable iterator behavior checked by authored source.",
       "existing_test_files": []
+    },
+    {
+      "id": "protocol.mappingproxy.live",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
+    },
+    {
+      "id": "protocol.mappingproxy.read_only",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_scalar_protocols.py",
+        "tests/integration/test_vm_surface_matrix.py"
+      ]
     },
     {
       "id": "protocol.range.membership",

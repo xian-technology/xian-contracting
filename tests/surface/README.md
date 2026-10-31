@@ -4,7 +4,7 @@ This suite separates discovery, implementation and behavioral evidence. A name
 appearing in a test or an implementation match arm is not proof of correctness.
 
 - `catalog.json` records the builtin whitelist, public environment exports, host
-  bindings, annotation names and public members of 26 value families. The drift
+  bindings, annotation names and public members of 28 value families. The drift
   test fails when those discovered names change without a reviewed update.
 - `builtin-cases.json` gives every callable builtin nominal, boundary and invalid
   input cases. Expectations are explicit; the Xian restriction on negative
@@ -17,6 +17,10 @@ appearing in a test or an implementation match arm is not proof of correctness.
   events. The observer distinguishes bool/int/float, list/tuple and Decimal
   types. Its set encoding does not prove iteration order; dedicated float-set
   tests return ordered observations from inside the contract.
+- Cases with `native_only` are explicit language-policy rejection checks, with a
+  required `policy_reason`. They are skipped in the current Python oracle, whose
+  broader API is not the consensus definition. The report counts these separately
+  from shared compatibility cases; a rejected member is not reported as supported.
 
 Run from the repository root:
 
@@ -32,14 +36,28 @@ tests automatically; a cached or ignored older extension is not valid evidence.
 
 ## Interpreting the report
 
-The initial inventory has 476 entries and 319 direct cases. All 37 callable
-builtins have three behavioral dimensions. Of 302 public Python value members,
-161 lack matching native dispatch. These are member entries, not 161 distinct
-bugs: inherited methods repeat across types, and `Decimal.from_number` was
-introduced after the pinned Python 3.12 historical baseline. Public attribute
-syntax is admitted broadly; it is not a promise that every Python method is a
-supported Xian method. Missing members require implementation or an explicit
-language-policy decision, not silent exclusion from the inventory.
+The inventory has 486 entries and 565 direct cases: 560 shared compatibility
+cases and five native-only policy checks. All 37 callable builtins have three
+behavioral dimensions. There are 307 public Python value members, including the
+live read-only mapping views exposed through dictionary views. Member entries
+are not counts of distinct bugs: inherited methods repeat across types.
+Native implementations and successful shared cases cover 302 of those members;
+the remaining five have the explicit policy dispositions below.
+
+`float.from_number`, `Decimal.from_number` and `bytearray.resize` postdate the
+pinned Python 3.12 historical baseline and are explicitly deferred. Exception
+note mutation is separately deferred; traceback access is intentionally excluded.
+Those dispositions remain in the inventory and have native rejection checks.
+Ordinary exception argument access is a separate member. Public attribute syntax
+is admitted broadly; it is not a promise that every Python method is supported.
+Missing members require implementation or an explicit language-policy decision,
+not silent exclusion from the inventory.
+
+The report separates intentional deferred/excluded members from unresolved
+missing implementations so an explicit restriction does not hide unfinished work.
+Method presence does not waive approved encoding, Unicode, formatting, time or
+allocation restrictions. Bound methods and read-only mapping proxies are local
+to an execution and cannot be persisted or returned across host boundaries.
 
 `existing_test_files` are source-search navigation references. They are **not**
 verified per-member assertions and do not increase direct-case coverage.
@@ -67,3 +85,9 @@ Finite tests cannot prove correctness for all inputs or all contract programs.
 Known gaps must remain documented, and a new public function needs both an
 inventory decision and behavioral evidence. Do not regenerate expected results
 from a failing native implementation.
+
+One known protocol gap is not an absent method: Python view algebra produces
+builtin sets distinct from the contract's deterministic `ContractingSet` wrapper,
+whereas native values currently share one set representation. Cross-family
+equality/type behavior is not fully compatible. Keep this representation gap
+explicit even when all ordinary member entries have direct passing cases.
