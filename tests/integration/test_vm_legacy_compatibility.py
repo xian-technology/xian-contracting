@@ -41,16 +41,14 @@ def test_historical_admission_and_execution(tmp_path, case, native):
     expected = BASELINE["observations"][case["id"]]
     actual = run_case(case, tmp_path, native=native)
     assert actual["admission"] == expected["admission"], actual
-    if case["id"] == "hashing":
-        # The old sha256 alias was removed in favor of sha256_text/sha256_hex.
-        # Pin the current failure so an unrelated admission or state regression
-        # cannot be hidden by the recorded compatibility gap.
-        assert actual["status_code"] == 1
-        assert actual["writes"] == ["dict", []]
-        assert actual["events"] == ["list", []]
-        missing_name = "no native method 'sha256()'" if native else "has no attribute 'sha256'"
-        assert missing_name in actual["diagnostic"]
-        pytest.xfail("R9: historical hashlib.sha256 alias is absent; policy pending")
+    if case["id"] == "iterator_range_lazy" and not native:
+        # The local Python harness retains its range-size guard. Native ranges
+        # are lazy and bounded at materialization and by execution metering.
+        assert actual["status_code"] == 1, actual
+        assert actual["writes"] == encode({})
+        assert actual["events"] == encode([])
+        assert "too large" in actual["diagnostic"], actual
+        return
     if case["id"] == "storage_snapshot":
         # Deliberate safety change since the historical release: storage values
         # are snapshots, never writable aliases. Both current engines agree.

@@ -62,7 +62,28 @@ def sha256_hex(value: str):
     return hashed_bytes.hex()
 
 
+def _legacy_bytes(value: str) -> bytes:
+    # Historical aliases detect hexadecimal first, including ASCII whitespace
+    # between whole bytes. The explicit *_text / *_hex APIs stay unambiguous.
+    if not isinstance(value, str):
+        raise TypeError("hash input must be a string")
+    try:
+        return bytes.fromhex(value)
+    except ValueError:
+        return value.encode("utf-8")
+
+
+def sha256(hex_str: str):
+    return hashlib.sha256(_legacy_bytes(hex_str)).hexdigest()
+
+
+def sha3(hex_str: str):
+    return hashlib.sha3_256(_legacy_bytes(hex_str)).hexdigest()
+
+
 hashlib_module = ModuleType("hashlib")
+hashlib_module.sha3 = sha3
+hashlib_module.sha256 = sha256
 hashlib_module.sha3_text = sha3_text
 hashlib_module.sha3_hex = sha3_hex
 hashlib_module.sha256_text = sha256_text

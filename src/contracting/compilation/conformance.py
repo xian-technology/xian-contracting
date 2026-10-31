@@ -603,8 +603,8 @@ def probe(values: list[int]):
         "kwargs": {"values": [3, 1, 2]},
     },
     {
-        "id": "eager_higher_order_helpers",
-        "description": "map() and filter() use eager deterministic list semantics in both engines.",
+        "id": "lazy_higher_order_helpers",
+        "description": "map() and filter() are consumable lazy iterators; results are explicitly materialized.",
         "covers_builtins": (
             "filter",
             "list",
@@ -626,11 +626,11 @@ def keep_even(value: int) -> bool:
 @export
 def probe(values: list[int]):
     return {
-        "mapped": map(double, values),
-        "paired": map(add_pair, values, range(10, 20)),
-        "filtered": filter(keep_even, values),
-        "truthy": filter(None, [0, 1, "", "hi", False, True]),
-        "empty": map(double, []),
+        "mapped": list(map(double, values)),
+        "paired": list(map(add_pair, values, range(10, 20))),
+        "filtered": list(filter(keep_even, values)),
+        "truthy": list(filter(None, [0, 1, "", "hi", False, True])),
+        "empty": list(map(double, [])),
     }
 """,
         "function_name": "probe",
@@ -919,6 +919,8 @@ def probe():
             "2026-04-13 12:34:56",
             "%Y-%m-%d %H:%M:%S",
         ) + datetime.DAYS,
+        "legacy_sha256": hashlib.sha256("deadbeef"),
+        "legacy_sha3": hashlib.sha3("de ad be ef"),
         "sha256": hashlib.sha256_text("hello"),
         "sha3": hashlib.sha3_text("hello"),
         "key_valid": crypto.key_is_valid("0" * 64),

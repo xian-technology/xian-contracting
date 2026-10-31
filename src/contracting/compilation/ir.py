@@ -199,6 +199,8 @@ _HOST_BINDINGS = (
         kind="value",
         category="time",
     ),
+    _host_binding("hashlib.sha3", "hash.sha3_256_legacy", kind="syscall", category="hashing"),
+    _host_binding("hashlib.sha256", "hash.sha256_legacy", kind="syscall", category="hashing"),
     _host_binding(
         "hashlib.sha3_text",
         "hash.sha3_256_text",

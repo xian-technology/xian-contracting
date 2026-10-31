@@ -749,6 +749,11 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
                 .detached()
                 .map_err(|e| VmRuntimeExecutionError::new_err(e.to_string()))?,
         ),
+        VmValue::Iterator(_) | VmValue::Range(_) | VmValue::View(_) => {
+            Err(VmRuntimeExecutionError::new_err(
+                "iterators and ranges cannot cross the VM boundary; materialize them first",
+            ))
+        }
         VmValue::None => Ok(py.None()),
         VmValue::Bool(value) => Ok((*value).into_pyobject(py)?.to_owned().into_any().unbind()),
         VmValue::Int(value) => {

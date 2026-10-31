@@ -673,6 +673,9 @@ impl fmt::Display for VmTimeDelta {
 #[derive(Debug, Clone, PartialEq)]
 pub enum VmValue {
     Reference(crate::VmReference),
+    Iterator(Box<crate::VmIterator>),
+    Range(crate::VmRange),
+    View(Box<crate::VmDictView>),
     None,
     Bool(bool),
     Int(BigInt),
@@ -702,6 +705,9 @@ impl VmValue {
     pub(crate) fn truthy(&self) -> bool {
         match self {
             Self::Reference(value) => value.value().truthy(),
+            Self::Iterator(_) => true,
+            Self::View(view) => view.len() != 0,
+            Self::Range(range) => !range.len().is_zero(),
             Self::None => false,
             Self::Bool(value) => *value,
             Self::Int(value) => !value.is_zero(),
@@ -789,6 +795,9 @@ impl VmValue {
             Self::FunctionRef(name) => format!("<function:{name}>"),
             Self::TypeMarker(name) => name.clone(),
             Self::Exception(value) => value.python_repr(),
+            Self::Iterator(_) => "<iterator>".to_owned(),
+            Self::View(_) => "<dict_view>".to_owned(),
+            Self::Range(range) => format!("range({}, {}, {})", range.start, range.stop, range.step),
         }
     }
 
@@ -870,6 +879,9 @@ impl VmValue {
             Self::FunctionRef(_) => "function_ref",
             Self::TypeMarker(_) => "type_marker",
             Self::Exception(_) => "exception",
+            Self::Iterator(_) => "iterator",
+            Self::View(_) => "dict_view",
+            Self::Range(_) => "range",
         }
     }
 }

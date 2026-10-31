@@ -7,6 +7,8 @@ use std::fmt;
 
 mod artifacts;
 mod heap;
+mod iteration;
+pub use iteration::{VmDictView, VmIterator, VmRange};
 mod rendering;
 pub use heap::VmReference;
 mod interpreter;

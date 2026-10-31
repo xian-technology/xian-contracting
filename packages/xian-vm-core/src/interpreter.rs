@@ -773,6 +773,7 @@ pub struct VmInstance {
     heap: crate::heap::VmHeap,
     module: ModuleIr,
     functions: HashMap<String, FunctionIr>,
+    function_defaults: HashMap<(String, String), VmValue>,
     imports: HashMap<String, String>,
     globals: HashMap<String, VmValue>,
     variables: HashMap<String, VariableState>,
@@ -801,12 +802,6 @@ impl VmInstance {
     ) -> Result<Self, VmExecutionError> {
         validate_module_ir(&module).map_err(|err| VmExecutionError::new(err.to_string()))?;
 
-        let functions = module
-            .functions
-            .iter()
-            .cloned()
-            .map(|function| (function.name.clone(), function))
-            .collect::<HashMap<_, _>>();
         let imports = module
             .imports
             .iter()
@@ -824,7 +819,8 @@ impl VmInstance {
         let mut instance = Self {
             heap,
             module,
-            functions,
+            functions: HashMap::new(),
+            function_defaults: HashMap::new(),
             imports,
             globals: HashMap::new(),
             variables: HashMap::new(),
@@ -846,24 +842,69 @@ impl VmInstance {
             );
         }
 
-        let declarations = instance.module.global_declarations.clone();
-        for declaration in &declarations {
-            instance.apply_global_declaration(declaration, host)?;
-        }
-
-        let module_body = instance.module.module_body.clone();
-        if !module_body.is_empty() {
-            let mut scope = instance.globals.clone();
-            let flow = instance.execute_block(&module_body, &mut scope, host)?;
-            if flow != ControlFlow::Next {
-                return Err(VmExecutionError::new(
-                    "module body cannot return or break execution",
-                ));
-            }
-            instance.globals = scope;
-        }
+        instance.initialize_module(host)?;
 
         Ok(instance)
+    }
+
+    fn initialize_module(&mut self, host: &mut dyn VmHost) -> Result<(), VmExecutionError> {
+        // IR groups declarations by kind. Recover source order for eager
+        // defaults and module statements, retaining each default's identity.
+        let mut steps = Vec::new();
+        for (kind, values) in [
+            (0, &self.module.global_declarations),
+            (2, &self.module.module_body),
+        ] {
+            for (index, value) in values.iter().enumerate() {
+                let span = as_object(
+                    required_value(as_object(value, "module statement")?, "span")?,
+                    "span",
+                )?;
+                let line = span.get("line").and_then(Value::as_u64).unwrap_or(0);
+                let col = span.get("col").and_then(Value::as_u64).unwrap_or(0);
+                steps.push((line, col, kind, index));
+            }
+        }
+        for (index, function) in self.module.functions.iter().enumerate() {
+            steps.push((function.span.line, function.span.col, 1, index));
+        }
+        steps.sort();
+        for (_, _, kind, index) in steps {
+            match kind {
+                0 => self.apply_global_declaration(
+                    &self.module.global_declarations[index].clone(),
+                    host,
+                )?,
+                1 => self.define_function(self.module.functions[index].clone(), host)?,
+                _ => {
+                    let statement = self.module.module_body[index].clone();
+                    let mut scope = self.globals.clone();
+                    if self.execute_statement(&statement, &mut scope, host)? != ControlFlow::Next {
+                        return Err(VmExecutionError::new(
+                            "module body cannot return or break execution",
+                        ));
+                    }
+                    self.globals = scope;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn define_function(
+        &mut self,
+        function: FunctionIr,
+        host: &mut dyn VmHost,
+    ) -> Result<(), VmExecutionError> {
+        for parameter in &function.parameters {
+            if let Some(expression) = &parameter.default {
+                let value = self.eval_expression(expression, &mut self.globals.clone(), host)?;
+                self.function_defaults
+                    .insert((function.name.clone(), parameter.name.clone()), value);
+            }
+        }
+        self.functions.insert(function.name.clone(), function);
+        Ok(())
     }
 
     pub fn context(&self) -> &VmExecutionContext {
@@ -1364,18 +1405,22 @@ impl VmInstance {
         function: &FunctionIr,
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
-        host: &mut dyn VmHost,
+        _host: &mut dyn VmHost,
     ) -> Result<HashMap<String, VmValue>, VmExecutionError> {
         let type_error = |message: String| VmExecutionError::new(format!("TypeError({message:?})"));
         let mut remaining_args = args;
-        let mut remaining_kwargs = HashMap::new();
+        let mut remaining_kwargs = Vec::new();
         for (key, value) in kwargs {
-            if remaining_kwargs.insert(key.clone(), value).is_some() {
+            if remaining_kwargs
+                .iter()
+                .any(|(existing, _)| existing == &key)
+            {
                 return Err(type_error(format!(
                     "__{}() got multiple values for keyword argument '{}'",
                     function.name, key
                 )));
             }
+            remaining_kwargs.push((key, value));
         }
         let mut bound = HashMap::new();
         let mut vararg_name = None;
@@ -1385,7 +1430,10 @@ impl VmInstance {
             match parameter.kind.as_str() {
                 "positional_or_keyword" => {
                     if !remaining_args.is_empty() {
-                        if remaining_kwargs.contains_key(&parameter.name) {
+                        if remaining_kwargs
+                            .iter()
+                            .any(|(key, _)| key == &parameter.name)
+                        {
                             return Err(type_error(format!(
                                 "__{}() got multiple values for keyword argument '{}'",
                                 function.name, parameter.name
@@ -1394,12 +1442,22 @@ impl VmInstance {
                         bound.insert(parameter.name.clone(), remaining_args.remove(0));
                         continue;
                     }
-                    if let Some(value) = remaining_kwargs.remove(&parameter.name) {
+                    if let Some(index) = remaining_kwargs
+                        .iter()
+                        .position(|(key, _)| key == &parameter.name)
+                    {
+                        let (_, value) = remaining_kwargs.remove(index);
                         bound.insert(parameter.name.clone(), value);
                         continue;
                     }
-                    if let Some(default) = &parameter.default {
-                        let value = self.eval_expression(default, &mut bound.clone(), host)?;
+                    if parameter.default.is_some() {
+                        let value = self
+                            .function_defaults
+                            .get(&(function.name.clone(), parameter.name.clone()))
+                            .cloned()
+                            .ok_or_else(|| {
+                                VmExecutionError::new("function default was not initialized")
+                            })?;
                         bound.insert(parameter.name.clone(), value);
                         continue;
                     }
@@ -1409,12 +1467,22 @@ impl VmInstance {
                     )));
                 }
                 "keyword_only" => {
-                    if let Some(value) = remaining_kwargs.remove(&parameter.name) {
+                    if let Some(index) = remaining_kwargs
+                        .iter()
+                        .position(|(key, _)| key == &parameter.name)
+                    {
+                        let (_, value) = remaining_kwargs.remove(index);
                         bound.insert(parameter.name.clone(), value);
                         continue;
                     }
-                    if let Some(default) = &parameter.default {
-                        let value = self.eval_expression(default, &mut bound.clone(), host)?;
+                    if parameter.default.is_some() {
+                        let value = self
+                            .function_defaults
+                            .get(&(function.name.clone(), parameter.name.clone()))
+                            .cloned()
+                            .ok_or_else(|| {
+                                VmExecutionError::new("function default was not initialized")
+                            })?;
                         bound.insert(parameter.name.clone(), value);
                         continue;
                     }
@@ -1451,11 +1519,11 @@ impl VmInstance {
 
         if let Some(name) = kwarg_name {
             let mut entries = Vec::new();
-            for (key, value) in remaining_kwargs.drain() {
+            for (key, value) in remaining_kwargs.drain(..) {
                 entries.push((VmValue::String(key), value));
             }
             bound.insert(name, VmValue::Dict(entries));
-        } else if let Some(unexpected) = remaining_kwargs.keys().next() {
+        } else if let Some(unexpected) = remaining_kwargs.first().map(|(key, _)| key) {
             return Err(type_error(format!(
                 "unexpected keyword argument '{unexpected}'"
             )));
@@ -1543,8 +1611,14 @@ impl VmInstance {
                 };
                 let operand =
                     self.eval_expression(required_value(object, "value")?, scope, host)?;
-                let result =
-                    apply_inplace_operator(required_string(object, "operator")?, current, operand)?;
+                let operator = required_string(object, "operator")?;
+                let result = if operator == "add" && matches!(current.snapshot(), VmValue::List(_))
+                {
+                    self.extend_sequence(&current, &operand, host)?;
+                    current
+                } else {
+                    apply_inplace_operator(operator, current, operand)?
+                };
                 if let Some(resolved) = resolved {
                     self.assign_resolved_target(resolved, result, scope, false)
                 } else {
@@ -1644,12 +1718,12 @@ impl VmInstance {
         host: &mut dyn VmHost,
     ) -> Result<ControlFlow, VmExecutionError> {
         let iter_value = self.eval_expression(required_value(object, "iter")?, scope, host)?;
-        let values = iterate_value(&iter_value)?;
+        let iterator = crate::iteration::iter(&iter_value, &self.heap)?;
         let body = required_array(object, "body")?;
         let orelse = required_array(object, "orelse")?;
 
         let mut broke = false;
-        for item in values {
+        while let Some(item) = self.next_item(&iterator, host)? {
             host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
             self.assign_target(required_value(object, "target")?, item, scope, host, false)?;
             match self.execute_block(body, scope, host)? {
@@ -2044,10 +2118,10 @@ impl VmInstance {
         )?;
         let target = required_value(generator, "target")?;
         let iter_value = self.eval_expression(required_value(generator, "iter")?, scope, host)?;
-        let items = iterate_value(&iter_value)?;
+        let iterator = crate::iteration::iter(&iter_value, &self.heap)?;
         let previous_bindings = capture_target_bindings(target, scope)?;
 
-        for item in items {
+        while let Some(item) = self.next_item(&iterator, host)? {
             host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
             self.assign_target(target, item, scope, host, false)?;
             let mut allowed = true;
@@ -2061,6 +2135,11 @@ impl VmInstance {
                 continue;
             }
             if index + 1 == generators.len() {
+                if results.len() >= MAX_SEQUENCE_LENGTH {
+                    return Err(VmExecutionError::new(
+                        "comprehension exceeds allocation limit",
+                    ));
+                }
                 results.push(self.eval_expression(element, scope, host)?);
             } else {
                 self.eval_list_comprehension_generator(
@@ -2118,10 +2197,10 @@ impl VmInstance {
         )?;
         let target = required_value(generator, "target")?;
         let iter_value = self.eval_expression(required_value(generator, "iter")?, scope, host)?;
-        let items = iterate_value(&iter_value)?;
+        let iterator = crate::iteration::iter(&iter_value, &self.heap)?;
         let previous_bindings = capture_target_bindings(target, scope)?;
 
-        for item in items {
+        while let Some(item) = self.next_item(&iterator, host)? {
             host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
             self.assign_target(target, item, scope, host, false)?;
             let mut allowed = true;
@@ -2308,6 +2387,50 @@ impl VmInstance {
         self.call_callable_value(host, callee, args, kwargs)
     }
 
+    fn next_item(
+        &mut self,
+        iterator: &VmValue,
+        host: &mut dyn VmHost,
+    ) -> Result<Option<VmValue>, VmExecutionError> {
+        let item = crate::iteration::next(iterator, &mut |function, args| {
+            self.call_callable_value(host, function, args, vec![])
+        })?;
+        item.map(|value| self.heap.capture(value)).transpose()
+    }
+
+    fn collect_iterable(
+        &mut self,
+        value: &VmValue,
+        host: &mut dyn VmHost,
+    ) -> Result<Vec<VmValue>, VmExecutionError> {
+        let heap = self.heap.clone();
+        crate::iteration::collect(value, &heap, &mut |function, args| {
+            self.call_callable_value(host, function, args, vec![])
+        })
+    }
+
+    fn extend_sequence(
+        &mut self,
+        receiver: &VmValue,
+        source: &VmValue,
+        host: &mut dyn VmHost,
+    ) -> Result<(), VmExecutionError> {
+        // Self-extension uses the original sequence, as Python does.
+        let source = if receiver.identical(source) {
+            self.heap.capture(source.snapshot())?
+        } else {
+            source.clone()
+        };
+        let iterator = crate::iteration::iter(&source, &self.heap)?;
+        let VmValue::Reference(reference) = receiver else {
+            return Err(VmExecutionError::new("invalid mutable sequence"));
+        };
+        while let Some(item) = self.next_item(&iterator, host)? {
+            reference.append_sequence(item)?;
+        }
+        Ok(())
+    }
+
     fn call_receiver(
         &mut self,
         receiver: VmValue,
@@ -2316,10 +2439,52 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
+        if matches!(method, "keys" | "values" | "items")
+            && matches!(receiver.snapshot(), VmValue::Dict(_))
+        {
+            if !args.is_empty() || !kwargs.is_empty() {
+                return Err(VmExecutionError::new(
+                    "dictionary view methods accept no arguments",
+                ));
+            }
+            let mode = match method {
+                "keys" => crate::iteration::ViewMode::Keys,
+                "values" => crate::iteration::ViewMode::Values,
+                _ => crate::iteration::ViewMode::Items,
+            };
+            return Ok(VmValue::View(Box::new(crate::VmDictView {
+                source: receiver,
+                mode,
+            })));
+        }
         if let VmValue::ForeignStorageRef(reference) = &receiver {
             return foreign_storage::call_method(reference, method, args, kwargs, host);
         }
-        match call_native_method(receiver.clone(), method, args, kwargs)? {
+        if method == "append" && receiver.is_mutable_sequence() {
+            if args.len() != 1 || !kwargs.is_empty() {
+                return Err(VmExecutionError::new("append() expects one argument"));
+            }
+            if let VmValue::Reference(reference) = receiver {
+                reference.append_sequence(args[0].clone())?;
+            }
+            return Ok(VmValue::None);
+        }
+        if method == "extend" && receiver.is_mutable_sequence() {
+            if args.len() != 1 || !kwargs.is_empty() {
+                return Err(VmExecutionError::new("extend() expects one argument"));
+            }
+            self.extend_sequence(&receiver, &args[0], host)?;
+            return Ok(VmValue::None);
+        }
+        let heap = self.heap.clone();
+        match call_native_method_with(
+            receiver.clone(),
+            method,
+            args,
+            kwargs,
+            &heap,
+            &mut |function, args| self.call_callable_value(host, function, args, vec![]),
+        )? {
             NativeMethodResult::Value(value) => Ok(value),
             NativeMethodResult::Mutated {
                 receiver: updated,
@@ -2395,7 +2560,7 @@ impl VmInstance {
         syscall_id: &str,
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
-        scope: &mut HashMap<String, VmValue>,
+        _scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
         target: Option<VmContractTarget>,
     ) -> Result<VmValue, VmExecutionError> {
@@ -2426,6 +2591,8 @@ impl VmInstance {
             "time.timedelta.new" => time_timedelta_new(args, kwargs),
             "hash.sha3_256_text" => hash_sha3_256_text(args, kwargs),
             "hash.sha3_256_hex" => hash_sha3_256_hex(args, kwargs),
+            "hash.sha256_legacy" => hash_legacy(false, args, kwargs),
+            "hash.sha3_256_legacy" => hash_legacy(true, args, kwargs),
             "hash.sha256_text" => hash_sha256_text(args, kwargs),
             "hash.sha256_hex" => hash_sha256_hex(args, kwargs),
             "crypto.ed25519_verify" => crypto_ed25519_verify(args, kwargs),
@@ -2697,7 +2864,26 @@ impl VmInstance {
 
         for (operator, comparator) in operators.iter().zip(comparators.iter()) {
             let right = self.eval_expression(comparator, scope, host)?;
-            let passed = apply_compare_operator(required_string_value(operator)?, &left, &right)?;
+            let operator = required_string_value(operator)?;
+            let passed = if matches!(operator, "in" | "not_in")
+                && matches!(right.snapshot(), VmValue::Iterator(_) | VmValue::View(_))
+            {
+                let iterator = crate::iteration::iter(&right, &self.heap)?;
+                let mut found = false;
+                while let Some(item) = self.next_item(&iterator, host)? {
+                    if vm_values_equal(&left, &item)? {
+                        found = true;
+                        break;
+                    }
+                }
+                if operator == "in" {
+                    found
+                } else {
+                    !found
+                }
+            } else {
+                apply_compare_operator(operator, &left, &right)?
+            };
             if !passed {
                 return Ok(VmValue::Bool(false));
             }
@@ -2749,6 +2935,9 @@ impl VmInstance {
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
+        if matches!(name, "map" | "filter" | "zip" | "reversed") {
+            return crate::iteration::lazy(name, &args, &kwargs, &self.heap);
+        }
         if args.len() == 1
             && kwargs.is_empty()
             && matches!(
@@ -2783,6 +2972,16 @@ impl VmInstance {
                     | VmValue::Set(values)
                     | VmValue::FrozenSet(values) => Ok(vm_int(values.len())),
                     VmValue::Dict(entries) => Ok(vm_int(entries.len())),
+                    VmValue::Range(range) => {
+                        let length = range.len();
+                        if length > BigInt::from(i64::MAX) {
+                            return Err(VmExecutionError::new(
+                                "range length exceeds platform index limit",
+                            ));
+                        }
+                        Ok(VmValue::Int(length))
+                    }
+                    VmValue::View(view) => Ok(vm_int(view.len())),
                     other => Err(VmExecutionError::new(format!(
                         "len() does not support {}",
                         other.type_name()
@@ -2808,30 +3007,7 @@ impl VmInstance {
                 if step.is_zero() {
                     return Err(VmExecutionError::new("range() step cannot be zero"));
                 }
-                let mut values = Vec::new();
-                let mut current = start;
-                if step.sign() != Sign::Minus {
-                    while current < stop {
-                        if values.len() >= MAX_SEQUENCE_LENGTH {
-                            return Err(VmExecutionError::new(
-                                "range() exceeds the maximum allowed allocation size",
-                            ));
-                        }
-                        values.push(VmValue::Int(current.clone()));
-                        current += &step;
-                    }
-                } else {
-                    while current > stop {
-                        if values.len() >= MAX_SEQUENCE_LENGTH {
-                            return Err(VmExecutionError::new(
-                                "range() exceeds the maximum allowed allocation size",
-                            ));
-                        }
-                        values.push(VmValue::Int(current.clone()));
-                        current += &step;
-                    }
-                }
-                Ok(VmValue::List(values))
+                Ok(VmValue::Range(crate::VmRange { start, stop, step }))
             }
             "str" => {
                 if !kwargs.is_empty() || args.len() > 1 {
@@ -2885,7 +3061,12 @@ impl VmInstance {
                         }
                         Ok(VmValue::Bytes(vec![0; size]))
                     }
-                    [value] => Ok(VmValue::Bytes(clone_as_bytes_like(value)?)),
+                    [_] => Ok(VmValue::Bytes(
+                        self.collect_iterable(&shared_args[0], host)?
+                            .iter()
+                            .map(byte_from_value)
+                            .collect::<Result<_, _>>()?,
+                    )),
                     _ => Err(VmExecutionError::new("encoding without a string argument")),
                 }
             }
@@ -2929,7 +3110,12 @@ impl VmInstance {
                         }
                         Ok(VmValue::ByteArray(vec![0; size]))
                     }
-                    [value] => Ok(VmValue::ByteArray(clone_as_bytes_like(value)?)),
+                    [_] => Ok(VmValue::ByteArray(
+                        self.collect_iterable(&shared_args[0], host)?
+                            .iter()
+                            .map(byte_from_value)
+                            .collect::<Result<_, _>>()?,
+                    )),
                     _ => Err(VmExecutionError::new("encoding without a string argument")),
                 }
             }
@@ -2939,7 +3125,7 @@ impl VmInstance {
                 }
                 let values = match args.as_slice() {
                     [] => Vec::new(),
-                    [value] => iterate_value(value)?,
+                    [_] => self.collect_iterable(&shared_args[0], host)?,
                     _ => unreachable!(),
                 };
                 Ok(VmValue::Set(normalize_set_items(values)?))
@@ -2952,7 +3138,7 @@ impl VmInstance {
                 }
                 let values = match args.as_slice() {
                     [] => Vec::new(),
-                    [value] => iterate_value(value)?,
+                    [_] => self.collect_iterable(&shared_args[0], host)?,
                     _ => unreachable!(),
                 };
                 Ok(VmValue::FrozenSet(normalize_set_items(values)?))
@@ -3272,35 +3458,19 @@ impl VmInstance {
                     ));
                 }
                 let mut entries = Vec::new();
-                if let Some(initial) = args.first() {
-                    match initial {
-                        VmValue::Dict(existing) => entries.extend(existing.clone()),
-                        VmValue::List(items) | VmValue::Tuple(items) => {
-                            for item in items {
-                                match item.snapshot() {
-                                    VmValue::List(values) | VmValue::Tuple(values)
-                                        if values.len() == 2 =>
-                                    {
-                                        dict_set(
-                                            &mut entries,
-                                            values[0].clone(),
-                                            values[1].clone(),
-                                        )?;
-                                    }
-                                    other => {
-                                        return Err(VmExecutionError::new(format!(
-                                            "dict() expected key/value pairs, got {}",
-                                            other.type_name()
-                                        )))
-                                    }
-                                }
+                if let Some(initial) = shared_args.first() {
+                    if let VmValue::Dict(existing) = initial.snapshot() {
+                        entries = existing;
+                    } else {
+                        let iterator = crate::iteration::iter(initial, &self.heap)?;
+                        while let Some(item) = self.next_item(&iterator, host)? {
+                            let pair = self.collect_iterable(&item, host)?;
+                            if pair.len() != 2 {
+                                return Err(VmExecutionError::new(
+                                    "dict() expected key/value pairs",
+                                ));
                             }
-                        }
-                        other => {
-                            return Err(VmExecutionError::new(format!(
-                                "dict() does not support {}",
-                                other.type_name()
-                            )))
+                            dict_set(&mut entries, pair[0].clone(), pair[1].clone())?;
                         }
                     }
                 }
@@ -3315,8 +3485,8 @@ impl VmInstance {
                         "list() accepts at most one positional argument",
                     ));
                 }
-                if let Some(value) = args.first() {
-                    let items = iterate_value(value)?;
+                if !args.is_empty() {
+                    let items = self.collect_iterable(&shared_args[0], host)?;
                     Ok(VmValue::List(items))
                 } else {
                     Ok(VmValue::List(Vec::new()))
@@ -3328,8 +3498,8 @@ impl VmInstance {
                         "tuple() accepts at most one positional argument",
                     ));
                 }
-                if let Some(value) = args.first() {
-                    let items = iterate_value(value)?;
+                if !args.is_empty() {
+                    let items = self.collect_iterable(&shared_args[0], host)?;
                     Ok(VmValue::Tuple(items))
                 } else {
                     Ok(VmValue::Tuple(Vec::new()))
@@ -3341,7 +3511,7 @@ impl VmInstance {
                         "sorted() expects one positional argument",
                     ));
                 }
-                let values = iterate_value(&args[0])?;
+                let values = self.collect_iterable(&shared_args[0], host)?;
                 Ok(VmValue::List(sorted_values(values)?))
             }
             "sum" => {
@@ -3355,7 +3525,7 @@ impl VmInstance {
                 } else {
                     vm_int(0)
                 };
-                for value in iterate_value(&args[0])? {
+                for value in self.collect_iterable(&shared_args[0], host)? {
                     total = apply_binary_operator("add", total, value)?;
                 }
                 Ok(total)
@@ -3366,7 +3536,11 @@ impl VmInstance {
                         "min() expects at least one positional argument",
                     ));
                 }
-                let values = builtin_ordered_values(args)?;
+                let values = if shared_args.len() == 1 {
+                    self.collect_iterable(&shared_args[0], host)?
+                } else {
+                    shared_args.clone()
+                };
                 let mut best = values
                     .first()
                     .cloned()
@@ -3384,7 +3558,11 @@ impl VmInstance {
                         "max() expects at least one positional argument",
                     ));
                 }
-                let values = builtin_ordered_values(args)?;
+                let values = if shared_args.len() == 1 {
+                    self.collect_iterable(&shared_args[0], host)?
+                } else {
+                    shared_args.clone()
+                };
                 let mut best = values
                     .first()
                     .cloned()
@@ -3396,129 +3574,19 @@ impl VmInstance {
                 }
                 Ok(best)
             }
-            "all" => {
+            "all" | "any" => {
                 if args.len() != 1 || !kwargs.is_empty() {
-                    return Err(VmExecutionError::new(
-                        "all() expects one positional argument",
-                    ));
+                    return Err(VmExecutionError::new(format!(
+                        "{name}() expects one argument"
+                    )));
                 }
-                Ok(VmValue::Bool(
-                    iterate_value(&args[0])?.iter().all(VmValue::truthy),
-                ))
-            }
-            "any" => {
-                if args.len() != 1 || !kwargs.is_empty() {
-                    return Err(VmExecutionError::new(
-                        "any() expects one positional argument",
-                    ));
-                }
-                Ok(VmValue::Bool(
-                    iterate_value(&args[0])?.iter().any(VmValue::truthy),
-                ))
-            }
-            "map" => {
-                if !kwargs.is_empty() || args.len() < 2 {
-                    return Err(VmExecutionError::new(
-                        "map() must have at least two arguments",
-                    ));
-                }
-                let function = args[0].clone();
-                if function == VmValue::None {
-                    return Err(VmExecutionError::new(
-                        "map() must have a callable first argument",
-                    ));
-                }
-                if !matches!(function, VmValue::Builtin(_) | VmValue::FunctionRef(_)) {
-                    return Err(VmExecutionError::new(
-                        "map() must have a callable first argument",
-                    ));
-                }
-                let iterables = args[1..]
-                    .iter()
-                    .map(iterate_value)
-                    .collect::<Result<Vec<_>, _>>()?;
-                let length = iterables.iter().map(Vec::len).min().unwrap_or(0);
-                let mut mapped = Vec::with_capacity(length);
-                for index in 0..length {
-                    let call_args = iterables
-                        .iter()
-                        .map(|values| values[index].clone())
-                        .collect::<Vec<_>>();
-                    mapped.push(self.call_callable_value(
-                        host,
-                        function.clone(),
-                        call_args,
-                        Vec::new(),
-                    )?);
-                }
-                Ok(VmValue::List(mapped))
-            }
-            "filter" => {
-                if !kwargs.is_empty() || args.len() != 2 {
-                    return Err(VmExecutionError::new(
-                        "filter() expects two positional arguments",
-                    ));
-                }
-                let function = args[0].clone();
-                let values = iterate_value(&args[1])?;
-                let mut filtered = Vec::new();
-                if function == VmValue::None {
-                    for value in values {
-                        if value.truthy() {
-                            filtered.push(value);
-                        }
-                    }
-                    return Ok(VmValue::List(filtered));
-                }
-                if !matches!(function, VmValue::Builtin(_) | VmValue::FunctionRef(_)) {
-                    return Err(VmExecutionError::new(
-                        "filter() must have a callable first argument or None",
-                    ));
-                }
-                for value in values {
-                    if self
-                        .call_callable_value(
-                            host,
-                            function.clone(),
-                            vec![value.clone()],
-                            Vec::new(),
-                        )?
-                        .truthy()
-                    {
-                        filtered.push(value);
+                let iterator = crate::iteration::iter(&shared_args[0], &self.heap)?;
+                while let Some(item) = self.next_item(&iterator, host)? {
+                    if item.truthy() == (name == "any") {
+                        return Ok(VmValue::Bool(name == "any"));
                     }
                 }
-                Ok(VmValue::List(filtered))
-            }
-            "reversed" => {
-                if args.len() != 1 || !kwargs.is_empty() {
-                    return Err(VmExecutionError::new(
-                        "reversed() expects one positional argument",
-                    ));
-                }
-                let mut values = iterate_value(&args[0])?;
-                values.reverse();
-                Ok(VmValue::List(values))
-            }
-            "zip" => {
-                if !kwargs.is_empty() {
-                    return Err(VmExecutionError::new("zip() expects positional arguments"));
-                }
-                let iterables = args
-                    .iter()
-                    .map(iterate_value)
-                    .collect::<Result<Vec<_>, _>>()?;
-                let length = iterables.iter().map(Vec::len).min().unwrap_or(0);
-                let mut zipped = Vec::with_capacity(length);
-                for index in 0..length {
-                    zipped.push(VmValue::Tuple(
-                        iterables
-                            .iter()
-                            .map(|values| values[index].clone())
-                            .collect(),
-                    ));
-                }
-                Ok(VmValue::List(zipped))
+                Ok(VmValue::Bool(name == "all"))
             }
             "isinstance" => {
                 if args.len() != 2 || !kwargs.is_empty() {

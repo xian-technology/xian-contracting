@@ -289,5 +289,153 @@
     "dependencies": {
       "con_alias_helper": "@export\ndef change(value: list):\n    value.append(2)\n    return value\n"
     }
+  },
+  {
+    "id": "live_list_iteration",
+    "source": "def change(value):\n    value.append(9)\n    return value\n\ndef positive(value):\n    return value > 0\n\ndef append_once(a, i):\n    if len(a) < 3:\n        a.append(3)\n    return i\n\n@export\ndef probe():\n    a = [1, 2]\n    seen = []\n    for item in a:\n        seen.append(item)\n        if len(a) < 3:\n            a.append(3)\n    return seen\n"
+  },
+  {
+    "id": "zip_consumption",
+    "source": "def change(value):\n    value.append(9)\n    return value\n\ndef positive(value):\n    return value > 0\n\ndef append_once(a, i):\n    if len(a) < 3:\n        a.append(3)\n    return i\n\n@export\ndef probe():\n    a = zip([1, 2], [3, 4])\n    return [list(a), list(a)]\n"
+  },
+  {
+    "id": "zip_strict",
+    "source": "def change(value):\n    value.append(9)\n    return value\n\ndef positive(value):\n    return value > 0\n\ndef append_once(a, i):\n    if len(a) < 3:\n        a.append(3)\n    return i\n\n@export\ndef probe():\n    return list(zip([1], [2], strict=True))\n"
+  },
+  {
+    "id": "zip_strict_mismatch",
+    "source": "def change(value):\n    value.append(9)\n    return value\n\ndef positive(value):\n    return value > 0\n\ndef append_once(a, i):\n    if len(a) < 3:\n        a.append(3)\n    return i\n\n@export\ndef probe():\n    return list(zip([1], [2, 3], strict=True))\n"
+  },
+  {
+    "id": "map_lazy",
+    "source": "def change(value):\n    value.append(9)\n    return value\n\ndef positive(value):\n    return value > 0\n\ndef append_once(a, i):\n    if len(a) < 3:\n        a.append(3)\n    return i\n\n@export\ndef probe():\n    a = [1]\n    m = map(change, [a])\n    before = a.copy()\n    first = list(m)\n    return [before, a, first, list(m)]\n"
+  },
+  {
+    "id": "filter_lazy",
+    "source": "def change(value):\n    value.append(9)\n    return value\n\ndef positive(value):\n    return value > 0\n\ndef append_once(a, i):\n    if len(a) < 3:\n        a.append(3)\n    return i\n\n@export\ndef probe():\n    a = [1]\n    f = filter(change, [a])\n    before = a.copy()\n    return [before, list(f), a, list(f)]\n"
+  },
+  {
+    "id": "iterator_short_circuit",
+    "source": "def change(value):\n    value.append(9)\n    return value\n\ndef positive(value):\n    return value > 0\n\ndef append_once(a, i):\n    if len(a) < 3:\n        a.append(3)\n    return i\n\n@export\ndef probe():\n    m = map(positive, [1, 0, 2])\n    a = all(m)\n    return [a, list(m)]\n"
+  },
+  {
+    "id": "iterator_any_short_circuit",
+    "source": "def change(value):\n    value.append(9)\n    return value\n\ndef positive(value):\n    return value > 0\n\ndef append_once(a, i):\n    if len(a) < 3:\n        a.append(3)\n    return i\n\n@export\ndef probe():\n    m = map(positive, [0, 1, 2])\n    a = any(m)\n    return [a, list(m)]\n"
+  },
+  {
+    "id": "iterator_live_input",
+    "source": "def change(value):\n    value.append(9)\n    return value\n\ndef positive(value):\n    return value > 0\n\ndef append_once(a, i):\n    if len(a) < 3:\n        a.append(3)\n    return i\n\n@export\ndef probe():\n    a = [1]\n    z = zip(a, [2, 3])\n    a.append(4)\n    return list(z)\n"
+  },
+  {
+    "id": "iterator_reversed",
+    "source": "def change(value):\n    value.append(9)\n    return value\n\ndef positive(value):\n    return value > 0\n\ndef append_once(a, i):\n    if len(a) < 3:\n        a.append(3)\n    return i\n\n@export\ndef probe():\n    a = [1, 2]\n    r = reversed(a)\n    a[1] = 3\n    return [list(r), list(r)]\n"
+  },
+  {
+    "id": "iterator_dict_mutation",
+    "source": "def change(value):\n    value.append(9)\n    return value\n\ndef positive(value):\n    return value > 0\n\ndef append_once(a, i):\n    if len(a) < 3:\n        a.append(3)\n    return i\n\n@export\ndef probe():\n    a = {'a': 1}\n    for key in a:\n        a['b'] = 2\n    return 1\n"
+  },
+  {
+    "id": "iterator_map_extend",
+    "source": "def change(value):\n    value.append(9)\n    return value\n\ndef positive(value):\n    return value > 0\n\ndef append_once(a, i):\n    if len(a) < 3:\n        a.append(3)\n    return i\n\n@export\ndef probe():\n    a = []\n    a.extend(map(change, [[1], [2]]))\n    return a\n"
+  },
+  {
+    "id": "iterator_range_lazy",
+    "source": "def change(value):\n    value.append(9)\n    return value\n\ndef positive(value):\n    return value > 0\n\ndef append_once(a, i):\n    if len(a) < 3:\n        a.append(3)\n    return i\n\n@export\ndef probe():\n    seen = []\n    for i in range(100000000000000000000000000):\n        seen.append(i)\n        if i == 2:\n            break\n    return seen\n"
+  },
+  {
+    "id": "iterator_comprehension",
+    "source": "def change(value):\n    value.append(9)\n    return value\n\ndef positive(value):\n    return value > 0\n\ndef append_once(a, i):\n    if len(a) < 3:\n        a.append(3)\n    return i\n\n@export\ndef probe():\n    a = [1, 2]\n    return [append_once(a, i) for i in a]\n"
+  },
+  {
+    "id": "iterator_dict_constructor",
+    "source": "def length(a):\n    return len(a)\n\n@export\ndef probe():\n    return dict(zip([\"a\", \"b\"], [1, 2]))\n"
+  },
+  {
+    "id": "iterator_bytes_constructor",
+    "source": "def length(a):\n    return len(a)\n\n@export\ndef probe():\n    return [bytes(map(int, [1, 2])), bytearray(range(3))]\n"
+  },
+  {
+    "id": "iterator_membership_consumes",
+    "source": "def length(a):\n    return len(a)\n\n@export\ndef probe():\n    a = map(int, [1, 2, 3])\n    matched = 2 in a\n    return [matched, list(a)]\n"
+  },
+  {
+    "id": "iterator_extend_observes_progress",
+    "source": "def length(a):\n    return len(a)\n\n@export\ndef probe():\n    a = []\n    a.extend(map(length, [a, a, a]))\n    return a\n"
+  },
+  {
+    "id": "iterator_augassign",
+    "source": "def length(a):\n    return len(a)\n\n@export\ndef probe():\n    a = [1]\n    b = a\n    a += map(int, [2, 3])\n    return [a, a is b]\n"
+  },
+  {
+    "id": "iterator_yield_identity",
+    "source": "def length(a):\n    return len(a)\n\n@export\ndef probe():\n    a = list(zip([1], [2]))\n    return a[0] is a[0]\n"
+  },
+  {
+    "id": "iterator_range_sequence",
+    "source": "def length(a):\n    return len(a)\n\n@export\ndef probe():\n    a = range(2, 12, 3)\n    return [len(a), a[0], a[-1], 5 in a, 6 in a, str(a)]\n"
+  },
+  {
+    "id": "iterator_dict_view",
+    "source": "def length(a):\n    return len(a)\n\n@export\ndef probe():\n    a = {\"a\": 1}\n    v = a.values()\n    k = a.keys()\n    a[\"b\"] = 2\n    return [list(v), list(v), list(k)]\n"
+  },
+  {
+    "id": "default_mutable_identity",
+    "source": "def add(value, values=[]):\n    values.append(value)\n    return values\n@export\ndef probe():\n    first = add(1)\n    second = add(2)\n    return [first, second, first is second]\n"
+  },
+  {
+    "id": "default_definition_scope",
+    "source": "VALUE = 7\ndef choose(VALUE=3, other=VALUE):\n    return [VALUE, other]\n@export\ndef probe():\n    return choose()\n"
+  },
+  {
+    "id": "default_definition_order",
+    "source": "VALUE = [1]\ndef choose(value=len(VALUE)):\n    return value\nVALUE.append(2)\n@export\ndef probe():\n    return choose()\n"
+  },
+  {
+    "id": "keyword_argument_order",
+    "source": "def keys(**kwargs):\n    return list(kwargs)\n@export\ndef probe():\n    return keys(z=1, a=2, c=3, b=4)\n"
+  },
+  {
+    "id": "hash_alias_0",
+    "source": "@export\ndef probe():\n    return [hashlib.sha256(''), hashlib.sha3('')]\n"
+  },
+  {
+    "id": "hash_alias_1",
+    "source": "@export\ndef probe():\n    return [hashlib.sha256('deadbeef'), hashlib.sha3('deadbeef')]\n"
+  },
+  {
+    "id": "hash_alias_2",
+    "source": "@export\ndef probe():\n    return [hashlib.sha256('DE AD\\tBE\\nEF'), hashlib.sha3('DE AD\\tBE\\nEF')]\n"
+  },
+  {
+    "id": "hash_alias_3",
+    "source": "@export\ndef probe():\n    return [hashlib.sha256('d e'), hashlib.sha3('d e')]\n"
+  },
+  {
+    "id": "hash_alias_4",
+    "source": "@export\ndef probe():\n    return [hashlib.sha256('a'), hashlib.sha3('a')]\n"
+  },
+  {
+    "id": "hash_alias_5",
+    "source": "@export\ndef probe():\n    return [hashlib.sha256('0x12'), hashlib.sha3('0x12')]\n"
+  },
+  {
+    "id": "hash_alias_6",
+    "source": "@export\ndef probe():\n    return [hashlib.sha256('\u96ea'), hashlib.sha3('\u96ea')]\n"
+  },
+  {
+    "id": "hash_alias_7",
+    "source": "@export\ndef probe():\n    return [hashlib.sha256(123), hashlib.sha3(123)]\n"
+  },
+  {
+    "id": "hash_alias_8",
+    "source": "@export\ndef probe():\n    return [hashlib.sha256(None), hashlib.sha3(None)]\n"
+  },
+  {
+    "id": "hash_alias_9",
+    "source": "@export\ndef probe():\n    return [hashlib.sha256(b'12'), hashlib.sha3(b'12')]\n"
+  },
+  {
+    "id": "hash_alias_keyword",
+    "source": "@export\ndef probe():\n    return [hashlib.sha256(hex_str='hello'), hashlib.sha3(hex_str='deadbeef')]\n"
   }
 ]

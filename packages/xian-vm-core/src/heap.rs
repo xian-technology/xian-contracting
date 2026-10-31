@@ -48,6 +48,10 @@ impl fmt::Debug for VmReference {
 }
 
 impl VmReference {
+    pub(crate) fn with_value<T>(&self, read: impl FnOnce(&VmValue) -> T) -> T {
+        read(&self.0.value.borrow())
+    }
+
     pub(crate) fn value(&self) -> VmValue {
         self.0.value.borrow().clone()
     }
@@ -63,6 +67,33 @@ impl VmReference {
         self.0.bytes.set(bytes);
         drop(usage);
         *self.0.value.borrow_mut() = value;
+        Ok(())
+    }
+
+    pub(crate) fn append_sequence(&self, item: VmValue) -> Result<(), VmExecutionError> {
+        let mut value = self.0.value.borrow_mut();
+        let (length, growth) = match &*value {
+            VmValue::List(items) => (items.len(), std::mem::size_of::<VmValue>()),
+            VmValue::ByteArray(bytes) => (bytes.len(), 1),
+            _ => return Err(VmExecutionError::new("expected a mutable sequence")),
+        };
+        let mut usage = self.0.usage.borrow_mut();
+        if length >= crate::interpreter::MAX_SEQUENCE_LENGTH
+            || usage.bytes + growth > MAX_HEAP_BYTES
+        {
+            return Err(VmExecutionError::new("sequence allocation limit exceeded"));
+        }
+        match &mut *value {
+            VmValue::List(items) => items.push(item),
+            VmValue::ByteArray(bytes) => {
+                let byte = u8::try_from(item.as_i64()?)
+                    .map_err(|_| VmExecutionError::new("byte must be in range(0, 256)"))?;
+                bytes.push(byte);
+            }
+            _ => unreachable!(),
+        }
+        usage.bytes += growth;
+        self.0.bytes.set(self.0.bytes.get() + growth);
         Ok(())
     }
 
@@ -131,7 +162,11 @@ impl VmHeap {
         drop(usage);
         let mutable = matches!(
             value,
-            VmValue::List(_) | VmValue::Dict(_) | VmValue::Set(_) | VmValue::ByteArray(_)
+            VmValue::List(_)
+                | VmValue::Dict(_)
+                | VmValue::Set(_)
+                | VmValue::ByteArray(_)
+                | VmValue::Iterator(_)
         );
         let object = VmReference(Rc::new(Object {
             value: RefCell::new(value),
@@ -176,6 +211,10 @@ fn shallow_bytes(value: &VmValue) -> usize {
         VmValue::String(v) => v.len(),
         VmValue::Bytes(v) | VmValue::ByteArray(v) => v.len(),
         VmValue::Int(v) => v.bits().div_ceil(8) as usize,
+        VmValue::Decimal(v) => v.scaled.bits().div_ceil(8) as usize,
+        VmValue::Iterator(v) => v.allocation_bytes(),
+        VmValue::Range(v) => v.allocation_bytes(),
+        VmValue::View(_) => std::mem::size_of::<crate::VmDictView>(),
         _ => 0,
     }
 }
@@ -214,6 +253,14 @@ fn map_items(
 }
 
 impl VmValue {
+    pub(crate) fn is_mutable_sequence(&self) -> bool {
+        match self {
+            Self::Reference(reference) => reference.with_value(VmValue::is_mutable_sequence),
+            Self::List(_) | Self::ByteArray(_) => true,
+            _ => false,
+        }
+    }
+
     /// Resolve one object without copying the objects held in its container.
     pub(crate) fn snapshot(&self) -> Self {
         match self {
@@ -259,6 +306,14 @@ fn detach(
                 "cyclic value cannot cross a VM boundary",
             ));
         }
+    }
+    if matches!(
+        value.snapshot(),
+        VmValue::Iterator(_) | VmValue::Range(_) | VmValue::View(_)
+    ) {
+        return Err(VmExecutionError::new(
+            "iterators and ranges cannot cross the VM boundary; materialize them first",
+        ));
     }
     let result = map_children(value.snapshot(), |item| {
         detach(&item, path, depth + 1, nodes)

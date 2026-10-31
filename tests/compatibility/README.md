@@ -45,17 +45,24 @@ objects are unhashable dictionary keys in Python, even though deterministic
 sets accept them. Empty `dict.pop(key, default)` follows the historical
 short-circuit behavior and returns the default before validating the key.
 
-Known differences are visible in the test report. The historical
-`hashlib.sha256` alias is absent from both current engines; its admission,
-failure status and empty effects are asserted before reporting the expected
-failure. Removing the gap requires an explicit decision about historical aliases
-versus migration to `sha256_text`/`sha256_hex`.
+Historical `hashlib.sha256` and `hashlib.sha3` calls preserve hexadecimal-first
+input handling, including ASCII whitespace between complete byte pairs and UTF-8
+fallback on invalid hex. The corpus covers both aliases and keyword arguments.
+The explicit text/hex APIs remain preferable for newly authored messages.
+
+The current Python harness retains its oversized-range guard. Its bounded
+exception is asserted for the large-range probe; native ranges support lazy
+iteration and enforce allocation limits when materialized. This deliberate
+resource-policy difference is separate from language result comparisons.
 
 This is an extensible baseline, not a full replacement certificate. It does not
 yet cover the complete historical grammar, constructors, all standard-library
-bridges, metering equivalence, or iterator lifetime. The reference corpus covers
+bridges or metering equivalence. The reference corpus covers
 aliases, shallow copies, function arguments/returns, imported calls, identity,
-temporary receivers, receiver evaluation order and deterministic shuffling.
+temporary receivers, receiver evaluation order, deterministic shuffling,
+default-definition scope/identity, keyword order, live collection iteration,
+iterator consumption, lazy callbacks, short-circuiting, dictionary views and
+iterator-consuming constructors.
 
 Storage isolation is an intentional historical difference: writes snapshot their
 inputs and reads return detached copies. The historical fixture records its old
