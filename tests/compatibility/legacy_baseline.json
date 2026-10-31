@@ -2,7 +2,7 @@
   "revision": "3b82001f2d587bbfb51f3d9235a2a8dcd0078a9a",
   "python": "3.12.10",
   "dependency_lock_sha256": "d6e2fc9493ba30f7eeda91769f3c3c74e398197127996c3de2d6e98d9fced726",
-  "cases_sha256": "e7f10a561d241f4dd58f8a7693b72f833e0aabc3d206170d1da3dbb4261c83a7",
+  "cases_sha256": "0af28c2086f80f1e48afc9300800080bd54b09f31b5b6e08d0ae2eb5ced28304",
   "runner_sha256": "c2941b8697449adfecb2716cdc45337648186de30734bf2257f440cf9bc80818",
   "observations": {
     "typed_values": {
@@ -7809,6 +7809,2475 @@
           ]
         ]
       ]
+    },
+    "method_adjusted": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "0"
+      ]
+    },
+    "method_as_integer_ratio": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "(5, 2)"
+      ]
+    },
+    "method_as_tuple": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "DecimalTuple(sign=0, digits=(2, 5, 0, 0), exponent=-3)"
+      ]
+    },
+    "method_canonical": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2.500"
+      ]
+    },
+    "method_compare": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "1"
+      ]
+    },
+    "method_compare_signal": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "1"
+      ]
+    },
+    "method_compare_total": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "1"
+      ]
+    },
+    "method_compare_total_mag": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "1"
+      ]
+    },
+    "method_conjugate": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2.500"
+      ]
+    },
+    "method_copy_abs": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2.500"
+      ]
+    },
+    "method_copy_negate": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "-2.500"
+      ]
+    },
+    "method_copy_sign": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "-2.500"
+      ]
+    },
+    "method_exp": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "12.18249396070347343807017595116796618318276779006316131156039834183818512614331441006025552"
+      ]
+    },
+    "method_fma": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "4.20000"
+      ]
+    },
+    "method_from_float": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "argument must be int or float",
+      "exception_type": "TypeError"
+    },
+    "method_is_canonical": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "True"
+      ]
+    },
+    "method_is_finite": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "True"
+      ]
+    },
+    "method_is_infinite": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "False"
+      ]
+    },
+    "method_is_nan": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "False"
+      ]
+    },
+    "method_is_normal": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "True"
+      ]
+    },
+    "method_is_qnan": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "False"
+      ]
+    },
+    "method_is_signed": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "False"
+      ]
+    },
+    "method_is_snan": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "False"
+      ]
+    },
+    "method_is_subnormal": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "False"
+      ]
+    },
+    "method_is_zero": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "False"
+      ]
+    },
+    "method_ln": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "0.9162907318741550651835272117680110714501012199082624677919678819807853657379630490242705511"
+      ]
+    },
+    "method_log10": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "0.3979400086720376095725222105510139464636202370757829173791450777457836214511509810261454958"
+      ]
+    },
+    "method_logb": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "0"
+      ]
+    },
+    "method_max": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2.500"
+      ]
+    },
+    "method_max_mag": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2.500"
+      ]
+    },
+    "method_min": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "1.20"
+      ]
+    },
+    "method_min_mag": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "-1.20"
+      ]
+    },
+    "method_next_minus": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2.499999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+      ]
+    },
+    "method_next_plus": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2.500000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"
+      ]
+    },
+    "method_next_toward": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2.499999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+      ]
+    },
+    "method_normalize": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2.5"
+      ]
+    },
+    "method_number_class": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "+Normal"
+      ]
+    },
+    "method_quantize": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2.50"
+      ]
+    },
+    "method_radix": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "10"
+      ]
+    },
+    "method_remainder_near": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "0.100"
+      ]
+    },
+    "method_rotate": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "25.000"
+      ]
+    },
+    "method_same_quantum": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "False"
+      ]
+    },
+    "method_scaleb": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "250.0"
+      ]
+    },
+    "method_shift": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "25.000"
+      ]
+    },
+    "method_sqrt": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "1.581138830084189665999446772216359266859777569662608413428752426396297219319619110672124054"
+      ]
+    },
+    "method_to_eng_string": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2.500"
+      ]
+    },
+    "method_to_integral": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2"
+      ]
+    },
+    "method_to_integral_exact": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2"
+      ]
+    },
+    "method_to_integral_value": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2"
+      ]
+    },
+    "method_logical_and": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "1"
+      ]
+    },
+    "method_logical_or": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "111"
+      ]
+    },
+    "method_logical_xor": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "110"
+      ]
+    },
+    "method_logical_invert": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111010"
+      ]
+    },
+    "power_fractional": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2.297396709994070013597253893555855178887701778195595011027422236987206412507026113622946226"
+      ]
+    },
+    "power_fractional_negative": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "0.4352752816480620695681350087398730494895627121740015241209297842533750088762390050941893824"
+      ]
+    },
+    "power_zero_negative": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "Infinity"
+      ]
+    },
+    "power_negative_fractional": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "[<class 'decimal.InvalidOperation'>]",
+      "exception_type": "InvalidOperation"
+    },
+    "power_negative_integral": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "-8.000000"
+      ]
+    },
+    "power_fractional_underflow": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "0E-190"
+      ]
+    },
+    "infinity_return": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "Decimal",
+        "Infinity"
+      ]
+    },
+    "infinity_str": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "Infinity"
+      ]
+    },
+    "infinity_repr": {
+      "admission": "rejected",
+      "diagnostic": "LintingError"
+    },
+    "infinity_add": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "Infinity"
+      ]
+    },
+    "infinity_neg": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "-Infinity"
+      ]
+    },
+    "infinity_multiply_zero": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "[<class 'decimal.InvalidOperation'>]",
+      "exception_type": "InvalidOperation"
+    },
+    "infinity_divide": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "[<class 'decimal.InvalidOperation'>]",
+      "exception_type": "InvalidOperation"
+    },
+    "infinity_comparisons": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ]
+        ]
+      ]
+    },
+    "infinity_format": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "Infinity"
+          ],
+          [
+            "str",
+            " +Infinity"
+          ]
+        ]
+      ]
+    },
+    "infinity_int": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "cannot convert Infinity to integer",
+      "exception_type": "OverflowError"
+    },
+    "infinity_float": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "inf"
+      ]
+    },
+    "infinity_round_integer": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "cannot convert Infinity to integer",
+      "exception_type": "OverflowError"
+    },
+    "infinity_round_digits": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "[<class 'decimal.InvalidOperation'>]",
+      "exception_type": "InvalidOperation"
+    },
+    "infinity_dict_key": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "infinite"
+          ]
+        ]
+      ]
+    },
+    "infinity_set_member": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "int",
+        1
+      ]
+    },
+    "infinity_predicates": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "str",
+            "+Infinity"
+          ]
+        ]
+      ]
+    },
+    "infinity_tuple": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "DecimalTuple(sign=0, digits=(0,), exponent='F')"
+      ]
+    },
+    "infinity_next": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "9.999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999E+100"
+      ]
+    },
+    "infinity_fixed_conversion": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "Value Infinity exceeds the supported decimal range.",
+      "exception_type": "DecimalOverflowError"
+    },
+    "infinity_storage_variable": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "Value Infinity exceeds the supported decimal range.",
+      "exception_type": "DecimalOverflowError"
+    },
+    "infinity_storage_hash": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "Value Infinity exceeds the supported decimal range.",
+      "exception_type": "DecimalOverflowError"
+    },
+    "infinity_storage_nested_variable": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "Value Infinity exceeds the supported decimal range.",
+      "exception_type": "DecimalOverflowError"
+    },
+    "infinity_storage_nested_hash": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "Value Infinity exceeds the supported decimal range.",
+      "exception_type": "DecimalOverflowError"
+    },
+    "infinity_storage_rollback": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "Value Infinity exceeds the supported decimal range.",
+      "exception_type": "DecimalOverflowError"
+    },
+    "nan_return": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "Decimal",
+        "NaN"
+      ]
+    },
+    "nan_str": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "NaN"
+      ]
+    },
+    "nan_add": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "NaN"
+      ]
+    },
+    "nan_eq": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ]
+        ]
+      ]
+    },
+    "nan_lt": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "[<class 'decimal.InvalidOperation'>]",
+      "exception_type": "InvalidOperation"
+    },
+    "nan_predicates": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "str",
+            "NaN"
+          ]
+        ]
+      ]
+    },
+    "nan_tuple": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "DecimalTuple(sign=0, digits=(), exponent='n')"
+      ]
+    },
+    "nan_compare_total": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "0"
+      ]
+    },
+    "nan_compare_signal": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "[<class 'decimal.InvalidOperation'>]",
+      "exception_type": "InvalidOperation"
+    },
+    "nan_normalize": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "NaN"
+      ]
+    },
+    "nan_dict_key": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "int",
+        1
+      ]
+    },
+    "nan_set_member": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "int",
+        1
+      ]
+    },
+    "nan_fixed_conversion": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "[<class 'decimal.InvalidOperation'>]",
+      "exception_type": "InvalidOperation"
+    },
+    "snan_private_construction": {
+      "admission": "rejected",
+      "diagnostic": "LintingError"
+    },
+    "quantize_rounding_keyword": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2.50"
+      ]
+    },
+    "quantize_rounding_positional": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "2.50"
+      ]
+    },
+    "quantize_bad_rounding": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "valid values for rounding are:\n  [ROUND_CEILING, ROUND_FLOOR, ROUND_UP, ROUND_DOWN,\n   ROUND_HALF_UP, ROUND_HALF_DOWN, ROUND_HALF_EVEN,\n   ROUND_05UP]",
+      "exception_type": "TypeError"
+    },
+    "method_arg_raw_fixed": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "conversion from ContractingDecimal to Decimal is not supported",
+      "exception_type": "TypeError"
+    },
+    "method_arg_string": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "conversion from str to Decimal is not supported",
+      "exception_type": "TypeError"
+    },
+    "method_tuple_fields": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            0
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                5
+              ],
+              [
+                "int",
+                0
+              ],
+              [
+                "int",
+                0
+              ]
+            ]
+          ],
+          [
+            "int",
+            -3
+          ]
+        ]
+      ]
+    },
+    "from_float_long_exact": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "1.00000000000000001999189980260288361964776078853415942018260300593659569925554346761767628861329298958274607481091185079852827053974965402226843604196126360835628314127871794272492894246908066589163059300043457860230145025079449986855914338755579873208034769049845635890960693359375E-100"
+      ]
+    },
+    "attribute_real_imag": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "2.500"
+          ],
+          [
+            "str",
+            "0"
+          ]
+        ]
+      ]
+    },
+    "from_float_explicit": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "0.1000000000000000055511151231257827021181583404541015625"
+      ]
+    },
+    "from_float_integer_large": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      ]
+    },
+    "from_float_subnormal": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "4.940656458412465441765687928682213723650598026143247644255856825006755072702087518652998363616359923797965646954457177309266567103559397963987747960107818781263007131903114045278458171678489821036887186360569987307230500063874091535649843873124733972731696151400317153853980741262385655911710266585566867681870395603106249319452715914924553293054565444011274801297099995419319894090804165633245247571478690147267801593552386115501348035264934720193790268107107491703332226844753335720832431936092382893458368060106011506169809753078342277318329247904982524730776375927247874656084778203734469699533647017972677717585125660551199131504891101451037862738167250955837389733598993664809941164205702637090279242767544565229087538682506419718265533447265625E-324"
+      ]
+    },
+    "from_float_bool": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "1"
+      ]
+    },
+    "nan_distinct_keys": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            2
+          ],
+          [
+            "int",
+            2
+          ],
+          [
+            "bool",
+            false
+          ]
+        ]
+      ]
+    },
+    "nan_signed_format": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "NaN"
+          ],
+          [
+            "str",
+            "-NaN"
+          ],
+          [
+            "str",
+            "      +NaN"
+          ],
+          [
+            "str",
+            "DecimalTuple(sign=0, digits=(), exponent='n')"
+          ]
+        ]
+      ]
+    },
+    "quantize_rounding_nontrivial": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "2.56"
+          ],
+          [
+            "str",
+            "2.56"
+          ],
+          [
+            "str",
+            "2.55"
+          ]
+        ]
+      ]
+    },
+    "sqrt_differs_from_power": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "2.0"
+          ],
+          [
+            "str",
+            "2.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+          ]
+        ]
+      ]
+    },
+    "method_result_identity": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ]
+        ]
+      ]
+    },
+    "nan_container_identity": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "decimal_modular_power": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "Decimal",
+            "4"
+          ],
+          [
+            "Decimal",
+            "4"
+          ],
+          [
+            "Decimal",
+            "4"
+          ]
+        ]
+      ]
+    },
+    "decimal_tuple_typed_result": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "DecimalTuple",
+        [
+          [
+            "int",
+            1
+          ],
+          [
+            "tuple",
+            [
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                5
+              ],
+              [
+                "int",
+                0
+              ],
+              [
+                "int",
+                0
+              ]
+            ]
+          ],
+          [
+            "int",
+            -3
+          ]
+        ]
+      ]
+    },
+    "decimal_tuple_sequence": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            3
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "tuple",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "tuple",
+                [
+                  [
+                    "int",
+                    2
+                  ],
+                  [
+                    "int",
+                    5
+                  ],
+                  [
+                    "int",
+                    0
+                  ],
+                  [
+                    "int",
+                    0
+                  ]
+                ]
+              ]
+            ]
+          ],
+          [
+            "tuple",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "tuple",
+                [
+                  [
+                    "int",
+                    2
+                  ],
+                  [
+                    "int",
+                    5
+                  ],
+                  [
+                    "int",
+                    0
+                  ],
+                  [
+                    "int",
+                    0
+                  ]
+                ]
+              ],
+              [
+                "int",
+                -3
+              ],
+              [
+                "int",
+                7
+              ]
+            ]
+          ],
+          [
+            "tuple",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "tuple",
+                [
+                  [
+                    "int",
+                    2
+                  ],
+                  [
+                    "int",
+                    5
+                  ],
+                  [
+                    "int",
+                    0
+                  ],
+                  [
+                    "int",
+                    0
+                  ]
+                ]
+              ],
+              [
+                "int",
+                -3
+              ],
+              [
+                "int",
+                1
+              ],
+              [
+                "tuple",
+                [
+                  [
+                    "int",
+                    2
+                  ],
+                  [
+                    "int",
+                    5
+                  ],
+                  [
+                    "int",
+                    0
+                  ],
+                  [
+                    "int",
+                    0
+                  ]
+                ]
+              ],
+              [
+                "int",
+                -3
+              ]
+            ]
+          ],
+          [
+            "int",
+            1
+          ],
+          [
+            "int",
+            2
+          ]
+        ]
+      ]
+    },
+    "decimal_tuple_field_identity": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "decimal_tuple_storage_fields": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        [
+          [
+            [
+              "str",
+              "baseline_decimal_tuple_storage_fields.v"
+            ],
+            [
+              "DecimalTuple",
+              [
+                [
+                  "int",
+                  1
+                ],
+                [
+                  "tuple",
+                  [
+                    [
+                      "int",
+                      2
+                    ],
+                    [
+                      "int",
+                      5
+                    ],
+                    [
+                      "int",
+                      0
+                    ],
+                    [
+                      "int",
+                      0
+                    ]
+                  ]
+                ],
+                [
+                  "int",
+                  -3
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "DecimalTuple(sign=1, digits=(2, 5, 0, 0), exponent=-3)"
+          ],
+          [
+            "int",
+            1
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                5
+              ],
+              [
+                "int",
+                0
+              ],
+              [
+                "int",
+                0
+              ]
+            ]
+          ],
+          [
+            "int",
+            -3
+          ]
+        ]
+      ]
+    },
+    "float_nan_container_identity": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "int",
+            1
+          ],
+          [
+            "int",
+            2
+          ]
+        ]
+      ]
+    },
+    "decimal_storage_key_nan": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "keys must be str, int, float, bool or None, not decimal.Decimal",
+      "exception_type": "TypeError"
+    },
+    "decimal_storage_key_finite": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "keys must be str, int, float, bool or None, not decimal.Decimal",
+      "exception_type": "TypeError"
+    },
+    "invalid_storage_key_bytes": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "keys must be str, int, float, bool or None, not bytes",
+      "exception_type": "TypeError"
+    },
+    "invalid_storage_key_tuple": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "keys must be str, int, float, bool or None, not tuple",
+      "exception_type": "TypeError"
     }
   }
 }

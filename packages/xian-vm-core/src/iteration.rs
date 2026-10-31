@@ -247,6 +247,7 @@ fn sequence_shape(
 ) -> Result<(VmValue, usize, Option<usize>)> {
     Ok(match value {
         VmValue::List(v) | VmValue::Tuple(v) => (source.clone(), v.len(), None),
+        VmValue::DecimalTuple(v) => (heap.capture(VmValue::Tuple(v.as_values()))?, 3, None),
         VmValue::Bytes(v) | VmValue::ByteArray(v) => (source.clone(), v.len(), None),
         VmValue::Dict(v) => (source.clone(), v.len(), Some(v.len())),
         VmValue::Set(v) | VmValue::FrozenSet(v) if !reverse => {

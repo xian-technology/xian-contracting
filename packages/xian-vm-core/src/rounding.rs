@@ -88,8 +88,13 @@ fn round_decimal(
     if let Some(places) = digits {
         return Ok(VmValue::RawDecimal(number.quantize(places)?));
     }
+    if !number.is_finite() {
+        return Err(VmExecutionError::new(
+            "cannot round non-finite Decimal to integer",
+        ));
+    }
     let integer = if number.exponent >= 0 {
-        number.integer()
+        number.integer()?
     } else {
         round_ratio(
             &number.coefficient,

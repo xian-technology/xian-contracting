@@ -906,6 +906,7 @@ fn vm_value_to_json(value: &VmValue) -> Value {
         VmValue::Reference(_) | VmValue::Iterator(_) | VmValue::Range(_) | VmValue::View(_) => {
             panic!("heap references must not escape the VM")
         }
+        VmValue::DecimalTuple(value) => vm_value_to_json(&VmValue::Tuple(value.as_values())),
         VmValue::None => Value::Null,
         VmValue::Bool(value) => Value::Bool(*value),
         VmValue::Int(value) => {
@@ -1198,6 +1199,7 @@ fn vm_value_type_name(value: &VmValue) -> &'static str {
         VmValue::Float(_) => "float",
         VmValue::Decimal(_) => "decimal",
         VmValue::RawDecimal(_) => "raw_decimal",
+        VmValue::DecimalTuple(_) => "DecimalTuple",
         VmValue::DateTime(_) => "datetime",
         VmValue::TimeDelta(_) => "timedelta",
         VmValue::String(_) => "str",

@@ -1109,5 +1109,505 @@
   {
     "id": "quantum_engineering",
     "source": "@export\ndef probe():\n    return [round(decimal('2'),2).to_eng_string(),round(decimal('0.0000001'),7).to_eng_string(),round(decimal('0'),-8).to_eng_string(),round(decimal('-0.00000001'),7).to_eng_string()]\n"
+  },
+  {
+    "id": "method_adjusted",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.adjusted())\n"
+  },
+  {
+    "id": "method_as_integer_ratio",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.as_integer_ratio())\n"
+  },
+  {
+    "id": "method_as_tuple",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.as_tuple())\n"
+  },
+  {
+    "id": "method_canonical",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.canonical())\n"
+  },
+  {
+    "id": "method_compare",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.compare(y))\n"
+  },
+  {
+    "id": "method_compare_signal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.compare_signal(y))\n"
+  },
+  {
+    "id": "method_compare_total",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.compare_total(y))\n"
+  },
+  {
+    "id": "method_compare_total_mag",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.compare_total_mag(-y))\n"
+  },
+  {
+    "id": "method_conjugate",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.conjugate())\n"
+  },
+  {
+    "id": "method_copy_abs",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.copy_abs())\n"
+  },
+  {
+    "id": "method_copy_negate",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.copy_negate())\n"
+  },
+  {
+    "id": "method_copy_sign",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.copy_sign(-y))\n"
+  },
+  {
+    "id": "method_exp",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.exp())\n"
+  },
+  {
+    "id": "method_fma",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.fma(y, y))\n"
+  },
+  {
+    "id": "method_from_float",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.from_float(0.1))\n"
+  },
+  {
+    "id": "method_is_canonical",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_canonical())\n"
+  },
+  {
+    "id": "method_is_finite",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_finite())\n"
+  },
+  {
+    "id": "method_is_infinite",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_infinite())\n"
+  },
+  {
+    "id": "method_is_nan",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_nan())\n"
+  },
+  {
+    "id": "method_is_normal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_normal())\n"
+  },
+  {
+    "id": "method_is_qnan",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_qnan())\n"
+  },
+  {
+    "id": "method_is_signed",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_signed())\n"
+  },
+  {
+    "id": "method_is_snan",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_snan())\n"
+  },
+  {
+    "id": "method_is_subnormal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_subnormal())\n"
+  },
+  {
+    "id": "method_is_zero",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_zero())\n"
+  },
+  {
+    "id": "method_ln",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.ln())\n"
+  },
+  {
+    "id": "method_log10",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.log10())\n"
+  },
+  {
+    "id": "method_logb",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.logb())\n"
+  },
+  {
+    "id": "method_max",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.max(y))\n"
+  },
+  {
+    "id": "method_max_mag",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.max_mag(-y))\n"
+  },
+  {
+    "id": "method_min",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.min(y))\n"
+  },
+  {
+    "id": "method_min_mag",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.min_mag(-y))\n"
+  },
+  {
+    "id": "method_next_minus",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.next_minus())\n"
+  },
+  {
+    "id": "method_next_plus",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.next_plus())\n"
+  },
+  {
+    "id": "method_next_toward",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.next_toward(y))\n"
+  },
+  {
+    "id": "method_normalize",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.normalize())\n"
+  },
+  {
+    "id": "method_number_class",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.number_class())\n"
+  },
+  {
+    "id": "method_quantize",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.quantize(y))\n"
+  },
+  {
+    "id": "method_radix",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.radix())\n"
+  },
+  {
+    "id": "method_remainder_near",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.remainder_near(y))\n"
+  },
+  {
+    "id": "method_rotate",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.rotate(1))\n"
+  },
+  {
+    "id": "method_same_quantum",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.same_quantum(y))\n"
+  },
+  {
+    "id": "method_scaleb",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.scaleb(2))\n"
+  },
+  {
+    "id": "method_shift",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.shift(1))\n"
+  },
+  {
+    "id": "method_sqrt",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.sqrt())\n"
+  },
+  {
+    "id": "method_to_eng_string",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.to_eng_string())\n"
+  },
+  {
+    "id": "method_to_integral",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.to_integral())\n"
+  },
+  {
+    "id": "method_to_integral_exact",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.to_integral_exact())\n"
+  },
+  {
+    "id": "method_to_integral_value",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.to_integral_value())\n"
+  },
+  {
+    "id": "method_logical_and",
+    "source": "@export\ndef probe():\n    x=round(decimal('101'),0)\n    y=round(decimal('11'),0)\n    return str(x.logical_and(y))\n"
+  },
+  {
+    "id": "method_logical_or",
+    "source": "@export\ndef probe():\n    x=round(decimal('101'),0)\n    y=round(decimal('11'),0)\n    return str(x.logical_or(y))\n"
+  },
+  {
+    "id": "method_logical_xor",
+    "source": "@export\ndef probe():\n    x=round(decimal('101'),0)\n    y=round(decimal('11'),0)\n    return str(x.logical_xor(y))\n"
+  },
+  {
+    "id": "method_logical_invert",
+    "source": "@export\ndef probe():\n    x=round(decimal('101'),0)\n    y=round(decimal('11'),0)\n    return str(x.logical_invert())\n"
+  },
+  {
+    "id": "power_fractional",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    y=round(decimal('1.2'),1)\n    z=round(decimal('0'),2)\n    return str(x**y)\n"
+  },
+  {
+    "id": "power_fractional_negative",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    y=round(decimal('1.2'),1)\n    z=round(decimal('0'),2)\n    return str(x**-y)\n"
+  },
+  {
+    "id": "power_zero_negative",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    y=round(decimal('1.2'),1)\n    z=round(decimal('0'),2)\n    return str(z**-1)\n"
+  },
+  {
+    "id": "power_negative_fractional",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    y=round(decimal('1.2'),1)\n    z=round(decimal('0'),2)\n    return str((-x)**y)\n"
+  },
+  {
+    "id": "power_negative_integral",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    y=round(decimal('1.2'),1)\n    z=round(decimal('0'),2)\n    return str((-x)**round(decimal(3),0))\n"
+  },
+  {
+    "id": "power_fractional_underflow",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    y=round(decimal('1.2'),1)\n    z=round(decimal('0'),2)\n    return str((z+round(decimal(\"0.000000000000000000000000000001\"),30))**round(decimal(\"7.1\"),1))\n"
+  },
+  {
+    "id": "infinity_return",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return x\n"
+  },
+  {
+    "id": "infinity_str",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return str(x)\n"
+  },
+  {
+    "id": "infinity_repr",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return repr(x)\n"
+  },
+  {
+    "id": "infinity_add",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return str(x+1)\n"
+  },
+  {
+    "id": "infinity_neg",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return str(-x)\n"
+  },
+  {
+    "id": "infinity_multiply_zero",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return str(x*0)\n"
+  },
+  {
+    "id": "infinity_divide",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return str(x/x)\n"
+  },
+  {
+    "id": "infinity_comparisons",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return [x>10**200,x==x,x==-x,x>float(\"inf\")]\n"
+  },
+  {
+    "id": "infinity_format",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return [format(x,\"f\"),format(x,\"+10.2e\")]\n"
+  },
+  {
+    "id": "infinity_int",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return int(x)\n"
+  },
+  {
+    "id": "infinity_float",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return str(float(x))\n"
+  },
+  {
+    "id": "infinity_round_integer",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return round(x)\n"
+  },
+  {
+    "id": "infinity_round_digits",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return str(round(x,2))\n"
+  },
+  {
+    "id": "infinity_dict_key",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return list({x: 'infinite'}.values())\n"
+  },
+  {
+    "id": "infinity_set_member",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return len(set([x,x]))\n"
+  },
+  {
+    "id": "infinity_predicates",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return [x.is_finite(),x.is_infinite(),x.is_nan(),x.is_signed(),(-x).is_signed(),x.number_class()]\n"
+  },
+  {
+    "id": "infinity_tuple",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return str(x.as_tuple())\n"
+  },
+  {
+    "id": "infinity_next",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return str(x.next_minus())\n"
+  },
+  {
+    "id": "infinity_fixed_conversion",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    return str(decimal(x))\n"
+  },
+  {
+    "id": "infinity_storage_variable",
+    "source": "v=Variable()\nh=Hash()\n@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    v.set(x)\n    return str(v.get())\n"
+  },
+  {
+    "id": "infinity_storage_hash",
+    "source": "v=Variable()\nh=Hash()\n@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    h['x']=x\n    return str(h['x'])\n"
+  },
+  {
+    "id": "infinity_storage_nested_variable",
+    "source": "v=Variable()\nh=Hash()\n@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    v.set([x])\n    return str(v.get())\n"
+  },
+  {
+    "id": "infinity_storage_nested_hash",
+    "source": "v=Variable()\nh=Hash()\n@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    h['x']={'value':x}\n    return str(h['x'])\n"
+  },
+  {
+    "id": "infinity_storage_rollback",
+    "source": "v=Variable()\nh=Hash()\n@export\ndef probe():\n    x=round(decimal('0'),2)**-1\n    v.set(1)\n    h['x']=x\n    return 0\n"
+  },
+  {
+    "id": "nan_return",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('nan'))\n    return x\n"
+  },
+  {
+    "id": "nan_str",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('nan'))\n    return str(x)\n"
+  },
+  {
+    "id": "nan_add",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('nan'))\n    return str(x+1)\n"
+  },
+  {
+    "id": "nan_eq",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('nan'))\n    return [x==x,x!=x,x==1]\n"
+  },
+  {
+    "id": "nan_lt",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('nan'))\n    return x<1\n"
+  },
+  {
+    "id": "nan_predicates",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('nan'))\n    return [x.is_finite(),x.is_nan(),x.is_qnan(),x.is_snan(),x.number_class()]\n"
+  },
+  {
+    "id": "nan_tuple",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('nan'))\n    return str(x.as_tuple())\n"
+  },
+  {
+    "id": "nan_compare_total",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('nan'))\n    return str(x.compare_total(x))\n"
+  },
+  {
+    "id": "nan_compare_signal",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('nan'))\n    return str(x.compare_signal(1))\n"
+  },
+  {
+    "id": "nan_normalize",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('nan'))\n    return str(x.normalize())\n"
+  },
+  {
+    "id": "nan_dict_key",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('nan'))\n    return len({x:1,x:2})\n"
+  },
+  {
+    "id": "nan_set_member",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('nan'))\n    return len(set([x,x]))\n"
+  },
+  {
+    "id": "nan_fixed_conversion",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('nan'))\n    return str(decimal(x))\n"
+  },
+  {
+    "id": "snan_private_construction",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.__class__('sNaN'))\n"
+  },
+  {
+    "id": "quantize_rounding_keyword",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.quantize(y,rounding='ROUND_UP'))\n"
+  },
+  {
+    "id": "quantize_rounding_positional",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.quantize(y,'ROUND_HALF_EVEN'))\n"
+  },
+  {
+    "id": "quantize_bad_rounding",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.quantize(y,rounding='not_a_mode'))\n"
+  },
+  {
+    "id": "method_arg_raw_fixed",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.quantize(decimal('0.01')))\n"
+  },
+  {
+    "id": "method_arg_string",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.quantize('0.01'))\n"
+  },
+  {
+    "id": "method_tuple_fields",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return [x.as_tuple().sign,list(x.as_tuple().digits),x.as_tuple().exponent]\n"
+  },
+  {
+    "id": "from_float_long_exact",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.from_float(float('1e-100')))\n"
+  },
+  {
+    "id": "attribute_real_imag",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return [str(x.real),str(x.imag)]\n"
+  },
+  {
+    "id": "from_float_explicit",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.from_float(float('0.1')))\n"
+  },
+  {
+    "id": "from_float_integer_large",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.from_float(10**150))\n"
+  },
+  {
+    "id": "from_float_subnormal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.from_float(float('5e-324')))\n"
+  },
+  {
+    "id": "from_float_bool",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.from_float(True))\n"
+  },
+  {
+    "id": "nan_distinct_keys",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('nan'))\n    y=round(decimal('0'),2).from_float(float('nan'))\n    return [len({x:1,y:2}),len(set([x,y])),x==y]\n"
+  },
+  {
+    "id": "nan_signed_format",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('-nan'))\n    return [str(-x),str(x.copy_negate()),format(x,'+10f'),str(x.as_tuple())]\n"
+  },
+  {
+    "id": "quantize_rounding_nontrivial",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.555'),3)\n    y=round(decimal('0.01'),2)\n    return [str(x.quantize(y,rounding='ROUND_UP')),str(x.quantize(y,rounding='ROUND_HALF_EVEN')),str(x.quantize(y))]\n"
+  },
+  {
+    "id": "sqrt_differs_from_power",
+    "source": "@export\ndef probe():\n    x=round(decimal('4'),2)\n    y=round(decimal('0.5'),1)\n    return [str(x.sqrt()),str(x**y)]\n"
+  },
+  {
+    "id": "method_result_identity",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return [x.canonical() is x,x.conjugate() is x,x.real is x,x.copy_abs() is x,x.copy_negate() is x,x.normalize() is x]\n"
+  },
+  {
+    "id": "nan_container_identity",
+    "source": "@export\ndef probe():\n    x=round(decimal('0'),2).from_float(float('nan'))\n    return [x==x,x in [x],[x]==[x],x in {x:1},x in set([x])]\n"
+  },
+  {
+    "id": "decimal_modular_power",
+    "source": "@export\ndef probe():\n    a = round(decimal(\"2\"), 1)\n    b = round(decimal(\"5\"), 1)\n    return [pow(a, b, 7), pow(a, 5, 7), pow(2, b, 7)]\n"
+  },
+  {
+    "id": "decimal_tuple_typed_result",
+    "source": "@export\ndef probe():\n    return round(decimal(\"-2.50\"), 3).as_tuple()\n"
+  },
+  {
+    "id": "decimal_tuple_sequence",
+    "source": "@export\ndef probe():\n    t = round(decimal(\"-2.50\"), 3).as_tuple()\n    return [len(t), isinstance(t, tuple), t == (1, (2, 5, 0, 0), -3), t[:2], t + (7,), t * 2, t.count(1), t.index(-3)]\n"
+  },
+  {
+    "id": "decimal_tuple_field_identity",
+    "source": "@export\ndef probe():\n    t = round(decimal(\"2.50\"), 3).as_tuple()\n    return [t.digits is t.digits, t[1] is t.digits, list(t)[1] is t.digits]\n"
+  },
+  {
+    "id": "decimal_tuple_storage_fields",
+    "source": "v = Variable()\n@export\ndef probe():\n    t = round(decimal(\"-2.50\"), 3).as_tuple()\n    v.set(t)\n    r = v.get()\n    return [str(r), r.sign, list(r.digits), r.exponent]\n"
+  },
+  {
+    "id": "float_nan_container_identity",
+    "source": "@export\ndef probe():\n    x = float(\"nan\")\n    y = float(\"nan\")\n    return [x == x, x != x, x in [x], x in [y], [x] == [x], len({x: 1, x: 2}), len({x: 1, y: 2})]\n"
+  },
+  {
+    "id": "decimal_storage_key_nan",
+    "source": "v=Variable()\n@export\ndef probe():\n    v.set(1)\n    x=round(decimal('0'),0).from_float(float('nan'))\n    v.set({x:2})\n    return v.get()\n"
+  },
+  {
+    "id": "decimal_storage_key_finite",
+    "source": "v=Variable()\n@export\ndef probe():\n    v.set(1)\n    x=round(decimal('1'),0)\n    v.set({x:2})\n    return v.get()\n"
+  },
+  {
+    "id": "invalid_storage_key_bytes",
+    "source": "v=Variable()\n@export\ndef probe():\n    v.set(1)\n    v.set({bytes([1]):2})\n    return v.get()\n"
+  },
+  {
+    "id": "invalid_storage_key_tuple",
+    "source": "v=Variable()\n@export\ndef probe():\n    v.set(1)\n    v.set({(1,2):2})\n    return v.get()\n"
   }
 ]

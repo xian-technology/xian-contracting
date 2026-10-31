@@ -27,6 +27,7 @@ impl VmInstance {
                 }
                 host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
                 let (key, value) = if mapping {
+                    crate::decimal_metering::comparison(host, source, &item, false)?;
                     let value = subscript_value(source.clone(), &item)?;
                     (item, value)
                 } else {
@@ -59,6 +60,7 @@ fn dictionary_insert(
         unreachable!()
     };
     host.charge_execution_cost(VM_GAS_LOOP_ITERATION + entries.len() as u64)?;
+    crate::decimal_metering::comparison(host, receiver, &key, false)?;
     dict_set(&mut entries, key, value)?;
     if entries.len() > MAX_SEQUENCE_LENGTH {
         return Err(VmExecutionError::new(

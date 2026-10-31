@@ -8,6 +8,9 @@ impl VmInstance {
         index: &VmValue,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
+        if matches!(value.snapshot(), VmValue::Dict(_)) {
+            crate::decimal_metering::comparison(host, &value, index, false)?;
+        }
         let value = if let VmValue::ForeignStorageRef(reference) = &value {
             foreign_storage::read_hash(reference, index, host)?
         } else {
@@ -252,6 +255,12 @@ impl VmInstance {
             if index + 1 == generators.len() {
                 let dict_key = self.eval_expression(key, scope, host)?;
                 let dict_value = self.eval_expression(value, scope, host)?;
+                crate::decimal_metering::comparison(
+                    host,
+                    &VmValue::Dict(results.clone()),
+                    &dict_key,
+                    false,
+                )?;
                 dict_set(results, dict_key, dict_value)?;
             } else {
                 self.eval_dict_comprehension_generator(
@@ -364,6 +373,7 @@ impl VmInstance {
                 let iterator = crate::iteration::iter(&right, &self.heap)?;
                 let mut found = false;
                 while let Some(item) = self.next_item(&iterator, host)? {
+                    crate::decimal_metering::comparison(host, &left, &item, true)?;
                     if vm_values_equal(&left, &item)? {
                         found = true;
                         break;
@@ -375,6 +385,14 @@ impl VmInstance {
                     !found
                 }
             } else {
+                if !matches!(operator, "is" | "is_not") {
+                    crate::decimal_metering::comparison(
+                        host,
+                        &left,
+                        &right,
+                        matches!(operator, "eq" | "not_eq"),
+                    )?;
+                }
                 apply_compare_operator(operator, &left, &right)?
             };
             if !passed {
@@ -438,6 +456,12 @@ impl VmInstance {
                     ));
                 };
                 for (key, value) in unpacked_entries {
+                    crate::decimal_metering::comparison(
+                        host,
+                        &VmValue::Dict(entries.clone()),
+                        &key,
+                        false,
+                    )?;
                     dict_set(&mut entries, key, value)?;
                 }
             } else {
@@ -445,6 +469,12 @@ impl VmInstance {
                     self.eval_expression(required_value(entry_object, "key")?, scope, host)?;
                 let value =
                     self.eval_expression(required_value(entry_object, "value")?, scope, host)?;
+                crate::decimal_metering::comparison(
+                    host,
+                    &VmValue::Dict(entries.clone()),
+                    &key,
+                    false,
+                )?;
                 dict_set(&mut entries, key, value)?;
             }
         }
@@ -477,6 +507,11 @@ impl VmInstance {
         let left = self.eval_expression(required_value(object, "left")?, scope, host)?;
         let right = self.eval_expression(required_value(object, "right")?, scope, host)?;
         let operator = required_string(object, "operator")?;
+        if matches!(left.snapshot(), VmValue::Set(_) | VmValue::FrozenSet(_))
+            && matches!(operator, "bitand" | "bitor" | "bitxor" | "sub")
+        {
+            crate::decimal_metering::normalization(host, &[left.clone(), right.clone()])?;
+        }
         host.charge_execution_cost(crate::raw_decimal::work_cost(operator, &left, &right))?;
         apply_binary_operator(operator, left, right)
     }

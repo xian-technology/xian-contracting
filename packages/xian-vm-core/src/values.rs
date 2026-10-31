@@ -693,6 +693,7 @@ pub enum VmValue {
     FrozenSet(Vec<VmValue>),
     List(Vec<VmValue>),
     Tuple(Vec<VmValue>),
+    DecimalTuple(crate::VmDecimalTuple),
     Dict(Vec<(VmValue, VmValue)>),
     ContractHandle(VmContractHandle),
     StorageRef(VmStorageRef),
@@ -706,10 +707,48 @@ pub enum VmValue {
 
 impl VmValue {
     pub(crate) fn storage_value(&self) -> Result<Self, VmExecutionError> {
-        match self.detached()? {
+        let detached = self.detached()?;
+        // Persistence eligibility cannot depend on whether chi metering is on.
+        detached.validate_storage_payload()?;
+        match detached {
             Self::RawDecimal(value) => Ok(Self::Decimal(value.to_fixed()?)),
             value => Ok(value),
         }
+    }
+
+    fn validate_storage_payload(&self) -> Result<(), VmExecutionError> {
+        match self {
+            Self::RawDecimal(value) => {
+                value.to_fixed()?;
+            }
+            Self::List(values)
+            | Self::Tuple(values)
+            | Self::Set(values)
+            | Self::FrozenSet(values) => {
+                for value in values {
+                    value.validate_storage_payload()?;
+                }
+            }
+            Self::Dict(entries) => {
+                for (key, value) in entries {
+                    if !matches!(
+                        key,
+                        Self::None
+                            | Self::Bool(_)
+                            | Self::Int(_)
+                            | Self::Float(_)
+                            | Self::String(_)
+                    ) {
+                        return Err(VmExecutionError::new(
+                            "stored dictionary keys must be str, int, float, bool or None",
+                        ));
+                    }
+                    value.validate_storage_payload()?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     pub(crate) fn truthy(&self) -> bool {
@@ -724,7 +763,7 @@ impl VmValue {
             Self::Float(value) => *value != 0.0,
             Self::Decimal(value) => !value.is_zero(),
             Self::RawDecimal(value) => !value.is_zero(),
-            Self::DateTime(_) => true,
+            Self::DateTime(_) | Self::DecimalTuple(_) => true,
             Self::TimeDelta(value) => value.seconds() != 0,
             Self::String(value) => !value.is_empty(),
             Self::Bytes(value) | Self::ByteArray(value) => !value.is_empty(),
@@ -761,6 +800,7 @@ impl VmValue {
             Self::Float(value) => format!("{value:?}"),
             Self::Decimal(value) => value.python_repr(),
             Self::RawDecimal(value) => value.to_string(),
+            Self::DecimalTuple(_) => self.python_repr(),
             Self::DateTime(value) => value.to_string(),
             Self::TimeDelta(value) => value.to_string(),
             Self::String(value) => value.clone(),
@@ -889,6 +929,7 @@ impl VmValue {
             Self::FrozenSet(_) => "frozenset",
             Self::List(_) => "list",
             Self::Tuple(_) => "tuple",
+            Self::DecimalTuple(_) => "DecimalTuple",
             Self::Dict(_) => "dict",
             Self::ContractHandle(_) => "contract_handle",
             Self::StorageRef(_) => "storage_ref",

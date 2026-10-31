@@ -70,7 +70,17 @@ def test_raw_decimal_set_order_and_duplicates(tmp_path):
     )
 
 
-@pytest.mark.parametrize("operation", ["x**4096", "pow(x,4096)", "format(x,'100000.50000f')"])
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "x**4096",
+        "pow(x,4096)",
+        "format(x,'100000.50000f')",
+        "x**round(decimal('1.2'),1)",
+        "x.ln()",
+        "pow(2,10**100,round(decimal('7'),0))",
+    ],
+)
 def test_raw_decimal_work_exhausts_budget_and_rolls_back(tmp_path, operation):
     from contracting.storage.driver import Driver
     from xian_vm_core import execute_contract

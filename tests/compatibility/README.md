@@ -81,13 +81,43 @@ allocate an unbounded power. Random choice/choices probes verify selected-object
 identity after seeding, using a singleton population so PRNG algorithm changes
 do not affect the expected selection.
 
-The expanded268-case corpus also covers ordered ordinary module rebinding,
-starred calls/literals/targets, Unicode15.0 decimal digits, dictionary insertion
+The expanded corpus also covers ordered ordinary module rebinding,
+starred calls/literals/targets, Unicode 15.0 decimal digits, dictionary insertion
 slots during same-size mutation, streaming updates, setdefault, list reversal,
-hex decoding, and finite raw Decimal quantum/type behavior. Decimal cases check
-signed zero, arithmetic/context boundaries, formatting, calls and storage.
-General fractional powers, non-finite values and the complete Decimal method API
-are not certified by this corpus.
+hex decoding, and raw Decimal quantum/type behavior. Decimal cases check signed
+zero, general fractional powers, Infinity and quiet NaN, exact float conversion,
+all 53 public Decimal methods reachable through the historical raw results,
+formatting, calls and storage. Method-name coverage does not establish every
+argument/context combination or complete Python Decimal compatibility.
+
+Raw Decimal arithmetic uses vendored libmpdec 4.0.0 with an explicit 91-digit,
+ROUND_DOWN, Emin=-100, Emax=100 context. Exact construction preserves digits
+outside arithmetic precision until an operation applies its context. Custom
+context objects are not admitted; supported context parameters accept None.
+Non-finite values can be returned or used in memory, but direct and nested
+storage writes reject them. Signaling-NaN behavior is tested at native value
+boundaries; no public authored constructor was found in the pinned runtime.
+`as_tuple()` returns a DecimalTuple with named fields and tuple behavior;
+serialization uses the ordinary tuple/JSON-array representation. A cached write
+retains the named tuple until storage serialization.
+
+Deterministic sets retain their documented canonical ordering, rather than
+historical Python set iteration order. Within the raw Decimal category, the
+order is negative Infinity, finite numeric values, positive Infinity, then
+quiet NaNs ordered by sign and payload; equal sort keys retain insertion order.
+Distinct NaN objects remain distinct members; a repeated object deduplicates.
+Signaling NaNs are not hashable.
+
+Resource limits are intentional: input text is at most 128 KiB, coefficient
+length and raw exponent magnitude are bounded at 131072, and transcendental
+and power operations accept at most 4096 coefficient digits and at most 4096
+for coefficient-digit count plus exponent. Ordinary power additionally limits
+both operand coefficients to 1024 digits. Integer exponents passed to power
+and modular-power operations additionally have a coefficient-digit count plus
+exponent limit of 512. Rendering and expanded integer ratios have separate
+allocation bounds. These limits supplement VM metering.
+Historical differential tests do not themselves prove cross-architecture
+consensus; ARM64/x86-64 execution and replay evidence is a separate gate.
 
 Bulk Hash tests live in `tests/integration/test_vm_storage_bulk.py`: `clone_from`
 was absent from the pinned historical runtime, so its oracle is the current ORM.

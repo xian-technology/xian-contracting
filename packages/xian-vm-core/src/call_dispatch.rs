@@ -152,15 +152,38 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
-        if method == "to_eng_string" {
-            if let VmValue::RawDecimal(value) = receiver.snapshot() {
-                if !args.is_empty() || !kwargs.is_empty() {
-                    return Err(VmExecutionError::new(
-                        "to_eng_string() expects no arguments",
-                    ));
-                }
-                return Ok(VmValue::String(value.engineering()));
+        if matches!(receiver.snapshot(), VmValue::RawDecimal(_)) {
+            host.charge_execution_cost(crate::decimal_methods::work_cost(
+                method, &receiver, &args, &kwargs,
+            ))?;
+            return crate::decimal_methods::call(receiver, method, args, kwargs);
+        }
+        if matches!(
+            method,
+            "count" | "index" | "remove" | "get" | "pop" | "setdefault"
+        ) {
+            if let Some(needle) = args.first() {
+                crate::decimal_metering::comparison(host, &receiver, needle, false)?;
             }
+        }
+        let set_comparison = matches!(receiver.snapshot(), VmValue::Set(_) | VmValue::FrozenSet(_))
+            && matches!(
+                method,
+                "add"
+                    | "remove"
+                    | "discard"
+                    | "issubset"
+                    | "issuperset"
+                    | "isdisjoint"
+                    | "union"
+                    | "intersection"
+                    | "difference"
+                    | "symmetric_difference"
+            );
+        if set_comparison {
+            let mut values = vec![receiver.clone()];
+            values.extend(args.iter().cloned());
+            crate::decimal_metering::normalization(host, &values)?;
         }
         if method == "update" && matches!(receiver.snapshot(), VmValue::Dict(_)) {
             return self.update_dictionary(&receiver, args, kwargs, host);
@@ -193,6 +216,12 @@ impl VmInstance {
             let iterator = crate::iteration::iter(&args[0], &self.heap)?;
             let mut entries = Vec::new();
             while let Some(key) = self.next_item(&iterator, host)? {
+                crate::decimal_metering::comparison(
+                    host,
+                    &VmValue::Dict(entries.clone()),
+                    &key,
+                    false,
+                )?;
                 dict_set(&mut entries, key, default.clone())?;
             }
             return Ok(VmValue::Dict(entries));
@@ -239,15 +268,18 @@ impl VmInstance {
             self.extend_sequence(&receiver, &args[0], host)?;
             return Ok(VmValue::None);
         }
-        let heap = self.heap.clone();
-        match call_native_method_with(
-            receiver.clone(),
-            method,
-            args,
-            kwargs,
-            &heap,
-            &mut |function, args| self.call_callable_value(host, function, args, vec![]),
-        )? {
+        let mut set_inputs = if set_comparison {
+            Some(crate::decimal_metering::SetInputs::new(&receiver)?)
+        } else {
+            None
+        };
+        match call_native_method_collected(receiver.clone(), method, args, kwargs, &mut |source| {
+            let values = self.collect_iterable(source, host)?;
+            if let Some(inputs) = &mut set_inputs {
+                inputs.collected(host, &values)?;
+            }
+            Ok(values)
+        })? {
             NativeMethodResult::Value(value) => Ok(value),
             NativeMethodResult::Mutated {
                 receiver: updated,

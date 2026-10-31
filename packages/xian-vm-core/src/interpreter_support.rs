@@ -1,5 +1,7 @@
 #[path = "native_methods.rs"]
 mod native_methods;
+pub(super) use native_methods::call_native_method_collected;
+#[cfg(test)]
 pub(super) use native_methods::call_native_method_with;
 
 use super::*;
@@ -244,7 +246,34 @@ enum VmSetKey {
     Bytes(Vec<u8>),
     Tuple(Vec<VmSetKey>),
     FrozenSet(Vec<VmSetKey>),
-    RawDecimal(BigInt),
+    RawDecimal(RawDecimalSetKey),
+}
+
+// Numeric ordering is exact even for constructor values below context Etiny.
+#[derive(Debug, Clone)]
+struct RawDecimalSetKey(crate::VmRawDecimal);
+impl PartialEq for RawDecimalSetKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other).is_eq()
+    }
+}
+impl Eq for RawDecimalSetKey {}
+impl PartialOrd for RawDecimalSetKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for RawDecimalSetKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.total_compare(&other.0)
+    }
+}
+
+fn tuple_equivalent(value: VmValue) -> VmValue {
+    match value {
+        VmValue::DecimalTuple(value) => VmValue::Tuple(value.as_values()),
+        other => other,
+    }
 }
 
 pub(super) fn set_like_values(value: &VmValue) -> Option<&[VmValue]> {
@@ -278,13 +307,18 @@ pub(super) fn normalize_set_items(values: Vec<VmValue>) -> Result<Vec<VmValue>, 
 }
 
 fn vm_set_key(value: &VmValue) -> Result<VmSetKey, VmExecutionError> {
-    let value = &value.snapshot();
+    let value = &tuple_equivalent(value.snapshot());
     match value {
         VmValue::None => Ok(VmSetKey::None),
         VmValue::Bool(value) => Ok(VmSetKey::Bool(*value)),
         VmValue::Int(value) => Ok(VmSetKey::Int(value.clone())),
         VmValue::Decimal(value) => Ok(VmSetKey::Decimal(value.scaled.clone())),
-        VmValue::RawDecimal(value) => Ok(VmSetKey::RawDecimal(value.sort_key())),
+        VmValue::RawDecimal(value) => {
+            if value.is_snan() {
+                return Err(VmExecutionError::new("cannot hash a signaling NaN"));
+            }
+            Ok(VmSetKey::RawDecimal(RawDecimalSetKey(value.clone())))
+        }
         VmValue::Float(value) => Ok(VmSetKey::Float(format!("{value:?}"))),
         VmValue::DateTime(value) => Ok(VmSetKey::DateTime((
             value.year(),
@@ -404,8 +438,8 @@ pub(super) fn apply_binary_operator(
     left: VmValue,
     right: VmValue,
 ) -> Result<VmValue, VmExecutionError> {
-    let left = left.snapshot();
-    let right = right.snapshot();
+    let left = tuple_equivalent(left.snapshot());
+    let right = tuple_equivalent(right.snapshot());
     let (left, right) = if matches!(operator, "bitand" | "bitor" | "bitxor") {
         (left, right)
     } else {
@@ -822,10 +856,16 @@ pub(super) fn apply_compare_operator(
         return Ok(!left.identical(right));
     }
     if operator == "eq" {
-        return vm_values_equal(left, right);
+        return operator_values_equal(left, right);
     }
     if operator == "not_eq" {
-        return Ok(!vm_values_equal(left, right)?);
+        return Ok(!operator_values_equal(left, right)?);
+    }
+    if operator == "in" {
+        return contains_value(right, left);
+    }
+    if operator == "not_in" {
+        return contains_value(right, left).map(|value| !value);
     }
     let left = &left.snapshot();
     let right = &right.snapshot();
@@ -854,8 +894,6 @@ pub(super) fn apply_compare_operator(
         "gt_e" => compare_ord(left, right, |left, right| left >= right),
         "lt" => compare_ord(left, right, |left, right| left < right),
         "lt_e" => compare_ord(left, right, |left, right| left <= right),
-        "in" => contains_value(right, left),
-        "not_in" => contains_value(right, left).map(|value| !value),
         other => Err(VmExecutionError::new(format!(
             "unsupported compare operator '{other}'"
         ))),
@@ -870,8 +908,10 @@ pub(super) fn compare_ord<F>(
 where
     F: Fn(f64, f64) -> bool,
 {
-    if matches!(left, VmValue::Float(value) if value.is_nan())
-        || matches!(right, VmValue::Float(value) if value.is_nan())
+    if !matches!(left, VmValue::RawDecimal(_))
+        && !matches!(right, VmValue::RawDecimal(_))
+        && (matches!(left, VmValue::Float(value) if value.is_nan())
+            || matches!(right, VmValue::Float(value) if value.is_nan()))
     {
         return Ok(false);
     }
@@ -887,8 +927,26 @@ pub(super) fn native_attribute_value(
     value: &VmValue,
     attr: &str,
 ) -> Result<VmValue, VmExecutionError> {
+    let original = value;
     let value = &value.snapshot();
     match value {
+        VmValue::RawDecimal(_) if attr == "real" => Ok(original.clone()),
+        VmValue::RawDecimal(_) if attr == "imag" => {
+            Ok(VmValue::RawDecimal(crate::VmRawDecimal::parse("0")?))
+        }
+        VmValue::DecimalTuple(value) => {
+            let index = match attr {
+                "sign" => 0,
+                "digits" => 1,
+                "exponent" => 2,
+                _ => {
+                    return Err(VmExecutionError::new(format!(
+                        "DecimalTuple has no attribute '{attr}'"
+                    )))
+                }
+            };
+            Ok(value.as_values()[index].clone())
+        }
         VmValue::DateTime(value) => match attr {
             "year" => Ok(vm_int(value.year())),
             "month" => Ok(vm_int(value.month())),
@@ -1363,8 +1421,8 @@ fn compare_values_at(
     if depth > 128 {
         return Err(VmExecutionError::new("comparison depth limit exceeded"));
     }
-    let left = &left.snapshot();
-    let right = &right.snapshot();
+    let left = &tuple_equivalent(left.snapshot());
+    let right = &tuple_equivalent(right.snapshot());
     match (left, right) {
         (VmValue::List(left), VmValue::List(right))
         | (VmValue::Tuple(left), VmValue::Tuple(right)) => {
@@ -1485,6 +1543,41 @@ pub(super) fn compare_numeric_values(
     }
 }
 
+fn is_numeric(value: &VmValue) -> bool {
+    matches!(
+        value,
+        VmValue::Bool(_)
+            | VmValue::Int(_)
+            | VmValue::Float(_)
+            | VmValue::Decimal(_)
+            | VmValue::RawDecimal(_)
+    )
+}
+
+fn nan_equality(left: &VmValue, right: &VmValue) -> Result<Option<bool>, VmExecutionError> {
+    if !is_numeric(left) || !is_numeric(right) {
+        return Ok(None);
+    }
+    for value in [left, right] {
+        if matches!(value, VmValue::RawDecimal(value) if value.is_snan()) {
+            return Err(VmExecutionError::new("invalid signaling NaN comparison"));
+        }
+    }
+    let nan = |value: &VmValue| match value {
+        VmValue::RawDecimal(value) => value.is_nan(),
+        VmValue::Float(value) => value.is_nan(),
+        _ => false,
+    };
+    Ok((nan(left) || nan(right)).then_some(false))
+}
+
+fn operator_values_equal(left: &VmValue, right: &VmValue) -> Result<bool, VmExecutionError> {
+    if let Some(equal) = nan_equality(&left.snapshot(), &right.snapshot())? {
+        return Ok(equal);
+    }
+    vm_values_equal(left, right)
+}
+
 pub(super) fn vm_values_equal(left: &VmValue, right: &VmValue) -> Result<bool, VmExecutionError> {
     vm_values_equal_at(left, right, 0)
 }
@@ -1502,8 +1595,11 @@ fn vm_values_equal_at(
             "maximum equality recursion depth exceeded",
         ));
     }
-    let left = &left.snapshot();
-    let right = &right.snapshot();
+    let left = &tuple_equivalent(left.snapshot());
+    let right = &tuple_equivalent(right.snapshot());
+    if let Some(equal) = nan_equality(left, right)? {
+        return Ok(equal);
+    }
     if let Some(ordering) = compare_numeric_values(left, right)? {
         return Ok(ordering == std::cmp::Ordering::Equal);
     }
@@ -1552,7 +1648,7 @@ pub(super) fn contains_value(
     container: &VmValue,
     needle: &VmValue,
 ) -> Result<bool, VmExecutionError> {
-    let container = &container.snapshot();
+    let container = &tuple_equivalent(container.snapshot());
     match container {
         VmValue::Range(range) => {
             let number = match needle.snapshot() {
@@ -1571,13 +1667,13 @@ pub(super) fn contains_value(
             let index = &offset / &range.step;
             Ok((&offset % &range.step).is_zero() && !index.is_negative() && index < range.len())
         }
-        VmValue::String(value) => match needle {
+        VmValue::String(value) => match &needle.snapshot() {
             VmValue::String(needle) => Ok(value.contains(needle)),
             _ => Err(VmExecutionError::new(
                 "string membership requires a string needle",
             )),
         },
-        VmValue::Bytes(value) | VmValue::ByteArray(value) => match needle {
+        VmValue::Bytes(value) | VmValue::ByteArray(value) => match &needle.snapshot() {
             VmValue::Int(_) | VmValue::Bool(_) => Ok(value.contains(&byte_from_value(needle)?)),
             VmValue::Bytes(needle) | VmValue::ByteArray(needle) => {
                 if needle.is_empty() {
@@ -1608,7 +1704,7 @@ pub(super) fn contains_value(
 }
 
 pub(super) fn iterate_value(value: &VmValue) -> Result<Vec<VmValue>, VmExecutionError> {
-    let value = &value.snapshot();
+    let value = &tuple_equivalent(value.snapshot());
     match value {
         VmValue::Range(_) | VmValue::Iterator(_) => {
             crate::iteration::collect(value, &crate::heap::VmHeap::default(), &mut |_, _| {
@@ -1672,7 +1768,7 @@ pub(super) fn subscript_value(
     container: VmValue,
     index: &VmValue,
 ) -> Result<VmValue, VmExecutionError> {
-    let container = container.snapshot();
+    let container = tuple_equivalent(container.snapshot());
     match container {
         VmValue::Range(range) => range
             .get(&index.as_bigint()?)
@@ -1707,7 +1803,7 @@ pub(super) fn subscript_slice_value(
     upper: Option<BigInt>,
     step: Option<BigInt>,
 ) -> Result<VmValue, VmExecutionError> {
-    let container = container.snapshot();
+    let container = tuple_equivalent(container.snapshot());
     match container {
         VmValue::Range(range) => Ok(VmValue::Range(range.sliced(lower, upper, step)?)),
         VmValue::List(values) => Ok(VmValue::List(
@@ -2017,7 +2113,7 @@ pub(super) fn type_matches_name(value: &VmValue, name: &str) -> bool {
         "bytearray" => matches!(value, VmValue::ByteArray(_)),
         "list" => matches!(value, VmValue::List(_)),
         "dict" => matches!(value, VmValue::Dict(_)),
-        "tuple" => matches!(value, VmValue::Tuple(_)),
+        "tuple" => matches!(value, VmValue::Tuple(_) | VmValue::DecimalTuple(_)),
         "set" => matches!(value, VmValue::Set(_)),
         "frozenset" => matches!(value, VmValue::FrozenSet(_)),
         _ => false,
@@ -2200,7 +2296,7 @@ pub(super) fn contract_target_label(target: &VmContractTarget) -> &str {
 }
 
 pub(super) fn normalize_hash_key(value: &VmValue) -> Result<String, VmExecutionError> {
-    let value = &value.snapshot();
+    let value = &tuple_equivalent(value.snapshot());
     let normalized = match value {
         VmValue::Tuple(values) => {
             if values.len() > MAX_HASH_DIMENSIONS {
@@ -2754,7 +2850,7 @@ fn replace_random_population(
             .find(|(key, _)| key == "items")
             .map(|(_, value)| value)
     })?;
-    let values = match source.snapshot() {
+    let values = match tuple_equivalent(source.snapshot()) {
         VmValue::List(values) | VmValue::Tuple(values) => values,
         _ => return None,
     };

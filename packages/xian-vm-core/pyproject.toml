@@ -7,7 +7,8 @@ name = "xian-tech-vm-core"
 version = "0.1.2"
 description = "Native VM capability surface for the future Xian execution engine"
 readme = "README.md"
-license = "MIT"
+license = "MIT AND BSD-2-Clause"
+license-files = ["vendor/mpdecimal/COPYRIGHT.txt"]
 authors = [{ name = "Xian Network", email = "info@xian.org" }]
 requires-python = ">=3.14,<3.15"
 classifiers = [

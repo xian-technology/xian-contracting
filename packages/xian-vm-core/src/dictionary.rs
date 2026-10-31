@@ -8,13 +8,14 @@ fn check_key(key: &VmValue) -> Result<(), VmExecutionError> {
         | VmValue::Bool(_)
         | VmValue::Int(_)
         | VmValue::Float(_)
-        | VmValue::RawDecimal(_)
         | VmValue::String(_)
         | VmValue::Bytes(_)
         | VmValue::FrozenSet(_)
         | VmValue::Builtin(_)
         | VmValue::FunctionRef(_)
         | VmValue::TypeMarker(_) => Ok(()),
+        VmValue::RawDecimal(value) if !value.is_snan() => Ok(()),
+        VmValue::DecimalTuple(value) => value.as_values().iter().try_for_each(check_key),
         VmValue::Tuple(items) => items.iter().try_for_each(check_key),
         other => Err(VmExecutionError::new(format!(
             "unhashable type: '{}'",

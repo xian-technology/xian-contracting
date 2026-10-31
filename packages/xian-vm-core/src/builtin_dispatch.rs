@@ -104,6 +104,7 @@ impl VmInstance {
             return Err(VmExecutionError::new("len() expects one argument"));
         }
         match &args[0] {
+            VmValue::DecimalTuple(_) => Ok(vm_int(3)),
             VmValue::String(value) => Ok(vm_int(value.chars().count())),
             VmValue::Bytes(value) | VmValue::ByteArray(value) => Ok(vm_int(value.len())),
             VmValue::List(values)
@@ -252,6 +253,7 @@ impl VmInstance {
             [_] => self.collect_iterable(&shared_args[0], host)?,
             _ => unreachable!(),
         };
+        crate::decimal_metering::normalization(host, &values)?;
         let values = normalize_set_items(values)?;
         Ok(if name == "set" {
             VmValue::Set(values)
@@ -299,6 +301,28 @@ impl VmInstance {
             ));
         }
         if let Some(modulus) = args.get(2) {
+            if args
+                .iter()
+                .any(|value| matches!(value, VmValue::RawDecimal(_)))
+            {
+                host.charge_execution_cost(crate::raw_decimal::modular_work_cost(&args))?;
+                let values = args
+                    .iter()
+                    .map(|value| match value {
+                        VmValue::RawDecimal(_) | VmValue::Int(_) | VmValue::Bool(_) => {
+                            crate::VmRawDecimal::from_value(value)
+                        }
+                        _ => Err(VmExecutionError::new(
+                            "modular Decimal power requires Decimal or integer operands",
+                        )),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                return Ok(VmValue::RawDecimal(values[0].calculate(
+                    "powmod",
+                    &values[1..],
+                    None,
+                )?));
+            }
             let base = args[0].as_bigint()?;
             let exponent = args[1].as_bigint()?;
             let modulus = modulus.as_bigint()?;
@@ -540,11 +564,23 @@ impl VmInstance {
                     if pair.len() != 2 {
                         return Err(VmExecutionError::new("dict() expected key/value pairs"));
                     }
+                    crate::decimal_metering::comparison(
+                        host,
+                        &VmValue::Dict(entries.clone()),
+                        &pair[0],
+                        false,
+                    )?;
                     dict_set(&mut entries, pair[0].clone(), pair[1].clone())?;
                 }
             }
         }
         for (key, value) in shared_kwargs {
+            crate::decimal_metering::comparison(
+                host,
+                &VmValue::Dict(entries.clone()),
+                &VmValue::String(key.clone()),
+                false,
+            )?;
             dict_set(&mut entries, VmValue::String(key), value)?;
         }
         Ok(VmValue::Dict(entries))

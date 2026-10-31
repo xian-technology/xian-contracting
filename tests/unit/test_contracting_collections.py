@@ -60,3 +60,17 @@ def test_equal_frozen_sets_are_interchangeable_dictionary_keys(left, right):
     values = {first: "old", second: "new"}
     assert len(values) == 1
     assert values[first] == "new"
+
+
+def test_raw_decimal_special_keys_use_numeric_payload_order_and_identity():
+    from decimal import Decimal
+
+    first = Decimal("NaN2")
+    second = Decimal("NaN2")
+    values = ContractingSet(
+        [Decimal("NaN10"), first, Decimal("Infinity"), Decimal("-Infinity"), second, first]
+    )
+    assert [str(value) for value in values] == ["-Infinity", "Infinity", "NaN2", "NaN2", "NaN10"]
+    assert list(values)[2] is first and list(values)[3] is second
+    with pytest.raises(TypeError, match="signaling NaN"):
+        ContractingSet([Decimal("sNaN")])

@@ -149,7 +149,7 @@ impl VmInstance {
                 let (resolved, current) =
                     self.resolve_assignment_target(target, scope, host, false)?;
                 debug_assert!(current.is_none());
-                self.assign_resolved_target(resolved, value, scope, module_scope)
+                self.assign_resolved_target(resolved, value, scope, module_scope, host)
             }
             "attribute" => Err(VmExecutionError::new(
                 "attribute assignment is not yet supported in xian-vm-core",
@@ -229,6 +229,7 @@ impl VmInstance {
         value: VmValue,
         scope: &mut HashMap<String, VmValue>,
         module_scope: bool,
+        host: &mut dyn VmHost,
     ) -> Result<(), VmExecutionError> {
         match target {
             ResolvedAssignmentTarget::Name(id) => {
@@ -246,12 +247,15 @@ impl VmInstance {
                 if matches!(container, VmValue::ForeignStorageRef(_)) {
                     return Err(VmExecutionError::new("cannot write to foreign storage"));
                 }
+                if matches!(container.snapshot(), VmValue::Dict(_)) {
+                    crate::decimal_metering::comparison(host, &container, &index, false)?;
+                }
                 if matches!(container, VmValue::Reference(_)) {
                     assign_subscript(container, &index, value)?;
                     return Ok(());
                 }
                 let updated = assign_subscript(container, &index, value)?;
-                self.assign_resolved_target(*parent, updated, scope, module_scope)
+                self.assign_resolved_target(*parent, updated, scope, module_scope, host)
             }
             ResolvedAssignmentTarget::Unsupported(node) => Err(VmExecutionError::new(format!(
                 "unsupported assignment target '{node}'"
@@ -342,7 +346,7 @@ impl VmInstance {
             apply_inplace_operator(operator, current, operand)?
         };
         if let Some(resolved) = resolved {
-            self.assign_resolved_target(resolved, result, scope, false)
+            self.assign_resolved_target(resolved, result, scope, false, host)
         } else {
             self.assign_target(target, result, scope, host, false)
         }?;

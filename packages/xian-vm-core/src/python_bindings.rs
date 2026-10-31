@@ -633,6 +633,11 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
             .collect::<Result<Vec<_>, _>>()?;
         return Ok(VmValue::List(values));
     }
+    if python_class_path(&value)
+        .is_some_and(|(module, name)| module == "decimal" && name == "DecimalTuple")
+    {
+        return py_decimal_tuple_to_vm(&value);
+    }
     if value.is_instance_of::<PyTuple>() {
         let values = value
             .cast::<PyTuple>()
@@ -751,6 +756,35 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
     )))
 }
 
+fn py_decimal_tuple_to_vm(value: &Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
+    let components = (|| -> PyResult<(u8, Vec<u8>, Bound<'_, PyAny>)> {
+        Ok((
+            value.getattr("sign")?.extract()?,
+            value.getattr("digits")?.extract()?,
+            value.getattr("exponent")?,
+        ))
+    })()
+    .map_err(|error| VmExecutionError::new(error.to_string()))?;
+    let (sign, digits, exponent) = components;
+    if sign > 1 {
+        return Err(VmExecutionError::new("DecimalTuple sign must be 0 or 1"));
+    }
+    let (finite, special) = if let Ok(number) = exponent.extract::<i32>() {
+        (Some(number), None)
+    } else {
+        let marker = exponent
+            .extract::<char>()
+            .map_err(|error| VmExecutionError::new(error.to_string()))?;
+        (None, Some(marker))
+    };
+    Ok(VmValue::DecimalTuple(crate::VmDecimalTuple::from_parts(
+        sign == 1,
+        digits,
+        finite,
+        special,
+    )?))
+}
+
 fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
     match value {
         VmValue::Reference(_) => vm_to_py(
@@ -841,6 +875,17 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
                 list.append(vm_to_py(py, item)?)?;
             }
             Ok(list.into_any().unbind())
+        }
+        VmValue::DecimalTuple(value) => {
+            let fields = value
+                .as_values()
+                .iter()
+                .map(|item| vm_to_py(py, item))
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok(PyModule::import(py, "decimal")?
+                .getattr("DecimalTuple")?
+                .call1(PyTuple::new(py, fields)?)?
+                .unbind())
         }
         VmValue::Tuple(values) => {
             let converted = values

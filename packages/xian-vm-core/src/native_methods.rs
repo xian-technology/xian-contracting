@@ -1,6 +1,7 @@
 //! Native receiver methods; mutation is returned for the caller to apply.
 use super::*;
 
+#[cfg(test)]
 pub(in crate::interpreter) fn call_native_method_with(
     receiver: VmValue,
     method: &str,
@@ -8,6 +9,18 @@ pub(in crate::interpreter) fn call_native_method_with(
     kwargs: Vec<(String, VmValue)>,
     heap: &crate::heap::VmHeap,
     callback: &mut crate::iteration::Callback<'_>,
+) -> Result<NativeMethodResult, VmExecutionError> {
+    call_native_method_collected(receiver, method, args, kwargs, &mut |source| {
+        crate::iteration::collect(source, heap, callback)
+    })
+}
+
+pub(in crate::interpreter) fn call_native_method_collected(
+    receiver: VmValue,
+    method: &str,
+    args: Vec<VmValue>,
+    kwargs: Vec<(String, VmValue)>,
+    collect: &mut dyn FnMut(&VmValue) -> Result<Vec<VmValue>, VmExecutionError>,
 ) -> Result<NativeMethodResult, VmExecutionError> {
     let receiver = receiver.snapshot();
     if !kwargs.is_empty() {
@@ -18,12 +31,18 @@ pub(in crate::interpreter) fn call_native_method_with(
     }
 
     match receiver {
-        VmValue::List(values) => call_list_method(values, method, args, heap, callback),
-        VmValue::String(value) => call_string_method(value, method, args, heap, callback),
+        VmValue::Tuple(values) if matches!(method, "count" | "index") => {
+            call_list_method(values, method, args, collect)
+        }
+        VmValue::DecimalTuple(value) if matches!(method, "count" | "index") => {
+            call_list_method(value.as_values(), method, args, collect)
+        }
+        VmValue::List(values) => call_list_method(values, method, args, collect),
+        VmValue::String(value) => call_string_method(value, method, args, collect),
         VmValue::Bytes(value) => call_bytes_method(value, method, args),
-        VmValue::ByteArray(value) => call_bytearray_method(value, method, args, heap, callback),
-        VmValue::Set(values) => call_set_method(values, method, args, heap, callback),
-        VmValue::FrozenSet(values) => call_frozenset_method(values, method, args, heap, callback),
+        VmValue::ByteArray(value) => call_bytearray_method(value, method, args, collect),
+        VmValue::Set(values) => call_set_method(values, method, args, collect),
+        VmValue::FrozenSet(values) => call_frozenset_method(values, method, args, collect),
         VmValue::Dict(entries) => call_dict_method(entries, method, args),
         other => Err(VmExecutionError::new(format!(
             "value of type {} has no native method '{}()'",
@@ -37,8 +56,7 @@ fn call_list_method(
     mut values: Vec<VmValue>,
     method: &str,
     args: Vec<VmValue>,
-    heap: &crate::heap::VmHeap,
-    callback: &mut crate::iteration::Callback<'_>,
+    collect: &mut dyn FnMut(&VmValue) -> Result<Vec<VmValue>, VmExecutionError>,
 ) -> Result<NativeMethodResult, VmExecutionError> {
     match method {
         "append" => {
@@ -67,7 +85,7 @@ fn call_list_method(
             if args.len() != 1 {
                 return Err(VmExecutionError::new("list.extend() expects one argument"));
             }
-            values.extend(crate::iteration::collect(&args[0], heap, callback)?);
+            values.extend(collect(&args[0])?);
             Ok(NativeMethodResult::Mutated {
                 receiver: VmValue::List(values),
                 value: VmValue::None,
@@ -116,7 +134,7 @@ fn call_list_method(
             Ok(NativeMethodResult::Value(vm_int(count)))
         }
         "index" => match args.as_slice() {
-            [needle] | [needle, ..] => {
+            [needle, ..] if (1..=3).contains(&args.len()) => {
                 let (start, end) = normalize_search_bounds(values.len(), args.get(1), args.get(2))?;
                 for (offset, value) in values[start..end].iter().enumerate() {
                     if vm_values_equal(value, needle)? {
@@ -156,8 +174,7 @@ fn call_string_method(
     value: String,
     method: &str,
     args: Vec<VmValue>,
-    heap: &crate::heap::VmHeap,
-    callback: &mut crate::iteration::Callback<'_>,
+    collect: &mut dyn FnMut(&VmValue) -> Result<Vec<VmValue>, VmExecutionError>,
 ) -> Result<NativeMethodResult, VmExecutionError> {
     match method {
         "upper" => match args.as_slice() {
@@ -249,7 +266,7 @@ fn call_string_method(
         },
         "join" => match args.as_slice() {
             [items] => {
-                let rendered = crate::iteration::collect(items, heap, callback)?
+                let rendered = collect(items)?
                     .into_iter()
                     .map(|item| item.as_string())
                     .collect::<Result<Vec<_>, _>>()?;
@@ -335,8 +352,7 @@ fn call_bytearray_method(
     mut value: Vec<u8>,
     method: &str,
     args: Vec<VmValue>,
-    heap: &crate::heap::VmHeap,
-    callback: &mut crate::iteration::Callback<'_>,
+    collect: &mut dyn FnMut(&VmValue) -> Result<Vec<VmValue>, VmExecutionError>,
 ) -> Result<NativeMethodResult, VmExecutionError> {
     match method {
         "hex" => match args.as_slice() {
@@ -365,7 +381,7 @@ fn call_bytearray_method(
                     "bytearray.extend() expects one argument",
                 ));
             }
-            let bytes = crate::iteration::collect(&args[0], heap, callback)?
+            let bytes = collect(&args[0])?
                 .iter()
                 .map(byte_from_value)
                 .collect::<Result<Vec<_>, _>>()?;
@@ -425,8 +441,7 @@ fn call_set_method(
     mut values: Vec<VmValue>,
     method: &str,
     args: Vec<VmValue>,
-    heap: &crate::heap::VmHeap,
-    callback: &mut crate::iteration::Callback<'_>,
+    collect: &mut dyn FnMut(&VmValue) -> Result<Vec<VmValue>, VmExecutionError>,
 ) -> Result<NativeMethodResult, VmExecutionError> {
     match method {
         "add" => {
@@ -494,7 +509,7 @@ fn call_set_method(
             if args.len() != 1 {
                 return Err(VmExecutionError::new("set.issubset() expects one argument"));
             }
-            let other = normalize_set_items(crate::iteration::collect(&args[0], heap, callback)?)?;
+            let other = normalize_set_items(collect(&args[0])?)?;
             Ok(NativeMethodResult::Value(VmValue::Bool(set_is_subset(
                 &values, &other,
             )?)))
@@ -505,7 +520,7 @@ fn call_set_method(
                     "set.issuperset() expects one argument",
                 ));
             }
-            let other = normalize_set_items(crate::iteration::collect(&args[0], heap, callback)?)?;
+            let other = normalize_set_items(collect(&args[0])?)?;
             Ok(NativeMethodResult::Value(VmValue::Bool(set_is_subset(
                 &other, &values,
             )?)))
@@ -516,7 +531,7 @@ fn call_set_method(
                     "set.isdisjoint() expects one argument",
                 ));
             }
-            let other = normalize_set_items(crate::iteration::collect(&args[0], heap, callback)?)?;
+            let other = normalize_set_items(collect(&args[0])?)?;
             Ok(NativeMethodResult::Value(VmValue::Bool(
                 set_intersection_values(&values, &other)?.is_empty(),
             )))
@@ -524,7 +539,7 @@ fn call_set_method(
         "union" => {
             let mut merged = values.clone();
             for other in &args {
-                merged.extend(crate::iteration::collect(other, heap, callback)?);
+                merged.extend(collect(other)?);
             }
             Ok(NativeMethodResult::Value(VmValue::Set(
                 normalize_set_items(merged)?,
@@ -533,7 +548,7 @@ fn call_set_method(
         "intersection" => {
             let mut result = values.clone();
             for other in &args {
-                let other = normalize_set_items(crate::iteration::collect(other, heap, callback)?)?;
+                let other = normalize_set_items(collect(other)?)?;
                 result = set_intersection_values(&result, &other)?;
             }
             Ok(NativeMethodResult::Value(VmValue::Set(result)))
@@ -541,7 +556,7 @@ fn call_set_method(
         "difference" => {
             let mut result = values.clone();
             for other in &args {
-                let other = normalize_set_items(crate::iteration::collect(other, heap, callback)?)?;
+                let other = normalize_set_items(collect(other)?)?;
                 result = set_difference_values(&result, &other)?;
             }
             Ok(NativeMethodResult::Value(VmValue::Set(result)))
@@ -552,7 +567,7 @@ fn call_set_method(
                     "set.symmetric_difference() expects one argument",
                 ));
             }
-            let other = normalize_set_items(crate::iteration::collect(&args[0], heap, callback)?)?;
+            let other = normalize_set_items(collect(&args[0])?)?;
             Ok(NativeMethodResult::Value(VmValue::Set(
                 normalize_set_items(set_symmetric_difference_values(&values, &other)?)?,
             )))
@@ -568,8 +583,7 @@ fn call_frozenset_method(
     values: Vec<VmValue>,
     method: &str,
     args: Vec<VmValue>,
-    heap: &crate::heap::VmHeap,
-    callback: &mut crate::iteration::Callback<'_>,
+    collect: &mut dyn FnMut(&VmValue) -> Result<Vec<VmValue>, VmExecutionError>,
 ) -> Result<NativeMethodResult, VmExecutionError> {
     match method {
         "copy" => {
@@ -586,7 +600,7 @@ fn call_frozenset_method(
                     "frozenset.issubset() expects one argument",
                 ));
             }
-            let other = normalize_set_items(crate::iteration::collect(&args[0], heap, callback)?)?;
+            let other = normalize_set_items(collect(&args[0])?)?;
             Ok(NativeMethodResult::Value(VmValue::Bool(set_is_subset(
                 &values, &other,
             )?)))
@@ -597,7 +611,7 @@ fn call_frozenset_method(
                     "frozenset.issuperset() expects one argument",
                 ));
             }
-            let other = normalize_set_items(crate::iteration::collect(&args[0], heap, callback)?)?;
+            let other = normalize_set_items(collect(&args[0])?)?;
             Ok(NativeMethodResult::Value(VmValue::Bool(set_is_subset(
                 &other, &values,
             )?)))
@@ -608,7 +622,7 @@ fn call_frozenset_method(
                     "frozenset.isdisjoint() expects one argument",
                 ));
             }
-            let other = normalize_set_items(crate::iteration::collect(&args[0], heap, callback)?)?;
+            let other = normalize_set_items(collect(&args[0])?)?;
             Ok(NativeMethodResult::Value(VmValue::Bool(
                 set_intersection_values(&values, &other)?.is_empty(),
             )))
@@ -616,7 +630,7 @@ fn call_frozenset_method(
         "union" => {
             let mut merged = values.clone();
             for other in &args {
-                merged.extend(crate::iteration::collect(other, heap, callback)?);
+                merged.extend(collect(other)?);
             }
             Ok(NativeMethodResult::Value(VmValue::FrozenSet(
                 normalize_set_items(merged)?,
@@ -625,7 +639,7 @@ fn call_frozenset_method(
         "intersection" => {
             let mut result = values.clone();
             for other in &args {
-                let other = normalize_set_items(crate::iteration::collect(other, heap, callback)?)?;
+                let other = normalize_set_items(collect(other)?)?;
                 result = set_intersection_values(&result, &other)?;
             }
             Ok(NativeMethodResult::Value(VmValue::FrozenSet(result)))
@@ -633,7 +647,7 @@ fn call_frozenset_method(
         "difference" => {
             let mut result = values.clone();
             for other in &args {
-                let other = normalize_set_items(crate::iteration::collect(other, heap, callback)?)?;
+                let other = normalize_set_items(collect(other)?)?;
                 result = set_difference_values(&result, &other)?;
             }
             Ok(NativeMethodResult::Value(VmValue::FrozenSet(result)))
@@ -644,7 +658,7 @@ fn call_frozenset_method(
                     "frozenset.symmetric_difference() expects one argument",
                 ));
             }
-            let other = normalize_set_items(crate::iteration::collect(&args[0], heap, callback)?)?;
+            let other = normalize_set_items(collect(&args[0])?)?;
             Ok(NativeMethodResult::Value(VmValue::FrozenSet(
                 normalize_set_items(set_symmetric_difference_values(&values, &other)?)?,
             )))

@@ -8,6 +8,9 @@ from xian_runtime_types.time import Datetime, Timedelta
 
 
 def _values_equal(left, right) -> bool:
+    # Python containers match an identical object even when NaN != NaN.
+    if left is right:
+        return True
     try:
         return left == right
     except TypeError:
@@ -48,8 +51,15 @@ def _canonical_key(value):
         return (9, tuple(_canonical_key(item) for item in value))
     if isinstance(value, ContractingFrozenSet):
         return (10, tuple(_canonical_key(item) for item in value))
-    if isinstance(value, Decimal) and value.is_finite():
-        return (11, value)
+    if isinstance(value, Decimal):
+        if value.is_snan():
+            raise TypeError("Cannot hash a signaling NaN value")
+        if value.is_nan():
+            parts = value.as_tuple()
+            return (11, 3, parts.sign, len(parts.digits), parts.digits)
+        if value.is_infinite():
+            return (11, 0 if value.is_signed() else 2)
+        return (11, 1, value)
     raise TypeError(f"unhashable type: '{type(value).__name__}'")
 
 

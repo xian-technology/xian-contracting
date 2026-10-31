@@ -232,6 +232,14 @@ fn immutable_depth(value: &VmValue) -> usize {
         VmValue::Tuple(items) | VmValue::FrozenSet(items) => {
             1 + items.iter().map(immutable_depth).max().unwrap_or(0)
         }
+        VmValue::DecimalTuple(tuple) => {
+            1 + tuple
+                .fields()
+                .iter()
+                .map(immutable_depth)
+                .max()
+                .unwrap_or(0)
+        }
         VmValue::Exception(exception) => {
             1 + exception
                 .args
@@ -253,6 +261,7 @@ fn shallow_bytes(value: &VmValue) -> usize {
         VmValue::Dict(v) => {
             v.len() * (std::mem::size_of::<(VmValue, VmValue)>() + std::mem::size_of::<usize>())
         }
+        VmValue::DecimalTuple(v) => v.allocation_bytes(),
         VmValue::String(v) => v.len(),
         VmValue::Bytes(v) | VmValue::ByteArray(v) => v.len(),
         VmValue::Int(v) => v.bits().div_ceil(8) as usize,
@@ -272,6 +281,7 @@ fn map_children(
     Ok(match value {
         VmValue::List(v) => VmValue::List(map_items(v, &mut map)?),
         VmValue::Tuple(v) => VmValue::Tuple(map_items(v, &mut map)?),
+        VmValue::DecimalTuple(v) => VmValue::DecimalTuple(v.map_fields(map)?),
         VmValue::Set(v) => VmValue::Set(map_items(v, &mut map)?),
         VmValue::FrozenSet(v) => VmValue::FrozenSet(map_items(v, &mut map)?),
         VmValue::Dict(v) => VmValue::Dict(

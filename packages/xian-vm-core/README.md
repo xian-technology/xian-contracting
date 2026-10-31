@@ -35,6 +35,11 @@ Execution coverage is intentionally narrow but real:
   function-local references with dynamic contract/variable targets
 - arbitrary-precision integer values instead of `i64`-only VM integers
 - fixed-precision `decimal(...)` construction and arithmetic
+- raw Decimal results from explicit-digit rounding: general powers, non-finite
+  in-memory values, exact float conversion, all 53 historically reachable public
+  methods, and DecimalTuple named results; see the
+  [compatibility contract](../../tests/compatibility/README.md) for context,
+  storage, set ordering and resource bounds
 - native `datetime.datetime` / `datetime.timedelta` values, including
   `datetime.datetime.strptime(...)`, arithmetic, comparison, and common field
   access

@@ -375,6 +375,9 @@ fn vm_value_to_json(value: &VmValue) -> Result<Value, VmExecutionError> {
             );
             Value::Object(object)
         }
+        VmValue::DecimalTuple(value) => {
+            return vm_value_to_json(&VmValue::Tuple(value.as_values()))
+        }
         VmValue::List(values) | VmValue::Tuple(values) => Value::Array(
             values
                 .iter()

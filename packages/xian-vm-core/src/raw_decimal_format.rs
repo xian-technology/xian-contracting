@@ -11,6 +11,7 @@ struct Spec {
     kind: char,
     grouping: bool,
     positive_zero: bool,
+    zero_padding: bool,
 }
 
 fn number(chars: &[char], position: &mut usize) -> Result<Option<usize>> {
@@ -41,29 +42,10 @@ fn parse(text: &str) -> Result<Spec> {
         kind: 'G',
         grouping: false,
         positive_zero: false,
+        zero_padding: false,
     };
     let mut i = 0;
-    if chars.get(1).is_some_and(|ch| "<>=^".contains(*ch)) {
-        spec.fill = chars[0];
-        spec.align = chars[1];
-        i = 2;
-    } else if chars.first().is_some_and(|ch| "<>=^".contains(*ch)) {
-        spec.align = chars[0];
-        i = 1;
-    }
-    if chars.get(i).is_some_and(|ch| "+- ".contains(*ch)) {
-        spec.sign = chars[i];
-        i += 1;
-    }
-    if chars.get(i) == Some(&'z') {
-        spec.positive_zero = true;
-        i += 1;
-    }
-    if chars.get(i) == Some(&'0') {
-        spec.fill = '0';
-        spec.align = '=';
-        i += 1;
-    }
+    parse_prefix(&chars, &mut i, &mut spec);
     spec.width = number(&chars, &mut i)?.unwrap_or(0);
     if chars.get(i) == Some(&',') {
         spec.grouping = true;
@@ -73,17 +55,47 @@ fn parse(text: &str) -> Result<Spec> {
         i += 1;
         spec.precision = Some(number(&chars, &mut i)?.ok_or_else(error)?);
     }
-    if let Some(kind) = chars.get(i) {
+    parse_kind(&chars, &mut i, &mut spec)?;
+    Ok(spec)
+}
+
+fn parse_kind(chars: &[char], i: &mut usize, spec: &mut Spec) -> Result<()> {
+    if let Some(kind) = chars.get(*i) {
         if !"eEfFgGn%".contains(*kind) {
             return Err(error());
         }
         spec.kind = *kind;
-        i += 1;
+        *i += 1;
     }
-    if i != chars.len() || (spec.kind == 'n' && spec.grouping) {
+    if *i != chars.len() || (spec.kind == 'n' && spec.grouping) {
         return Err(error());
     }
-    Ok(spec)
+    Ok(())
+}
+
+fn parse_prefix(chars: &[char], i: &mut usize, spec: &mut Spec) {
+    if chars.get(1).is_some_and(|ch| "<>=^".contains(*ch)) {
+        spec.fill = chars[0];
+        spec.align = chars[1];
+        *i = 2;
+    } else if chars.first().is_some_and(|ch| "<>=^".contains(*ch)) {
+        spec.align = chars[0];
+        *i = 1;
+    }
+    if chars.get(*i).is_some_and(|ch| "+- ".contains(*ch)) {
+        spec.sign = chars[*i];
+        *i += 1;
+    }
+    if chars.get(*i) == Some(&'z') {
+        spec.positive_zero = true;
+        *i += 1;
+    }
+    if chars.get(*i) == Some(&'0') {
+        spec.zero_padding = true;
+        spec.fill = '0';
+        spec.align = '=';
+        *i += 1;
+    }
 }
 
 fn fixed(coefficient: &BigInt, exponent: i32) -> String {
@@ -128,6 +140,11 @@ fn scientific(value: &VmRawDecimal, precision: Option<usize>, uppercase: bool) -
 }
 
 fn magnitude(value: &VmRawDecimal, spec: &Spec) -> Result<String> {
+    if !value.is_finite() {
+        let text = value.to_string().trim_start_matches('-').to_string();
+        return Ok(if spec.kind == '%' { text + "%" } else { text });
+    }
+    bound_output(value, spec)?;
     let mut value = value.clone();
     value.coefficient = value.coefficient.abs();
     value.negative_zero = false;
@@ -142,28 +159,45 @@ fn magnitude(value: &VmRawDecimal, spec: &Spec) -> Result<String> {
             fixed(&value.rescale(exponent), exponent)
         }
         'e' | 'E' => scientific(&value, spec.precision, spec.kind == 'E'),
-        _ => {
-            if let Some(precision) = spec.precision {
-                let discarded = digits(&value.coefficient) - (precision.max(1) as i32);
-                if discarded > 0 {
-                    let exponent = value.exponent + discarded;
-                    value.coefficient = value.rescale(exponent);
-                    value.exponent = exponent;
-                }
-            }
-            let text = value.to_string();
-            if spec.kind == 'G' {
-                text
-            } else {
-                text.replace('E', "e")
-            }
-        }
+        _ => general(&mut value, spec),
     };
     Ok(if spec.kind == '%' {
         rendered + "%"
     } else {
         rendered
     })
+}
+
+fn general(value: &mut VmRawDecimal, spec: &Spec) -> String {
+    if let Some(precision) = spec.precision {
+        let discarded = digits(&value.coefficient) - (precision.max(1) as i32);
+        if discarded > 0 {
+            let exponent = value.exponent + discarded;
+            value.coefficient = value.rescale(exponent);
+            value.exponent = exponent;
+        }
+    }
+    let text = value.to_string();
+    if spec.kind == 'G' {
+        text
+    } else {
+        text.replace('E', "e")
+    }
+}
+
+fn bound_output(value: &VmRawDecimal, spec: &Spec) -> Result<()> {
+    // Bound output expansion before rescaling or allocating a padded coefficient.
+    let places = spec
+        .precision
+        .unwrap_or(value.exponent.unsigned_abs() as usize);
+    let whole = value.adjusted().max(0) as usize + 3;
+    if matches!(spec.kind, 'f' | 'F' | '%') && whole.saturating_add(places) > LIMIT {
+        return Err(error());
+    }
+    if spec.precision.is_some_and(|p| p >= LIMIT - 16) {
+        return Err(error());
+    }
+    Ok(())
 }
 
 fn group(text: &str) -> String {
@@ -179,57 +213,74 @@ fn group(text: &str) -> String {
     output
 }
 
+fn sign(value: &VmRawDecimal, spec: &Spec, body: &str) -> &'static str {
+    let zero = body
+        .split(['e', 'E', '%'])
+        .next()
+        .unwrap_or("")
+        .chars()
+        .all(|ch| ch == '0' || ch == '.');
+    if value.negative() && !(spec.positive_zero && zero) {
+        "-"
+    } else {
+        match spec.sign {
+            '+' => "+",
+            ' ' => " ",
+            _ => "",
+        }
+    }
+}
+
+fn group_padding(mut body: String, sign: &str, spec: &Spec) -> String {
+    if spec.align == '=' && spec.fill == '0' {
+        let whole = body.find(['.', 'e', 'E', '%']).unwrap_or(body.len());
+        let (mut low, mut high) = (0, spec.width);
+        while low < high {
+            let middle = (low + high) / 2;
+            let width = sign.len() + body.len() + middle + (whole + middle - 1) / 3;
+            if width < spec.width {
+                low = middle + 1;
+            } else {
+                high = middle;
+            }
+        }
+        body = format!("{}{body}", "0".repeat(low));
+    }
+    body
+}
+
+fn pad(body: &str, sign: &str, spec: &Spec) -> Result<String> {
+    let padding = spec.width.saturating_sub(body.len() + sign.len());
+    if padding * spec.fill.len_utf8() + body.len() + sign.len() > LIMIT {
+        return Err(error());
+    }
+    let pad = |count| std::iter::repeat_n(spec.fill, count).collect::<String>();
+    Ok(match spec.align {
+        '<' => format!("{sign}{body}{}", pad(padding)),
+        '=' => format!("{sign}{}{body}", pad(padding)),
+        '^' => format!(
+            "{}{sign}{body}{}",
+            pad(padding / 2),
+            pad(padding - padding / 2)
+        ),
+        _ => format!("{}{sign}{body}", pad(padding)),
+    })
+}
+
 impl VmRawDecimal {
     pub(crate) fn format(&self, spec: &str) -> Result<String> {
-        let spec = parse(spec)?;
+        let mut spec = parse(spec)?;
+        if !self.is_finite() && spec.zero_padding {
+            spec.fill = ' ';
+            spec.align = '>';
+        }
         let mut body = magnitude(self, &spec)?;
-        let zero = body
-            .split(['e', 'E', '%'])
-            .next()
-            .unwrap_or("")
-            .chars()
-            .all(|ch| ch == '0' || ch == '.');
-        let sign = if self.negative() && !(spec.positive_zero && zero) {
-            "-"
-        } else {
-            match spec.sign {
-                '+' => "+",
-                ' ' => " ",
-                _ => "",
-            }
-        };
-        if spec.grouping {
-            if spec.align == '=' && spec.fill == '0' {
-                let whole = body.find(['.', 'e', 'E', '%']).unwrap_or(body.len());
-                let (mut low, mut high) = (0, spec.width);
-                while low < high {
-                    let middle = (low + high) / 2;
-                    let width = sign.len() + body.len() + middle + (whole + middle - 1) / 3;
-                    if width < spec.width {
-                        low = middle + 1;
-                    } else {
-                        high = middle;
-                    }
-                }
-                body = format!("{}{body}", "0".repeat(low));
-            }
+        let sign = sign(self, &spec, &body);
+        if spec.grouping && self.is_finite() {
+            body = group_padding(body, sign, &spec);
             body = group(&body);
         }
-        let padding = spec.width.saturating_sub(body.len() + sign.len());
-        if padding * spec.fill.len_utf8() + body.len() + sign.len() > LIMIT {
-            return Err(error());
-        }
-        let pad = |count| std::iter::repeat_n(spec.fill, count).collect::<String>();
-        Ok(match spec.align {
-            '<' => format!("{sign}{body}{}", pad(padding)),
-            '=' => format!("{sign}{}{body}", pad(padding)),
-            '^' => format!(
-                "{}{sign}{body}{}",
-                pad(padding / 2),
-                pad(padding - padding / 2)
-            ),
-            _ => format!("{}{sign}{body}", pad(padding)),
-        })
+        pad(&body, sign, &spec)
     }
 }
 
