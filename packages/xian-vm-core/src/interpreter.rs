@@ -722,6 +722,7 @@ pub trait VmHost {
 
 #[derive(Debug, Clone, PartialEq)]
 struct VariableState {
+    value_type: Option<VmValue>,
     default_value: VmValue,
     value: Option<VmValue>,
     foreign_key: Option<String>,
@@ -974,6 +975,7 @@ impl VmInstance {
             self.variables.insert(
                 foreign_storage_key(&snapshot.contract_name, &variable.binding),
                 VariableState {
+                    value_type: None,
                     default_value: variable.default_value.clone(),
                     value: variable.value.clone(),
                     foreign_key: None,
@@ -1007,6 +1009,7 @@ impl VmInstance {
             .entry(key)
             .and_modify(|state| state.value = Some(value.clone()))
             .or_insert(VariableState {
+                value_type: None,
                 default_value: VmValue::None,
                 value: Some(value),
                 foreign_key: None,
@@ -1308,6 +1311,9 @@ impl VmInstance {
             .cloned()
             .unwrap_or(VmValue::None);
         Ok(VariableState {
+            value_type: options
+                .get("t")
+                .and_then(storage_declarations::variable_type),
             default_value: default_value.detached()?,
             value: None,
             foreign_key,
@@ -2012,7 +2018,9 @@ impl VmInstance {
             "bin_op" => {
                 let left = self.eval_expression(required_value(object, "left")?, scope, host)?;
                 let right = self.eval_expression(required_value(object, "right")?, scope, host)?;
-                apply_binary_operator(required_string(object, "operator")?, left, right)
+                let operator = required_string(object, "operator")?;
+                host.charge_execution_cost(crate::raw_decimal::work_cost(operator, &left, &right))?;
+                apply_binary_operator(operator, left, right)
             }
             "unary_op" => {
                 let operand =
@@ -2421,6 +2429,16 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
+        if method == "to_eng_string" {
+            if let VmValue::RawDecimal(value) = receiver.snapshot() {
+                if !args.is_empty() || !kwargs.is_empty() {
+                    return Err(VmExecutionError::new(
+                        "to_eng_string() expects no arguments",
+                    ));
+                }
+                return Ok(VmValue::String(value.engineering()));
+            }
+        }
         if method == "update" && matches!(receiver.snapshot(), VmValue::Dict(_)) {
             return self.update_dictionary(&receiver, args, kwargs, host);
         }
@@ -3202,6 +3220,7 @@ impl VmInstance {
                     VmValue::Bool(value) => Ok(vm_int(if *value { 1 } else { 0 })),
                     VmValue::Int(value) => Ok(VmValue::Int(value.abs())),
                     VmValue::Float(value) => Ok(VmValue::Float(value.abs())),
+                    VmValue::RawDecimal(value) => Ok(VmValue::RawDecimal(value.unary("abs")?)),
                     VmValue::Decimal(value) => Ok(VmValue::Decimal(VmDecimal::from_scaled(
                         if value.scaled.sign() == Sign::Minus {
                             -value.scaled.clone()
@@ -3243,6 +3262,15 @@ impl VmInstance {
                         "modular exponentiation",
                     );
                 }
+                if args
+                    .iter()
+                    .any(|value| matches!(value, VmValue::RawDecimal(_)))
+                {
+                    host.charge_execution_cost(crate::raw_decimal::work_cost(
+                        "pow", &args[0], &args[1],
+                    ))?;
+                    return apply_binary_operator("pow", args[0].clone(), args[1].clone());
+                }
                 match (&args[0], &args[1]) {
                     (VmValue::Int(base), VmValue::Int(exponent)) => {
                         checked_bigint_pow(base, exponent, "integer exponentiation")
@@ -3283,6 +3311,9 @@ impl VmInstance {
                 } else {
                     String::new()
                 };
+                if matches!(args[0], VmValue::RawDecimal(_)) {
+                    host.charge_execution_cost(crate::VmRawDecimal::format_work_cost(&spec)?)?;
+                }
                 Ok(VmValue::String(format_builtin_value(&args[0], &spec)?))
             }
             "float" => {
@@ -3301,6 +3332,7 @@ impl VmInstance {
                     VmValue::Bool(value) => Ok(VmValue::Float(if *value { 1.0 } else { 0.0 })),
                     VmValue::Float(value) => Ok(VmValue::Float(*value)),
                     VmValue::Decimal(value) => Ok(VmValue::Float(value.to_f64()?)),
+                    VmValue::RawDecimal(value) => Ok(VmValue::Float(value.float()?)),
                     VmValue::String(value) => numeric_text::parse_float(value).map(VmValue::Float),
                     VmValue::Bytes(value) | VmValue::ByteArray(value) => {
                         let text = std::str::from_utf8(value)
@@ -3532,6 +3564,7 @@ impl VmInstance {
                 .variables
                 .entry(foreign_key)
                 .or_insert_with(|| VariableState {
+                    value_type: None,
                     default_value: VmValue::None,
                     value: None,
                     foreign_key: None,
@@ -3590,7 +3623,16 @@ impl VmInstance {
                 "cannot set foreign variable '{binding}'"
             )));
         }
-        state.value = Some(value.detached()?);
+        if !matches!(value.snapshot(), VmValue::None) {
+            if let Some(marker) = &state.value_type {
+                if !type_matches(&value, marker)
+                    || matches!(marker, VmValue::TypeMarker(name) if name == "Any")
+                {
+                    return Err(VmExecutionError::new("wrong type passed to Variable"));
+                }
+            }
+        }
+        state.value = Some(value.storage_value()?);
         state.dirty = true;
         Ok(())
     }
@@ -3658,7 +3700,9 @@ impl VmInstance {
                 VmExecutionError::new(format!("unknown hash binding '{binding}'"))
             })?;
             if let Some(value) = loaded {
-                state.entries.insert(storage_key.clone(), value.detached()?);
+                state
+                    .entries
+                    .insert(storage_key.clone(), value.storage_value()?);
             }
             let value = state
                 .entries
@@ -3767,7 +3811,9 @@ impl VmInstance {
                 "cannot set foreign hash '{binding}'"
             )));
         }
-        state.entries.insert(storage_key.clone(), value.detached()?);
+        state
+            .entries
+            .insert(storage_key.clone(), value.storage_value()?);
         state.dirty_entries.insert(storage_key);
         Ok(())
     }

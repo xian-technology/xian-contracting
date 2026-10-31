@@ -2,7 +2,7 @@
   "revision": "3b82001f2d587bbfb51f3d9235a2a8dcd0078a9a",
   "python": "3.12.10",
   "dependency_lock_sha256": "d6e2fc9493ba30f7eeda91769f3c3c74e398197127996c3de2d6e98d9fced726",
-  "cases_sha256": "be0bbfbbe12d54cf660b7aa5b63a1bd3517ad263ca54bb5838f764d014396dab",
+  "cases_sha256": "e7f10a561d241f4dd58f8a7693b72f833e0aabc3d206170d1da3dbb4261c83a7",
   "runner_sha256": "c2941b8697449adfecb2716cdc45337648186de30734bf2257f440cf9bc80818",
   "observations": {
     "typed_values": {
@@ -6721,6 +6721,1091 @@
           [
             "bool",
             true
+          ]
+        ]
+      ]
+    },
+    "quantum_result": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "Decimal",
+        "2.00"
+      ]
+    },
+    "quantum_type_and_text": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "2.00"
+          ],
+          [
+            "str",
+            "2.00"
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "str",
+            "[Decimal('2.00')]"
+          ],
+          [
+            "ContractingDecimal",
+            "2"
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "quantum_negative_zero": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "Decimal",
+            "-0.00"
+          ],
+          [
+            "str",
+            "-0.00"
+          ],
+          [
+            "str",
+            "0.00"
+          ],
+          [
+            "str",
+            "0.00"
+          ],
+          [
+            "str",
+            "0.00"
+          ],
+          [
+            "float",
+            "-0x0.0p+0"
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "quantum_round_again": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "Decimal",
+            "1.23"
+          ],
+          [
+            "int",
+            1
+          ],
+          [
+            "int",
+            1
+          ],
+          [
+            "Decimal",
+            "0E+1"
+          ]
+        ]
+      ]
+    },
+    "quantum_add_sub": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "Decimal",
+            "3.500"
+          ],
+          [
+            "Decimal",
+            "0.500"
+          ],
+          [
+            "Decimal",
+            "3.00"
+          ],
+          [
+            "Decimal",
+            "3.00"
+          ],
+          [
+            "Decimal",
+            "1.00"
+          ],
+          [
+            "Decimal",
+            "-1.00"
+          ],
+          [
+            "Decimal",
+            "0.00"
+          ]
+        ]
+      ]
+    },
+    "quantum_multiply": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "Decimal",
+            "-3.00000"
+          ],
+          [
+            "Decimal",
+            "6.00"
+          ],
+          [
+            "Decimal",
+            "6.00"
+          ],
+          [
+            "Decimal",
+            "0.00"
+          ]
+        ]
+      ]
+    },
+    "quantum_division": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "Decimal",
+            "1.00"
+          ],
+          [
+            "Decimal",
+            "0.6666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666"
+          ],
+          [
+            "Decimal",
+            "1.333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333"
+          ],
+          [
+            "Decimal",
+            "1"
+          ],
+          [
+            "Decimal",
+            "0.5"
+          ],
+          [
+            "Decimal",
+            "1"
+          ],
+          [
+            "Decimal",
+            "0.500"
+          ],
+          [
+            "tuple",
+            [
+              [
+                "Decimal",
+                "1"
+              ],
+              [
+                "Decimal",
+                "0.500"
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "quantum_powers": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "Decimal",
+            "4.0000"
+          ],
+          [
+            "Decimal",
+            "0.25"
+          ],
+          [
+            "Decimal",
+            "4"
+          ],
+          [
+            "Decimal",
+            "8.000000"
+          ],
+          [
+            "Decimal",
+            "1"
+          ]
+        ]
+      ]
+    },
+    "quantum_sqrt": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "Decimal",
+        "1.414213562373095048801688724209698078569671875376948073176679737990732478462107038850387534"
+      ]
+    },
+    "quantum_mixed_fixed": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "ContractingDecimal",
+            "3.5"
+          ],
+          [
+            "ContractingDecimal",
+            "3.5"
+          ],
+          [
+            "ContractingDecimal",
+            "3"
+          ],
+          [
+            "ContractingDecimal",
+            "3"
+          ],
+          [
+            "ContractingDecimal",
+            "1.333333333333333333333333333333"
+          ],
+          [
+            "ContractingDecimal",
+            "0.75"
+          ],
+          [
+            "ContractingDecimal",
+            "0.5"
+          ],
+          [
+            "ContractingDecimal",
+            "-0.5"
+          ]
+        ]
+      ]
+    },
+    "quantum_mixed_bool": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "Decimal",
+            "3.00"
+          ],
+          [
+            "Decimal",
+            "-1.00"
+          ],
+          [
+            "Decimal",
+            "0.00"
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "quantum_mixed_float_error": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "unsupported operand type(s) for +: 'decimal.Decimal' and 'float'",
+      "exception_type": "TypeError"
+    },
+    "quantum_precision": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "Decimal",
+            "0.3333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333"
+          ],
+          [
+            "Decimal",
+            "0.9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+          ],
+          [
+            "ContractingDecimal",
+            "0.333333333333333333333333333333"
+          ]
+        ]
+      ]
+    },
+    "quantum_beyond_fixed": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "10000000000000000000000000000000000000000000000000000000000000000000000.00"
+          ],
+          [
+            "str",
+            "1E-40"
+          ]
+        ]
+      ]
+    },
+    "quantum_comparison": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ]
+        ]
+      ]
+    },
+    "quantum_dict_key": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            1
+          ],
+          [
+            "list",
+            [
+              [
+                "tuple",
+                [
+                  [
+                    "Decimal",
+                    "2.00"
+                  ],
+                  [
+                    "str",
+                    "last"
+                  ]
+                ]
+              ]
+            ]
+          ],
+          [
+            "str",
+            "last"
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "quantum_set_members": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "Decimal",
+                "2.00"
+              ]
+            ]
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "quantum_format": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "12.34"
+          ],
+          [
+            "str",
+            "00012.34"
+          ],
+          [
+            "str",
+            "+1.23e+1"
+          ],
+          [
+            "str",
+            "12.34"
+          ],
+          [
+            "str",
+            "1234.5%"
+          ],
+          [
+            "str",
+            "     12.34"
+          ]
+        ]
+      ]
+    },
+    "quantum_zero_quantum": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "Decimal",
+            "0.00"
+          ],
+          [
+            "Decimal",
+            "0E-8"
+          ],
+          [
+            "Decimal",
+            "0E+3"
+          ]
+        ]
+      ]
+    },
+    "quantum_integer_float": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            -2
+          ],
+          [
+            "float",
+            "-0x1.2c28f5c28f5c3p+1"
+          ],
+          [
+            "Decimal",
+            "2.345"
+          ],
+          [
+            "Decimal",
+            "-2.345"
+          ],
+          [
+            "Decimal",
+            "2.345"
+          ]
+        ]
+      ]
+    },
+    "quantum_max_quantum": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "Decimal",
+        "2.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      ]
+    },
+    "quantum_too_precise": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "[<class 'decimal.InvalidOperation'>]",
+      "exception_type": "InvalidOperation"
+    },
+    "quantum_min_quantum": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "Decimal",
+        "0E-190"
+      ]
+    },
+    "quantum_too_tiny_quantum": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "[<class 'decimal.InvalidOperation'>]",
+      "exception_type": "InvalidOperation"
+    },
+    "quantum_max_positive_exponent": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "Decimal",
+        "-0E+100"
+      ]
+    },
+    "quantum_exponent_overflow": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "[<class 'decimal.InvalidOperation'>]",
+      "exception_type": "InvalidOperation"
+    },
+    "quantum_huge_places": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "Python int too large to convert to C ssize_t",
+      "exception_type": "OverflowError"
+    },
+    "quantum_divide_zero": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "[<class 'decimal.DivisionByZero'>]",
+      "exception_type": "DivisionByZero"
+    },
+    "quantum_storage": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        [
+          [
+            [
+              "str",
+              "baseline_quantum_storage.v"
+            ],
+            [
+              "ContractingDecimal",
+              "2"
+            ]
+          ],
+          [
+            [
+              "str",
+              "baseline_quantum_storage.h:x"
+            ],
+            [
+              "ContractingDecimal",
+              "2"
+            ]
+          ]
+        ]
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "Decimal",
+            "2.00"
+          ],
+          [
+            "ContractingDecimal",
+            "2"
+          ],
+          [
+            "ContractingDecimal",
+            "2"
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "quantum_nested_storage": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        [
+          [
+            [
+              "str",
+              "baseline_quantum_nested_storage.v"
+            ],
+            [
+              "list",
+              [
+                [
+                  "Decimal",
+                  "2.00"
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "Decimal",
+                "2.00"
+              ]
+            ]
+          ],
+          [
+            "bool",
+            false
+          ]
+        ]
+      ]
+    },
+    "quantum_cross_contract": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "Decimal",
+            "2.00"
+          ],
+          [
+            "str",
+            "2.00"
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "Decimal",
+            "3.00"
+          ]
+        ]
+      ]
+    },
+    "quantum_cross_type_check": {
+      "admission": "rejected",
+      "diagnostic": "LintingError"
+    },
+    "quantum_sqrt_exact": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "Decimal",
+        "2.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      ]
+    },
+    "quantum_zero_power": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "Decimal",
+        "-0"
+      ]
+    },
+    "quantum_underflow": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "Decimal",
+        "-0E-190"
+      ]
+    },
+    "quantum_negative_zero_format": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "0.00"
+      ]
+    },
+    "quantum_grouped_zero_pad": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "-00,000.00"
+      ]
+    },
+    "quantum_alternate_format": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "module _pydecimal cannot be imported in a smart contract.",
+      "exception_type": "ImportError"
+    },
+    "quantum_engineering": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "2.00"
+          ],
+          [
+            "str",
+            "100E-9"
+          ],
+          [
+            "str",
+            "0.0E+9"
+          ],
+          [
+            "str",
+            "-0.0E-6"
           ]
         ]
       ]

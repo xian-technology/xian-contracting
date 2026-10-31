@@ -8,6 +8,7 @@ fn check_key(key: &VmValue) -> Result<(), VmExecutionError> {
         | VmValue::Bool(_)
         | VmValue::Int(_)
         | VmValue::Float(_)
+        | VmValue::RawDecimal(_)
         | VmValue::String(_)
         | VmValue::Bytes(_)
         | VmValue::FrozenSet(_)

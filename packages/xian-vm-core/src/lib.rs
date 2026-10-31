@@ -14,8 +14,10 @@ mod rendering;
 pub use heap::VmReference;
 mod interpreter;
 mod metering;
+mod raw_decimal;
 mod storage_scan;
 mod values;
+pub use raw_decimal::VmRawDecimal;
 
 pub const XIAN_IR_V1: &str = "xian_ir_v1";
 pub const XIAN_VM_V1_PROFILE: &str = "xian_vm_v1";

@@ -947,5 +947,167 @@
   {
     "id": "starred_module_unpack",
     "source": "a,*b=range(4)\nx=y=b\n@export\ndef probe():\n    return [a,b,x is y]\n"
+  },
+  {
+    "id": "quantum_result",
+    "source": "@export\ndef probe():\n    return round(decimal('2'),2)\n"
+  },
+  {
+    "id": "quantum_type_and_text",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    return [str(x),format(x),isinstance(x,decimal),str([x]),decimal(x),isinstance(decimal(x),decimal)]\n"
+  },
+  {
+    "id": "quantum_negative_zero",
+    "source": "@export\ndef probe():\n    x=round(decimal('-0.001'),2)\n    return [x,str(x),str(-x),str(+x),str(abs(x)),float(x),bool(x),x==0]\n"
+  },
+  {
+    "id": "quantum_round_again",
+    "source": "@export\ndef probe():\n    x=round(decimal('1.234'),3)\n    return [round(x,2),round(x),round(x,None),round(x,-1)]\n"
+  },
+  {
+    "id": "quantum_add_sub",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    y=round(decimal('1.5'),3)\n    return [x+y,x-y,x+1,1+x,x-1,1-x,x-x]\n"
+  },
+  {
+    "id": "quantum_multiply",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    y=round(decimal('-1.5'),3)\n    return [x*y,x*3,3*x,x*0]\n"
+  },
+  {
+    "id": "quantum_division",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    y=round(decimal('1.5'),3)\n    return [x/2,x/3,x/y,2/x,1/x,x//y,x%y,divmod(x,y)]\n"
+  },
+  {
+    "id": "quantum_powers",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    return [x**2,x**-2,2**x,pow(x,3),x**0]\n"
+  },
+  {
+    "id": "quantum_sqrt",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    return x**round(decimal('0.5'),1)\n"
+  },
+  {
+    "id": "quantum_mixed_fixed",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    y=decimal('1.5')\n    return [x+y,y+x,x*y,y*x,x/y,y/x,x-y,y-x]\n"
+  },
+  {
+    "id": "quantum_mixed_bool",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    return [x+True,True-x,x*False,x==2,x>True]\n"
+  },
+  {
+    "id": "quantum_mixed_float_error",
+    "source": "@export\ndef probe():\n    return round(decimal('2'),2)+float('1')\n"
+  },
+  {
+    "id": "quantum_precision",
+    "source": "@export\ndef probe():\n    x=round(decimal('1'),2)/3\n    return [x,x*3,decimal(x)]\n"
+  },
+  {
+    "id": "quantum_beyond_fixed",
+    "source": "@export\ndef probe():\n    x=round(decimal('1'),2)\n    return [str(x*(10**70)),str(x/(10**40))]\n"
+  },
+  {
+    "id": "quantum_comparison",
+    "source": "@export\ndef probe():\n    x=round(decimal('0.1'),2)\n    return [x==float('0.1'),x<float('0.1'),x==decimal('0.1'),x==1,x=='0.10']\n"
+  },
+  {
+    "id": "quantum_dict_key",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    d={x:'first',2:'last'}\n    return [len(d),list(d.items()),d[x],x in d]\n"
+  },
+  {
+    "id": "quantum_set_members",
+    "source": "@export\ndef probe():\n    x=round(decimal('2'),2)\n    s=set([x])\n    return [list(s),isinstance(s,set)]\n"
+  },
+  {
+    "id": "quantum_format",
+    "source": "@export\ndef probe():\n    x=round(decimal('12.345'),3)\n    return [format(x,'.2f'),format(x,'08.2f'),format(x,'+.2e'),format(x,'.4g'),format(x,'.1%'),format(x,'>10.2f')]\n"
+  },
+  {
+    "id": "quantum_zero_quantum",
+    "source": "@export\ndef probe():\n    return [round(decimal('0'),2),round(decimal('0'),8),round(decimal('1'),-3)]\n"
+  },
+  {
+    "id": "quantum_integer_float",
+    "source": "@export\ndef probe():\n    x=round(decimal('-2.345'),3)\n    return [int(x),float(x),abs(x),+x,-x]\n"
+  },
+  {
+    "id": "quantum_max_quantum",
+    "source": "@export\ndef probe():\n    return round(decimal('2'),90)\n"
+  },
+  {
+    "id": "quantum_too_precise",
+    "source": "@export\ndef probe():\n    return round(decimal('2'),91)\n"
+  },
+  {
+    "id": "quantum_min_quantum",
+    "source": "@export\ndef probe():\n    return round(decimal('0'),190)\n"
+  },
+  {
+    "id": "quantum_too_tiny_quantum",
+    "source": "@export\ndef probe():\n    return round(decimal('0'),191)\n"
+  },
+  {
+    "id": "quantum_max_positive_exponent",
+    "source": "@export\ndef probe():\n    return round(decimal('-1'),-100)\n"
+  },
+  {
+    "id": "quantum_exponent_overflow",
+    "source": "@export\ndef probe():\n    return round(decimal('1'),-101)\n"
+  },
+  {
+    "id": "quantum_huge_places",
+    "source": "@export\ndef probe():\n    return round(decimal('1'),10**50)\n"
+  },
+  {
+    "id": "quantum_divide_zero",
+    "source": "@export\ndef probe():\n    return round(decimal('1'),2)/0\n"
+  },
+  {
+    "id": "quantum_storage",
+    "source": "v=Variable()\nh=Hash()\n@export\ndef probe():\n    x=round(decimal('2'),2)\n    v.set(x)\n    h['x']=x\n    return [x,v.get(),h['x'],isinstance(v.get(),decimal)]\n"
+  },
+  {
+    "id": "quantum_nested_storage",
+    "source": "v=Variable()\n@export\ndef probe():\n    x=round(decimal('2'),2)\n    v.set([x])\n    return [v.get(),isinstance(v.get()[0],decimal)]\n"
+  },
+  {
+    "id": "quantum_cross_contract",
+    "source": "import con_quantum_child\n@export\ndef probe():\n    x=round(decimal('2'),2)\n    return con_quantum_child.echo(value=x)\n",
+    "dependencies": {
+      "con_quantum_child": "@export\ndef echo(value: Any):\n    return [value,str(value),isinstance(value,decimal),value+1]\n"
+    }
+  },
+  {
+    "id": "quantum_cross_type_check",
+    "source": "import con_quantum_child\n@export\ndef probe():\n    return con_quantum_child.echo(value=round(decimal('2'),2))\n",
+    "dependencies": {
+      "con_quantum_child": "@export\ndef echo(value: decimal):\n    return value\n"
+    }
+  },
+  {
+    "id": "quantum_sqrt_exact",
+    "source": "@export\ndef probe():\n    return round(decimal('4'),2)**round(decimal('0.5'),1)\n"
+  },
+  {
+    "id": "quantum_zero_power",
+    "source": "@export\ndef probe():\n    return round(decimal('-0.001'),2)**3\n"
+  },
+  {
+    "id": "quantum_underflow",
+    "source": "@export\ndef probe():\n    return round(decimal('-1'),2)/(10**200)\n"
+  },
+  {
+    "id": "quantum_negative_zero_format",
+    "source": "@export\ndef probe():\n    return format(round(decimal('-0.001'),3),'z.2f')\n"
+  },
+  {
+    "id": "quantum_grouped_zero_pad",
+    "source": "@export\ndef probe():\n    return format(round(decimal('-0.001'),3),'010,.2f')\n"
+  },
+  {
+    "id": "quantum_alternate_format",
+    "source": "@export\ndef probe():\n    return format(round(decimal('-0.001'),3),'#.0f')\n"
+  },
+  {
+    "id": "quantum_engineering",
+    "source": "@export\ndef probe():\n    return [round(decimal('2'),2).to_eng_string(),round(decimal('0.0000001'),7).to_eng_string(),round(decimal('0'),-8).to_eng_string(),round(decimal('-0.00000001'),7).to_eng_string()]\n"
   }
 ]

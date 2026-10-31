@@ -48,7 +48,8 @@ fn round_value(value: &VmValue, digits: Option<i32>) -> Result<VmValue, VmExecut
             checked_int_value(round_integer(&number, digits.unwrap_or(0)), "round()")
         }
         VmValue::Float(number) => round_float(number, digits),
-        VmValue::Decimal(number) => round_decimal(number, digits),
+        VmValue::Decimal(number) => round_decimal(crate::VmRawDecimal::from_fixed(&number), digits),
+        VmValue::RawDecimal(number) => round_decimal(number, digits),
         other => Err(VmExecutionError::new(format!(
             "round() does not support {}",
             other.type_name()
@@ -80,23 +81,22 @@ fn round_ratio(number: &BigInt, denominator: &BigInt) -> BigInt {
     }
 }
 
-fn round_decimal(number: VmDecimal, digits: Option<i32>) -> Result<VmValue, VmExecutionError> {
-    let Some(places) = digits else {
-        return Ok(VmValue::Int(round_ratio(
-            &number.scaled,
-            &BigInt::from(10u8).pow(30),
-        )));
+fn round_decimal(
+    number: crate::VmRawDecimal,
+    digits: Option<i32>,
+) -> Result<VmValue, VmExecutionError> {
+    if let Some(places) = digits {
+        return Ok(VmValue::RawDecimal(number.quantize(places)?));
+    }
+    let integer = if number.exponent >= 0 {
+        number.integer()
+    } else {
+        round_ratio(
+            &number.coefficient,
+            &BigInt::from(10u8).pow((-number.exponent) as u32),
+        )
     };
-    if places >= 30 {
-        return Ok(VmValue::Decimal(number));
-    }
-    if places < -61 {
-        return Ok(VmValue::Decimal(VmDecimal::from_scaled(BigInt::zero())?));
-    }
-    let factor = BigInt::from(10u8).pow((30 - places) as u32);
-    // Contracting's Decimal context uses ROUND_DOWN when ndigits is supplied.
-    let rounded = (&number.scaled / &factor) * factor;
-    Ok(VmValue::Decimal(VmDecimal::from_scaled(rounded)?))
+    Ok(VmValue::Int(integer))
 }
 
 fn round_float(number: f64, digits: Option<i32>) -> Result<VmValue, VmExecutionError> {

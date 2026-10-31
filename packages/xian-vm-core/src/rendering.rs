@@ -64,6 +64,7 @@ impl Renderer {
             return self.sequence(items, open, close, depth);
         }
         match value {
+            VmValue::RawDecimal(value) if nested => self.push(&format!("Decimal('{value}')")),
             VmValue::String(text) if nested => self.push(&quoted(text)),
             VmValue::Dict(entries) => self.dictionary(entries, depth),
             VmValue::Exception(exception) => {

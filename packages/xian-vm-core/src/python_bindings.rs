@@ -260,7 +260,7 @@ impl VmHost for PythonBundleExecutor {
 
     fn record_storage_write(&mut self, key: &str, value: &VmValue) -> Result<(), VmExecutionError> {
         self.storage_overlay
-            .insert(key.to_owned(), value.detached()?);
+            .insert(key.to_owned(), value.storage_value()?);
         Ok(())
     }
 
@@ -687,6 +687,15 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
                     .collect::<Result<Vec<_>, _>>()?;
                 return Ok(VmValue::FrozenSet(values));
             }
+            ("decimal", "Decimal") => {
+                return Ok(VmValue::RawDecimal(crate::VmRawDecimal::parse(
+                    value
+                        .str()
+                        .map_err(|error| VmExecutionError::new(error.to_string()))?
+                        .to_str()
+                        .map_err(|error| VmExecutionError::new(error.to_string()))?,
+                )?));
+            }
             ("xian_runtime_types.decimal", "ContractingDecimal") => {
                 return Ok(VmValue::Decimal(VmDecimal::from_str_literal(
                     value
@@ -764,6 +773,10 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
                 .unbind())
         }
         VmValue::Float(value) => Ok(value.into_pyobject(py)?.into_any().unbind()),
+        VmValue::RawDecimal(value) => Ok(PyModule::import(py, "decimal")?
+            .getattr("Decimal")?
+            .call1((value.to_string(),))?
+            .unbind()),
         VmValue::Decimal(value) => {
             let module = PyModule::import(py, "xian_runtime_types.decimal")?;
             Ok(module

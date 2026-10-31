@@ -299,6 +299,9 @@ fn vm_value_to_json(value: &VmValue) -> Result<Value, VmExecutionError> {
             serde_json::Number::from_f64(*value)
                 .ok_or_else(|| VmExecutionError::new("cannot encode non-finite float"))?,
         ),
+        VmValue::RawDecimal(value) => {
+            return vm_value_to_json(&VmValue::Decimal(value.to_fixed()?))
+        }
         VmValue::Decimal(value) => {
             let mut object = Map::new();
             object.insert("__fixed__".to_owned(), Value::String(value.to_string()));

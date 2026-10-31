@@ -240,6 +240,7 @@ enum VmSetKey {
     Bytes(Vec<u8>),
     Tuple(Vec<VmSetKey>),
     FrozenSet(Vec<VmSetKey>),
+    RawDecimal(BigInt),
 }
 
 pub(super) fn set_like_values(value: &VmValue) -> Option<&[VmValue]> {
@@ -279,6 +280,7 @@ fn vm_set_key(value: &VmValue) -> Result<VmSetKey, VmExecutionError> {
         VmValue::Bool(value) => Ok(VmSetKey::Bool(*value)),
         VmValue::Int(value) => Ok(VmSetKey::Int(value.clone())),
         VmValue::Decimal(value) => Ok(VmSetKey::Decimal(value.scaled.clone())),
+        VmValue::RawDecimal(value) => Ok(VmSetKey::RawDecimal(value.sort_key())),
         VmValue::Float(value) => Ok(VmSetKey::Float(format!("{value:?}"))),
         VmValue::DateTime(value) => Ok(VmSetKey::DateTime((
             value.year(),
@@ -405,6 +407,14 @@ pub(super) fn apply_binary_operator(
     } else {
         (bool_number(left), bool_number(right))
     };
+    if (matches!(left, VmValue::RawDecimal(_)) || matches!(right, VmValue::RawDecimal(_)))
+        && !matches!(left, VmValue::Decimal(_))
+        && !matches!(right, VmValue::Decimal(_))
+    {
+        let left = crate::VmRawDecimal::from_value(&left)?;
+        let right = crate::VmRawDecimal::from_value(&right)?;
+        return Ok(VmValue::RawDecimal(left.arithmetic(operator, &right)?));
+    }
     let coerce_decimal = |value: &VmValue, side: &str| -> Result<VmDecimal, VmExecutionError> {
         VmDecimal::from_vm_value(value).map_err(|err| {
             VmExecutionError::new(format!(
@@ -772,6 +782,7 @@ pub(super) fn apply_unary_operator(
             VmValue::Int(value) => Ok(VmValue::Int(-value)),
             VmValue::Float(value) => Ok(VmValue::Float(-value)),
             VmValue::Decimal(value) => Ok(VmValue::Decimal(VmDecimal::from_scaled(-value.scaled)?)),
+            VmValue::RawDecimal(value) => Ok(VmValue::RawDecimal(value.unary("neg")?)),
             other => Err(VmExecutionError::new(format!(
                 "unsupported neg operand {}",
                 other.type_name()
@@ -781,6 +792,7 @@ pub(super) fn apply_unary_operator(
             VmValue::Int(value) => Ok(VmValue::Int(value)),
             VmValue::Float(value) => Ok(VmValue::Float(value)),
             VmValue::Decimal(value) => Ok(VmValue::Decimal(value)),
+            VmValue::RawDecimal(value) => Ok(VmValue::RawDecimal(value.unary("pos")?)),
             VmValue::TimeDelta(value) => Ok(VmValue::TimeDelta(value)),
             other => Err(VmExecutionError::new(format!(
                 "unsupported pos operand {}",
@@ -1151,6 +1163,7 @@ pub(super) fn format_builtin_value(
     let value = &value.snapshot();
     match value {
         VmValue::Int(value) => format_bigint(value, spec),
+        VmValue::RawDecimal(value) => value.format(spec),
         VmValue::String(value) if spec.is_empty() => Ok(value.clone()),
         VmValue::Bool(_)
         | VmValue::Float(_)
@@ -2054,6 +2067,10 @@ fn compare_values_at(
             Ok(left.raw_seconds.cmp(&right.raw_seconds))
         }
         (VmValue::Bool(left), VmValue::Bool(right)) => Ok(left.cmp(right)),
+        (VmValue::RawDecimal(left), right) => left.compare_value(right),
+        (left, VmValue::RawDecimal(right)) => {
+            right.compare_value(left).map(std::cmp::Ordering::reverse)
+        }
         (VmValue::Decimal(left), VmValue::Decimal(right)) => Ok(left.scaled.cmp(&right.scaled)),
         (VmValue::Decimal(left), right) => {
             Ok(left.scaled.cmp(&VmDecimal::from_vm_value(right)?.scaled))
@@ -2121,11 +2138,19 @@ pub(super) fn compare_numeric_values(
 ) -> Result<Option<std::cmp::Ordering>, VmExecutionError> {
     let left_numeric = matches!(
         left,
-        VmValue::Bool(_) | VmValue::Int(_) | VmValue::Float(_) | VmValue::Decimal(_)
+        VmValue::Bool(_)
+            | VmValue::Int(_)
+            | VmValue::Float(_)
+            | VmValue::Decimal(_)
+            | VmValue::RawDecimal(_)
     );
     let right_numeric = matches!(
         right,
-        VmValue::Bool(_) | VmValue::Int(_) | VmValue::Float(_) | VmValue::Decimal(_)
+        VmValue::Bool(_)
+            | VmValue::Int(_)
+            | VmValue::Float(_)
+            | VmValue::Decimal(_)
+            | VmValue::RawDecimal(_)
     );
     if !left_numeric || !right_numeric {
         return Ok(None);
@@ -2135,6 +2160,8 @@ pub(super) fn compare_numeric_values(
         (VmValue::Bool(left), VmValue::Bool(right)) => Ok(Some(left.cmp(right))),
         (VmValue::Bool(_), _)
         | (_, VmValue::Bool(_))
+        | (VmValue::RawDecimal(_), _)
+        | (_, VmValue::RawDecimal(_))
         | (VmValue::Decimal(_), _)
         | (_, VmValue::Decimal(_))
         | (VmValue::Int(_), VmValue::Int(_))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Iterable
 
 from xian_runtime_types.decimal import ContractingDecimal
@@ -47,6 +48,8 @@ def _canonical_key(value):
         return (9, tuple(_canonical_key(item) for item in value))
     if isinstance(value, ContractingFrozenSet):
         return (10, tuple(_canonical_key(item) for item in value))
+    if isinstance(value, Decimal) and value.is_finite():
+        return (11, value)
     raise TypeError(f"unhashable type: '{type(value).__name__}'")
 
 

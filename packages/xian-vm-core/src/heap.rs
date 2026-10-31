@@ -257,6 +257,7 @@ fn shallow_bytes(value: &VmValue) -> usize {
         VmValue::Bytes(v) | VmValue::ByteArray(v) => v.len(),
         VmValue::Int(v) => v.bits().div_ceil(8) as usize,
         VmValue::Decimal(v) => v.scaled.bits().div_ceil(8) as usize,
+        VmValue::RawDecimal(v) => v.coefficient.bits().div_ceil(8) as usize,
         VmValue::Iterator(v) => v.allocation_bytes(),
         VmValue::Range(v) => v.allocation_bytes(),
         VmValue::View(_) => std::mem::size_of::<crate::VmDictView>(),

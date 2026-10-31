@@ -1,3 +1,4 @@
+use crate::VmRawDecimal;
 use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, Timelike};
 use num_bigint::{BigInt, Sign};
 use num_traits::{Signed, ToPrimitive, Zero};
@@ -98,6 +99,7 @@ impl VmDecimal {
         let value = &value.snapshot();
         match value {
             VmValue::Decimal(value) => Ok(value.clone()),
+            VmValue::RawDecimal(value) => value.to_fixed(),
             VmValue::Int(value) => Self::from_str_literal(&value.to_string()),
             VmValue::Float(value) => Self::from_str_literal(&value.to_string()),
             VmValue::Bool(value) => Self::from_str_literal(if *value { "1" } else { "0" }),
@@ -319,7 +321,7 @@ fn decimal_max_scaled() -> &'static BigInt {
     MAX_SCALED.get_or_init(|| BigInt::from(10u8).pow(DECIMAL_MAX_SCALED_DIGITS) - BigInt::from(1u8))
 }
 
-fn bigint_integer_sqrt(value: &BigInt) -> BigInt {
+pub(crate) fn bigint_integer_sqrt(value: &BigInt) -> BigInt {
     if value.sign() != Sign::Plus {
         return BigInt::zero();
     }
@@ -681,6 +683,7 @@ pub enum VmValue {
     Int(BigInt),
     Float(f64),
     Decimal(VmDecimal),
+    RawDecimal(VmRawDecimal),
     DateTime(VmDateTime),
     TimeDelta(VmTimeDelta),
     String(String),
@@ -702,6 +705,13 @@ pub enum VmValue {
 }
 
 impl VmValue {
+    pub(crate) fn storage_value(&self) -> Result<Self, VmExecutionError> {
+        match self.detached()? {
+            Self::RawDecimal(value) => Ok(Self::Decimal(value.to_fixed()?)),
+            value => Ok(value),
+        }
+    }
+
     pub(crate) fn truthy(&self) -> bool {
         match self {
             Self::Reference(value) => value.value().truthy(),
@@ -713,6 +723,7 @@ impl VmValue {
             Self::Int(value) => !value.is_zero(),
             Self::Float(value) => *value != 0.0,
             Self::Decimal(value) => !value.is_zero(),
+            Self::RawDecimal(value) => !value.is_zero(),
             Self::DateTime(_) => true,
             Self::TimeDelta(value) => value.seconds() != 0,
             Self::String(value) => !value.is_empty(),
@@ -749,6 +760,7 @@ impl VmValue {
             Self::Int(value) => value.to_string(),
             Self::Float(value) => format!("{value:?}"),
             Self::Decimal(value) => value.python_repr(),
+            Self::RawDecimal(value) => value.to_string(),
             Self::DateTime(value) => value.to_string(),
             Self::TimeDelta(value) => value.to_string(),
             Self::String(value) => value.clone(),
@@ -867,6 +879,7 @@ impl VmValue {
             Self::Int(_) => "int",
             Self::Float(_) => "float",
             Self::Decimal(_) => "decimal",
+            Self::RawDecimal(_) => "Decimal",
             Self::DateTime(_) => "datetime",
             Self::TimeDelta(_) => "timedelta",
             Self::String(_) => "str",

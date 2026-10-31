@@ -37,3 +37,30 @@ pub(super) fn foreign_key(options: &HashMap<String, VmValue>) -> Result<String, 
         .as_string()?;
     Ok(foreign_storage_key(&contract, &name))
 }
+
+pub(super) fn variable_type(value: &VmValue) -> Option<VmValue> {
+    let value = value.snapshot();
+    match &value {
+        VmValue::TypeMarker(_) => Some(value),
+        VmValue::Builtin(name)
+            if matches!(
+                name.as_str(),
+                "bool"
+                    | "int"
+                    | "float"
+                    | "str"
+                    | "bytes"
+                    | "bytearray"
+                    | "list"
+                    | "tuple"
+                    | "dict"
+                    | "set"
+                    | "frozenset"
+                    | "Exception"
+            ) =>
+        {
+            Some(value)
+        }
+        _ => None,
+    }
+}
