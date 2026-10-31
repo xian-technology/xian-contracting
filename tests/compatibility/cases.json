@@ -823,5 +823,25 @@
   {
     "id": "unicode_float_unicode_space",
     "source": "@export\ndef probe():\n    return float('\\u2003\u0661.\u0665\\u2003')\n"
+  },
+  {
+    "id": "module_repeated",
+    "source": "x=1\nx=x+2\n@export\ndef probe():\n    return x\n"
+  },
+  {
+    "id": "module_default_order",
+    "source": "x=1\ndef first(v=x):\n    return v\nx=2\ndef second(v=x):\n    return v\nx=3\n@export\ndef probe():\n    return [first(),second(),x]\n"
+  },
+  {
+    "id": "module_alias_rebind",
+    "source": "x=[]\ny=x\nx=[3]\ny.append(2)\n@export\ndef probe():\n    return [x,y,x is y]\n"
+  },
+  {
+    "id": "module_same_line",
+    "source": "x=1; x=x+1; x=x*2\n@export\ndef probe():\n    return x\n"
+  },
+  {
+    "id": "module_dependent",
+    "source": "x=1\ny=x\nx=y+3\ny=x*2\n@export\ndef probe():\n    return [x,y]\n"
   }
 ]

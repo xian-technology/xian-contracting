@@ -170,6 +170,7 @@ class XianIrLowerer:
             body = body[1:]
 
         self._inspect_module_bindings(body)
+        self._validate_module_bindings(body)
         functions_to_infer = [node for node in body if isinstance(node, ast.FunctionDef)]
         self._refresh_contract_handle_inference(functions_to_infer)
 
@@ -177,13 +178,19 @@ class XianIrLowerer:
         global_declarations: list[dict[str, Any]] = []
         functions: list[dict[str, Any]] = []
         module_body: list[dict[str, Any]] = []
+        declared = set()
 
         for node in body:
             if isinstance(node, ast.Import):
                 imports.extend(self._lower_import(node))
                 continue
             if isinstance(node, ast.Assign):
-                global_declarations.append(self._lower_global_declaration(node))
+                name = node.targets[0].id if isinstance(node.targets[0], ast.Name) else None
+                if name is not None and name in declared:
+                    module_body.append(self._lower_statement(node))
+                else:
+                    global_declarations.append(self._lower_global_declaration(node))
+                    declared.add(name)
                 continue
             if isinstance(node, ast.FunctionDef):
                 functions.append(self._lower_function(node))
@@ -206,6 +213,29 @@ class XianIrLowerer:
                 key=lambda spec: spec["id"],
             ),
         }
+
+    def _validate_module_bindings(self, body):
+        fixed = set(self._storage_bindings) | self._event_bindings | set(self._host_module_aliases)
+        seen = {}
+        for node in body:
+            if isinstance(node, ast.Import):
+                bindings = [(alias.asname or alias.name, "import") for alias in node.names]
+            elif isinstance(node, ast.FunctionDef):
+                bindings = [(node.name, "function")]
+            elif (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+            ):
+                bindings = [(node.targets[0].id, "global")]
+            else:
+                continue
+            for name, kind in bindings:
+                if name in seen and (kind != "global" or seen[name] != "global" or name in fixed):
+                    self._raise_unsupported(
+                        node, f"duplicate or conflicting module binding '{name}'"
+                    )
+                seen[name] = kind
 
     def _record_host_dependency(
         self,

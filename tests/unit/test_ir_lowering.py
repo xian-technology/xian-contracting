@@ -68,9 +68,7 @@ def transfer(amount: int, to: str):
 
         self.assertEqual(ir["ir_version"], XIAN_IR_V1)
         self.assertEqual(ir["vm_profile"], XIAN_VM_V1_PROFILE)
-        self.assertEqual(
-            ir["host_catalog_version"], XIAN_VM_HOST_CATALOG_V1
-        )
+        self.assertEqual(ir["host_catalog_version"], XIAN_VM_HOST_CATALOG_V1)
         self.assertEqual(ir["module_name"], "sample_token")
         self.assertEqual(len(ir["global_declarations"]), 3)
         self.assertEqual(len(ir["imports"]), 1)
@@ -123,8 +121,7 @@ def render(values: list[int]) -> int:
 
     def test_lower_to_ir_and_python_codegen_preserve_annotation_matrix(self):
         args = ", ".join(
-            f"arg_{index}: {annotation}"
-            for index, annotation in enumerate(self.ANNOTATION_MATRIX)
+            f"arg_{index}: {annotation}" for index, annotation in enumerate(self.ANNOTATION_MATRIX)
         )
         source = f"""
 @export
@@ -314,9 +311,7 @@ def snapshot(group: str):
         compiler = ContractingCompiler(module_name="prefix_scan")
 
         ir = compiler.lower_to_ir(source)
-        snapshot = next(
-            function for function in ir["functions"] if function["name"] == "snapshot"
-        )
+        snapshot = next(function for function in ir["functions"] if function["name"] == "snapshot")
         returned = snapshot["body"][0]["value"]
         dependency_ids = {item["id"] for item in ir["host_dependencies"]}
 
@@ -356,9 +351,7 @@ def prices(values: list[int]):
         compiler = ContractingCompiler(module_name="dict_comprehensions")
 
         ir = compiler.lower_to_ir(source)
-        prices = next(
-            function for function in ir["functions"] if function["name"] == "prices"
-        )
+        prices = next(function for function in ir["functions"] if function["name"] == "prices")
         returned = prices["body"][0]["value"]
 
         self.assertEqual(returned["node"], "dict_comp")
@@ -378,9 +371,7 @@ def payload(base: dict, override: dict):
         compiler = ContractingCompiler(module_name="dict_unpack")
 
         ir = compiler.lower_to_ir(source)
-        payload = next(
-            function for function in ir["functions"] if function["name"] == "payload"
-        )
+        payload = next(function for function in ir["functions"] if function["name"] == "payload")
         returned = payload["body"][0]["value"]
 
         self.assertEqual(returned["node"], "dict")
@@ -509,3 +500,16 @@ def probe():
             ir["global_declarations"][0]["value"]["value"],
             "21888242871839275222246405745257275088548364400416034343698204186575808495617",
         )
+
+
+def test_repeated_plain_module_binding_is_ordered():
+    from contracting.compilation.lowering import XianIrLowerer
+    import ast
+
+    source = "x=1\nx=x+1\n"
+    ir = XianIrLowerer(module_name="con_repeat", profile="xian_vm_v1").lower(
+        ast.parse(source), source=source
+    )
+    assert len(ir["global_declarations"]) == 1
+    assert ir["module_body"][0]["node"] == "assign"
+    assert ir["module_body"][0]["span"]["line"] == 2

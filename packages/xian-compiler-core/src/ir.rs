@@ -563,8 +563,15 @@ impl<'a> IrLowerer<'a> {
 
     fn lower(mut self) -> Result<Value, IrLoweringError> {
         let (docstring, body) = split_docstring(&self.module.body);
-        validate_unique_module_bindings(body)?;
         self.inspect_module_bindings(body);
+        let fixed_bindings = self
+            .storage_bindings
+            .keys()
+            .chain(self.event_bindings.iter())
+            .chain(self.host_module_aliases.keys())
+            .cloned()
+            .collect();
+        validate_unique_module_bindings(body, &fixed_bindings)?;
         let functions = body
             .iter()
             .filter_map(|statement| match statement {
@@ -578,12 +585,20 @@ impl<'a> IrLowerer<'a> {
         let mut global_declarations = Vec::new();
         let mut lowered_functions = Vec::new();
         let mut module_body = Vec::new();
+        let mut declared = HashSet::new();
 
         for statement in body {
             match statement {
                 SyntaxStatement::Import { .. } => imports.extend(self.lower_import(statement)?),
-                SyntaxStatement::Assign { .. } => {
-                    global_declarations.push(self.lower_global_declaration(statement)?);
+                SyntaxStatement::Assign { targets, .. } => {
+                    let name = targets.first().and_then(name_id);
+                    if name.is_some_and(|name| !declared.insert(name.to_owned())) {
+                        // Declarations stay unique. Later ordinary assignments are
+                        // executable initialization steps, ordered by source span.
+                        module_body.push(self.lower_statement(statement)?);
+                    } else {
+                        global_declarations.push(self.lower_global_declaration(statement)?);
+                    }
                 }
                 SyntaxStatement::FunctionDef { .. } => {
                     lowered_functions.push(self.lower_function(statement)?);
@@ -2026,7 +2041,10 @@ fn split_docstring(statements: &[SyntaxStatement]) -> (Option<String>, &[SyntaxS
     }
 }
 
-fn validate_unique_module_bindings(statements: &[SyntaxStatement]) -> Result<(), IrLoweringError> {
+fn validate_unique_module_bindings(
+    statements: &[SyntaxStatement],
+    fixed_bindings: &HashSet<String>,
+) -> Result<(), IrLoweringError> {
     let mut imports = HashSet::new();
     let mut globals = HashSet::new();
     let mut functions = HashSet::new();
@@ -2046,7 +2064,7 @@ fn validate_unique_module_bindings(statements: &[SyntaxStatement]) -> Result<(),
             }
             SyntaxStatement::Assign { targets, .. } if targets.len() == 1 => {
                 if let Some(name) = name_id(&targets[0]) {
-                    if !globals.insert(name.to_owned()) {
+                    if !globals.insert(name.to_owned()) && fixed_bindings.contains(name) {
                         return Err(IrLoweringError::new(
                             format!("duplicate global declaration '{name}'"),
                             Some(expression_span(&targets[0])),
@@ -2064,6 +2082,17 @@ fn validate_unique_module_bindings(statements: &[SyntaxStatement]) -> Result<(),
             }
             _ => {}
         }
+    }
+
+    if let Some(name) = globals
+        .iter()
+        .find(|name| imports.contains(*name) || functions.contains(*name))
+        .or_else(|| imports.iter().find(|name| functions.contains(*name)))
+    {
+        return Err(IrLoweringError::new(
+            format!("conflicting module binding '{name}'"),
+            None,
+        ));
     }
 
     Ok(())
@@ -2793,6 +2822,34 @@ mod tests {
         assert!(diagnostics[0]
             .message
             .contains("f-string format specifications are not supported"));
+    }
+
+    #[test]
+    fn ordinary_reassignment_is_an_ordered_module_statement() {
+        let source = "x=1\nx=x+1\n@export\ndef probe():\n    return x\n";
+        let ir = lower_source_to_ir_json("con_rebind", source, &CompileOptions::default()).unwrap();
+        let module: Value = serde_json::from_str(&ir).unwrap();
+        assert_eq!(module["global_declarations"].as_array().unwrap().len(), 1);
+        assert_eq!(module["module_body"][0]["node"], "assign");
+        assert_eq!(module["module_body"][0]["span"]["line"], 2);
+    }
+
+    #[test]
+    fn fixed_module_bindings_cannot_be_reassigned() {
+        for prefix in [
+            "x=Hash()\nx=Hash()",
+            "x=Hash()\nx=1",
+            "x=1\nx=Variable()",
+            "import con_x as x\nx=1",
+            "x=hashlib\nx=1",
+            "x=1\ndef x():\n    return 1",
+        ] {
+            let source = format!("{prefix}\n@export\ndef probe():\n    return 1\n");
+            assert!(
+                lower_source_to_ir_json("con_rebind", &source, &CompileOptions::default()).is_err(),
+                "{source}"
+            );
+        }
     }
 
     #[test]

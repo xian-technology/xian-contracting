@@ -2,7 +2,7 @@
   "revision": "3b82001f2d587bbfb51f3d9235a2a8dcd0078a9a",
   "python": "3.12.10",
   "dependency_lock_sha256": "d6e2fc9493ba30f7eeda91769f3c3c74e398197127996c3de2d6e98d9fced726",
-  "cases_sha256": "55431ce0a08fca65e08ede9800b4ea97ea4665bd55a5cb6504dad8a9b5e313a3",
+  "cases_sha256": "017f74fc34934fdb120bb94f61d6e5983528dd800eb3a8e041eff2dc843e25d0",
   "runner_sha256": "c2941b8697449adfecb2716cdc45337648186de30734bf2257f440cf9bc80818",
   "observations": {
     "typed_values": {
@@ -5733,6 +5733,131 @@
       "result": [
         "float",
         "0x1.8000000000000p+0"
+      ]
+    },
+    "module_repeated": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "int",
+        3
+      ]
+    },
+    "module_default_order": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            1
+          ],
+          [
+            "int",
+            2
+          ],
+          [
+            "int",
+            3
+          ]
+        ]
+      ]
+    },
+    "module_alias_rebind": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "int",
+                3
+              ]
+            ]
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                2
+              ]
+            ]
+          ],
+          [
+            "bool",
+            false
+          ]
+        ]
+      ]
+    },
+    "module_same_line": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "int",
+        4
+      ]
+    },
+    "module_dependent": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            4
+          ],
+          [
+            "int",
+            8
+          ]
+        ]
       ]
     }
   }
