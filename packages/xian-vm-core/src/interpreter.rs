@@ -2793,6 +2793,9 @@ impl VmInstance {
                 ]))
             }
             "random.shuffle" => shuffle_shared(&shared_args, &shared_kwargs, host),
+            "random.choice" | "random.choices" => {
+                random_selection_shared(syscall_id, shared_args, shared_kwargs, host)
+            }
             other => {
                 // Contract metadata syscalls are checked against the contract
                 // executing right now, not the transaction's entry contract,

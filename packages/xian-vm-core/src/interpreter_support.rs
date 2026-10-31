@@ -3476,3 +3476,67 @@ pub(super) fn shuffle_shared(
     reference.replace(updated)?;
     Ok(VmValue::None)
 }
+
+/// Ask the deterministic host to select positions, keeping selected objects shared.
+pub(super) fn random_selection_shared(
+    syscall: &str,
+    mut args: Vec<VmValue>,
+    mut kwargs: Vec<(String, VmValue)>,
+    host: &mut dyn VmHost,
+) -> Result<VmValue, VmExecutionError> {
+    if let Some(cost) = explicit_syscall_metering_cost(syscall, &args, &kwargs)? {
+        host.charge_execution_cost(cost)?;
+    }
+    let values = replace_random_population(&mut args, &mut kwargs);
+    let selected = host.handle_syscall(
+        syscall,
+        args.iter()
+            .map(VmValue::detached)
+            .collect::<Result<_, _>>()?,
+        kwargs
+            .into_iter()
+            .map(|(key, value)| Ok((key, value.detached()?)))
+            .collect::<Result<_, VmExecutionError>>()?,
+    )?;
+    let Some(values) = values else {
+        return Ok(selected);
+    };
+    if syscall == "random.choices" {
+        return Ok(VmValue::List(
+            iterate_value(&selected)?
+                .iter()
+                .map(|index| selected_object(&values, index))
+                .collect::<Result<_, _>>()?,
+        ));
+    }
+    selected_object(&values, &selected)
+}
+
+fn replace_random_population(
+    args: &mut [VmValue],
+    kwargs: &mut [(String, VmValue)],
+) -> Option<Vec<VmValue>> {
+    let source = args.first_mut().or_else(|| {
+        kwargs
+            .iter_mut()
+            .find(|(key, _)| key == "items")
+            .map(|(_, value)| value)
+    })?;
+    let values = match source.snapshot() {
+        VmValue::List(values) | VmValue::Tuple(values) => values,
+        _ => return None,
+    };
+    *source = VmValue::List((0..values.len()).map(vm_int).collect());
+    Some(values)
+}
+
+fn selected_object(values: &[VmValue], index: &VmValue) -> Result<VmValue, VmExecutionError> {
+    let index = index
+        .as_bigint()?
+        .to_usize()
+        .ok_or_else(|| VmExecutionError::new("invalid random selection index"))?;
+    values
+        .get(index)
+        .cloned()
+        .ok_or_else(|| VmExecutionError::new("invalid random selection index"))
+}

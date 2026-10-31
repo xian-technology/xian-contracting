@@ -2,7 +2,7 @@
   "revision": "3b82001f2d587bbfb51f3d9235a2a8dcd0078a9a",
   "python": "3.12.10",
   "dependency_lock_sha256": "d6e2fc9493ba30f7eeda91769f3c3c74e398197127996c3de2d6e98d9fced726",
-  "cases_sha256": "0ae0dc88d2daee8583713a9cc21b54b09da379a407ebc689171260ef5227038e",
+  "cases_sha256": "c323d98e91d6d5fdb27e002752c312322a536a003fbacf6188667dc2afb4dcea",
   "runner_sha256": "c2941b8697449adfecb2716cdc45337648186de30734bf2257f440cf9bc80818",
   "observations": {
     "typed_values": {
@@ -4093,6 +4093,70 @@
       ],
       "diagnostic": "'ContractingDecimal' object cannot be interpreted as an integer",
       "exception_type": "TypeError"
+    },
+    "random_choice_alias": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "random_choices_alias": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ]
+            ]
+          ]
+        ]
+      ]
     }
   }
 }

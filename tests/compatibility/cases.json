@@ -553,5 +553,13 @@
   {
     "id": "bytearray_reject_decimal_append",
     "source": "@export\ndef probe():\n    a = bytearray()\n    a.append(decimal(\"1.5\"))\n    return a\n"
+  },
+  {
+    "id": "random_choice_alias",
+    "source": "@export\ndef probe():\n    random.seed()\n    value = []\n    chosen = random.choice([value])\n    chosen.append(1)\n    return [chosen is value, value]\n"
+  },
+  {
+    "id": "random_choices_alias",
+    "source": "@export\ndef probe():\n    random.seed()\n    value = []\n    chosen = random.choices(items=[value], k=2)\n    chosen[0].append(1)\n    return [chosen[0] is value, chosen[0] is chosen[1], value]\n"
   }
 ]
