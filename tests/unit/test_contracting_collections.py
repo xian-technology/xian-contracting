@@ -74,3 +74,22 @@ def test_raw_decimal_special_keys_use_numeric_payload_order_and_identity():
     assert list(values)[2] is first and list(values)[3] is second
     with pytest.raises(TypeError, match="signaling NaN"):
         ContractingSet([Decimal("sNaN")])
+
+
+@pytest.mark.parametrize("constructor", [ContractingSet, ContractingFrozenSet])
+def test_float_keys_have_total_numeric_order_with_stable_nans(constructor):
+    from itertools import permutations
+
+    first, second = float("nan"), float("-nan")
+    for values in permutations([2.0, 10.0, float("inf"), first, second]):
+        result = list(constructor([*values, first]))
+        assert result[:3] == [2.0, 10.0, float("inf")]
+        expected = [value for value in values if value is first or value is second]
+        assert all(actual is wanted for actual, wanted in zip(result[3:], expected, strict=True))
+
+
+@pytest.mark.parametrize("first,second", [(0.0, -0.0), (-0.0, 0.0)])
+def test_float_zero_keys_retain_first_representation(first, second):
+    value = ContractingSet([first, second])
+    assert len(value) == 1
+    assert list(value)[0] is first

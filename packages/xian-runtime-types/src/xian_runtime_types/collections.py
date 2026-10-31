@@ -27,7 +27,9 @@ def _canonical_key(value):
     if isinstance(value, ContractingDecimal):
         return (3, value._d)
     if type(value) is float:
-        return (4, value)
+        # NaNs have one final sort key. Stable sorting preserves their input
+        # order; _values_equal separately handles identity and deduplication.
+        return (4, 1) if value != value else (4, 0, value)
     if isinstance(value, Datetime):
         return (
             5,

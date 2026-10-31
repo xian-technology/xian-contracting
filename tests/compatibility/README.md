@@ -108,6 +108,16 @@ quiet NaNs ordered by sign and payload; equal sort keys retain insertion order.
 Distinct NaN objects remain distinct members; a repeated object deduplicates.
 Signaling NaNs are not hashable.
 
+Within the float category, sets and frozen sets sort numerically from negative
+infinity through finite values to positive infinity, followed by NaNs. Equal
+zeros retain the first inserted representation. All NaN signs and payloads share
+one final sort key, so distinct NaNs preserve their insertion order while a
+repeated object deduplicates. Tuple and frozen-set keys apply this recursively.
+This is an explicit deterministic policy, not historical Python set iteration
+order. `tests/integration/test_vm_float_sets.py` compares authored programs in
+both current engines; Rust tests include binary64 boundaries and seeded bit
+patterns. Ordinary numeric equality remains independent of canonical sort keys.
+
 Resource limits are intentional: input text is at most 128 KiB, coefficient
 length and raw exponent magnitude are bounded at 131072, and transcendental
 and power operations accept at most 4096 coefficient digits and at most 4096

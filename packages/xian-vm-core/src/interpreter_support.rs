@@ -239,7 +239,7 @@ enum VmSetKey {
     Bool(bool),
     Int(BigInt),
     Decimal(BigInt),
-    Float(String),
+    Float(u64),
     DateTime((i64, i64, i64, i64, i64, i64, i64)),
     TimeDelta(i64),
     String(String),
@@ -247,6 +247,81 @@ enum VmSetKey {
     Tuple(Vec<VmSetKey>),
     FrozenSet(Vec<VmSetKey>),
     RawDecimal(RawDecimalSetKey),
+}
+
+// Sort binary64 values numerically without formatting or partial NaN comparisons.
+// Equal zeros share a key; all NaNs share the final key. Stable sorting and
+// identity-aware deduplication retain the original objects for both cases.
+fn float_set_order_key(value: f64) -> u64 {
+    if value.is_nan() {
+        return u64::MAX;
+    }
+    let bits = if value == 0.0 { 0 } else { value.to_bits() };
+    let sign = 1_u64 << 63;
+    if bits & sign != 0 {
+        !bits
+    } else {
+        bits ^ sign
+    }
+}
+
+#[cfg(test)]
+mod float_set_order_tests {
+    use super::float_set_order_key;
+
+    #[test]
+    fn keys_agree_with_numeric_comparison_across_binary64() {
+        let boundaries = [
+            f64::NEG_INFINITY,
+            -f64::MAX,
+            -f64::MIN_POSITIVE,
+            -f64::from_bits(1),
+            -0.0,
+            0.0,
+            f64::from_bits(1),
+            f64::MIN_POSITIVE,
+            f64::MAX,
+            f64::INFINITY,
+        ];
+        for left in boundaries {
+            for right in boundaries {
+                assert_eq!(
+                    float_set_order_key(left).cmp(&float_set_order_key(right)),
+                    left.partial_cmp(&right).unwrap()
+                );
+            }
+        }
+        let mut bits = 0x1234_5678_9abc_def0_u64;
+        let mut previous = f64::NEG_INFINITY;
+        for _ in 0..10_000 {
+            bits = bits.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let current = f64::from_bits(bits);
+            if !current.is_nan() {
+                assert_eq!(
+                    float_set_order_key(previous).cmp(&float_set_order_key(current)),
+                    previous.partial_cmp(&current).unwrap()
+                );
+                previous = current;
+            }
+        }
+        assert_eq!(float_set_order_key(-0.0), float_set_order_key(0.0));
+    }
+
+    #[test]
+    fn every_nan_sign_and_payload_has_the_same_final_key() {
+        for bits in [
+            0x7ff8_0000_0000_0000,
+            0xfff8_0000_0000_0000,
+            0x7ff0_0000_0000_0001,
+            0xfff0_0000_0000_0001,
+            u64::MAX,
+        ] {
+            let nan = f64::from_bits(bits);
+            assert!(nan.is_nan());
+            assert_eq!(float_set_order_key(nan), float_set_order_key(f64::NAN));
+            assert!(float_set_order_key(nan) > float_set_order_key(f64::INFINITY));
+        }
+    }
 }
 
 // Numeric ordering is exact even for constructor values below context Etiny.
@@ -319,7 +394,7 @@ fn vm_set_key(value: &VmValue) -> Result<VmSetKey, VmExecutionError> {
             }
             Ok(VmSetKey::RawDecimal(RawDecimalSetKey(value.clone())))
         }
-        VmValue::Float(value) => Ok(VmSetKey::Float(format!("{value:?}"))),
+        VmValue::Float(value) => Ok(VmSetKey::Float(float_set_order_key(*value))),
         VmValue::DateTime(value) => Ok(VmSetKey::DateTime((
             value.year(),
             value.month(),

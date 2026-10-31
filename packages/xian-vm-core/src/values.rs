@@ -797,6 +797,7 @@ impl VmValue {
             Self::Bool(true) => "True".to_owned(),
             Self::Bool(false) => "False".to_owned(),
             Self::Int(value) => value.to_string(),
+            Self::Float(value) if value.is_nan() => "nan".to_owned(),
             Self::Float(value) => format!("{value:?}"),
             Self::Decimal(value) => value.python_repr(),
             Self::RawDecimal(value) => value.to_string(),
