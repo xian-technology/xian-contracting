@@ -1,0 +1,2114 @@
+[
+  {
+    "id": "value_str_upper_nominal",
+    "covers": [
+      "method.str.upper"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'stra\u00dfe'.upper()\n",
+    "expected_result": "STRASSE"
+  },
+  {
+    "id": "value_str_lower_nominal",
+    "covers": [
+      "method.str.lower"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'HELLO'.lower()\n",
+    "expected_result": "hello"
+  },
+  {
+    "id": "value_str_isascii_nominal",
+    "covers": [
+      "method.str.isascii"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'abc'.isascii()\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_str_isalpha_nominal",
+    "covers": [
+      "method.str.isalpha"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'abc'.isalpha()\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_str_isdigit_nominal",
+    "covers": [
+      "method.str.isdigit"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return '123'.isdigit()\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_str_islower_nominal",
+    "covers": [
+      "method.str.islower"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'abc'.islower()\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_str_isalnum_nominal",
+    "covers": [
+      "method.str.isalnum"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'abc123'.isalnum()\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_str_startswith_nominal",
+    "covers": [
+      "method.str.startswith"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'alphabet'.startswith(('beta','alpha'))\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_str_endswith_nominal",
+    "covers": [
+      "method.str.endswith"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'alphabet'.endswith('bet')\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_str_find_nominal",
+    "covers": [
+      "method.str.find"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'ababa'.find('ba',2)\n",
+    "expected_result": 3
+  },
+  {
+    "id": "value_str_count_nominal",
+    "covers": [
+      "method.str.count"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'aaaa'.count('aa')\n",
+    "expected_result": 2
+  },
+  {
+    "id": "value_str_strip_nominal",
+    "covers": [
+      "method.str.strip"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return '  x  '.strip()\n",
+    "expected_result": "x"
+  },
+  {
+    "id": "value_str_replace_nominal",
+    "covers": [
+      "method.str.replace"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'abab'.replace('a','x',1)\n",
+    "expected_result": "xbab"
+  },
+  {
+    "id": "value_str_join_nominal",
+    "covers": [
+      "method.str.join"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return '-'.join(['a','b'])\n",
+    "expected_result": "a-b"
+  },
+  {
+    "id": "value_str_split_nominal",
+    "covers": [
+      "method.str.split"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return 'a,b,c'.split(',',1)\n",
+    "expected_result": [
+      "a",
+      "b,c"
+    ]
+  },
+  {
+    "id": "value_str_format_nominal",
+    "covers": [
+      "method.str.format"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return '{{{1}}}:{0}'.format('a','b')\n",
+    "expected_result": "{b}:a"
+  },
+  {
+    "id": "value_str_find_boundary_16",
+    "covers": [
+      "method.str.find"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return 'abc'.find('',4)\n",
+    "expected_result": -1
+  },
+  {
+    "id": "value_str_count_boundary_17",
+    "covers": [
+      "method.str.count"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return ''.count('')\n",
+    "expected_result": 1
+  },
+  {
+    "id": "value_str_replace_boundary_18",
+    "covers": [
+      "method.str.replace"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return 'ab'.replace('','-',2)\n",
+    "expected_result": "-a-b"
+  },
+  {
+    "id": "value_str_split_boundary_19",
+    "covers": [
+      "method.str.split"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return '  a b  '.split(None,0)\n",
+    "expected_result": [
+      "a b  "
+    ]
+  },
+  {
+    "id": "value_str_strip_boundary_20",
+    "covers": [
+      "method.str.strip"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return 'xyx'.strip('')\n",
+    "expected_result": "xyx"
+  },
+  {
+    "id": "value_str_isascii_boundary_21",
+    "covers": [
+      "method.str.isascii"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return ''.isascii()\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_str_isalpha_boundary_22",
+    "covers": [
+      "method.str.isalpha"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return ''.isalpha()\n",
+    "expected_result": false
+  },
+  {
+    "id": "value_str_isdigit_boundary_23",
+    "covers": [
+      "method.str.isdigit"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return '\u00bc'.isdigit()\n",
+    "expected_result": false
+  },
+  {
+    "id": "value_str_isalpha_boundary_24",
+    "covers": [
+      "method.str.isalpha"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return '\u0345'.isalpha()\n",
+    "expected_result": false
+  },
+  {
+    "id": "value_str_isalnum_boundary_25",
+    "covers": [
+      "method.str.isalnum"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return '\u0345'.isalnum()\n",
+    "expected_result": false
+  },
+  {
+    "id": "value_str_islower_boundary_26",
+    "covers": [
+      "method.str.islower"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return 'a\u4e2d'.islower()\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_str_strip_boundary_27",
+    "covers": [
+      "method.str.strip"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return '\\x1cx\\x1c'.strip()\n",
+    "expected_result": "x"
+  },
+  {
+    "id": "value_str_split_boundary_28",
+    "covers": [
+      "method.str.split"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return 'a\\x1cb'.split()\n",
+    "expected_result": [
+      "a",
+      "b"
+    ]
+  },
+  {
+    "id": "value_str_join_invalid_29",
+    "covers": [
+      "method.str.join"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return ','.join(['a',1])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_str_split_invalid_30",
+    "covers": [
+      "method.str.split"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return 'x'.split('')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_str_startswith_invalid_31",
+    "covers": [
+      "method.str.startswith"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return 'x'.startswith(1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_str_format_invalid_32",
+    "covers": [
+      "method.str.format"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return '{} {0}'.format('a')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_str_format_invalid_33",
+    "covers": [
+      "method.str.format"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return '{'.format()\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_str_strip_invalid_34",
+    "covers": [
+      "method.str.strip"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return 'a'.strip(2)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_list_append_nominal",
+    "covers": [
+      "method.list.append"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a=[1]\n    a.append(2)\n    return a\n",
+    "expected_result": [
+      1,
+      2
+    ]
+  },
+  {
+    "id": "value_list_extend_nominal",
+    "covers": [
+      "method.list.extend"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a=[1]\n    a.extend(range(2,4))\n    return a\n",
+    "expected_result": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "id": "value_list_insert_nominal",
+    "covers": [
+      "method.list.insert"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a=[1,3]\n    a.insert(1,2)\n    return a\n",
+    "expected_result": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "id": "value_list_remove_nominal",
+    "covers": [
+      "method.list.remove"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a=[1,2,1]\n    a.remove(1)\n    return a\n",
+    "expected_result": [
+      2,
+      1
+    ]
+  },
+  {
+    "id": "value_list_pop_nominal",
+    "covers": [
+      "method.list.pop"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a=[1,2]\n    v=a.pop()\n    return [v,a]\n",
+    "expected_result": [
+      2,
+      [
+        1
+      ]
+    ]
+  },
+  {
+    "id": "value_list_count_nominal",
+    "covers": [
+      "method.list.count"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [1,2,1].count(1)\n",
+    "expected_result": 2
+  },
+  {
+    "id": "value_list_index_nominal",
+    "covers": [
+      "method.list.index"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [1,2,1].index(1,1)\n",
+    "expected_result": 2
+  },
+  {
+    "id": "value_list_clear_nominal",
+    "covers": [
+      "method.list.clear"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a=[1]\n    a.clear()\n    return a\n",
+    "expected_result": []
+  },
+  {
+    "id": "value_list_copy_nominal",
+    "covers": [
+      "method.list.copy"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a=[[1]]\n    b=a.copy()\n    b[0].append(2)\n    return [a,b,a is b]\n",
+    "expected_result": [
+      [
+        [
+          1,
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ]
+      ],
+      false
+    ]
+  },
+  {
+    "id": "value_list_reverse_nominal",
+    "covers": [
+      "method.list.reverse"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a=[1,2,3]\n    a.reverse()\n    return a\n",
+    "expected_result": [
+      3,
+      2,
+      1
+    ]
+  },
+  {
+    "id": "value_list_sort_nominal",
+    "covers": [
+      "method.list.sort"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a=[3,1,2]\n    a.sort(reverse=True)\n    return a\n",
+    "expected_result": [
+      3,
+      2,
+      1
+    ]
+  },
+  {
+    "id": "value_list_insert_boundary",
+    "covers": [
+      "method.list.insert"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    a=[2]\n    a.insert(-999,1)\n    a.insert(999,3)\n    return a\n",
+    "expected_result": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "id": "value_list_extend_boundary",
+    "covers": [
+      "method.list.extend"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    a=[1,2]\n    a.extend(a)\n    return a\n",
+    "expected_result": [
+      1,
+      2,
+      1,
+      2
+    ]
+  },
+  {
+    "id": "value_list_pop_boundary",
+    "covers": [
+      "method.list.pop"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    a=[1,2]\n    return a.pop(-2)\n",
+    "expected_result": 1
+  },
+  {
+    "id": "value_list_index_boundary",
+    "covers": [
+      "method.list.index"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [1,2,1].index(1,-2)\n",
+    "expected_result": 2
+  },
+  {
+    "id": "value_list_pop_invalid",
+    "covers": [
+      "method.list.pop"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return [].pop()\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_list_remove_invalid",
+    "covers": [
+      "method.list.remove"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return [].remove(1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_list_index_invalid",
+    "covers": [
+      "method.list.index"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return [1].index(2)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_list_append_invalid",
+    "covers": [
+      "method.list.append"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return [].append()\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_list_sort_invalid",
+    "covers": [
+      "method.list.sort"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return [].sort(1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_tuple_count_nominal",
+    "covers": [
+      "method.tuple.count"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return (1,2,1).count(1)\n",
+    "expected_result": 2
+  },
+  {
+    "id": "value_tuple_index_nominal",
+    "covers": [
+      "method.tuple.index"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return (1,2,1).index(2)\n",
+    "expected_result": 1
+  },
+  {
+    "id": "value_tuple_index_invalid",
+    "covers": [
+      "method.tuple.index"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return (1,2,1).index(99)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_decimaltuple_count_nominal",
+    "covers": [
+      "method.DecimalTuple.count"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return round(decimal('1.20'),2).as_tuple().count(0)\n",
+    "expected_result": 1
+  },
+  {
+    "id": "value_decimaltuple_index_nominal",
+    "covers": [
+      "method.DecimalTuple.index"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return round(decimal('1.20'),2).as_tuple().index(-2)\n",
+    "expected_result": 2
+  },
+  {
+    "id": "value_decimaltuple_index_invalid",
+    "covers": [
+      "method.DecimalTuple.index"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return round(decimal('1.20'),2).as_tuple().index(99)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_dict_keys_nominal",
+    "covers": [
+      "method.dict.keys"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list({'b':2,'a':1}.keys())\n",
+    "expected_result": [
+      "b",
+      "a"
+    ]
+  },
+  {
+    "id": "value_dict_values_nominal",
+    "covers": [
+      "method.dict.values"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list({'b':2,'a':1}.values())\n",
+    "expected_result": [
+      2,
+      1
+    ]
+  },
+  {
+    "id": "value_dict_items_nominal",
+    "covers": [
+      "method.dict.items"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [list(p) for p in {'b':2,'a':1}.items()]\n",
+    "expected_result": [
+      [
+        "b",
+        2
+      ],
+      [
+        "a",
+        1
+      ]
+    ]
+  },
+  {
+    "id": "value_dict_get_nominal",
+    "covers": [
+      "method.dict.get"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return {'a':1}.get('missing',3)\n",
+    "expected_result": 3
+  },
+  {
+    "id": "value_dict_pop_nominal",
+    "covers": [
+      "method.dict.pop"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a={'x':1}\n    v=a.pop('x')\n    return [v,a]\n",
+    "expected_result": [
+      1,
+      {}
+    ]
+  },
+  {
+    "id": "value_dict_clear_nominal",
+    "covers": [
+      "method.dict.clear"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a={'x':1}\n    a.clear()\n    return a\n",
+    "expected_result": {}
+  },
+  {
+    "id": "value_dict_copy_nominal",
+    "covers": [
+      "method.dict.copy"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a={'x':[1]}\n    b=a.copy()\n    b['x'].append(2)\n    return [a,b,a is b]\n",
+    "expected_result": [
+      {
+        "x": [
+          1,
+          2
+        ]
+      },
+      {
+        "x": [
+          1,
+          2
+        ]
+      },
+      false
+    ]
+  },
+  {
+    "id": "value_dict_fromkeys_nominal",
+    "covers": [
+      "method.dict.fromkeys"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a=dict.fromkeys(['x','y'],[])\n    a['x'].append(1)\n    return a\n",
+    "expected_result": {
+      "x": [
+        1
+      ],
+      "y": [
+        1
+      ]
+    }
+  },
+  {
+    "id": "value_dict_setdefault_nominal",
+    "covers": [
+      "method.dict.setdefault"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a={'x':1}\n    v=a.setdefault('x',2)\n    w=a.setdefault('y',3)\n    return [v,w,a]\n",
+    "expected_result": [
+      1,
+      3,
+      {
+        "x": 1,
+        "y": 3
+      }
+    ]
+  },
+  {
+    "id": "value_dict_update_nominal",
+    "covers": [
+      "method.dict.update"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a={'x':1}\n    a.update([('y',2)],z=3)\n    return a\n",
+    "expected_result": {
+      "x": 1,
+      "y": 2,
+      "z": 3
+    }
+  },
+  {
+    "id": "value_dict_pop_boundary",
+    "covers": [
+      "method.dict.pop"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return {}.pop([],3)\n",
+    "expected_result": 3
+  },
+  {
+    "id": "value_dict_pop_invalid",
+    "covers": [
+      "method.dict.pop"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return {'a':1}.pop([])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_dict_update_invalid",
+    "covers": [
+      "method.dict.update"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return {}.update([('a',1,2)])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_dict_setdefault_invalid",
+    "covers": [
+      "method.dict.setdefault"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return {}.setdefault([])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_dict_get_invalid",
+    "covers": [
+      "method.dict.get"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return {}.get([])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_set_issubset_nominal",
+    "covers": [
+      "method.set.issubset"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return set([2,1]).issubset([1,2,3])\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_set_issuperset_nominal",
+    "covers": [
+      "method.set.issuperset"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return set([2,1]).issuperset([1])\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_set_isdisjoint_nominal",
+    "covers": [
+      "method.set.isdisjoint"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return set([2,1]).isdisjoint([3])\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_set_union_nominal",
+    "covers": [
+      "method.set.union"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(set([2,1]).union([2,3]))\n",
+    "expected_result": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "id": "value_set_intersection_nominal",
+    "covers": [
+      "method.set.intersection"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(set([2,1]).intersection([2,3]))\n",
+    "expected_result": [
+      2
+    ]
+  },
+  {
+    "id": "value_set_difference_nominal",
+    "covers": [
+      "method.set.difference"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(set([2,1]).difference([2,3]))\n",
+    "expected_result": [
+      1
+    ]
+  },
+  {
+    "id": "value_set_symmetric_difference_nominal",
+    "covers": [
+      "method.set.symmetric_difference"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(set([2,1]).symmetric_difference([2,3]))\n",
+    "expected_result": [
+      1,
+      3
+    ]
+  },
+  {
+    "id": "value_set_copy_nominal",
+    "covers": [
+      "method.set.copy"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(set([2,1]).copy())\n",
+    "expected_result": [
+      1,
+      2
+    ]
+  },
+  {
+    "id": "value_set_union_boundary",
+    "covers": [
+      "method.set.union"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return list(set([1]).union())\n",
+    "expected_result": [
+      1
+    ]
+  },
+  {
+    "id": "value_set_intersection_boundary",
+    "covers": [
+      "method.set.intersection"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return list(set([1]).intersection())\n",
+    "expected_result": [
+      1
+    ]
+  },
+  {
+    "id": "value_set_symmetric_difference_invalid",
+    "covers": [
+      "method.set.symmetric_difference"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return set([1]).symmetric_difference([],[])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_set_copy_boundary",
+    "covers": [
+      "method.set.copy"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    a=set([1])\n    return a.copy() is a\n",
+    "expected_result": false
+  },
+  {
+    "id": "value_frozenset_issubset_nominal",
+    "covers": [
+      "method.frozenset.issubset"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return frozenset([2,1]).issubset([1,2,3])\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_frozenset_issuperset_nominal",
+    "covers": [
+      "method.frozenset.issuperset"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return frozenset([2,1]).issuperset([1])\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_frozenset_isdisjoint_nominal",
+    "covers": [
+      "method.frozenset.isdisjoint"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return frozenset([2,1]).isdisjoint([3])\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_frozenset_union_nominal",
+    "covers": [
+      "method.frozenset.union"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(frozenset([2,1]).union([2,3]))\n",
+    "expected_result": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "id": "value_frozenset_intersection_nominal",
+    "covers": [
+      "method.frozenset.intersection"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(frozenset([2,1]).intersection([2,3]))\n",
+    "expected_result": [
+      2
+    ]
+  },
+  {
+    "id": "value_frozenset_difference_nominal",
+    "covers": [
+      "method.frozenset.difference"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(frozenset([2,1]).difference([2,3]))\n",
+    "expected_result": [
+      1
+    ]
+  },
+  {
+    "id": "value_frozenset_symmetric_difference_nominal",
+    "covers": [
+      "method.frozenset.symmetric_difference"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(frozenset([2,1]).symmetric_difference([2,3]))\n",
+    "expected_result": [
+      1,
+      3
+    ]
+  },
+  {
+    "id": "value_frozenset_copy_nominal",
+    "covers": [
+      "method.frozenset.copy"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(frozenset([2,1]).copy())\n",
+    "expected_result": [
+      1,
+      2
+    ]
+  },
+  {
+    "id": "value_frozenset_union_boundary",
+    "covers": [
+      "method.frozenset.union"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return list(frozenset([1]).union())\n",
+    "expected_result": [
+      1
+    ]
+  },
+  {
+    "id": "value_frozenset_intersection_boundary",
+    "covers": [
+      "method.frozenset.intersection"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return list(frozenset([1]).intersection())\n",
+    "expected_result": [
+      1
+    ]
+  },
+  {
+    "id": "value_frozenset_symmetric_difference_invalid",
+    "covers": [
+      "method.frozenset.symmetric_difference"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return frozenset([1]).symmetric_difference([],[])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_frozenset_copy_boundary",
+    "covers": [
+      "method.frozenset.copy"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    a=frozenset([1])\n    return a.copy() is a\n",
+    "expected_result": true
+  },
+  {
+    "id": "value_set_add_nominal",
+    "covers": [
+      "method.set.add"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    s=set([1])\n    s.add(2)\n    return list(s)\n",
+    "expected_result": [
+      1,
+      2
+    ]
+  },
+  {
+    "id": "value_set_remove_nominal",
+    "covers": [
+      "method.set.remove"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    s=set([1,2])\n    s.remove(1)\n    return list(s)\n",
+    "expected_result": [
+      2
+    ]
+  },
+  {
+    "id": "value_set_discard_nominal",
+    "covers": [
+      "method.set.discard"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    s=set([1])\n    s.discard(2)\n    return list(s)\n",
+    "expected_result": [
+      1
+    ]
+  },
+  {
+    "id": "value_set_pop_nominal",
+    "covers": [
+      "method.set.pop"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    s=set([1])\n    v=s.pop()\n    return [v,list(s)]\n",
+    "expected_result": [
+      1,
+      []
+    ]
+  },
+  {
+    "id": "value_set_clear_nominal",
+    "covers": [
+      "method.set.clear"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    s=set([1])\n    s.clear()\n    return list(s)\n",
+    "expected_result": []
+  },
+  {
+    "id": "value_set_pop_invalid",
+    "covers": [
+      "method.set.pop"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return set().pop()\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_set_remove_invalid",
+    "covers": [
+      "method.set.remove"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return set().remove(1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_set_add_invalid",
+    "covers": [
+      "method.set.add"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return set().add([])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_bytes_hex_nominal",
+    "covers": [
+      "method.bytes.hex"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return b'AB'.hex()\n",
+    "expected_result": "4142"
+  },
+  {
+    "id": "value_bytes_fromhex_nominal",
+    "covers": [
+      "method.bytes.fromhex"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(bytes.fromhex('41 42\\n43'))\n",
+    "expected_result": [
+      65,
+      66,
+      67
+    ]
+  },
+  {
+    "id": "value_bytes_fromhex_invalid",
+    "covers": [
+      "method.bytes.fromhex"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytes.fromhex('4 1')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_bytes_hex_invalid",
+    "covers": [
+      "method.bytes.hex"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return b'AB'.hex('')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_bytearray_hex_nominal",
+    "covers": [
+      "method.bytearray.hex"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bytearray(b'AB').hex()\n",
+    "expected_result": "4142"
+  },
+  {
+    "id": "value_bytearray_append_nominal",
+    "covers": [
+      "method.bytearray.append"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a=bytearray(b'A')\n    a.append(66)\n    return list(a)\n",
+    "expected_result": [
+      65,
+      66
+    ]
+  },
+  {
+    "id": "value_bytearray_extend_nominal",
+    "covers": [
+      "method.bytearray.extend"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a=bytearray(b'A')\n    a.extend([66,67])\n    return list(a)\n",
+    "expected_result": [
+      65,
+      66,
+      67
+    ]
+  },
+  {
+    "id": "value_bytearray_pop_nominal",
+    "covers": [
+      "method.bytearray.pop"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a=bytearray(b'AB')\n    v=a.pop()\n    return [v,list(a)]\n",
+    "expected_result": [
+      66,
+      [
+        65
+      ]
+    ]
+  },
+  {
+    "id": "value_bytearray_clear_nominal",
+    "covers": [
+      "method.bytearray.clear"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a=bytearray(b'A')\n    a.clear()\n    return list(a)\n",
+    "expected_result": []
+  },
+  {
+    "id": "value_bytearray_copy_nominal",
+    "covers": [
+      "method.bytearray.copy"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    a=bytearray(b'A')\n    b=a.copy()\n    b.append(66)\n    return [list(a),list(b)]\n",
+    "expected_result": [
+      [
+        65
+      ],
+      [
+        65,
+        66
+      ]
+    ]
+  },
+  {
+    "id": "value_bytearray_append_invalid",
+    "covers": [
+      "method.bytearray.append"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytearray().append(256)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_bytearray_pop_invalid",
+    "covers": [
+      "method.bytearray.pop"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytearray().pop()\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_bytearray_extend_invalid",
+    "covers": [
+      "method.bytearray.extend"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytearray().extend([1,-1])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_decimal_adjusted_nominal",
+    "covers": [
+      "method.Decimal.adjusted"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.adjusted())\n",
+    "expected_result": "0"
+  },
+  {
+    "id": "value_decimal_as_integer_ratio_nominal",
+    "covers": [
+      "method.Decimal.as_integer_ratio"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.as_integer_ratio())\n",
+    "expected_result": "(5, 2)"
+  },
+  {
+    "id": "value_decimal_as_tuple_nominal",
+    "covers": [
+      "method.Decimal.as_tuple"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.as_tuple())\n",
+    "expected_result": "DecimalTuple(sign=0, digits=(2, 5, 0, 0), exponent=-3)"
+  },
+  {
+    "id": "value_decimal_canonical_nominal",
+    "covers": [
+      "method.Decimal.canonical"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.canonical())\n",
+    "expected_result": "2.500"
+  },
+  {
+    "id": "value_decimal_compare_nominal",
+    "covers": [
+      "method.Decimal.compare"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.compare(y))\n",
+    "expected_result": "1"
+  },
+  {
+    "id": "value_decimal_compare_signal_nominal",
+    "covers": [
+      "method.Decimal.compare_signal"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.compare_signal(y))\n",
+    "expected_result": "1"
+  },
+  {
+    "id": "value_decimal_compare_total_nominal",
+    "covers": [
+      "method.Decimal.compare_total"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.compare_total(y))\n",
+    "expected_result": "1"
+  },
+  {
+    "id": "value_decimal_compare_total_mag_nominal",
+    "covers": [
+      "method.Decimal.compare_total_mag"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.compare_total_mag(-y))\n",
+    "expected_result": "1"
+  },
+  {
+    "id": "value_decimal_conjugate_nominal",
+    "covers": [
+      "method.Decimal.conjugate"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.conjugate())\n",
+    "expected_result": "2.500"
+  },
+  {
+    "id": "value_decimal_copy_abs_nominal",
+    "covers": [
+      "method.Decimal.copy_abs"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.copy_abs())\n",
+    "expected_result": "2.500"
+  },
+  {
+    "id": "value_decimal_copy_negate_nominal",
+    "covers": [
+      "method.Decimal.copy_negate"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.copy_negate())\n",
+    "expected_result": "-2.500"
+  },
+  {
+    "id": "value_decimal_copy_sign_nominal",
+    "covers": [
+      "method.Decimal.copy_sign"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.copy_sign(-y))\n",
+    "expected_result": "-2.500"
+  },
+  {
+    "id": "value_decimal_exp_nominal",
+    "covers": [
+      "method.Decimal.exp"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.exp())\n",
+    "expected_result": "12.18249396070347343807017595116796618318276779006316131156039834183818512614331441006025552"
+  },
+  {
+    "id": "value_decimal_fma_nominal",
+    "covers": [
+      "method.Decimal.fma"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.fma(y, y))\n",
+    "expected_result": "4.20000"
+  },
+  {
+    "id": "value_decimal_from_float_nominal",
+    "covers": [
+      "method.Decimal.from_float"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return str(round(decimal('0'),0).from_float(float('0.1')))\n",
+    "expected_result": "0.1000000000000000055511151231257827021181583404541015625"
+  },
+  {
+    "id": "value_decimal_is_canonical_nominal",
+    "covers": [
+      "method.Decimal.is_canonical"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_canonical())\n",
+    "expected_result": "True"
+  },
+  {
+    "id": "value_decimal_is_finite_nominal",
+    "covers": [
+      "method.Decimal.is_finite"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_finite())\n",
+    "expected_result": "True"
+  },
+  {
+    "id": "value_decimal_is_infinite_nominal",
+    "covers": [
+      "method.Decimal.is_infinite"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_infinite())\n",
+    "expected_result": "False"
+  },
+  {
+    "id": "value_decimal_is_nan_nominal",
+    "covers": [
+      "method.Decimal.is_nan"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_nan())\n",
+    "expected_result": "False"
+  },
+  {
+    "id": "value_decimal_is_normal_nominal",
+    "covers": [
+      "method.Decimal.is_normal"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_normal())\n",
+    "expected_result": "True"
+  },
+  {
+    "id": "value_decimal_is_qnan_nominal",
+    "covers": [
+      "method.Decimal.is_qnan"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_qnan())\n",
+    "expected_result": "False"
+  },
+  {
+    "id": "value_decimal_is_signed_nominal",
+    "covers": [
+      "method.Decimal.is_signed"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_signed())\n",
+    "expected_result": "False"
+  },
+  {
+    "id": "value_decimal_is_snan_nominal",
+    "covers": [
+      "method.Decimal.is_snan"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_snan())\n",
+    "expected_result": "False"
+  },
+  {
+    "id": "value_decimal_is_subnormal_nominal",
+    "covers": [
+      "method.Decimal.is_subnormal"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_subnormal())\n",
+    "expected_result": "False"
+  },
+  {
+    "id": "value_decimal_is_zero_nominal",
+    "covers": [
+      "method.Decimal.is_zero"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.is_zero())\n",
+    "expected_result": "False"
+  },
+  {
+    "id": "value_decimal_ln_nominal",
+    "covers": [
+      "method.Decimal.ln"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.ln())\n",
+    "expected_result": "0.9162907318741550651835272117680110714501012199082624677919678819807853657379630490242705511"
+  },
+  {
+    "id": "value_decimal_log10_nominal",
+    "covers": [
+      "method.Decimal.log10"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.log10())\n",
+    "expected_result": "0.3979400086720376095725222105510139464636202370757829173791450777457836214511509810261454958"
+  },
+  {
+    "id": "value_decimal_logb_nominal",
+    "covers": [
+      "method.Decimal.logb"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.logb())\n",
+    "expected_result": "0"
+  },
+  {
+    "id": "value_decimal_max_nominal",
+    "covers": [
+      "method.Decimal.max"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.max(y))\n",
+    "expected_result": "2.500"
+  },
+  {
+    "id": "value_decimal_max_mag_nominal",
+    "covers": [
+      "method.Decimal.max_mag"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.max_mag(-y))\n",
+    "expected_result": "2.500"
+  },
+  {
+    "id": "value_decimal_min_nominal",
+    "covers": [
+      "method.Decimal.min"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.min(y))\n",
+    "expected_result": "1.20"
+  },
+  {
+    "id": "value_decimal_min_mag_nominal",
+    "covers": [
+      "method.Decimal.min_mag"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.min_mag(-y))\n",
+    "expected_result": "-1.20"
+  },
+  {
+    "id": "value_decimal_next_minus_nominal",
+    "covers": [
+      "method.Decimal.next_minus"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.next_minus())\n",
+    "expected_result": "2.499999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+  },
+  {
+    "id": "value_decimal_next_plus_nominal",
+    "covers": [
+      "method.Decimal.next_plus"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.next_plus())\n",
+    "expected_result": "2.500000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"
+  },
+  {
+    "id": "value_decimal_next_toward_nominal",
+    "covers": [
+      "method.Decimal.next_toward"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.next_toward(y))\n",
+    "expected_result": "2.499999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+  },
+  {
+    "id": "value_decimal_normalize_nominal",
+    "covers": [
+      "method.Decimal.normalize"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.normalize())\n",
+    "expected_result": "2.5"
+  },
+  {
+    "id": "value_decimal_number_class_nominal",
+    "covers": [
+      "method.Decimal.number_class"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.number_class())\n",
+    "expected_result": "+Normal"
+  },
+  {
+    "id": "value_decimal_quantize_nominal",
+    "covers": [
+      "method.Decimal.quantize"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.quantize(y))\n",
+    "expected_result": "2.50"
+  },
+  {
+    "id": "value_decimal_radix_nominal",
+    "covers": [
+      "method.Decimal.radix"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.radix())\n",
+    "expected_result": "10"
+  },
+  {
+    "id": "value_decimal_remainder_near_nominal",
+    "covers": [
+      "method.Decimal.remainder_near"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.remainder_near(y))\n",
+    "expected_result": "0.100"
+  },
+  {
+    "id": "value_decimal_rotate_nominal",
+    "covers": [
+      "method.Decimal.rotate"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.rotate(1))\n",
+    "expected_result": "25.000"
+  },
+  {
+    "id": "value_decimal_same_quantum_nominal",
+    "covers": [
+      "method.Decimal.same_quantum"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.same_quantum(y))\n",
+    "expected_result": "False"
+  },
+  {
+    "id": "value_decimal_scaleb_nominal",
+    "covers": [
+      "method.Decimal.scaleb"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.scaleb(2))\n",
+    "expected_result": "250.0"
+  },
+  {
+    "id": "value_decimal_shift_nominal",
+    "covers": [
+      "method.Decimal.shift"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.shift(1))\n",
+    "expected_result": "25.000"
+  },
+  {
+    "id": "value_decimal_sqrt_nominal",
+    "covers": [
+      "method.Decimal.sqrt"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.sqrt())\n",
+    "expected_result": "1.581138830084189665999446772216359266859777569662608413428752426396297219319619110672124054"
+  },
+  {
+    "id": "value_decimal_to_eng_string_nominal",
+    "covers": [
+      "method.Decimal.to_eng_string"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.to_eng_string())\n",
+    "expected_result": "2.500"
+  },
+  {
+    "id": "value_decimal_to_integral_nominal",
+    "covers": [
+      "method.Decimal.to_integral"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.to_integral())\n",
+    "expected_result": "2"
+  },
+  {
+    "id": "value_decimal_to_integral_exact_nominal",
+    "covers": [
+      "method.Decimal.to_integral_exact"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.to_integral_exact())\n",
+    "expected_result": "2"
+  },
+  {
+    "id": "value_decimal_to_integral_value_nominal",
+    "covers": [
+      "method.Decimal.to_integral_value"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('2.500'),3)\n    y=round(decimal('1.20'),2)\n    return str(x.to_integral_value())\n",
+    "expected_result": "2"
+  },
+  {
+    "id": "value_decimal_logical_and_nominal",
+    "covers": [
+      "method.Decimal.logical_and"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('101'),0)\n    y=round(decimal('11'),0)\n    return str(x.logical_and(y))\n",
+    "expected_result": "1"
+  },
+  {
+    "id": "value_decimal_logical_or_nominal",
+    "covers": [
+      "method.Decimal.logical_or"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('101'),0)\n    y=round(decimal('11'),0)\n    return str(x.logical_or(y))\n",
+    "expected_result": "111"
+  },
+  {
+    "id": "value_decimal_logical_xor_nominal",
+    "covers": [
+      "method.Decimal.logical_xor"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('101'),0)\n    y=round(decimal('11'),0)\n    return str(x.logical_xor(y))\n",
+    "expected_result": "110"
+  },
+  {
+    "id": "value_decimal_logical_invert_nominal",
+    "covers": [
+      "method.Decimal.logical_invert"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=round(decimal('101'),0)\n    y=round(decimal('11'),0)\n    return str(x.logical_invert())\n",
+    "expected_result": "1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111010"
+  },
+  {
+    "id": "value_decimal_quantize_boundary",
+    "covers": [
+      "method.Decimal.quantize"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return str(round(decimal('2.555'),3).quantize(round(decimal('.01'),2),rounding='ROUND_UP'))\n",
+    "expected_result": "2.56"
+  },
+  {
+    "id": "value_decimal_quantize_invalid",
+    "covers": [
+      "method.Decimal.quantize"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return round(decimal('2'),0).quantize('1')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_decimal_sqrt_invalid",
+    "covers": [
+      "method.Decimal.sqrt"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return round(decimal('2'),0).sqrt(context=3)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_decimal_from_float_invalid",
+    "covers": [
+      "method.Decimal.from_float"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return round(decimal('2'),0).from_float(0.1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_datetime_fields_nominal",
+    "covers": [
+      "attribute.datetime.year",
+      "attribute.datetime.month",
+      "attribute.datetime.day",
+      "attribute.datetime.hour",
+      "attribute.datetime.minute",
+      "attribute.datetime.second",
+      "attribute.datetime.microsecond"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    d=datetime.datetime(2026,2,3,4,5,6,7)\n    return [d.year,d.month,d.day,d.hour,d.minute,d.second,d.microsecond]\n",
+    "expected_result": [
+      2026,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ]
+  },
+  {
+    "id": "value_datetime_strptime_nominal",
+    "covers": [
+      "method.datetime.strptime"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return str(datetime.datetime.strptime('2026-02-03','%Y-%m-%d'))\n",
+    "expected_result": "2026-02-03 00:00:00"
+  },
+  {
+    "id": "value_datetime_strptime_invalid",
+    "covers": [
+      "method.datetime.strptime"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return datetime.datetime.strptime('2026-02-30','%Y-%m-%d')\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_timedelta_fields_boundary",
+    "covers": [
+      "attribute.timedelta.seconds",
+      "attribute.timedelta.minutes",
+      "attribute.timedelta.hours",
+      "attribute.timedelta.days",
+      "attribute.timedelta.weeks"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    d=datetime.timedelta(seconds=-1)\n    return [d.seconds,d.minutes,d.hours,d.days,d.weeks]\n",
+    "expected_result": [
+      -1,
+      -1,
+      -1,
+      -1,
+      -1
+    ]
+  },
+  {
+    "id": "value_decimal_fields_nominal",
+    "covers": [
+      "attribute.Decimal.real",
+      "attribute.Decimal.imag"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    d=round(decimal('2'),0)\n    return [str(d.real),str(d.imag),d.real is d]\n",
+    "expected_result": [
+      "2",
+      "0",
+      true
+    ]
+  },
+  {
+    "id": "value_decimaltuple_fields_nominal",
+    "covers": [
+      "attribute.DecimalTuple.sign",
+      "attribute.DecimalTuple.digits",
+      "attribute.DecimalTuple.exponent"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    t=round(decimal('2.500'),3).as_tuple()\n    return [t.sign,list(t.digits),t.exponent,t.digits is t[1]]\n",
+    "expected_result": [
+      0,
+      [
+        2,
+        5,
+        0,
+        0
+      ],
+      -3,
+      true
+    ]
+  },
+  {
+    "id": "value_range_slice_nominal",
+    "covers": [
+      "protocol.range.slice"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(range(10)[8:1:-2])\n",
+    "expected_result": [
+      8,
+      6,
+      4,
+      2
+    ]
+  },
+  {
+    "id": "value_range_membership_nominal",
+    "covers": [
+      "protocol.range.membership"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [5 in range(1,9,2),6 in range(1,9,2)]\n",
+    "expected_result": [
+      true,
+      false
+    ]
+  },
+  {
+    "id": "value_range_zero_step_invalid",
+    "covers": [
+      "protocol.range.zero_step"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return range(1,2,0)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "value_iterator_consume_nominal",
+    "covers": [
+      "protocol.iterator.consume"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=zip([1,2],[3,4])\n    a=[list(t) for t in x]\n    b=list(x)\n    return [a,b]\n",
+    "expected_result": [
+      [
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          4
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "id": "value_iterator_map_nominal",
+    "covers": [
+      "protocol.iterator.map"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(map(str,[1,2]))\n",
+    "expected_result": [
+      "1",
+      "2"
+    ]
+  },
+  {
+    "id": "value_iterator_filter_nominal",
+    "covers": [
+      "protocol.iterator.filter"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(filter(bool,[0,1,2]))\n",
+    "expected_result": [
+      1,
+      2
+    ]
+  },
+  {
+    "id": "value_iterator_reversed_nominal",
+    "covers": [
+      "protocol.iterator.reversed"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(reversed([1,2]))\n",
+    "expected_result": [
+      2,
+      1
+    ]
+  },
+  {
+    "id": "value_dict_keys_live_nominal",
+    "covers": [
+      "protocol.dict_keys.live"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    d={'a':1}\n    v=d.keys()\n    d['b']=2\n    return list(v)\n",
+    "expected_result": [
+      "a",
+      "b"
+    ]
+  },
+  {
+    "id": "value_bool_numeric_nominal",
+    "covers": [
+      "protocol.bool.numeric"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [True+2,False*3,int(True),bool([])]\n",
+    "expected_result": [
+      3,
+      0,
+      1,
+      false
+    ]
+  },
+  {
+    "id": "value_int_large_nominal",
+    "covers": [
+      "protocol.int.large"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [str(2**100),(2**100)//3]\n",
+    "expected_result": [
+      "1267650600228229401496703205376",
+      422550200076076467165567735125
+    ]
+  },
+  {
+    "id": "value_float_binary_nominal",
+    "covers": [
+      "protocol.float.binary"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [str(float(\"1.5\")),str(round(float(\"2.675\"),2))]\n",
+    "expected_result": [
+      "1.5",
+      "2.67"
+    ]
+  },
+  {
+    "id": "value_fixed_decimal_quantum_nominal",
+    "covers": [
+      "protocol.fixed_decimal.quantum"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [str(decimal('1')/decimal('3')),str(decimal('4')**decimal('.5'))]\n",
+    "expected_result": [
+      "0.333333333333333333333333333333",
+      "2"
+    ]
+  },
+  {
+    "id": "value_none_truth_nominal",
+    "covers": [
+      "protocol.None.truth"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [None is None,bool(None),str(None)]\n",
+    "expected_result": [
+      true,
+      false,
+      "None"
+    ]
+  },
+  {
+    "id": "value_datetime_instance_strptime_nominal",
+    "covers": [
+      "method.datetime.strptime"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    x=datetime.datetime(2026,1,1)\n    y=x.strptime('2027','%Y')\n    return [y.year,y.month,y.day]\n",
+    "expected_result": [
+      2027,
+      1,
+      1
+    ]
+  },
+  {
+    "id": "value_dict_values_live_nominal",
+    "covers": [
+      "protocol.dict_values.live"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    d={'a':1}\n    v=d.values()\n    d['b']=2\n    return [len(v),list(v)]\n",
+    "expected_result": [
+      2,
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "id": "value_dict_items_live_nominal",
+    "covers": [
+      "protocol.dict_items.live"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    d={'a':1}\n    v=d.items()\n    d['b']=2\n    return [len(v),[list(x) for x in v]]\n",
+    "expected_result": [
+      2,
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "id": "value_zip_consumption_nominal",
+    "covers": [
+      "protocol.iterator.zip"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    v=zip([1,2],[3,4])\n    a=[list(x) for x in v]\n    return [a,list(v)]\n",
+    "expected_result": [
+      [
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          4
+        ]
+      ],
+      []
+    ]
+  }
+]

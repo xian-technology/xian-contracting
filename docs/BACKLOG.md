@@ -4,6 +4,8 @@ This is the stable backlog entrypoint for `xian-contracting`.
 
 Current deeper notes:
 
+- `../tests/surface/README.md` — reviewed runtime surface, direct behavioral
+  cases, explicit missing members and the coverage expansion workflow
 - `EXECUTION_BACKLOG.md`
 - `COMPILE_TIME_EXTENDS.md`
 - `RUST_COMPILER_CORE.md`

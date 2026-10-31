@@ -1,0 +1,1302 @@
+[
+  {
+    "id": "builtin_exception_nominal",
+    "covers": [
+      "builtin.Exception"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return str(Exception(\"problem\"))\n",
+    "expected_result": "problem"
+  },
+  {
+    "id": "builtin_exception_boundary",
+    "covers": [
+      "builtin.Exception"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return str(Exception())\n",
+    "expected_result": ""
+  },
+  {
+    "id": "builtin_exception_invalid",
+    "covers": [
+      "builtin.Exception"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return Exception(message=\"problem\")\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_abs_nominal",
+    "covers": [
+      "builtin.abs"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return abs(-7)\n",
+    "expected_result": 7
+  },
+  {
+    "id": "builtin_abs_boundary",
+    "covers": [
+      "builtin.abs"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [abs(0), abs(-9007199254740993)]\n",
+    "expected_result": [
+      0,
+      9007199254740993
+    ]
+  },
+  {
+    "id": "builtin_abs_invalid",
+    "covers": [
+      "builtin.abs"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return abs(\"7\")\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_all_nominal",
+    "covers": [
+      "builtin.all"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return all([1, True, \"x\"])\n",
+    "expected_result": true
+  },
+  {
+    "id": "builtin_all_boundary",
+    "covers": [
+      "builtin.all"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [all([]), all([1, 0, 2])]\n",
+    "expected_result": [
+      true,
+      false
+    ]
+  },
+  {
+    "id": "builtin_all_invalid",
+    "covers": [
+      "builtin.all"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return all(1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_any_nominal",
+    "covers": [
+      "builtin.any"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return any([0, \"\", 3])\n",
+    "expected_result": true
+  },
+  {
+    "id": "builtin_any_boundary",
+    "covers": [
+      "builtin.any"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [any([]), any([0, False, None])]\n",
+    "expected_result": [
+      false,
+      false
+    ]
+  },
+  {
+    "id": "builtin_any_invalid",
+    "covers": [
+      "builtin.any"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return any(1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_ascii_nominal",
+    "covers": [
+      "builtin.ascii"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return ascii(\"\u00e9\")\n",
+    "expected_result": "'\\xe9'"
+  },
+  {
+    "id": "builtin_ascii_boundary",
+    "covers": [
+      "builtin.ascii"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return ascii(\"\ud83d\ude00\")\n",
+    "expected_result": "'\\U0001f600'"
+  },
+  {
+    "id": "builtin_ascii_invalid",
+    "covers": [
+      "builtin.ascii"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return ascii()\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_bin_nominal",
+    "covers": [
+      "builtin.bin"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return bin(13)\n",
+    "expected_result": "0b1101"
+  },
+  {
+    "id": "builtin_bin_boundary",
+    "covers": [
+      "builtin.bin"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [bin(0), bin(-13)]\n",
+    "expected_result": [
+      "0b0",
+      "-0b1101"
+    ]
+  },
+  {
+    "id": "builtin_bin_invalid",
+    "covers": [
+      "builtin.bin"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bin(\"13\")\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_bool_nominal",
+    "covers": [
+      "builtin.bool"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [bool(1), bool(\"x\")]\n",
+    "expected_result": [
+      true,
+      true
+    ]
+  },
+  {
+    "id": "builtin_bool_boundary",
+    "covers": [
+      "builtin.bool"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [bool(), bool([]), bool({}), bool(0)]\n",
+    "expected_result": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  {
+    "id": "builtin_bool_invalid",
+    "covers": [
+      "builtin.bool"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bool(1, 2)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_bytearray_nominal",
+    "covers": [
+      "builtin.bytearray"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(bytearray([65, 0, 255]))\n",
+    "expected_result": [
+      65,
+      0,
+      255
+    ]
+  },
+  {
+    "id": "builtin_bytearray_boundary",
+    "covers": [
+      "builtin.bytearray"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [list(bytearray()), list(bytearray(2))]\n",
+    "expected_result": [
+      [],
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  {
+    "id": "builtin_bytearray_invalid",
+    "covers": [
+      "builtin.bytearray"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytearray([256])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_bytes_nominal",
+    "covers": [
+      "builtin.bytes"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(bytes([65, 0, 255]))\n",
+    "expected_result": [
+      65,
+      0,
+      255
+    ]
+  },
+  {
+    "id": "builtin_bytes_boundary",
+    "covers": [
+      "builtin.bytes"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [list(bytes()), list(bytes(2))]\n",
+    "expected_result": [
+      [],
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  {
+    "id": "builtin_bytes_invalid",
+    "covers": [
+      "builtin.bytes"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return bytes([-1])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_chr_nominal",
+    "covers": [
+      "builtin.chr"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return chr(65)\n",
+    "expected_result": "A"
+  },
+  {
+    "id": "builtin_chr_boundary",
+    "covers": [
+      "builtin.chr"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [ord(chr(0)), ord(chr(1114111))]\n",
+    "expected_result": [
+      0,
+      1114111
+    ]
+  },
+  {
+    "id": "builtin_chr_invalid",
+    "covers": [
+      "builtin.chr"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return chr(1114112)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_dict_nominal",
+    "covers": [
+      "builtin.dict"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return dict([(\"a\", 1), (\"b\", 2)])\n",
+    "expected_result": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "id": "builtin_dict_boundary",
+    "covers": [
+      "builtin.dict"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return dict([(\"a\", 1), (\"a\", 2)], b=3)\n",
+    "expected_result": {
+      "a": 2,
+      "b": 3
+    }
+  },
+  {
+    "id": "builtin_dict_invalid",
+    "covers": [
+      "builtin.dict"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return dict([(1,)])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_divmod_nominal",
+    "covers": [
+      "builtin.divmod"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(divmod(29, 6))\n",
+    "expected_result": [
+      4,
+      5
+    ]
+  },
+  {
+    "id": "builtin_divmod_boundary",
+    "covers": [
+      "builtin.divmod"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [list(divmod(-7, 3)), list(divmod(7, -3))]\n",
+    "expected_result": [
+      [
+        -3,
+        2
+      ],
+      [
+        -3,
+        -2
+      ]
+    ]
+  },
+  {
+    "id": "builtin_divmod_invalid",
+    "covers": [
+      "builtin.divmod"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return divmod(1, 0)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_filter_nominal",
+    "covers": [
+      "builtin.filter"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(filter(None, [0, 1, \"\", \"a\", False]))\n",
+    "expected_result": [
+      1,
+      "a"
+    ]
+  },
+  {
+    "id": "builtin_filter_boundary",
+    "covers": [
+      "builtin.filter"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return list(filter(None, []))\n",
+    "expected_result": []
+  },
+  {
+    "id": "builtin_filter_invalid",
+    "covers": [
+      "builtin.filter"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return list(filter(1, [1]))\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_float_nominal",
+    "covers": [
+      "builtin.float"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return str(float(\"2.5\"))\n",
+    "expected_result": "2.5"
+  },
+  {
+    "id": "builtin_float_boundary",
+    "covers": [
+      "builtin.float"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [float() == 0, float(\"-0\") == 0]\n",
+    "expected_result": [
+      true,
+      true
+    ]
+  },
+  {
+    "id": "builtin_float_invalid",
+    "covers": [
+      "builtin.float"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return float(\"not-a-number\")\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_format_nominal",
+    "covers": [
+      "builtin.format"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return format(255, \"08b\")\n",
+    "expected_result": "11111111"
+  },
+  {
+    "id": "builtin_format_boundary",
+    "covers": [
+      "builtin.format"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [format(0, \"\"), format(-7, \"04d\")]\n",
+    "expected_result": [
+      "0",
+      "-007"
+    ]
+  },
+  {
+    "id": "builtin_format_invalid",
+    "covers": [
+      "builtin.format"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return format(1, \"Q\")\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_hex_nominal",
+    "covers": [
+      "builtin.hex"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return hex(255)\n",
+    "expected_result": "0xff"
+  },
+  {
+    "id": "builtin_hex_boundary",
+    "covers": [
+      "builtin.hex"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [hex(0), hex(-255)]\n",
+    "expected_result": [
+      "0x0",
+      "-0xff"
+    ]
+  },
+  {
+    "id": "builtin_hex_invalid",
+    "covers": [
+      "builtin.hex"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return hex(\"255\")\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_int_nominal",
+    "covers": [
+      "builtin.int"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return int(\"ff\", 16)\n",
+    "expected_result": 255
+  },
+  {
+    "id": "builtin_int_boundary",
+    "covers": [
+      "builtin.int"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [int(), int(\" -10 \"), int(\"0b101\", 0)]\n",
+    "expected_result": [
+      0,
+      -10,
+      5
+    ]
+  },
+  {
+    "id": "builtin_int_invalid",
+    "covers": [
+      "builtin.int"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return int(\"not-an-int\")\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_isinstance_nominal",
+    "covers": [
+      "builtin.isinstance"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [isinstance(True, bool), isinstance(1, int)]\n",
+    "expected_result": [
+      true,
+      true
+    ]
+  },
+  {
+    "id": "builtin_isinstance_boundary",
+    "covers": [
+      "builtin.isinstance"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [isinstance(True, int), isinstance(\"x\", (int, str)), isinstance([], tuple)]\n",
+    "expected_result": [
+      true,
+      true,
+      false
+    ]
+  },
+  {
+    "id": "builtin_isinstance_invalid",
+    "covers": [
+      "builtin.isinstance"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return isinstance(1, 3)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_issubclass_nominal",
+    "covers": [
+      "builtin.issubclass"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return issubclass(bool, int)\n",
+    "expected_result": true
+  },
+  {
+    "id": "builtin_issubclass_boundary",
+    "covers": [
+      "builtin.issubclass"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [issubclass(int, int), issubclass(int, (str, int)), issubclass(str, int)]\n",
+    "expected_result": [
+      true,
+      true,
+      false
+    ]
+  },
+  {
+    "id": "builtin_issubclass_invalid",
+    "covers": [
+      "builtin.issubclass"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return issubclass(1, int)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_len_nominal",
+    "covers": [
+      "builtin.len"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return len(\"abc\")\n",
+    "expected_result": 3
+  },
+  {
+    "id": "builtin_len_boundary",
+    "covers": [
+      "builtin.len"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [len([]), len(\"\u00e9\ud83d\ude00\"), len(bytes([0, 255]))]\n",
+    "expected_result": [
+      0,
+      2,
+      2
+    ]
+  },
+  {
+    "id": "builtin_len_invalid",
+    "covers": [
+      "builtin.len"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return len(1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_list_nominal",
+    "covers": [
+      "builtin.list"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list((1, 2))\n",
+    "expected_result": [
+      1,
+      2
+    ]
+  },
+  {
+    "id": "builtin_list_boundary",
+    "covers": [
+      "builtin.list"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [list(), list(\"\")]\n",
+    "expected_result": [
+      [],
+      []
+    ]
+  },
+  {
+    "id": "builtin_list_invalid",
+    "covers": [
+      "builtin.list"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return list(1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_map_nominal",
+    "covers": [
+      "builtin.map"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(map(abs, [-2, 0, 3]))\n",
+    "expected_result": [
+      2,
+      0,
+      3
+    ]
+  },
+  {
+    "id": "builtin_map_boundary",
+    "covers": [
+      "builtin.map"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return list(map(abs, []))\n",
+    "expected_result": []
+  },
+  {
+    "id": "builtin_map_invalid",
+    "covers": [
+      "builtin.map"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return list(map(1, [1]))\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_max_nominal",
+    "covers": [
+      "builtin.max"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return max([3, 1, 2])\n",
+    "expected_result": 3
+  },
+  {
+    "id": "builtin_max_boundary",
+    "covers": [
+      "builtin.max"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [max([], default=7), max(-5, -2)]\n",
+    "expected_result": [
+      7,
+      -2
+    ]
+  },
+  {
+    "id": "builtin_max_invalid",
+    "covers": [
+      "builtin.max"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return max([])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_min_nominal",
+    "covers": [
+      "builtin.min"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return min([3, 1, 2])\n",
+    "expected_result": 1
+  },
+  {
+    "id": "builtin_min_boundary",
+    "covers": [
+      "builtin.min"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [min([], default=7), min(-5, -2)]\n",
+    "expected_result": [
+      7,
+      -5
+    ]
+  },
+  {
+    "id": "builtin_min_invalid",
+    "covers": [
+      "builtin.min"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return min([])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_oct_nominal",
+    "covers": [
+      "builtin.oct"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return oct(9)\n",
+    "expected_result": "0o11"
+  },
+  {
+    "id": "builtin_oct_boundary",
+    "covers": [
+      "builtin.oct"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [oct(0), oct(-9)]\n",
+    "expected_result": [
+      "0o0",
+      "-0o11"
+    ]
+  },
+  {
+    "id": "builtin_oct_invalid",
+    "covers": [
+      "builtin.oct"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return oct(\"9\")\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_ord_nominal",
+    "covers": [
+      "builtin.ord"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return ord(\"A\")\n",
+    "expected_result": 65
+  },
+  {
+    "id": "builtin_ord_boundary",
+    "covers": [
+      "builtin.ord"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [ord(\"\ud83d\ude00\"), ord(bytes([255]))]\n",
+    "expected_result": [
+      128512,
+      255
+    ]
+  },
+  {
+    "id": "builtin_ord_invalid",
+    "covers": [
+      "builtin.ord"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return ord(\"\")\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_pow_nominal",
+    "covers": [
+      "builtin.pow"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [pow(2, 10), pow(7, 3, 13)]\n",
+    "expected_result": [
+      1024,
+      5
+    ]
+  },
+  {
+    "id": "builtin_pow_boundary",
+    "covers": [
+      "builtin.pow"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [pow(7,0),pow(7,0,5),pow(0,0)]\n",
+    "expected_result": [
+      1,
+      1,
+      1
+    ]
+  },
+  {
+    "id": "builtin_pow_invalid",
+    "covers": [
+      "builtin.pow"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return pow(2, -1, 4)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_range_nominal",
+    "covers": [
+      "builtin.range"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(range(2, 8, 2))\n",
+    "expected_result": [
+      2,
+      4,
+      6
+    ]
+  },
+  {
+    "id": "builtin_range_boundary",
+    "covers": [
+      "builtin.range"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [list(range(0)), list(range(3, -1, -1))]\n",
+    "expected_result": [
+      [],
+      [
+        3,
+        2,
+        1,
+        0
+      ]
+    ]
+  },
+  {
+    "id": "builtin_range_invalid",
+    "covers": [
+      "builtin.range"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return range(0, 1, 0)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_reversed_nominal",
+    "covers": [
+      "builtin.reversed"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(reversed([1, 2, 3]))\n",
+    "expected_result": [
+      3,
+      2,
+      1
+    ]
+  },
+  {
+    "id": "builtin_reversed_boundary",
+    "covers": [
+      "builtin.reversed"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [list(reversed([])), list(reversed(\"\u00e9\ud83d\ude00\"))]\n",
+    "expected_result": [
+      [],
+      [
+        "\ud83d\ude00",
+        "\u00e9"
+      ]
+    ]
+  },
+  {
+    "id": "builtin_reversed_invalid",
+    "covers": [
+      "builtin.reversed"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return list(reversed(1))\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_round_nominal",
+    "covers": [
+      "builtin.round"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return round(27, -1)\n",
+    "expected_result": 30
+  },
+  {
+    "id": "builtin_round_boundary",
+    "covers": [
+      "builtin.round"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [round(25, -1), round(35, -1), round(-25, -1)]\n",
+    "expected_result": [
+      20,
+      40,
+      -20
+    ]
+  },
+  {
+    "id": "builtin_round_invalid",
+    "covers": [
+      "builtin.round"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return round(\"2\")\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_sorted_nominal",
+    "covers": [
+      "builtin.sorted"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return sorted([3, 1, 2])\n",
+    "expected_result": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "id": "builtin_sorted_boundary",
+    "covers": [
+      "builtin.sorted"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [sorted([]), sorted([2, 1, 2], reverse=True)]\n",
+    "expected_result": [
+      [],
+      [
+        2,
+        2,
+        1
+      ]
+    ]
+  },
+  {
+    "id": "builtin_sorted_invalid",
+    "covers": [
+      "builtin.sorted"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return sorted([1, \"x\"])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_str_nominal",
+    "covers": [
+      "builtin.str"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return str(42)\n",
+    "expected_result": "42"
+  },
+  {
+    "id": "builtin_str_boundary",
+    "covers": [
+      "builtin.str"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [str(), str(None), str(True)]\n",
+    "expected_result": [
+      "",
+      "None",
+      "True"
+    ]
+  },
+  {
+    "id": "builtin_str_invalid",
+    "covers": [
+      "builtin.str"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return str(1, 2, 3, 4)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_sum_nominal",
+    "covers": [
+      "builtin.sum"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return sum([1, 2, 3], 4)\n",
+    "expected_result": 10
+  },
+  {
+    "id": "builtin_sum_boundary",
+    "covers": [
+      "builtin.sum"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [sum([]), sum([], 9), sum([True, False])]\n",
+    "expected_result": [
+      0,
+      9,
+      1
+    ]
+  },
+  {
+    "id": "builtin_sum_invalid",
+    "covers": [
+      "builtin.sum"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return sum(1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_frozenset_nominal",
+    "covers": [
+      "builtin.frozenset"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return sorted(frozenset([3, 1, 3]))\n",
+    "expected_result": [
+      1,
+      3
+    ]
+  },
+  {
+    "id": "builtin_frozenset_boundary",
+    "covers": [
+      "builtin.frozenset"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [len(frozenset()), len(frozenset([True, 1]))]\n",
+    "expected_result": [
+      0,
+      1
+    ]
+  },
+  {
+    "id": "builtin_frozenset_invalid",
+    "covers": [
+      "builtin.frozenset"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return frozenset([[1]])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_set_nominal",
+    "covers": [
+      "builtin.set"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return sorted(set([3, 1, 3]))\n",
+    "expected_result": [
+      1,
+      3
+    ]
+  },
+  {
+    "id": "builtin_set_boundary",
+    "covers": [
+      "builtin.set"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [len(set()), len(set([True, 1]))]\n",
+    "expected_result": [
+      0,
+      1
+    ]
+  },
+  {
+    "id": "builtin_set_invalid",
+    "covers": [
+      "builtin.set"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return set([[1]])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_tuple_nominal",
+    "covers": [
+      "builtin.tuple"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return list(tuple([1, 2]))\n",
+    "expected_result": [
+      1,
+      2
+    ]
+  },
+  {
+    "id": "builtin_tuple_boundary",
+    "covers": [
+      "builtin.tuple"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [len(tuple()), list(tuple(\"\u00e9\ud83d\ude00\"))]\n",
+    "expected_result": [
+      0,
+      [
+        "\u00e9",
+        "\ud83d\ude00"
+      ]
+    ]
+  },
+  {
+    "id": "builtin_tuple_invalid",
+    "covers": [
+      "builtin.tuple"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return tuple(1)\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_zip_nominal",
+    "covers": [
+      "builtin.zip"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    return [list(pair) for pair in zip([1, 2], [3, 4])]\n",
+    "expected_result": [
+      [
+        1,
+        3
+      ],
+      [
+        2,
+        4
+      ]
+    ]
+  },
+  {
+    "id": "builtin_zip_boundary",
+    "covers": [
+      "builtin.zip"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    return [list(zip()), [list(pair) for pair in zip([1, 2], [3])]]\n",
+    "expected_result": [
+      [],
+      [
+        [
+          1,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "id": "builtin_zip_invalid",
+    "covers": [
+      "builtin.zip"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return list(zip(1))\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_map_boundary_exhaustion",
+    "covers": [
+      "builtin.map"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    values = map(abs, [-2, 3])\n    return [list(values), list(values)]\n",
+    "expected_result": [
+      [
+        2,
+        3
+      ],
+      []
+    ]
+  },
+  {
+    "id": "builtin_filter_boundary_exhaustion",
+    "covers": [
+      "builtin.filter"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    values = filter(None, [0, 2, 3])\n    return [list(values), list(values)]\n",
+    "expected_result": [
+      [
+        2,
+        3
+      ],
+      []
+    ]
+  },
+  {
+    "id": "builtin_zip_boundary_exhaustion",
+    "covers": [
+      "builtin.zip"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    values = zip([1], [2])\n    return [[list(pair) for pair in values], list(values)]\n",
+    "expected_result": [
+      [
+        [
+          1,
+          2
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "id": "builtin_all_boundary_short_circuit",
+    "covers": [
+      "builtin.all"
+    ],
+    "dimension": "boundary",
+    "source": "def inverse(value):\n    if value == 0:\n        return False\n    return 1 // 0\n\n@export\ndef probe():\n    return all(map(inverse, [0, 1]))\n",
+    "expected_result": false
+  },
+  {
+    "id": "builtin_any_boundary_short_circuit",
+    "covers": [
+      "builtin.any"
+    ],
+    "dimension": "boundary",
+    "source": "def inverse(value):\n    if value == 1:\n        return True\n    return 1 // 0\n\n@export\ndef probe():\n    return any(map(inverse, [1, 0]))\n",
+    "expected_result": true
+  },
+  {
+    "id": "builtin_sorted_boundary_stable_key",
+    "covers": [
+      "builtin.sorted"
+    ],
+    "dimension": "boundary",
+    "source": "def second(value):\n    return value[1]\n\n@export\ndef probe():\n    return [list(item) for item in sorted([(\"a\", 2), (\"b\", 1), (\"c\", 2)], key=second)]\n",
+    "expected_result": [
+      [
+        "b",
+        1
+      ],
+      [
+        "a",
+        2
+      ],
+      [
+        "c",
+        2
+      ]
+    ]
+  },
+  {
+    "id": "builtin_pow_negative_modular_policy",
+    "covers": [
+      "builtin.pow"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    return pow(2,-1,5)\n",
+    "expected_failure": true,
+    "policy": "Xian safe_pow explicitly rejects negative modular exponents; host CPython modular inverse is not the runtime policy."
+  }
+]

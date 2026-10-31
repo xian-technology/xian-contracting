@@ -1,0 +1,5434 @@
+{
+  "schema_version": 1,
+  "scope": "Reviewed discovery snapshot; presence, test references and direct behavioral assertions are distinct. Missing members are explicitly open, not excluded from the inventory.",
+  "discovery": {
+    "builtins": [
+      "Exception",
+      "False",
+      "None",
+      "True",
+      "abs",
+      "all",
+      "any",
+      "ascii",
+      "bin",
+      "bool",
+      "bytearray",
+      "bytes",
+      "chr",
+      "dict",
+      "divmod",
+      "filter",
+      "float",
+      "format",
+      "frozenset",
+      "hex",
+      "import",
+      "int",
+      "isinstance",
+      "issubclass",
+      "len",
+      "list",
+      "map",
+      "max",
+      "min",
+      "oct",
+      "ord",
+      "pow",
+      "range",
+      "reversed",
+      "round",
+      "set",
+      "sorted",
+      "str",
+      "sum",
+      "tuple",
+      "zip"
+    ],
+    "environment": {
+      "Any": {
+        "kind": "value"
+      },
+      "Contract": {
+        "kind": "value"
+      },
+      "ForeignHash": {
+        "kind": "value"
+      },
+      "ForeignVariable": {
+        "kind": "value"
+      },
+      "Hash": {
+        "kind": "value"
+      },
+      "LogEvent": {
+        "kind": "value"
+      },
+      "Variable": {
+        "kind": "value"
+      },
+      "bytearray": {
+        "kind": "value"
+      },
+      "bytes": {
+        "kind": "value"
+      },
+      "crypto": {
+        "kind": "module",
+        "exports": [
+          "key_is_valid",
+          "verify"
+        ]
+      },
+      "ctx": {
+        "kind": "value"
+      },
+      "datetime": {
+        "kind": "module",
+        "exports": [
+          "DAYS",
+          "HOURS",
+          "MINUTES",
+          "SECONDS",
+          "WEEKS",
+          "datetime",
+          "timedelta"
+        ]
+      },
+      "decimal": {
+        "kind": "value"
+      },
+      "filter": {
+        "kind": "value"
+      },
+      "frozenset": {
+        "kind": "value"
+      },
+      "hashlib": {
+        "kind": "module",
+        "exports": [
+          "sha256",
+          "sha256_hex",
+          "sha256_text",
+          "sha3",
+          "sha3_hex",
+          "sha3_text"
+        ]
+      },
+      "importlib": {
+        "kind": "module",
+        "exports": [
+          "Func",
+          "Var",
+          "call",
+          "code_hash",
+          "contract_info",
+          "enforce_interface",
+          "exists",
+          "has_export",
+          "import_module",
+          "owner_of"
+        ]
+      },
+      "indexed": {
+        "kind": "value"
+      },
+      "int": {
+        "kind": "value"
+      },
+      "map": {
+        "kind": "value"
+      },
+      "pow": {
+        "kind": "value"
+      },
+      "random": {
+        "kind": "module",
+        "exports": [
+          "choice",
+          "choices",
+          "getrandbits",
+          "randint",
+          "random",
+          "randrange",
+          "seed",
+          "shuffle"
+        ]
+      },
+      "range": {
+        "kind": "value"
+      },
+      "round": {
+        "kind": "value"
+      },
+      "set": {
+        "kind": "value"
+      },
+      "zk": {
+        "kind": "module",
+        "exports": [
+          "clear_prepared_vk_cache",
+          "clear_verified_proof_cache",
+          "get_vk_info",
+          "has_verifying_key",
+          "is_available",
+          "shielded_command_binding",
+          "shielded_command_execution_tag",
+          "shielded_command_nullifier_digest",
+          "shielded_command_public_inputs",
+          "shielded_deposit_public_inputs",
+          "shielded_note_append_commitments",
+          "shielded_output_payload_hash",
+          "shielded_output_payload_hashes",
+          "shielded_transfer_public_inputs",
+          "shielded_withdraw_public_inputs",
+          "verify_groth16",
+          "verify_groth16_bn254",
+          "warm_verified_proofs"
+        ]
+      }
+    },
+    "host_bindings": [
+      {
+        "binding": "Any",
+        "id": "typing.any",
+        "kind": "type_marker",
+        "category": "typing"
+      },
+      {
+        "binding": "Variable",
+        "id": "storage.variable.new",
+        "kind": "syscall",
+        "category": "storage"
+      },
+      {
+        "binding": "Variable.get",
+        "id": "storage.variable.get",
+        "kind": "syscall",
+        "category": "storage"
+      },
+      {
+        "binding": "Variable.set",
+        "id": "storage.variable.set",
+        "kind": "syscall",
+        "category": "storage"
+      },
+      {
+        "binding": "Hash",
+        "id": "storage.hash.new",
+        "kind": "syscall",
+        "category": "storage"
+      },
+      {
+        "binding": "Hash.__getitem__",
+        "id": "storage.hash.get",
+        "kind": "syscall",
+        "category": "storage"
+      },
+      {
+        "binding": "Hash.all",
+        "id": "storage.hash.all",
+        "kind": "syscall",
+        "category": "storage"
+      },
+      {
+        "binding": "Hash.__setitem__",
+        "id": "storage.hash.set",
+        "kind": "syscall",
+        "category": "storage"
+      },
+      {
+        "binding": "ForeignVariable",
+        "id": "storage.foreign_variable.new",
+        "kind": "syscall",
+        "category": "storage"
+      },
+      {
+        "binding": "ForeignVariable.get",
+        "id": "storage.foreign_variable.get",
+        "kind": "syscall",
+        "category": "storage"
+      },
+      {
+        "binding": "ForeignHash",
+        "id": "storage.foreign_hash.new",
+        "kind": "syscall",
+        "category": "storage"
+      },
+      {
+        "binding": "ForeignHash.__getitem__",
+        "id": "storage.foreign_hash.get",
+        "kind": "syscall",
+        "category": "storage"
+      },
+      {
+        "binding": "ForeignHash.all",
+        "id": "storage.foreign_hash.all",
+        "kind": "syscall",
+        "category": "storage"
+      },
+      {
+        "binding": "LogEvent",
+        "id": "event.log.new",
+        "kind": "syscall",
+        "category": "event"
+      },
+      {
+        "binding": "LogEvent.__call__",
+        "id": "event.log.emit",
+        "kind": "syscall",
+        "category": "event"
+      },
+      {
+        "binding": "indexed",
+        "id": "event.indexed",
+        "kind": "syscall",
+        "category": "event"
+      },
+      {
+        "binding": "__Contract",
+        "id": "contract.handle.new",
+        "kind": "syscall",
+        "category": "contract"
+      },
+      {
+        "binding": "Contract.deploy",
+        "id": "contract.deploy",
+        "kind": "syscall",
+        "category": "contract"
+      },
+      {
+        "binding": "Contract.get_info",
+        "id": "contract.info",
+        "kind": "syscall",
+        "category": "contract"
+      },
+      {
+        "binding": "Contract.set_owner",
+        "id": "contract.set_owner",
+        "kind": "syscall",
+        "category": "contract"
+      },
+      {
+        "binding": "Contract.set_developer",
+        "id": "contract.set_developer",
+        "kind": "syscall",
+        "category": "contract"
+      },
+      {
+        "binding": "decimal",
+        "id": "numeric.decimal.new",
+        "kind": "syscall",
+        "category": "numeric"
+      },
+      {
+        "binding": "datetime.datetime",
+        "id": "time.datetime.new",
+        "kind": "syscall",
+        "category": "time"
+      },
+      {
+        "binding": "datetime.timedelta",
+        "id": "time.timedelta.new",
+        "kind": "syscall",
+        "category": "time"
+      },
+      {
+        "binding": "datetime.datetime.strptime",
+        "id": "time.datetime.strptime",
+        "kind": "syscall",
+        "category": "time"
+      },
+      {
+        "binding": "datetime.SECONDS",
+        "id": "time.seconds",
+        "kind": "value",
+        "category": "time"
+      },
+      {
+        "binding": "datetime.MINUTES",
+        "id": "time.minutes",
+        "kind": "value",
+        "category": "time"
+      },
+      {
+        "binding": "datetime.HOURS",
+        "id": "time.hours",
+        "kind": "value",
+        "category": "time"
+      },
+      {
+        "binding": "datetime.DAYS",
+        "id": "time.days",
+        "kind": "value",
+        "category": "time"
+      },
+      {
+        "binding": "datetime.WEEKS",
+        "id": "time.weeks",
+        "kind": "value",
+        "category": "time"
+      },
+      {
+        "binding": "hashlib.sha3",
+        "id": "hash.sha3_256_legacy",
+        "kind": "syscall",
+        "category": "hashing"
+      },
+      {
+        "binding": "hashlib.sha256",
+        "id": "hash.sha256_legacy",
+        "kind": "syscall",
+        "category": "hashing"
+      },
+      {
+        "binding": "hashlib.sha3_text",
+        "id": "hash.sha3_256_text",
+        "kind": "syscall",
+        "category": "hashing"
+      },
+      {
+        "binding": "hashlib.sha3_hex",
+        "id": "hash.sha3_256_hex",
+        "kind": "syscall",
+        "category": "hashing"
+      },
+      {
+        "binding": "hashlib.sha256_text",
+        "id": "hash.sha256_text",
+        "kind": "syscall",
+        "category": "hashing"
+      },
+      {
+        "binding": "hashlib.sha256_hex",
+        "id": "hash.sha256_hex",
+        "kind": "syscall",
+        "category": "hashing"
+      },
+      {
+        "binding": "crypto.verify",
+        "id": "crypto.ed25519_verify",
+        "kind": "syscall",
+        "category": "crypto"
+      },
+      {
+        "binding": "crypto.key_is_valid",
+        "id": "crypto.key_is_valid",
+        "kind": "syscall",
+        "category": "crypto"
+      },
+      {
+        "binding": "importlib",
+        "id": "module.importlib",
+        "kind": "value",
+        "category": "import"
+      },
+      {
+        "binding": "importlib.import_module",
+        "id": "contract.import",
+        "kind": "syscall",
+        "category": "import"
+      },
+      {
+        "binding": "importlib.exists",
+        "id": "contract.exists",
+        "kind": "syscall",
+        "category": "import"
+      },
+      {
+        "binding": "importlib.has_export",
+        "id": "contract.has_export",
+        "kind": "syscall",
+        "category": "import"
+      },
+      {
+        "binding": "importlib.call",
+        "id": "contract.call",
+        "kind": "syscall",
+        "category": "import"
+      },
+      {
+        "binding": "importlib.enforce_interface",
+        "id": "contract.enforce_interface",
+        "kind": "syscall",
+        "category": "import"
+      },
+      {
+        "binding": "importlib.owner_of",
+        "id": "contract.owner_of",
+        "kind": "syscall",
+        "category": "import"
+      },
+      {
+        "binding": "importlib.contract_info",
+        "id": "contract.info",
+        "kind": "syscall",
+        "category": "import"
+      },
+      {
+        "binding": "importlib.code_hash",
+        "id": "contract.code_hash",
+        "kind": "syscall",
+        "category": "import"
+      },
+      {
+        "binding": "importlib.Func",
+        "id": "contract.interface.func",
+        "kind": "syscall",
+        "category": "import"
+      },
+      {
+        "binding": "importlib.Var",
+        "id": "contract.interface.var",
+        "kind": "syscall",
+        "category": "import"
+      },
+      {
+        "binding": "hashlib",
+        "id": "module.hashlib",
+        "kind": "value",
+        "category": "hashing"
+      },
+      {
+        "binding": "crypto",
+        "id": "module.crypto",
+        "kind": "value",
+        "category": "crypto"
+      },
+      {
+        "binding": "datetime",
+        "id": "module.datetime",
+        "kind": "value",
+        "category": "time"
+      },
+      {
+        "binding": "random",
+        "id": "module.random",
+        "kind": "value",
+        "category": "random"
+      },
+      {
+        "binding": "zk",
+        "id": "module.zk",
+        "kind": "value",
+        "category": "zk"
+      },
+      {
+        "binding": "__contract_export__",
+        "id": "contract.export_call",
+        "kind": "syscall",
+        "category": "contract"
+      },
+      {
+        "binding": "random.seed",
+        "id": "random.seed",
+        "kind": "syscall",
+        "category": "random"
+      },
+      {
+        "binding": "random.random",
+        "id": "random.random",
+        "kind": "syscall",
+        "category": "random"
+      },
+      {
+        "binding": "random.shuffle",
+        "id": "random.shuffle",
+        "kind": "syscall",
+        "category": "random"
+      },
+      {
+        "binding": "random.getrandbits",
+        "id": "random.getrandbits",
+        "kind": "syscall",
+        "category": "random"
+      },
+      {
+        "binding": "random.randrange",
+        "id": "random.randrange",
+        "kind": "syscall",
+        "category": "random"
+      },
+      {
+        "binding": "random.randint",
+        "id": "random.randint",
+        "kind": "syscall",
+        "category": "random"
+      },
+      {
+        "binding": "random.choice",
+        "id": "random.choice",
+        "kind": "syscall",
+        "category": "random"
+      },
+      {
+        "binding": "random.choices",
+        "id": "random.choices",
+        "kind": "syscall",
+        "category": "random"
+      },
+      {
+        "binding": "zk.is_available",
+        "id": "zk.is_available",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.has_verifying_key",
+        "id": "zk.has_verifying_key",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.get_vk_info",
+        "id": "zk.get_vk_info",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.verify_groth16_bn254",
+        "id": "zk.verify_groth16_bn254",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.verify_groth16",
+        "id": "zk.verify_groth16",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.clear_prepared_vk_cache",
+        "id": "zk.clear_prepared_vk_cache",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.clear_verified_proof_cache",
+        "id": "zk.clear_verified_proof_cache",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.warm_verified_proofs",
+        "id": "zk.warm_verified_proofs",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.shielded_note_append_commitments",
+        "id": "zk.shielded_note_append_commitments",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.shielded_command_nullifier_digest",
+        "id": "zk.shielded_command_nullifier_digest",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.shielded_command_binding",
+        "id": "zk.shielded_command_binding",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.shielded_command_execution_tag",
+        "id": "zk.shielded_command_execution_tag",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.shielded_command_public_inputs",
+        "id": "zk.shielded_command_public_inputs",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.shielded_deposit_public_inputs",
+        "id": "zk.shielded_deposit_public_inputs",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.shielded_output_payload_hashes",
+        "id": "zk.shielded_output_payload_hashes",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.shielded_output_payload_hash",
+        "id": "zk.shielded_output_payload_hash",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.shielded_transfer_public_inputs",
+        "id": "zk.shielded_transfer_public_inputs",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "zk.shielded_withdraw_public_inputs",
+        "id": "zk.shielded_withdraw_public_inputs",
+        "kind": "syscall",
+        "category": "zk"
+      },
+      {
+        "binding": "ctx.caller",
+        "id": "context.caller",
+        "kind": "context_field",
+        "category": "context"
+      },
+      {
+        "binding": "ctx.signer",
+        "id": "context.signer",
+        "kind": "context_field",
+        "category": "context"
+      },
+      {
+        "binding": "ctx.this",
+        "id": "context.this",
+        "kind": "context_field",
+        "category": "context"
+      },
+      {
+        "binding": "ctx.owner",
+        "id": "context.owner",
+        "kind": "context_field",
+        "category": "context"
+      },
+      {
+        "binding": "ctx.entry",
+        "id": "context.entry",
+        "kind": "context_field",
+        "category": "context"
+      },
+      {
+        "binding": "ctx.submission_name",
+        "id": "context.submission_name",
+        "kind": "context_field",
+        "category": "context"
+      },
+      {
+        "binding": "now",
+        "id": "env.now",
+        "kind": "env_value",
+        "category": "environment"
+      },
+      {
+        "binding": "block_num",
+        "id": "env.block_num",
+        "kind": "env_value",
+        "category": "environment"
+      },
+      {
+        "binding": "block_hash",
+        "id": "env.block_hash",
+        "kind": "env_value",
+        "category": "environment"
+      },
+      {
+        "binding": "chain_id",
+        "id": "env.chain_id",
+        "kind": "env_value",
+        "category": "environment"
+      }
+    ],
+    "annotations": [
+      "Any",
+      "bool",
+      "bytearray",
+      "bytes",
+      "datetime.datetime",
+      "datetime.timedelta",
+      "dict",
+      "float",
+      "frozenset",
+      "int",
+      "list",
+      "set",
+      "str"
+    ],
+    "value_members": {
+      "str": {
+        "capitalize": "method",
+        "casefold": "method",
+        "center": "method",
+        "count": "method",
+        "encode": "method",
+        "endswith": "method",
+        "expandtabs": "method",
+        "find": "method",
+        "format": "method",
+        "format_map": "method",
+        "index": "method",
+        "isalnum": "method",
+        "isalpha": "method",
+        "isascii": "method",
+        "isdecimal": "method",
+        "isdigit": "method",
+        "isidentifier": "method",
+        "islower": "method",
+        "isnumeric": "method",
+        "isprintable": "method",
+        "isspace": "method",
+        "istitle": "method",
+        "isupper": "method",
+        "join": "method",
+        "ljust": "method",
+        "lower": "method",
+        "lstrip": "method",
+        "maketrans": "method",
+        "partition": "method",
+        "removeprefix": "method",
+        "removesuffix": "method",
+        "replace": "method",
+        "rfind": "method",
+        "rindex": "method",
+        "rjust": "method",
+        "rpartition": "method",
+        "rsplit": "method",
+        "rstrip": "method",
+        "split": "method",
+        "splitlines": "method",
+        "startswith": "method",
+        "strip": "method",
+        "swapcase": "method",
+        "title": "method",
+        "translate": "method",
+        "upper": "method",
+        "zfill": "method"
+      },
+      "bytes": {
+        "capitalize": "method",
+        "center": "method",
+        "count": "method",
+        "decode": "method",
+        "endswith": "method",
+        "expandtabs": "method",
+        "find": "method",
+        "fromhex": "method",
+        "hex": "method",
+        "index": "method",
+        "isalnum": "method",
+        "isalpha": "method",
+        "isascii": "method",
+        "isdigit": "method",
+        "islower": "method",
+        "isspace": "method",
+        "istitle": "method",
+        "isupper": "method",
+        "join": "method",
+        "ljust": "method",
+        "lower": "method",
+        "lstrip": "method",
+        "maketrans": "method",
+        "partition": "method",
+        "removeprefix": "method",
+        "removesuffix": "method",
+        "replace": "method",
+        "rfind": "method",
+        "rindex": "method",
+        "rjust": "method",
+        "rpartition": "method",
+        "rsplit": "method",
+        "rstrip": "method",
+        "split": "method",
+        "splitlines": "method",
+        "startswith": "method",
+        "strip": "method",
+        "swapcase": "method",
+        "title": "method",
+        "translate": "method",
+        "upper": "method",
+        "zfill": "method"
+      },
+      "bytearray": {
+        "append": "method",
+        "capitalize": "method",
+        "center": "method",
+        "clear": "method",
+        "copy": "method",
+        "count": "method",
+        "decode": "method",
+        "endswith": "method",
+        "expandtabs": "method",
+        "extend": "method",
+        "find": "method",
+        "fromhex": "method",
+        "hex": "method",
+        "index": "method",
+        "insert": "method",
+        "isalnum": "method",
+        "isalpha": "method",
+        "isascii": "method",
+        "isdigit": "method",
+        "islower": "method",
+        "isspace": "method",
+        "istitle": "method",
+        "isupper": "method",
+        "join": "method",
+        "ljust": "method",
+        "lower": "method",
+        "lstrip": "method",
+        "maketrans": "method",
+        "partition": "method",
+        "pop": "method",
+        "remove": "method",
+        "removeprefix": "method",
+        "removesuffix": "method",
+        "replace": "method",
+        "resize": "method",
+        "reverse": "method",
+        "rfind": "method",
+        "rindex": "method",
+        "rjust": "method",
+        "rpartition": "method",
+        "rsplit": "method",
+        "rstrip": "method",
+        "split": "method",
+        "splitlines": "method",
+        "startswith": "method",
+        "strip": "method",
+        "swapcase": "method",
+        "title": "method",
+        "translate": "method",
+        "upper": "method",
+        "zfill": "method"
+      },
+      "list": {
+        "append": "method",
+        "clear": "method",
+        "copy": "method",
+        "count": "method",
+        "extend": "method",
+        "index": "method",
+        "insert": "method",
+        "pop": "method",
+        "remove": "method",
+        "reverse": "method",
+        "sort": "method"
+      },
+      "tuple": {
+        "count": "method",
+        "index": "method"
+      },
+      "dict": {
+        "clear": "method",
+        "copy": "method",
+        "fromkeys": "method",
+        "get": "method",
+        "items": "method",
+        "keys": "method",
+        "pop": "method",
+        "popitem": "method",
+        "setdefault": "method",
+        "update": "method",
+        "values": "method"
+      },
+      "set": {
+        "add": "method",
+        "clear": "method",
+        "copy": "method",
+        "difference": "method",
+        "discard": "method",
+        "intersection": "method",
+        "isdisjoint": "method",
+        "issubset": "method",
+        "issuperset": "method",
+        "pop": "method",
+        "remove": "method",
+        "symmetric_difference": "method",
+        "union": "method"
+      },
+      "frozenset": {
+        "copy": "method",
+        "difference": "method",
+        "intersection": "method",
+        "isdisjoint": "method",
+        "issubset": "method",
+        "issuperset": "method",
+        "symmetric_difference": "method",
+        "union": "method"
+      },
+      "range": {
+        "count": "method",
+        "index": "method",
+        "start": "attribute",
+        "step": "attribute",
+        "stop": "attribute"
+      },
+      "iterator.map": {},
+      "iterator.filter": {},
+      "iterator.zip": {},
+      "iterator.reversed": {},
+      "dict_keys": {
+        "isdisjoint": "method",
+        "mapping": "attribute"
+      },
+      "dict_values": {
+        "mapping": "attribute"
+      },
+      "dict_items": {
+        "isdisjoint": "method",
+        "mapping": "attribute"
+      },
+      "bool": {
+        "as_integer_ratio": "method",
+        "bit_count": "method",
+        "bit_length": "method",
+        "conjugate": "method",
+        "denominator": "attribute",
+        "from_bytes": "method",
+        "imag": "attribute",
+        "is_integer": "method",
+        "numerator": "attribute",
+        "real": "attribute",
+        "to_bytes": "method"
+      },
+      "int": {
+        "as_integer_ratio": "method",
+        "bit_count": "method",
+        "bit_length": "method",
+        "conjugate": "method",
+        "denominator": "attribute",
+        "from_bytes": "method",
+        "imag": "attribute",
+        "is_integer": "method",
+        "numerator": "attribute",
+        "real": "attribute",
+        "to_bytes": "method"
+      },
+      "float": {
+        "as_integer_ratio": "method",
+        "conjugate": "method",
+        "from_number": "method",
+        "fromhex": "method",
+        "hex": "method",
+        "imag": "attribute",
+        "is_integer": "method",
+        "real": "attribute"
+      },
+      "fixed_decimal": {},
+      "Decimal": {
+        "adjusted": "method",
+        "as_integer_ratio": "method",
+        "as_tuple": "method",
+        "canonical": "method",
+        "compare": "method",
+        "compare_signal": "method",
+        "compare_total": "method",
+        "compare_total_mag": "method",
+        "conjugate": "method",
+        "copy_abs": "method",
+        "copy_negate": "method",
+        "copy_sign": "method",
+        "exp": "method",
+        "fma": "method",
+        "from_float": "method",
+        "from_number": "method",
+        "imag": "attribute",
+        "is_canonical": "method",
+        "is_finite": "method",
+        "is_infinite": "method",
+        "is_nan": "method",
+        "is_normal": "method",
+        "is_qnan": "method",
+        "is_signed": "method",
+        "is_snan": "method",
+        "is_subnormal": "method",
+        "is_zero": "method",
+        "ln": "method",
+        "log10": "method",
+        "logb": "method",
+        "logical_and": "method",
+        "logical_invert": "method",
+        "logical_or": "method",
+        "logical_xor": "method",
+        "max": "method",
+        "max_mag": "method",
+        "min": "method",
+        "min_mag": "method",
+        "next_minus": "method",
+        "next_plus": "method",
+        "next_toward": "method",
+        "normalize": "method",
+        "number_class": "method",
+        "quantize": "method",
+        "radix": "method",
+        "real": "attribute",
+        "remainder_near": "method",
+        "rotate": "method",
+        "same_quantum": "method",
+        "scaleb": "method",
+        "shift": "method",
+        "sqrt": "method",
+        "to_eng_string": "method",
+        "to_integral": "method",
+        "to_integral_exact": "method",
+        "to_integral_value": "method"
+      },
+      "DecimalTuple": {
+        "count": "method",
+        "digits": "attribute",
+        "exponent": "attribute",
+        "index": "method",
+        "sign": "attribute"
+      },
+      "datetime": {
+        "day": "attribute",
+        "hour": "attribute",
+        "microsecond": "attribute",
+        "minute": "attribute",
+        "month": "attribute",
+        "second": "attribute",
+        "strptime": "method",
+        "year": "attribute"
+      },
+      "timedelta": {
+        "days": "attribute",
+        "hours": "attribute",
+        "minutes": "attribute",
+        "seconds": "attribute",
+        "weeks": "attribute"
+      },
+      "None": {},
+      "Exception": {
+        "add_note": "method",
+        "args": "attribute",
+        "with_traceback": "method"
+      }
+    }
+  },
+  "items": [
+    {
+      "id": "api.Any",
+      "kind": "type_marker",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.Contract.deploy",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.Contract.get_info",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.Contract.set_developer",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.Contract.set_owner",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.ForeignHash",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.ForeignHash.__getitem__",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.ForeignHash.all",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.ForeignVariable",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.ForeignVariable.get",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.Hash",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.Hash.__getitem__",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.Hash.__setitem__",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.Hash.all",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.LogEvent",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.LogEvent.__call__",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.Variable",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.Variable.get",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.Variable.set",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.__Contract",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.__contract_export__",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.block_hash",
+      "kind": "env_value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.block_num",
+      "kind": "env_value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.chain_id",
+      "kind": "env_value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.crypto",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.crypto.key_is_valid",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_ir_lowering.py"
+      ]
+    },
+    {
+      "id": "api.crypto.verify",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_ir_lowering.py"
+      ]
+    },
+    {
+      "id": "api.ctx.caller",
+      "kind": "context_field",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.ctx.entry",
+      "kind": "context_field",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.ctx.owner",
+      "kind": "context_field",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.ctx.signer",
+      "kind": "context_field",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.ctx.submission_name",
+      "kind": "context_field",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.ctx.this",
+      "kind": "context_field",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.datetime",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.datetime.DAYS",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/integration/test_pixel_game.py"
+      ]
+    },
+    {
+      "id": "api.datetime.HOURS",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.datetime.MINUTES",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.datetime.SECONDS",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.datetime.WEEKS",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.datetime.datetime",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_ir_lowering.py"
+      ]
+    },
+    {
+      "id": "api.datetime.datetime.strptime",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_ir_lowering.py"
+      ]
+    },
+    {
+      "id": "api.datetime.timedelta",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_ir_lowering.py"
+      ]
+    },
+    {
+      "id": "api.decimal",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.hashlib",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.hashlib.sha256",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_legacy_compatibility.py"
+      ]
+    },
+    {
+      "id": "api.hashlib.sha256_hex",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.hashlib.sha256_text",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_ir_lowering.py"
+      ]
+    },
+    {
+      "id": "api.hashlib.sha3",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.hashlib.sha3_hex",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.hashlib.sha3_text",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_artifacts.py"
+      ]
+    },
+    {
+      "id": "api.importlib",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.importlib.Func",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.importlib.Var",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_ir_lowering.py"
+      ]
+    },
+    {
+      "id": "api.importlib.call",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.importlib.code_hash",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.importlib.contract_info",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.importlib.enforce_interface",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.importlib.exists",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.importlib.has_export",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.importlib.import_module",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_ir_lowering.py",
+        "tests/security/test_runtime_security.py",
+        "tests/integration/test_rich_ctx_calling.py",
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_stateful_fuzz.py"
+      ]
+    },
+    {
+      "id": "api.importlib.owner_of",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.indexed",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.now",
+      "kind": "env_value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.random",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.random.choice",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_native_vm_random_syscalls.py",
+        "tests/integration/test_seneca_client_randoms.py"
+      ]
+    },
+    {
+      "id": "api.random.choices",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_native_vm_random_syscalls.py",
+        "tests/integration/test_seneca_client_randoms.py"
+      ]
+    },
+    {
+      "id": "api.random.getrandbits",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_native_vm_random_syscalls.py",
+        "tests/integration/test_seneca_client_randoms.py"
+      ]
+    },
+    {
+      "id": "api.random.randint",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_native_vm_random_syscalls.py",
+        "tests/integration/test_seneca_client_randoms.py"
+      ]
+    },
+    {
+      "id": "api.random.random",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_native_vm_random_syscalls.py"
+      ]
+    },
+    {
+      "id": "api.random.randrange",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_native_vm_random_syscalls.py",
+        "tests/integration/test_seneca_client_randoms.py"
+      ]
+    },
+    {
+      "id": "api.random.seed",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_native_vm_random_syscalls.py",
+        "tests/integration/test_seneca_client_randoms.py"
+      ]
+    },
+    {
+      "id": "api.random.shuffle",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_native_vm_random_syscalls.py",
+        "tests/integration/test_seneca_client_randoms.py"
+      ]
+    },
+    {
+      "id": "api.zk",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.zk.clear_prepared_vk_cache",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "api.zk.clear_verified_proof_cache",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "api.zk.get_vk_info",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "api.zk.has_verifying_key",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "api.zk.is_available",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "api.zk.shielded_command_binding",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "api.zk.shielded_command_execution_tag",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "api.zk.shielded_command_nullifier_digest",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "api.zk.shielded_command_public_inputs",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "api.zk.shielded_deposit_public_inputs",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "api.zk.shielded_note_append_commitments",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "api.zk.shielded_output_payload_hash",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "api.zk.shielded_output_payload_hashes",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "api.zk.shielded_transfer_public_inputs",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.zk.shielded_withdraw_public_inputs",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "api.zk.verify_groth16",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "api.zk.verify_groth16_bn254",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "api.zk.warm_verified_proofs",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py"
+      ]
+    },
+    {
+      "id": "attribute.Decimal.imag",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.Decimal.real",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.DecimalTuple.digits",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.DecimalTuple.exponent",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.DecimalTuple.sign",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.Exception.args",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python exception member has no matching native attribute/method dispatch; string construction and rendering have separate behavioral tests.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.bool.denominator",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.bool.imag",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.bool.numerator",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.bool.real",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.datetime.day",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.datetime.hour",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.datetime.microsecond",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.datetime.minute",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.datetime.month",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.datetime.second",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.datetime.year",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.dict_items.mapping",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.dict_keys.mapping",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.dict_values.mapping",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.float.imag",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.float.real",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.int.denominator",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.int.imag",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.int.numerator",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.int.real",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.range.start",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.range.step",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.range.stop",
+      "kind": "attribute",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "attribute.timedelta.days",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [],
+      "notes": [
+        "At least one recorded supported-family case disagrees with the explicit Python expectation; see value-case-validation.json."
+      ]
+    },
+    {
+      "id": "attribute.timedelta.hours",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [],
+      "notes": [
+        "At least one recorded supported-family case disagrees with the explicit Python expectation; see value-case-validation.json."
+      ]
+    },
+    {
+      "id": "attribute.timedelta.minutes",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [],
+      "notes": [
+        "At least one recorded supported-family case disagrees with the explicit Python expectation; see value-case-validation.json."
+      ]
+    },
+    {
+      "id": "attribute.timedelta.seconds",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [],
+      "notes": [
+        "At least one recorded supported-family case disagrees with the explicit Python expectation; see value-case-validation.json."
+      ]
+    },
+    {
+      "id": "attribute.timedelta.weeks",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [],
+      "notes": [
+        "At least one recorded supported-family case disagrees with the explicit Python expectation; see value-case-validation.json."
+      ]
+    },
+    {
+      "id": "builtin.Exception",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_orm.py",
+        "tests/unit/test_context_data_struct.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_authored_conformance.py",
+        "tests/unit/test_zk_stdlib.py",
+        "tests/unit/test_vm_compatibility.py",
+        "tests/unit/test_conformance_manifest.py",
+        "tests/unit/test_access_context.py",
+        "tests/security/test_runtime_security.py",
+        "tests/security/test_erc20_token_hacks.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_builtins_locked_off.py",
+        "tests/integration/test_run_private_function.py",
+        "tests/integration/test_misc_contracts.py",
+        "tests/integration/test_dynamic_imports.py",
+        "tests/integration/test_vm_legacy_compatibility.py"
+      ]
+    },
+    {
+      "id": "builtin.False",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_new_driver.py",
+        "tests/unit/test_stdlib_crypto.py",
+        "tests/unit/test_driver_tombstones.py",
+        "tests/unit/test_module.py",
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/unit/test_zk_stdlib.py",
+        "tests/unit/test_runtime.py",
+        "tests/unit/test_compiler_fixtures.py",
+        "tests/unit/test_tracer.py",
+        "tests/unit/test_native_vm_random_syscalls.py",
+        "tests/unit/test_encode.py",
+        "tests/unit/test_client.py",
+        "tests/unit/test_compiler_core_parity.py",
+        "tests/security/test_runtime_security.py",
+        "tests/security/test_erc20_token_hacks.py",
+        "tests/integration/test_chi_deduction.py",
+        "tests/integration/test_ifexp_support.py",
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_memory_clean_up_after_execution.py"
+      ]
+    },
+    {
+      "id": "builtin.None",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_orm.py",
+        "tests/unit/test_new_driver.py",
+        "tests/unit/test_context_data_struct.py",
+        "tests/unit/test_driver_tombstones.py",
+        "tests/unit/test_module.py",
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/unit/test_authored_conformance.py",
+        "tests/unit/test_zk_stdlib.py",
+        "tests/unit/test_runtime.py",
+        "tests/unit/test_compiler_fixtures.py",
+        "tests/unit/test_tracer.py",
+        "tests/unit/test_artifacts.py",
+        "tests/unit/test_native_vm_random_syscalls.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_compiler_binding_parity.py",
+        "tests/unit/test_encode.py",
+        "tests/unit/test_access_context.py",
+        "tests/unit/test_ordered_storage.py",
+        "tests/unit/test_client.py"
+      ]
+    },
+    {
+      "id": "builtin.True",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_orm.py",
+        "tests/unit/test_compatibility_compiler_paths.py",
+        "tests/unit/test_new_driver.py",
+        "tests/unit/test_stdlib_crypto.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_module.py",
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/unit/test_authored_conformance.py",
+        "tests/unit/test_zk_stdlib.py",
+        "tests/unit/test_runtime.py",
+        "tests/unit/test_compiler_fixtures.py",
+        "tests/unit/test_linter.py",
+        "tests/unit/test_artifacts.py",
+        "tests/unit/test_native_vm_random_syscalls.py",
+        "tests/unit/test_imports_stdlib.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_compiler_binding_parity.py",
+        "tests/unit/test_conformance_manifest.py",
+        "tests/unit/test_encode.py"
+      ]
+    },
+    {
+      "id": "builtin.abs",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_decimal.py",
+        "tests/integration/test_vm_builtin_edges.py"
+      ]
+    },
+    {
+      "id": "builtin.all",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_orm.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_tracer.py",
+        "tests/unit/test_client_keys_prefix.py",
+        "tests/unit/test_contracting_collections.py",
+        "tests/integration/test_chi_deduction.py",
+        "tests/integration/test_vm_storage_scans.py"
+      ]
+    },
+    {
+      "id": "builtin.any",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_new_driver.py",
+        "tests/integration/test_vm_metadata_syscalls.py",
+        "tests/integration/test_rich_ctx_calling.py",
+        "tests/integration/test_vm_heap_boundaries.py",
+        "tests/integration/test_executor_transaction_writes.py",
+        "tests/integration/test_misc_contracts.py",
+        "tests/integration/test_vm_language_conformance.py"
+      ]
+    },
+    {
+      "id": "builtin.ascii",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "builtin.bin",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "builtin.bool",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_orm.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_linter.py",
+        "tests/unit/test_tracer.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_access_context.py",
+        "tests/integration/test_vm_builtin_edges.py"
+      ]
+    },
+    {
+      "id": "builtin.bytearray",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_conformance_manifest.py",
+        "tests/unit/test_encode.py",
+        "tests/integration/test_vm_language_conformance.py"
+      ]
+    },
+    {
+      "id": "builtin.bytes",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_conformance_manifest.py",
+        "tests/integration/test_vm_collection_methods.py",
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_complex_contracts.py"
+      ]
+    },
+    {
+      "id": "builtin.chr",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "builtin.dict",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_compatibility_compiler_paths.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/unit/test_vm_compatibility.py",
+        "tests/unit/test_runtime.py",
+        "tests/unit/test_linter.py",
+        "tests/unit/test_artifacts.py",
+        "tests/unit/test_native_vm_random_syscalls.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_compiler_binding_parity.py",
+        "tests/unit/test_access_context.py",
+        "tests/unit/test_stdlib_random.py",
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_export_typecheck.py",
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_seneca_client_randoms.py"
+      ]
+    },
+    {
+      "id": "builtin.divmod",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "builtin.filter",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "builtin.float",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_orm.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_linter.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_stdlib_random.py",
+        "tests/unit/test_contracting_collections.py",
+        "tests/security/test_erc20_token_hacks.py",
+        "tests/integration/test_chi_deduction.py",
+        "tests/integration/test_ifexp_support.py",
+        "tests/integration/test_pixel_game.py",
+        "tests/integration/test_senecaCompiler_integration.py",
+        "tests/integration/test_export_typecheck.py",
+        "tests/integration/test_vm_builtin_edges.py",
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_misc_contracts.py",
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "builtin.format",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_client.py",
+        "tests/integration/test_vm_raw_decimal.py"
+      ]
+    },
+    {
+      "id": "builtin.frozenset",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_parallel_planner.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_linter.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_conformance_manifest.py",
+        "tests/unit/test_contracting_collections.py",
+        "tests/unit/test_speculative_controller.py",
+        "tests/integration/test_parallel_batch_executor.py",
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "builtin.hex",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_stdlib_hashing.py",
+        "tests/integration/test_pixel_game.py"
+      ]
+    },
+    {
+      "id": "builtin.import",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_contract_names.py",
+        "tests/unit/test_orm.py",
+        "tests/unit/test_compatibility_compiler_paths.py",
+        "tests/unit/test_new_driver.py",
+        "tests/unit/test_context_data_struct.py",
+        "tests/unit/test_stdlib_crypto.py",
+        "tests/unit/test_driver_tombstones.py",
+        "tests/unit/test_parallel_planner.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_state_management.py",
+        "tests/unit/test_module.py",
+        "tests/unit/test_decimal.py",
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/unit/test_authored_conformance.py",
+        "tests/unit/test_zk_stdlib.py",
+        "tests/unit/test_vm_compatibility.py",
+        "tests/unit/test_runtime.py",
+        "tests/unit/test_compiler.py",
+        "tests/unit/test_compiler_fixtures.py"
+      ]
+    },
+    {
+      "id": "builtin.int",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_orm.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/unit/test_authored_conformance.py",
+        "tests/unit/test_vm_compatibility.py",
+        "tests/unit/test_compiler.py",
+        "tests/unit/test_linter.py",
+        "tests/unit/test_tracer.py",
+        "tests/unit/test_imports_stdlib.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_compiler_binding_parity.py",
+        "tests/unit/test_access_context.py",
+        "tests/unit/test_client.py",
+        "tests/integration/test_pixel_game.py",
+        "tests/integration/test_complex_object_setting.py",
+        "tests/integration/test_senecaCompiler_integration.py",
+        "tests/integration/test_export_typecheck.py",
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_vm_builtin_edges.py"
+      ]
+    },
+    {
+      "id": "builtin.isinstance",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_module.py",
+        "tests/unit/test_tracer.py",
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_legacy_compatibility.py"
+      ]
+    },
+    {
+      "id": "builtin.issubclass",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "builtin.len",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_zk_stdlib.py",
+        "tests/unit/test_vm_compatibility.py",
+        "tests/unit/test_linter.py",
+        "tests/unit/test_tracer.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_compiler_binding_parity.py",
+        "tests/unit/test_conformance_manifest.py",
+        "tests/unit/test_ordered_storage.py",
+        "tests/unit/test_contracting_collections.py",
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_pixel_game.py",
+        "tests/integration/test_vm_heap_boundaries.py",
+        "tests/integration/test_senecaCompiler_integration.py",
+        "tests/integration/test_vm_storage_scans.py",
+        "tests/integration/test_export_typecheck.py",
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_seneca_client_randoms.py",
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "builtin.list",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_orm.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_vm_compatibility.py",
+        "tests/unit/test_linter.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_ordered_storage.py",
+        "tests/unit/test_contracting_collections.py",
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_storage_scans.py",
+        "tests/integration/test_export_typecheck.py",
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_vm_builtin_edges.py",
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/integration/test_vm_float_sets.py",
+        "tests/integration/test_zk_bridge.py"
+      ]
+    },
+    {
+      "id": "builtin.map",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py"
+      ]
+    },
+    {
+      "id": "builtin.max",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_runtime.py"
+      ]
+    },
+    {
+      "id": "builtin.min",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_unpacking.py"
+      ]
+    },
+    {
+      "id": "builtin.oct",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "builtin.ord",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "builtin.pow",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_vm_raw_decimal.py"
+      ]
+    },
+    {
+      "id": "builtin.range",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parallel_planner.py",
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/unit/test_vm_compatibility.py",
+        "tests/unit/test_runtime.py",
+        "tests/unit/test_tracer.py",
+        "tests/unit/test_stdlib_random.py",
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_vm_heap_boundaries.py",
+        "tests/integration/test_vm_unpacking.py",
+        "tests/integration/test_vm_collection_methods.py",
+        "tests/integration/test_vm_storage_scans.py",
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_parallel_batch_executor.py",
+        "tests/integration/test_misc_contracts.py",
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_legacy_compatibility.py",
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/performance/test_transfer.py"
+      ]
+    },
+    {
+      "id": "builtin.reversed",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "builtin.round",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_decimal.py",
+        "tests/integration/test_vm_heap_boundaries.py",
+        "tests/integration/test_vm_builtin_edges.py",
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_seneca_client_randoms.py",
+        "tests/integration/test_vm_raw_decimal.py"
+      ]
+    },
+    {
+      "id": "builtin.set",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_orm.py",
+        "tests/unit/test_new_driver.py",
+        "tests/unit/test_driver_tombstones.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_vm_compatibility.py",
+        "tests/unit/test_compiler.py",
+        "tests/unit/test_linter.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_conformance_manifest.py",
+        "tests/security/test_erc20_token_hacks.py",
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_legacy_compatibility.py",
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "builtin.sorted",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_linter.py",
+        "tests/unit/test_native_vm_random_syscalls.py",
+        "tests/unit/test_compiler_binding_parity.py",
+        "tests/unit/test_conformance_manifest.py",
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_vm_refactor_invariants.py",
+        "tests/integration/test_vm_language_conformance.py"
+      ]
+    },
+    {
+      "id": "builtin.str",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_orm.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_state_management.py",
+        "tests/unit/test_decimal.py",
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/unit/test_authored_conformance.py",
+        "tests/unit/test_vm_compatibility.py",
+        "tests/unit/test_linter.py",
+        "tests/unit/test_artifacts.py",
+        "tests/unit/test_native_vm_random_syscalls.py",
+        "tests/unit/test_imports_stdlib.py",
+        "tests/unit/test_datetime.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_compiler_binding_parity.py",
+        "tests/unit/test_encode.py",
+        "tests/unit/test_access_context.py",
+        "tests/unit/test_contracting_collections.py",
+        "tests/security/test_runtime_security.py",
+        "tests/security/test_erc20_token_hacks.py"
+      ]
+    },
+    {
+      "id": "builtin.sum",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py",
+        "tests/integration/test_vm_transaction_budget.py",
+        "tests/integration/test_parallel_batch_executor.py",
+        "tests/integration/test_dynamic_imports.py"
+      ]
+    },
+    {
+      "id": "builtin.tuple",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_parallel_planner.py",
+        "tests/unit/test_module.py",
+        "tests/unit/test_zk_stdlib.py",
+        "tests/unit/test_linter.py",
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_vm_language_conformance.py"
+      ]
+    },
+    {
+      "id": "builtin.zip",
+      "kind": "builtin",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_contracting_collections.py",
+        "tests/integration/test_vm_collection_methods.py",
+        "tests/integration/test_vm_builtin_edges.py"
+      ]
+    },
+    {
+      "id": "env.Any",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_vm_stateful_fuzz.py"
+      ]
+    },
+    {
+      "id": "env.Contract",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_conformance_manifest.py",
+        "tests/unit/test_contract_storage.py",
+        "tests/integration/test_vm_metadata_syscalls.py",
+        "tests/integration/test_misc_contracts.py",
+        "tests/integration/test_constructor_args.py",
+        "tests/integration/test_zk_bridge.py"
+      ]
+    },
+    {
+      "id": "env.ForeignHash",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_orm.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_senecaCompiler_integration.py",
+        "tests/integration/test_vm_storage_scans.py",
+        "tests/integration/test_misc_contracts.py"
+      ]
+    },
+    {
+      "id": "env.ForeignVariable",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_orm.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_senecaCompiler_integration.py"
+      ]
+    },
+    {
+      "id": "env.Hash",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_orm.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_vm_compatibility.py",
+        "tests/unit/test_linter.py",
+        "tests/unit/test_imports_stdlib.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_conformance_manifest.py",
+        "tests/security/test_runtime_security.py",
+        "tests/integration/test_rich_ctx_calling.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_pixel_game.py",
+        "tests/integration/test_complex_object_setting.py",
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_senecaCompiler_integration.py",
+        "tests/integration/test_vm_storage_scans.py",
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_parallel_batch_executor.py",
+        "tests/integration/test_misc_contracts.py"
+      ]
+    },
+    {
+      "id": "env.LogEvent",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_orm.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/security/test_runtime_security.py",
+        "tests/integration/test_senecaCompiler_integration.py",
+        "tests/integration/test_vm_stateful_fuzz.py"
+      ]
+    },
+    {
+      "id": "env.Variable",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_orm.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_authored_conformance.py",
+        "tests/unit/test_compiler_fixtures.py",
+        "tests/unit/test_linter.py",
+        "tests/unit/test_imports_stdlib.py",
+        "tests/unit/test_conformance_manifest.py",
+        "tests/unit/test_client.py",
+        "tests/security/test_runtime_security.py",
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_rich_ctx_calling.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_pixel_game.py",
+        "tests/integration/test_vm_heap_boundaries.py",
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_unpacking.py",
+        "tests/integration/test_vm_collection_methods.py",
+        "tests/integration/test_vm_transaction_budget.py",
+        "tests/integration/test_senecaCompiler_integration.py"
+      ]
+    },
+    {
+      "id": "env.bytearray",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_conformance_manifest.py",
+        "tests/unit/test_encode.py",
+        "tests/integration/test_vm_language_conformance.py"
+      ]
+    },
+    {
+      "id": "env.bytes",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_conformance_manifest.py",
+        "tests/integration/test_vm_collection_methods.py",
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_complex_contracts.py"
+      ]
+    },
+    {
+      "id": "env.crypto",
+      "kind": "module",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_ir_lowering.py"
+      ]
+    },
+    {
+      "id": "env.ctx",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_module.py",
+        "tests/unit/test_authored_conformance.py",
+        "tests/unit/test_linter.py",
+        "tests/integration/test_rich_ctx_calling.py",
+        "tests/integration/test_pixel_game.py",
+        "tests/integration/test_complex_object_setting.py",
+        "tests/integration/test_misc_contracts.py"
+      ]
+    },
+    {
+      "id": "env.datetime",
+      "kind": "module",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_timedelta.py",
+        "tests/unit/test_datetime.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/integration/test_pixel_game.py",
+        "tests/integration/test_complex_contracts.py"
+      ]
+    },
+    {
+      "id": "env.decimal",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_orm.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_decimal.py",
+        "tests/unit/test_timedelta.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_encode.py",
+        "tests/unit/test_contracting_collections.py",
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "env.filter",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "env.frozenset",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_parallel_planner.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_linter.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_conformance_manifest.py",
+        "tests/unit/test_contracting_collections.py",
+        "tests/unit/test_speculative_controller.py",
+        "tests/integration/test_parallel_batch_executor.py",
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "env.hashlib",
+      "kind": "module",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_artifacts.py",
+        "tests/integration/test_dynamic_imports.py",
+        "tests/integration/test_vm_legacy_compatibility.py",
+        "tests/integration/test_complex_contracts.py"
+      ]
+    },
+    {
+      "id": "env.importlib",
+      "kind": "module",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/security/test_runtime_security.py",
+        "tests/integration/test_rich_ctx_calling.py",
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_stateful_fuzz.py"
+      ]
+    },
+    {
+      "id": "env.indexed",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_orm.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/integration/test_senecaCompiler_integration.py",
+        "tests/integration/test_vm_stateful_fuzz.py"
+      ]
+    },
+    {
+      "id": "env.int",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_orm.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/unit/test_authored_conformance.py",
+        "tests/unit/test_vm_compatibility.py",
+        "tests/unit/test_compiler.py",
+        "tests/unit/test_linter.py",
+        "tests/unit/test_tracer.py",
+        "tests/unit/test_imports_stdlib.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_compiler_binding_parity.py",
+        "tests/unit/test_access_context.py",
+        "tests/unit/test_client.py",
+        "tests/integration/test_pixel_game.py",
+        "tests/integration/test_complex_object_setting.py",
+        "tests/integration/test_senecaCompiler_integration.py",
+        "tests/integration/test_export_typecheck.py",
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_vm_builtin_edges.py"
+      ]
+    },
+    {
+      "id": "env.map",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py"
+      ]
+    },
+    {
+      "id": "env.pow",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_vm_raw_decimal.py"
+      ]
+    },
+    {
+      "id": "env.random",
+      "kind": "module",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_native_vm_random_syscalls.py",
+        "tests/unit/test_stdlib_random.py",
+        "tests/integration/test_seneca_client_randoms.py",
+        "tests/integration/test_vm_raw_decimal.py"
+      ]
+    },
+    {
+      "id": "env.range",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parallel_planner.py",
+        "tests/unit/test_contract_runtime_guards.py",
+        "tests/unit/test_vm_compatibility.py",
+        "tests/unit/test_runtime.py",
+        "tests/unit/test_tracer.py",
+        "tests/unit/test_stdlib_random.py",
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_vm_heap_boundaries.py",
+        "tests/integration/test_vm_unpacking.py",
+        "tests/integration/test_vm_collection_methods.py",
+        "tests/integration/test_vm_storage_scans.py",
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_parallel_batch_executor.py",
+        "tests/integration/test_misc_contracts.py",
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_legacy_compatibility.py",
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/performance/test_transfer.py"
+      ]
+    },
+    {
+      "id": "env.round",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_decimal.py",
+        "tests/integration/test_vm_heap_boundaries.py",
+        "tests/integration/test_vm_builtin_edges.py",
+        "tests/integration/test_vm_decimal_methods.py",
+        "tests/integration/test_seneca_client_randoms.py",
+        "tests/integration/test_vm_raw_decimal.py"
+      ]
+    },
+    {
+      "id": "env.set",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_parser.py",
+        "tests/unit/test_orm.py",
+        "tests/unit/test_new_driver.py",
+        "tests/unit/test_driver_tombstones.py",
+        "tests/unit/test_ir_lowering.py",
+        "tests/unit/test_vm_compatibility.py",
+        "tests/unit/test_compiler.py",
+        "tests/unit/test_linter.py",
+        "tests/unit/test_lmdb_store.py",
+        "tests/unit/test_conformance_manifest.py",
+        "tests/security/test_erc20_token_hacks.py",
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_legacy_compatibility.py",
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "env.zk",
+      "kind": "module",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/unit/test_zk_stdlib.py",
+        "tests/integration/test_zk_bridge.py"
+      ]
+    },
+    {
+      "id": "method.Decimal.adjusted",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.Decimal.as_integer_ratio",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.Decimal.as_tuple",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.Decimal.canonical",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.Decimal.compare",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.compare_signal",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.compare_total",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.compare_total_mag",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.conjugate",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.Decimal.copy_abs",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.Decimal.copy_negate",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.copy_sign",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.exp",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.fma",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.Decimal.from_float",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.Decimal.from_number",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Introduced after the pinned Python 3.12 historical baseline; exposed by the current Python harness but not native. Decide explicitly whether to expand the contract API.",
+      "existing_test_files": [],
+      "notes": [
+        "Added by host Python 3.14; absent from pinned Python3.12 historical method inventory. Requires a scope decision, not a historical-regression claim."
+      ]
+    },
+    {
+      "id": "method.Decimal.is_canonical",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.is_finite",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.is_infinite",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.is_nan",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.is_normal",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.is_qnan",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.is_signed",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.is_snan",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.is_subnormal",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.is_zero",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.ln",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_raw_decimal.py"
+      ]
+    },
+    {
+      "id": "method.Decimal.log10",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.logb",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.logical_and",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.logical_invert",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.logical_or",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.logical_xor",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.max",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.max_mag",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.min",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.min_mag",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.next_minus",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.next_plus",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.next_toward",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.normalize",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.number_class",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.quantize",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.Decimal.radix",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.remainder_near",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.rotate",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.same_quantum",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.scaleb",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.shift",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.sqrt",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.Decimal.to_eng_string",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.to_integral",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.to_integral_exact",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Decimal.to_integral_value",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.DecimalTuple.count",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py"
+      ]
+    },
+    {
+      "id": "method.DecimalTuple.index",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.Exception.add_note",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python exception member has no matching native attribute/method dispatch; string construction and rendering have separate behavioral tests.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.Exception.with_traceback",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python exception member has no matching native attribute/method dispatch; string construction and rendering have separate behavioral tests.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bool.as_integer_ratio",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.bool.bit_count",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bool.bit_length",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bool.conjugate",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.bool.from_bytes",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bool.is_integer",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bool.to_bytes",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.append",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_heap_boundaries.py",
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_vm_storage_scans.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.capitalize",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.center",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.clear",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_vm_storage_scans.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.copy",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.count",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.decode",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.endswith",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_language_conformance.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.expandtabs",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.extend",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.find",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.fromhex",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_collection_methods.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.hex",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_language_conformance.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.index",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.insert",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.isalnum",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_unicode_strings.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.isalpha",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_unicode_strings.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.isascii",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.isdigit",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_unicode_strings.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.islower",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_unicode_strings.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.isspace",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.istitle",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.isupper",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.join",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_float_sets.py",
+        "tests/integration/test_vm_raw_decimal.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.ljust",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.lower",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.lstrip",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.maketrans",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.partition",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.pop",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py",
+        "tests/integration/test_vm_stateful_fuzz.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.remove",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.removeprefix",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.removesuffix",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.replace",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_transaction_budget.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.resize",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.reverse",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.rfind",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.rindex",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.rjust",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.rpartition",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.rsplit",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.rstrip",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.split",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_unicode_strings.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.splitlines",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_float_sets.py",
+        "tests/integration/test_vm_raw_decimal.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.startswith",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_metadata_syscalls.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.strip",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_vm_storage_scans.py",
+        "tests/integration/test_vm_unicode_strings.py"
+      ]
+    },
+    {
+      "id": "method.bytearray.swapcase",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.title",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.translate",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.upper",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytearray.zfill",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.capitalize",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.center",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.count",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py"
+      ]
+    },
+    {
+      "id": "method.bytes.decode",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.endswith",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_language_conformance.py"
+      ]
+    },
+    {
+      "id": "method.bytes.expandtabs",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.find",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.fromhex",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_collection_methods.py"
+      ]
+    },
+    {
+      "id": "method.bytes.hex",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_language_conformance.py"
+      ],
+      "notes": [
+        "Zero-argument hex is supported; admitted Python separator argument fails natively (bytes_hex_separator diagnostic)."
+      ]
+    },
+    {
+      "id": "method.bytes.index",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.bytes.isalnum",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_unicode_strings.py"
+      ]
+    },
+    {
+      "id": "method.bytes.isalpha",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_unicode_strings.py"
+      ]
+    },
+    {
+      "id": "method.bytes.isascii",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.isdigit",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_unicode_strings.py"
+      ]
+    },
+    {
+      "id": "method.bytes.islower",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_unicode_strings.py"
+      ]
+    },
+    {
+      "id": "method.bytes.isspace",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.istitle",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.isupper",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.join",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_float_sets.py",
+        "tests/integration/test_vm_raw_decimal.py"
+      ]
+    },
+    {
+      "id": "method.bytes.ljust",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.lower",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.lstrip",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.maketrans",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.partition",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.removeprefix",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.removesuffix",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.replace",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_transaction_budget.py"
+      ]
+    },
+    {
+      "id": "method.bytes.rfind",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.rindex",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.rjust",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.rpartition",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.rsplit",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.rstrip",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.split",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_unicode_strings.py"
+      ]
+    },
+    {
+      "id": "method.bytes.splitlines",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_float_sets.py",
+        "tests/integration/test_vm_raw_decimal.py"
+      ]
+    },
+    {
+      "id": "method.bytes.startswith",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_metadata_syscalls.py"
+      ]
+    },
+    {
+      "id": "method.bytes.strip",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_vm_storage_scans.py",
+        "tests/integration/test_vm_unicode_strings.py"
+      ]
+    },
+    {
+      "id": "method.bytes.swapcase",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.title",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.translate",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.upper",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.bytes.zfill",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.datetime.strptime",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [],
+      "notes": [
+        "Static, instance and aliased strptime use the same parser; full format-dialect parity is not claimed."
+      ]
+    },
+    {
+      "id": "method.dict.clear",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_vm_storage_scans.py"
+      ]
+    },
+    {
+      "id": "method.dict.copy",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.dict.fromkeys",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.dict.get",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_entry_owner.py",
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/integration/test_vm_refactor_invariants.py",
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_vm_transaction_budget.py"
+      ]
+    },
+    {
+      "id": "method.dict.items",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_refactor_invariants.py",
+        "tests/integration/test_vm_stateful_fuzz.py"
+      ]
+    },
+    {
+      "id": "method.dict.keys",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.dict.pop",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py",
+        "tests/integration/test_vm_stateful_fuzz.py"
+      ]
+    },
+    {
+      "id": "method.dict.popitem",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.dict.setdefault",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.dict.update",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_collection_methods.py"
+      ]
+    },
+    {
+      "id": "method.dict.values",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_transaction_budget.py"
+      ]
+    },
+    {
+      "id": "method.dict_items.isdisjoint",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.dict_keys.isdisjoint",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.float.as_integer_ratio",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.float.conjugate",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.float.from_number",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.float.fromhex",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_collection_methods.py"
+      ]
+    },
+    {
+      "id": "method.float.hex",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_language_conformance.py"
+      ]
+    },
+    {
+      "id": "method.float.is_integer",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.frozenset.copy",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py"
+      ],
+      "notes": [
+        "At least one recorded supported-family case disagrees with the explicit Python expectation; see value-case-validation.json."
+      ]
+    },
+    {
+      "id": "method.frozenset.difference",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.frozenset.intersection",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.frozenset.isdisjoint",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.frozenset.issubset",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.frozenset.issuperset",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.frozenset.symmetric_difference",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.frozenset.union",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.int.as_integer_ratio",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.int.bit_count",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.int.bit_length",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.int.conjugate",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.int.from_bytes",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.int.is_integer",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.int.to_bytes",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.list.append",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_heap_boundaries.py",
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_vm_storage_scans.py"
+      ]
+    },
+    {
+      "id": "method.list.clear",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_vm_storage_scans.py"
+      ]
+    },
+    {
+      "id": "method.list.copy",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.list.count",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py"
+      ]
+    },
+    {
+      "id": "method.list.extend",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.list.index",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.list.insert",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.list.pop",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py",
+        "tests/integration/test_vm_stateful_fuzz.py"
+      ]
+    },
+    {
+      "id": "method.list.remove",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.list.reverse",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.list.sort",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_heap_boundaries.py"
+      ]
+    },
+    {
+      "id": "method.range.count",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py"
+      ]
+    },
+    {
+      "id": "method.range.index",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.set.add",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.set.clear",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_storage_bulk.py",
+        "tests/integration/test_vm_storage_scans.py"
+      ]
+    },
+    {
+      "id": "method.set.copy",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.set.difference",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.set.discard",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.set.intersection",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.set.isdisjoint",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.set.issubset",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.set.issuperset",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.set.pop",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py",
+        "tests/integration/test_vm_stateful_fuzz.py"
+      ]
+    },
+    {
+      "id": "method.set.remove",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.set.symmetric_difference",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.set.union",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_float_sets.py"
+      ]
+    },
+    {
+      "id": "method.str.capitalize",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.casefold",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.center",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.count",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py"
+      ]
+    },
+    {
+      "id": "method.str.encode",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.endswith",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_language_conformance.py"
+      ]
+    },
+    {
+      "id": "method.str.expandtabs",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.find",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.format",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [],
+      "notes": [
+        "Previously observed predicate/whitespace/format-numbering bugs are fixed in this audit; unsupported format syntax and keyword combinations remain separate gaps."
+      ]
+    },
+    {
+      "id": "method.str.format_map",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.index",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "method.str.isalnum",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_unicode_strings.py"
+      ],
+      "notes": [
+        "Previously observed predicate/whitespace/format-numbering bugs are fixed in this audit; unsupported format syntax and keyword combinations remain separate gaps."
+      ]
+    },
+    {
+      "id": "method.str.isalpha",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_unicode_strings.py"
+      ],
+      "notes": [
+        "Previously observed predicate/whitespace/format-numbering bugs are fixed in this audit; unsupported format syntax and keyword combinations remain separate gaps."
+      ]
+    },
+    {
+      "id": "method.str.isascii",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.isdecimal",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.isdigit",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_unicode_strings.py"
+      ],
+      "notes": [
+        "Previously observed predicate/whitespace/format-numbering bugs are fixed in this audit; unsupported format syntax and keyword combinations remain separate gaps."
+      ]
+    },
+    {
+      "id": "method.str.isidentifier",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.islower",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_unicode_strings.py"
+      ],
+      "notes": [
+        "Previously observed predicate/whitespace/format-numbering bugs are fixed in this audit; unsupported format syntax and keyword combinations remain separate gaps."
+      ]
+    },
+    {
+      "id": "method.str.isnumeric",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.isprintable",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.isspace",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.istitle",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.isupper",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.join",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_float_sets.py",
+        "tests/integration/test_vm_raw_decimal.py"
+      ]
+    },
+    {
+      "id": "method.str.ljust",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.lower",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.lstrip",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.maketrans",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.partition",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.removeprefix",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.removesuffix",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.replace",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_transaction_budget.py"
+      ]
+    },
+    {
+      "id": "method.str.rfind",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.rindex",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.rjust",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.rpartition",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.rsplit",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.rstrip",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.split",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_unicode_strings.py"
+      ],
+      "notes": [
+        "Previously observed predicate/whitespace/format-numbering bugs are fixed in this audit; unsupported format syntax and keyword combinations remain separate gaps."
+      ]
+    },
+    {
+      "id": "method.str.splitlines",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": [
+        "tests/integration/test_vm_dynamic_foreign_storage.py",
+        "tests/integration/test_vm_float_sets.py",
+        "tests/integration/test_vm_raw_decimal.py"
+      ]
+    },
+    {
+      "id": "method.str.startswith",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_metadata_syscalls.py"
+      ]
+    },
+    {
+      "id": "method.str.strip",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_language_conformance.py",
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_vm_storage_scans.py",
+        "tests/integration/test_vm_unicode_strings.py"
+      ],
+      "notes": [
+        "Previously observed predicate/whitespace/format-numbering bugs are fixed in this audit; unsupported format syntax and keyword combinations remain separate gaps."
+      ]
+    },
+    {
+      "id": "method.str.swapcase",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.title",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.translate",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.upper",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.str.zfill",
+      "kind": "method",
+      "implementation": "missing",
+      "reason": "Public Python member has no matching native dispatch; requires compatibility implementation or an explicit language-policy decision.",
+      "existing_test_files": []
+    },
+    {
+      "id": "method.tuple.count",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py"
+      ]
+    },
+    {
+      "id": "method.tuple.index",
+      "kind": "method",
+      "implementation": "present",
+      "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_decimal_metering.py",
+        "tests/integration/test_vm_decimal_methods.py"
+      ]
+    },
+    {
+      "id": "protocol.None.truth",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Value behavior exercised by authored cases; not a separately callable API.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.bool.numeric",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Value behavior exercised by authored cases; not a separately callable API.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.dict_items.live",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Live view or consumable iterator behavior checked by authored source.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.dict_keys.live",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Value behavior exercised by authored cases; not a separately callable API.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.dict_values.live",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Live view or consumable iterator behavior checked by authored source.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.fixed_decimal.quantum",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Value behavior exercised by authored cases; not a separately callable API.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.float.binary",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Value behavior exercised by authored cases; not a separately callable API.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.int.large",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Value behavior exercised by authored cases; not a separately callable API.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.iterator.consume",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Value behavior exercised by authored cases; not a separately callable API.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.iterator.filter",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Value behavior exercised by authored cases; not a separately callable API.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.iterator.map",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Value behavior exercised by authored cases; not a separately callable API.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.iterator.reversed",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Value behavior exercised by authored cases; not a separately callable API.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.iterator.zip",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Live view or consumable iterator behavior checked by authored source.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.range.membership",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Value behavior exercised by authored cases; not a separately callable API.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.range.slice",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Value behavior exercised by authored cases; not a separately callable API.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.range.zero_step",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Value behavior exercised by authored cases; not a separately callable API.",
+      "existing_test_files": []
+    }
+  ]
+}
