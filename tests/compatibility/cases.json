@@ -561,5 +561,41 @@
   {
     "id": "random_choices_alias",
     "source": "@export\ndef probe():\n    random.seed()\n    value = []\n    chosen = random.choices(items=[value], k=2)\n    chosen[0].append(1)\n    return [chosen[0] is value, chosen[0] is chosen[1], value]\n"
+  },
+  {
+    "id": "builtin_numeric_basics",
+    "source": "@export\ndef probe():\n    return [abs(-3), divmod(-7, 3), pow(2, 5), round(float('2.5')), bool([]), bool([0])]\n"
+  },
+  {
+    "id": "builtin_text_basics",
+    "source": "@export\ndef probe():\n    return [ascii('\u00e9'), bin(5), hex(15), oct(9), chr(128512), ord('\u00e9'), format(12, '04d')]\n"
+  },
+  {
+    "id": "round_integer_ties",
+    "source": "@export\ndef probe():\n    return [round(25,-1), round(35,-1), round(-25,-1), round(-35,-1), round(True)]\n"
+  },
+  {
+    "id": "round_float_ties",
+    "source": "@export\ndef probe():\n    return [round(float('2.5')),round(float('3.5')),round(float('-2.5')),round(float('2.675'),2),round(float('0.125'),2),round(float('-0.5'),0)]\n"
+  },
+  {
+    "id": "round_extreme_digits",
+    "source": "@export\ndef probe():\n    return [round(123, -1000),round(123,10**50),round(float('1.25'),10**50),round(float('-1.25'),-(10**50))]\n"
+  },
+  {
+    "id": "round_large_float",
+    "source": "@export\ndef probe():\n    return [round(float('1e308'),2), round(float('1e308'),-308), round(float('1e-300'),300)]\n"
+  },
+  {
+    "id": "round_decimal_exact",
+    "source": "@export\ndef probe():\n    return [round(decimal('9007199254740993.5')),round(decimal('2.5')),str(round(decimal('2.55'),1)),str(round(decimal('-2.55'),1))]\n"
+  },
+  {
+    "id": "round_keywords",
+    "source": "@export\ndef probe():\n    return [round(number=float('2.5')), round(float('2.675'), ndigits=2), round(number=25, ndigits=-1)]\n"
+  },
+  {
+    "id": "dict_instance_fromkeys",
+    "source": "@export\ndef probe():\n    source = {'old': 9}\n    value = []\n    result = source.fromkeys(['a', 'b'], value)\n    result['a'].append(1)\n    return [source, result, result['a'] is value, result['a'] is result['b']]\n"
   }
 ]

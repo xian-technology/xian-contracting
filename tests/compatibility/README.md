@@ -69,3 +69,13 @@ inputs and reads return detached copies. The historical fixture records its old
 shared-storage result; current-engine assertions require isolated storage instead.
 Native-only boundary tests additionally require cyclic or oversized results and
 writes to fail with rollback, while in-memory cycles remain usable.
+
+The expanded corpus includes at least one call to every callable allowed builtin
+(excluding the exception constructor, whose failure behavior is tested separately).
+The additional numeric probes pin ties-to-even integer/float rounding, exact
+binary64 inputs such as2.675, negative zero, extreme ndigits and Contracting's
+ROUND_DOWN decimal policy when ndigits is supplied. Native boundary tests cover
+huge negative integer ndigits without asking the historical interpreter to
+allocate an unbounded power. Random choice/choices probes verify selected-object
+identity after seeding, using a singleton population so PRNG algorithm changes
+do not affect the expected selection.

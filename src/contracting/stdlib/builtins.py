@@ -188,6 +188,16 @@ def safe_pow(*args):
     return result
 
 
+def safe_round(number, ndigits=None):
+    if isinstance(number, int) and isinstance(ndigits, int) and ndigits < 0:
+        if -ndigits > abs(number).bit_length():
+            return 0
+    result = builtins.round(number) if ndigits is None else builtins.round(number, ndigits)
+    if isinstance(result, int):
+        _ensure_integer_size(result, kind="round()")
+    return result
+
+
 def safe_lshift(left, right):
     if isinstance(left, int) and isinstance(right, int):
         if right < 0:
@@ -213,6 +223,7 @@ exports = {
     "map": builtins.map,
     "filter": builtins.filter,
     "range": safe_range,
+    "round": safe_round,
     "bytes": safe_bytes,
     "bytearray": safe_bytearray,
     # Override the bare `int` / `pow` names too: the compiler rewrites the

@@ -1,5 +1,6 @@
 """Separate source admission and execution checks against a pinned old runtime."""
 
+import ast
 import hashlib
 import json
 from pathlib import Path
@@ -58,3 +59,16 @@ def test_historical_admission_and_execution(tmp_path, case, native):
         assert actual["events"] == encode([])
         return
     assert comparable(actual) == comparable(expected), actual
+
+
+def test_historical_corpus_calls_each_allowed_callable_builtin():
+    from contracting.compilation.whitelists import ALLOWED_BUILTINS
+
+    called = {
+        node.func.id
+        for case in CASES
+        for node in ast.walk(ast.parse(case["source"]))
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    syntax_and_exception = {"False", "True", "None", "import", "Exception"}
+    assert set(ALLOWED_BUILTINS) - called - syntax_and_exception == set()

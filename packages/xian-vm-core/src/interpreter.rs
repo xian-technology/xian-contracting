@@ -65,6 +65,8 @@ mod builtin_collections;
 mod foreign_storage;
 #[path = "numeric_text.rs"]
 mod numeric_text;
+#[path = "rounding.rs"]
+mod rounding;
 #[path = "interpreter_support.rs"]
 mod support;
 use crate::values::*;
@@ -2452,7 +2454,10 @@ impl VmInstance {
         if method == "sort" && matches!(receiver.snapshot(), VmValue::List(_)) {
             return self.sort_list(receiver, args, kwargs, host);
         }
-        if method == "fromkeys" && matches!(&receiver, VmValue::Builtin(name) if name == "dict") {
+        if method == "fromkeys"
+            && (matches!(&receiver, VmValue::Builtin(name) if name == "dict")
+                || matches!(receiver.snapshot(), VmValue::Dict(_)))
+        {
             if args.is_empty() || args.len() > 2 || !kwargs.is_empty() {
                 return Err(VmExecutionError::new(
                     "dict.fromkeys() expects one or two arguments",
@@ -3490,24 +3495,7 @@ impl VmInstance {
                 }
                 Ok(VmValue::Bool(issubclass_matches(&args[0], &args[1])?))
             }
-            "round" => {
-                if args.is_empty() || args.len() > 2 || !kwargs.is_empty() {
-                    return Err(VmExecutionError::new(
-                        "round() expects one or two positional arguments",
-                    ));
-                }
-                let digits = match args.get(1) {
-                    None | Some(VmValue::None) => None,
-                    Some(value) => Some(
-                        bigint_to_i64(&value.as_bigint()?, "round() ndigits")?
-                            .try_into()
-                            .map_err(|_| {
-                                VmExecutionError::new("round() ndigits is out of supported range")
-                            })?,
-                    ),
-                };
-                round_builtin_value(&args[0], digits)
-            }
+            "round" => rounding::call(&args, &kwargs),
             other => Err(VmExecutionError::new(format!(
                 "unsupported builtin '{other}'"
             ))),

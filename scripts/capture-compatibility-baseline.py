@@ -35,6 +35,7 @@ def capture(directory):
         [str(python), str(FIXTURES / "runner.py"), str(FIXTURES / "cases.json"), str(observations)],
         cwd=directory,
         check=True,
+        timeout=120,
     )
     return {
         "revision": REVISION,
