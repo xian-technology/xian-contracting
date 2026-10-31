@@ -123,6 +123,7 @@ enum Kind {
         view: VmDictView,
         index: usize,
         size: usize,
+        remaining: usize,
         reverse: bool,
     },
     Sequence {
@@ -161,15 +162,7 @@ pub(crate) fn iter(source: &VmValue, heap: &VmHeap) -> Result<VmValue> {
     let value = source.snapshot();
     match value {
         VmValue::Iterator(_) => Ok(source.clone()),
-        VmValue::View(view) => store(
-            Kind::View {
-                index: 0,
-                size: view.len(),
-                view: *view,
-                reverse: false,
-            },
-            heap,
-        ),
+        VmValue::View(view) => dictionary_cursor(*view, false, heap),
         VmValue::Range(range) => store(
             Kind::Range {
                 range,
@@ -184,16 +177,16 @@ pub(crate) fn iter(source: &VmValue, heap: &VmHeap) -> Result<VmValue> {
 pub(crate) fn sequence(source: &VmValue, reverse: bool, heap: &VmHeap) -> Result<VmValue> {
     let value = source.snapshot();
     match &value {
-        VmValue::View(view) => {
-            return store(
-                Kind::View {
-                    index: if reverse { view.len() } else { 0 },
-                    size: view.len(),
-                    view: *view.clone(),
-                    reverse,
+        VmValue::View(view) => return dictionary_cursor(*view.clone(), reverse, heap),
+        VmValue::Dict(_) => {
+            return dictionary_cursor(
+                VmDictView {
+                    source: source.clone(),
+                    mode: ViewMode::Keys,
                 },
+                reverse,
                 heap,
-            );
+            )
         }
         VmValue::Range(range) if reverse => {
             let length = range.len();
@@ -218,6 +211,29 @@ pub(crate) fn sequence(source: &VmValue, reverse: bool, heap: &VmHeap) -> Result
             index: if reverse { length } else { 0 },
             reverse,
             expected_size,
+        },
+        heap,
+    )
+}
+
+fn dictionary_cursor(mut view: VmDictView, reverse: bool, heap: &VmHeap) -> Result<VmValue> {
+    view.source = heap.capture(view.source)?;
+    let VmValue::Reference(reference) = &view.source else {
+        unreachable!()
+    };
+    let size = view.len();
+    let index = if reverse {
+        reference.dictionary_slots(|slots| slots.end)
+    } else {
+        0
+    };
+    store(
+        Kind::View {
+            view,
+            index,
+            size,
+            remaining: size,
+            reverse,
         },
         heap,
     )
@@ -360,11 +376,9 @@ fn advance(kind: &mut Kind, callback: &mut Callback<'_>, depth: usize) -> Result
             view,
             index,
             size,
+            remaining,
             reverse,
-        } => next_index(index, *reverse)
-            .map(|index| view_item(view, index, *size))
-            .transpose()
-            .map(Option::flatten),
+        } => view_item(view, index, *size, remaining, *reverse),
         Kind::Sequence {
             source,
             index,
@@ -509,26 +523,54 @@ pub(crate) fn collect(
     Ok(result)
 }
 
-fn view_item(view: &VmDictView, index: usize, size: usize) -> Result<Option<VmValue>> {
-    let read = |value: &VmValue| {
+fn view_item(
+    view: &VmDictView,
+    index: &mut usize,
+    size: usize,
+    remaining: &mut usize,
+    reverse: bool,
+) -> Result<Option<VmValue>> {
+    let VmValue::Reference(reference) = &view.source else {
+        unreachable!()
+    };
+    reference.with_value(|value| {
         let VmValue::Dict(entries) = value else {
-            return Err(VmExecutionError::new("invalid dictionary view"));
+            unreachable!()
         };
         if entries.len() != size {
             return Err(VmExecutionError::new(
                 "dictionary changed size during iteration",
             ));
         }
-        Ok(entries.get(index).map(|(key, value)| match view.mode {
+        let selected = reference.dictionary_slots(|slots| {
+            if reverse {
+                slots
+                    .positions
+                    .partition_point(|slot| *slot < *index)
+                    .checked_sub(1)
+            } else {
+                let position = slots.positions.partition_point(|slot| *slot < *index);
+                (position < slots.positions.len()).then_some(position)
+            }
+            .map(|position| (position, slots.positions[position]))
+        });
+        let Some((position, slot)) = selected else {
+            return Ok(None);
+        };
+        if !reverse && *remaining == 0 {
+            return Err(VmExecutionError::new(
+                "dictionary keys changed during iteration",
+            ));
+        }
+        *remaining = remaining.saturating_sub(1);
+        *index = if reverse { slot } else { slot + 1 };
+        let (key, value) = &entries[position];
+        Ok(Some(match view.mode {
             ViewMode::Keys => key.clone(),
             ViewMode::Values => value.clone(),
             ViewMode::Items => VmValue::Tuple(vec![key.clone(), value.clone()]),
         }))
-    };
-    match &view.source {
-        VmValue::Reference(reference) => reference.with_value(read),
-        value => read(value),
-    }
+    })
 }
 
 pub(crate) fn slice_indices(

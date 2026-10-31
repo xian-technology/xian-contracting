@@ -420,7 +420,7 @@
   },
   {
     "id": "hash_alias_6",
-    "source": "@export\ndef probe():\n    return [hashlib.sha256('\u96ea'), hashlib.sha3('\u96ea')]\n"
+    "source": "@export\ndef probe():\n    return [hashlib.sha256('雪'), hashlib.sha3('雪')]\n"
   },
   {
     "id": "hash_alias_7",
@@ -504,7 +504,7 @@
   },
   {
     "id": "string_count",
-    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return [\"abc\".count(\"\", 4), \"abc\".count(\"\"), \"abababa\".count(\"aba\"), \"\u96ea\u96ea\u96ea\".count(\"\u96ea\", 1, 3)]\n"
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return [\"abc\".count(\"\", 4), \"abc\".count(\"\"), \"abababa\".count(\"aba\"), \"雪雪雪\".count(\"雪\", 1, 3)]\n"
   },
   {
     "id": "list_sort",
@@ -568,7 +568,7 @@
   },
   {
     "id": "builtin_text_basics",
-    "source": "@export\ndef probe():\n    return [ascii('\u00e9'), bin(5), hex(15), oct(9), chr(128512), ord('\u00e9'), format(12, '04d')]\n"
+    "source": "@export\ndef probe():\n    return [ascii('é'), bin(5), hex(15), oct(9), chr(128512), ord('é'), format(12, '04d')]\n"
   },
   {
     "id": "round_integer_ties",
@@ -597,5 +597,95 @@
   {
     "id": "dict_instance_fromkeys",
     "source": "@export\ndef probe():\n    source = {'old': 9}\n    value = []\n    result = source.fromkeys(['a', 'b'], value)\n    result['a'].append(1)\n    return [source, result, result['a'] is value, result['a'] is result['b']]\n"
+  },
+  {
+    "id": "dict_replace_d_a",
+    "source": "@export\ndef probe():\n    d = {'a': 1, 'b': 2}\n    seen = []\n    for item in d:\n        seen.append(item)\n        if len(seen) == 1:\n            d.pop('a')\n            d['c'] = 3\n    return seen\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "dict_replace_d_b",
+    "source": "@export\ndef probe():\n    d = {'a': 1, 'b': 2}\n    seen = []\n    for item in d:\n        seen.append(item)\n        if len(seen) == 1:\n            d.pop('b')\n            d['c'] = 3\n    return seen\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "dict_replace_d_keys_a",
+    "source": "@export\ndef probe():\n    d = {'a': 1, 'b': 2}\n    seen = []\n    for item in d.keys():\n        seen.append(item)\n        if len(seen) == 1:\n            d.pop('a')\n            d['c'] = 3\n    return seen\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "dict_replace_d_keys_b",
+    "source": "@export\ndef probe():\n    d = {'a': 1, 'b': 2}\n    seen = []\n    for item in d.keys():\n        seen.append(item)\n        if len(seen) == 1:\n            d.pop('b')\n            d['c'] = 3\n    return seen\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "dict_replace_d_values_a",
+    "source": "@export\ndef probe():\n    d = {'a': 1, 'b': 2}\n    seen = []\n    for item in d.values():\n        seen.append(item)\n        if len(seen) == 1:\n            d.pop('a')\n            d['c'] = 3\n    return seen\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "dict_replace_d_values_b",
+    "source": "@export\ndef probe():\n    d = {'a': 1, 'b': 2}\n    seen = []\n    for item in d.values():\n        seen.append(item)\n        if len(seen) == 1:\n            d.pop('b')\n            d['c'] = 3\n    return seen\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "dict_replace_d_items_a",
+    "source": "@export\ndef probe():\n    d = {'a': 1, 'b': 2}\n    seen = []\n    for item in d.items():\n        seen.append(item)\n        if len(seen) == 1:\n            d.pop('a')\n            d['c'] = 3\n    return seen\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "dict_replace_d_items_b",
+    "source": "@export\ndef probe():\n    d = {'a': 1, 'b': 2}\n    seen = []\n    for item in d.items():\n        seen.append(item)\n        if len(seen) == 1:\n            d.pop('b')\n            d['c'] = 3\n    return seen\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "dict_replace_reversed_d_a",
+    "source": "@export\ndef probe():\n    d = {'a': 1, 'b': 2}\n    seen = []\n    for item in reversed(d):\n        seen.append(item)\n        if len(seen) == 1:\n            d.pop('a')\n            d['c'] = 3\n    return seen\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "dict_replace_reversed_d_b",
+    "source": "@export\ndef probe():\n    d = {'a': 1, 'b': 2}\n    seen = []\n    for item in reversed(d):\n        seen.append(item)\n        if len(seen) == 1:\n            d.pop('b')\n            d['c'] = 3\n    return seen\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "dict_replace_reversed_d_items_a",
+    "source": "@export\ndef probe():\n    d = {'a': 1, 'b': 2}\n    seen = []\n    for item in reversed(d.items()):\n        seen.append(item)\n        if len(seen) == 1:\n            d.pop('a')\n            d['c'] = 3\n    return seen\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "dict_replace_reversed_d_items_b",
+    "source": "@export\ndef probe():\n    d = {'a': 1, 'b': 2}\n    seen = []\n    for item in reversed(d.items()):\n        seen.append(item)\n        if len(seen) == 1:\n            d.pop('b')\n            d['c'] = 3\n    return seen\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "dict_reinsert_visited",
+    "source": "@export\ndef probe():\n    d={'a':1,'b':2}\n    seen=[]\n    for key in d:\n        seen.append(key)\n        if len(seen)==1:\n            d.pop('a')\n            d['a']=9\n    return seen\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "dict_clear_restore",
+    "source": "@export\ndef probe():\n    d={'a':1,'b':2}\n    seen=[]\n    for key in d:\n        seen.append(key)\n        if len(seen)==1:\n            d.clear()\n            d['c']=3\n            d['e']=4\n    return seen\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "dict_replace_resize",
+    "source": "@export\ndef probe():\n    d={'a':1,'b':2,'c':3,'d':4,'e':5}\n    seen=[]\n    for key in d:\n        seen.append(key)\n        if len(seen)==1:\n            d.pop('a')\n            d['f']=6\n    return seen\n",
+    "function_name": "probe",
+    "kwargs": {}
   }
 ]

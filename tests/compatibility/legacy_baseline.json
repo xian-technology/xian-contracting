@@ -2,7 +2,7 @@
   "revision": "3b82001f2d587bbfb51f3d9235a2a8dcd0078a9a",
   "python": "3.12.10",
   "dependency_lock_sha256": "d6e2fc9493ba30f7eeda91769f3c3c74e398197127996c3de2d6e98d9fced726",
-  "cases_sha256": "c120714f86361bd47cc6f12f9850e3af7a7f460b5fbe645d9b30860de93953a8",
+  "cases_sha256": "62dfd8d1fa67029dd664bd2ef6942ac74fdddd4bef306a2c8ca8ea0ac77b02c6",
   "runner_sha256": "c2941b8697449adfecb2716cdc45337648186de30734bf2257f440cf9bc80818",
   "observations": {
     "typed_values": {
@@ -4526,6 +4526,375 @@
           [
             "bool",
             true
+          ]
+        ]
+      ]
+    },
+    "dict_replace_d_a": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "dictionary keys changed during iteration",
+      "exception_type": "RuntimeError"
+    },
+    "dict_replace_d_b": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "a"
+          ],
+          [
+            "str",
+            "c"
+          ]
+        ]
+      ]
+    },
+    "dict_replace_d_keys_a": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "dictionary keys changed during iteration",
+      "exception_type": "RuntimeError"
+    },
+    "dict_replace_d_keys_b": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "a"
+          ],
+          [
+            "str",
+            "c"
+          ]
+        ]
+      ]
+    },
+    "dict_replace_d_values_a": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "dictionary keys changed during iteration",
+      "exception_type": "RuntimeError"
+    },
+    "dict_replace_d_values_b": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            1
+          ],
+          [
+            "int",
+            3
+          ]
+        ]
+      ]
+    },
+    "dict_replace_d_items_a": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "dictionary keys changed during iteration",
+      "exception_type": "RuntimeError"
+    },
+    "dict_replace_d_items_b": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "tuple",
+            [
+              [
+                "str",
+                "a"
+              ],
+              [
+                "int",
+                1
+              ]
+            ]
+          ],
+          [
+            "tuple",
+            [
+              [
+                "str",
+                "c"
+              ],
+              [
+                "int",
+                3
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "dict_replace_reversed_d_a": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "b"
+          ]
+        ]
+      ]
+    },
+    "dict_replace_reversed_d_b": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "b"
+          ],
+          [
+            "str",
+            "a"
+          ]
+        ]
+      ]
+    },
+    "dict_replace_reversed_d_items_a": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "tuple",
+            [
+              [
+                "str",
+                "b"
+              ],
+              [
+                "int",
+                2
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "dict_replace_reversed_d_items_b": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "tuple",
+            [
+              [
+                "str",
+                "b"
+              ],
+              [
+                "int",
+                2
+              ]
+            ]
+          ],
+          [
+            "tuple",
+            [
+              [
+                "str",
+                "a"
+              ],
+              [
+                "int",
+                1
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "dict_reinsert_visited": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "dictionary keys changed during iteration",
+      "exception_type": "RuntimeError"
+    },
+    "dict_clear_restore": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "a"
+          ],
+          [
+            "str",
+            "e"
+          ]
+        ]
+      ]
+    },
+    "dict_replace_resize": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "str",
+            "a"
+          ],
+          [
+            "str",
+            "c"
+          ],
+          [
+            "str",
+            "d"
+          ],
+          [
+            "str",
+            "e"
+          ],
+          [
+            "str",
+            "f"
           ]
         ]
       ]

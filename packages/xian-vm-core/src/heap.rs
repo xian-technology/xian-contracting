@@ -19,6 +19,7 @@ struct Usage {
 
 struct Object {
     value: RefCell<VmValue>,
+    dict_slots: RefCell<Option<crate::dict_slots::DictSlots>>,
     bytes: Cell<usize>,
     immutable_depth: usize,
     version: Cell<u64>,
@@ -58,6 +59,12 @@ impl VmReference {
     }
 
     pub(crate) fn replace(&self, value: VmValue) -> Result<(), VmExecutionError> {
+        let slots = self.0.dict_slots.borrow().as_ref().map(|slots| {
+            self.with_value(|old| match (old, &value) {
+                (VmValue::Dict(old), VmValue::Dict(new)) => slots.updated(old, new),
+                _ => unreachable!("dictionary reference changed type"),
+            })
+        });
         let bytes = shallow_bytes(&value);
         let mut usage = self.0.usage.borrow_mut();
         let total = usage.bytes - self.0.bytes.get() + bytes;
@@ -67,6 +74,7 @@ impl VmReference {
         usage.bytes = total;
         self.0.bytes.set(bytes);
         drop(usage);
+        *self.0.dict_slots.borrow_mut() = slots;
         *self.0.value.borrow_mut() = value;
         self.0.version.set(self.0.version.get().saturating_add(1));
         Ok(())
@@ -101,6 +109,25 @@ impl VmReference {
         usage.bytes += growth;
         self.0.bytes.set(self.0.bytes.get() + growth);
         Ok(())
+    }
+
+    pub(crate) fn dictionary_slots<T>(
+        &self,
+        read: impl FnOnce(&crate::dict_slots::DictSlots) -> T,
+    ) -> T {
+        read(
+            self.0
+                .dict_slots
+                .borrow()
+                .as_ref()
+                .expect("dictionary slots"),
+        )
+    }
+
+    pub(crate) fn clear_dictionary_slots(&self) {
+        if self.0.dict_slots.borrow().is_some() {
+            *self.0.dict_slots.borrow_mut() = Some(crate::dict_slots::DictSlots::new(&[]));
+        }
     }
 
     pub(crate) fn version(&self) -> u64 {
@@ -178,7 +205,12 @@ impl VmHeap {
                 | VmValue::ByteArray(_)
                 | VmValue::Iterator(_)
         );
+        let dict_slots = match &value {
+            VmValue::Dict(entries) => Some(crate::dict_slots::DictSlots::new(entries)),
+            _ => None,
+        };
         let object = VmReference(Rc::new(Object {
+            dict_slots: RefCell::new(dict_slots),
             value: RefCell::new(value),
             bytes: Cell::new(bytes),
             immutable_depth,
@@ -218,7 +250,9 @@ fn shallow_bytes(value: &VmValue) -> usize {
         VmValue::List(v) | VmValue::Tuple(v) | VmValue::Set(v) | VmValue::FrozenSet(v) => {
             v.len() * std::mem::size_of::<VmValue>()
         }
-        VmValue::Dict(v) => v.len() * std::mem::size_of::<(VmValue, VmValue)>(),
+        VmValue::Dict(v) => {
+            v.len() * (std::mem::size_of::<(VmValue, VmValue)>() + std::mem::size_of::<usize>())
+        }
         VmValue::String(v) => v.len(),
         VmValue::Bytes(v) | VmValue::ByteArray(v) => v.len(),
         VmValue::Int(v) => v.bits().div_ceil(8) as usize,

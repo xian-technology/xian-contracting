@@ -2523,6 +2523,9 @@ impl VmInstance {
                 value,
             } => {
                 if let VmValue::Reference(reference) = receiver {
+                    if method == "clear" {
+                        reference.clear_dictionary_slots();
+                    }
                     reference.replace(updated)?;
                 }
                 Ok(value)

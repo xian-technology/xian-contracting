@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use std::fmt;
 
 mod artifacts;
+mod dict_slots;
 mod heap;
 mod iteration;
 pub use iteration::{VmDictView, VmIterator, VmRange};
