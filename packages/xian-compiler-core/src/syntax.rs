@@ -94,6 +94,11 @@ pub enum SyntaxStatement {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "node", rename_all = "snake_case")]
 pub enum SyntaxExpression {
+    Starred {
+        span: SourceRange,
+        value: Box<SyntaxExpression>,
+        context: SyntaxExpressionContext,
+    },
     Name {
         span: SourceRange,
         id: String,
@@ -677,11 +682,11 @@ impl<'a> SyntaxBuilder<'a> {
                 "yield",
                 "yield expressions are not supported",
             ),
-            ast::Expr::Starred(_) => self.unsupported_expression(
-                expression.range(),
-                "starred",
-                "starred expressions are not supported",
-            ),
+            ast::Expr::Starred(node) => Some(SyntaxExpression::Starred {
+                span: self.span(node.range),
+                value: Box::new(self.convert_expr(&node.value)?),
+                context: convert_context(node.ctx),
+            }),
         }
     }
 
@@ -1044,6 +1049,7 @@ fn set_expression_span(expression: &mut SyntaxExpression, next_span: SourceRange
     match expression {
         SyntaxExpression::Name { span, .. }
         | SyntaxExpression::Constant { span, .. }
+        | SyntaxExpression::Starred { span, .. }
         | SyntaxExpression::List { span, .. }
         | SyntaxExpression::ListComp { span, .. }
         | SyntaxExpression::DictComp { span, .. }

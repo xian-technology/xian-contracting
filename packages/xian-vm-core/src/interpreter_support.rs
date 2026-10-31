@@ -3108,41 +3108,6 @@ pub(super) fn resolve_contract_import_arg(
     first.as_string()
 }
 
-pub(super) fn positional_value(
-    instance: &mut VmInstance,
-    args: &[Value],
-    index: usize,
-    host: &mut dyn VmHost,
-) -> Result<Option<VmValue>, VmExecutionError> {
-    args.get(index)
-        .map(|value| instance.eval_expression(value, &mut instance.globals.clone(), host))
-        .transpose()
-}
-
-pub(super) fn keyword_value(
-    instance: &mut VmInstance,
-    keywords: &[Value],
-    name: &str,
-    host: &mut dyn VmHost,
-) -> Result<Option<VmValue>, VmExecutionError> {
-    let Some(keyword) = keywords.iter().find(|keyword| {
-        as_object(keyword, "keyword")
-            .ok()
-            .and_then(|object| optional_string(object, "arg"))
-            == Some(name)
-    }) else {
-        return Ok(None);
-    };
-    let keyword_object = as_object(keyword, "keyword")?;
-    instance
-        .eval_expression(
-            required_value(keyword_object, "value")?,
-            &mut instance.globals.clone(),
-            host,
-        )
-        .map(Some)
-}
-
 pub(super) fn required_value<'a>(
     object: &'a Map<String, Value>,
     field: &str,

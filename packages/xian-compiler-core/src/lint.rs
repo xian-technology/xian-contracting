@@ -537,6 +537,7 @@ impl SyntaxLinter {
         match expression {
             SyntaxExpression::Name { span, id, .. } => self.check_name(id, span),
             SyntaxExpression::Constant { .. } => {}
+            SyntaxExpression::Starred { value, .. } => self.visit_expression(value),
             SyntaxExpression::List { elements, .. } | SyntaxExpression::Tuple { elements, .. } => {
                 for element in elements {
                     self.visit_expression(element);
@@ -862,6 +863,7 @@ fn span_of_expression(expression: &SyntaxExpression) -> &SourceRange {
     match expression {
         SyntaxExpression::Name { span, .. }
         | SyntaxExpression::Constant { span, .. }
+        | SyntaxExpression::Starred { span, .. }
         | SyntaxExpression::List { span, .. }
         | SyntaxExpression::ListComp { span, .. }
         | SyntaxExpression::DictComp { span, .. }

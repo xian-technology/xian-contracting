@@ -302,7 +302,7 @@ fn validate_global_declaration(declaration: &Value) -> Result<String, IrValidati
                 expect_string_field(object, "syscall_id")?,
             )?;
             for argument in expect_array_field(object, "args")? {
-                validate_expression(argument)?;
+                validate_expanded_expression(argument)?;
             }
             for keyword in expect_array_field(object, "keywords")? {
                 validate_keyword(keyword)?;
@@ -461,6 +461,16 @@ fn validate_storage_access_base(
     )
 }
 
+fn validate_expanded_expression(value: &Value) -> Result<(), IrValidationError> {
+    if value.get("node").and_then(Value::as_str) == Some("starred") {
+        let object = expect_object(value, "starred expression")?;
+        validate_object_span(object)?;
+        validate_expression(expect_value_field(object, "value")?)
+    } else {
+        validate_expression(value)
+    }
+}
+
 fn validate_target(target: &Value) -> Result<(), IrValidationError> {
     let object = expect_object(target, "target")?;
     let node = expect_string_field(object, "node")?;
@@ -482,8 +492,21 @@ fn validate_target(target: &Value) -> Result<(), IrValidationError> {
             Ok(())
         }
         "tuple_target" | "list_target" => {
+            let mut starred = false;
             for value in expect_array_field(object, "elements")? {
-                validate_target(value)?;
+                if value.get("node").and_then(Value::as_str) == Some("starred_target") {
+                    if starred {
+                        return Err(IrValidationError::new(
+                            "multiple starred assignment targets",
+                        ));
+                    }
+                    starred = true;
+                    let object = expect_object(value, "starred target")?;
+                    validate_object_span(object)?;
+                    validate_target(expect_value_field(object, "value")?)?;
+                } else {
+                    validate_target(value)?;
+                }
             }
             Ok(())
         }
@@ -521,7 +544,13 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
             }
             Ok(())
         }
-        "list" | "tuple" | "f_string" => {
+        "list" | "tuple" => {
+            for value in expect_array_field(object, "elements")? {
+                validate_expanded_expression(value)?;
+            }
+            Ok(())
+        }
+        "f_string" => {
             for value in expect_array_field(object, "elements")
                 .or_else(|_| expect_array_field(object, "values"))?
             {
@@ -598,7 +627,7 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
         "call" => {
             validate_expression(expect_value_field(object, "func")?)?;
             for argument in expect_array_field(object, "args")? {
-                validate_expression(argument)?;
+                validate_expanded_expression(argument)?;
             }
             for keyword in expect_array_field(object, "keywords")? {
                 validate_keyword(keyword)?;
@@ -1022,6 +1051,22 @@ mod tests {
 
         assert_eq!(parsed.module_name, "sample_token");
         assert_eq!(parsed.functions.len(), 1);
+    }
+
+    #[test]
+    fn rejects_starred_nodes_outside_expansion_positions() {
+        use super::{validate_expanded_expression, validate_expression, validate_target};
+        let name =
+            json!({"node":"name", "id":"a", "span":{"line":1,"col":0,"end_line":1,"end_col":1}});
+        let star = json!({"node":"starred_target", "value":name, "span":{"line":1,"col":0,"end_line":1,"end_col":2}});
+        assert!(validate_target(&star).is_err());
+        let mut sequence = json!({"node":"tuple_target", "elements":[star.clone()], "span":{"line":1,"col":0,"end_line":1,"end_col":2}});
+        assert!(validate_target(&sequence).is_ok());
+        sequence["elements"].as_array_mut().unwrap().push(star);
+        assert!(validate_target(&sequence).is_err());
+        let star = json!({"node":"starred", "value":name, "span":{"line":1,"col":0,"end_line":1,"end_col":2}});
+        assert!(validate_expression(&star).is_err());
+        assert!(validate_expanded_expression(&star).is_ok());
     }
 
     #[test]

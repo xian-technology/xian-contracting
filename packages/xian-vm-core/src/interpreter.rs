@@ -71,8 +71,12 @@ mod numeric_text;
 mod rounding;
 #[path = "storage_bulk.rs"]
 mod storage_bulk;
+#[path = "storage_declarations.rs"]
+mod storage_declarations;
 #[path = "interpreter_support.rs"]
 mod support;
+#[path = "unpacking.rs"]
+mod unpacking;
 use crate::values::*;
 use support::*;
 
@@ -187,6 +191,7 @@ fn collect_target_names(target: &Value, names: &mut Vec<String>) -> Result<(), V
             names.push(required_string(object, "id")?.to_owned());
             Ok(())
         }
+        "starred_target" => collect_target_names(required_value(object, "value")?, names),
         "tuple_target" | "list_target" => {
             for element in required_array(object, "elements")? {
                 collect_target_names(element, names)?;
@@ -1286,40 +1291,22 @@ impl VmInstance {
 
     fn build_variable_state(
         &mut self,
-        binding: &str,
+        _binding: &str,
         storage_type: &str,
         args: &[Value],
         keywords: &[Value],
         host: &mut dyn VmHost,
     ) -> Result<VariableState, VmExecutionError> {
-        let default_value = if storage_type == "Variable" {
-            keyword_value(self, keywords, "default_value", host)?.unwrap_or(VmValue::None)
-        } else {
-            VmValue::None
-        };
-
+        let options = self.storage_options(args, keywords, host)?;
         let foreign_key = if storage_type == "ForeignVariable" {
-            let foreign_contract = keyword_value(self, keywords, "foreign_contract", host)?
-                .or_else(|| positional_value(self, args, 2, host).ok().flatten())
-                .ok_or_else(|| {
-                    VmExecutionError::new(format!(
-                        "ForeignVariable '{binding}' requires foreign_contract"
-                    ))
-                })?
-                .as_string()?;
-            let foreign_name = keyword_value(self, keywords, "foreign_name", host)?
-                .or_else(|| positional_value(self, args, 3, host).ok().flatten())
-                .ok_or_else(|| {
-                    VmExecutionError::new(format!(
-                        "ForeignVariable '{binding}' requires foreign_name"
-                    ))
-                })?
-                .as_string()?;
-            Some(foreign_storage_key(&foreign_contract, &foreign_name))
+            Some(storage_declarations::foreign_key(&options)?)
         } else {
             None
         };
-
+        let default_value = options
+            .get("default_value")
+            .cloned()
+            .unwrap_or(VmValue::None);
         Ok(VariableState {
             default_value: default_value.detached()?,
             value: None,
@@ -1331,34 +1318,22 @@ impl VmInstance {
 
     fn build_hash_state(
         &mut self,
-        binding: &str,
+        _binding: &str,
         storage_type: &str,
         args: &[Value],
         keywords: &[Value],
         host: &mut dyn VmHost,
     ) -> Result<HashState, VmExecutionError> {
-        let default_value =
-            keyword_value(self, keywords, "default_value", host)?.unwrap_or(VmValue::None);
+        let options = self.storage_options(args, keywords, host)?;
         let foreign_key = if storage_type == "ForeignHash" {
-            let foreign_contract = keyword_value(self, keywords, "foreign_contract", host)?
-                .or_else(|| positional_value(self, args, 2, host).ok().flatten())
-                .ok_or_else(|| {
-                    VmExecutionError::new(format!(
-                        "ForeignHash '{binding}' requires foreign_contract"
-                    ))
-                })?
-                .as_string()?;
-            let foreign_name = keyword_value(self, keywords, "foreign_name", host)?
-                .or_else(|| positional_value(self, args, 3, host).ok().flatten())
-                .ok_or_else(|| {
-                    VmExecutionError::new(format!("ForeignHash '{binding}' requires foreign_name"))
-                })?
-                .as_string()?;
-            Some(foreign_storage_key(&foreign_contract, &foreign_name))
+            Some(storage_declarations::foreign_key(&options)?)
         } else {
             None
         };
-
+        let default_value = options
+            .get("default_value")
+            .cloned()
+            .unwrap_or(VmValue::None);
         Ok(HashState {
             default_value: default_value.detached()?,
             entries: HashMap::new(),
@@ -1811,27 +1786,13 @@ impl VmInstance {
                 scope.insert(id, value);
                 Ok(())
             }
-            "tuple_target" | "list_target" => {
-                let items = match value.snapshot() {
-                    VmValue::List(items) | VmValue::Tuple(items) => items,
-                    other => {
-                        return Err(VmExecutionError::new(format!(
-                            "cannot destructure {}",
-                            other.type_name()
-                        )))
-                    }
-                };
-                let elements = required_array(object, "elements")?;
-                if elements.len() != items.len() {
-                    return Err(VmExecutionError::new(
-                        "destructuring target count does not match value length",
-                    ));
-                }
-                for (target, item) in elements.iter().zip(items.into_iter()) {
-                    self.assign_target(target, item, scope, host, module_scope)?;
-                }
-                Ok(())
-            }
+            "tuple_target" | "list_target" => self.unpack_target(
+                required_array(object, "elements")?,
+                value,
+                scope,
+                host,
+                module_scope,
+            ),
             "subscript" => {
                 let (resolved, current) =
                     self.resolve_assignment_target(target, scope, host, false)?;
@@ -1984,19 +1945,15 @@ impl VmInstance {
             "name" => self.eval_name(object, scope),
             "constant" => self.eval_constant(object),
             "list" => {
-                let mut values = Vec::new();
-                for element in required_array(object, "elements")? {
-                    values.push(self.eval_expression(element, scope, host)?);
-                }
+                let values =
+                    self.expand_values(required_array(object, "elements")?, scope, host)?;
                 Ok(VmValue::List(values))
             }
             "list_comp" => self.eval_list_comprehension(object, scope, host),
             "dict_comp" => self.eval_dict_comprehension(object, scope, host),
             "tuple" => {
-                let mut values = Vec::new();
-                for element in required_array(object, "elements")? {
-                    values.push(self.eval_expression(element, scope, host)?);
-                }
+                let values =
+                    self.expand_values(required_array(object, "elements")?, scope, host)?;
                 Ok(VmValue::Tuple(values))
             }
             "dict" => {
@@ -2383,7 +2340,7 @@ impl VmInstance {
                 .transpose()?;
             let args = self.eval_call_arguments(required_array(object, "args")?, scope, host)?;
             let kwargs =
-                self.eval_call_keywords(required_array(object, "keywords")?, scope, host)?;
+                self.eval_call_keywords(required_array(object, "keywords")?, scope, host, None)?;
             return self.eval_syscall(object, syscall_id, args, kwargs, scope, host, target);
         }
         let callable = as_object(func, "callable")?;
@@ -2394,12 +2351,21 @@ impl VmInstance {
             let method = required_string(callable, "attr")?;
             let args = self.eval_call_arguments(required_array(object, "args")?, scope, host)?;
             let kwargs =
-                self.eval_call_keywords(required_array(object, "keywords")?, scope, host)?;
+                self.eval_call_keywords(required_array(object, "keywords")?, scope, host, None)?;
             return self.call_receiver(receiver, method, args, kwargs, host);
         }
         let callee = self.eval_expression(func, scope, host)?;
         let args = self.eval_call_arguments(required_array(object, "args")?, scope, host)?;
-        let kwargs = self.eval_call_keywords(required_array(object, "keywords")?, scope, host)?;
+        let function_name = match &callee {
+            VmValue::FunctionRef(name) => Some(name.as_str()),
+            _ => None,
+        };
+        let kwargs = self.eval_call_keywords(
+            required_array(object, "keywords")?,
+            scope,
+            host,
+            function_name,
+        )?;
         self.call_callable_value(host, callee, args, kwargs)
     }
 
@@ -2563,11 +2529,7 @@ impl VmInstance {
         scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
     ) -> Result<Vec<VmValue>, VmExecutionError> {
-        let mut values = Vec::new();
-        for argument in args {
-            values.push(self.eval_expression(argument, scope, host)?);
-        }
-        Ok(values)
+        self.expand_values(args, scope, host)
     }
 
     fn eval_call_keywords(
@@ -2575,8 +2537,10 @@ impl VmInstance {
         keywords: &[Value],
         scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
+        function_name: Option<&str>,
     ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
         let mut values = Vec::new();
+        let mut seen = HashSet::new();
         for keyword in keywords {
             let keyword_object = as_object(keyword, "keyword")?;
             match keyword_object
@@ -2584,10 +2548,18 @@ impl VmInstance {
                 .and_then(Value::as_str)
                 .unwrap_or("keyword")
             {
-                "keyword" => values.push((
-                    required_string(keyword_object, "arg")?.to_owned(),
-                    self.eval_expression(required_value(keyword_object, "value")?, scope, host)?,
-                )),
+                "keyword" => {
+                    let name = required_string(keyword_object, "arg")?.to_owned();
+                    let value = self.eval_expression(
+                        required_value(keyword_object, "value")?,
+                        scope,
+                        host,
+                    )?;
+                    if !seen.insert(name.clone()) {
+                        return Err(unpacking::duplicate_keyword(function_name, &name));
+                    }
+                    values.push((name, value));
+                }
                 "keyword_unpack" => {
                     let unpacked = self.eval_expression(
                         required_value(keyword_object, "value")?,
@@ -2600,7 +2572,15 @@ impl VmInstance {
                         ));
                     };
                     for (key, value) in entries {
-                        values.push((key.as_string()?, value));
+                        let key = key.as_string()?;
+                        if !seen.insert(key.clone()) {
+                            return Err(unpacking::duplicate_keyword(function_name, &key));
+                        }
+                        if values.len() >= MAX_SEQUENCE_LENGTH {
+                            return Err(VmExecutionError::new("keyword expansion limit exceeded"));
+                        }
+                        host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
+                        values.push((key, value));
                     }
                 }
                 other => {

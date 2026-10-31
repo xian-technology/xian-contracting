@@ -307,6 +307,10 @@ fn format_expression_with_precedence(
 ) -> String {
     let precedence = expression_precedence(expression);
     let raw = match expression {
+        SyntaxExpression::Starred { value, .. } => format!(
+            "*{}",
+            format_expression_with_precedence(value, PRECEDENCE_UNARY)
+        ),
         SyntaxExpression::Name { id, .. } => id.clone(),
         SyntaxExpression::Constant { value, .. } => format_constant(value),
         SyntaxExpression::List { elements, .. } => {
@@ -462,7 +466,7 @@ fn expression_precedence(expression: &SyntaxExpression) -> u8 {
         } => PRECEDENCE_NOT,
         SyntaxExpression::Compare { .. } => PRECEDENCE_COMPARE,
         SyntaxExpression::BinOp { operator, .. } => binary_operator_precedence(*operator),
-        SyntaxExpression::UnaryOp { .. } => PRECEDENCE_UNARY,
+        SyntaxExpression::UnaryOp { .. } | SyntaxExpression::Starred { .. } => PRECEDENCE_UNARY,
         SyntaxExpression::Attribute { .. }
         | SyntaxExpression::Subscript { .. }
         | SyntaxExpression::Call { .. } => PRECEDENCE_POSTFIX,
@@ -662,7 +666,7 @@ fn format_comprehensions(comprehensions: &[SyntaxComprehension]) -> String {
                 output.push_str("async ");
             }
             output.push_str("for ");
-            output.push_str(&format_expression(&comprehension.target));
+            output.push_str(&format_assignment_target(&comprehension.target));
             output.push_str(" in ");
             output.push_str(&format_expression(&comprehension.iter));
             for condition in &comprehension.ifs {

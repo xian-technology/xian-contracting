@@ -2,7 +2,7 @@
   "revision": "3b82001f2d587bbfb51f3d9235a2a8dcd0078a9a",
   "python": "3.12.10",
   "dependency_lock_sha256": "d6e2fc9493ba30f7eeda91769f3c3c74e398197127996c3de2d6e98d9fced726",
-  "cases_sha256": "017f74fc34934fdb120bb94f61d6e5983528dd800eb3a8e041eff2dc843e25d0",
+  "cases_sha256": "be0bbfbbe12d54cf660b7aa5b63a1bd3517ad263ca54bb5838f764d014396dab",
   "runner_sha256": "c2941b8697449adfecb2716cdc45337648186de30734bf2257f440cf9bc80818",
   "observations": {
     "typed_values": {
@@ -5856,6 +5856,871 @@
           [
             "int",
             8
+          ]
+        ]
+      ]
+    },
+    "starred_min": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "int",
+        1
+      ]
+    },
+    "starred_call_many": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "tuple",
+            [
+              [
+                "int",
+                0
+              ],
+              [
+                "int",
+                1
+              ],
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                3
+              ],
+              [
+                "int",
+                4
+              ]
+            ]
+          ],
+          [
+            "dict",
+            [
+              [
+                [
+                  "str",
+                  "last"
+                ],
+                [
+                  "int",
+                  9
+                ]
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "starred_call_order": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "tuple",
+                [
+                  [
+                    "str",
+                    "args"
+                  ]
+                ]
+              ],
+              [
+                "dict",
+                [
+                  [
+                    [
+                      "str",
+                      "k"
+                    ],
+                    [
+                      "list",
+                      [
+                        [
+                          "str",
+                          "keyword"
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ],
+          [
+            "list",
+            [
+              [
+                "str",
+                "args"
+              ],
+              [
+                "str",
+                "keyword"
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "starred_call_collision": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "__f() got multiple values for argument 'x'",
+      "exception_type": "TypeError"
+    },
+    "starred_call_unpack_keyword": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "int",
+        3
+      ]
+    },
+    "starred_call_bad_iterable": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "min() argument after * must be an iterable, not int",
+      "exception_type": "TypeError"
+    },
+    "starred_unpack": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            1
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                3
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "starred_unpack_middle": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            0
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                3
+              ]
+            ]
+          ],
+          [
+            "int",
+            4
+          ]
+        ]
+      ]
+    },
+    "starred_unpack_empty": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            1
+          ],
+          [
+            "list",
+            []
+          ],
+          [
+            "int",
+            2
+          ]
+        ]
+      ]
+    },
+    "starred_unpack_short": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "not enough values to unpack (expected at least 2, got 1)",
+      "exception_type": "ValueError"
+    },
+    "starred_unpack_only": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            0
+          ],
+          [
+            "int",
+            1
+          ],
+          [
+            "int",
+            2
+          ]
+        ]
+      ]
+    },
+    "starred_unpack_nested": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            1
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                3
+              ]
+            ]
+          ],
+          [
+            "str",
+            "a"
+          ],
+          [
+            "list",
+            [
+              [
+                "str",
+                "b"
+              ],
+              [
+                "str",
+                "c"
+              ]
+            ]
+          ],
+          [
+            "str",
+            "d"
+          ]
+        ]
+      ]
+    },
+    "starred_unpack_alias": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            0
+          ],
+          [
+            "list",
+            [
+              [
+                "list",
+                [
+                  [
+                    "int",
+                    1
+                  ]
+                ]
+              ]
+            ]
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ]
+            ]
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "starred_unpack_target": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            0
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                3
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "starred_unpack_for": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "list",
+                [
+                  [
+                    "int",
+                    2
+                  ],
+                  [
+                    "int",
+                    3
+                  ]
+                ]
+              ]
+            ]
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                4
+              ],
+              [
+                "list",
+                []
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "starred_unpack_comprehension": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "list",
+                [
+                  [
+                    "int",
+                    1
+                  ],
+                  [
+                    "list",
+                    [
+                      [
+                        "int",
+                        2
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "list",
+                [
+                  [
+                    "int",
+                    3
+                  ],
+                  [
+                    "list",
+                    [
+                      [
+                        "int",
+                        4
+                      ],
+                      [
+                        "int",
+                        5
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ],
+          [
+            "int",
+            8
+          ],
+          [
+            "int",
+            9
+          ]
+        ]
+      ]
+    },
+    "starred_literal": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "list",
+                [
+                  [
+                    "int",
+                    9
+                  ]
+                ]
+              ],
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                3
+              ]
+            ]
+          ],
+          [
+            "tuple",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "list",
+                [
+                  [
+                    "int",
+                    9
+                  ]
+                ]
+              ],
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                3
+              ],
+              [
+                "int",
+                4
+              ]
+            ]
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "starred_ordinary_iterable": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            0
+          ],
+          [
+            "int",
+            1
+          ],
+          [
+            "str",
+            "a"
+          ],
+          [
+            "str",
+            "b"
+          ]
+        ]
+      ]
+    },
+    "starred_ordinary_too_many": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "too many values to unpack (expected 2)",
+      "exception_type": "ValueError"
+    },
+    "starred_multiple_targets": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            1
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                3
+              ]
+            ]
+          ],
+          [
+            "int",
+            1
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                3
+              ]
+            ]
+          ],
+          [
+            "bool",
+            false
+          ]
+        ]
+      ]
+    },
+    "starred_storage_empty": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "int",
+        7
+      ]
+    },
+    "starred_storage_positional": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "Hash.__init__() got multiple values for argument 'contract'",
+      "exception_type": "TypeError"
+    },
+    "starred_keyword_collision": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "__f() got multiple values for keyword argument 'a'",
+      "exception_type": "TypeError"
+    },
+    "starred_invalid_targets": {
+      "admission": "rejected",
+      "diagnostic": "SyntaxError"
+    },
+    "starred_standalone_target": {
+      "admission": "rejected",
+      "diagnostic": "SyntaxError"
+    },
+    "starred_module_unpack": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            0
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                3
+              ]
+            ]
+          ],
+          [
+            "bool",
+            true
           ]
         ]
       ]

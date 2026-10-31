@@ -843,5 +843,109 @@
   {
     "id": "module_dependent",
     "source": "x=1\ny=x\nx=y+3\ny=x*2\n@export\ndef probe():\n    return [x,y]\n"
+  },
+  {
+    "id": "starred_min",
+    "source": "@export\ndef probe():\n    return min(*[3,1,2])\n"
+  },
+  {
+    "id": "starred_call_many",
+    "source": "def f(*args, **kwargs):\n    return [args,kwargs]\n@export\ndef probe():\n    return f(0,*[1,2],*range(3,5),last=9)\n"
+  },
+  {
+    "id": "starred_call_order",
+    "source": "log=[]\ndef mark(x):\n    log.append(x)\n    return [x]\ndef f(*args,**kwargs):\n    return [args,kwargs]\n@export\ndef probe():\n    return [f(k=mark('keyword'),*mark('args')),log]\n"
+  },
+  {
+    "id": "starred_call_collision",
+    "source": "def f(x):\n    return x\n@export\ndef probe():\n    return f(*[1],x=2)\n"
+  },
+  {
+    "id": "starred_call_unpack_keyword",
+    "source": "def f(x,y):\n    return x+y\n@export\ndef probe():\n    return f(*[1],**{'y':2})\n"
+  },
+  {
+    "id": "starred_call_bad_iterable",
+    "source": "@export\ndef probe():\n    return min(*1)\n"
+  },
+  {
+    "id": "starred_unpack",
+    "source": "@export\ndef probe():\n    a,*b=[1,2,3]\n    return [a,b]\n"
+  },
+  {
+    "id": "starred_unpack_middle",
+    "source": "@export\ndef probe():\n    a,*b,c=range(5)\n    return [a,b,c]\n"
+  },
+  {
+    "id": "starred_unpack_empty",
+    "source": "@export\ndef probe():\n    a,*b,c=[1,2]\n    return [a,b,c]\n"
+  },
+  {
+    "id": "starred_unpack_short",
+    "source": "@export\ndef probe():\n    a,*b,c=[1]\n    return [a,b,c]\n"
+  },
+  {
+    "id": "starred_unpack_only",
+    "source": "@export\ndef probe():\n    *a,=range(3)\n    return a\n"
+  },
+  {
+    "id": "starred_unpack_nested",
+    "source": "@export\ndef probe():\n    (a,*b),[c,*d,e]=[[1,2,3],'abcd']\n    return [a,b,c,d,e]\n"
+  },
+  {
+    "id": "starred_unpack_alias",
+    "source": "@export\ndef probe():\n    v=[]\n    a,*b=[0,v]\n    b[0].append(1)\n    return [a,b,v,b[0] is v]\n"
+  },
+  {
+    "id": "starred_unpack_target",
+    "source": "@export\ndef probe():\n    v=[0,0]\n    v[0],*v[1]=range(4)\n    return v\n"
+  },
+  {
+    "id": "starred_unpack_for",
+    "source": "@export\ndef probe():\n    out=[]\n    for a,*b in [[1,2,3],[4]]:\n        out.append([a,b])\n    return out\n"
+  },
+  {
+    "id": "starred_unpack_comprehension",
+    "source": "@export\ndef probe():\n    a=8\n    b=9\n    x=[[a,b] for a,*b in [[1,2],[3,4,5]]]\n    return [x,a,b]\n"
+  },
+  {
+    "id": "starred_literal",
+    "source": "@export\ndef probe():\n    x=[]\n    a=[1,*[x],*range(2,4)]\n    b=(*a,4)\n    x.append(9)\n    return [a,b,a[1] is x]\n"
+  },
+  {
+    "id": "starred_ordinary_iterable",
+    "source": "@export\ndef probe():\n    a,b=range(2)\n    x,y='ab'\n    return [a,b,x,y]\n"
+  },
+  {
+    "id": "starred_ordinary_too_many",
+    "source": "@export\ndef probe():\n    a,b=range(3)\n    return [a,b]\n"
+  },
+  {
+    "id": "starred_multiple_targets",
+    "source": "@export\ndef probe():\n    a,*b=c,*d=[1,2,3]\n    return [a,b,c,d,b is d]\n"
+  },
+  {
+    "id": "starred_storage_empty",
+    "source": "h=Hash(*[],**{'default_value':7})\n@export\ndef probe():\n    return h['missing']\n"
+  },
+  {
+    "id": "starred_storage_positional",
+    "source": "h=Hash(*['bad'])\n@export\ndef probe():\n    return 1\n"
+  },
+  {
+    "id": "starred_keyword_collision",
+    "source": "def f(**kwargs):\n    return kwargs\n@export\ndef probe():\n    return f(**{'a':1},**{'a':2})\n"
+  },
+  {
+    "id": "starred_invalid_targets",
+    "source": "@export\ndef probe():\n    a,*b,*c=[1,2,3]\n    return a\n"
+  },
+  {
+    "id": "starred_standalone_target",
+    "source": "@export\ndef probe():\n    *a=[1,2,3]\n    return a\n"
+  },
+  {
+    "id": "starred_module_unpack",
+    "source": "a,*b=range(4)\nx=y=b\n@export\ndef probe():\n    return [a,b,x is y]\n"
   }
 ]

@@ -107,6 +107,7 @@ XIAN_IR_V1_EXPRESSION_NODES = frozenset(
         "constant",
         "list",
         "list_comp",
+        "starred",
         "dict_comp",
         "tuple",
         "dict",
@@ -186,7 +187,7 @@ class XianIrLowerer:
                 continue
             if isinstance(node, ast.Assign):
                 name = node.targets[0].id if isinstance(node.targets[0], ast.Name) else None
-                if name is not None and name in declared:
+                if len(node.targets) != 1 or name is None or name in declared:
                     module_body.append(self._lower_statement(node))
                 else:
                     global_declarations.append(self._lower_global_declaration(node))
@@ -222,12 +223,13 @@ class XianIrLowerer:
                 bindings = [(alias.asname or alias.name, "import") for alias in node.names]
             elif isinstance(node, ast.FunctionDef):
                 bindings = [(node.name, "function")]
-            elif (
-                isinstance(node, ast.Assign)
-                and len(node.targets) == 1
-                and isinstance(node.targets[0], ast.Name)
-            ):
-                bindings = [(node.targets[0].id, "global")]
+            elif isinstance(node, ast.Assign):
+                bindings = [
+                    (child.id, "global")
+                    for target in node.targets
+                    for child in ast.walk(target)
+                    if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store)
+                ]
             else:
                 continue
             for name, kind in bindings:
@@ -619,7 +621,7 @@ class XianIrLowerer:
                     name=target.id,
                     storage_type=callee_path,
                     syscall_id=syscall_id,
-                    args=[self._lower_expression(arg) for arg in node.value.args],
+                    args=[self._lower_expanded_expression(arg) for arg in node.value.args],
                     keywords=[self._lower_keyword(keyword) for keyword in node.value.keywords],
                 )
             if callee_path == _EVENT_CONSTRUCTOR:
@@ -720,7 +722,7 @@ class XianIrLowerer:
                     "decorator",
                     decorator,
                     name=decorator.func.id,
-                    args=[self._lower_expression(arg) for arg in decorator.args],
+                    args=[self._lower_expanded_expression(arg) for arg in decorator.args],
                     keywords=[self._lower_keyword(keyword) for keyword in decorator.keywords],
                 ),
             }
@@ -928,18 +930,33 @@ class XianIrLowerer:
             f"unsupported statement node '{type(node).__name__}' in Xian IR",
         )
 
+    def _lower_sequence_targets(self, elements):
+        result = []
+        starred = False
+        for element in elements:
+            if isinstance(element, ast.Starred):
+                if starred:
+                    self._raise_unsupported(element, "multiple starred assignment targets")
+                starred = True
+                result.append(
+                    self._node("starred_target", element, value=self._lower_target(element.value))
+                )
+            else:
+                result.append(self._lower_target(element))
+        return result
+
     def _lower_target(self, node: ast.AST) -> dict[str, Any]:
         if isinstance(node, ast.Tuple):
             return self._node(
                 "tuple_target",
                 node,
-                elements=[self._lower_target(element) for element in node.elts],
+                elements=self._lower_sequence_targets(node.elts),
             )
         if isinstance(node, ast.List):
             return self._node(
                 "list_target",
                 node,
-                elements=[self._lower_target(element) for element in node.elts],
+                elements=self._lower_sequence_targets(node.elts),
             )
         if isinstance(node, ast.Name):
             host = self._record_host_dependency(node)
@@ -971,6 +988,11 @@ class XianIrLowerer:
             f"unsupported assignment target '{type(node).__name__}' in Xian IR",
         )
 
+    def _lower_expanded_expression(self, node):
+        if isinstance(node, ast.Starred):
+            return self._node("starred", node, value=self._lower_expression(node.value))
+        return self._lower_expression(node)
+
     def _lower_expression(self, node: ast.AST) -> dict[str, Any]:
         if isinstance(node, ast.Name):
             host = self._record_host_dependency(node)
@@ -986,7 +1008,7 @@ class XianIrLowerer:
             return self._node(
                 "list",
                 node,
-                elements=[self._lower_expression(element) for element in node.elts],
+                elements=[self._lower_expanded_expression(element) for element in node.elts],
             )
         if isinstance(node, ast.ListComp):
             return self._node(
@@ -1007,7 +1029,7 @@ class XianIrLowerer:
             return self._node(
                 "tuple",
                 node,
-                elements=[self._lower_expression(element) for element in node.elts],
+                elements=[self._lower_expanded_expression(element) for element in node.elts],
             )
         if isinstance(node, ast.Dict):
             entries = []
@@ -1066,7 +1088,7 @@ class XianIrLowerer:
                             "call",
                             node,
                             func=self._lower_expression(node.func),
-                            args=[self._lower_expression(arg) for arg in node.args],
+                            args=[self._lower_expanded_expression(arg) for arg in node.args],
                             keywords=[self._lower_keyword(keyword) for keyword in node.keywords],
                             syscall_id=syscall_id,
                             receiver_binding=binding,
@@ -1081,7 +1103,7 @@ class XianIrLowerer:
                         "call",
                         node,
                         func=self._lower_expression(node.func),
-                        args=[self._lower_expression(arg) for arg in node.args],
+                        args=[self._lower_expanded_expression(arg) for arg in node.args],
                         keywords=[self._lower_keyword(keyword) for keyword in node.keywords],
                         syscall_id=_CONTRACT_EXPORT_SYSCALL,
                         contract_target=contract_target,
@@ -1101,7 +1123,7 @@ class XianIrLowerer:
                 "call",
                 node,
                 func=self._lower_expression(node.func),
-                args=[self._lower_expression(arg) for arg in node.args],
+                args=[self._lower_expanded_expression(arg) for arg in node.args],
                 keywords=[self._lower_keyword(keyword) for keyword in node.keywords],
                 syscall_id=(
                     host["id"]

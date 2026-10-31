@@ -592,7 +592,10 @@ impl<'a> IrLowerer<'a> {
                 SyntaxStatement::Import { .. } => imports.extend(self.lower_import(statement)?),
                 SyntaxStatement::Assign { targets, .. } => {
                     let name = targets.first().and_then(name_id);
-                    if name.is_some_and(|name| !declared.insert(name.to_owned())) {
+                    if targets.len() != 1
+                        || name.is_none()
+                        || name.is_some_and(|name| !declared.insert(name.to_owned()))
+                    {
                         // Declarations stay unique. Later ordinary assignments are
                         // executable initialization steps, ordered by source span.
                         module_body.push(self.lower_statement(statement)?);
@@ -633,6 +636,11 @@ impl<'a> IrLowerer<'a> {
                     }
                 }
                 SyntaxStatement::Assign { targets, value, .. } => {
+                    if targets.len() != 1 || name_id(&targets[0]).is_none() {
+                        for target in targets {
+                            collect_target_binding_names(target, &mut self.global_bindings);
+                        }
+                    }
                     if targets.len() != 1 {
                         continue;
                     }
@@ -1160,7 +1168,7 @@ impl<'a> IrLowerer<'a> {
                         "name": target,
                         "storage_type": callee_path,
                         "syscall_id": syscall_id,
-                        "args": self.lower_expression_list(args)?,
+                        "args": self.lower_expanded_expressions(args)?,
                         "keywords": self.lower_keywords(keywords)?,
                     }));
                 }
@@ -1327,7 +1335,7 @@ impl<'a> IrLowerer<'a> {
                         "node": "decorator",
                         "span": span_value(expression_span(decorator)),
                         "name": name,
-                        "args": self.lower_expression_list(args)?,
+                        "args": self.lower_expanded_expressions(args)?,
                         "keywords": self.lower_keywords(keywords)?,
                     }),
                 });
@@ -1594,17 +1602,36 @@ impl<'a> IrLowerer<'a> {
             .collect()
     }
 
+    fn lower_sequence_targets(
+        &mut self,
+        elements: &[SyntaxExpression],
+    ) -> Result<Vec<Value>, IrLoweringError> {
+        let mut starred = false;
+        elements.iter().map(|element| match element {
+            SyntaxExpression::Starred { span, value, .. } => {
+                if starred { return Err(IrLoweringError::new("multiple starred assignment targets", Some(*span))); }
+                starred = true;
+                Ok(json!({"node":"starred_target", "span":span_value(*span), "value":self.lower_target(value)?}))
+            }
+            other => self.lower_target(other),
+        }).collect()
+    }
+
     fn lower_target(&mut self, expression: &SyntaxExpression) -> Result<Value, IrLoweringError> {
         match expression {
+            SyntaxExpression::Starred { span, .. } => Err(IrLoweringError::new(
+                "starred target requires a list or tuple target",
+                Some(*span),
+            )),
             SyntaxExpression::Tuple { span, elements, .. } => Ok(json!({
                 "node": "tuple_target",
                 "span": span_value(*span),
-                "elements": elements.iter().map(|element| self.lower_target(element)).collect::<Result<Vec<_>, _>>()?,
+                "elements": self.lower_sequence_targets(elements)?,
             })),
             SyntaxExpression::List { span, elements, .. } => Ok(json!({
                 "node": "list_target",
                 "span": span_value(*span),
-                "elements": elements.iter().map(|element| self.lower_target(element)).collect::<Result<Vec<_>, _>>()?,
+                "elements": self.lower_sequence_targets(elements)?,
             })),
             SyntaxExpression::Name { span, id, .. } => {
                 let host = self.record_host_dependency(expression);
@@ -1660,11 +1687,15 @@ impl<'a> IrLowerer<'a> {
                     "host_binding_id": host.map(|spec| spec.id),
                 }))
             }
+            SyntaxExpression::Starred { span, .. } => Err(IrLoweringError::new(
+                "starred expression requires a call or collection",
+                Some(*span),
+            )),
             SyntaxExpression::Constant { span, value } => Ok(lower_constant(*span, value)),
             SyntaxExpression::List { span, elements, .. } => Ok(json!({
                 "node": "list",
                 "span": span_value(*span),
-                "elements": self.lower_expression_list(elements)?,
+                "elements": self.lower_expanded_expressions(elements)?,
             })),
             SyntaxExpression::ListComp {
                 span,
@@ -1691,7 +1722,7 @@ impl<'a> IrLowerer<'a> {
             SyntaxExpression::Tuple { span, elements, .. } => Ok(json!({
                 "node": "tuple",
                 "span": span_value(*span),
-                "elements": self.lower_expression_list(elements)?,
+                "elements": self.lower_expanded_expressions(elements)?,
             })),
             SyntaxExpression::Dict { span, entries } => Ok(json!({
                 "node": "dict",
@@ -1866,7 +1897,7 @@ impl<'a> IrLowerer<'a> {
                         "node": "call",
                         "span": span_value(span),
                         "func": self.lower_expression(func)?,
-                        "args": self.lower_expression_list(args)?,
+                        "args": self.lower_expanded_expressions(args)?,
                         "keywords": self.lower_keywords(keywords)?,
                         "syscall_id": syscall_id,
                         "receiver_binding": binding,
@@ -1882,7 +1913,7 @@ impl<'a> IrLowerer<'a> {
                     "node": "call",
                     "span": span_value(span),
                     "func": self.lower_expression(func)?,
-                    "args": self.lower_expression_list(args)?,
+                    "args": self.lower_expanded_expressions(args)?,
                     "keywords": self.lower_keywords(keywords)?,
                     "syscall_id": CONTRACT_EXPORT_SYSCALL,
                     "contract_target": contract_target,
@@ -1917,11 +1948,21 @@ impl<'a> IrLowerer<'a> {
             "node": "call",
             "span": span_value(span),
             "func": self.lower_expression(func)?,
-            "args": self.lower_expression_list(args)?,
+            "args": self.lower_expanded_expressions(args)?,
             "keywords": self.lower_keywords(keywords)?,
             "syscall_id": syscall_id,
             "event_binding": event_emit.and_then(|_| name_id(func).map(str::to_string)),
         }))
+    }
+
+    fn lower_expanded_expressions(
+        &mut self,
+        expressions: &[SyntaxExpression],
+    ) -> Result<Vec<Value>, IrLoweringError> {
+        expressions.iter().map(|expression| match expression {
+            SyntaxExpression::Starred { span, value, .. } => Ok(json!({"node":"starred", "span":span_value(*span), "value":self.lower_expression(value)?})),
+            other => self.lower_expression(other),
+        }).collect()
     }
 
     fn lower_expression_list(
@@ -2062,12 +2103,18 @@ fn validate_unique_module_bindings(
                     }
                 }
             }
-            SyntaxStatement::Assign { targets, .. } if targets.len() == 1 => {
-                if let Some(name) = name_id(&targets[0]) {
-                    if !globals.insert(name.to_owned()) && fixed_bindings.contains(name) {
+            SyntaxStatement::Assign { targets, span, .. } => {
+                let mut assigned = HashSet::new();
+                for target in targets {
+                    collect_target_binding_names(target, &mut assigned);
+                }
+                let mut assigned: Vec<_> = assigned.into_iter().collect();
+                assigned.sort();
+                for name in assigned {
+                    if !globals.insert(name.clone()) && fixed_bindings.contains(&name) {
                         return Err(IrLoweringError::new(
                             format!("duplicate global declaration '{name}'"),
-                            Some(expression_span(&targets[0])),
+                            Some(*span),
                         ));
                     }
                 }
@@ -2165,6 +2212,7 @@ fn collect_target_binding_names(expression: &SyntaxExpression, output: &mut Hash
                 collect_target_binding_names(element, output);
             }
         }
+        SyntaxExpression::Starred { value, .. } => collect_target_binding_names(value, output),
         SyntaxExpression::Subscript { .. } | SyntaxExpression::Attribute { .. } => {}
         _ => {}
     }
@@ -2292,6 +2340,7 @@ fn collect_calls_from_expression<'a>(
 
     match expression {
         SyntaxExpression::Name { .. } | SyntaxExpression::Constant { .. } => {}
+        SyntaxExpression::Starred { value, .. } => collect_calls_from_expression(value, output),
         SyntaxExpression::List { elements, .. } | SyntaxExpression::Tuple { elements, .. } => {
             for element in elements {
                 collect_calls_from_expression(element, output);
@@ -2502,6 +2551,7 @@ fn expression_span(expression: &SyntaxExpression) -> SourceRange {
     match expression {
         SyntaxExpression::Name { span, .. }
         | SyntaxExpression::Constant { span, .. }
+        | SyntaxExpression::Starred { span, .. }
         | SyntaxExpression::List { span, .. }
         | SyntaxExpression::ListComp { span, .. }
         | SyntaxExpression::DictComp { span, .. }
@@ -2709,6 +2759,7 @@ fn expression_node_name(expression: &SyntaxExpression) -> &'static str {
     match expression {
         SyntaxExpression::Name { .. } => "Name",
         SyntaxExpression::Constant { .. } => "Constant",
+        SyntaxExpression::Starred { .. } => "Starred",
         SyntaxExpression::List { .. } => "List",
         SyntaxExpression::ListComp { .. } => "ListComp",
         SyntaxExpression::DictComp { .. } => "DictComp",
