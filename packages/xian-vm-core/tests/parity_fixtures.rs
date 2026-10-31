@@ -930,6 +930,13 @@ fn vm_value_to_json(value: &VmValue) -> Value {
             ),
             ("value".to_owned(), Value::String(value.to_string())),
         ])),
+        VmValue::RawDecimal(value) => Value::Object(Map::from_iter([
+            (
+                "__vm_type__".to_owned(),
+                Value::String("raw_decimal".to_owned()),
+            ),
+            ("value".to_owned(), Value::String(value.to_string())),
+        ])),
         VmValue::DateTime(value) => Value::Object(Map::from_iter([
             (
                 "__vm_type__".to_owned(),
@@ -1190,6 +1197,7 @@ fn vm_value_type_name(value: &VmValue) -> &'static str {
         VmValue::Int(_) => "int",
         VmValue::Float(_) => "float",
         VmValue::Decimal(_) => "decimal",
+        VmValue::RawDecimal(_) => "raw_decimal",
         VmValue::DateTime(_) => "datetime",
         VmValue::TimeDelta(_) => "timedelta",
         VmValue::String(_) => "str",

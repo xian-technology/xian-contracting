@@ -321,7 +321,8 @@ impl VmHost for PythonBundleExecutor {
             let response = host
                 .call_method1("read_hash", (contract, binding, key_py))
                 .map_err(|error| VmExecutionError::new(error.to_string()))?;
-            py_optional_to_vm(response)
+            // Driver reads are authoritative, including missing/deleted keys.
+            py_to_vm(response).map(Some)
         })
     }
 

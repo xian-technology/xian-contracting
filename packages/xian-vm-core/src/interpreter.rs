@@ -640,6 +640,7 @@ pub trait VmHost {
         Ok(None)
     }
 
+    /// None leaves supplied snapshots intact; Some(None) is an authoritative absence.
     fn read_hash(
         &mut self,
         _contract: &str,
@@ -3665,9 +3666,9 @@ impl VmInstance {
                 snapshot_local: false,
                 dirty_entries: HashSet::new(),
             });
-            foreign
-                .entries
-                .insert(storage_key.clone(), loaded.unwrap_or(VmValue::None));
+            if let Some(value) = loaded {
+                foreign.entries.insert(storage_key.clone(), value);
+            }
             let value = foreign
                 .entries
                 .get(&storage_key)
