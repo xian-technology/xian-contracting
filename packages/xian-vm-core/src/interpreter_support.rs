@@ -386,6 +386,13 @@ fn set_symmetric_difference_values(
     Ok(values)
 }
 
+fn bool_number(value: VmValue) -> VmValue {
+    match value {
+        VmValue::Bool(value) => vm_int(value as u8),
+        value => value,
+    }
+}
+
 pub(super) fn apply_binary_operator(
     operator: &str,
     left: VmValue,
@@ -393,6 +400,11 @@ pub(super) fn apply_binary_operator(
 ) -> Result<VmValue, VmExecutionError> {
     let left = left.snapshot();
     let right = right.snapshot();
+    let (left, right) = if matches!(operator, "bitand" | "bitor" | "bitxor") {
+        (left, right)
+    } else {
+        (bool_number(left), bool_number(right))
+    };
     let coerce_decimal = |value: &VmValue, side: &str| -> Result<VmDecimal, VmExecutionError> {
         VmDecimal::from_vm_value(value).map_err(|err| {
             VmExecutionError::new(format!(
@@ -753,7 +765,7 @@ pub(super) fn apply_unary_operator(
     operator: &str,
     operand: VmValue,
 ) -> Result<VmValue, VmExecutionError> {
-    let operand = operand.snapshot();
+    let operand = bool_number(operand.snapshot());
     match operator {
         "not" => Ok(VmValue::Bool(!operand.truthy())),
         "neg" => match operand {
@@ -793,11 +805,15 @@ pub(super) fn apply_compare_operator(
     if operator == "is_not" {
         return Ok(!left.identical(right));
     }
+    if operator == "eq" {
+        return vm_values_equal(left, right);
+    }
+    if operator == "not_eq" {
+        return Ok(!vm_values_equal(left, right)?);
+    }
     let left = &left.snapshot();
     let right = &right.snapshot();
     match operator {
-        "eq" => vm_values_equal(left, right),
-        "not_eq" => Ok(!vm_values_equal(left, right)?),
         "gt" if set_like_values(left).is_some() && set_like_values(right).is_some() => {
             let left = set_like_values(left).expect("checked above");
             let right = set_like_values(right).expect("checked above");
@@ -838,112 +854,17 @@ pub(super) fn compare_ord<F>(
 where
     F: Fn(f64, f64) -> bool,
 {
-    let coerce_decimal = |value: &VmValue, side: &str| -> Result<VmDecimal, VmExecutionError> {
-        VmDecimal::from_vm_value(value).map_err(|err| {
-            VmExecutionError::new(format!(
-                "comparison could not coerce {side} operand {} ({}) to decimal: {err}",
-                value.python_repr(),
-                value.type_name()
-            ))
-        })
-    };
-    match (left, right) {
-        (VmValue::DateTime(left), VmValue::DateTime(right)) => Ok(op_datetime(left, right, &op)),
-        (VmValue::TimeDelta(left), VmValue::TimeDelta(right)) => Ok(op_timedelta(left, right, &op)),
-        (VmValue::Decimal(left), VmValue::Decimal(right)) => Ok(op_decimal(left, right, &op)),
-        (VmValue::Decimal(left), right) => {
-            Ok(op_decimal(left, &coerce_decimal(right, "right")?, &op))
-        }
-        (left, VmValue::Decimal(right)) => {
-            Ok(op_decimal(&coerce_decimal(left, "left")?, right, &op))
-        }
-        (VmValue::Int(left), VmValue::Int(right)) => Ok(op_bigint(left, right, &op)),
-        (VmValue::Float(left), VmValue::Float(right)) => Ok(op(*left, *right)),
-        (VmValue::Int(left), VmValue::Float(right)) => {
-            Ok(op(bigint_to_f64(left, "left int operand")?, *right))
-        }
-        (VmValue::Float(left), VmValue::Int(right)) => {
-            Ok(op(*left, bigint_to_f64(right, "right int operand")?))
-        }
-        (VmValue::String(left), VmValue::String(right)) => Ok(op_string(left, right, &op)),
-        (left, right) if bytes_like_data(left).is_some() && bytes_like_data(right).is_some() => {
-            let left = bytes_like_data(left).expect("checked above");
-            let right = bytes_like_data(right).expect("checked above");
-            let score = match compare_bytes_like(left, right) {
-                std::cmp::Ordering::Greater => 1.0,
-                std::cmp::Ordering::Equal => 0.0,
-                std::cmp::Ordering::Less => -1.0,
-            };
-            Ok(op(score, 0.0))
-        }
-        (left, right) => Err(VmExecutionError::new(format!(
-            "values {} and {} are not order-comparable",
-            left.type_name(),
-            right.type_name()
-        ))),
+    if matches!(left, VmValue::Float(value) if value.is_nan())
+        || matches!(right, VmValue::Float(value) if value.is_nan())
+    {
+        return Ok(false);
     }
-}
-
-pub(super) fn op_string<F>(left: &str, right: &str, op: &F) -> bool
-where
-    F: Fn(f64, f64) -> bool,
-{
-    let left_score = if left > right {
-        1.0
-    } else if left == right {
-        0.0
-    } else {
-        -1.0
-    };
-    op(left_score, 0.0)
-}
-
-pub(super) fn op_decimal<F>(left: &VmDecimal, right: &VmDecimal, op: &F) -> bool
-where
-    F: Fn(f64, f64) -> bool,
-{
-    let left_score = match left.scaled.cmp(&right.scaled) {
-        std::cmp::Ordering::Greater => 1.0,
-        std::cmp::Ordering::Equal => 0.0,
+    let score = match compare_vm_values(left, right)? {
         std::cmp::Ordering::Less => -1.0,
-    };
-    op(left_score, 0.0)
-}
-
-pub(super) fn op_bigint<F>(left: &BigInt, right: &BigInt, op: &F) -> bool
-where
-    F: Fn(f64, f64) -> bool,
-{
-    let score = match left.cmp(right) {
-        std::cmp::Ordering::Greater => 1.0,
         std::cmp::Ordering::Equal => 0.0,
-        std::cmp::Ordering::Less => -1.0,
-    };
-    op(score, 0.0)
-}
-
-pub(super) fn op_datetime<F>(left: &VmDateTime, right: &VmDateTime, op: &F) -> bool
-where
-    F: Fn(f64, f64) -> bool,
-{
-    let score = match left.value.cmp(&right.value) {
         std::cmp::Ordering::Greater => 1.0,
-        std::cmp::Ordering::Equal => 0.0,
-        std::cmp::Ordering::Less => -1.0,
     };
-    op(score, 0.0)
-}
-
-pub(super) fn op_timedelta<F>(left: &VmTimeDelta, right: &VmTimeDelta, op: &F) -> bool
-where
-    F: Fn(f64, f64) -> bool,
-{
-    let score = match left.raw_seconds.cmp(&right.raw_seconds) {
-        std::cmp::Ordering::Greater => 1.0,
-        std::cmp::Ordering::Equal => 0.0,
-        std::cmp::Ordering::Less => -1.0,
-    };
-    op(score, 0.0)
+    Ok(op(score, 0.0))
 }
 
 pub(super) fn native_attribute_value(
@@ -1585,51 +1506,9 @@ pub(super) fn call_native_method_with(
                 ))),
                 _ => Err(VmExecutionError::new("str.isalnum() expects no arguments")),
             },
-            "startswith" => match args.as_slice() {
-                [prefix] | [prefix, ..] => {
-                    let (start, end) =
-                        normalize_search_bounds(value.chars().count(), args.get(1), args.get(2))?;
-                    let segment = substring_by_char_bounds(&value, start, end);
-                    let prefixes = string_match_candidates(prefix)?;
-                    Ok(NativeMethodResult::Value(VmValue::Bool(
-                        prefixes.iter().any(|prefix| segment.starts_with(prefix)),
-                    )))
-                }
-                _ => Err(VmExecutionError::new(
-                    "str.startswith() expects between one and three arguments",
-                )),
-            },
-            "endswith" => match args.as_slice() {
-                [suffix] | [suffix, ..] => {
-                    let (start, end) =
-                        normalize_search_bounds(value.chars().count(), args.get(1), args.get(2))?;
-                    let segment = substring_by_char_bounds(&value, start, end);
-                    let suffixes = string_match_candidates(suffix)?;
-                    Ok(NativeMethodResult::Value(VmValue::Bool(
-                        suffixes.iter().any(|suffix| segment.ends_with(suffix)),
-                    )))
-                }
-                _ => Err(VmExecutionError::new(
-                    "str.endswith() expects between one and three arguments",
-                )),
-            },
-            "find" => match args.as_slice() {
-                [needle] | [needle, ..] => {
-                    let needle = needle.as_string()?;
-                    let (start, end) =
-                        normalize_search_bounds(value.chars().count(), args.get(1), args.get(2))?;
-                    let segment = substring_by_char_bounds(&value, start, end);
-                    let found = segment
-                        .find(&needle)
-                        .map(|byte_index| start + segment[..byte_index].chars().count());
-                    Ok(NativeMethodResult::Value(vm_int(
-                        found.map_or(-1i64, |index| index as i64),
-                    )))
-                }
-                _ => Err(VmExecutionError::new(
-                    "str.find() expects between one and three arguments",
-                )),
-            },
+            "startswith" | "endswith" | "find" | "count" => Ok(NativeMethodResult::Value(
+                search_string(&value, method, &args)?,
+            )),
             "strip" => match args.as_slice() {
                 [] => Ok(NativeMethodResult::Value(VmValue::String(
                     value.trim().to_owned(),
@@ -2143,28 +2022,33 @@ pub(super) fn call_native_method_with(
     }
 }
 
-pub(super) fn sorted_values(values: Vec<VmValue>) -> Result<Vec<VmValue>, VmExecutionError> {
-    let mut ordered = Vec::with_capacity(values.len());
-    for value in values {
-        let mut insert_at = ordered.len();
-        for (index, existing) in ordered.iter().enumerate() {
-            if compare_vm_values(&value, existing)? == std::cmp::Ordering::Less {
-                insert_at = index;
-                break;
-            }
-        }
-        ordered.insert(insert_at, value);
-    }
-    Ok(ordered)
-}
-
 pub(super) fn compare_vm_values(
     left: &VmValue,
     right: &VmValue,
 ) -> Result<std::cmp::Ordering, VmExecutionError> {
+    compare_values_at(left, right, 0)
+}
+
+fn compare_values_at(
+    left: &VmValue,
+    right: &VmValue,
+    depth: usize,
+) -> Result<std::cmp::Ordering, VmExecutionError> {
+    if depth > 128 {
+        return Err(VmExecutionError::new("comparison depth limit exceeded"));
+    }
     let left = &left.snapshot();
     let right = &right.snapshot();
     match (left, right) {
+        (VmValue::List(left), VmValue::List(right))
+        | (VmValue::Tuple(left), VmValue::Tuple(right)) => {
+            for (a, b) in left.iter().zip(right) {
+                if !vm_values_equal(a, b)? {
+                    return compare_values_at(a, b, depth + 1);
+                }
+            }
+            Ok(left.len().cmp(&right.len()))
+        }
         (VmValue::DateTime(left), VmValue::DateTime(right)) => Ok(left.value.cmp(&right.value)),
         (VmValue::TimeDelta(left), VmValue::TimeDelta(right)) => {
             Ok(left.raw_seconds.cmp(&right.raw_seconds))
@@ -2285,6 +2169,8 @@ fn vm_values_equal_at(
     }
 
     match (left, right) {
+        (VmValue::Iterator(_), _) | (_, VmValue::Iterator(_)) => Ok(false),
+        (VmValue::Range(left), VmValue::Range(right)) => Ok(left.equivalent(right)),
         (VmValue::Set(left), VmValue::Set(right))
         | (VmValue::Set(left), VmValue::FrozenSet(right))
         | (VmValue::FrozenSet(left), VmValue::Set(right))
@@ -2483,6 +2369,7 @@ pub(super) fn subscript_slice_value(
 ) -> Result<VmValue, VmExecutionError> {
     let container = container.snapshot();
     match container {
+        VmValue::Range(range) => Ok(VmValue::Range(range.sliced(lower, upper, step)?)),
         VmValue::List(values) => Ok(VmValue::List(
             slice_positions(values.len(), lower, upper, step)?
                 .into_iter()
@@ -2551,6 +2438,73 @@ pub(super) fn normalize_sequence_insert_index(
     bigint_to_usize(&clamped, "sequence insert index")
 }
 
+fn search_string(value: &str, method: &str, args: &[VmValue]) -> Result<VmValue, VmExecutionError> {
+    if args.is_empty() || args.len() > 3 {
+        return Err(VmExecutionError::new(
+            "string search expects one to three arguments",
+        ));
+    }
+    let length = value.chars().count();
+    let (start, end) = string_search_bounds(length, args.get(1), args.get(2))?;
+    let valid = start <= end && start <= length;
+    let segment = substring_by_char_bounds(value, start, end);
+    if matches!(method, "startswith" | "endswith") {
+        let candidates = string_match_candidates(&args[0])?;
+        return Ok(VmValue::Bool(
+            valid
+                && candidates.iter().any(|needle| {
+                    if method == "startswith" {
+                        segment.starts_with(needle)
+                    } else {
+                        segment.ends_with(needle)
+                    }
+                }),
+        ));
+    }
+    let needle = args[0].as_string()?;
+    if method == "count" {
+        return Ok(vm_int(if valid {
+            segment.matches(&needle).count()
+        } else {
+            0
+        }));
+    }
+    let found = if valid {
+        segment
+            .find(&needle)
+            .map(|index| start + segment[..index].chars().count())
+    } else {
+        None
+    };
+    Ok(vm_int(found.map_or(-1, |index| index as i64)))
+}
+
+fn string_search_bounds(
+    length: usize,
+    start: Option<&VmValue>,
+    end: Option<&VmValue>,
+) -> Result<(usize, usize), VmExecutionError> {
+    let normalize =
+        |value: Option<&VmValue>, default, maximum| -> Result<usize, VmExecutionError> {
+            let value = value.filter(|v| !matches!(v.snapshot(), VmValue::None));
+            let Some(value) = value else {
+                return Ok(default);
+            };
+            let mut value = value.as_bigint()?;
+            if value.is_negative() {
+                value += length;
+            }
+            bigint_to_usize(
+                &value.max(BigInt::zero()).min(BigInt::from(maximum)),
+                "search bound",
+            )
+        };
+    Ok((
+        normalize(start, 0, length + 1)?,
+        normalize(end, length, length)?,
+    ))
+}
+
 pub(super) fn normalize_search_bounds(
     length: usize,
     start: Option<&VmValue>,
@@ -2590,69 +2544,16 @@ pub(super) fn slice_positions(
     upper: Option<BigInt>,
     step: Option<BigInt>,
 ) -> Result<Vec<usize>, VmExecutionError> {
-    let length_value = i64::try_from(length)
-        .map_err(|_| VmExecutionError::new("sequence length exceeds supported range"))?;
-    let step_value = match step {
-        Some(value) => bigint_to_i64(&value, "slice step")?,
-        None => 1,
-    };
-    if step_value == 0 {
-        return Err(VmExecutionError::new("slice step cannot be zero"));
-    }
-
-    let normalize = |value: Option<BigInt>,
-                     default: i64,
-                     allow_negative_endpoint: bool|
-     -> Result<i64, VmExecutionError> {
-        let mut raw = match value {
-            Some(value) => bigint_to_i64(&value, "slice bound")?,
-            None => return Ok(default),
-        };
-        if raw < 0 {
-            raw += length_value;
-        }
-        if allow_negative_endpoint {
-            if raw < -1 {
-                raw = -1;
-            }
-        } else if raw < 0 {
-            raw = 0;
-        }
-        let maximum = if allow_negative_endpoint {
-            length_value - 1
-        } else {
-            length_value
-        };
-        if raw > maximum {
-            raw = maximum;
-        }
-        Ok(raw)
-    };
-
+    let (mut index, stop, step) =
+        crate::iteration::slice_indices(&BigInt::from(length), lower, upper, step)?;
     let mut positions = Vec::new();
-    if step_value > 0 {
-        let start = normalize(lower, 0, false)?;
-        let stop = normalize(upper, length_value, false)?;
-        let mut index = start;
-        while index < stop {
-            positions.push(
-                usize::try_from(index)
-                    .map_err(|_| VmExecutionError::new("slice position out of bounds"))?,
-            );
-            index = index.saturating_add(step_value);
-        }
-        return Ok(positions);
-    }
-
-    let start = normalize(lower, length_value - 1, true)?;
-    let stop = normalize(upper, -1, true)?;
-    let mut index = start;
-    while index > stop {
-        positions.push(
-            usize::try_from(index)
-                .map_err(|_| VmExecutionError::new("slice position out of bounds"))?,
-        );
-        index = index.saturating_add(step_value);
+    while if step.is_positive() {
+        index < stop
+    } else {
+        index > stop
+    } {
+        positions.push(bigint_to_usize(&index, "slice position")?);
+        index += &step;
     }
     Ok(positions)
 }
@@ -2766,7 +2667,7 @@ pub(super) fn type_matches_name(value: &VmValue, name: &str) -> bool {
     match name {
         "Any" => true,
         "bool" => matches!(value, VmValue::Bool(_)),
-        "int" => matches!(value, VmValue::Int(_)),
+        "int" => matches!(value, VmValue::Int(_) | VmValue::Bool(_)),
         "float" => matches!(value, VmValue::Float(_)),
         "decimal" => matches!(value, VmValue::Decimal(_)),
         "datetime.datetime" => matches!(value, VmValue::DateTime(_)),

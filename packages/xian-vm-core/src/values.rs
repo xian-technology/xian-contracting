@@ -797,7 +797,13 @@ impl VmValue {
             Self::Exception(value) => value.python_repr(),
             Self::Iterator(_) => "<iterator>".to_owned(),
             Self::View(_) => "<dict_view>".to_owned(),
-            Self::Range(range) => format!("range({}, {}, {})", range.start, range.stop, range.step),
+            Self::Range(range) => {
+                if range.step == BigInt::from(1) {
+                    format!("range({}, {})", range.start, range.stop)
+                } else {
+                    format!("range({}, {}, {})", range.start, range.stop, range.step)
+                }
+            }
         }
     }
 

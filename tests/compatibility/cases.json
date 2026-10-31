@@ -437,5 +437,121 @@
   {
     "id": "hash_alias_keyword",
     "source": "@export\ndef probe():\n    return [hashlib.sha256(hex_str='hello'), hashlib.sha3(hex_str='deadbeef')]\n"
+  },
+  {
+    "id": "ordered_defaults",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return [min([], default=9), max([], default=8), min([3, 1, 2], key=negative), max([3, 1, 2], key=negative)]\n"
+  },
+  {
+    "id": "ordered_default_invalid",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return min(1, 2, default=9)\n"
+  },
+  {
+    "id": "sorted_options",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return [sorted([3, 1, 2], reverse=True), sorted([3, 1, 2], key=negative), sorted([3, 1, 2], key=negative, reverse=True)]\n"
+  },
+  {
+    "id": "ordered_identity",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    a = 9999999\n    b = 8888888\n    return [min(a, b) is b, max(a, b) is a]\n"
+  },
+  {
+    "id": "sum_start_keyword",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return sum([1, 2], start=4)\n"
+  },
+  {
+    "id": "sum_reject_strings",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return sum([\"a\", \"b\"], \"\")\n"
+  },
+  {
+    "id": "sum_reject_empty_bytes",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return sum([], b\"\")\n"
+  },
+  {
+    "id": "int_base_zero",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return [int(\"0xff\", 0), int(\"  -0b101  \", 0), int(\"0o77\", 0), int(\"0\", 0), int(\"00\", 0)]\n"
+  },
+  {
+    "id": "int_base_zero_invalid",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return int(\"012\", 0)\n"
+  },
+  {
+    "id": "int_text_underscores",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return [int(\"  +1_000  \"), int(\"0x_ff\", 16), int(\"ff\", base=16), int(b\"1_000\"), int(b\"0b11\", 0)]\n"
+  },
+  {
+    "id": "int_underscore_invalid",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return int(\"1__0\")\n"
+  },
+  {
+    "id": "boolean_arithmetic",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return [True + 2, True * 3, True - False, -True, +True, ~True, True & False, True | False, True ^ True, True << 3, 2 ** True]\n"
+  },
+  {
+    "id": "float_underscores",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return [float(\"1_000.5\"), float(\"1_2.5e1_0\"), float(b\"1_000.5\")]\n"
+  },
+  {
+    "id": "float_underscore_invalid",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return float(\"1_.0\")\n"
+  },
+  {
+    "id": "string_repr_nested",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return str([\"a\", \"b\", {\"x\": \"a\\nb\"}])\n"
+  },
+  {
+    "id": "string_empty_search_bounds",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return [\"abc\".find(\"\", 4), \"abc\".endswith(\"\", 4), \"abc\".startswith(\"\", 4), \"abc\".find(\"\", 3, 2)]\n"
+  },
+  {
+    "id": "string_count",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return [\"abc\".count(\"\", 4), \"abc\".count(\"\"), \"abababa\".count(\"aba\"), \"\u96ea\u96ea\u96ea\".count(\"\u96ea\", 1, 3)]\n"
+  },
+  {
+    "id": "list_sort",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    a = [3, 1, 2]\n    b = a\n    result = a.sort(reverse=True)\n    return [a, result, a is b]\n"
+  },
+  {
+    "id": "list_sort_key_stable",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    a = [[1, \"a\"], [2, \"b\"], [1, \"c\"]]\n    a.sort(key=first, reverse=True)\n    return a\n"
+  },
+  {
+    "id": "dict_fromkeys_alias",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    value = []\n    a = dict.fromkeys([\"a\", \"b\"], value)\n    a[\"a\"].append(9)\n    return [a, a[\"b\"] is value]\n"
+  },
+  {
+    "id": "dict_fromkeys_invalid",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return dict.fromkeys([[]])\n"
+  },
+  {
+    "id": "huge_slice_bounds",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    a = [1, 2, 3]\n    n = 999999999999999999999999999999\n    return [a[n::-1], a[-n:n], a[::n], a[::-n], \"abc\"[n::-1], b\"abc\"[-n:n]]\n"
+  },
+  {
+    "id": "iterator_equality",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    a = map(int, [1])\n    b = map(int, [1])\n    return [a == a, a == b, range(0) == range(1, 1), range(1, 2, 3) == range(1, 2)]\n"
+  },
+  {
+    "id": "range_slicing",
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return [list(range(2, 15, 3)[1:3]), list(range(2, 15, 3)[::-1])]\n"
+  },
+  {
+    "id": "ordered_nested_sequences",
+    "source": "@export\ndef probe():\n    return sorted([[2], [1, 2], [1]])\n"
+  },
+  {
+    "id": "ordered_exact_numeric",
+    "source": "@export\ndef probe():\n    return [9007199254740993 > float(\"9007199254740992\"), True < 2, False >= 0, [1] < [1, 2]]\n"
+  },
+  {
+    "id": "boolean_int_type",
+    "source": "@export\ndef probe():\n    return [isinstance(True, int), isinstance(False, bool), issubclass(bool, int)]\n"
+  },
+  {
+    "id": "none_slice_bounds",
+    "source": "@export\ndef probe():\n    bound = None\n    return [1, 2, 3][bound:bound:bound]\n"
+  },
+  {
+    "id": "bytearray_reject_decimal_append",
+    "source": "@export\ndef probe():\n    a = bytearray()\n    a.append(decimal(\"1.5\"))\n    return a\n"
   }
 ]

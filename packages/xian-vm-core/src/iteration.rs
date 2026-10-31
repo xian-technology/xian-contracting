@@ -21,6 +21,28 @@ impl VmRange {
         ((self.start.bits() + self.stop.bits() + self.step.bits()).div_ceil(8)) as usize
     }
 
+    pub(crate) fn sliced(
+        &self,
+        lower: Option<BigInt>,
+        upper: Option<BigInt>,
+        step: Option<BigInt>,
+    ) -> Result<Self> {
+        let (start, stop, step) = slice_indices(&self.len(), lower, upper, step)?;
+        Ok(Self {
+            start: &self.start + start * &self.step,
+            stop: &self.start + stop * &self.step,
+            step: step * &self.step,
+        })
+    }
+
+    pub(crate) fn equivalent(&self, other: &Self) -> bool {
+        let length = self.len();
+        length == other.len()
+            && (length.is_zero()
+                || (self.start == other.start
+                    && (length == BigInt::from(1) || self.step == other.step)))
+    }
+
     pub(crate) fn len(&self) -> BigInt {
         let distance = if self.step.is_positive() {
             &self.stop - &self.start
@@ -507,6 +529,52 @@ fn view_item(view: &VmDictView, index: usize, size: usize) -> Result<Option<VmVa
         VmValue::Reference(reference) => reference.with_value(read),
         value => read(value),
     }
+}
+
+pub(crate) fn slice_indices(
+    length: &BigInt,
+    lower: Option<BigInt>,
+    upper: Option<BigInt>,
+    step: Option<BigInt>,
+) -> Result<(BigInt, BigInt, BigInt)> {
+    let step = step.unwrap_or_else(|| BigInt::from(1));
+    if step.is_zero() {
+        return Err(VmExecutionError::new("slice step cannot be zero"));
+    }
+    let negative = step.is_negative();
+    let minimum = BigInt::from(if negative { -1 } else { 0 });
+    let maximum = if negative { length - 1 } else { length.clone() };
+    let start = normalize_slice_bound(
+        lower,
+        length,
+        &minimum,
+        &maximum,
+        if negative { &maximum } else { &minimum },
+    );
+    let stop = normalize_slice_bound(
+        upper,
+        length,
+        &minimum,
+        &maximum,
+        if negative { &minimum } else { &maximum },
+    );
+    Ok((start, stop, step))
+}
+
+fn normalize_slice_bound(
+    value: Option<BigInt>,
+    length: &BigInt,
+    minimum: &BigInt,
+    maximum: &BigInt,
+    default: &BigInt,
+) -> BigInt {
+    let Some(mut value) = value else {
+        return default.clone();
+    };
+    if value.is_negative() {
+        value += length;
+    }
+    value.max(minimum.clone()).min(maximum.clone())
 }
 
 #[cfg(test)]

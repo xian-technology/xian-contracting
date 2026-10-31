@@ -57,3 +57,25 @@ def test_incremental_immutable_nesting_is_bounded(tmp_path):
     )
     assert output["status_code"] == 1, output
     assert "depth limit" in output["diagnostic"]
+
+
+@pytest.mark.parametrize("mutate", [False, True])
+def test_sort_callback_observes_empty_list_and_rejects_mutation(tmp_path, mutate):
+    source = (
+        "VALUES = [3, 1, 2]\n"
+        "def key(value):\n"
+        + ("    VALUES.append(9)\n" if mutate else "")
+        + "    return len(VALUES)\n"
+        "@export\ndef probe():\n"
+        "    VALUES.sort(key=key)\n"
+        "    return VALUES\n"
+    )
+    output = run_case({"id": "sort_callback", "source": source}, tmp_path, native=True)
+    assert output["admission"] == "accepted", output
+    if mutate:
+        assert output["status_code"] == 1, output
+        assert "modified during sort" in output["diagnostic"]
+        assert output["writes"] == encode({})
+    else:
+        assert output["status_code"] == 0, output
+        assert output["result"] == encode([3, 1, 2])

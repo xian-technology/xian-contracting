@@ -59,8 +59,12 @@ const VM_GAS_EXPR_IF_EXPR: u64 = 96;
 const VM_GAS_EXPR_F_STRING: u64 = 96;
 const VM_GAS_EXPR_FORMATTED_VALUE: u64 = 96;
 
+#[path = "builtin_collections.rs"]
+mod builtin_collections;
 #[path = "foreign_storage.rs"]
 mod foreign_storage;
+#[path = "numeric_text.rs"]
+mod numeric_text;
 #[path = "interpreter_support.rs"]
 mod support;
 use crate::values::*;
@@ -1173,18 +1177,24 @@ impl VmInstance {
         scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
-        let lower = match slice.get("lower") {
-            Some(Value::Null) | None => None,
-            Some(lower) => Some(self.eval_expression(lower, scope, host)?.as_bigint()?),
-        };
-        let upper = match slice.get("upper") {
-            Some(Value::Null) | None => None,
-            Some(upper) => Some(self.eval_expression(upper, scope, host)?.as_bigint()?),
-        };
-        let step = match slice.get("step") {
-            Some(Value::Null) | None => None,
-            Some(step) => Some(self.eval_expression(step, scope, host)?.as_bigint()?),
-        };
+        let mut bounds = Vec::new();
+        for name in ["lower", "upper", "step"] {
+            let bound = match slice.get(name) {
+                Some(Value::Null) | None => None,
+                Some(expression) => {
+                    let value = self.eval_expression(expression, scope, host)?;
+                    if matches!(value, VmValue::None) {
+                        None
+                    } else {
+                        Some(value.as_bigint()?)
+                    }
+                }
+            };
+            bounds.push(bound);
+        }
+        let step = bounds.pop().unwrap();
+        let upper = bounds.pop().unwrap();
+        let lower = bounds.pop().unwrap();
         subscript_slice_value(value, lower, upper, step)
     }
 
@@ -2439,6 +2449,23 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
+        if method == "sort" && matches!(receiver.snapshot(), VmValue::List(_)) {
+            return self.sort_list(receiver, args, kwargs, host);
+        }
+        if method == "fromkeys" && matches!(&receiver, VmValue::Builtin(name) if name == "dict") {
+            if args.is_empty() || args.len() > 2 || !kwargs.is_empty() {
+                return Err(VmExecutionError::new(
+                    "dict.fromkeys() expects one or two arguments",
+                ));
+            }
+            let default = args.get(1).cloned().unwrap_or(VmValue::None);
+            let iterator = crate::iteration::iter(&args[0], &self.heap)?;
+            let mut entries = Vec::new();
+            while let Some(key) = self.next_item(&iterator, host)? {
+                dict_set(&mut entries, key, default.clone())?;
+            }
+            return Ok(VmValue::Dict(entries));
+        }
         if matches!(method, "keys" | "values" | "items")
             && matches!(receiver.snapshot(), VmValue::Dict(_))
         {
@@ -2935,6 +2962,9 @@ impl VmInstance {
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
+        if matches!(name, "sorted" | "min" | "max" | "sum") {
+            return self.collection_builtin(name, args, kwargs, host);
+        }
         if matches!(name, "map" | "filter" | "zip" | "reversed") {
             return crate::iteration::lazy(name, &args, &kwargs, &self.heap);
         }
@@ -3170,72 +3200,7 @@ impl VmInstance {
                     ))),
                 }
             }
-            "int" => {
-                if !kwargs.is_empty() || args.len() > 2 {
-                    return Err(VmExecutionError::new(
-                        "int() expects at most two positional arguments",
-                    ));
-                }
-                if args.is_empty() {
-                    return Ok(vm_int(0));
-                }
-                match (&args[0], args.get(1)) {
-                    (VmValue::String(value), Some(base)) => {
-                        ensure_int_input_size(value)?;
-                        let base = bigint_to_u32(&base.as_bigint()?, "int() base")?;
-                        if !(2..=36).contains(&base) {
-                            return Err(VmExecutionError::new(
-                                "int() base must be between 2 and 36",
-                            ));
-                        }
-                        BigInt::from_str_radix(value, base)
-                            .map(|value| checked_int_value(value, "int()"))
-                            .map_err(|_| {
-                                VmExecutionError::new(format!(
-                                    "cannot convert '{value}' to int with base {base}"
-                                ))
-                            })?
-                    }
-                    (_, Some(_)) => Err(VmExecutionError::new(
-                        "int() base argument requires a string input",
-                    )),
-                    (VmValue::Int(value), None) => checked_int_value(value.clone(), "int()"),
-                    (VmValue::Bool(value), None) => Ok(vm_int(if *value { 1 } else { 0 })),
-                    (VmValue::Float(value), None) => {
-                        checked_int_value(f64_to_bigint_trunc(*value, "float() input")?, "int()")
-                    }
-                    (VmValue::Decimal(value), None) => {
-                        checked_int_value(value.to_bigint(), "int()")
-                    }
-                    (VmValue::String(value), None) => {
-                        ensure_int_input_size(value)?;
-                        BigInt::from_str(value)
-                            .map(|value| checked_int_value(value, "int()"))
-                            .map_err(|_| {
-                                VmExecutionError::new(format!("cannot convert '{value}' to int"))
-                            })?
-                    }
-                    (VmValue::Bytes(value), None) | (VmValue::ByteArray(value), None) => {
-                        ensure_int_bytes_input_size(value)?;
-                        let rendered = String::from_utf8(value.clone()).map_err(|_| {
-                            VmExecutionError::new("cannot convert non-text bytes to int")
-                        })?;
-                        ensure_int_input_size(&rendered)?;
-                        BigInt::from_str(&rendered)
-                            .map(|value| checked_int_value(value, "int()"))
-                            .map_err(|_| {
-                                VmExecutionError::new(format!(
-                                    "cannot convert '{}' to int",
-                                    String::from_utf8_lossy(value)
-                                ))
-                            })?
-                    }
-                    (other, None) => Err(VmExecutionError::new(format!(
-                        "int() does not support {}",
-                        other.type_name()
-                    ))),
-                }
-            }
+            "int" => numeric_text::int_value(args, kwargs),
             "pow" => {
                 if !kwargs.is_empty() || args.len() < 2 || args.len() > 3 {
                     return Err(VmExecutionError::new(
@@ -3321,27 +3286,14 @@ impl VmInstance {
                     VmValue::Bool(value) => Ok(VmValue::Float(if *value { 1.0 } else { 0.0 })),
                     VmValue::Float(value) => Ok(VmValue::Float(*value)),
                     VmValue::Decimal(value) => Ok(VmValue::Float(value.to_f64()?)),
-                    VmValue::String(value) => value
-                        .trim()
-                        .parse::<f64>()
-                        .map(VmValue::Float)
-                        .map_err(|_| {
-                            VmExecutionError::new(format!("cannot convert '{value}' to float"))
-                        }),
+                    VmValue::String(value) => numeric_text::parse_float(value).map(VmValue::Float),
                     VmValue::Bytes(value) | VmValue::ByteArray(value) => {
-                        let rendered = String::from_utf8(value.clone()).map_err(|_| {
-                            VmExecutionError::new("cannot convert non-text bytes to float")
-                        })?;
-                        rendered
-                            .trim_matches(|character: char| character.is_ascii_whitespace())
-                            .parse::<f64>()
-                            .map(VmValue::Float)
-                            .map_err(|_| {
-                                VmExecutionError::new(format!(
-                                    "cannot convert '{}' to float",
-                                    String::from_utf8_lossy(value)
-                                ))
-                            })
+                        let text = std::str::from_utf8(value)
+                            .map_err(|_| VmExecutionError::new("invalid float bytes"))?;
+                        if !text.is_ascii() {
+                            return Err(VmExecutionError::new("invalid float bytes"));
+                        }
+                        numeric_text::parse_float(text).map(VmValue::Float)
                     }
                     other => Err(VmExecutionError::new(format!(
                         "float() does not support {}",
@@ -3504,75 +3456,6 @@ impl VmInstance {
                 } else {
                     Ok(VmValue::Tuple(Vec::new()))
                 }
-            }
-            "sorted" => {
-                if args.len() != 1 || !kwargs.is_empty() {
-                    return Err(VmExecutionError::new(
-                        "sorted() expects one positional argument",
-                    ));
-                }
-                let values = self.collect_iterable(&shared_args[0], host)?;
-                Ok(VmValue::List(sorted_values(values)?))
-            }
-            "sum" => {
-                if kwargs.len() > 0 || args.is_empty() || args.len() > 2 {
-                    return Err(VmExecutionError::new(
-                        "sum() expects one or two positional arguments",
-                    ));
-                }
-                let mut total = if let Some(start) = args.get(1) {
-                    start.clone()
-                } else {
-                    vm_int(0)
-                };
-                for value in self.collect_iterable(&shared_args[0], host)? {
-                    total = apply_binary_operator("add", total, value)?;
-                }
-                Ok(total)
-            }
-            "min" => {
-                if kwargs.len() > 0 || args.is_empty() {
-                    return Err(VmExecutionError::new(
-                        "min() expects at least one positional argument",
-                    ));
-                }
-                let values = if shared_args.len() == 1 {
-                    self.collect_iterable(&shared_args[0], host)?
-                } else {
-                    shared_args.clone()
-                };
-                let mut best = values
-                    .first()
-                    .cloned()
-                    .ok_or_else(|| VmExecutionError::new("min() received no values"))?;
-                for candidate in values.into_iter().skip(1) {
-                    if compare_vm_values(&candidate, &best)? == std::cmp::Ordering::Less {
-                        best = candidate;
-                    }
-                }
-                Ok(best)
-            }
-            "max" => {
-                if kwargs.len() > 0 || args.is_empty() {
-                    return Err(VmExecutionError::new(
-                        "max() expects at least one positional argument",
-                    ));
-                }
-                let values = if shared_args.len() == 1 {
-                    self.collect_iterable(&shared_args[0], host)?
-                } else {
-                    shared_args.clone()
-                };
-                let mut best = values
-                    .first()
-                    .cloned()
-                    .ok_or_else(|| VmExecutionError::new("max() received no values"))?;
-                for candidate in values.into_iter().skip(1) {
-                    if compare_vm_values(&candidate, &best)? == std::cmp::Ordering::Greater {
-                        best = candidate;
-                    }
-                }
-                Ok(best)
             }
             "all" | "any" => {
                 if args.len() != 1 || !kwargs.is_empty() {

@@ -21,6 +21,7 @@ struct Object {
     value: RefCell<VmValue>,
     bytes: Cell<usize>,
     immutable_depth: usize,
+    version: Cell<u64>,
     usage: Rc<RefCell<Usage>>,
 }
 
@@ -67,6 +68,7 @@ impl VmReference {
         self.0.bytes.set(bytes);
         drop(usage);
         *self.0.value.borrow_mut() = value;
+        self.0.version.set(self.0.version.get().saturating_add(1));
         Ok(())
     }
 
@@ -86,15 +88,23 @@ impl VmReference {
         match &mut *value {
             VmValue::List(items) => items.push(item),
             VmValue::ByteArray(bytes) => {
+                if !matches!(item.snapshot(), VmValue::Int(_) | VmValue::Bool(_)) {
+                    return Err(VmExecutionError::new("byte requires an integer"));
+                }
                 let byte = u8::try_from(item.as_i64()?)
                     .map_err(|_| VmExecutionError::new("byte must be in range(0, 256)"))?;
                 bytes.push(byte);
             }
             _ => unreachable!(),
         }
+        self.0.version.set(self.0.version.get().saturating_add(1));
         usage.bytes += growth;
         self.0.bytes.set(self.0.bytes.get() + growth);
         Ok(())
+    }
+
+    pub(crate) fn version(&self) -> u64 {
+        self.0.version.get()
     }
 
     pub(crate) fn id(&self) -> usize {
@@ -172,6 +182,7 @@ impl VmHeap {
             value: RefCell::new(value),
             bytes: Cell::new(bytes),
             immutable_depth,
+            version: Cell::new(0),
             usage: self.0.usage.clone(),
         }));
         if mutable {

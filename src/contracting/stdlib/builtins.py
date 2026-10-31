@@ -99,12 +99,12 @@ class safe_bytearray(metaclass=_SafeBytearrayMeta):
 
 
 class _SafeIntMeta(type):
-    def __call__(cls, *args):
+    def __call__(cls, *args, **kwargs):
         if len(args) > 2:
-            return builtins.int(*args)
+            return builtins.int(*args, **kwargs)
         if args:
             _ensure_int_string_size(args[0], kind="int()")
-        value = builtins.int(*args)
+        value = builtins.int(*args, **kwargs)
         _ensure_integer_size(value, kind="int()")
         return value
 
