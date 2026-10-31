@@ -40,9 +40,10 @@ The initial corpus covers representative language execution, private calls,
 decimal/time values, ORM writes, events, rollback, source rejection, dictionary
 key eligibility, insertion order, duplicates, nested equality, frozen-set keys,
 list removal and exact large-integer/float comparison. Dictionary keys have a
-different eligibility rule from deterministic set members: decimal and time
+different eligibility rule from deterministic set members: contract decimal wrappers and time
 objects are unhashable dictionary keys in Python, even though deterministic
-sets accept them. Empty `dict.pop(key, default)` follows the historical
+sets accept them. Raw Decimal results from explicit-digit rounding are a distinct,
+hashable type. Empty `dict.pop(key, default)` follows the historical
 short-circuit behavior and returns the default before validating the key.
 
 Historical `hashlib.sha256` and `hashlib.sha3` calls preserve hexadecimal-first
@@ -79,3 +80,18 @@ huge negative integer ndigits without asking the historical interpreter to
 allocate an unbounded power. Random choice/choices probes verify selected-object
 identity after seeding, using a singleton population so PRNG algorithm changes
 do not affect the expected selection.
+
+The expanded268-case corpus also covers ordered ordinary module rebinding,
+starred calls/literals/targets, Unicode15.0 decimal digits, dictionary insertion
+slots during same-size mutation, streaming updates, setdefault, list reversal,
+hex decoding, and finite raw Decimal quantum/type behavior. Decimal cases check
+signed zero, arithmetic/context boundaries, formatting, calls and storage.
+General fractional powers, non-finite values and the complete Decimal method API
+are not certified by this corpus.
+
+Bulk Hash tests live in `tests/integration/test_vm_storage_bulk.py`: `clone_from`
+was absent from the pinned historical runtime, so its oracle is the current ORM.
+The historical `clear` write-set omission is deliberately fixed rather than
+preserved. Resource limits and rollback have additional current-engine tests.
+CI and release validation run all optional-native tests after installing the VM,
+so new regression modules do not require a separate hand-maintained test list.

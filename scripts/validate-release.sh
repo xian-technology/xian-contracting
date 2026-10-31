@@ -16,9 +16,8 @@ else
   exit 1
 fi
 
-if [[ -d /opt/homebrew/opt/rustup/bin ]]; then
-  export PATH="/opt/homebrew/opt/rustup/bin:${PATH}"
-fi
+# Respect the caller's native Rust toolchain. The WASM build script selects
+# rustup separately; forcing its default here can replace a newer native cargo.
 
 for required_bin in cargo npm wasm-pack; do
   if ! command -v "${required_bin}" >/dev/null 2>&1; then
@@ -39,6 +38,7 @@ cd "${repo_root}"
 UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" sync \
   --python "${python_version}" \
   --group dev \
+  --reinstall-package xian-tech-compiler-core \
   --extra native \
   --extra zk
 
@@ -66,16 +66,8 @@ UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" pyte
   tests/integration/test_chi_deduction.py \
   tests/security/test_runtime_security.py
 
-UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" pytest -q -m optional_native \
-  tests/integration/test_zk_bridge.py
-
-UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" \
-  --refresh-package xian-tech-vm-core \
-  --with ./packages/xian-vm-core \
-  python -m pytest -q -m optional_native \
-  tests/integration/test_vm_language_conformance.py \
-  tests/integration/test_vm_legacy_compatibility.py \
-  tests/integration/test_vm_builtin_edges.py \
-  tests/integration/test_vm_stateful_fuzz.py \
-  tests/integration/test_vm_dynamic_foreign_storage.py \
-  tests/integration/test_vm_storage_scans.py
+# Install the actual local wheel into the tested environment. A cached `uv run
+# --with` overlay can retain an older native binary even after source changes.
+UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" pip install --no-deps --reinstall ./packages/xian-vm-core
+UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" --no-sync \
+  python -m pytest -q -m optional_native
