@@ -1,5 +1,7 @@
 //! Numeric text syntax shared by explicit-base and default-base conversions.
 use super::*;
+#[path = "decimal_digits.rs"]
+mod decimal_digits;
 
 fn invalid() -> VmExecutionError {
     VmExecutionError::new("invalid numeric string")
@@ -77,7 +79,8 @@ fn validate_base(base: u32) -> Result<(), VmExecutionError> {
 fn parse_int(text: &str, base: u32) -> Result<VmValue, VmExecutionError> {
     ensure_int_input_size(text)?;
     validate_base(base)?;
-    let text = text.trim();
+    let normalized = decimal_digits::normalize(text);
+    let text = normalized.trim();
     let negative = text.starts_with('-');
     let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
     let (digits, radix, prefixed) = integer_prefix(digits, base);
@@ -116,7 +119,8 @@ fn integer_prefix(digits: &str, base: u32) -> (&str, u32, bool) {
 }
 
 pub(super) fn parse_float(text: &str) -> Result<f64, VmExecutionError> {
-    let clean = remove_underscores(text.trim(), |ch| ch.is_ascii_digit())?;
+    let normalized = decimal_digits::normalize(text);
+    let clean = remove_underscores(normalized.trim(), |ch| ch.is_ascii_digit())?;
     clean.parse().map_err(|_| invalid())
 }
 

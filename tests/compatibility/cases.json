@@ -771,5 +771,57 @@
   {
     "id": "methods_hex_keyword",
     "source": "@export\ndef probe():\n    return bytes.fromhex(string='41')\n"
+  },
+  {
+    "id": "unicode_int_scripts",
+    "source": "@export\ndef probe():\n    return [int('\u0661\u0662\u0663'),int('\uff11\uff12\uff13'),int('\ud835\udfe1\ud835\udfe0'),int('\u096b_\u096c'),int('  -\u0660\u0661\u0662  ')]\n"
+  },
+  {
+    "id": "unicode_int_bases",
+    "source": "@export\ndef probe():\n    return [int('\u0660x_fF',0),int('\uff10b_\u0661\u0660',0),int('\u0966o_\u096d',0),int('\u0661a',16),int('\u0660\u0660',0),int('\u0669',36)]\n"
+  },
+  {
+    "id": "unicode_float_scripts",
+    "source": "@export\ndef probe():\n    return [float('\u0661\u0662.\u0665'),float('\uff11\uff12.\uff15e-\u0662'),float('\u0967_\u0968.\u096be+\u0967'),float('  -\u0660.\u0660  ')]\n"
+  },
+  {
+    "id": "unicode_int_bad_base_digit",
+    "source": "@export\ndef probe():\n    return int('\u0662',2)\n"
+  },
+  {
+    "id": "unicode_int_bad_leading_zero",
+    "source": "@export\ndef probe():\n    return int('\u0660\u0661',0)\n"
+  },
+  {
+    "id": "unicode_int_superscript",
+    "source": "@export\ndef probe():\n    return int('\u00b2')\n"
+  },
+  {
+    "id": "unicode_float_fraction",
+    "source": "@export\ndef probe():\n    return float('\u00bd')\n"
+  },
+  {
+    "id": "unicode_int_bad_separator",
+    "source": "@export\ndef probe():\n    return int('\u0661__\u0662')\n"
+  },
+  {
+    "id": "unicode_float_bad_separator",
+    "source": "@export\ndef probe():\n    return float('\u0661_.\u0662')\n"
+  },
+  {
+    "id": "unicode_float_bad_exponent",
+    "source": "@export\ndef probe():\n    return float('\u0661e_\u0662')\n"
+  },
+  {
+    "id": "unicode_int_unicode_bytes",
+    "source": "@export\ndef probe():\n    return int(b'\\xd9\\xa1')\n"
+  },
+  {
+    "id": "unicode_float_unicode_bytes",
+    "source": "@export\ndef probe():\n    return float(b'\\xd9\\xa1')\n"
+  },
+  {
+    "id": "unicode_float_unicode_space",
+    "source": "@export\ndef probe():\n    return float('\\u2003\u0661.\u0665\\u2003')\n"
   }
 ]

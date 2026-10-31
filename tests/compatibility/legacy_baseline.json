@@ -2,7 +2,7 @@
   "revision": "3b82001f2d587bbfb51f3d9235a2a8dcd0078a9a",
   "python": "3.12.10",
   "dependency_lock_sha256": "d6e2fc9493ba30f7eeda91769f3c3c74e398197127996c3de2d6e98d9fced726",
-  "cases_sha256": "d99fca378854e521999bf1d6a1b5f203e5d2f075e32ee9562b551a158adcac3d",
+  "cases_sha256": "55431ce0a08fca65e08ede9800b4ea97ea4665bd55a5cb6504dad8a9b5e313a3",
   "runner_sha256": "c2941b8697449adfecb2716cdc45337648186de30734bf2257f440cf9bc80818",
   "observations": {
     "typed_values": {
@@ -5481,6 +5481,259 @@
       ],
       "diagnostic": "bytes.fromhex() takes no keyword arguments",
       "exception_type": "TypeError"
+    },
+    "unicode_int_scripts": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            123
+          ],
+          [
+            "int",
+            123
+          ],
+          [
+            "int",
+            98
+          ],
+          [
+            "int",
+            56
+          ],
+          [
+            "int",
+            -12
+          ]
+        ]
+      ]
+    },
+    "unicode_int_bases": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            255
+          ],
+          [
+            "int",
+            2
+          ],
+          [
+            "int",
+            7
+          ],
+          [
+            "int",
+            26
+          ],
+          [
+            "int",
+            0
+          ],
+          [
+            "int",
+            9
+          ]
+        ]
+      ]
+    },
+    "unicode_float_scripts": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "float",
+            "0x1.9000000000000p+3"
+          ],
+          [
+            "float",
+            "0x1.0000000000000p-3"
+          ],
+          [
+            "float",
+            "0x1.f400000000000p+6"
+          ],
+          [
+            "float",
+            "-0x0.0p+0"
+          ]
+        ]
+      ]
+    },
+    "unicode_int_bad_base_digit": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "invalid literal for int() with base 2: '\u0662'",
+      "exception_type": "ValueError"
+    },
+    "unicode_int_bad_leading_zero": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "invalid literal for int() with base 0: '\u0660\u0661'",
+      "exception_type": "ValueError"
+    },
+    "unicode_int_superscript": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "invalid literal for int() with base 10: '\u00b2'",
+      "exception_type": "ValueError"
+    },
+    "unicode_float_fraction": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "could not convert string to float: '\u00bd'",
+      "exception_type": "ValueError"
+    },
+    "unicode_int_bad_separator": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "invalid literal for int() with base 10: '\u0661__\u0662'",
+      "exception_type": "ValueError"
+    },
+    "unicode_float_bad_separator": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "could not convert string to float: '\u0661_.\u0662'",
+      "exception_type": "ValueError"
+    },
+    "unicode_float_bad_exponent": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "could not convert string to float: '\u0661e_\u0662'",
+      "exception_type": "ValueError"
+    },
+    "unicode_int_unicode_bytes": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "invalid literal for int() with base 10: b'\\xd9\\xa1'",
+      "exception_type": "ValueError"
+    },
+    "unicode_float_unicode_bytes": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "could not convert string to float: b'\\xd9\\xa1'",
+      "exception_type": "ValueError"
+    },
+    "unicode_float_unicode_space": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "float",
+        "0x1.8000000000000p+0"
+      ]
     }
   }
 }
