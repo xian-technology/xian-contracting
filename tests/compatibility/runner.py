@@ -37,6 +37,8 @@ def run_case(case, storage_home, *, native=False):
     driver = Driver(storage_home=storage_home)
     name = "baseline_" + case["id"]
     try:
+        for dependency, source in case.get("dependencies", {}).items():
+            driver.set_contract_from_source(dependency, source, owner=None)
         driver.set_contract_from_source(name, case["source"], owner="alice")
     except Exception as exc:
         return {"admission": "rejected", "diagnostic": type(exc).__name__}

@@ -45,6 +45,7 @@ impl PyTransactionBudget {
 }
 
 struct PythonBundleExecutor {
+    heap: crate::heap::VmHeap,
     host: Py<PyAny>,
     modules: HashMap<String, crate::ModuleIr>,
     instances: HashMap<String, VmInstance>,
@@ -76,6 +77,7 @@ impl PythonBundleExecutor {
             modules.insert(module_name.clone(), module);
         }
         Ok(Self {
+            heap: crate::heap::VmHeap::default(),
             host,
             modules,
             instances: HashMap::new(),
@@ -102,7 +104,9 @@ impl PythonBundleExecutor {
             self.meter
                 .charge_execution_cost(crate::VM_GAS_CALL_DISPATCH)?;
             self.meter.begin_contract_metering(entry_module);
-            let result = self.execute_call(entry_module, function_name, args, kwargs, context)?;
+            let result = self
+                .execute_call(entry_module, function_name, args, kwargs, context)?
+                .detached()?;
             self.meter.charge_return_value(&result)?;
             Ok(result)
         })();
@@ -161,7 +165,7 @@ impl PythonBundleExecutor {
             context.owner = self.load_owner(module_name)?;
         }
         *instance.context_mut() = context;
-        let result = instance.call_function(self, function_name, args, kwargs);
+        let result = instance.call_function_shared(self, function_name, args, kwargs);
         *instance.context_mut() = previous_context;
         self.instances.insert(module_name.to_owned(), instance);
         result
@@ -207,7 +211,8 @@ impl PythonBundleExecutor {
         if instance_context.owner.is_none() {
             instance_context.owner = self.load_owner(module_name)?;
         }
-        let instance = VmInstance::new_with_host(module, instance_context, self)?;
+        let heap = self.heap.clone();
+        let instance = VmInstance::new_with_heap(module, instance_context, self, heap)?;
         self.instances.insert(module_name.to_owned(), instance);
         Ok(())
     }
@@ -254,7 +259,8 @@ impl VmHost for PythonBundleExecutor {
     }
 
     fn record_storage_write(&mut self, key: &str, value: &VmValue) -> Result<(), VmExecutionError> {
-        self.storage_overlay.insert(key.to_owned(), value.clone());
+        self.storage_overlay
+            .insert(key.to_owned(), value.detached()?);
         Ok(())
     }
 
@@ -472,6 +478,10 @@ impl VmHost for PythonBundleExecutor {
                     .map_err(|error| VmExecutionError::new(error.to_string()))
             }
         })
+    }
+
+    fn call_contract_shared(&mut self, call: VmContractCall) -> Result<VmValue, VmExecutionError> {
+        self.call_contract(call)
     }
 
     fn call_contract(&mut self, call: VmContractCall) -> Result<VmValue, VmExecutionError> {
@@ -733,6 +743,12 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
 
 fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
     match value {
+        VmValue::Reference(_) => vm_to_py(
+            py,
+            &value
+                .detached()
+                .map_err(|e| VmRuntimeExecutionError::new_err(e.to_string()))?,
+        ),
         VmValue::None => Ok(py.None()),
         VmValue::Bool(value) => Ok((*value).into_pyobject(py)?.to_owned().into_any().unbind()),
         VmValue::Int(value) => {

@@ -6,6 +6,9 @@ use std::collections::HashSet;
 use std::fmt;
 
 mod artifacts;
+mod heap;
+mod rendering;
+pub use heap::VmReference;
 mod interpreter;
 mod metering;
 mod storage_scan;

@@ -102,6 +102,7 @@ class Driver:
             self.get(key)
         if isinstance(value, (decimal.Decimal, float)):
             value = ContractingDecimal(str(value))
+        value = _copy_mutable_value(value)
         self.pending_writes[key] = value
         if is_txn_write:
             self.transaction_writes[key] = value

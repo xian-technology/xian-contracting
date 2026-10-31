@@ -447,6 +447,7 @@ fn check_typed_value(
     annotation: &TypeAnnotation,
     label: &str,
 ) -> Result<(), VmExecutionError> {
+    let value = &value.snapshot();
     if annotation.base == "Any" {
         return Ok(());
     }
@@ -570,7 +571,7 @@ fn check_typed_value(
 }
 
 fn typecheck_dict_key_repr(key: &VmValue) -> String {
-    match key {
+    match &key.snapshot() {
         VmValue::String(value) => ascii_string_repr(value),
         other => other.python_repr(),
     }
@@ -665,6 +666,25 @@ pub trait VmHost {
         Ok(None)
     }
 
+    /// Bundle hosts can preserve identity between contracts in one execution.
+    /// External hosts receive detached values unless they opt into that model.
+    fn call_contract_shared(
+        &mut self,
+        mut call: VmContractCall,
+    ) -> Result<VmValue, VmExecutionError> {
+        call.args = call
+            .args
+            .iter()
+            .map(VmValue::detached)
+            .collect::<Result<_, _>>()?;
+        call.kwargs = call
+            .kwargs
+            .into_iter()
+            .map(|(k, v)| Ok((k, v.detached()?)))
+            .collect::<Result<_, VmExecutionError>>()?;
+        self.call_contract(call)
+    }
+
     fn call_contract(&mut self, call: VmContractCall) -> Result<VmValue, VmExecutionError> {
         Err(VmExecutionError::unsupported(format!(
             "host does not support contract call {}.{}",
@@ -750,6 +770,7 @@ enum ResolvedAssignmentTarget {
 }
 
 pub struct VmInstance {
+    heap: crate::heap::VmHeap,
     module: ModuleIr,
     functions: HashMap<String, FunctionIr>,
     imports: HashMap<String, String>,
@@ -768,6 +789,15 @@ impl VmInstance {
         module: ModuleIr,
         context: VmExecutionContext,
         host: &mut dyn VmHost,
+    ) -> Result<Self, VmExecutionError> {
+        Self::new_with_heap(module, context, host, crate::heap::VmHeap::default())
+    }
+
+    pub(crate) fn new_with_heap(
+        module: ModuleIr,
+        context: VmExecutionContext,
+        host: &mut dyn VmHost,
+        heap: crate::heap::VmHeap,
     ) -> Result<Self, VmExecutionError> {
         validate_module_ir(&module).map_err(|err| VmExecutionError::new(err.to_string()))?;
 
@@ -792,6 +822,7 @@ impl VmInstance {
             .collect::<HashMap<_, _>>();
 
         let mut instance = Self {
+            heap,
             module,
             functions,
             imports,
@@ -1022,6 +1053,25 @@ impl VmInstance {
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
+        self.call_function_shared(host, name, args, kwargs)?
+            .detached()
+    }
+
+    pub(crate) fn call_function_shared(
+        &mut self,
+        host: &mut dyn VmHost,
+        name: &str,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+    ) -> Result<VmValue, VmExecutionError> {
+        let args = args
+            .into_iter()
+            .map(|v| self.heap.capture(v))
+            .collect::<Result<_, _>>()?;
+        let kwargs = kwargs
+            .into_iter()
+            .map(|(k, v)| Ok((k, self.heap.capture(v)?)))
+            .collect::<Result<_, VmExecutionError>>()?;
         let trace_calls = vm_trace_enabled("XIAN_VM_TRACE_CALLS");
         if trace_calls {
             eprintln!(
@@ -1067,10 +1117,12 @@ impl VmInstance {
         index: &VmValue,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
-        if let VmValue::ForeignStorageRef(reference) = &value {
-            return foreign_storage::read_hash(reference, index, host);
-        }
-        subscript_value(value, index)
+        let value = if let VmValue::ForeignStorageRef(reference) = &value {
+            foreign_storage::read_hash(reference, index, host)?
+        } else {
+            subscript_value(value, index)?
+        };
+        self.heap.capture(value)
     }
 
     fn eval_slice_subscript(
@@ -1212,7 +1264,7 @@ impl VmInstance {
         };
 
         Ok(VariableState {
-            default_value,
+            default_value: default_value.detached()?,
             value: None,
             foreign_key,
             snapshot_local: storage_type == "Variable",
@@ -1251,7 +1303,7 @@ impl VmInstance {
         };
 
         Ok(HashState {
-            default_value,
+            default_value: default_value.detached()?,
             entries: HashMap::new(),
             foreign_key,
             snapshot_local: storage_type == "Hash",
@@ -1409,7 +1461,10 @@ impl VmInstance {
             )));
         }
 
-        Ok(bound)
+        bound
+            .into_iter()
+            .map(|(k, v)| Ok((k, self.heap.capture(v)?)))
+            .collect()
     }
 
     fn execute_block(
@@ -1454,8 +1509,8 @@ impl VmInstance {
                 let value = self.eval_expression(required_value(object, "value")?, scope, host)?;
                 self.hash_set(binding, &key, value.clone())?;
                 let storage_key = hash_storage_key(&self.module.module_name, binding, &key)?;
-                host.record_storage_write(&storage_key, &value)?;
-                host.charge_storage_write(&storage_key, &value)?;
+                host.record_storage_write(&storage_key, &value.detached()?)?;
+                host.charge_storage_write(&storage_key, &value.detached()?)?;
                 Ok(ControlFlow::Next)
             }
             "storage_mutate" => {
@@ -1468,8 +1523,8 @@ impl VmInstance {
                 let result = apply_binary_operator(operator, current, operand)?;
                 self.hash_set(binding, &key, result.clone())?;
                 let storage_key = hash_storage_key(&self.module.module_name, binding, &key)?;
-                host.record_storage_write(&storage_key, &result)?;
-                host.charge_storage_write(&storage_key, &result)?;
+                host.record_storage_write(&storage_key, &result.detached()?)?;
+                host.charge_storage_write(&storage_key, &result.detached()?)?;
                 Ok(ControlFlow::Next)
             }
             "aug_assign" => {
@@ -1489,7 +1544,7 @@ impl VmInstance {
                 let operand =
                     self.eval_expression(required_value(object, "value")?, scope, host)?;
                 let result =
-                    apply_binary_operator(required_string(object, "operator")?, current, operand)?;
+                    apply_inplace_operator(required_string(object, "operator")?, current, operand)?;
                 if let Some(resolved) = resolved {
                     self.assign_resolved_target(resolved, result, scope, false)
                 } else {
@@ -1527,7 +1582,7 @@ impl VmInstance {
                         .map(|value| self.eval_expression(value, scope, host))
                         .transpose()?
                         .map(|message: VmValue| {
-                            let rendered = match message {
+                            let rendered = match message.snapshot() {
                                 VmValue::String(value) => {
                                     let escaped = value.replace('\\', "\\\\").replace('\'', "\\'");
                                     format!("'{escaped}'")
@@ -1551,23 +1606,25 @@ impl VmInstance {
                     None | Some(Value::Null) => {
                         "RuntimeError('No active exception to reraise')".to_owned()
                     }
-                    Some(exception) => match self.eval_expression(exception, scope, host)? {
-                        VmValue::Exception(value) => value.python_repr(),
-                        VmValue::Builtin(name)
-                            if matches!(
-                                name.as_str(),
-                                "Exception" | "RuntimeError" | "ValueError" | "TypeError"
-                            ) =>
-                        {
-                            format!("{name}()")
-                        }
-                        other => {
-                            return Err(VmExecutionError::new(format!(
+                    Some(exception) => {
+                        match self.eval_expression(exception, scope, host)?.snapshot() {
+                            VmValue::Exception(value) => value.python_repr(),
+                            VmValue::Builtin(name)
+                                if matches!(
+                                    name.as_str(),
+                                    "Exception" | "RuntimeError" | "ValueError" | "TypeError"
+                                ) =>
+                            {
+                                format!("{name}()")
+                            }
+                            other => {
+                                return Err(VmExecutionError::new(format!(
                                 "TypeError('exceptions must derive from BaseException, got {}')",
                                 other.type_name()
                             )))
+                            }
                         }
-                    },
+                    }
                 };
                 Err(VmExecutionError::new(error_repr))
             }
@@ -1665,7 +1722,7 @@ impl VmInstance {
                 Ok(())
             }
             "tuple_target" | "list_target" => {
-                let items = match value {
+                let items = match value.snapshot() {
                     VmValue::List(items) | VmValue::Tuple(items) => items,
                     other => {
                         return Err(VmExecutionError::new(format!(
@@ -1786,6 +1843,10 @@ impl VmInstance {
                 if matches!(container, VmValue::ForeignStorageRef(_)) {
                     return Err(VmExecutionError::new("cannot write to foreign storage"));
                 }
+                if matches!(container, VmValue::Reference(_)) {
+                    assign_subscript(container, &index, value)?;
+                    return Ok(());
+                }
                 let updated = assign_subscript(container, &index, value)?;
                 self.assign_resolved_target(*parent, updated, scope, module_scope)
             }
@@ -1811,6 +1872,16 @@ impl VmInstance {
     }
 
     fn eval_expression(
+        &mut self,
+        expression: &Value,
+        scope: &mut HashMap<String, VmValue>,
+        host: &mut dyn VmHost,
+    ) -> Result<VmValue, VmExecutionError> {
+        let value = self.eval_expression_value(expression, scope, host)?;
+        self.heap.capture(value)
+    }
+
+    fn eval_expression_value(
         &mut self,
         expression: &Value,
         scope: &mut HashMap<String, VmValue>,
@@ -1844,7 +1915,7 @@ impl VmInstance {
                     let entry_object = as_object(entry, "dict entry")?;
                     if let Some(unpack) = entry_object.get("unpack") {
                         let unpacked = self.eval_expression(unpack, scope, host)?;
-                        let VmValue::Dict(unpacked_entries) = unpacked else {
+                        let VmValue::Dict(unpacked_entries) = unpacked.snapshot() else {
                             return Err(VmExecutionError::new(
                                 "dict unpacking requires a dict value",
                             ));
@@ -1912,7 +1983,11 @@ impl VmInstance {
             "f_string" => {
                 let mut buffer = String::new();
                 for value in required_array(object, "values")? {
-                    buffer.push_str(&self.eval_expression(value, scope, host)?.python_repr());
+                    buffer.push_str(
+                        &self
+                            .eval_expression(value, scope, host)?
+                            .try_python_repr()?,
+                    );
                 }
                 Ok(VmValue::String(buffer))
             }
@@ -1931,7 +2006,7 @@ impl VmInstance {
                     ));
                 }
                 let value = self.eval_expression(required_value(object, "value")?, scope, host)?;
-                Ok(VmValue::String(value.python_repr()))
+                Ok(VmValue::String(value.try_python_repr()?))
             }
             other => Err(VmExecutionError::new(format!(
                 "unsupported expression node '{other}'"
@@ -2204,66 +2279,56 @@ impl VmInstance {
         scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
+        let func = required_value(object, "func")?;
+        if let Some(syscall_id) = optional_string(object, "syscall_id") {
+            let target = object
+                .get("contract_target")
+                .filter(|v| !v.is_null())
+                .map(|v| self.resolve_contract_target(v, scope, host))
+                .transpose()?;
+            let args = self.eval_call_arguments(required_array(object, "args")?, scope, host)?;
+            let kwargs =
+                self.eval_call_keywords(required_array(object, "keywords")?, scope, host)?;
+            return self.eval_syscall(object, syscall_id, args, kwargs, scope, host, target);
+        }
+        let callable = as_object(func, "callable")?;
+        if required_string(callable, "node")? == "attribute"
+            && optional_string(callable, "host_binding_id").is_none()
+        {
+            let receiver = self.eval_expression(required_value(callable, "value")?, scope, host)?;
+            let method = required_string(callable, "attr")?;
+            let args = self.eval_call_arguments(required_array(object, "args")?, scope, host)?;
+            let kwargs =
+                self.eval_call_keywords(required_array(object, "keywords")?, scope, host)?;
+            return self.call_receiver(receiver, method, args, kwargs, host);
+        }
+        let callee = self.eval_expression(func, scope, host)?;
         let args = self.eval_call_arguments(required_array(object, "args")?, scope, host)?;
         let kwargs = self.eval_call_keywords(required_array(object, "keywords")?, scope, host)?;
-        let func = required_value(object, "func")?;
-
-        if let Some(syscall_id) = optional_string(object, "syscall_id") {
-            return self.eval_syscall(object, syscall_id, args, kwargs, scope, host);
-        }
-
-        if let Some(value) =
-            self.eval_native_attribute_call(func, args.clone(), kwargs.clone(), scope, host)?
-        {
-            return Ok(value);
-        }
-
-        let callee = self.eval_expression(func, scope, host)?;
         self.call_callable_value(host, callee, args, kwargs)
     }
 
-    fn eval_native_attribute_call(
+    fn call_receiver(
         &mut self,
-        func: &Value,
+        receiver: VmValue,
+        method: &str,
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
-        scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
-    ) -> Result<Option<VmValue>, VmExecutionError> {
-        let func_object = as_object(func, "callable")?;
-        if required_string(func_object, "node")? != "attribute"
-            || optional_string(func_object, "host_binding_id").is_some()
-        {
-            return Ok(None);
-        }
-
-        let receiver_expr = required_value(func_object, "value")?;
-        let receiver_object = as_object(receiver_expr, "native method receiver")?;
-        let receiver_node = required_string(receiver_object, "node")?;
-        let (resolved_receiver, receiver) = if matches!(receiver_node, "name" | "subscript") {
-            let (resolved, receiver) =
-                self.resolve_assignment_target(receiver_expr, scope, host, true)?;
-            let receiver = receiver
-                .ok_or_else(|| VmExecutionError::new("native method receiver has no value"))?;
-            (Some(resolved), receiver)
-        } else {
-            (None, self.eval_expression(receiver_expr, scope, host)?)
-        };
-        let attr = required_string(func_object, "attr")?;
+    ) -> Result<VmValue, VmExecutionError> {
         if let VmValue::ForeignStorageRef(reference) = &receiver {
-            return foreign_storage::call_method(reference, attr, args, kwargs, host).map(Some);
+            return foreign_storage::call_method(reference, method, args, kwargs, host);
         }
-        let result = call_native_method(receiver, attr, args, kwargs)?;
-        match result {
-            NativeMethodResult::Value(value) => Ok(Some(value)),
-            NativeMethodResult::Mutated { receiver, value } => {
-                let module_scope = target_writes_module_scope(receiver_expr, scope, &self.globals)?;
-                if let Some(resolved) = resolved_receiver {
-                    self.assign_resolved_target(resolved, receiver, scope, module_scope)?;
-                } else {
-                    self.assign_target(receiver_expr, receiver, scope, host, module_scope)?;
+        match call_native_method(receiver.clone(), method, args, kwargs)? {
+            NativeMethodResult::Value(value) => Ok(value),
+            NativeMethodResult::Mutated {
+                receiver: updated,
+                value,
+            } => {
+                if let VmValue::Reference(reference) = receiver {
+                    reference.replace(updated)?;
                 }
-                Ok(Some(value))
+                Ok(value)
             }
         }
     }
@@ -2305,7 +2370,7 @@ impl VmInstance {
                         scope,
                         host,
                     )?;
-                    let VmValue::Dict(entries) = unpacked else {
+                    let VmValue::Dict(entries) = unpacked.snapshot() else {
                         return Err(VmExecutionError::new(
                             "keyword unpacking requires a dict value",
                         ));
@@ -2332,7 +2397,15 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
         scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
+        target: Option<VmContractTarget>,
     ) -> Result<VmValue, VmExecutionError> {
+        let shared_args = args.clone();
+        let shared_kwargs = kwargs.clone();
+        let args = args.iter().map(VmValue::snapshot).collect::<Vec<_>>();
+        let kwargs = kwargs
+            .into_iter()
+            .map(|(k, v)| (k, v.snapshot()))
+            .collect::<Vec<_>>();
         match syscall_id {
             "storage.foreign_hash.new" => {
                 foreign_storage::new_reference("ForeignHash", args, kwargs)
@@ -2371,8 +2444,8 @@ impl VmInstance {
                     .ok_or_else(|| VmExecutionError::new("Variable.set expects one argument"))?;
                 self.variable_set(binding, value.clone())?;
                 let storage_key = variable_storage_key(&self.module.module_name, binding);
-                host.record_storage_write(&storage_key, &value)?;
-                host.charge_storage_write(&storage_key, &value)?;
+                host.record_storage_write(&storage_key, &value.detached()?)?;
+                host.charge_storage_write(&storage_key, &value.detached()?)?;
                 Ok(VmValue::None)
             }
             "storage.foreign_variable.get" => {
@@ -2431,7 +2504,7 @@ impl VmInstance {
                         )))
                     }
                 };
-                host.call_contract(VmContractCall {
+                host.call_contract_shared(VmContractCall {
                     target,
                     function,
                     args: Vec::new(),
@@ -2496,13 +2569,14 @@ impl VmInstance {
             }
             "contract.export_call" => {
                 let function_name = required_string(object, "function_name")?;
-                let contract_target = required_value(object, "contract_target")?;
-                let target = self.resolve_contract_target(contract_target, scope, host)?;
-                host.call_contract(VmContractCall {
+
+                let target = target
+                    .ok_or_else(|| VmExecutionError::new("missing resolved contract target"))?;
+                host.call_contract_shared(VmContractCall {
                     target,
                     function: function_name.to_owned(),
-                    args,
-                    kwargs,
+                    args: shared_args,
+                    kwargs: shared_kwargs,
                     caller_contract: self.context.this.clone(),
                     signer: self.context.signer.clone(),
                     entry: self.context.entry.clone(),
@@ -2524,20 +2598,7 @@ impl VmInstance {
                     (VmValue::String("idx".to_owned()), VmValue::Bool(true)),
                 ]))
             }
-            "random.shuffle" => {
-                let target = required_array(object, "args")?.first().ok_or_else(|| {
-                    VmExecutionError::new("random.shuffle() expects one argument")
-                })?;
-                let module_scope = target_writes_module_scope(target, scope, &self.globals)?;
-                let (resolved_target, _) =
-                    self.resolve_assignment_target(target, scope, host, false)?;
-                if let Some(cost) = explicit_syscall_metering_cost(syscall_id, &args, &kwargs)? {
-                    host.charge_execution_cost(cost)?;
-                }
-                let shuffled = host.handle_syscall(syscall_id, args, kwargs)?;
-                self.assign_resolved_target(resolved_target, shuffled, scope, module_scope)?;
-                Ok(VmValue::None)
-            }
+            "random.shuffle" => shuffle_shared(&shared_args, &shared_kwargs, host),
             other => {
                 // Contract metadata syscalls are checked against the contract
                 // executing right now, not the transaction's entry contract,
@@ -2553,7 +2614,16 @@ impl VmInstance {
                 if let Some(cost) = explicit_syscall_metering_cost(other, &args, &kwargs)? {
                     host.charge_execution_cost(cost)?;
                 }
-                host.handle_syscall(other, args, kwargs)
+                host.handle_syscall(
+                    other,
+                    args.iter()
+                        .map(VmValue::detached)
+                        .collect::<Result<_, _>>()?,
+                    kwargs
+                        .into_iter()
+                        .map(|(k, v)| Ok((k, v.detached()?)))
+                        .collect::<Result<_, VmExecutionError>>()?,
+                )
             }
         }
     }
@@ -2679,6 +2749,27 @@ impl VmInstance {
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
+        if args.len() == 1
+            && kwargs.is_empty()
+            && matches!(
+                (name, args[0].snapshot()),
+                ("int", VmValue::Int(_))
+                    | ("str", VmValue::String(_))
+                    | ("float", VmValue::Float(_))
+                    | ("tuple", VmValue::Tuple(_))
+                    | ("bytes", VmValue::Bytes(_))
+                    | ("frozenset", VmValue::FrozenSet(_))
+            )
+        {
+            return Ok(args[0].clone());
+        }
+        let shared_args = args.clone();
+        let shared_kwargs = kwargs.clone();
+        let args = args.iter().map(VmValue::snapshot).collect::<Vec<_>>();
+        let kwargs = kwargs
+            .into_iter()
+            .map(|(k, v)| (k, v.snapshot()))
+            .collect::<Vec<_>>();
         match name {
             "len" => {
                 if !kwargs.is_empty() || args.len() != 1 {
@@ -2747,7 +2838,11 @@ impl VmInstance {
                     return Err(VmExecutionError::new("str() expects at most one argument"));
                 }
                 Ok(VmValue::String(
-                    args.first().map(VmValue::python_repr).unwrap_or_default(),
+                    shared_args
+                        .first()
+                        .map(VmValue::try_python_repr)
+                        .transpose()?
+                        .unwrap_or_default(),
                 ))
             }
             "bytes" => {
@@ -3108,7 +3203,7 @@ impl VmInstance {
                 }
                 Ok(VmValue::String(match &args[0] {
                     VmValue::String(value) => ascii_string_repr(value),
-                    other => ascii_render(&other.python_repr()),
+                    _ => ascii_render(&shared_args[0].try_python_repr()?),
                 }))
             }
             "bin" => {
@@ -3167,7 +3262,7 @@ impl VmInstance {
                 }
                 Ok(VmValue::Exception(VmException {
                     name: "Exception".to_owned(),
-                    args,
+                    args: shared_args,
                 }))
             }
             "dict" => {
@@ -3182,7 +3277,7 @@ impl VmInstance {
                         VmValue::Dict(existing) => entries.extend(existing.clone()),
                         VmValue::List(items) | VmValue::Tuple(items) => {
                             for item in items {
-                                match item {
+                                match item.snapshot() {
                                     VmValue::List(values) | VmValue::Tuple(values)
                                         if values.len() == 2 =>
                                     {
@@ -3209,7 +3304,7 @@ impl VmInstance {
                         }
                     }
                 }
-                for (key, value) in kwargs {
+                for (key, value) in shared_kwargs {
                     dict_set(&mut entries, VmValue::String(key), value)?;
                 }
                 Ok(VmValue::Dict(entries))
@@ -3546,7 +3641,7 @@ impl VmInstance {
                 "cannot set foreign variable '{binding}'"
             )));
         }
-        state.value = Some(value);
+        state.value = Some(value.detached()?);
         state.dirty = true;
         Ok(())
     }
@@ -3571,7 +3666,7 @@ impl VmInstance {
         };
         if let Some(foreign_key) = foreign_key {
             let (foreign_contract, foreign_binding) = split_foreign_storage_key(&foreign_key)?;
-            let loaded = host.read_hash(&foreign_contract, &foreign_binding, key)?;
+            let loaded = host.read_hash(&foreign_contract, &foreign_binding, &key.detached()?)?;
             let foreign = self.hashes.entry(foreign_key).or_insert_with(|| HashState {
                 default_value: VmValue::None,
                 entries: HashMap::new(),
@@ -3604,12 +3699,12 @@ impl VmInstance {
             return Ok(value);
         }
         if current_entry.is_none() {
-            let loaded = host.read_hash(&module_name, binding, key)?;
+            let loaded = host.read_hash(&module_name, binding, &key.detached()?)?;
             let state = self.hashes.get_mut(binding).ok_or_else(|| {
                 VmExecutionError::new(format!("unknown hash binding '{binding}'"))
             })?;
             if let Some(value) = loaded {
-                state.entries.insert(storage_key.clone(), value);
+                state.entries.insert(storage_key.clone(), value.detached()?);
             }
             let value = state
                 .entries
@@ -3701,7 +3796,7 @@ impl VmInstance {
                 "cannot set foreign hash '{binding}'"
             )));
         }
-        state.entries.insert(storage_key.clone(), value);
+        state.entries.insert(storage_key.clone(), value.detached()?);
         state.dirty_entries.insert(storage_key);
         Ok(())
     }
@@ -3876,7 +3971,7 @@ mod tests {
             .eval_expression(&expression, &mut scope, &mut host)
             .expect("shadowed name should evaluate");
 
-        assert_eq!(result, vm_int(7));
+        assert_eq!(result.detached().unwrap(), vm_int(7));
     }
 
     #[test]
@@ -3929,6 +4024,9 @@ mod tests {
             "values".to_owned(),
             VmValue::List(vec![vm_int(10), vm_int(20)]),
         )]);
+        for value in scope.values_mut() {
+            *value = instance.heap.capture(value.clone()).unwrap();
+        }
         let target = json!({
             "node": "subscript",
             "span": test_span(),
@@ -3954,7 +4052,7 @@ mod tests {
             .expect("subscript assignment should use the host-provided index");
 
         assert_eq!(
-            scope.get("values"),
+            scope.get("values").map(|v| v.detached().unwrap()).as_ref(),
             Some(&VmValue::List(vec![vm_int(10), vm_int(99)]))
         );
         assert_eq!(
@@ -3987,6 +4085,9 @@ mod tests {
                 VmValue::List(vec![vm_int(3), vm_int(4)]),
             ]),
         )]);
+        for value in scope.values_mut() {
+            *value = instance.heap.capture(value.clone()).unwrap();
+        }
         let target = json!({
             "node": "subscript",
             "span": test_span(),
@@ -4005,7 +4106,7 @@ mod tests {
             .expect("nested subscript assignment should succeed");
 
         assert_eq!(
-            scope.get("matrix"),
+            scope.get("matrix").map(|v| v.detached().unwrap()).as_ref(),
             Some(&VmValue::List(vec![
                 VmValue::List(vec![vm_int(1), vm_int(9)]),
                 VmValue::List(vec![vm_int(3), vm_int(4)]),
@@ -4026,6 +4127,9 @@ mod tests {
     fn augmented_subscript_assignment_charges_target_once() {
         let mut instance = empty_test_instance("augmented_assignment_metering");
         let mut scope = HashMap::from([("values".to_owned(), VmValue::List(vec![vm_int(3)]))]);
+        for value in scope.values_mut() {
+            *value = instance.heap.capture(value.clone()).unwrap();
+        }
         let statement = json!({
             "node": "aug_assign",
             "span": test_span(),
@@ -4044,7 +4148,10 @@ mod tests {
             .execute_statement(&statement, &mut scope, &mut host)
             .expect("augmented subscript assignment should succeed");
 
-        assert_eq!(scope.get("values"), Some(&VmValue::List(vec![vm_int(7)])));
+        assert_eq!(
+            scope.get("values").map(|v| v.detached().unwrap()).as_ref(),
+            Some(&VmValue::List(vec![vm_int(7)]))
+        );
         assert_eq!(
             host.execution_costs,
             vec![
@@ -4064,6 +4171,9 @@ mod tests {
             "values".to_owned(),
             VmValue::List(vec![VmValue::List(vec![vm_int(1)])]),
         )]);
+        for value in scope.values_mut() {
+            *value = instance.heap.capture(value.clone()).unwrap();
+        }
         let statement = json!({
             "node": "expr",
             "span": test_span(),
@@ -4095,7 +4205,7 @@ mod tests {
             .expect("nested mutable receiver should be written back");
 
         assert_eq!(
-            scope.get("values"),
+            scope.get("values").map(|v| v.detached().unwrap()).as_ref(),
             Some(&VmValue::List(vec![VmValue::List(vec![
                 vm_int(1),
                 vm_int(2),
@@ -4106,9 +4216,9 @@ mod tests {
             vec![
                 VM_GAS_STMT_EXPR,
                 VM_GAS_CALL_DISPATCH,
-                VM_GAS_EXPR_CONSTANT,
                 VM_GAS_EXPR_SUBSCRIPT,
                 VM_GAS_EXPR_NAME,
+                VM_GAS_EXPR_CONSTANT,
                 VM_GAS_EXPR_CONSTANT,
             ]
         );

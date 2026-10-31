@@ -130,8 +130,6 @@ def test_repeated_reads_observe_cross_contract_writes(driver):
         "h['group', 'a'] += 1",
         "h.clear()",
         "h.clone_from(h)",
-        "h['nested'].append(3)",
-        "h['nested'][0] = 9",
         "v.set(99)",
         "v.append(99)",
     ],
@@ -176,3 +174,14 @@ def test_read_charges_and_budget_are_enforced(driver):
     exhausted = run(driver, double, meter=True, budget=first.raw_cost)
     assert exhausted.status_code == 1
     assert exhausted.writes == {}
+
+
+@pytest.mark.parametrize("operation", ["h['nested'].append(3)", "h['nested'][0] = 9"])
+def test_foreign_read_returns_a_mutable_detached_copy(driver, operation):
+    body = "h = ForeignHash(foreign_contract=contract, foreign_name='metadata')\n" + operation + "\nreturn h['nested']"
+    expected = run(driver, body, native=False)
+    actual = run(driver, body)
+    assert expected["status_code"] == actual.status_code == 0
+    assert expected["result"] == actual.result == [1, 2]
+    assert expected["writes"] == actual.writes == {}
+    assert driver.get_var("con_data", "metadata", ["nested"]) == [1, 2]

@@ -280,6 +280,9 @@ pub(crate) fn encode_vm_value(value: &VmValue) -> Result<Vec<u8>, VmExecutionErr
 }
 
 fn vm_value_to_json(value: &VmValue) -> Result<Value, VmExecutionError> {
+    if matches!(value, VmValue::Reference(_)) {
+        return vm_value_to_json(&value.detached()?);
+    }
     Ok(match value {
         VmValue::None => Value::Null,
         VmValue::Bool(value) => Value::Bool(*value),
@@ -392,6 +395,7 @@ fn vm_value_to_json(value: &VmValue) -> Result<Value, VmExecutionError> {
 }
 
 fn vm_json_object_key(value: &VmValue) -> Result<String, VmExecutionError> {
+    let value = &value.snapshot();
     Ok(match value {
         VmValue::String(value) => value.clone(),
         VmValue::Bool(value) => {

@@ -2,8 +2,8 @@
   "revision": "3b82001f2d587bbfb51f3d9235a2a8dcd0078a9a",
   "python": "3.12.10",
   "dependency_lock_sha256": "d6e2fc9493ba30f7eeda91769f3c3c74e398197127996c3de2d6e98d9fced726",
-  "cases_sha256": "e19b234fe198d5faf2fc297e7e13ed936124e2f189a52b19df27b02527198f95",
-  "runner_sha256": "74a5ef7388f274560c4fe2c3f164d118383d2b2a061c6196ec8ca34dbfedf55d",
+  "cases_sha256": "9718239cf7d5ddf890e37e334b50b1dba1b457c389c8dce11bd4e67129aa0a75",
+  "runner_sha256": "c2941b8697449adfecb2716cdc45337648186de30734bf2257f440cf9bc80818",
   "observations": {
     "typed_values": {
       "admission": "accepted",
@@ -1256,6 +1256,751 @@
       ],
       "diagnostic": "unhashable type: 'Timedelta'",
       "exception_type": "TypeError"
+    },
+    "alias_list": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ]
+            ]
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ]
+            ]
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "alias_dict": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "dict",
+            [
+              [
+                [
+                  "str",
+                  "x"
+                ],
+                [
+                  "int",
+                  2
+                ]
+              ]
+            ]
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "shallow_copy": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "list",
+                [
+                  [
+                    "int",
+                    1
+                  ],
+                  [
+                    "int",
+                    2
+                  ]
+                ]
+              ]
+            ]
+          ],
+          [
+            "list",
+            [
+              [
+                "list",
+                [
+                  [
+                    "int",
+                    1
+                  ],
+                  [
+                    "int",
+                    2
+                  ]
+                ]
+              ]
+            ]
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "argument_mutation": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            7
+          ]
+        ]
+      ]
+    },
+    "returned_alias": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "int",
+                7
+              ]
+            ]
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "distinct_identity": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "temporary_method": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "int",
+        9
+      ]
+    },
+    "returned_receiver": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "int",
+            7
+          ]
+        ]
+      ]
+    },
+    "alias_augassign": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "int",
+                2
+              ]
+            ]
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "int",
+                2
+              ]
+            ]
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "alias_nested_assignment": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "int",
+                7
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "alias_repetition": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "list",
+                [
+                  [
+                    "int",
+                    7
+                  ]
+                ]
+              ],
+              [
+                "list",
+                [
+                  [
+                    "int",
+                    7
+                  ]
+                ]
+              ]
+            ]
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "alias_cycle": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "bool",
+        true
+      ]
+    },
+    "alias_set": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "int",
+                2
+              ]
+            ]
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "alias_bytearray": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "bytearray",
+            "6362"
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "receiver_before_arguments": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        [
+          [
+            [
+              "str",
+              "baseline_receiver_before_arguments.counter"
+            ],
+            [
+              "int",
+              1
+            ]
+          ]
+        ]
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "int",
+        0
+      ]
+    },
+    "immutable_conversion_identity": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "shuffle_aliases": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "int",
+            4
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "int",
+            1
+          ]
+        ]
+      ]
+    },
+    "shuffle_temporary": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "NoneType",
+        null
+      ]
+    },
+    "rebound_receiver": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "list",
+                [
+                  [
+                    "int",
+                    5
+                  ]
+                ]
+              ]
+            ]
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "int",
+                9
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "storage_snapshot": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        [
+          [
+            [
+              "str",
+              "baseline_storage_snapshot.v"
+            ],
+            [
+              "list",
+              [
+                [
+                  "int",
+                  1
+                ],
+                [
+                  "int",
+                  2
+                ],
+                [
+                  "int",
+                  3
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                3
+              ]
+            ]
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                3
+              ]
+            ]
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                3
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "cross_contract_alias": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "int",
+                2
+              ]
+            ]
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ],
+              [
+                "int",
+                2
+              ]
+            ]
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
     }
   }
 }

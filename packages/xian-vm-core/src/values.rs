@@ -95,6 +95,7 @@ impl VmDecimal {
     }
 
     pub(crate) fn from_vm_value(value: &VmValue) -> Result<Self, VmExecutionError> {
+        let value = &value.snapshot();
         match value {
             VmValue::Decimal(value) => Ok(value.clone()),
             VmValue::Int(value) => Self::from_str_literal(&value.to_string()),
@@ -671,6 +672,7 @@ impl fmt::Display for VmTimeDelta {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum VmValue {
+    Reference(crate::VmReference),
     None,
     Bool(bool),
     Int(BigInt),
@@ -699,6 +701,7 @@ pub enum VmValue {
 impl VmValue {
     pub(crate) fn truthy(&self) -> bool {
         match self {
+            Self::Reference(value) => value.value().truthy(),
             Self::None => false,
             Self::Bool(value) => *value,
             Self::Int(value) => !value.is_zero(),
@@ -723,7 +726,17 @@ impl VmValue {
     }
 
     pub(crate) fn python_repr(&self) -> String {
+        self.try_python_repr()
+            .unwrap_or_else(|_| "<value exceeds rendering limit>".to_owned())
+    }
+
+    pub(crate) fn try_python_repr(&self) -> Result<String, VmExecutionError> {
+        crate::rendering::render(self)
+    }
+
+    pub(crate) fn python_repr_atom(&self) -> String {
         match self {
+            Self::Reference(value) => value.value().python_repr(),
             Self::None => "None".to_owned(),
             Self::Bool(true) => "True".to_owned(),
             Self::Bool(false) => "False".to_owned(),
@@ -781,6 +794,7 @@ impl VmValue {
 
     pub(crate) fn as_i64(&self) -> Result<i64, VmExecutionError> {
         match self {
+            Self::Reference(value) => value.value().as_i64(),
             Self::Int(value) => bigint_to_i64(value, "integer value"),
             Self::Bool(value) => Ok(if *value { 1 } else { 0 }),
             Self::Decimal(value) => value.to_i64(),
@@ -793,6 +807,7 @@ impl VmValue {
 
     pub(crate) fn as_bigint(&self) -> Result<BigInt, VmExecutionError> {
         match self {
+            Self::Reference(value) => value.value().as_bigint(),
             Self::Int(value) => Ok(value.clone()),
             Self::Bool(value) => Ok(if *value {
                 BigInt::from(1)
@@ -809,6 +824,7 @@ impl VmValue {
 
     pub(crate) fn as_string(&self) -> Result<String, VmExecutionError> {
         match self {
+            Self::Reference(value) => value.value().as_string(),
             Self::String(value) => Ok(value.clone()),
             _ => Err(VmExecutionError::new(format!(
                 "expected string value, got {}",
@@ -819,6 +835,7 @@ impl VmValue {
 
     pub(crate) fn as_contract_handle(&self) -> Result<VmContractHandle, VmExecutionError> {
         match self {
+            Self::Reference(value) => value.value().as_contract_handle(),
             Self::ContractHandle(handle) => Ok(handle.clone()),
             _ => Err(VmExecutionError::new(format!(
                 "expected contract handle, got {}",
@@ -829,6 +846,7 @@ impl VmValue {
 
     pub(crate) fn type_name(&self) -> &'static str {
         match self {
+            Self::Reference(value) => value.value().type_name(),
             Self::None => "none",
             Self::Bool(_) => "bool",
             Self::Int(_) => "int",
@@ -911,7 +929,7 @@ pub struct VmContractHandle {
 }
 
 fn python_exception_arg_repr(value: &VmValue) -> String {
-    match value {
+    match &value.snapshot() {
         VmValue::String(inner) => {
             let escaped = inner.replace('\\', "\\\\").replace('\'', "\\'");
             format!("'{escaped}'")

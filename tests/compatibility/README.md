@@ -52,7 +52,13 @@ failure. Removing the gap requires an explicit decision about historical aliases
 versus migration to `sha256_text`/`sha256_hex`.
 
 This is an extensible baseline, not a full replacement certificate. It does not
-yet cover the complete historical grammar, constructors, inter-contract imports,
-all standard-library bridges, metering equivalence, aliasing/identity, or iterator
-lifetime. Mutating temporary or call-result receivers remains part of the
-reference-semantics review. Extend the corpus when those gaps are addressed.
+yet cover the complete historical grammar, constructors, all standard-library
+bridges, metering equivalence, or iterator lifetime. The reference corpus covers
+aliases, shallow copies, function arguments/returns, imported calls, identity,
+temporary receivers, receiver evaluation order and deterministic shuffling.
+
+Storage isolation is an intentional historical difference: writes snapshot their
+inputs and reads return detached copies. The historical fixture records its old
+shared-storage result; current-engine assertions require isolated storage instead.
+Native-only boundary tests additionally require cyclic or oversized results and
+writes to fail with rollback, while in-memory cycles remain usable.

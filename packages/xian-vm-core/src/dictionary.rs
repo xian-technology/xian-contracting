@@ -3,7 +3,7 @@
 use super::*;
 
 fn check_key(key: &VmValue) -> Result<(), VmExecutionError> {
-    match key {
+    match &key.snapshot() {
         VmValue::None
         | VmValue::Bool(_)
         | VmValue::Int(_)

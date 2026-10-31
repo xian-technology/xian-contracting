@@ -48,6 +48,7 @@ pub(super) fn bytes_like_data(value: &VmValue) -> Option<&[u8]> {
 }
 
 pub(super) fn clone_as_bytes_like(value: &VmValue) -> Result<Vec<u8>, VmExecutionError> {
+    let value = &value.snapshot();
     match value {
         VmValue::Bytes(bytes) | VmValue::ByteArray(bytes) => Ok(bytes.clone()),
         VmValue::String(value) => Ok(value.as_bytes().to_vec()),
@@ -63,6 +64,7 @@ pub(super) fn clone_as_bytes_like(value: &VmValue) -> Result<Vec<u8>, VmExecutio
 }
 
 fn byte_from_value(value: &VmValue) -> Result<u8, VmExecutionError> {
+    let value = &value.snapshot();
     let bigint = match value {
         VmValue::Int(value) => value.clone(),
         VmValue::Bool(value) => {
@@ -287,6 +289,7 @@ pub(super) fn normalize_set_items(values: Vec<VmValue>) -> Result<Vec<VmValue>, 
 }
 
 fn vm_set_key(value: &VmValue) -> Result<VmSetKey, VmExecutionError> {
+    let value = &value.snapshot();
     match value {
         VmValue::None => Ok(VmSetKey::None),
         VmValue::Bool(value) => Ok(VmSetKey::Bool(*value)),
@@ -404,6 +407,8 @@ pub(super) fn apply_binary_operator(
     left: VmValue,
     right: VmValue,
 ) -> Result<VmValue, VmExecutionError> {
+    let left = left.snapshot();
+    let right = right.snapshot();
     let coerce_decimal = |value: &VmValue, side: &str| -> Result<VmDecimal, VmExecutionError> {
         VmDecimal::from_vm_value(value).map_err(|err| {
             VmExecutionError::new(format!(
@@ -733,10 +738,38 @@ pub(super) fn apply_binary_operator(
     }
 }
 
+pub(super) fn apply_inplace_operator(
+    operator: &str,
+    left: VmValue,
+    right: VmValue,
+) -> Result<VmValue, VmExecutionError> {
+    let result = if operator == "add" {
+        if let VmValue::List(mut values) = left.snapshot() {
+            values.extend(iterate_value(&right)?);
+            VmValue::List(values)
+        } else {
+            apply_binary_operator(operator, left.clone(), right)?
+        }
+    } else {
+        apply_binary_operator(operator, left.clone(), right)?
+    };
+    if let VmValue::Reference(reference) = &left {
+        if matches!(
+            result,
+            VmValue::List(_) | VmValue::Dict(_) | VmValue::Set(_) | VmValue::ByteArray(_)
+        ) {
+            reference.replace(result)?;
+            return Ok(left);
+        }
+    }
+    Ok(result)
+}
+
 pub(super) fn apply_unary_operator(
     operator: &str,
     operand: VmValue,
 ) -> Result<VmValue, VmExecutionError> {
+    let operand = operand.snapshot();
     match operator {
         "not" => Ok(VmValue::Bool(!operand.truthy())),
         "neg" => match operand {
@@ -770,6 +803,14 @@ pub(super) fn apply_compare_operator(
     left: &VmValue,
     right: &VmValue,
 ) -> Result<bool, VmExecutionError> {
+    if operator == "is" {
+        return Ok(left.identical(right));
+    }
+    if operator == "is_not" {
+        return Ok(!left.identical(right));
+    }
+    let left = &left.snapshot();
+    let right = &right.snapshot();
     match operator {
         "eq" => vm_values_equal(left, right),
         "not_eq" => Ok(!vm_values_equal(left, right)?),
@@ -799,8 +840,6 @@ pub(super) fn apply_compare_operator(
         "lt_e" => compare_ord(left, right, |left, right| left <= right),
         "in" => contains_value(right, left),
         "not_in" => contains_value(right, left).map(|value| !value),
-        "is" => Ok(left == right),
-        "is_not" => Ok(left != right),
         other => Err(VmExecutionError::new(format!(
             "unsupported compare operator '{other}'"
         ))),
@@ -927,6 +966,7 @@ pub(super) fn native_attribute_value(
     value: &VmValue,
     attr: &str,
 ) -> Result<VmValue, VmExecutionError> {
+    let value = &value.snapshot();
     match value {
         VmValue::DateTime(value) => match attr {
             "year" => Ok(vm_int(value.year())),
@@ -1159,6 +1199,7 @@ pub(super) fn format_builtin_value(
     value: &VmValue,
     spec: &str,
 ) -> Result<String, VmExecutionError> {
+    let value = &value.snapshot();
     match value {
         VmValue::Int(value) => format_bigint(value, spec),
         VmValue::String(value) if spec.is_empty() => Ok(value.clone()),
@@ -1330,6 +1371,7 @@ pub(super) fn call_native_method(
     args: Vec<VmValue>,
     kwargs: Vec<(String, VmValue)>,
 ) -> Result<NativeMethodResult, VmExecutionError> {
+    let receiver = receiver.snapshot();
     if !kwargs.is_empty() {
         return Err(VmExecutionError::new(format!(
             "native method '{}()' does not accept keyword arguments",
@@ -2085,6 +2127,8 @@ pub(super) fn compare_vm_values(
     left: &VmValue,
     right: &VmValue,
 ) -> Result<std::cmp::Ordering, VmExecutionError> {
+    let left = &left.snapshot();
+    let right = &right.snapshot();
     match (left, right) {
         (VmValue::DateTime(left), VmValue::DateTime(right)) => Ok(left.value.cmp(&right.value)),
         (VmValue::TimeDelta(left), VmValue::TimeDelta(right)) => {
@@ -2183,6 +2227,24 @@ pub(super) fn compare_numeric_values(
 }
 
 pub(super) fn vm_values_equal(left: &VmValue, right: &VmValue) -> Result<bool, VmExecutionError> {
+    vm_values_equal_at(left, right, 0)
+}
+
+fn vm_values_equal_at(
+    left: &VmValue,
+    right: &VmValue,
+    depth: usize,
+) -> Result<bool, VmExecutionError> {
+    if left.identical(right) {
+        return Ok(true);
+    }
+    if depth > 128 {
+        return Err(VmExecutionError::new(
+            "maximum equality recursion depth exceeded",
+        ));
+    }
+    let left = &left.snapshot();
+    let right = &right.snapshot();
     if let Some(ordering) = compare_numeric_values(left, right)? {
         return Ok(ordering == std::cmp::Ordering::Equal);
     }
@@ -2198,7 +2260,7 @@ pub(super) fn vm_values_equal(left: &VmValue, right: &VmValue) -> Result<bool, V
                 return Ok(false);
             }
             for (left_item, right_item) in left.iter().zip(right.iter()) {
-                if !vm_values_equal(left_item, right_item)? {
+                if !vm_values_equal_at(left_item, right_item, depth + 1)? {
                     return Ok(false);
                 }
             }
@@ -2212,7 +2274,7 @@ pub(super) fn vm_values_equal(left: &VmValue, right: &VmValue) -> Result<bool, V
                 let Some(right_value) = dict_get(right, left_key)? else {
                     return Ok(false);
                 };
-                if !vm_values_equal(left_value, &right_value)? {
+                if !vm_values_equal_at(left_value, &right_value, depth + 1)? {
                     return Ok(false);
                 }
             }
@@ -2229,6 +2291,7 @@ pub(super) fn contains_value(
     container: &VmValue,
     needle: &VmValue,
 ) -> Result<bool, VmExecutionError> {
+    let container = &container.snapshot();
     match container {
         VmValue::String(value) => match needle {
             VmValue::String(needle) => Ok(value.contains(needle)),
@@ -2267,6 +2330,7 @@ pub(super) fn contains_value(
 }
 
 pub(super) fn iterate_value(value: &VmValue) -> Result<Vec<VmValue>, VmExecutionError> {
+    let value = &value.snapshot();
     match value {
         VmValue::List(values)
         | VmValue::Tuple(values)
@@ -2292,6 +2356,11 @@ pub(super) fn assign_subscript(
     index: &VmValue,
     value: VmValue,
 ) -> Result<VmValue, VmExecutionError> {
+    if let VmValue::Reference(reference) = &container {
+        let updated = assign_subscript(reference.value(), index, value)?;
+        reference.replace(updated)?;
+        return Ok(container);
+    }
     match container {
         VmValue::List(mut values) => {
             let idx = normalize_sequence_index(index, values.len())?;
@@ -2318,6 +2387,7 @@ pub(super) fn subscript_value(
     container: VmValue,
     index: &VmValue,
 ) -> Result<VmValue, VmExecutionError> {
+    let container = container.snapshot();
     match container {
         VmValue::List(values) => {
             let idx = normalize_sequence_index(index, values.len())?;
@@ -2349,6 +2419,7 @@ pub(super) fn subscript_slice_value(
     upper: Option<BigInt>,
     step: Option<BigInt>,
 ) -> Result<VmValue, VmExecutionError> {
+    let container = container.snapshot();
     match container {
         VmValue::List(values) => Ok(VmValue::List(
             slice_positions(values.len(), lower, upper, step)?
@@ -2533,6 +2604,7 @@ pub(super) fn substring_by_char_bounds(value: &str, start: usize, end: usize) ->
 }
 
 pub(super) fn string_match_candidates(value: &VmValue) -> Result<Vec<String>, VmExecutionError> {
+    let value = &value.snapshot();
     match value {
         VmValue::String(candidate) => Ok(vec![candidate.clone()]),
         VmValue::Tuple(values) => values
@@ -2617,6 +2689,8 @@ pub(super) fn split_string(
 }
 
 pub(super) fn type_matches(value: &VmValue, marker: &VmValue) -> bool {
+    let value = &value.snapshot();
+    let marker = &marker.snapshot();
     match marker {
         VmValue::TypeMarker(name) => type_matches_name(value, name),
         VmValue::Builtin(name) => type_matches_name(value, name),
@@ -2626,6 +2700,7 @@ pub(super) fn type_matches(value: &VmValue, marker: &VmValue) -> bool {
 }
 
 pub(super) fn type_matches_name(value: &VmValue, name: &str) -> bool {
+    let value = &value.snapshot();
     match name {
         "Any" => true,
         "bool" => matches!(value, VmValue::Bool(_)),
@@ -2660,6 +2735,7 @@ pub(super) fn issubclass_matches(
 }
 
 fn type_marker_names(value: &VmValue) -> Result<Vec<String>, VmExecutionError> {
+    let value = &value.snapshot();
     match value {
         VmValue::TypeMarker(name) | VmValue::Builtin(name) => Ok(vec![name.clone()]),
         VmValue::Tuple(markers) => markers
@@ -2728,6 +2804,7 @@ pub(super) fn round_builtin_value(
     value: &VmValue,
     digits: Option<i32>,
 ) -> Result<VmValue, VmExecutionError> {
+    let value = &value.snapshot();
     match value {
         VmValue::Int(number) => Ok(match digits {
             Some(places) if places < 0 => {
@@ -2817,6 +2894,8 @@ pub(super) fn normalize_event_payload(
     schema: &VmValue,
     payload: VmValue,
 ) -> Result<(Vec<(String, VmValue)>, Vec<(String, VmValue)>), VmExecutionError> {
+    let schema = &schema.detached()?;
+    let payload = payload.detached()?;
     let schema_entries = match schema {
         VmValue::Dict(entries) => entries,
         other => {
@@ -2889,6 +2968,7 @@ pub(super) fn contract_target_label(target: &VmContractTarget) -> &str {
 }
 
 pub(super) fn normalize_hash_key(value: &VmValue) -> Result<String, VmExecutionError> {
+    let value = &value.snapshot();
     let normalized = match value {
         VmValue::Tuple(values) => {
             if values.len() > MAX_HASH_DIMENSIONS {
@@ -2928,6 +3008,7 @@ pub(super) fn prefix_matches_hash_entry(storage_key: &str, prefix: &str) -> bool
 }
 
 pub(super) fn storage_key_part(value: &VmValue) -> Result<String, VmExecutionError> {
+    let value = &value.snapshot();
     let rendered = match value {
         VmValue::String(value) => value.clone(),
         VmValue::Int(value) => value.to_string(),
@@ -3373,4 +3454,62 @@ mod slice_boundary_tests {
         );
         assert!(slice_positions(3, None, None, Some(0.into())).is_err());
     }
+}
+
+/// Shuffle positions through the host so nested objects keep their identities.
+pub(super) fn shuffle_shared(
+    args: &[VmValue],
+    kwargs: &[(String, VmValue)],
+    host: &mut dyn VmHost,
+) -> Result<VmValue, VmExecutionError> {
+    if args.len() != 1 || !kwargs.is_empty() {
+        return Err(VmExecutionError::new(
+            "random.shuffle() expects one argument",
+        ));
+    }
+    let VmValue::Reference(reference) = &args[0] else {
+        return Err(VmExecutionError::new(
+            "random.shuffle() requires a mutable sequence",
+        ));
+    };
+    let original = reference.value();
+    let values = match &original {
+        VmValue::List(values) => values.clone(),
+        VmValue::ByteArray(bytes) => bytes.iter().map(|byte| vm_int(*byte)).collect(),
+        _ => {
+            return Err(VmExecutionError::new(
+                "random.shuffle() requires a mutable sequence",
+            ))
+        }
+    };
+    if let Some(cost) = explicit_syscall_metering_cost("random.shuffle", args, kwargs)? {
+        host.charge_execution_cost(cost)?;
+    }
+    let indexes = VmValue::List((0..values.len()).map(vm_int).collect());
+    let shuffled = host.handle_syscall("random.shuffle", vec![indexes], vec![])?;
+    let order = iterate_value(&shuffled)?;
+    let result = order
+        .iter()
+        .map(|index| {
+            let index = index
+                .as_bigint()?
+                .to_usize()
+                .ok_or_else(|| VmExecutionError::new("invalid shuffle index"))?;
+            values
+                .get(index)
+                .cloned()
+                .ok_or_else(|| VmExecutionError::new("invalid shuffle index"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let updated = match original {
+        VmValue::ByteArray(_) => VmValue::ByteArray(
+            result
+                .iter()
+                .map(byte_from_value)
+                .collect::<Result<_, _>>()?,
+        ),
+        _ => VmValue::List(result),
+    };
+    reference.replace(updated)?;
+    Ok(VmValue::None)
 }

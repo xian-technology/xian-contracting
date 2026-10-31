@@ -48,9 +48,15 @@ def test_historical_admission_and_execution(tmp_path, case, native):
         assert actual["status_code"] == 1
         assert actual["writes"] == ["dict", []]
         assert actual["events"] == ["list", []]
-        missing_name = (
-            "no native method 'sha256()'" if native else "has no attribute 'sha256'"
-        )
+        missing_name = "no native method 'sha256()'" if native else "has no attribute 'sha256'"
         assert missing_name in actual["diagnostic"]
         pytest.xfail("R9: historical hashlib.sha256 alias is absent; policy pending")
+    if case["id"] == "storage_snapshot":
+        # Deliberate safety change since the historical release: storage values
+        # are snapshots, never writable aliases. Both current engines agree.
+        assert actual["status_code"] == 0, actual
+        assert actual["result"] == encode([[1, 2], [1, 3], [1]])
+        assert actual["writes"] == encode({"baseline_storage_snapshot.v": [1]})
+        assert actual["events"] == encode([])
+        return
     assert comparable(actual) == comparable(expected), actual
