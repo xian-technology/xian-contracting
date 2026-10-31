@@ -1,0 +1,866 @@
+{
+  "baseline_revision": "005a104806d02c8fb4568d033dc9bc770d537210",
+  "cases": {
+    "typed_values": {
+      "source_case": "typed_values",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[True, 1, 1.0, (1,), [1], {1: 'int', '1': 'str'}]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 11408,
+        "chi_used": 16,
+        "contract_costs": {
+          "conformance_typed_values": 11408
+        }
+      }
+    },
+    "control_flow": {
+      "source_case": "control_flow",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "6",
+        "writes": {},
+        "events": [],
+        "raw_cost": 13617,
+        "chi_used": 18,
+        "contract_costs": {
+          "conformance_control_flow": 13617
+        }
+      }
+    },
+    "private_call": {
+      "source_case": "private_call",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "6",
+        "writes": {},
+        "events": [],
+        "raw_cost": 10353,
+        "chi_used": 15,
+        "contract_costs": {
+          "conformance_private_call": 10353
+        }
+      }
+    },
+    "state_write": {
+      "source_case": "state_write",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "7",
+        "writes": {
+          "conformance_state_write.state": "7"
+        },
+        "events": [],
+        "raw_cost": 22307,
+        "chi_used": 27,
+        "contract_costs": {
+          "conformance_state_write": 22307
+        }
+      }
+    },
+    "state_rollback": {
+      "source_case": "state_rollback",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 1,
+        "result_repr": "AssertionError('rollback')",
+        "writes": {},
+        "events": [],
+        "raw_cost": 16169,
+        "chi_used": 21,
+        "contract_costs": {
+          "conformance_state_rollback": 16169
+        }
+      }
+    },
+    "decimal": {
+      "source_case": "decimal",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "3.75",
+        "writes": {},
+        "events": [],
+        "raw_cost": 15212,
+        "chi_used": 20,
+        "contract_costs": {
+          "conformance_decimal": 15212
+        }
+      }
+    },
+    "time": {
+      "source_case": "time",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "2026",
+        "writes": {},
+        "events": [],
+        "raw_cost": 5196,
+        "chi_used": 10,
+        "contract_costs": {
+          "conformance_time": 5196
+        }
+      }
+    },
+    "hashing": {
+      "source_case": "hashing",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "'2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'",
+        "writes": {},
+        "events": [],
+        "raw_cost": 10130,
+        "chi_used": 15,
+        "contract_costs": {
+          "conformance_hashing": 10130
+        }
+      }
+    },
+    "event_write": {
+      "source_case": "event_write",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "7",
+        "writes": {
+          "conformance_event_write.state": "7"
+        },
+        "events": [
+          {
+            "caller": "alice",
+            "contract": "conformance_event_write",
+            "data": {
+              "value": 7
+            },
+            "data_indexed": {},
+            "event": "Seen",
+            "signer": "alice"
+          }
+        ],
+        "raw_cost": 31261,
+        "chi_used": 36,
+        "contract_costs": {
+          "conformance_event_write": 31261
+        }
+      }
+    },
+    "event_rollback": {
+      "source_case": "event_rollback",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 1,
+        "result_repr": "\"unhashable type: 'list'\"",
+        "writes": {},
+        "events": [],
+        "raw_cost": 32103,
+        "chi_used": 37,
+        "contract_costs": {
+          "conformance_event_rollback": 32103
+        }
+      }
+    },
+    "alias_nested_assignment": {
+      "source_case": "alias_nested_assignment",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[[7]]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 5901,
+        "chi_used": 10,
+        "contract_costs": {
+          "conformance_alias_nested_assignment": 5901
+        }
+      }
+    },
+    "receiver_before_arguments": {
+      "source_case": "receiver_before_arguments",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "0",
+        "writes": {
+          "conformance_receiver_before_arguments.counter": "1"
+        },
+        "events": [],
+        "raw_cost": 43027,
+        "chi_used": 48,
+        "contract_costs": {
+          "conformance_receiver_before_arguments": 43027
+        }
+      }
+    },
+    "immutable_conversion_identity": {
+      "source_case": "immutable_conversion_identity",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[True, True, True, True]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 26941,
+        "chi_used": 31,
+        "contract_costs": {
+          "conformance_immutable_conversion_identity": 26941
+        }
+      }
+    },
+    "storage_snapshot": {
+      "source_case": "storage_snapshot",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[[1, 2], [1, 3], [1]]",
+        "writes": {
+          "conformance_storage_snapshot.v": "[1]"
+        },
+        "events": [],
+        "raw_cost": 39582,
+        "chi_used": 44,
+        "contract_costs": {
+          "conformance_storage_snapshot": 39582
+        }
+      }
+    },
+    "cross_contract_alias": {
+      "source_case": "cross_contract_alias",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[[1, 2], [1, 2], True]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 26106,
+        "chi_used": 31,
+        "contract_costs": {
+          "con_alias_helper": 5224,
+          "conformance_cross_contract_alias": 20882
+        }
+      }
+    },
+    "live_list_iteration": {
+      "source_case": "live_list_iteration",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[1, 2, 3]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 42663,
+        "chi_used": 47,
+        "contract_costs": {
+          "conformance_live_list_iteration": 42663
+        }
+      }
+    },
+    "zip_strict_mismatch": {
+      "source_case": "zip_strict_mismatch",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 1,
+        "result_repr": "'zip() arguments have different lengths'",
+        "writes": {},
+        "events": [],
+        "raw_cost": 15544,
+        "chi_used": 20,
+        "contract_costs": {
+          "conformance_zip_strict_mismatch": 15544
+        }
+      }
+    },
+    "map_lazy": {
+      "source_case": "map_lazy",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[[1], [1, 9], [[1, 9]], []]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 31654,
+        "chi_used": 36,
+        "contract_costs": {
+          "conformance_map_lazy": 31654
+        }
+      }
+    },
+    "filter_lazy": {
+      "source_case": "filter_lazy",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[[1], [[1, 9]], [1, 9], []]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 31526,
+        "chi_used": 36,
+        "contract_costs": {
+          "conformance_filter_lazy": 31526
+        }
+      }
+    },
+    "iterator_short_circuit": {
+      "source_case": "iterator_short_circuit",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[False, [True]]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 21646,
+        "chi_used": 26,
+        "contract_costs": {
+          "conformance_iterator_short_circuit": 21646
+        }
+      }
+    },
+    "iterator_reversed": {
+      "source_case": "iterator_reversed",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[[3, 1], []]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 21066,
+        "chi_used": 26,
+        "contract_costs": {
+          "conformance_iterator_reversed": 21066
+        }
+      }
+    },
+    "iterator_comprehension": {
+      "source_case": "iterator_comprehension",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[1, 2, 3]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 42919,
+        "chi_used": 47,
+        "contract_costs": {
+          "conformance_iterator_comprehension": 42919
+        }
+      }
+    },
+    "iterator_bytes_constructor": {
+      "source_case": "iterator_bytes_constructor",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[b'\\x01\\x02', bytearray(b'\\x00\\x01\\x02')]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 25753,
+        "chi_used": 30,
+        "contract_costs": {
+          "conformance_iterator_bytes_constructor": 25753
+        }
+      }
+    },
+    "iterator_augassign": {
+      "source_case": "iterator_augassign",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[[1, 2, 3], True]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 11294,
+        "chi_used": 16,
+        "contract_costs": {
+          "conformance_iterator_augassign": 11294
+        }
+      }
+    },
+    "default_mutable_identity": {
+      "source_case": "default_mutable_identity",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[[1, 2], [1, 2], True]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 26490,
+        "chi_used": 31,
+        "contract_costs": {
+          "conformance_default_mutable_identity": 26490
+        }
+      }
+    },
+    "keyword_argument_order": {
+      "source_case": "keyword_argument_order",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "['z', 'a', 'c', 'b']",
+        "writes": {},
+        "events": [],
+        "raw_cost": 15401,
+        "chi_used": 20,
+        "contract_costs": {
+          "conformance_keyword_argument_order": 15401
+        }
+      }
+    },
+    "sorted_options": {
+      "source_case": "sorted_options",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[[3, 2, 1], [3, 2, 1], [1, 2, 3]]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 23065,
+        "chi_used": 28,
+        "contract_costs": {
+          "conformance_sorted_options": 23065
+        }
+      }
+    },
+    "sum_start_keyword": {
+      "source_case": "sum_start_keyword",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "7",
+        "writes": {},
+        "events": [],
+        "raw_cost": 10513,
+        "chi_used": 15,
+        "contract_costs": {
+          "conformance_sum_start_keyword": 10513
+        }
+      }
+    },
+    "int_base_zero": {
+      "source_case": "int_base_zero",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[255, -5, 63, 0, 0]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 30815,
+        "chi_used": 35,
+        "contract_costs": {
+          "conformance_int_base_zero": 30815
+        }
+      }
+    },
+    "boolean_arithmetic": {
+      "source_case": "boolean_arithmetic",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[3, 3, 1, -1, 1, -2, False, True, False, 8, 2]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 6764,
+        "chi_used": 11,
+        "contract_costs": {
+          "conformance_boolean_arithmetic": 6764
+        }
+      }
+    },
+    "string_empty_search_bounds": {
+      "source_case": "string_empty_search_bounds",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[-1, False, False, -1]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 25595,
+        "chi_used": 30,
+        "contract_costs": {
+          "conformance_string_empty_search_bounds": 25595
+        }
+      }
+    },
+    "list_sort_key_stable": {
+      "source_case": "list_sort_key_stable",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[[2, 'b'], [1, 'a'], [1, 'c']]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 12041,
+        "chi_used": 17,
+        "contract_costs": {
+          "conformance_list_sort_key_stable": 12041
+        }
+      }
+    },
+    "dict_fromkeys_alias": {
+      "source_case": "dict_fromkeys_alias",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[{'a': [9], 'b': [9]}, True]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 16432,
+        "chi_used": 21,
+        "contract_costs": {
+          "conformance_dict_fromkeys_alias": 16432
+        }
+      }
+    },
+    "huge_slice_bounds": {
+      "source_case": "huge_slice_bounds",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[[3, 2, 1], [1, 2, 3], [1], [3], 'cba', b'abc']",
+        "writes": {},
+        "events": [],
+        "raw_cost": 7990,
+        "chi_used": 12,
+        "contract_costs": {
+          "conformance_huge_slice_bounds": 7990
+        }
+      }
+    },
+    "builtin_numeric_basics": {
+      "source_case": "builtin_numeric_basics",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[3, (-3, 2), 32, 2, False, True]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 41242,
+        "chi_used": 46,
+        "contract_costs": {
+          "conformance_builtin_numeric_basics": 41242
+        }
+      }
+    },
+    "builtin_text_basics": {
+      "source_case": "builtin_text_basics",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[\"'\\\\xe9'\", '0b101', '0xf', '0o11', '\ud83d\ude00', 233, '0012']",
+        "writes": {},
+        "events": [],
+        "raw_cost": 40914,
+        "chi_used": 45,
+        "contract_costs": {
+          "conformance_builtin_text_basics": 40914
+        }
+      }
+    },
+    "dict_replace_d_a": {
+      "source_case": "dict_replace_d_a",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 1,
+        "result_repr": "'dictionary keys changed during iteration'",
+        "writes": {},
+        "events": [],
+        "raw_cost": 32688,
+        "chi_used": 37,
+        "contract_costs": {
+          "conformance_dict_replace_d_a": 32688
+        }
+      }
+    },
+    "dict_replace_d_b": {
+      "source_case": "dict_replace_d_b",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "['a', 'c']",
+        "writes": {},
+        "events": [],
+        "raw_cost": 32793,
+        "chi_used": 37,
+        "contract_costs": {
+          "conformance_dict_replace_d_b": 32793
+        }
+      }
+    },
+    "methods_update_lazy": {
+      "source_case": "methods_update_lazy",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[('a', 0), ('b', 1), ('c', 2)]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 42876,
+        "chi_used": 47,
+        "contract_costs": {
+          "conformance_methods_update_lazy": 42876
+        }
+      }
+    },
+    "methods_update_bad_pair": {
+      "source_case": "methods_update_bad_pair",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 1,
+        "result_repr": "'dict.update() requires two-element entries'",
+        "writes": {},
+        "events": [],
+        "raw_cost": 11536,
+        "chi_used": 16,
+        "contract_costs": {
+          "conformance_methods_update_bad_pair": 11536
+        }
+      }
+    },
+    "methods_setdefault_reference": {
+      "source_case": "methods_setdefault_reference",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[{'a': [1], 'b': [2], 'c': None}, True, True, None, [1]]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 39801,
+        "chi_used": 44,
+        "contract_costs": {
+          "conformance_methods_setdefault_reference": 39801
+        }
+      }
+    },
+    "methods_reverse_alias": {
+      "source_case": "methods_reverse_alias",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[None, [3, [], 1], True]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 11175,
+        "chi_used": 16,
+        "contract_costs": {
+          "conformance_methods_reverse_alias": 11175
+        }
+      }
+    },
+    "methods_hex_spaces": {
+      "source_case": "methods_hex_spaces",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "'414243444546'",
+        "writes": {},
+        "events": [],
+        "raw_cost": 15161,
+        "chi_used": 20,
+        "contract_costs": {
+          "conformance_methods_hex_spaces": 15161
+        }
+      }
+    },
+    "unicode_int_scripts": {
+      "source_case": "unicode_int_scripts",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[123, 123, 98, 56, -12]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 30659,
+        "chi_used": 35,
+        "contract_costs": {
+          "conformance_unicode_int_scripts": 30659
+        }
+      }
+    },
+    "module_default_order": {
+      "source_case": "module_default_order",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[1, 2, 3]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 15903,
+        "chi_used": 20,
+        "contract_costs": {
+          "conformance_module_default_order": 15903
+        }
+      }
+    },
+    "starred_call_order": {
+      "source_case": "starred_call_order",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[[('args',), {'k': ['keyword']}], ['args', 'keyword']]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 31809,
+        "chi_used": 36,
+        "contract_costs": {
+          "conformance_starred_call_order": 31809
+        }
+      }
+    },
+    "starred_call_collision": {
+      "source_case": "starred_call_collision",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 1,
+        "result_repr": "TypeError(\"__f() got multiple values for keyword argument 'x'\")",
+        "writes": {},
+        "events": [],
+        "raw_cost": 10384,
+        "chi_used": 15,
+        "contract_costs": {
+          "conformance_starred_call_collision": 10384
+        }
+      }
+    },
+    "starred_unpack_nested": {
+      "source_case": "starred_unpack_nested",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[1, [2, 3], 'a', ['b', 'c'], 'd']",
+        "writes": {},
+        "events": [],
+        "raw_cost": 6819,
+        "chi_used": 11,
+        "contract_costs": {
+          "conformance_starred_unpack_nested": 6819
+        }
+      }
+    },
+    "starred_unpack_for": {
+      "source_case": "starred_unpack_for",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[[1, [2, 3]], [4, []]]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 17194,
+        "chi_used": 22,
+        "contract_costs": {
+          "conformance_starred_unpack_for": 17194
+        }
+      }
+    },
+    "starred_unpack_comprehension": {
+      "source_case": "starred_unpack_comprehension",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[[[1, [2]], [3, [4, 5]]], 8, 9]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 7585,
+        "chi_used": 12,
+        "contract_costs": {
+          "conformance_starred_unpack_comprehension": 7585
+        }
+      }
+    },
+    "quantum_result": {
+      "source_case": "quantum_result",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "Decimal('2.00')",
+        "writes": {},
+        "events": [],
+        "raw_cost": 15177,
+        "chi_used": 20,
+        "contract_costs": {
+          "conformance_quantum_result": 15177
+        }
+      }
+    },
+    "quantum_format": {
+      "source_case": "quantum_format",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "['12.34', '00012.34', '+1.23e+1', '12.34', '1234.5%', '     12.34']",
+        "writes": {},
+        "events": [],
+        "raw_cost": 46482,
+        "chi_used": 51,
+        "contract_costs": {
+          "conformance_quantum_format": 46482
+        }
+      }
+    },
+    "quantum_cross_contract": {
+      "source_case": "quantum_cross_contract",
+      "chi_budget_raw": 100000000,
+      "output": {
+        "status_code": 0,
+        "result_repr": "[Decimal('2.00'), '2.00', False, Decimal('3.00')]",
+        "writes": {},
+        "events": [],
+        "raw_cost": 41110,
+        "chi_used": 46,
+        "contract_costs": {
+          "con_quantum_child": 10772,
+          "conformance_quantum_cross_contract": 30338
+        }
+      }
+    },
+    "event_write_chi_exhaustion": {
+      "source_case": "event_write",
+      "chi_budget_raw": 30000,
+      "output": {
+        "status_code": 1,
+        "result_repr": "'Out of chi.'",
+        "writes": {},
+        "events": [],
+        "raw_cost": 31046,
+        "chi_used": 30,
+        "contract_costs": {
+          "conformance_event_write": 31046
+        }
+      }
+    },
+    "methods_update_lazy_chi_exhaustion": {
+      "source_case": "methods_update_lazy",
+      "chi_budget_raw": 30000,
+      "output": {
+        "status_code": 1,
+        "result_repr": "'Out of chi.'",
+        "writes": {},
+        "events": [],
+        "raw_cost": 32369,
+        "chi_used": 30,
+        "contract_costs": {
+          "conformance_methods_update_lazy": 32369
+        }
+      }
+    },
+    "cross_contract_alias_chi_exhaustion": {
+      "source_case": "cross_contract_alias",
+      "chi_budget_raw": 10000,
+      "output": {
+        "status_code": 1,
+        "result_repr": "'Out of chi.'",
+        "writes": {},
+        "events": [],
+        "raw_cost": 10288,
+        "chi_used": 10,
+        "contract_costs": {
+          "conformance_cross_contract_alias": 10288
+        }
+      }
+    }
+  }
+}

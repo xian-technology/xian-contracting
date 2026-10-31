@@ -1,0 +1,614 @@
+//! Dispatch builtins while preserving shared argument identity where required.
+use super::*;
+
+impl VmInstance {
+    pub(super) fn call_builtin(
+        &mut self,
+        host: &mut dyn VmHost,
+        name: &str,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if matches!(name, "sorted" | "min" | "max" | "sum") {
+            return self.collection_builtin(name, args, kwargs, host);
+        }
+        if matches!(name, "map" | "filter" | "zip" | "reversed") {
+            return crate::iteration::lazy(name, &args, &kwargs, &self.heap);
+        }
+        if args.len() == 1
+            && kwargs.is_empty()
+            && matches!(
+                (name, args[0].snapshot()),
+                ("int", VmValue::Int(_))
+                    | ("str", VmValue::String(_))
+                    | ("float", VmValue::Float(_))
+                    | ("tuple", VmValue::Tuple(_))
+                    | ("bytes", VmValue::Bytes(_))
+                    | ("frozenset", VmValue::FrozenSet(_))
+            )
+        {
+            return Ok(args[0].clone());
+        }
+        let shared_args = args.clone();
+        let shared_kwargs = kwargs.clone();
+        let args = args.iter().map(VmValue::snapshot).collect::<Vec<_>>();
+        let kwargs = kwargs
+            .into_iter()
+            .map(|(k, v)| (k, v.snapshot()))
+            .collect::<Vec<_>>();
+        match name {
+            "len" => self.builtin_len(args, kwargs),
+            "range" => self.builtin_range(args, kwargs),
+            "str" => self.builtin_str(args, kwargs, shared_args),
+            "bytes" | "bytearray" => self.builtin_binary(host, name, args, kwargs, shared_args),
+            "set" | "frozenset" => {
+                self.builtin_set_constructor(host, name, args, kwargs, shared_args)
+            }
+            "bool" => {
+                if !kwargs.is_empty() || args.len() > 1 {
+                    return Err(VmExecutionError::new("bool() expects at most one argument"));
+                }
+                Ok(VmValue::Bool(args.first().is_some_and(VmValue::truthy)))
+            }
+            "abs" => self.builtin_abs(args, kwargs),
+            "int" => numeric_text::int_value(args, kwargs),
+            "pow" => self.builtin_pow(host, args, kwargs),
+            "format" => self.builtin_format(host, args, kwargs),
+            "float" => self.builtin_float(args, kwargs),
+            "ord" => self.builtin_ord(args, kwargs),
+            "ascii" => self.builtin_ascii(args, kwargs, shared_args),
+            "bin" | "hex" | "oct" => self.builtin_integer_repr(name, args, kwargs),
+            "chr" => self.builtin_chr(args, kwargs),
+            "divmod" => {
+                if args.len() != 2 || !kwargs.is_empty() {
+                    return Err(VmExecutionError::new("divmod() expects two arguments"));
+                }
+                let quotient = apply_binary_operator("floordiv", args[0].clone(), args[1].clone())?;
+                let remainder = apply_binary_operator("mod", args[0].clone(), args[1].clone())?;
+                Ok(VmValue::Tuple(vec![quotient, remainder]))
+            }
+            "Exception" => self.builtin_exception(kwargs, shared_args),
+            "dict" => self.builtin_dict(host, args, shared_args, shared_kwargs),
+            "list" => self.builtin_list(host, args, kwargs, shared_args),
+            "tuple" => self.builtin_tuple(host, args, kwargs, shared_args),
+            "all" | "any" => self.builtin_all(host, name, args, kwargs, shared_args),
+            "isinstance" => {
+                if args.len() != 2 || !kwargs.is_empty() {
+                    return Err(VmExecutionError::new(
+                        "isinstance() expects two positional arguments",
+                    ));
+                }
+                Ok(VmValue::Bool(type_matches(&args[0], &args[1])))
+            }
+            "issubclass" => {
+                if args.len() != 2 || !kwargs.is_empty() {
+                    return Err(VmExecutionError::new(
+                        "issubclass() expects two positional arguments",
+                    ));
+                }
+                Ok(VmValue::Bool(issubclass_matches(&args[0], &args[1])?))
+            }
+            "round" => rounding::call(&args, &kwargs),
+            other => Err(VmExecutionError::new(format!(
+                "unsupported builtin '{other}'"
+            ))),
+        }
+    }
+
+    fn builtin_len(
+        &mut self,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if !kwargs.is_empty() || args.len() != 1 {
+            return Err(VmExecutionError::new("len() expects one argument"));
+        }
+        match &args[0] {
+            VmValue::String(value) => Ok(vm_int(value.chars().count())),
+            VmValue::Bytes(value) | VmValue::ByteArray(value) => Ok(vm_int(value.len())),
+            VmValue::List(values)
+            | VmValue::Tuple(values)
+            | VmValue::Set(values)
+            | VmValue::FrozenSet(values) => Ok(vm_int(values.len())),
+            VmValue::Dict(entries) => Ok(vm_int(entries.len())),
+            VmValue::Range(range) => {
+                let length = range.len();
+                if length > BigInt::from(i64::MAX) {
+                    return Err(VmExecutionError::new(
+                        "range length exceeds platform index limit",
+                    ));
+                }
+                Ok(VmValue::Int(length))
+            }
+            VmValue::View(view) => Ok(vm_int(view.len())),
+            other => Err(VmExecutionError::new(format!(
+                "len() does not support {}",
+                other.type_name()
+            ))),
+        }
+    }
+
+    fn builtin_range(
+        &mut self,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if !kwargs.is_empty() || args.is_empty() || args.len() > 3 {
+            return Err(VmExecutionError::new(
+                "range() expects between one and three positional arguments",
+            ));
+        }
+        let (start, stop, step) = match args.len() {
+            1 => (BigInt::zero(), args[0].as_bigint()?, BigInt::from(1)),
+            2 => (args[0].as_bigint()?, args[1].as_bigint()?, BigInt::from(1)),
+            3 => (
+                args[0].as_bigint()?,
+                args[1].as_bigint()?,
+                args[2].as_bigint()?,
+            ),
+            _ => unreachable!(),
+        };
+        if step.is_zero() {
+            return Err(VmExecutionError::new("range() step cannot be zero"));
+        }
+        Ok(VmValue::Range(crate::VmRange { start, stop, step }))
+    }
+
+    fn builtin_str(
+        &mut self,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+        shared_args: Vec<VmValue>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if !kwargs.is_empty() || args.len() > 1 {
+            return Err(VmExecutionError::new("str() expects at most one argument"));
+        }
+        Ok(VmValue::String(
+            shared_args
+                .first()
+                .map(VmValue::try_python_repr)
+                .transpose()?
+                .unwrap_or_default(),
+        ))
+    }
+
+    fn builtin_binary(
+        &mut self,
+        host: &mut dyn VmHost,
+        name: &str,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+        shared_args: Vec<VmValue>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if !kwargs.is_empty() || args.len() > 3 {
+            return Err(VmExecutionError::new(format!(
+                "{name}() expects between zero and three positional arguments"
+            )));
+        }
+        let construct = if name == "bytes" {
+            VmValue::Bytes
+        } else {
+            VmValue::ByteArray
+        };
+        match args.as_slice() {
+            [] => Ok(construct(Vec::new())),
+            [VmValue::String(_value)] => {
+                Err(VmExecutionError::new("string argument without an encoding"))
+            }
+            [VmValue::String(value), encoding] | [VmValue::String(value), encoding, _] => {
+                let encoding = encoding.as_string()?.to_lowercase();
+                match encoding.as_str() {
+                    "utf-8" | "utf8" => Ok(construct(value.as_bytes().to_vec())),
+                    "ascii" => {
+                        if !value.is_ascii() {
+                            return Err(VmExecutionError::new(
+                                "'ascii' codec can't encode characters outside ASCII range",
+                            ));
+                        }
+                        Ok(construct(value.as_bytes().to_vec()))
+                    }
+                    other => Err(VmExecutionError::new(format!(
+                        "unsupported {name}() encoding '{other}'",
+                    ))),
+                }
+            }
+            [VmValue::Int(size)] => {
+                if size.sign() == Sign::Minus {
+                    return Err(VmExecutionError::new("negative count"));
+                }
+                let size = bigint_to_usize(size, &format!("{name}() size"))?;
+                if size > MAX_BINARY_ALLOCATION_BYTES {
+                    return Err(VmExecutionError::new(format!(
+                        "{name}() exceeds the maximum allowed allocation size"
+                    )));
+                }
+                Ok(construct(vec![0; size]))
+            }
+            [_] => Ok(construct(
+                self.collect_iterable(&shared_args[0], host)?
+                    .iter()
+                    .map(byte_from_value)
+                    .collect::<Result<_, _>>()?,
+            )),
+            _ => Err(VmExecutionError::new("encoding without a string argument")),
+        }
+    }
+
+    fn builtin_set_constructor(
+        &mut self,
+        host: &mut dyn VmHost,
+        name: &str,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+        shared_args: Vec<VmValue>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if !kwargs.is_empty() || args.len() > 1 {
+            return Err(VmExecutionError::new(format!(
+                "{name}() expects at most one argument"
+            )));
+        }
+        let values = match args.as_slice() {
+            [] => Vec::new(),
+            [_] => self.collect_iterable(&shared_args[0], host)?,
+            _ => unreachable!(),
+        };
+        let values = normalize_set_items(values)?;
+        Ok(if name == "set" {
+            VmValue::Set(values)
+        } else {
+            VmValue::FrozenSet(values)
+        })
+    }
+
+    fn builtin_abs(
+        &mut self,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if !kwargs.is_empty() || args.len() != 1 {
+            return Err(VmExecutionError::new("abs() expects one argument"));
+        }
+        match &args[0] {
+            VmValue::Bool(value) => Ok(vm_int(if *value { 1 } else { 0 })),
+            VmValue::Int(value) => Ok(VmValue::Int(value.abs())),
+            VmValue::Float(value) => Ok(VmValue::Float(value.abs())),
+            VmValue::RawDecimal(value) => Ok(VmValue::RawDecimal(value.unary("abs")?)),
+            VmValue::Decimal(value) => Ok(VmValue::Decimal(VmDecimal::from_scaled(
+                if value.scaled.sign() == Sign::Minus {
+                    -value.scaled.clone()
+                } else {
+                    value.scaled.clone()
+                },
+            )?)),
+            other => Err(VmExecutionError::new(format!(
+                "abs() does not support {}",
+                other.type_name()
+            ))),
+        }
+    }
+
+    fn builtin_pow(
+        &mut self,
+        host: &mut dyn VmHost,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if !kwargs.is_empty() || args.len() < 2 || args.len() > 3 {
+            return Err(VmExecutionError::new(
+                "pow() expects two or three positional arguments",
+            ));
+        }
+        if let Some(modulus) = args.get(2) {
+            let base = args[0].as_bigint()?;
+            let exponent = args[1].as_bigint()?;
+            let modulus = modulus.as_bigint()?;
+            if exponent.sign() == Sign::Minus {
+                return Err(VmExecutionError::new(
+                    "pow() 3rd argument not allowed unless all arguments are integers",
+                ));
+            }
+            if modulus.is_zero() {
+                return Err(VmExecutionError::new("pow() 3rd argument cannot be 0"));
+            }
+            ensure_bigint_bits(&modulus, "modular exponentiation modulus")?;
+            if exponent.bits() > MAX_MODULAR_POW_EXPONENT_BITS {
+                return Err(integer_limit_error("modular exponentiation exponent"));
+            }
+            return checked_int_value(base.modpow(&exponent, &modulus), "modular exponentiation");
+        }
+        if args
+            .iter()
+            .any(|value| matches!(value, VmValue::RawDecimal(_)))
+        {
+            host.charge_execution_cost(crate::raw_decimal::work_cost("pow", &args[0], &args[1]))?;
+            return apply_binary_operator("pow", args[0].clone(), args[1].clone());
+        }
+        match (&args[0], &args[1]) {
+            (VmValue::Int(base), VmValue::Int(exponent)) => {
+                checked_bigint_pow(base, exponent, "integer exponentiation")
+            }
+            (VmValue::Decimal(base), VmValue::Decimal(exponent)) => {
+                Ok(VmValue::Decimal(base.pow(exponent)?))
+            }
+            (VmValue::Decimal(base), exponent) => Ok(VmValue::Decimal(
+                base.pow(&VmDecimal::from_vm_value(exponent)?)?,
+            )),
+            (base, VmValue::Decimal(exponent)) => Ok(VmValue::Decimal(
+                VmDecimal::from_vm_value(base)?.pow(exponent)?,
+            )),
+            (VmValue::Float(base), VmValue::Float(exponent)) => {
+                Ok(VmValue::Float(base.powf(*exponent)))
+            }
+            (VmValue::Float(base), VmValue::Int(exponent)) => Ok(VmValue::Float(
+                base.powf(bigint_to_f64(exponent, "pow() exponent")?),
+            )),
+            (VmValue::Int(base), VmValue::Float(exponent)) => Ok(VmValue::Float(
+                bigint_to_f64(base, "pow() base")?.powf(*exponent),
+            )),
+            (left, right) => Err(VmExecutionError::new(format!(
+                "pow() does not support {} and {}",
+                left.type_name(),
+                right.type_name()
+            ))),
+        }
+    }
+
+    fn builtin_format(
+        &mut self,
+        host: &mut dyn VmHost,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if args.is_empty() || args.len() > 2 || !kwargs.is_empty() {
+            return Err(VmExecutionError::new(
+                "format() expects one or two positional arguments",
+            ));
+        }
+        let spec = if let Some(value) = args.get(1) {
+            value.as_string()?
+        } else {
+            String::new()
+        };
+        if matches!(args[0], VmValue::RawDecimal(_)) {
+            host.charge_execution_cost(crate::VmRawDecimal::format_work_cost(&spec)?)?;
+        }
+        Ok(VmValue::String(format_builtin_value(&args[0], &spec)?))
+    }
+
+    fn builtin_float(
+        &mut self,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if !kwargs.is_empty() || args.len() > 1 {
+            return Err(VmExecutionError::new(
+                "float() expects at most one argument",
+            ));
+        }
+        if args.is_empty() {
+            return Ok(VmValue::Float(0.0));
+        }
+        match &args[0] {
+            VmValue::Int(value) => Ok(VmValue::Float(bigint_to_f64(value, "float() input")?)),
+            VmValue::Bool(value) => Ok(VmValue::Float(if *value { 1.0 } else { 0.0 })),
+            VmValue::Float(value) => Ok(VmValue::Float(*value)),
+            VmValue::Decimal(value) => Ok(VmValue::Float(value.to_f64()?)),
+            VmValue::RawDecimal(value) => Ok(VmValue::Float(value.float()?)),
+            VmValue::String(value) => numeric_text::parse_float(value).map(VmValue::Float),
+            VmValue::Bytes(value) | VmValue::ByteArray(value) => {
+                let text = std::str::from_utf8(value)
+                    .map_err(|_| VmExecutionError::new("invalid float bytes"))?;
+                if !text.is_ascii() {
+                    return Err(VmExecutionError::new("invalid float bytes"));
+                }
+                numeric_text::parse_float(text).map(VmValue::Float)
+            }
+            other => Err(VmExecutionError::new(format!(
+                "float() does not support {}",
+                other.type_name()
+            ))),
+        }
+    }
+
+    fn builtin_ord(
+        &mut self,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if args.len() != 1 || !kwargs.is_empty() {
+            return Err(VmExecutionError::new("ord() expects one argument"));
+        }
+        match &args[0] {
+            VmValue::String(value) => {
+                let mut chars = value.chars();
+                let first = chars.next().ok_or_else(|| {
+                    VmExecutionError::new("ord() expected a character, but string was empty")
+                })?;
+                if chars.next().is_some() {
+                    return Err(VmExecutionError::new(
+                        "ord() expected a character, but string of length > 1 found",
+                    ));
+                }
+                Ok(vm_int(u32::from(first)))
+            }
+            VmValue::Bytes(value) | VmValue::ByteArray(value) => match value.as_slice() {
+                [byte] => Ok(vm_int(*byte)),
+                [] => Err(VmExecutionError::new(
+                    "ord() expected a character, but string was empty",
+                )),
+                _ => Err(VmExecutionError::new(
+                    "ord() expected a character, but string of length > 1 found",
+                )),
+            },
+            other => Err(VmExecutionError::new(format!(
+                "ord() does not support {}",
+                other.type_name()
+            ))),
+        }
+    }
+
+    fn builtin_ascii(
+        &mut self,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+        shared_args: Vec<VmValue>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if args.len() != 1 || !kwargs.is_empty() {
+            return Err(VmExecutionError::new("ascii() expects one argument"));
+        }
+        Ok(VmValue::String(match &args[0] {
+            VmValue::String(value) => ascii_string_repr(value),
+            _ => ascii_render(&shared_args[0].try_python_repr()?),
+        }))
+    }
+
+    fn builtin_integer_repr(
+        &mut self,
+        name: &str,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if args.len() != 1 || !kwargs.is_empty() {
+            return Err(VmExecutionError::new(format!(
+                "{name}() expects one argument"
+            )));
+        }
+        let (radix, prefix) = match name {
+            "bin" => (2, "0b"),
+            "hex" => (16, "0x"),
+            "oct" => (8, "0o"),
+            _ => unreachable!(),
+        };
+        Ok(VmValue::String(format_integer_builtin(
+            &args[0].as_bigint()?,
+            radix,
+            prefix,
+        )))
+    }
+
+    fn builtin_chr(
+        &mut self,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if args.len() != 1 || !kwargs.is_empty() {
+            return Err(VmExecutionError::new("chr() expects one argument"));
+        }
+        let code_point = bigint_to_u32(&args[0].as_bigint()?, "chr() input")?;
+        let character = char::from_u32(code_point).ok_or_else(|| {
+            VmExecutionError::new(format!("chr() arg not in range(0x110000): {code_point}"))
+        })?;
+        Ok(VmValue::String(character.to_string()))
+    }
+
+    fn builtin_exception(
+        &mut self,
+        kwargs: Vec<(String, VmValue)>,
+        shared_args: Vec<VmValue>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if !kwargs.is_empty() {
+            return Err(VmExecutionError::new(
+                "Exception() does not accept keyword arguments",
+            ));
+        }
+        Ok(VmValue::Exception(VmException {
+            name: "Exception".to_owned(),
+            args: shared_args,
+        }))
+    }
+
+    fn builtin_dict(
+        &mut self,
+        host: &mut dyn VmHost,
+        args: Vec<VmValue>,
+        shared_args: Vec<VmValue>,
+        shared_kwargs: Vec<(String, VmValue)>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if args.len() > 1 {
+            return Err(VmExecutionError::new(
+                "dict() accepts at most one positional argument",
+            ));
+        }
+        let mut entries = Vec::new();
+        if let Some(initial) = shared_args.first() {
+            if let VmValue::Dict(existing) = initial.snapshot() {
+                entries = existing;
+            } else {
+                let iterator = crate::iteration::iter(initial, &self.heap)?;
+                while let Some(item) = self.next_item(&iterator, host)? {
+                    let pair = self.collect_iterable(&item, host)?;
+                    if pair.len() != 2 {
+                        return Err(VmExecutionError::new("dict() expected key/value pairs"));
+                    }
+                    dict_set(&mut entries, pair[0].clone(), pair[1].clone())?;
+                }
+            }
+        }
+        for (key, value) in shared_kwargs {
+            dict_set(&mut entries, VmValue::String(key), value)?;
+        }
+        Ok(VmValue::Dict(entries))
+    }
+
+    fn builtin_list(
+        &mut self,
+        host: &mut dyn VmHost,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+        shared_args: Vec<VmValue>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if args.len() > 1 || !kwargs.is_empty() {
+            return Err(VmExecutionError::new(
+                "list() accepts at most one positional argument",
+            ));
+        }
+        if !args.is_empty() {
+            let items = self.collect_iterable(&shared_args[0], host)?;
+            Ok(VmValue::List(items))
+        } else {
+            Ok(VmValue::List(Vec::new()))
+        }
+    }
+
+    fn builtin_tuple(
+        &mut self,
+        host: &mut dyn VmHost,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+        shared_args: Vec<VmValue>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if args.len() > 1 || !kwargs.is_empty() {
+            return Err(VmExecutionError::new(
+                "tuple() accepts at most one positional argument",
+            ));
+        }
+        if !args.is_empty() {
+            let items = self.collect_iterable(&shared_args[0], host)?;
+            Ok(VmValue::Tuple(items))
+        } else {
+            Ok(VmValue::Tuple(Vec::new()))
+        }
+    }
+
+    fn builtin_all(
+        &mut self,
+        host: &mut dyn VmHost,
+        name: &str,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+        shared_args: Vec<VmValue>,
+    ) -> Result<VmValue, VmExecutionError> {
+        if args.len() != 1 || !kwargs.is_empty() {
+            return Err(VmExecutionError::new(format!(
+                "{name}() expects one argument"
+            )));
+        }
+        let iterator = crate::iteration::iter(&shared_args[0], &self.heap)?;
+        while let Some(item) = self.next_item(&iterator, host)? {
+            if item.truthy() == (name == "any") {
+                return Ok(VmValue::Bool(name == "any"));
+            }
+        }
+        Ok(VmValue::Bool(name == "all"))
+    }
+}
