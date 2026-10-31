@@ -81,7 +81,13 @@ class _SafeBytesMeta(type):
 
 
 class safe_bytes(metaclass=_SafeBytesMeta):
-    pass
+    @staticmethod
+    def fromhex(string, /):
+        if not isinstance(string, str):
+            raise TypeError("bytes.fromhex() requires a string")
+        digits = sum(ch not in " \t\n\r\v\f" for ch in string)
+        _ensure_binary_size((digits + 1) // 2, kind="bytes.fromhex()")
+        return builtins.bytes.fromhex(string)
 
 
 class _SafeBytearrayMeta(type):

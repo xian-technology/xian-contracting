@@ -420,7 +420,7 @@
   },
   {
     "id": "hash_alias_6",
-    "source": "@export\ndef probe():\n    return [hashlib.sha256('雪'), hashlib.sha3('雪')]\n"
+    "source": "@export\ndef probe():\n    return [hashlib.sha256('\u96ea'), hashlib.sha3('\u96ea')]\n"
   },
   {
     "id": "hash_alias_7",
@@ -504,7 +504,7 @@
   },
   {
     "id": "string_count",
-    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return [\"abc\".count(\"\", 4), \"abc\".count(\"\"), \"abababa\".count(\"aba\"), \"雪雪雪\".count(\"雪\", 1, 3)]\n"
+    "source": "def negative(value):\n    return -value\n\ndef first(value):\n    return value[0]\n\n@export\ndef probe():\n    return [\"abc\".count(\"\", 4), \"abc\".count(\"\"), \"abababa\".count(\"aba\"), \"\u96ea\u96ea\u96ea\".count(\"\u96ea\", 1, 3)]\n"
   },
   {
     "id": "list_sort",
@@ -568,7 +568,7 @@
   },
   {
     "id": "builtin_text_basics",
-    "source": "@export\ndef probe():\n    return [ascii('é'), bin(5), hex(15), oct(9), chr(128512), ord('é'), format(12, '04d')]\n"
+    "source": "@export\ndef probe():\n    return [ascii('\u00e9'), bin(5), hex(15), oct(9), chr(128512), ord('\u00e9'), format(12, '04d')]\n"
   },
   {
     "id": "round_integer_ties",
@@ -687,5 +687,89 @@
     "source": "@export\ndef probe():\n    d={'a':1,'b':2,'c':3,'d':4,'e':5}\n    seen=[]\n    for key in d:\n        seen.append(key)\n        if len(seen)==1:\n            d.pop('a')\n            d['f']=6\n    return seen\n",
     "function_name": "probe",
     "kwargs": {}
+  },
+  {
+    "id": "methods_update_mapping",
+    "source": "@export\ndef probe():\n    d={True:0,'last':3}\n    a=[]\n    r=d.update({1:a,'x':4}, last=5, z=6)\n    a.append(9)\n    return [r,list(d.items()),d[1] is a]\n"
+  },
+  {
+    "id": "methods_update_pairs",
+    "source": "@export\ndef probe():\n    d={}\n    r=d.update([['a',1],('b',2),['a',3]])\n    return [r,list(d.items())]\n"
+  },
+  {
+    "id": "methods_update_self",
+    "source": "@export\ndef probe():\n    d={'a':[],'b':2}\n    d.update(d)\n    d.update()\n    return list(d.items())\n"
+  },
+  {
+    "id": "methods_update_lazy",
+    "source": "d={}\ndef pair(k):\n    return [k,len(d)]\n@export\ndef probe():\n    d.update(map(pair,['a','b','c']))\n    return list(d.items())\n"
+  },
+  {
+    "id": "methods_update_bad_pair",
+    "source": "@export\ndef probe():\n    d={}\n    d.update([['a',1],['b']])\n    return d\n"
+  },
+  {
+    "id": "methods_update_bad_key",
+    "source": "@export\ndef probe():\n    d={}\n    d.update([[[],1]])\n    return d\n"
+  },
+  {
+    "id": "methods_update_too_many",
+    "source": "@export\ndef probe():\n    d={}\n    d.update({}, {})\n    return d\n"
+  },
+  {
+    "id": "methods_setdefault_reference",
+    "source": "@export\ndef probe():\n    d={'a':[]}\n    default=[]\n    a=d.setdefault('a',default)\n    b=d.setdefault('b',default)\n    a.append(1)\n    b.append(2)\n    return [d,a is d['a'],b is default,d.setdefault('c'),d.setdefault('a',9)]\n"
+  },
+  {
+    "id": "methods_setdefault_bad_key",
+    "source": "@export\ndef probe():\n    d={}\n    return d.setdefault([],1)\n"
+  },
+  {
+    "id": "methods_setdefault_keyword",
+    "source": "@export\ndef probe():\n    d={}\n    return d.setdefault(key='a',default=1)\n"
+  },
+  {
+    "id": "methods_reverse_alias",
+    "source": "@export\ndef probe():\n    a=[1,[],3]\n    b=a\n    r=a.reverse()\n    return [r,b,a is b]\n"
+  },
+  {
+    "id": "methods_reverse_empty",
+    "source": "@export\ndef probe():\n    a=[]\n    a.reverse()\n    return a\n"
+  },
+  {
+    "id": "methods_hex_spaces",
+    "source": "@export\ndef probe():\n    return bytes.fromhex(' 41\\t42\\n43\\r44\\v45\\f46 ').hex()\n"
+  },
+  {
+    "id": "methods_hex_empty",
+    "source": "@export\ndef probe():\n    return bytes.fromhex('  ').hex()\n"
+  },
+  {
+    "id": "methods_hex_upper",
+    "source": "@export\ndef probe():\n    return bytes.fromhex('aAbBcC').hex()\n"
+  },
+  {
+    "id": "methods_hex_instance",
+    "source": "@export\ndef probe():\n    return b'x'.fromhex('41').hex()\n"
+  },
+  {
+    "id": "methods_hex_odd",
+    "source": "@export\ndef probe():\n    return bytes.fromhex('a')\n"
+  },
+  {
+    "id": "methods_hex_split",
+    "source": "@export\ndef probe():\n    return bytes.fromhex('a b')\n"
+  },
+  {
+    "id": "methods_hex_unicode_space",
+    "source": "@export\ndef probe():\n    return bytes.fromhex('41\\u00a042')\n"
+  },
+  {
+    "id": "methods_hex_bad_type",
+    "source": "@export\ndef probe():\n    return bytes.fromhex(b'41')\n"
+  },
+  {
+    "id": "methods_hex_keyword",
+    "source": "@export\ndef probe():\n    return bytes.fromhex(string='41')\n"
   }
 ]

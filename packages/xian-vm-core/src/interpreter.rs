@@ -61,6 +61,8 @@ const VM_GAS_EXPR_FORMATTED_VALUE: u64 = 96;
 
 #[path = "builtin_collections.rs"]
 mod builtin_collections;
+#[path = "collection_methods.rs"]
+mod collection_methods;
 #[path = "foreign_storage.rs"]
 mod foreign_storage;
 #[path = "numeric_text.rs"]
@@ -2453,6 +2455,21 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
+        if method == "update" && matches!(receiver.snapshot(), VmValue::Dict(_)) {
+            return self.update_dictionary(&receiver, args, kwargs, host);
+        }
+        if method == "setdefault" && matches!(receiver.snapshot(), VmValue::Dict(_)) {
+            return collection_methods::setdefault(&receiver, args, kwargs, host);
+        }
+        if method == "reverse" && matches!(receiver.snapshot(), VmValue::List(_)) {
+            return collection_methods::reverse(&receiver, args, kwargs, host);
+        }
+        if method == "fromhex"
+            && (matches!(&receiver, VmValue::Builtin(name) if name == "bytes")
+                || matches!(receiver.snapshot(), VmValue::Bytes(_)))
+        {
+            return collection_methods::fromhex(args, kwargs, host);
+        }
         if method == "sort" && matches!(receiver.snapshot(), VmValue::List(_)) {
             return self.sort_list(receiver, args, kwargs, host);
         }

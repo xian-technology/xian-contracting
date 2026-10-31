@@ -2,7 +2,7 @@
   "revision": "3b82001f2d587bbfb51f3d9235a2a8dcd0078a9a",
   "python": "3.12.10",
   "dependency_lock_sha256": "d6e2fc9493ba30f7eeda91769f3c3c74e398197127996c3de2d6e98d9fced726",
-  "cases_sha256": "62dfd8d1fa67029dd664bd2ef6942ac74fdddd4bef306a2c8ca8ea0ac77b02c6",
+  "cases_sha256": "d99fca378854e521999bf1d6a1b5f203e5d2f075e32ee9562b551a158adcac3d",
   "runner_sha256": "c2941b8697449adfecb2716cdc45337648186de30734bf2257f440cf9bc80818",
   "observations": {
     "typed_values": {
@@ -4898,6 +4898,589 @@
           ]
         ]
       ]
+    },
+    "methods_update_mapping": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "NoneType",
+            null
+          ],
+          [
+            "list",
+            [
+              [
+                "tuple",
+                [
+                  [
+                    "bool",
+                    true
+                  ],
+                  [
+                    "list",
+                    [
+                      [
+                        "int",
+                        9
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "tuple",
+                [
+                  [
+                    "str",
+                    "last"
+                  ],
+                  [
+                    "int",
+                    5
+                  ]
+                ]
+              ],
+              [
+                "tuple",
+                [
+                  [
+                    "str",
+                    "x"
+                  ],
+                  [
+                    "int",
+                    4
+                  ]
+                ]
+              ],
+              [
+                "tuple",
+                [
+                  [
+                    "str",
+                    "z"
+                  ],
+                  [
+                    "int",
+                    6
+                  ]
+                ]
+              ]
+            ]
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "methods_update_pairs": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "NoneType",
+            null
+          ],
+          [
+            "list",
+            [
+              [
+                "tuple",
+                [
+                  [
+                    "str",
+                    "a"
+                  ],
+                  [
+                    "int",
+                    3
+                  ]
+                ]
+              ],
+              [
+                "tuple",
+                [
+                  [
+                    "str",
+                    "b"
+                  ],
+                  [
+                    "int",
+                    2
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "methods_update_self": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "tuple",
+            [
+              [
+                "str",
+                "a"
+              ],
+              [
+                "list",
+                []
+              ]
+            ]
+          ],
+          [
+            "tuple",
+            [
+              [
+                "str",
+                "b"
+              ],
+              [
+                "int",
+                2
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "methods_update_lazy": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "tuple",
+            [
+              [
+                "str",
+                "a"
+              ],
+              [
+                "int",
+                0
+              ]
+            ]
+          ],
+          [
+            "tuple",
+            [
+              [
+                "str",
+                "b"
+              ],
+              [
+                "int",
+                1
+              ]
+            ]
+          ],
+          [
+            "tuple",
+            [
+              [
+                "str",
+                "c"
+              ],
+              [
+                "int",
+                2
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "methods_update_bad_pair": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "dictionary update sequence element #1 has length 1; 2 is required",
+      "exception_type": "ValueError"
+    },
+    "methods_update_bad_key": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "unhashable type: 'list'",
+      "exception_type": "TypeError"
+    },
+    "methods_update_too_many": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "update expected at most 1 argument, got 2",
+      "exception_type": "TypeError"
+    },
+    "methods_setdefault_reference": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "dict",
+            [
+              [
+                [
+                  "str",
+                  "a"
+                ],
+                [
+                  "list",
+                  [
+                    [
+                      "int",
+                      1
+                    ]
+                  ]
+                ]
+              ],
+              [
+                [
+                  "str",
+                  "b"
+                ],
+                [
+                  "list",
+                  [
+                    [
+                      "int",
+                      2
+                    ]
+                  ]
+                ]
+              ],
+              [
+                [
+                  "str",
+                  "c"
+                ],
+                [
+                  "NoneType",
+                  null
+                ]
+              ]
+            ]
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "NoneType",
+            null
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                1
+              ]
+            ]
+          ]
+        ]
+      ]
+    },
+    "methods_setdefault_bad_key": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "unhashable type: 'list'",
+      "exception_type": "TypeError"
+    },
+    "methods_setdefault_keyword": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "dict.setdefault() takes no keyword arguments",
+      "exception_type": "TypeError"
+    },
+    "methods_reverse_alias": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        [
+          [
+            "NoneType",
+            null
+          ],
+          [
+            "list",
+            [
+              [
+                "int",
+                3
+              ],
+              [
+                "list",
+                []
+              ],
+              [
+                "int",
+                1
+              ]
+            ]
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "methods_reverse_empty": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "list",
+        []
+      ]
+    },
+    "methods_hex_spaces": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "414243444546"
+      ]
+    },
+    "methods_hex_empty": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        ""
+      ]
+    },
+    "methods_hex_upper": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "aabbcc"
+      ]
+    },
+    "methods_hex_instance": {
+      "admission": "accepted",
+      "status_code": 0,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "result": [
+        "str",
+        "41"
+      ]
+    },
+    "methods_hex_odd": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "non-hexadecimal number found in fromhex() arg at position 1",
+      "exception_type": "ValueError"
+    },
+    "methods_hex_split": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "non-hexadecimal number found in fromhex() arg at position 1",
+      "exception_type": "ValueError"
+    },
+    "methods_hex_unicode_space": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "non-hexadecimal number found in fromhex() arg at position 2",
+      "exception_type": "ValueError"
+    },
+    "methods_hex_bad_type": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "fromhex() argument must be str, not bytes",
+      "exception_type": "TypeError"
+    },
+    "methods_hex_keyword": {
+      "admission": "accepted",
+      "status_code": 1,
+      "writes": [
+        "dict",
+        []
+      ],
+      "events": [
+        "list",
+        []
+      ],
+      "diagnostic": "bytes.fromhex() takes no keyword arguments",
+      "exception_type": "TypeError"
     }
   }
 }
