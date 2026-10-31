@@ -67,6 +67,8 @@ mod foreign_storage;
 mod numeric_text;
 #[path = "rounding.rs"]
 mod rounding;
+#[path = "storage_bulk.rs"]
+mod storage_bulk;
 #[path = "interpreter_support.rs"]
 mod support;
 use crate::values::*;
@@ -2489,6 +2491,11 @@ impl VmInstance {
                 mode,
             })));
         }
+        if let VmValue::StorageRef(reference) = &receiver {
+            if matches!(method, "clear" | "clone_from") {
+                return self.hash_bulk_method(reference, method, args, kwargs, host);
+            }
+        }
         if let VmValue::ForeignStorageRef(reference) = &receiver {
             return foreign_storage::call_method(reference, method, args, kwargs, host);
         }
@@ -3619,9 +3626,9 @@ impl VmInstance {
                 snapshot_local: false,
                 dirty_entries: HashSet::new(),
             });
-            if let Some(value) = loaded {
-                foreign.entries.insert(storage_key.clone(), value);
-            }
+            foreign
+                .entries
+                .insert(storage_key.clone(), loaded.unwrap_or(VmValue::None));
             let value = foreign
                 .entries
                 .get(&storage_key)
@@ -3640,6 +3647,11 @@ impl VmInstance {
                 VmExecutionError::new(format!("unknown hash binding '{binding}'"))
             })?;
             state.entries.insert(storage_key.clone(), value.clone());
+            let value = if matches!(value, VmValue::None) {
+                default_value
+            } else {
+                value
+            };
             charge_storage_read(host, &full_storage_key, &value)?;
             return Ok(value);
         }
@@ -3654,12 +3666,15 @@ impl VmInstance {
             let value = state
                 .entries
                 .get(&storage_key)
+                .filter(|value| !matches!(value, VmValue::None))
                 .cloned()
                 .unwrap_or_else(|| state.default_value.clone());
             charge_storage_read(host, &full_storage_key, &value)?;
             return Ok(value);
         }
-        let value = current_entry.unwrap_or(default_value);
+        let value = current_entry
+            .filter(|value| !matches!(value, VmValue::None))
+            .unwrap_or(default_value);
         charge_storage_read(host, &full_storage_key, &value)?;
         Ok(value)
     }
@@ -3670,6 +3685,20 @@ impl VmInstance {
         prefix_args: &[VmValue],
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
+        Ok(VmValue::List(
+            self.hash_entries(binding, prefix_args, host)?
+                .into_iter()
+                .map(|(_, value)| value)
+                .collect(),
+        ))
+    }
+
+    fn hash_entries(
+        &mut self,
+        binding: &str,
+        prefix_args: &[VmValue],
+        host: &mut dyn VmHost,
+    ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
         let module_name = self.module.module_name.clone();
         let prefix = normalize_hash_prefix(prefix_args)?;
         let (scan_contract, scan_binding, state_key) = {
@@ -3718,11 +3747,11 @@ impl VmInstance {
                 continue;
             }
             budget.observe(&key, &value)?;
-            state.entries.insert(key, value.clone());
-            values.push(value);
+            state.entries.insert(key.clone(), value.clone());
+            values.push((key, value));
         }
 
-        Ok(VmValue::List(values))
+        Ok(values)
     }
 
     fn hash_set(

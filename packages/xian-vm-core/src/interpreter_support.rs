@@ -2894,9 +2894,7 @@ pub(super) fn normalize_hash_prefix(values: &[VmValue]) -> Result<String, VmExec
 }
 
 pub(super) fn prefix_matches_hash_entry(storage_key: &str, prefix: &str) -> bool {
-    prefix.is_empty()
-        || storage_key == prefix
-        || storage_key.starts_with(&format!("{prefix}{STORAGE_DELIMITER}"))
+    prefix.is_empty() || storage_key.starts_with(&format!("{prefix}{STORAGE_DELIMITER}"))
 }
 
 pub(super) fn storage_key_part(value: &VmValue) -> Result<String, VmExecutionError> {

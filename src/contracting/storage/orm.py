@@ -274,7 +274,7 @@ class Hash(Datum):
         kvs = self._items(*args)
 
         for k in kvs.keys():
-            self._driver.delete(k)
+            self._driver.set(k, None, True)
 
     def clone_from(self, source):
         assert isinstance(source, Hash), "Hash.clone_from() requires a Hash or ForeignHash source."

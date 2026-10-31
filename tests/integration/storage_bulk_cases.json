@@ -1,0 +1,56 @@
+[
+  {
+    "id": "hash_clear_prefix",
+    "source": "h=Hash()\ng=Hash()\n@export\ndef probe():\n    h['a','one']=1\n    h['a','two']=2\n    h['ab','one']=3\n    h['a']=4\n    h.clear('a')\n    return [h['a','one'], h['a','two'], h['ab','one'],h['a']]\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "hash_clone_local",
+    "source": "h=Hash()\ng=Hash()\n@export\ndef probe():\n    h['a','one']=[1]\n    h['z']=2\n    g['old']=9\n    g.clone_from(h)\n    h['a','one']=[8]\n    return [g['a','one'],g['z'],g['old']]\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "hash_clone_self",
+    "source": "h=Hash()\ng=Hash()\n@export\ndef probe():\n    h['a']=1\n    h['b']=2\n    h.clone_from(h)\n    return [h['a'],h['b']]\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "hash_clone_keyword",
+    "source": "h=Hash()\ng=Hash()\n@export\ndef probe():\n    h['a']=1\n    g.clone_from(source=h)\n    return g['a']\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "hash_clone_reject_variable",
+    "source": "h=Hash()\ng=Variable()\n@export\ndef probe():\n    h['a']=1\n    h.clone_from(g)\n    return h['a']\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "hash_clear_rollback",
+    "source": "h=Hash()\ng=Hash()\n@export\ndef probe():\n    h['a']=1\n    h.clear()\n    raise Exception('rollback')\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "hash_clone_rollback",
+    "source": "h=Hash()\ng=Hash()\n@export\ndef probe():\n    h['a']=1\n    g.clone_from(h)\n    raise Exception('rollback')\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "hash_clone_static",
+    "source": "h=Hash()\ng=Hash()\nforeign=ForeignHash(foreign_contract='conformance_hash_clone_static', foreign_name='h')\n@export\ndef probe():\n    h['a']=1\n    h['deleted']=None\n    g['old']=9\n    g.clone_from(foreign)\n    return [g['a'],g['deleted'],g['old']]\n",
+    "function_name": "probe",
+    "kwargs": {}
+  },
+  {
+    "id": "hash_clone_dynamic",
+    "source": "h=Hash()\ng=Hash()\n@export\ndef probe():\n    h['a']=1\n    h['deleted']=None\n    g['old']=9\n    foreign=ForeignHash(foreign_contract=ctx.this, foreign_name='h')\n    g.clone_from(foreign)\n    return [g['a'],g['deleted'],g['old']]\n",
+    "function_name": "probe",
+    "kwargs": {}
+  }
+]
