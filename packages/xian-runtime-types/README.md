@@ -72,6 +72,19 @@ most 2,896 members; nesting and multiple wrapper roots share that work budget.
 Legacy decoding shares the same budget across object-hook constructions without
 counting an already reconstructed nested wrapper twice.
 
+Before serialization, `encode`, `Encoder` and `validate_persistent_value` also
+bound the ordinary value tree to depth 128 (root depth zero) and 1,048,576
+visited values. Dictionary keys and values count separately, and repeated
+references count at each occurrence. Wrapper sets use the separate member
+limits above. This validation rejects cycles, non-finite numbers and reserved
+dictionary tags even when a payload contains no sets. SDK transaction kwargs
+that use this encoder receive the same checks before signing.
+
+These serializer ceilings do not guarantee node acceptance. The node checks
+depth 128 on the complete transaction JSON, including its outer envelope; the
+VM independently bounds external values to depth 128 and 131,072 visited
+values. Transaction sizes, execution budgets and storage limits also apply.
+
 Legacy list-shaped set envelopes remain readable. Arrays that occur as legacy
 set members are restored recursively as tuples; ordinary JSON arrays elsewhere
 remain lists. Legacy `__fixed__` values retain their historical fixed type because
