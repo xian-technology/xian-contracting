@@ -1,16 +1,26 @@
 import hashlib
 from types import ModuleType
 
+from contracting.stdlib.bridge.crypto_resources import (
+    HEX_LIMIT,
+    TEXT_LIMIT,
+    check_size,
+    legacy_hex_length,
+    utf8_size,
+)
+
 _HEX_CHARS = frozenset("0123456789abcdefABCDEF")
 
 
 def _text_bytes(value: str) -> bytes:
     assert isinstance(value, str), "hash text input must be a string"
+    utf8_size(value, TEXT_LIMIT, "hash text input")
     return value.encode("utf-8")
 
 
 def _strict_hex_bytes(value: str) -> bytes:
     assert isinstance(value, str), "hash hex input must be a string"
+    utf8_size(value, HEX_LIMIT, "hash input")
     assert len(value) % 2 == 0, "hash hex input must contain whole bytes"
     assert all(char in _HEX_CHARS for char in value), (
         "hash hex input must be unprefixed hexadecimal"
@@ -67,10 +77,13 @@ def _legacy_bytes(value: str) -> bytes:
     # between whole bytes. The explicit *_text / *_hex APIs stay unambiguous.
     if not isinstance(value, str):
         raise TypeError("hash input must be a string")
-    try:
+    size = utf8_size(value, HEX_LIMIT, "hash input")
+    decoded_length = legacy_hex_length(value)
+    if decoded_length is not None:
+        check_size(decoded_length, TEXT_LIMIT, "decoded hash input")
         return bytes.fromhex(value)
-    except ValueError:
-        return value.encode("utf-8")
+    check_size(size, TEXT_LIMIT, "hash text input")
+    return value.encode("utf-8")
 
 
 def sha256(hex_str: str):
