@@ -744,6 +744,7 @@ pub enum VmValue {
     EventRef(Box<VmEventDefinition>),
     BoundMethod(Box<crate::VmBoundMethod>),
     MappingProxy(Box<VmValue>),
+    HostCallable(crate::VmHostCallable),
     Builtin(String),
     FunctionRef(String),
     TypeMarker(String),
@@ -751,8 +752,12 @@ pub enum VmValue {
 }
 
 impl VmValue {
+    pub(crate) fn external_value(&self) -> Result<Self, VmExecutionError> {
+        crate::heap::validate_external_values(std::iter::once(self))?;
+        self.detached()
+    }
     pub(crate) fn storage_value(&self) -> Result<Self, VmExecutionError> {
-        let detached = self.detached()?;
+        let detached = self.external_value()?;
         // Persistence eligibility cannot depend on whether chi metering is on.
         detached.validate_storage_payload()?;
         match detached {
@@ -768,7 +773,8 @@ impl VmValue {
             }
             Self::List(values)
             | Self::Tuple(values)
-            | Self::Set(values) | Self::BuiltinSet(values)
+            | Self::Set(values)
+            | Self::BuiltinSet(values)
             | Self::FrozenSet(values) => {
                 for value in values {
                     value.validate_storage_payload()?;
@@ -814,13 +820,16 @@ impl VmValue {
             Self::TimeDelta(value) => value.seconds() != 0,
             Self::String(value) => !value.is_empty(),
             Self::Bytes(value) | Self::ByteArray(value) => !value.is_empty(),
-            Self::Set(values) | Self::BuiltinSet(values) | Self::FrozenSet(values) => !values.is_empty(),
+            Self::Set(values) | Self::BuiltinSet(values) | Self::FrozenSet(values) => {
+                !values.is_empty()
+            }
             Self::List(values) | Self::Tuple(values) => !values.is_empty(),
             Self::Dict(entries) => !entries.is_empty(),
             Self::ContractHandle(_)
             | Self::StorageRef(_)
             | Self::ForeignStorageRef(_)
             | Self::EventRef(_)
+            | Self::HostCallable(_)
             | Self::Builtin(_)
             | Self::FunctionRef(_)
             | Self::TypeMarker(_)
@@ -896,6 +905,7 @@ impl VmValue {
                 bound.method
             ),
             Self::MappingProxy(value) => format!("mappingproxy({})", value.python_repr()),
+            Self::HostCallable(callable) => format!("<host callable {}>", callable.binding()),
             Self::Builtin(name) => format!("<builtin:{name}>"),
             Self::FunctionRef(name) => format!("<function:{name}>"),
             Self::TypeMarker(name) => name.clone(),
@@ -990,6 +1000,7 @@ impl VmValue {
             Self::EventRef(_) => "event_ref",
             Self::BoundMethod(_) => "bound_method",
             Self::MappingProxy(_) => "mappingproxy",
+            Self::HostCallable(_) => "host_callable",
             Self::Builtin(_) => "builtin",
             Self::FunctionRef(_) => "function_ref",
             Self::TypeMarker(_) => "type_marker",

@@ -535,9 +535,11 @@ fn sequence_item(
 
 fn item(value: &VmValue, index: usize, expected_size: Option<usize>) -> Result<Option<VmValue>> {
     let (length, result) = match value {
-        VmValue::List(v) | VmValue::Tuple(v) | VmValue::Set(v) | VmValue::BuiltinSet(v) | VmValue::FrozenSet(v) => {
-            (v.len(), v.get(index).cloned())
-        }
+        VmValue::List(v)
+        | VmValue::Tuple(v)
+        | VmValue::Set(v)
+        | VmValue::BuiltinSet(v)
+        | VmValue::FrozenSet(v) => (v.len(), v.get(index).cloned()),
         VmValue::Dict(v) => (v.len(), v.get(index).map(|(key, _)| key.clone())),
         VmValue::Bytes(v) | VmValue::ByteArray(v) => (
             v.len(),

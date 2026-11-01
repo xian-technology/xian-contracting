@@ -26,25 +26,6 @@ impl VmInstance {
             "storage.foreign_variable.new" => {
                 foreign_storage::new_reference("ForeignVariable", args, kwargs)
             }
-            "numeric.decimal.new" => {
-                if !kwargs.is_empty() || args.len() != 1 {
-                    return Err(VmExecutionError::new("decimal() expects one argument"));
-                }
-                Ok(VmValue::Decimal(VmDecimal::from_vm_value(
-                    args.first().expect("decimal() argument should exist"),
-                )?))
-            }
-            "time.datetime.new" => time_datetime_new(args, kwargs),
-            "time.datetime.strptime" => time_datetime_strptime(args, kwargs, host),
-            "time.timedelta.new" => time_timedelta_new(args, kwargs),
-            "hash.sha3_256_text" => hash_sha3_256_text(args, kwargs),
-            "hash.sha3_256_hex" => hash_sha3_256_hex(args, kwargs),
-            "hash.sha256_legacy" => hash_legacy(false, args, kwargs),
-            "hash.sha3_256_legacy" => hash_legacy(true, args, kwargs),
-            "hash.sha256_text" => hash_sha256_text(args, kwargs),
-            "hash.sha256_hex" => hash_sha256_hex(args, kwargs),
-            "crypto.ed25519_verify" => crypto_ed25519_verify(args, kwargs),
-            "crypto.key_is_valid" => crypto_key_is_valid(args, kwargs),
             "storage.variable.get" => {
                 host.charge_execution_cost(VM_GAS_VARIABLE_GET)?;
                 let binding = required_string(object, "receiver_binding")?;
@@ -61,14 +42,6 @@ impl VmInstance {
                 let binding = required_string(object, "receiver_binding")?;
                 self.hash_all(binding, &args, host)
             }
-            "contract.import" => {
-                let module = resolve_contract_import_arg(&args, &kwargs)?;
-                Ok(VmValue::ContractHandle(VmContractHandle {
-                    module,
-                    origin: "dynamic_import".to_owned(),
-                }))
-            }
-            "contract.call" => self.syscall_contract_call(args, kwargs, host),
             "event.log.emit" => self.syscall_emit_event(object, args, kwargs, host),
             "contract.export_call" => {
                 let function_name = required_string(object, "function_name")?;
@@ -90,6 +63,52 @@ impl VmInstance {
                     chain_id: self.context.chain_id.clone(),
                 })
             }
+            _ => self.dispatch_host_syscall(syscall_id, shared_args, shared_kwargs, host),
+        }
+    }
+
+    pub(super) fn dispatch_host_syscall(
+        &mut self,
+        syscall_id: &str,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+        host: &mut dyn VmHost,
+    ) -> Result<VmValue, VmExecutionError> {
+        let shared_args = args.clone();
+        let shared_kwargs = kwargs.clone();
+        let args = args.iter().map(VmValue::snapshot).collect::<Vec<_>>();
+        let kwargs = kwargs
+            .into_iter()
+            .map(|(k, v)| (k, v.snapshot()))
+            .collect::<Vec<_>>();
+        match syscall_id {
+            "numeric.decimal.new" => {
+                if !kwargs.is_empty() || args.len() != 1 {
+                    return Err(VmExecutionError::new("decimal() expects one argument"));
+                }
+                Ok(VmValue::Decimal(VmDecimal::from_vm_value(
+                    args.first().expect("decimal() argument should exist"),
+                )?))
+            }
+            "time.datetime.new" => time_datetime_new(args, kwargs),
+            "time.datetime.strptime" => time_datetime_strptime(args, kwargs, host),
+            "time.timedelta.new" => time_timedelta_new(args, kwargs),
+            "hash.sha3_256_text" => hash_sha3_256_text(args, kwargs),
+            "hash.sha3_256_hex" => hash_sha3_256_hex(args, kwargs),
+            "hash.sha256_legacy" => hash_legacy(false, args, kwargs),
+            "hash.sha3_256_legacy" => hash_legacy(true, args, kwargs),
+            "hash.sha256_text" => hash_sha256_text(args, kwargs),
+            "hash.sha256_hex" => hash_sha256_hex(args, kwargs),
+            "crypto.ed25519_verify" => crypto_ed25519_verify(args, kwargs),
+            "crypto.key_is_valid" => crypto_key_is_valid(args, kwargs),
+            "contract.import" => {
+                let module = resolve_contract_import_arg(&args, &kwargs)?;
+                Ok(VmValue::ContractHandle(VmContractHandle {
+                    module,
+                    origin: "dynamic_import".to_owned(),
+                }))
+            }
+            "contract.call" => self.syscall_contract_call(args, kwargs, host),
             "event.indexed" => {
                 let type_value = if args.len() == 1 {
                     coerce_type_marker(args[0].clone())
@@ -120,16 +139,8 @@ impl VmInstance {
                 if let Some(cost) = explicit_syscall_metering_cost(other, &args, &kwargs)? {
                     host.charge_execution_cost(cost)?;
                 }
-                host.handle_syscall(
-                    other,
-                    args.iter()
-                        .map(VmValue::detached)
-                        .collect::<Result<_, _>>()?,
-                    kwargs
-                        .into_iter()
-                        .map(|(k, v)| Ok((k, v.detached()?)))
-                        .collect::<Result<_, VmExecutionError>>()?,
-                )
+                let (args, kwargs) = host_callables::host_arguments(other, args, kwargs)?;
+                host.handle_syscall(other, args, kwargs)
             }
         }
     }

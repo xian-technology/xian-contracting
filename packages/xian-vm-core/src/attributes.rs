@@ -19,6 +19,9 @@ impl VmInstance {
                 "private attributes are not available to contracts",
             ));
         }
+        if let Some(result) = self.host_callable_attribute(&value, name, _host) {
+            return result;
+        }
         if method_signatures::supports(&value, name) {
             return Ok(VmValue::BoundMethod(Box::new(VmBoundMethod {
                 receiver: value,

@@ -173,10 +173,10 @@ impl VmHeap {
             VmValue::Reference(_)
                 | VmValue::None
                 | VmValue::Bool(_)
+                | VmValue::HostCallable(_)
                 | VmValue::Builtin(_)
                 | VmValue::FunctionRef(_)
                 | VmValue::TypeMarker(_)
-                | VmValue::ContractHandle(_)
                 | VmValue::StorageRef(_)
                 | VmValue::ForeignStorageRef(_)
                 | VmValue::EventRef(_)
@@ -258,13 +258,16 @@ fn immutable_depth(value: &VmValue) -> usize {
 fn shallow_bytes(value: &VmValue) -> usize {
     let base = std::mem::size_of::<Object>();
     base + match value {
-        VmValue::List(v) | VmValue::Tuple(v) | VmValue::Set(v) | VmValue::BuiltinSet(v) | VmValue::FrozenSet(v) => {
-            v.len() * std::mem::size_of::<VmValue>()
-        }
+        VmValue::List(v)
+        | VmValue::Tuple(v)
+        | VmValue::Set(v)
+        | VmValue::BuiltinSet(v)
+        | VmValue::FrozenSet(v) => v.len() * std::mem::size_of::<VmValue>(),
         VmValue::Dict(v) => {
             v.len() * (std::mem::size_of::<(VmValue, VmValue)>() + std::mem::size_of::<usize>())
         }
         VmValue::DecimalTuple(v) => v.allocation_bytes(),
+        VmValue::ContractHandle(v) => v.module.len() + v.origin.len(),
         VmValue::String(v) => v.len(),
         VmValue::Bytes(v) | VmValue::ByteArray(v) => v.len(),
         VmValue::Int(v) => v.bits().div_ceil(8) as usize,
@@ -341,6 +344,7 @@ impl VmValue {
     pub(crate) fn identical(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Reference(left), Self::Reference(right)) => left == right,
+            (Self::HostCallable(left), Self::HostCallable(right)) => left == right,
             (Self::None, Self::None) => true,
             (Self::Bool(left), Self::Bool(right)) => left == right,
             (Self::Builtin(left), Self::Builtin(right))
@@ -377,7 +381,9 @@ fn detach(
         }
     }
     if matches!(value.snapshot(), VmValue::BuiltinSet(_)) {
-        return Err(VmExecutionError::new("builtin sets cannot cross the VM boundary; convert with set() first"));
+        return Err(VmExecutionError::new(
+            "builtin sets cannot cross the VM boundary; convert with set() first",
+        ));
     }
     if matches!(value.snapshot(), VmValue::BoundMethod(_)) {
         return Err(VmExecutionError::new(
@@ -389,7 +395,9 @@ fn detach(
             "mapping proxies cannot cross the VM boundary; copy them first",
         ));
     }
-    if let Some(kind) = execution_local_capability(&value.snapshot()) {
+    if let Some(kind) =
+        execution_local_capability(&value.snapshot()).filter(|kind| *kind != "callables")
+    {
         return Err(VmExecutionError::new(format!(
             "{kind} cannot cross the VM boundary"
         )));
@@ -509,6 +517,8 @@ mod tests {
 
 fn execution_local_capability(value: &VmValue) -> Option<&'static str> {
     match value {
+        VmValue::HostCallable(_) => Some("host callables"),
+        VmValue::Builtin(_) | VmValue::TypeMarker(_) => Some("callables"),
         VmValue::BoundMethod(_) => Some("bound methods"),
         VmValue::MappingProxy(_) => Some("mapping proxies"),
         VmValue::StorageRef(_) => Some("global storage references"),
@@ -523,9 +533,21 @@ fn execution_local_capability(value: &VmValue) -> Option<&'static str> {
 pub(crate) fn validate_contract_values<'a>(
     values: impl Iterator<Item = &'a VmValue>,
 ) -> Result<(), VmExecutionError> {
+    validate_boundary_values(values, "contract boundaries")
+}
+pub(crate) fn validate_external_values<'a>(
+    values: impl Iterator<Item = &'a VmValue>,
+) -> Result<(), VmExecutionError> {
+    validate_boundary_values(values, "the VM boundary")
+}
+fn validate_boundary_values<'a>(
+    values: impl Iterator<Item = &'a VmValue>,
+    boundary: &'static str,
+) -> Result<(), VmExecutionError> {
     let mut visitor = ContractValueVisitor {
         seen: HashSet::new(),
         nodes: 0,
+        boundary,
     };
     for value in values {
         visitor.visit(value, 0)?;
@@ -533,6 +555,7 @@ pub(crate) fn validate_contract_values<'a>(
     Ok(())
 }
 struct ContractValueVisitor {
+    boundary: &'static str,
     seen: HashSet<usize>,
     nodes: usize,
 }
@@ -555,7 +578,8 @@ impl ContractValueVisitor {
     fn contents(&mut self, value: &VmValue, depth: usize) -> Result<(), VmExecutionError> {
         if let Some(kind) = execution_local_capability(value) {
             return Err(VmExecutionError::new(format!(
-                "{kind} cannot cross contract boundaries"
+                "{kind} cannot cross {}",
+                self.boundary
             )));
         }
         match value {
@@ -568,7 +592,8 @@ impl ContractValueVisitor {
             }
             VmValue::List(items)
             | VmValue::Tuple(items)
-            | VmValue::Set(items) | VmValue::BuiltinSet(items)
+            | VmValue::Set(items)
+            | VmValue::BuiltinSet(items)
             | VmValue::FrozenSet(items) => self.items(items, depth),
             VmValue::Exception(exception) => self.items(&exception.args, depth),
             VmValue::DecimalTuple(tuple) => self.items(&tuple.as_values(), depth),

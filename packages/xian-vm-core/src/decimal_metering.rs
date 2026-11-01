@@ -105,7 +105,8 @@ impl Walker {
         match value {
             VmValue::List(values)
             | VmValue::Tuple(values)
-            | VmValue::Set(values) | VmValue::BuiltinSet(values)
+            | VmValue::Set(values)
+            | VmValue::BuiltinSet(values)
             | VmValue::FrozenSet(values) => profile.add(self.values(values, depth + 1)?),
             VmValue::DecimalTuple(value) => profile.add(self.values(value.fields(), depth + 1)?),
             VmValue::Dict(entries) => {

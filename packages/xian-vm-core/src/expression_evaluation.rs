@@ -305,11 +305,20 @@ impl VmInstance {
         if self.functions.contains_key(id) {
             return Ok(VmValue::FunctionRef(id.to_owned()));
         }
+        if id == "Contract" {
+            return Ok(VmValue::Builtin("Contract".into()));
+        }
         if let Some(builtin) = builtin_name_value(id) {
             return Ok(builtin);
         }
         if let Some(host_binding_id) = optional_string(object, "host_binding_id") {
             return self.resolve_host_binding(host_binding_id);
+        }
+        if let Some(module) = self.imports.get(id) {
+            return Ok(VmValue::ContractHandle(VmContractHandle {
+                module: module.clone(),
+                origin: "static_import".into(),
+            }));
         }
         Err(VmExecutionError::new(format!("unknown name '{id}'")))
     }
@@ -352,6 +361,15 @@ impl VmInstance {
     ) -> Result<VmValue, VmExecutionError> {
         if let Some(host_binding_id) = optional_string(object, "host_binding_id") {
             if !self.host_binding_root_is_shadowed(object, scope)? {
+                let member = required_string(object, "attr")?;
+                if let Some(callable) = VmHostCallable::for_syscall(host_binding_id, Some(member)) {
+                    if !matches!(
+                        host_binding_id,
+                        "time.datetime.new" | "time.timedelta.new" | "time.datetime.strptime"
+                    ) {
+                        return Ok(callable.value());
+                    }
+                }
                 return self.resolve_host_binding(host_binding_id);
             }
         }

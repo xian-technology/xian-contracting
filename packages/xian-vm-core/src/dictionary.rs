@@ -11,6 +11,8 @@ fn check_key(key: &VmValue) -> Result<(), VmExecutionError> {
         | VmValue::String(_)
         | VmValue::Bytes(_)
         | VmValue::FrozenSet(_)
+        | VmValue::ContractHandle(_)
+        | VmValue::HostCallable(_)
         | VmValue::Builtin(_)
         | VmValue::BoundMethod(_)
         | VmValue::FunctionRef(_)

@@ -1,7 +1,7 @@
-#[path = "set_kinds.rs"]
-pub(in crate::interpreter) mod set_kinds;
 #[path = "native_methods.rs"]
 mod native_methods;
+#[path = "set_kinds.rs"]
+pub(in crate::interpreter) mod set_kinds;
 pub(super) use native_methods::binary_methods;
 pub(super) use native_methods::call_native_method_collected;
 #[cfg(test)]
@@ -386,10 +386,15 @@ pub(super) fn normalize_set_items(values: Vec<VmValue>) -> Result<Vec<VmValue>, 
 }
 
 /// Insert into an already canonical set without re-normalizing every pair.
-pub(super) fn set_insert_value(values: &mut Vec<VmValue>, value: VmValue) -> Result<(), VmExecutionError> {
+pub(super) fn set_insert_value(
+    values: &mut Vec<VmValue>,
+    value: VmValue,
+) -> Result<(), VmExecutionError> {
     let key = vm_set_key(&value)?;
     if let Some(index) = equal_position(values.iter(), &value)? {
-        if key >= vm_set_key(&values[index])? { return Ok(()); }
+        if key >= vm_set_key(&values[index])? {
+            return Ok(());
+        }
         values.remove(index);
     }
     if values.len() >= MAX_SEQUENCE_LENGTH {
@@ -402,7 +407,9 @@ pub(super) fn set_insert_value(values: &mut Vec<VmValue>, value: VmValue) -> Res
 
 fn set_insertion_position(values: &[VmValue], key: &VmSetKey) -> Result<usize, VmExecutionError> {
     for (index, existing) in values.iter().enumerate() {
-        if vm_set_key(existing)? > *key { return Ok(index); }
+        if vm_set_key(existing)? > *key {
+            return Ok(index);
+        }
     }
     Ok(values.len())
 }
@@ -456,7 +463,10 @@ fn vm_set_key(value: &VmValue) -> Result<VmSetKey, VmExecutionError> {
     }
 }
 
-pub(super) fn set_contains_value(values: &[VmValue], needle: &VmValue) -> Result<bool, VmExecutionError> {
+pub(super) fn set_contains_value(
+    values: &[VmValue],
+    needle: &VmValue,
+) -> Result<bool, VmExecutionError> {
     for value in values {
         if vm_values_equal(value, needle)? {
             return Ok(true);
@@ -465,7 +475,10 @@ pub(super) fn set_contains_value(values: &[VmValue], needle: &VmValue) -> Result
     Ok(false)
 }
 
-pub(super) fn set_values_equal(left: &[VmValue], right: &[VmValue]) -> Result<bool, VmExecutionError> {
+pub(super) fn set_values_equal(
+    left: &[VmValue],
+    right: &[VmValue],
+) -> Result<bool, VmExecutionError> {
     if left.len() != right.len() {
         return Ok(false);
     }
@@ -929,7 +942,11 @@ pub(super) fn apply_inplace_operator(
     if let VmValue::Reference(reference) = &left {
         if matches!(
             result,
-            VmValue::List(_) | VmValue::Dict(_) | VmValue::Set(_) | VmValue::BuiltinSet(_) | VmValue::ByteArray(_)
+            VmValue::List(_)
+                | VmValue::Dict(_)
+                | VmValue::Set(_)
+                | VmValue::BuiltinSet(_)
+                | VmValue::ByteArray(_)
         ) {
             reference.replace(result)?;
             return Ok(left);
@@ -1645,7 +1662,9 @@ fn vm_values_equal_at(
     if let VmValue::MappingProxy(mapping) = right.snapshot() {
         return vm_values_equal_at(left, &mapping, depth + 1);
     }
-    if let Some(result) = mapping_views::compare("eq", left, right) { return result; }
+    if let Some(result) = mapping_views::compare("eq", left, right) {
+        return result;
+    }
     let left = &tuple_equivalent(left.snapshot());
     let right = &tuple_equivalent(right.snapshot());
     if let Some(equal) = nan_equality(left, right)? {
@@ -1656,6 +1675,7 @@ fn vm_values_equal_at(
     }
 
     match (left, right) {
+        (VmValue::ContractHandle(_), _) | (_, VmValue::ContractHandle(_)) => Ok(false),
         (VmValue::Iterator(_), _) | (_, VmValue::Iterator(_)) => Ok(false),
         (VmValue::Range(left), VmValue::Range(right)) => Ok(left.equivalent(right)),
         (VmValue::BuiltinSet(left), VmValue::BuiltinSet(right)) => set_values_equal(left, right),
@@ -1727,7 +1747,9 @@ pub(super) fn contains_value(
             ))),
         },
         VmValue::BuiltinSet(values) => {
-            if matches!(needle.snapshot(), VmValue::BuiltinSet(_)) { return Ok(false); }
+            if matches!(needle.snapshot(), VmValue::BuiltinSet(_)) {
+                return Ok(false);
+            }
             vm_set_key(&needle.snapshot())?;
             set_contains_value(values, needle)
         }

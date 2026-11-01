@@ -106,7 +106,7 @@ impl PythonBundleExecutor {
             self.meter.begin_contract_metering(entry_module);
             let result = self
                 .execute_call(entry_module, function_name, args, kwargs, context)?
-                .detached()?;
+                .external_value()?;
             self.meter.charge_return_value(&result)?;
             Ok(result)
         })();
@@ -479,6 +479,14 @@ impl VmHost for PythonBundleExecutor {
                     .map_err(|error| VmExecutionError::new(error.to_string()))
             }
         })
+    }
+
+    fn validate_contract_export(
+        &mut self,
+        contract: &str,
+        function: &str,
+    ) -> Result<(), VmExecutionError> {
+        self.ensure_exported_function(contract, function)
     }
 
     fn call_contract_shared(&mut self, call: VmContractCall) -> Result<VmValue, VmExecutionError> {
@@ -861,7 +869,9 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
         VmValue::String(value) => Ok(value.clone().into_pyobject(py)?.into_any().unbind()),
         VmValue::Bytes(value) => Ok(PyBytes::new(py, value).into_any().unbind()),
         VmValue::ByteArray(value) => Ok(PyByteArray::new(py, value).into_any().unbind()),
-        VmValue::BuiltinSet(_) => Err(PyValueError::new_err("builtin sets cannot cross the VM boundary; convert with set() first")),
+        VmValue::BuiltinSet(_) => Err(PyValueError::new_err(
+            "builtin sets cannot cross the VM boundary; convert with set() first",
+        )),
         VmValue::Set(values) => {
             let module = PyModule::import(py, "xian_runtime_types.collections")?;
             let list = PyList::empty(py);

@@ -62,12 +62,15 @@ const VM_GAS_EXPR_FORMATTED_VALUE: u64 = 96;
 #[path = "attributes.rs"]
 mod attributes;
 pub use attributes::VmBoundMethod;
+#[path = "host_callables.rs"]
+mod host_callables;
+pub use host_callables::VmHostCallable;
 #[path = "builtin_collections.rs"]
 mod builtin_collections;
-#[path = "builtin_set_methods.rs"]
-mod builtin_set_methods;
 #[path = "builtin_dispatch.rs"]
 mod builtin_dispatch;
+#[path = "builtin_set_methods.rs"]
+mod builtin_set_methods;
 #[path = "call_dispatch.rs"]
 mod call_dispatch;
 #[path = "collection_methods.rs"]
@@ -714,6 +717,11 @@ pub trait VmHost {
         &mut self,
         mut call: VmContractCall,
     ) -> Result<VmValue, VmExecutionError> {
+        crate::heap::validate_contract_values(
+            call.args
+                .iter()
+                .chain(call.kwargs.iter().map(|(_, value)| value)),
+        )?;
         call.args = call
             .args
             .iter()
@@ -724,7 +732,31 @@ pub trait VmHost {
             .into_iter()
             .map(|(k, v)| Ok((k, v.detached()?)))
             .collect::<Result<_, VmExecutionError>>()?;
-        self.call_contract(call)
+        let result = self.call_contract(call)?;
+        crate::heap::validate_contract_values(std::iter::once(&result))?;
+        Ok(result)
+    }
+
+    fn validate_contract_export(
+        &mut self,
+        contract: &str,
+        function: &str,
+    ) -> Result<(), VmExecutionError> {
+        let result = self.handle_syscall(
+            "contract.has_export",
+            vec![
+                VmValue::String(contract.into()),
+                VmValue::String(function.into()),
+            ],
+            vec![],
+        )?;
+        if result == VmValue::Bool(true) {
+            Ok(())
+        } else {
+            Err(VmExecutionError::new(format!(
+                "contract has no public export '{function}'"
+            )))
+        }
     }
 
     fn call_contract(&mut self, call: VmContractCall) -> Result<VmValue, VmExecutionError> {
@@ -818,6 +850,7 @@ pub struct VmInstance {
     functions: HashMap<String, FunctionIr>,
     function_defaults: HashMap<(String, String), VmValue>,
     imports: HashMap<String, String>,
+    contract_exports: HashMap<(usize, String), VmValue>,
     globals: HashMap<String, VmValue>,
     variables: HashMap<String, VariableState>,
     hashes: HashMap<String, HashState>,
@@ -865,6 +898,7 @@ impl VmInstance {
             functions: HashMap::new(),
             function_defaults: HashMap::new(),
             imports,
+            contract_exports: HashMap::new(),
             globals: HashMap::new(),
             variables: HashMap::new(),
             hashes: HashMap::new(),
@@ -878,10 +912,12 @@ impl VmInstance {
         for (binding, module) in instance.imports.clone() {
             instance.globals.insert(
                 binding,
-                VmValue::ContractHandle(VmContractHandle {
-                    module,
-                    origin: "static_import".to_owned(),
-                }),
+                instance
+                    .heap
+                    .capture(VmValue::ContractHandle(VmContractHandle {
+                        module,
+                        origin: "static_import".to_owned(),
+                    }))?,
             );
         }
 
@@ -1140,7 +1176,7 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
         self.call_function_shared(host, name, args, kwargs)?
-            .detached()
+            .external_value()
     }
 
     pub(crate) fn call_function_shared(
@@ -1372,9 +1408,30 @@ impl VmInstance {
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
+        if host_callables::callback_needs_dispatch_charge(&callee) {
+            host.charge_execution_cost(VM_GAS_CALL_DISPATCH)?;
+        }
+        self.call_expression_callable_value(host, callee, args, kwargs)
+    }
+    fn call_expression_callable_value(
+        &mut self,
+        host: &mut dyn VmHost,
+        callee: VmValue,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+    ) -> Result<VmValue, VmExecutionError> {
         match callee.snapshot() {
             VmValue::BoundMethod(bound) => {
                 self.call_receiver(bound.receiver, &bound.method, args, kwargs, host)
+            }
+            VmValue::HostCallable(callable) => {
+                self.call_host_callable(callable, args, kwargs, host)
+            }
+            VmValue::TypeMarker(name) => {
+                let callable = VmHostCallable::named(&name).ok_or_else(|| {
+                    VmExecutionError::new(format!("{name} is not an instantiable constructor"))
+                })?;
+                self.call_host_callable(callable, args, kwargs, host)
             }
             VmValue::Builtin(name) => self.call_builtin(host, &name, args, kwargs),
             VmValue::FunctionRef(name) => self.call_named_function(host, &name, args, kwargs),
@@ -2474,6 +2531,190 @@ mod tests {
     }
 
     #[test]
+    fn host_callbacks_pay_dispatch_once_without_changing_expression_costs() {
+        let mut instance = empty_test_instance("con_callback_cost");
+        let callable = VmHostCallable::named("hashlib.sha256_text")
+            .unwrap()
+            .value();
+        let mut host = AssignmentMeteringHost::default();
+        for _ in 0..2 {
+            let result = instance
+                .call_callable_value(
+                    &mut host,
+                    callable.clone(),
+                    vec![VmValue::String("abc".into())],
+                    vec![],
+                )
+                .unwrap();
+            assert_eq!(
+                result,
+                VmValue::String(
+                    "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".into()
+                )
+            );
+        }
+        assert_eq!(host.execution_costs, vec![5000, 5000]);
+        instance
+            .call_expression_callable_value(
+                &mut host,
+                callable.clone(),
+                vec![VmValue::String("abc".into())],
+                vec![],
+            )
+            .unwrap();
+        assert_eq!(host.execution_costs, vec![5000, 5000]);
+        let mut limited = AssignmentMeteringHost {
+            budget: Some(4999),
+            ..Default::default()
+        };
+        assert!(instance
+            .call_callable_value(
+                &mut limited,
+                callable,
+                vec![VmValue::String("abc".into())],
+                vec![]
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn contract_export_callback_budget_fails_before_invoking_host() {
+        let mut instance = empty_test_instance("con_export_budget");
+        let callback = VmValue::BoundMethod(Box::new(VmBoundMethod {
+            receiver: VmValue::ContractHandle(VmContractHandle {
+                module: "con_target".into(),
+                origin: "dynamic_import".into(),
+            }),
+            method: "probe".into(),
+        }));
+        let mut host = AssignmentMeteringHost {
+            budget: Some(4999),
+            ..Default::default()
+        };
+        let error = instance
+            .call_callable_value(&mut host, callback, vec![], vec![])
+            .unwrap_err();
+        assert_eq!(error.to_string(), "Out of chi.");
+        assert_eq!(host.execution_costs, vec![5000]);
+    }
+
+    #[test]
+    fn host_callable_classes_and_legacy_callbacks_preserve_metering() {
+        #[derive(Default)]
+        struct CallbackHost {
+            costs: Vec<u64>,
+        }
+        impl VmHost for CallbackHost {
+            fn charge_execution_cost(&mut self, cost: u64) -> Result<(), VmExecutionError> {
+                self.costs.push(cost);
+                Ok(())
+            }
+            fn handle_syscall(
+                &mut self,
+                name: &str,
+                _args: Vec<VmValue>,
+                _kwargs: Vec<(String, VmValue)>,
+            ) -> Result<VmValue, VmExecutionError> {
+                assert_eq!(name, "contract.info");
+                Ok(VmValue::Dict(vec![]))
+            }
+        }
+        let mut instance = empty_test_instance("con_callable_meter");
+        let cases = [
+            (
+                VmHostCallable::named("Contract.get_info").unwrap().value(),
+                vec![VmValue::String("con_target".into())],
+            ),
+            (
+                VmValue::TypeMarker("decimal".into()),
+                vec![VmValue::String("1".into())],
+            ),
+            (
+                VmValue::BoundMethod(Box::new(VmBoundMethod {
+                    receiver: VmValue::TypeMarker("datetime.datetime".into()),
+                    method: "strptime".into(),
+                })),
+                vec![VmValue::String("2026".into()), VmValue::String("%Y".into())],
+            ),
+        ];
+        for (callable, args) in cases {
+            let mut host = CallbackHost::default();
+            instance
+                .call_callable_value(&mut host, callable, args, vec![])
+                .unwrap();
+            assert_eq!(host.costs.first(), Some(&5000));
+        }
+        for (callable, args, expected) in [
+            (VmValue::Builtin("abs".into()), vec![vm_int(-1)], vm_int(1)),
+            (
+                VmValue::BoundMethod(Box::new(VmBoundMethod {
+                    receiver: VmValue::String("AB".into()),
+                    method: "lower".into(),
+                })),
+                vec![],
+                VmValue::String("ab".into()),
+            ),
+        ] {
+            let mut host = CallbackHost::default();
+            assert_eq!(
+                instance
+                    .call_callable_value(&mut host, callable, args, vec![])
+                    .unwrap(),
+                expected
+            );
+            assert!(host.costs.is_empty());
+        }
+        let mut host = CallbackHost::default();
+        let hour = instance
+            .read_attribute(VmValue::Builtin("datetime".into()), "HOURS", &mut host)
+            .unwrap();
+        assert_eq!(
+            hour,
+            VmValue::TimeDelta(VmTimeDelta::new(0, 0, 1, 0, 0).unwrap())
+        );
+    }
+
+    #[test]
+    fn default_host_rejects_capabilities_in_nested_results() {
+        struct ReturningHost(VmValue);
+        impl VmHost for ReturningHost {
+            fn call_contract(
+                &mut self,
+                _call: VmContractCall,
+            ) -> Result<VmValue, VmExecutionError> {
+                Ok(self.0.clone())
+            }
+        }
+        let call = VmContractCall {
+            target: VmContractTarget::DynamicImport {
+                module: "con_other".into(),
+            },
+            function: "probe".into(),
+            args: vec![],
+            kwargs: vec![],
+            caller_contract: Some("con_caller".into()),
+            signer: None,
+            entry: None,
+            submission_name: None,
+            now: VmValue::None,
+            block_num: VmValue::None,
+            block_hash: VmValue::None,
+            chain_id: VmValue::None,
+        };
+        let mut bad = ReturningHost(VmValue::List(vec![VmValue::Builtin("int".into())]));
+        assert!(bad
+            .call_contract_shared(call.clone())
+            .unwrap_err()
+            .to_string()
+            .contains("cannot cross contract boundaries"));
+        let mut good = ReturningHost(VmValue::List(vec![vm_int(3)]));
+        assert_eq!(
+            good.call_contract_shared(call).unwrap(),
+            VmValue::List(vec![vm_int(3)])
+        );
+    }
+
+    #[test]
     fn resolves_host_bindings_used_as_type_marker_values() {
         let module = parse_module_ir(
             &json!({
@@ -2631,8 +2872,12 @@ mod tests {
         let mut host = NoopHost;
 
         let result = instance
+            .call_function_shared(&mut host, "get_type_markers", vec![], vec![])
+            .expect("type markers should resolve internally")
+            .snapshot();
+        assert!(instance
             .call_function(&mut host, "get_type_markers", vec![], vec![])
-            .expect("type markers should resolve");
+            .is_err());
 
         assert_eq!(
             result,

@@ -52,9 +52,11 @@ impl VmInstance {
             "env.block_num" => Ok(self.context.block_num.clone()),
             "env.block_hash" => Ok(self.context.block_hash.clone()),
             "env.chain_id" => Ok(self.context.chain_id.clone()),
-            other => Err(VmExecutionError::new(format!(
-                "unsupported host binding '{other}'"
-            ))),
+            other => VmHostCallable::for_syscall(other, None)
+                .map(VmHostCallable::value)
+                .ok_or_else(|| {
+                    VmExecutionError::new(format!("unsupported host binding '{other}'"))
+                }),
         }
     }
 
@@ -90,6 +92,12 @@ impl VmInstance {
             } else {
                 (args, kwargs)
             };
+            let member = as_object(func, "callable")?
+                .get("attr")
+                .and_then(Value::as_str);
+            if let Some(callable) = VmHostCallable::for_syscall(syscall_id, member) {
+                return self.call_host_callable(callable, args, kwargs, host);
+            }
             return self.eval_syscall(object, syscall_id, args, kwargs, scope, host, target);
         }
         let callable = as_object(func, "callable")?;
@@ -102,7 +110,7 @@ impl VmInstance {
             let args = self.eval_call_arguments(required_array(object, "args")?, scope, host)?;
             let kwargs =
                 self.eval_call_keywords(required_array(object, "keywords")?, scope, host, None)?;
-            return self.call_callable_value(host, callee, args, kwargs);
+            return self.call_expression_callable_value(host, callee, args, kwargs);
         }
         let callee = self.eval_expression(func, scope, host)?;
         let args = self.eval_call_arguments(required_array(object, "args")?, scope, host)?;
@@ -116,7 +124,7 @@ impl VmInstance {
             host,
             function_name,
         )?;
-        self.call_callable_value(host, callee, args, kwargs)
+        self.call_expression_callable_value(host, callee, args, kwargs)
     }
 
     pub(super) fn next_item(
@@ -171,6 +179,14 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
+        if matches!(receiver.snapshot(),VmValue::Builtin(ref module) if module=="Contract") {
+            let callable = VmHostCallable::named(&format!("Contract.{method}"))
+                .ok_or_else(|| VmExecutionError::new("unknown Contract method"))?;
+            return self.call_host_callable(callable, args, kwargs, host);
+        }
+        if let VmValue::ContractHandle(handle) = receiver.snapshot() {
+            return self.call_contract_export(handle, method, args, kwargs, host);
+        }
         if let Some(kind) = method_signatures::unbound_class(&receiver, method) {
             let mut arguments = args.into_iter();
             let instance = arguments.next().ok_or_else(|| {
@@ -281,24 +297,26 @@ impl VmInstance {
                 crate::decimal_metering::comparison(host, &receiver, needle, false)?;
             }
         }
-        let set_comparison = matches!(receiver.snapshot(), VmValue::Set(_) | VmValue::FrozenSet(_) | VmValue::BuiltinSet(_))
-            && matches!(
-                method,
-                "add"
-                    | "remove"
-                    | "discard"
-                    | "issubset"
-                    | "issuperset"
-                    | "isdisjoint"
-                    | "union"
-                    | "intersection"
-                    | "difference"
-                    | "symmetric_difference"
-                    | "update"
-                    | "intersection_update"
-                    | "difference_update"
-                    | "symmetric_difference_update"
-            );
+        let set_comparison = matches!(
+            receiver.snapshot(),
+            VmValue::Set(_) | VmValue::FrozenSet(_) | VmValue::BuiltinSet(_)
+        ) && matches!(
+            method,
+            "add"
+                | "remove"
+                | "discard"
+                | "issubset"
+                | "issuperset"
+                | "isdisjoint"
+                | "union"
+                | "intersection"
+                | "difference"
+                | "symmetric_difference"
+                | "update"
+                | "intersection_update"
+                | "difference_update"
+                | "symmetric_difference_update"
+        );
         if set_comparison {
             let mut values = vec![receiver.clone()];
             values.extend(args.iter().cloned());

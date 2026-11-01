@@ -134,7 +134,8 @@ impl RenderCost {
         match value {
             VmValue::List(values)
             | VmValue::Tuple(values)
-            | VmValue::Set(values) | VmValue::BuiltinSet(values)
+            | VmValue::Set(values)
+            | VmValue::BuiltinSet(values)
             | VmValue::FrozenSet(values) => self.sequence(values.iter(), depth),
             VmValue::Dict(values) => self.sequence(values.iter().flat_map(|(k, v)| [k, v]), depth),
             VmValue::Exception(value) => self.sequence(value.args.iter(), depth),

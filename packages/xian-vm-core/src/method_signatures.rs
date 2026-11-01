@@ -394,8 +394,20 @@ fn dict_signature(method: &str) -> Option<Signature> {
 }
 fn builtin_set_signature(method: &str) -> Option<Signature> {
     Some(match method {
-        "add" | "remove" | "discard" | "issubset" | "issuperset" | "isdisjoint" | "symmetric_difference" | "symmetric_difference_update" => Pos(1, 1),
-        "union" | "intersection" | "difference" | "update" | "intersection_update" | "difference_update" => Pos(0, usize::MAX),
+        "add"
+        | "remove"
+        | "discard"
+        | "issubset"
+        | "issuperset"
+        | "isdisjoint"
+        | "symmetric_difference"
+        | "symmetric_difference_update" => Pos(1, 1),
+        "union"
+        | "intersection"
+        | "difference"
+        | "update"
+        | "intersection_update"
+        | "difference_update" => Pos(0, usize::MAX),
         "clear" | "pop" | "copy" => Pos(0, 0),
         _ => return None,
     })
