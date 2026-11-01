@@ -218,6 +218,11 @@ class _ContractingSetBase:
         return _iterable_values(other)
 
 
+def _require_mutable_set(value):
+    if not isinstance(value, ContractingSet):
+        raise TypeError("mutable set receiver required")
+
+
 class ContractingSet(_ContractingSetBase):
     __slots__ = ("_values",)
 
@@ -230,18 +235,22 @@ class ContractingSet(_ContractingSetBase):
         return "{" + ", ".join(repr(item) for item in self._values) + "}"
 
     def add(self, value):
+        _require_mutable_set(self)
         self._values = _normalize_set_items([*self._values, value])
 
     def remove(self, value):
+        _require_mutable_set(self)
         if value not in self:
             raise KeyError(value)
         self._values = tuple(item for item in self._values if not _values_equal(item, value))
 
     def discard(self, value):
+        _require_mutable_set(self)
         if value in self:
             self.remove(value)
 
     def pop(self):
+        _require_mutable_set(self)
         if not self._values:
             raise KeyError("pop from an empty set")
         value = self._values[0]
@@ -249,6 +258,7 @@ class ContractingSet(_ContractingSetBase):
         return value
 
     def clear(self):
+        _require_mutable_set(self)
         self._values = ()
 
 
@@ -267,6 +277,17 @@ class ContractingFrozenSet(_ContractingSetBase):
             # rules (including ContractingDecimal's float coercion).
             hash(len(values)),
         )
+
+    def __setattr__(self, name, value):
+        raise AttributeError("ContractingFrozenSet is immutable")
+
+    def __delattr__(self, name):
+        raise AttributeError("ContractingFrozenSet is immutable")
+
+    def __reduce__(self):
+        # Reconstruct through the initializer so values and cached hash agree.
+        # Copy/deepcopy/pickle must not assign immutable slots.
+        return type(self), (self._values,)
 
     def __repr__(self):
         if not self._values:
