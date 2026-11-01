@@ -50,7 +50,11 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-contracting = ["contracts/submission.s.py", "contracts/submission_source.s.py"]
+contracting = [
+    "contracts/submission.s.py",
+    "contracts/submission_source.s.py",
+    "execution/public_callable_methods.json",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
