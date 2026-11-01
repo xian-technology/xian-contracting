@@ -2675,6 +2675,33 @@ mod tests {
     }
 
     #[test]
+    fn host_instance_strptime_binds_class_before_callback_dispatch() {
+        let mut instance = empty_test_instance("con_instance_parser");
+        let class = instance
+            .resolve_host_binding("time.datetime.strptime")
+            .unwrap();
+        let value = VmValue::DateTime(VmDateTime::new(2000, 1, 1, 0, 0, 0, 0).unwrap());
+        let callback = instance
+            .read_attribute(value, "strptime", &mut NoopHost)
+            .unwrap();
+        assert!(vm_values_equal(&class, &callback).unwrap());
+        let mut host = AssignmentMeteringHost::default();
+        let result = instance
+            .call_callable_value(
+                &mut host,
+                callback,
+                vec![VmValue::String("2026".into()), VmValue::String("%Y".into())],
+                vec![],
+            )
+            .unwrap();
+        assert_eq!(
+            result,
+            VmValue::DateTime(VmDateTime::new(2026, 1, 1, 0, 0, 0, 0).unwrap())
+        );
+        assert_eq!(host.execution_costs.first(), Some(&5000));
+    }
+
+    #[test]
     fn default_host_rejects_capabilities_in_nested_results() {
         struct ReturningHost(VmValue);
         impl VmHost for ReturningHost {

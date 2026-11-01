@@ -66,6 +66,11 @@ CALLABLE_BINDINGS = (
 
 NOMINAL_CASES = [
     (
+        "instance_classmethod_identity",
+        "value = datetime.datetime(2000, 1, 1)\nf = value.strptime\nreturn [f == datetime.datetime.strptime, f is datetime.datetime.strptime, f is f]",
+        [True, False, True],
+    ),
+    (
         "class_method_identity",
         "f = Contract.get_info\nreturn [f is f, Contract.get_info is Contract.get_info, f == Contract.get_info, hashlib.sha3 is hashlib.sha3]",
         [True, False, True, True],
@@ -308,8 +313,6 @@ def test_ordinary_host_arguments_reject_callable_capabilities(tmp_path, value, m
 
 
 def run_metered_callbacks(home, count, *, budget=1_000_000):
-    from xian_vm_core import execute_contract
-
     source = """
 state = Variable()
 @export
@@ -319,6 +322,12 @@ def probe(count: int):
     values = list(map(f, ["abc"] * count))
     return len(values)
 """
+    return run_metered_source(home, source, {"count": count}, budget=budget)
+
+
+def run_metered_source(home, source, kwargs, *, budget=1_000_000):
+    from xian_vm_core import execute_contract
+
     with Driver(storage_home=home) as driver:
         driver.set_contract_from_source("con_host_meter", source, owner=None)
         driver.commit()
@@ -326,7 +335,7 @@ def probe(count: int):
             driver=driver,
             contract_name="con_host_meter",
             function_name="probe",
-            kwargs={"count": count},
+            kwargs=kwargs,
             context={"caller": "alice", "signer": "alice", "this": "con_host_meter"},
             meter=True,
             chi_budget_raw=budget,
@@ -386,3 +395,25 @@ return [static is static, module is module, module is other, static is module, s
     )
     assert status == 0, result
     assert result == [True, True, False, False, True, True, False]
+
+
+def test_class_and_instance_strptime_callbacks_pay_the_same_dispatch_work(tmp_path):
+    deltas = []
+    for label, origin in [
+        ("class", "datetime.datetime.strptime"),
+        ("instance", "datetime.datetime(2000, 1, 1).strptime"),
+    ]:
+        costs = []
+        source = (
+            "@export\ndef probe(count: int):\n"
+            f"    f = {origin}\n"
+            '    return len(list(map(f, ["2026"] * count, ["%Y"] * count)))\n'
+        )
+        for count in [10, 20]:
+            result = run_metered_source(tmp_path / f"{label}-{count}", source, {"count": count})
+            assert result.status_code == 0, result.result
+            assert result.result == count
+            costs.append(result.raw_cost)
+        deltas.append(costs[1] - costs[0])
+    assert deltas[0] == deltas[1]
+    assert deltas[0] >= 10 * 5_000

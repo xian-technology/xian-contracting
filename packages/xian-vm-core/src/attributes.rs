@@ -24,7 +24,7 @@ impl VmInstance {
         }
         if method_signatures::supports(&value, name) {
             return Ok(VmValue::BoundMethod(Box::new(VmBoundMethod {
-                receiver: value,
+                receiver: method_receiver(value, name),
                 method: name.to_owned(),
             })));
         }
@@ -38,5 +38,14 @@ impl VmInstance {
             }
             _ => native_attribute_value(&value, name),
         }
+    }
+}
+
+fn method_receiver(value: VmValue, name: &str) -> VmValue {
+    // Instance access to this classmethod retains class identity and metering.
+    if name == "strptime" && matches!(value.snapshot(), VmValue::DateTime(_)) {
+        VmValue::TypeMarker("datetime.datetime".into())
+    } else {
+        value
     }
 }
