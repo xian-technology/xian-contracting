@@ -146,3 +146,54 @@ def inspect(token_name: str, account: str):
         .collect::<BTreeSet<_>>();
     assert!(dependency_ids.contains("contract.export_call"));
 }
+
+#[test]
+fn lexical_comprehension_bindings_keep_only_outer_iterable_host_dispatch() {
+    let source = "@export\ndef probe():\n    return [hashlib.sha3('x') for hashlib in hashlib.sha3('abc')]\n";
+    let payload =
+        lower_source_to_ir_json("con_scopes", source, &CompileOptions::default()).unwrap();
+    let ir: Value = serde_json::from_str(&payload).unwrap();
+    let expression = &ir["functions"][0]["body"][0]["value"];
+    assert!(expression["element"]["syscall_id"].is_null());
+    assert!(expression["element"]["func"]["host_binding_id"].is_null());
+    assert_eq!(
+        expression["generators"][0]["iter"]["syscall_id"],
+        "hash.sha3_256_legacy"
+    );
+}
+
+#[test]
+fn lexical_later_generator_targets_shadow_earlier_filters() {
+    let source =
+        "@export\ndef probe():\n    return [x for x in [1] if hashlib for hashlib in [1]]\n";
+    let payload =
+        lower_source_to_ir_json("con_scopes", source, &CompileOptions::default()).unwrap();
+    let ir: Value = serde_json::from_str(&payload).unwrap();
+    let filter = &ir["functions"][0]["body"][0]["value"]["generators"][0]["ifs"][0];
+    assert!(filter["host_binding_id"].is_null());
+}
+
+#[test]
+fn lexical_storage_targets_are_plain_subscripts_even_before_local_assignment() {
+    let source = "h = Hash()\n@export\ndef probe():\n    h[0] += 1\n    h = {}\n    return h[0]\n";
+    let payload =
+        lower_source_to_ir_json("con_scopes", source, &CompileOptions::default()).unwrap();
+    let ir: Value = serde_json::from_str(&payload).unwrap();
+    let body = &ir["functions"][0]["body"];
+    assert_eq!(body[0]["node"], "aug_assign");
+    assert_eq!(body[0]["target"]["node"], "subscript");
+    assert_eq!(body[2]["value"]["node"], "subscript");
+}
+
+#[test]
+fn lexical_variadic_parameters_shadow_module_calls() {
+    for parameters in ["*hashlib", "**hashlib"] {
+        let source = format!("def probe({parameters}):\n    return hashlib.sha3('x')\n@export\ndef public_probe():\n    return 1\n");
+        let payload =
+            lower_source_to_ir_json("con_scopes", &source, &CompileOptions::default()).unwrap();
+        let ir: Value = serde_json::from_str(&payload).unwrap();
+        let call = &ir["functions"][0]["body"][0]["value"];
+        assert!(call["syscall_id"].is_null());
+        assert!(call["func"]["value"]["host_binding_id"].is_null());
+    }
+}

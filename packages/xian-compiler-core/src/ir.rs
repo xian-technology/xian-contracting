@@ -1083,8 +1083,8 @@ impl<'a> IrLowerer<'a> {
 
     fn is_locally_shadowed(&self, name: &str) -> bool {
         self.local_binding_stack
-            .last()
-            .is_some_and(|bindings| bindings.contains(name))
+            .iter()
+            .any(|bindings| bindings.contains(name))
     }
 
     fn is_host_shadowed(&self, name: &str) -> bool {
@@ -1701,24 +1701,13 @@ impl<'a> IrLowerer<'a> {
                 span,
                 element,
                 generators,
-            } => Ok(json!({
-                "node": "list_comp",
-                "span": span_value(*span),
-                "element": self.lower_expression(element)?,
-                "generators": self.lower_comprehension_generators(generators)?,
-            })),
+            } => self.lower_comprehension(*span, Some(element), None, generators),
             SyntaxExpression::DictComp {
                 span,
                 key,
                 value,
                 generators,
-            } => Ok(json!({
-                "node": "dict_comp",
-                "span": span_value(*span),
-                "key": self.lower_expression(key)?,
-                "value": self.lower_expression(value)?,
-                "generators": self.lower_comprehension_generators(generators)?,
-            })),
+            } => self.lower_comprehension(*span, None, Some((key, value)), generators),
             SyntaxExpression::Tuple { span, elements, .. } => Ok(json!({
                 "node": "tuple",
                 "span": span_value(*span),
@@ -1911,7 +1900,7 @@ impl<'a> IrLowerer<'a> {
         let host = self.record_host_dependency(func);
         let event_emit = if host.is_none() {
             if let Some(name) = name_id(func) {
-                if self.event_bindings.contains(name) {
+                if self.event_bindings.contains(name) && !self.is_locally_shadowed(name) {
                     let spec = resolve_host_binding("LogEvent.__call__");
                     if let Some(spec) = spec {
                         self.host_dependencies.insert(spec.id.to_string(), spec);
@@ -1979,13 +1968,47 @@ impl<'a> IrLowerer<'a> {
             .collect()
     }
 
+    fn lower_comprehension(
+        &mut self,
+        span: SourceRange,
+        element: Option<&SyntaxExpression>,
+        pair: Option<(&SyntaxExpression, &SyntaxExpression)>,
+        generators: &[SyntaxComprehension],
+    ) -> Result<Value, IrLoweringError> {
+        let first = generators
+            .first()
+            .ok_or_else(|| IrLoweringError::new("missing comprehension generator", Some(span)))?;
+        let first_iter = self.lower_expression(&first.iter)?;
+        let mut bindings = HashSet::new();
+        for generator in generators {
+            collect_target_binding_names(&generator.target, &mut bindings);
+        }
+        self.local_binding_stack.push(bindings);
+        let result = (|| {
+            let generators = self.lower_comprehension_generators(generators, first_iter)?;
+            if let Some(element) = element {
+                return Ok(
+                    json!({"node": "list_comp", "span": span_value(span), "element": self.lower_expression(element)?, "generators": generators}),
+                );
+            }
+            let (key, value) = pair.expect("dictionary comprehension pair");
+            Ok(
+                json!({"node": "dict_comp", "span": span_value(span), "key": self.lower_expression(key)?, "value": self.lower_expression(value)?, "generators": generators}),
+            )
+        })();
+        self.local_binding_stack.pop();
+        result
+    }
+
     fn lower_comprehension_generators(
         &mut self,
         generators: &[SyntaxComprehension],
+        first_iter: Value,
     ) -> Result<Vec<Value>, IrLoweringError> {
         generators
             .iter()
-            .map(|generator| {
+            .enumerate()
+            .map(|(index, generator)| {
                 if generator.is_async {
                     return Err(IrLoweringError::new(
                         "async comprehensions are not supported in Xian IR",
@@ -1994,7 +2017,7 @@ impl<'a> IrLowerer<'a> {
                 }
                 Ok(json!({
                     "target": self.lower_target(&generator.target)?,
-                    "iter": self.lower_expression(&generator.iter)?,
+                    "iter": if index == 0 { first_iter.clone() } else { self.lower_expression(&generator.iter)? },
                     "ifs": self.lower_expression_list(&generator.ifs)?,
                 }))
             })

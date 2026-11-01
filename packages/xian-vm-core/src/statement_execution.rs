@@ -297,6 +297,11 @@ impl VmInstance {
         scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
     ) -> Result<ControlFlow, VmExecutionError> {
+        if let Some(target) = self.lexical_storage_target(object)? {
+            let statement =
+                serde_json::json!({"targets": [target], "value": required_value(object, "value")?});
+            return self.execute_assign(as_object(&statement, "assignment")?, scope, host);
+        }
         let binding = required_string(object, "binding")?;
         let key = self.eval_expression(required_value(object, "key")?, scope, host)?;
         let value = self.eval_expression(required_value(object, "value")?, scope, host)?;
@@ -310,6 +315,10 @@ impl VmInstance {
         scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
     ) -> Result<ControlFlow, VmExecutionError> {
+        if let Some(target) = self.lexical_storage_target(object)? {
+            let statement = serde_json::json!({"target": target, "value": required_value(object, "value")?, "operator": required_string(object, "operator")?});
+            return self.execute_aug_assign(as_object(&statement, "assignment")?, scope, host);
+        }
         let binding = required_string(object, "binding")?;
         let key = self.eval_expression(required_value(object, "key")?, scope, host)?;
         let current = self.hash_get(binding, &key, host)?;

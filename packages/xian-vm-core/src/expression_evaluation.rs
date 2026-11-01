@@ -96,6 +96,9 @@ impl VmInstance {
             "attribute" => self.eval_attribute(object, scope, host),
             "subscript" => self.eval_subscript(object, scope, host),
             "storage_get" => {
+                if let Some(target) = self.lexical_storage_target(object)? {
+                    return self.eval_subscript(as_object(&target, "subscript")?, scope, host);
+                }
                 let binding = required_string(object, "binding")?;
                 let key = self.eval_expression(required_value(object, "key")?, scope, host)?;
                 self.hash_get(binding, &key, host)
@@ -147,7 +150,20 @@ impl VmInstance {
         let element = required_value(object, "element")?;
         let generators = required_array(object, "generators")?;
         let mut results = Vec::new();
-        self.eval_list_comprehension_generator(generators, 0, element, scope, host, &mut results)?;
+        let (mut nested, bindings, iterator) =
+            self.prepare_comprehension(generators, scope, host)?;
+        let previous = std::mem::replace(&mut self.lexical_bindings, bindings);
+        let result = self.eval_list_comprehension_generator(
+            generators,
+            0,
+            element,
+            &mut nested,
+            host,
+            &mut results,
+            Some(iterator),
+        );
+        self.lexical_bindings = previous;
+        result?;
         Ok(VmValue::List(results))
     }
 
@@ -159,6 +175,7 @@ impl VmInstance {
         scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
         results: &mut Vec<VmValue>,
+        first_iterator: Option<VmValue>,
     ) -> Result<(), VmExecutionError> {
         let generator = as_object(
             generators
@@ -167,9 +184,14 @@ impl VmInstance {
             "list comprehension generator",
         )?;
         let target = required_value(generator, "target")?;
-        let iter_value = self.eval_expression(required_value(generator, "iter")?, scope, host)?;
-        let iterator = crate::iteration::iter(&iter_value, &self.heap)?;
-        let previous_bindings = capture_target_bindings(target, scope)?;
+        let iterator = match first_iterator {
+            Some(iterator) => iterator,
+            None => {
+                let value =
+                    self.eval_expression(required_value(generator, "iter")?, scope, host)?;
+                crate::iteration::iter(&value, &self.heap)?
+            }
+        };
 
         while let Some(item) = self.next_item(&iterator, host)? {
             host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
@@ -199,11 +221,11 @@ impl VmInstance {
                     scope,
                     host,
                     results,
+                    None,
                 )?;
             }
         }
 
-        restore_target_bindings(scope, previous_bindings);
         Ok(())
     }
 
@@ -217,15 +239,21 @@ impl VmInstance {
         let value = required_value(object, "value")?;
         let generators = required_array(object, "generators")?;
         let mut results = Vec::new();
-        self.eval_dict_comprehension_generator(
+        let (mut nested, bindings, iterator) =
+            self.prepare_comprehension(generators, scope, host)?;
+        let previous = std::mem::replace(&mut self.lexical_bindings, bindings);
+        let result = self.eval_dict_comprehension_generator(
             generators,
             0,
             key,
             value,
-            scope,
+            &mut nested,
             host,
             &mut results,
-        )?;
+            Some(iterator),
+        );
+        self.lexical_bindings = previous;
+        result?;
         Ok(VmValue::Dict(results))
     }
 
@@ -238,6 +266,7 @@ impl VmInstance {
         scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
         results: &mut Vec<(VmValue, VmValue)>,
+        first_iterator: Option<VmValue>,
     ) -> Result<(), VmExecutionError> {
         let generator = as_object(
             generators
@@ -246,9 +275,14 @@ impl VmInstance {
             "dict comprehension generator",
         )?;
         let target = required_value(generator, "target")?;
-        let iter_value = self.eval_expression(required_value(generator, "iter")?, scope, host)?;
-        let iterator = crate::iteration::iter(&iter_value, &self.heap)?;
-        let previous_bindings = capture_target_bindings(target, scope)?;
+        let iterator = match first_iterator {
+            Some(iterator) => iterator,
+            None => {
+                let value =
+                    self.eval_expression(required_value(generator, "iter")?, scope, host)?;
+                crate::iteration::iter(&value, &self.heap)?
+            }
+        };
 
         while let Some(item) = self.next_item(&iterator, host)? {
             host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
@@ -282,11 +316,11 @@ impl VmInstance {
                     scope,
                     host,
                     results,
+                    None,
                 )?;
             }
         }
 
-        restore_target_bindings(scope, previous_bindings);
         Ok(())
     }
 
@@ -296,6 +330,9 @@ impl VmInstance {
         scope: &HashMap<String, VmValue>,
     ) -> Result<VmValue, VmExecutionError> {
         let id = required_string(object, "id")?;
+        if let Some(value) = self.lexical_value(id, scope)? {
+            return Ok(value);
+        }
         if let Some(value) = scope.get(id) {
             return Ok(value.clone());
         }

@@ -10,7 +10,9 @@ impl VmInstance {
         let Some(root) = ir_root_name(required_value(object, "value")?)? else {
             return Ok(false);
         };
-        Ok(scope.contains_key(root) || self.globals.contains_key(root))
+        Ok(self.lexical_bindings.contains(root)
+            || scope.contains_key(root)
+            || self.globals.contains_key(root))
     }
 
     pub(super) fn resolve_host_binding(
@@ -67,7 +69,8 @@ impl VmInstance {
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
         let func = required_value(object, "func")?;
-        if let Some(syscall_id) = optional_string(object, "syscall_id") {
+        let lexical_call = self.optimized_call_is_local(func)?;
+        if let Some(syscall_id) = optional_string(object, "syscall_id").filter(|_| !lexical_call) {
             let target = object
                 .get("contract_target")
                 .filter(|v| !v.is_null())

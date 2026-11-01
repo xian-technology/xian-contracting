@@ -129,6 +129,31 @@ XIAN_IR_V1_BIN_OPS = frozenset(_BIN_OPS.values())
 XIAN_IR_V1_UNARY_OPS = frozenset(_UNARY_OPS.values())
 
 
+class _LocalBindings(ast.NodeVisitor):
+    """Bindings in one lexical scope; comprehensions own their targets."""
+
+    def __init__(self):
+        self.names = set()
+
+    def visit_Name(self, node):
+        if isinstance(node.ctx, ast.Store):
+            self.names.add(node.id)
+
+    def visit_ListComp(self, node):
+        pass
+
+    visit_DictComp = visit_ListComp
+    visit_FunctionDef = visit_ListComp
+    visit_Lambda = visit_ListComp
+
+
+def _local_bindings(nodes):
+    collector = _LocalBindings()
+    for node in nodes:
+        collector.visit(node)
+    return collector.names
+
+
 @dataclass(frozen=True, slots=True)
 class IrLoweringError(Exception):
     message: str
@@ -152,6 +177,8 @@ class XianIrLowerer:
         self._contract_handle_factories: set[str] = set()
         self._contract_handle_parameters: dict[str, set[str]] = {}
         self._local_contract_handles: dict[str, ast.AST] = {}
+        self._local_binding_stack: list[set[str]] = []
+        self._global_bindings: set[str] = set()
 
     def lower(self, tree: ast.Module, *, source: str) -> dict[str, Any]:
         self.source = source
@@ -163,6 +190,8 @@ class XianIrLowerer:
         self._contract_handle_factories = set()
         self._contract_handle_parameters = {}
         self._local_contract_handles = {}
+        self._local_binding_stack = []
+        self._global_bindings = set()
 
         body = list(tree.body)
         docstring = None
@@ -243,6 +272,8 @@ class XianIrLowerer:
         self,
         node: ast.AST,
     ) -> dict[str, str] | None:
+        if self._root_is_shadowed(node):
+            return None
         spec = resolve_host_binding(self._canonical_dotted_path(node))
         if spec is None:
             return None
@@ -275,6 +306,10 @@ class XianIrLowerer:
 
     def _inspect_module_bindings(self, body: list[ast.stmt]) -> None:
         self._discover_host_module_aliases(body)
+        self._global_bindings = _local_bindings(body) - self._host_module_aliases.keys()
+        self._global_bindings.update(
+            node.name for node in body if isinstance(node, ast.FunctionDef)
+        )
         for node in body:
             if isinstance(node, ast.Import):
                 for alias in node.names:
@@ -315,6 +350,16 @@ class XianIrLowerer:
                 if canonical in _HOST_MODULE_BINDINGS:
                     self._host_module_aliases[target] = canonical
                     changed = True
+
+    def _is_local(self, name):
+        return any(name in bindings for bindings in self._local_binding_stack)
+
+    def _root_is_shadowed(self, node):
+        path = dotted_path(node)
+        if path is None:
+            return False
+        root = path.partition(".")[0]
+        return self._is_local(root) or root in self._global_bindings
 
     def _canonical_dotted_path(self, node: ast.AST) -> str | None:
         path = dotted_path(node)
@@ -508,7 +553,10 @@ class XianIrLowerer:
         return False
 
     def _is_importlib_import_call(self, node: ast.Call) -> bool:
-        return self._canonical_dotted_path(node.func) == "importlib.import_module"
+        return (
+            not self._root_is_shadowed(node.func)
+            and self._canonical_dotted_path(node.func) == "importlib.import_module"
+        )
 
     def _contract_target_for_expression(
         self,
@@ -517,7 +565,7 @@ class XianIrLowerer:
         allow_local: bool = True,
     ) -> dict[str, Any] | None:
         if isinstance(node, ast.Name):
-            if node.id in self._static_import_bindings:
+            if node.id in self._static_import_bindings and not self._root_is_shadowed(node):
                 return {
                     "kind": "static_import",
                     "binding": node.id,
@@ -555,6 +603,8 @@ class XianIrLowerer:
         node: ast.AST,
     ) -> tuple[str, str] | None:
         if not isinstance(node, ast.Name):
+            return None
+        if self._is_local(node.id):
             return None
         storage_type = self._storage_bindings.get(node.id)
         if storage_type is None:
@@ -682,9 +732,18 @@ class XianIrLowerer:
             self._contract_handle_factories,
             self._contract_handle_parameters.get(node.name, set()),
         )
+        bindings = _local_bindings(body)
+        bindings.update(
+            arg.arg for arg in (*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs)
+        )
+        for variadic in (node.args.vararg, node.args.kwarg):
+            if variadic is not None:
+                bindings.add(variadic.arg)
+        self._local_binding_stack.append(bindings)
         try:
             lowered_body = [self._lower_statement(statement) for statement in body]
         finally:
+            self._local_binding_stack.pop()
             self._local_contract_handles = previous_local_contract_handles
         return self._node(
             "function",
@@ -1010,21 +1069,8 @@ class XianIrLowerer:
                 node,
                 elements=[self._lower_expanded_expression(element) for element in node.elts],
             )
-        if isinstance(node, ast.ListComp):
-            return self._node(
-                "list_comp",
-                node,
-                element=self._lower_expression(node.elt),
-                generators=self._lower_comprehension_generators(node.generators),
-            )
-        if isinstance(node, ast.DictComp):
-            return self._node(
-                "dict_comp",
-                node,
-                key=self._lower_expression(node.key),
-                value=self._lower_expression(node.value),
-                generators=self._lower_comprehension_generators(node.generators),
-            )
+        if isinstance(node, (ast.ListComp, ast.DictComp)):
+            return self._lower_comprehension(node)
         if isinstance(node, ast.Tuple):
             return self._node(
                 "tuple",
@@ -1115,6 +1161,7 @@ class XianIrLowerer:
                 host is None
                 and isinstance(node.func, ast.Name)
                 and node.func.id in self._event_bindings
+                and not self._is_local(node.func.id)
             ):
                 event_emit = resolve_host_binding("LogEvent.__call__")
                 if event_emit is not None:
@@ -1194,20 +1241,41 @@ class XianIrLowerer:
             f"unsupported expression node '{type(node).__name__}' in Xian IR",
         )
 
-    def _lower_comprehension_generators(
-        self, generators: list[ast.comprehension]
-    ) -> list[dict[str, Any]]:
+    def _lower_comprehension(self, node):
+        # Python evaluates only the outermost iterable outside the implicit scope.
+        first_iter = self._lower_expression(node.generators[0].iter)
+        bindings = _local_bindings([generator.target for generator in node.generators])
+        self._local_binding_stack.append(bindings)
+        try:
+            generators = self._lower_comprehension_generators(node.generators, first_iter)
+            if isinstance(node, ast.ListComp):
+                return self._node(
+                    "list_comp",
+                    node,
+                    element=self._lower_expression(node.elt),
+                    generators=generators,
+                )
+            return self._node(
+                "dict_comp",
+                node,
+                key=self._lower_expression(node.key),
+                value=self._lower_expression(node.value),
+                generators=generators,
+            )
+        finally:
+            self._local_binding_stack.pop()
+
+    def _lower_comprehension_generators(self, generators, first_iter):
         lowered = []
-        for generator in generators:
+        for index, generator in enumerate(generators):
             if generator.is_async:
                 self._raise_unsupported(
-                    generator,
-                    "async comprehensions are not supported in Xian IR",
+                    generator, "async comprehensions are not supported in Xian IR"
                 )
             lowered.append(
                 {
                     "target": self._lower_target(generator.target),
-                    "iter": self._lower_expression(generator.iter),
+                    "iter": first_iter if index == 0 else self._lower_expression(generator.iter),
                     "ifs": [self._lower_expression(condition) for condition in generator.ifs],
                 }
             )

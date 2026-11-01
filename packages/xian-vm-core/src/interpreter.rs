@@ -61,6 +61,8 @@ const VM_GAS_EXPR_FORMATTED_VALUE: u64 = 96;
 
 #[path = "attributes.rs"]
 mod attributes;
+#[path = "lexical_scopes.rs"]
+mod lexical_scopes;
 pub use attributes::VmBoundMethod;
 #[path = "host_callables.rs"]
 mod host_callables;
@@ -211,54 +213,6 @@ fn charge_storage_read(
     value: &VmValue,
 ) -> Result<(), VmExecutionError> {
     host.charge_storage_read(key, value)
-}
-
-fn collect_target_names(target: &Value, names: &mut Vec<String>) -> Result<(), VmExecutionError> {
-    let object = as_object(target, "target")?;
-    match required_string(object, "node")? {
-        "name" => {
-            names.push(required_string(object, "id")?.to_owned());
-            Ok(())
-        }
-        "starred_target" => collect_target_names(required_value(object, "value")?, names),
-        "tuple_target" | "list_target" => {
-            for element in required_array(object, "elements")? {
-                collect_target_names(element, names)?;
-            }
-            Ok(())
-        }
-        other => Err(VmExecutionError::new(format!(
-            "unsupported comprehension target '{other}'"
-        ))),
-    }
-}
-
-fn capture_target_bindings(
-    target: &Value,
-    scope: &HashMap<String, VmValue>,
-) -> Result<Vec<(String, Option<VmValue>)>, VmExecutionError> {
-    let mut names = Vec::new();
-    collect_target_names(target, &mut names)?;
-    Ok(names
-        .into_iter()
-        .map(|name| {
-            let previous = scope.get(&name).cloned();
-            (name, previous)
-        })
-        .collect())
-}
-
-fn restore_target_bindings(
-    scope: &mut HashMap<String, VmValue>,
-    previous: Vec<(String, Option<VmValue>)>,
-) {
-    for (name, value) in previous {
-        if let Some(value) = value {
-            scope.insert(name, value);
-        } else {
-            scope.remove(&name);
-        }
-    }
 }
 
 fn ir_node_complexity(value: &Value) -> u64 {
@@ -849,6 +803,8 @@ pub struct VmInstance {
     module: ModuleIr,
     functions: HashMap<String, FunctionIr>,
     function_defaults: HashMap<(String, String), VmValue>,
+    function_locals: HashMap<String, HashSet<String>>,
+    lexical_bindings: HashSet<String>,
     imports: HashMap<String, String>,
     contract_exports: HashMap<(usize, String), VmValue>,
     globals: HashMap<String, VmValue>,
@@ -897,6 +853,8 @@ impl VmInstance {
             module,
             functions: HashMap::new(),
             function_defaults: HashMap::new(),
+            function_locals: HashMap::new(),
+            lexical_bindings: HashSet::new(),
             imports,
             contract_exports: HashMap::new(),
             globals: HashMap::new(),
@@ -982,6 +940,10 @@ impl VmInstance {
                     .insert((function.name.clone(), parameter.name.clone()), value);
             }
         }
+        self.function_locals.insert(
+            function.name.clone(),
+            lexical_scopes::function_bindings(&function)?,
+        );
         self.functions.insert(function.name.clone(), function);
         Ok(())
     }
@@ -1388,7 +1350,13 @@ impl VmInstance {
         if typecheck {
             check_function_arguments(&function, &scope)?;
         }
-        let result = match self.execute_block(&function.body, &mut scope, host)? {
+        let previous = std::mem::replace(
+            &mut self.lexical_bindings,
+            self.function_locals[name].clone(),
+        );
+        let execution = self.execute_block(&function.body, &mut scope, host);
+        self.lexical_bindings = previous;
+        let result = match execution? {
             ControlFlow::Next => Ok(VmValue::None),
             ControlFlow::Return(value) => Ok(value),
             ControlFlow::Break | ControlFlow::Continue => Err(VmExecutionError::new(format!(
