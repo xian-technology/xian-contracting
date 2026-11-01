@@ -5,6 +5,7 @@ from xian_runtime_types.decimal import ContractingDecimal, fix_precision
 from xian_runtime_types.set_codec import (
     RESERVED_TAGS,
     _NormalizationBudget,
+    _validate_serializable_value,
     decode_set_value,
     encode_set_value,
     is_wrapper_set,
@@ -96,6 +97,20 @@ def _encode_ints(value):
 
 def encode(data):
     validate_persistent_value(data)
+    return _encode_document(data)
+
+
+def encode_wire(data):
+    """Serialize wire JSON with opaque codec tags; never use for persistence.
+
+    Actual runtime objects retain their typed encoding and resource limits.
+    Tag dictionaries are preserved, not decoded or semantically validated.
+    """
+    _validate_serializable_value(data, allow_codec_tags=True)
+    return _encode_document(data)
+
+
+def _encode_document(data):
     encoder = Encoder(separators=(",", ":"))
     # Generated bigint tags are trusted codec output, not caller dictionaries.
     return "".join(json.JSONEncoder.iterencode(encoder, _encode_ints(data), _one_shot=True))

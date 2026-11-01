@@ -22,7 +22,7 @@ The package is covered by the root test suite:
 ```bash
 uv run pytest -q tests/unit/test_decimal.py tests/unit/test_datetime.py \
   tests/unit/test_timedelta.py tests/unit/test_contracting_collections.py \
-  tests/unit/test_encode.py tests/unit/test_set_codec.py
+  tests/unit/test_encode.py tests/unit/test_set_codec.py tests/unit/test_wire_encoding.py
 ```
 
 ## Persistent wrapper sets (`xian-set-1`)
@@ -104,3 +104,23 @@ key, even with siblings or inside another container. This covers every key in
 wire data must be decoded with `decode`/`convert_dict` before re-encoding; feeding
 an already-tagged ordinary dictionary to `encode` intentionally fails. Legacy
 read behavior remains available, including historical tag recognition.
+
+## Wire documents and persistent values
+
+Use `xian_runtime_types.encoding.encode_wire(value)` for transaction kwargs,
+transaction envelopes and loaded genesis/config JSON that may already contain
+codec tags. It preserves these dictionaries as opaque JSON, including payload
+quantum, order and sibling keys; it does not decode or validate their codec
+meaning. The consuming decoder and node enforce semantic validity. Wire object
+keys must be strings.
+
+Wire serialization retains the same compact ASCII escaping and bigint wrapping
+as `encode`. Actual runtime objects still receive their typed encoding, and
+actual wrapper sets share the aggregate normalization budget. Generic depth,
+visit-count, cycle, unsupported-object and finite-number checks apply to the
+whole wire value. A string inside a raw tag is opaque data; an actual non-finite
+float or Decimal is rejected.
+
+Keep `encode`, `Encoder` and `validate_persistent_value` at storage and effect
+boundaries. They reject ordinary dictionaries containing reserved codec tags.
+Never use `encode_wire` to bypass persistence validation.

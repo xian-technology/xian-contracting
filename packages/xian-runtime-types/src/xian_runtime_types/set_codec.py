@@ -323,8 +323,7 @@ def decode_set_value(tag, payload, *, _normalization=None):
     return value
 
 
-def validate_persistent_value(value):
-    """Reject tag impersonation and unsupported values before any serialization."""
+def _validate_serializable_value(value, *, allow_codec_tags):
     active = set()
     count = 0
     normalization = _NormalizationBudget()
@@ -348,7 +347,9 @@ def validate_persistent_value(value):
             active.add(identity)
             if isinstance(item, dict):
                 for key, child in item.items():
-                    if isinstance(key, str) and key in RESERVED_TAGS:
+                    if allow_codec_tags and not isinstance(key, str):
+                        raise TypeError("wire JSON object keys must be strings")
+                    if not allow_codec_tags and isinstance(key, str) and key in RESERVED_TAGS:
                         raise ValueError("reserved runtime codec dictionary key: " + key)
                     visit(key, depth + 1)
                     visit(child, depth + 1)
@@ -374,3 +375,8 @@ def validate_persistent_value(value):
             raise TypeError("unsupported persistent value: " + type(item).__name__)
 
     visit(value, 0)
+
+
+def validate_persistent_value(value):
+    """Reject tag impersonation and unsupported values before persistence."""
+    _validate_serializable_value(value, allow_codec_tags=False)
