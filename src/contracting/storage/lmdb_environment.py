@@ -114,6 +114,23 @@ class LMDBEnvironmentPool:
             )
             return LMDBEnvironmentLease(self, key, env)
 
+    def read_existing_value(self, path: str | Path, key: bytes) -> tuple[bytes | None, int] | None:
+        """Read a pooled environment without opening, creating, or resizing storage."""
+        storage_path = Path(path).resolve()
+        with self._lock:
+            entry = self._entries.get(storage_path)
+            if entry is None or not storage_path.exists():
+                return None
+            if entry.path_signature != self._path_signature(storage_path):
+                return None
+            entry.ref_count += 1
+            lease = LMDBEnvironmentLease(self, storage_path, entry.env)
+        try:
+            with lease.env.begin() as transaction:
+                return transaction.get(key), transaction.stat()["entries"]
+        finally:
+            lease.close()
+
     def release(self, key: Path, env: lmdb.Environment) -> None:
         with self._lock:
             existing = self._entries.get(key)
