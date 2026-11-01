@@ -1,3 +1,4 @@
+import ast
 import builtins
 import hashlib
 import importlib
@@ -11,7 +12,8 @@ from importlib.machinery import ModuleSpec
 import lmdb
 from cachetools import LRUCache
 
-from contracting.execution.runtime import rt
+from contracting.compilation.compiler import guard_legacy_orm_declarations
+from contracting.execution.runtime import contract_execution_scope, rt
 from contracting.execution.sandbox import build_contract_builtins
 from contracting.stdlib import env
 from contracting.storage.driver import Driver
@@ -147,7 +149,8 @@ def _compile_contract_runtime_source(name: str, runtime_source: str):
         # optimize=0 pins consensus behavior: validators must NOT honor
         # PYTHONOPTIMIZE / -O which would strip asserts and __debug__-guarded
         # blocks from contract code and produce divergent state.
-        compiled = compile(runtime_source, name, "exec", optimize=0)
+        tree = guard_legacy_orm_declarations(ast.parse(runtime_source), name)
+        compiled = compile(tree, name, "exec", optimize=0)
         COMPILED_CODE_CACHE[cache_key] = compiled
     return compiled
 
@@ -176,7 +179,8 @@ class ContractModuleLoader(Loader):
         scope["__builtins__"] = build_contract_builtins(restricted_import)
 
         # execute the module with the std env and update the module to pass forward
-        exec(compiled, scope)
+        with contract_execution_scope():
+            exec(compiled, scope)
 
         # Update the module's attributes with the new scope
         vars(module).update(scope)

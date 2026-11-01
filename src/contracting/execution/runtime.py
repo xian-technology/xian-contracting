@@ -10,6 +10,44 @@ from contracting.execution.tracer import (
     create_tracer,
 )
 
+_contract_execution_active = ContextVar("contract_execution_active", default=False)
+_orm_declaration_permit = ContextVar("orm_declaration_permit", default=None)
+
+
+@contextmanager
+def contract_execution_scope():
+    """Mark untrusted code without changing trusted host ORM setup."""
+    token = _contract_execution_active.set(True)
+    try:
+        yield
+    finally:
+        _contract_execution_active.reset(token)
+
+
+@contextmanager
+def orm_declaration_scope(storage_class, contract, name):
+    """Issue one compiler-authorized constructor invocation, never a broad scope."""
+    token = _orm_declaration_permit.set((storage_class, contract, name))
+    try:
+        yield
+    finally:
+        _orm_declaration_permit.reset(token)
+
+
+def consume_orm_declaration(storage_class, contract, name):
+    permit = _orm_declaration_permit.get()
+    if permit is None and not _contract_execution_active.get():
+        return
+    if (
+        permit is None
+        or permit[0] is not storage_class
+        or permit[1] != contract
+        or permit[2] != name
+    ):
+        raise TypeError("Storage objects may only be created by module declarations.")
+    _orm_declaration_permit.set(None)
+
+
 DEFAULT_BASE_STATE = {
     "this": None,
     "caller": None,

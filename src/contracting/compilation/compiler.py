@@ -11,6 +11,69 @@ from contracting.compilation.vm import (
 )
 
 
+def _orm_declaration_call(call, module_name, storage_name, helper_name="__xian_orm_declaration__"):
+    return ast.copy_location(
+        ast.Call(
+            func=ast.Name(id=helper_name, ctx=ast.Load()),
+            args=[
+                call.func,
+                ast.Constant(value=module_name),
+                ast.Constant(value=storage_name),
+                *call.args,
+            ],
+            keywords=call.keywords,
+        ),
+        call,
+    )
+
+
+def _legacy_orm_assignment(node):
+    if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+        return False
+    if not isinstance(node.targets[0], ast.Name) or not isinstance(node.value, ast.Call):
+        return False
+    return isinstance(node.value.func, ast.Name) and node.value.func.id in constants.ORM_CLASS_NAMES
+
+
+def _legacy_orm_metadata(call, module_name):
+    keywords = {keyword.arg: keyword.value for keyword in call.keywords}
+    if None in keywords or len(keywords) != len(call.keywords):
+        return None
+    contract, name = keywords.get("contract"), keywords.get("name")
+    if not isinstance(contract, ast.Constant) or contract.value != module_name:
+        return None
+    if not isinstance(name, ast.Constant) or not isinstance(name.value, str):
+        return None
+    return name.value
+
+
+def _legacy_orm_name(node, module_name):
+    if not _legacy_orm_assignment(node):
+        return None
+    name = _legacy_orm_metadata(node.value, module_name)
+    if name is None or node.targets[0].id != constants.PRIVATE_METHOD_PREFIX + name:
+        return None
+    return name
+
+
+def _module_declaration_ids(tree):
+    return {id(node) for node in tree.body if isinstance(node, ast.Assign)}
+
+
+def guard_legacy_orm_declarations(tree, module_name):
+    """Bind old compiler declarations only when their ownership is verifiable."""
+    for node in tree.body:
+        storage_name = _legacy_orm_name(node, module_name)
+        if storage_name is not None:
+            node.value.keywords = [
+                keyword
+                for keyword in node.value.keywords
+                if keyword.arg not in ("contract", "name")
+            ]
+            node.value = _orm_declaration_call(node.value, module_name, storage_name)
+    return ast.fix_missing_locations(tree)
+
+
 class ContractingCompiler(ast.NodeTransformer):
     def __init__(self, module_name="__main__", linter=None, vm_checker=None):
         self.module_name = module_name
@@ -22,12 +85,14 @@ class ContractingCompiler(ast.NodeTransformer):
         self.private_names = set()
         self.orm_names = set()
         self.visited_names = set()  # store the method visits
+        self.module_declarations = set()
 
     def parse(self, source: str, lint=True, vm_profile: str | None = None):
         self.constructor_visited = False
         self.source = source
 
         tree = ast.parse(source)
+        self.module_declarations = _module_declaration_ids(tree)
 
         try:
             if lint:
@@ -59,6 +124,7 @@ class ContractingCompiler(ast.NodeTransformer):
             self.private_names = set()
             self.orm_names = set()
             self.visited_names = set()
+            self.module_declarations = set()
             self.lint_alerts = None
             self.source = None
 
@@ -208,25 +274,26 @@ class ContractingCompiler(ast.NodeTransformer):
     def visit_Assign(self, node):
         if (
             isinstance(node.value, ast.Call)
-            and not isinstance(node.value.func, ast.Attribute)
+            and isinstance(node.value.func, ast.Name)
             and node.value.func.id in constants.ORM_CLASS_NAMES
         ):
-            node.value.keywords.append(
-                ast.keyword(
-                    arg="contract",
-                    value=ast.Constant(value=self.module_name),
+            storage_name = node.targets[0].id
+            if id(node) in self.module_declarations:
+                node.value = _orm_declaration_call(node.value, self.module_name, storage_name)
+            elif node.value.func.id in ("ForeignVariable", "ForeignHash"):
+                node.value = _orm_declaration_call(
+                    node.value, self.module_name, storage_name, "__xian_foreign_declaration__"
                 )
-            )
-            node.value.keywords.append(
-                ast.keyword(
-                    arg="name",
-                    value=ast.Constant(value=node.targets[0].id),
+            else:
+                node.value.keywords.extend(
+                    [
+                        ast.keyword(arg="contract", value=ast.Constant(value=self.module_name)),
+                        ast.keyword(arg="name", value=ast.Constant(value=storage_name)),
+                    ]
                 )
-            )
-            self.orm_names.add(node.targets[0].id)
+            self.orm_names.add(storage_name)
 
         self.generic_visit(node)
-
         return node
 
     def visit_BinOp(self, node):

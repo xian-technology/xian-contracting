@@ -187,7 +187,8 @@ class Executor:
                 if contract_name == constants.SUBMISSION_CONTRACT_NAME:
                     runtime.rt.context._base_state["submission_name"] = kwargs.get("name")
 
-                result = func(**kwargs)
+                with runtime.contract_execution_scope():
+                    result = func(**kwargs)
                 runtime.rt.deduct_return_value(result)
                 transaction_writes = deepcopy(driver.transaction_writes)
                 events = deepcopy(driver.log_events)

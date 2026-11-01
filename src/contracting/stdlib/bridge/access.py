@@ -7,7 +7,7 @@ from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime, Timedelta
 
-from contracting.execution.runtime import rt
+from contracting.execution.runtime import contract_execution_scope, rt
 from contracting.stdlib.builtins import safe_bytearray, safe_bytes, safe_int
 from contracting.storage.driver import Driver
 
@@ -160,7 +160,7 @@ class __export(ContextDecorator):
                     annotation = annotations.get(name, inspect.Signature.empty)
                     _check_typed_value(value, annotation, f"Argument '{name}'")
 
-            with self._recreate_cm():
+            with self._recreate_cm(), contract_execution_scope():
                 result = func(*args, **kwargs)
 
             if self.typecheck:

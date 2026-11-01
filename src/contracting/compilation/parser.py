@@ -77,6 +77,16 @@ def methods_for_contract(contract_source: str):
     return funcs
 
 
+def _storage_constructor(value):
+    if not isinstance(value, ast.Call) or not isinstance(value.func, ast.Name):
+        return None
+    if value.func.id != "__xian_orm_declaration__":
+        return value.func.id
+    if len(value.args) < 3 or not isinstance(value.args[0], ast.Name):
+        return None
+    return value.args[0].id
+
+
 def variables_for_contract(contract_source: str):
     tree = ast.parse(contract_source)
 
@@ -91,15 +101,13 @@ def variables_for_contract(contract_source: str):
 
     variables = []
     hashes = []
+    destinations = {"Variable": variables, "Hash": hashes}
 
     for assign in assigns:
         if not isinstance(assign.targets[0], ast.Name):
             continue
-        if isinstance(assign.value, ast.Call) and isinstance(assign.value.func, ast.Name):
-            name = assign.targets[0].id.removeprefix("__")
-            if assign.value.func.id == "Variable":
-                variables.append(name)
-            elif assign.value.func.id == "Hash":
-                hashes.append(name)
+        destination = destinations.get(_storage_constructor(assign.value))
+        if destination is not None:
+            destination.append(assign.targets[0].id.removeprefix("__"))
 
     return {"variables": variables, "hashes": hashes}

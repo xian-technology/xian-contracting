@@ -3,7 +3,7 @@ import json
 from contracting import constants
 from contracting.artifacts import compile_contract_source
 from contracting.compilation.compiler import ContractingCompiler
-from contracting.execution.runtime import rt
+from contracting.execution.runtime import contract_execution_scope, rt
 from contracting.execution.sandbox import build_contract_builtins
 from contracting.names import assert_safe_contract_name
 from contracting.runtime_features import (
@@ -145,7 +145,7 @@ class Contract:
             previous_driver = rt.env.get("__Driver")
             rt.env.update({"__Driver": driver})
             try:
-                with rt.push_context_state(deployment_state):
+                with rt.push_context_state(deployment_state), contract_execution_scope():
                     exec(compiled, scope)
 
                     if scope.get(constants.INIT_FUNC_NAME) is not None:
