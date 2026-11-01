@@ -1,12 +1,17 @@
 import inspect
 from contextlib import ContextDecorator
 from functools import wraps
+from itertools import chain
 from typing import Any, get_args, get_origin
 
 from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime, Timedelta
 
+from contracting.execution.interface_subject import (
+    ensure_no_interface_subject,
+    ensure_no_interface_subjects,
+)
 from contracting.execution.runtime import contract_execution_scope, rt
 from contracting.stdlib.builtins import safe_bytearray, safe_bytes, safe_int
 from contracting.storage.driver import Driver
@@ -160,8 +165,7 @@ class __export(ContextDecorator):
                     annotation = annotations.get(name, inspect.Signature.empty)
                     _check_typed_value(value, annotation, f"Argument '{name}'")
 
-            with self._recreate_cm(), contract_execution_scope():
-                result = func(*args, **kwargs)
+            result = self._invoke(func, args, kwargs)
 
             if self.typecheck:
                 _check_typed_value(
@@ -173,6 +177,20 @@ class __export(ContextDecorator):
             return result
 
         return wrapper
+
+    def _invoke(self, func, args, kwargs):
+        cross_contract = rt.context.this != self.contract
+        if cross_contract:
+            ensure_no_interface_subjects(chain(args, kwargs.values()), "shared-call inputs")
+        try:
+            with self._recreate_cm(), contract_execution_scope():
+                result = func(*args, **kwargs)
+        finally:
+            if cross_contract:
+                ensure_no_interface_subjects(chain(args, kwargs.values()), "shared-call inputs")
+        if cross_contract:
+            ensure_no_interface_subject(result, "shared-call results")
+        return result
 
     def __enter__(self, *args, **kwargs):
         driver = rt.env.get("__Driver") or Driver()

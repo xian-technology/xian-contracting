@@ -4,7 +4,7 @@ This suite separates discovery, implementation and behavioral evidence. A name
 appearing in a test or an implementation match arm is not proof of correctness.
 
 - `catalog.json` records the builtin whitelist, public environment exports, host
-  bindings, annotation names and public members of 29 value families. The drift
+  bindings, annotation names and public members of 30 value families. The drift
   test fails when those discovered names change without a reviewed update.
 - `builtin-cases.json` gives every callable builtin nominal, boundary and invalid
   input cases. Expectations are explicit; the Xian restriction on negative
@@ -39,14 +39,15 @@ tests automatically; a cached or ignored older extension is not valid evidence.
 
 ## Interpreting the report
 
-The inventory has 507 entries and 595 direct cases: 586 shared compatibility
+The inventory has 511 entries and 601 direct cases: 592 shared compatibility
 cases and nine native-only policy checks. All 37 callable builtins have three
-behavioral dimensions. There are 324 public Python value members, including
+behavioral dimensions. There are 328 public Python value members, including
 live read-only mapping proxies and the distinct builtin-set family. Member
 entries are not counts of distinct bugs: inherited methods repeat across types.
-Native implementations and successful shared cases cover 319 of those members;
-the remaining five have the explicit API dispositions below. A separate
-unresolved protocol entry records callable-valued builtin-set members.
+The catalog marks native implementations as present for 323 of those members;
+the remaining five have the explicit API dispositions below. Callable-valued
+builtin-set members and metadata-only interface predicates have dedicated
+behavioral suites beyond nominal method-name coverage.
 
 `float.from_number`, `Decimal.from_number` and `bytearray.resize` postdate the
 pinned Python 3.12 historical baseline and are explicitly deferred. Exception
@@ -114,9 +115,48 @@ native-only rejection cases and a successful shared explicit-conversion case;
 it is not counted as a missing implementation. Dedicated set-kind tests also
 check rollback/follow-up recovery and cross-contract alias preservation.
 
-`protocol.builtin_set.callable_members` remains an unresolved domain limitation:
-Python admits bound methods, functions and classes as builtin-set members, while
-the native canonical normalizer rejects those callable-valued members even when
-the dictionary key is admitted. This requires a deterministic execution identity
-and ordering policy coordinated with callable ownership. Passing cases for all
-17 method names do not claim full member-domain parity or resolve that gap.
+Builtin sets accept dictionary-hashable execution-local keys, including bound
+methods, functions, admitted classes and interface descriptors. Equality and
+membership use their shared execution identity. Existing scalar keys retain
+canonical ordering; execution-local keys and callable-bearing tuples form a
+stable encounter-order suffix. Deterministic wrapper sets retain their stricter
+member domain and do not accept these callables. Dedicated identity, ordering
+and boundary tests complement nominal method-name coverage.
+
+## Metadata-only interface predicates
+
+`importlib.enforce_interface` supports an instance-level custom `is_of` predicate
+for function and storage members. The predicate receives one immutable
+`InterfaceSubject` with four readable fields:
+
+- `kind`: `"function"` or `"storage"`.
+- `name`: canonical function code name (including a private prefix), or the
+  inspected storage binding name.
+- `args`: a tuple of positional parameter names for functions; `None` for storage.
+- `storage_type`: `Variable`, `Hash`, `ForeignVariable`, `ForeignHash` or `LogEvent`
+  as a string for storage; `None` for functions.
+
+This is a metadata API, not historical live-object callback compatibility.
+There is no contract-visible constructor, writable field, callable target or
+storage handle in the subject. Standard `Func.is_of` and `Var.is_of` can match
+subjects, allowing a custom predicate to delegate to the default check.
+
+Local predicates execute in the inspector's frame through ordinary callable
+dispatch and consume the same transaction budget. Result truthiness determines
+the match. Signature/type errors and predicate exceptions propagate; a falsey
+result is a normal failed check. Missing/None members and ordinary scalar values
+keep their existing false/true behavior without invoking a callback.
+
+Subject storage, public-result and cross-contract transfer are rejected,
+including retention through nested containers, descriptor attributes and shared
+arguments. An imported exported callback cannot receive the subject in another
+contract. Copying its ordinary metadata fields is allowed. The subject exposes
+no target authority or class object, and checking a private member does not
+make it callable.
+
+The authored `test_vm_interface_subjects.py` and
+`test_vm_interface_subject_boundaries.py` suites cover the subject shape, default
+matcher delegation, inspector context, truthiness, mutation rejection, capability
+absence and rollback. `test_vm_interface_callback_boundaries.py` covers skipped
+members. These are behavioral evidence for the API restriction; generated
+catalog counts remain discovery/report data and do not certify every callback.

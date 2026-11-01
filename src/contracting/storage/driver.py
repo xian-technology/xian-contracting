@@ -14,7 +14,8 @@ from xian_runtime_types.time import Datetime
 
 from contracting import constants
 from contracting.compilation.compiler import ContractingCompiler
-from contracting.execution.runtime import rt
+from contracting.execution.interface_subject import ensure_no_interface_subject
+from contracting.execution.runtime import _contract_execution_active, rt
 from contracting.names import assert_safe_contract_name
 from contracting.storage.lmdb_store import LMDBStore
 from contracting.storage.ordered import iter_overlay_items
@@ -94,6 +95,8 @@ class Driver:
         *,
         enforce_write_cap: bool = True,
     ):
+        if _contract_execution_active.get():
+            ensure_no_interface_subject(value, "storage")
         rt.deduct_write(
             *encode_kv(key, value),
             enforce_write_cap=enforce_write_cap,

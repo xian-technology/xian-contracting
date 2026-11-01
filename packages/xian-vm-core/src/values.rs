@@ -747,6 +747,7 @@ pub enum VmValue {
     MappingProxy(Box<VmValue>),
     HostCallable(crate::VmHostCallable),
     InterfaceDescriptor(Box<crate::VmInterfaceDescriptor>),
+    InterfaceSubject(Box<crate::VmInterfaceSubject>),
     Builtin(String),
     FunctionRef(String),
     TypeMarker(String),
@@ -839,6 +840,7 @@ impl VmValue {
             | Self::ForeignStorageRef(_)
             | Self::EventRef(_)
             | Self::HostCallable(_)
+            | Self::InterfaceSubject(_)
             | Self::InterfaceDescriptor(_)
             | Self::Builtin(_)
             | Self::FunctionRef(_)
@@ -917,6 +919,7 @@ impl VmValue {
             ),
             Self::MappingProxy(value) => format!("mappingproxy({})", value.python_repr()),
             Self::HostCallable(callable) => format!("<host callable {}>", callable.binding()),
+            Self::InterfaceSubject(_) => "<InterfaceSubject>".into(),
             Self::InterfaceDescriptor(descriptor) => {
                 format!("<{} descriptor>", descriptor.class_name())
             }
@@ -1016,6 +1019,7 @@ impl VmValue {
             Self::BoundMethod(_) => "bound_method",
             Self::MappingProxy(_) => "mappingproxy",
             Self::HostCallable(_) => "host_callable",
+            Self::InterfaceSubject(_) => "InterfaceSubject",
             Self::InterfaceDescriptor(descriptor) => descriptor.class_name(),
             Self::Builtin(_) => "builtin",
             Self::FunctionRef(_) => "function_ref",

@@ -267,12 +267,13 @@ def test_descriptor_constructor_binding(tmp_path, body, native):
     assert writes == {}
 
 
-def test_custom_interface_callback_has_controlled_ownership_boundary(tmp_path):
+@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
+def test_builtin_interface_callback_can_inspect_inert_subject_truthiness(tmp_path, native):
     body = "state.set(1)\nm = importlib.import_module('con_descriptor_target')\nf = importlib.Func('noop')\nf.is_of = bool\nreturn importlib.enforce_interface(m,[f])"
-    status, result, writes = execute(tmp_path, body)
-    assert status == 1
-    assert "custom is_of callbacks" in str(result)
-    assert writes == {}
+    status, result, writes = execute(tmp_path, body, native=native)
+    assert status == 0, result
+    assert result is True
+    assert writes == {"con_descriptor_probe.state": 1}
 
 
 @pytest.mark.parametrize("native", [False, True], ids=["python", "native"])

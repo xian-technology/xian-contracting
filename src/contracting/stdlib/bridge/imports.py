@@ -38,6 +38,11 @@ class Func:
         self.args = args
 
     def is_of(self, f: FunctionType):
+        from contracting.execution.interface_subject import InterfaceSubject, charge_subject_match
+
+        if isinstance(f, InterfaceSubject):
+            charge_subject_match(f)
+            return f.kind == "function" and f.name == self.name and f.args == self.args
 
         if f.__closure__ is not None:
             f = extract_closure(f)
@@ -59,6 +64,15 @@ class Var:
         self.type = t
 
     def is_of(self, v):
+        from contracting.execution.interface_subject import (
+            InterfaceSubject,
+            charge_subject_match,
+            storage_subject_matches,
+        )
+
+        if isinstance(v, InterfaceSubject):
+            charge_subject_match(v)
+            return storage_subject_matches(v, self.type)
         if isinstance(v, self.type):
             return True
         return False
@@ -245,9 +259,11 @@ def enforce_interface(contract, interface: list):
             return False
 
         if isinstance(attribute, (Datum, FunctionType)) and "is_of" in vars(i):
-            raise AssertionError(
-                "custom is_of callbacks are not supported by interface enforcement"
-            )
+            from contracting.execution.interface_subject import make_interface_subject
+
+            if not i.is_of(make_interface_subject(attribute, i.name)):
+                return False
+            continue
 
         # Branch for data types
         if isinstance(attribute, Datum):

@@ -17,6 +17,7 @@ fn check_key(key: &VmValue) -> Result<(), VmExecutionError> {
         | VmValue::Builtin(_)
         | VmValue::BoundMethod(_)
         | VmValue::FunctionRef(_)
+        | VmValue::InterfaceSubject(_)
         | VmValue::InterfaceDescriptor(_)
         | VmValue::TypeMarker(_) => Ok(()),
         VmValue::RawDecimal(value) if !value.is_snan() => Ok(()),

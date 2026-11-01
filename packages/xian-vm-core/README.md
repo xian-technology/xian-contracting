@@ -76,6 +76,18 @@ caller before applying the change. Developer changes use the same pattern.
 These ownership and metering rules affect transaction outcomes and charges.
 Validators must activate a runtime version with these rules together.
 
+Custom `importlib.enforce_interface` predicates receive an immutable
+`InterfaceSubject` containing only `kind`, `name`, `args` and `storage_type`.
+Function arguments are positional-name tuples; storage types are family-name
+strings. The subject never contains a live foreign callable, storage handle or
+class. Standard Func/Var matchers accept it for delegation. Local predicates
+run in the inspecting contract's frame under the ordinary transaction budget;
+their result is tested for truthiness and errors propagate normally. Missing or
+None members and ordinary values retain their existing callback-free behavior.
+Subjects cannot be persisted, exposed as public results or passed between
+contracts. See the [surface coverage contract](../../tests/surface/README.md#metadata-only-interface-predicates)
+for the exact fields and complementary boundary tests.
+
 The crate includes curated conformance fixtures generated from the current local
 harness. Those fixtures are checked from Rust so the VM can match actual
 contract behavior on a controlled contract subset alongside hand-written

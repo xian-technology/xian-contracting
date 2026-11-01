@@ -205,6 +205,7 @@ impl VmHeap {
                 | VmValue::BuiltinSet(_)
                 | VmValue::ByteArray(_)
                 | VmValue::Iterator(_)
+                | VmValue::InterfaceSubject(_)
                 | VmValue::InterfaceDescriptor(_)
         );
         let dict_slots = match &value {
@@ -282,6 +283,7 @@ fn shallow_bytes(value: &VmValue) -> usize {
         }
         VmValue::MappingProxy(_) => std::mem::size_of::<VmValue>(),
         VmValue::InterfaceDescriptor(descriptor) => descriptor.allocation_bytes(),
+        VmValue::InterfaceSubject(subject) => subject.allocation_bytes(),
         _ => 0,
     }
 }
@@ -302,6 +304,10 @@ fn map_children(
                 .map(|(k, v)| Ok((map(k)?, map(v)?)))
                 .collect::<Result<_, VmExecutionError>>()?,
         ),
+        VmValue::InterfaceSubject(mut subject) => {
+            subject.args = map(subject.args)?;
+            VmValue::InterfaceSubject(subject)
+        }
         VmValue::InterfaceDescriptor(mut descriptor) => {
             descriptor.attributes = descriptor
                 .attributes
@@ -562,6 +568,7 @@ fn execution_local_capability(value: &VmValue) -> Option<&'static str> {
         VmValue::StorageRef(_) => Some("global storage references"),
         VmValue::FunctionRef(_) => Some("local functions"),
         VmValue::EventRef(_) => Some("event definitions"),
+        VmValue::InterfaceSubject(_) => Some("interface subjects"),
         _ => None,
     }
 }

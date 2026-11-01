@@ -10,6 +10,7 @@ from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime, Timedelta
 
 from contracting.compilation.conformance import CONTRACT_LANGUAGE_MANIFEST
+from contracting.execution.interface_subject import InterfaceSubject
 
 DIRECTORY = Path(__file__).parent
 
@@ -45,6 +46,7 @@ def value_examples():
         "timedelta": Timedelta(seconds=90),
         "None": None,
         "Exception": Exception("sample"),
+        "InterfaceSubject": InterfaceSubject("function", "sample", ("value",)),
     }
 
 

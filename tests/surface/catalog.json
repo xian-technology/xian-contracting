@@ -1126,6 +1126,12 @@
         "symmetric_difference_update": "method",
         "union": "method",
         "update": "method"
+      },
+      "InterfaceSubject": {
+        "args": "attribute",
+        "kind": "attribute",
+        "name": "attribute",
+        "storage_type": "attribute"
       }
     }
   },
@@ -1894,6 +1900,46 @@
       "existing_test_files": [
         "tests/integration/test_vm_scalar_protocols.py",
         "tests/integration/test_vm_surface_matrix.py"
+      ]
+    },
+    {
+      "id": "attribute.InterfaceSubject.args",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Execution-local read-only interface metadata. No live target object or public constructor; storage, public-result and cross-contract boundaries reject subjects recursively.",
+      "existing_test_files": [
+        "tests/integration/test_vm_interface_subjects.py",
+        "tests/integration/test_vm_interface_subject_boundaries.py"
+      ]
+    },
+    {
+      "id": "attribute.InterfaceSubject.kind",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Execution-local read-only interface metadata. No live target object or public constructor; storage, public-result and cross-contract boundaries reject subjects recursively.",
+      "existing_test_files": [
+        "tests/integration/test_vm_interface_subjects.py",
+        "tests/integration/test_vm_interface_subject_boundaries.py"
+      ]
+    },
+    {
+      "id": "attribute.InterfaceSubject.name",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Execution-local read-only interface metadata. No live target object or public constructor; storage, public-result and cross-contract boundaries reject subjects recursively.",
+      "existing_test_files": [
+        "tests/integration/test_vm_interface_subjects.py",
+        "tests/integration/test_vm_interface_subject_boundaries.py"
+      ]
+    },
+    {
+      "id": "attribute.InterfaceSubject.storage_type",
+      "kind": "attribute",
+      "implementation": "present",
+      "reason": "Execution-local read-only interface metadata. No live target object or public constructor; storage, public-result and cross-contract boundaries reject subjects recursively.",
+      "existing_test_files": [
+        "tests/integration/test_vm_interface_subjects.py",
+        "tests/integration/test_vm_interface_subject_boundaries.py"
       ]
     },
     {
@@ -6030,9 +6076,12 @@
     {
       "id": "protocol.builtin_set.callable_members",
       "kind": "protocol",
-      "implementation": "missing",
-      "reason": "Python builtin sets admit bound methods/functions/classes already allowed as dictionary keys; native canonical set normalization still rejects these callable-valued members. A deterministic execution identity/order policy remains separately scoped; this is not a missing method.",
-      "existing_test_files": []
+      "implementation": "present",
+      "reason": "Builtin sets admit supported execution-local callable, descriptor and handle keys, including nested tuple keys. Eligible canonical values retain their order; execution-local keys form a stable encounter-order suffix, preserving first equal representatives and receiver/descriptor/NaN identity. Validation checks every tuple sibling and is bounded to depth 128 and 1,048,576 visited nodes. Wrapper set/frozenset conversion still rejects nonserializable callable members, and public/storage builtin-set restrictions remain unchanged.",
+      "existing_test_files": [
+        "tests/integration/test_vm_builtin_set_keys.py"
+      ],
+      "notes": "Implementation: packages/xian-vm-core/src/builtin_set_keys.rs. This is a bounded in-execution identity/order policy, not Python randomized set iteration or a serialization permission. Subject metadata keys remain subject to their stricter cross-contract boundary."
     },
     {
       "id": "protocol.builtin_set.cross_contract",

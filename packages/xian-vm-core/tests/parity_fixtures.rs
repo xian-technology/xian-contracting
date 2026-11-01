@@ -927,6 +927,7 @@ fn vm_value_to_json(value: &VmValue) -> Value {
         | VmValue::MappingProxy(_)
         | VmValue::BuiltinSet(_)
         | VmValue::HostCallable(_)
+        | VmValue::InterfaceSubject(_)
         | VmValue::InterfaceDescriptor(_)
         | VmValue::DeploymentHandle => {
             panic!("heap references must not escape the VM")
@@ -1223,6 +1224,7 @@ fn vm_value_type_name(value: &VmValue) -> &'static str {
         | VmValue::MappingProxy(_)
         | VmValue::BuiltinSet(_)
         | VmValue::HostCallable(_)
+        | VmValue::InterfaceSubject(_)
         | VmValue::InterfaceDescriptor(_) => {
             panic!("heap references must not escape the VM")
         }

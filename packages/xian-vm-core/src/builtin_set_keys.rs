@@ -80,6 +80,7 @@ fn classify_leaf(value: &VmValue, domain: Domain) -> Result<bool> {
         | VmValue::BoundMethod(_)
         | VmValue::FunctionRef(_)
         | VmValue::TypeMarker(_)
+        | VmValue::InterfaceSubject(_)
         | VmValue::InterfaceDescriptor(_)
             if matches!(domain, Domain::Builtin) =>
         {

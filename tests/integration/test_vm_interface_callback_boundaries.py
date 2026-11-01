@@ -62,5 +62,5 @@ state.set('pending')
 return importlib.enforce_interface(module,[interface])"""
     status, result, writes = execute(tmp_path, body, native=native, prefix=prefix, target=target)
     assert status == 1
-    assert "custom is_of callbacks" in str(result)
+    assert "InterfaceSubject" in str(result) or "not callable" in str(result)
     assert writes == {}

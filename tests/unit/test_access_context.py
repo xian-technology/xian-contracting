@@ -1,5 +1,6 @@
 from unittest import TestCase
 
+from contracting.execution.interface_subject import InterfaceSubject
 from contracting.execution.runtime import Context, rt
 from contracting.stdlib.bridge.access import __export as export_context
 
@@ -76,3 +77,70 @@ class TestExportContext(TestCase):
 
         self.assertEqual(rt.context._state, [])
         self.assertEqual(rt.context._depth, [])
+
+    def test_subject_input_is_rejected_before_foreign_body(self):
+        rt.env = {"__Driver": DummyDriver({})}
+        calls = []
+
+        @export_context("con_child")
+        def consume(value):
+            calls.append(value)
+            return True
+
+        subject = InterfaceSubject("function", "transfer", ("amount",))
+        with self.assertRaisesRegex(TypeError, "interface subjects cannot cross"):
+            consume({"nested": [subject]})
+        self.assertEqual(calls, [])
+        self.assertEqual(rt.context.this, "con_parent")
+
+    def test_subject_return_is_rejected_after_foreign_context_exit(self):
+        rt.env = {"__Driver": DummyDriver({})}
+        subject = InterfaceSubject("storage", "__balance", storage_type="Variable")
+
+        @export_context("con_child")
+        def produce():
+            return [subject]
+
+        with self.assertRaisesRegex(TypeError, "interface subjects cannot cross"):
+            produce()
+        self.assertEqual(rt.context.this, "con_parent")
+        self.assertEqual(rt.context._state, [])
+
+    def test_subject_injection_into_mutable_argument_is_rejected(self):
+        rt.env = {"__Driver": DummyDriver({})}
+        subject = InterfaceSubject("function", "transfer", ())
+        for raises in (False, True):
+            with self.subTest(raises=raises):
+
+                @export_context("con_child")
+                def inject(value):
+                    value.append(subject)
+                    if raises:
+                        raise ValueError("callee failed")
+                    return True
+
+                with self.assertRaisesRegex(TypeError, "interface subjects cannot cross"):
+                    inject([])
+                self.assertEqual(rt.context.this, "con_parent")
+                self.assertEqual(rt.context._state, [])
+
+    def test_local_export_can_use_subjects(self):
+        rt.env = {"__Driver": DummyDriver({})}
+
+        @export_context("con_parent")
+        def local(value):
+            return value
+
+        subject = InterfaceSubject("function", "transfer", ())
+        self.assertIs(local(subject), subject)
+
+    def test_ordinary_shared_cycles_remain_supported(self):
+        rt.env = {"__Driver": DummyDriver({})}
+
+        @export_context("con_child")
+        def identity(value):
+            return value
+
+        value = []
+        value.append(value)
+        self.assertIs(identity(value), value)

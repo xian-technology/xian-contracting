@@ -66,7 +66,8 @@ impl VmInstance {
         if let Some(class) = method_signatures::wrapper_class(&value.snapshot(), name) {
             return Some(self.static_method(class, name));
         }
-        interface_descriptors::attribute(value, name)
+        interface_subjects::attribute(value, name)
+            .or_else(|| interface_descriptors::attribute(value, name))
     }
     fn bound_public_method(
         &mut self,

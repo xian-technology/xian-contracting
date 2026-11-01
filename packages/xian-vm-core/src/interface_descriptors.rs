@@ -168,6 +168,9 @@ pub(super) fn write_attribute(
     name: &str,
     value: VmValue,
 ) -> Result<(), VmExecutionError> {
+    if matches!(receiver.snapshot(), VmValue::InterfaceSubject(_)) {
+        return Err(VmExecutionError::new("InterfaceSubject is read-only"));
+    }
     if name.starts_with('_') {
         return Err(VmExecutionError::new(
             "private attributes are not available to contracts",
@@ -422,7 +425,10 @@ impl VmInstance {
         };
         // The class selects the function body, even when self has the other descriptor kind.
         descriptor.kind = kind;
-        let result = if kind == VmInterfaceKind::Func {
+        let result = if let VmValue::InterfaceSubject(subject) = value.snapshot() {
+            host.charge_execution_cost(subject.matching_work())?;
+            subject_matches(&descriptor, &subject)?
+        } else if kind == VmInterfaceKind::Func {
             self.func_is_of(&descriptor, &value, host)?
         } else {
             type_checks::isinstance(&value, &descriptor.field("type")?)?
@@ -450,9 +456,16 @@ impl VmInstance {
             "v"
         };
         let value = bind_is_of_argument(args, kwargs, parameter)?;
-        let result = match descriptor.kind {
-            VmInterfaceKind::Var => type_checks::isinstance(&value, &descriptor.field("type")?)?,
-            VmInterfaceKind::Func => self.func_is_of(&descriptor, &value, host)?,
+        let result = if let VmValue::InterfaceSubject(subject) = value.snapshot() {
+            host.charge_execution_cost(subject.matching_work())?;
+            subject_matches(&descriptor, &subject)?
+        } else {
+            match descriptor.kind {
+                VmInterfaceKind::Var => {
+                    type_checks::isinstance(&value, &descriptor.field("type")?)?
+                }
+                VmInterfaceKind::Func => self.func_is_of(&descriptor, &value, host)?,
+            }
         };
         Ok(VmValue::Bool(result))
     }
@@ -512,11 +525,14 @@ impl VmInstance {
             ));
         }
         let contract = interface_contract_name(&args[0])?;
-        let items = self.collect_iterable(&args[1], host)?;
-        if !items.is_empty() {
-            host.charge_execution_cost(items.len() as u64)?;
-        }
-        for item in items {
+        let iterator = crate::iteration::iter(&args[1], &self.heap)?;
+        let mut count = 0;
+        while let Some(item) = self.next_item(&iterator, host)? {
+            count += 1;
+            if count > MAX_SEQUENCE_LENGTH {
+                return Err(VmExecutionError::new("interface iteration limit exceeded"));
+            }
+            host.charge_execution_cost(1)?;
             let VmValue::InterfaceDescriptor(descriptor) = item.snapshot() else {
                 return Err(VmExecutionError::new(
                     "interface entries must be Func or Var descriptors",
@@ -530,7 +546,7 @@ impl VmInstance {
     }
 
     fn enforce_descriptor(
-        &self,
+        &mut self,
         descriptor: &VmInterfaceDescriptor,
         contract: &str,
         host: &mut dyn VmHost,
@@ -541,16 +557,18 @@ impl VmInstance {
             return Ok(false);
         };
         let member = self.resolve_interface_member(contract, &name, host)?;
-        // Python only consults is_of for FunctionType and Datum members.
-        // A missing/None member or ordinary data never reads the override.
-        if !matches!(
+        // Missing/None and ordinary data never inspect an override.
+        if matches!(
             member,
             VmInterfaceMember::Missing | VmInterfaceMember::Other
-        ) && descriptor.attributes.contains_key("is_of")
-        {
-            return Err(VmExecutionError::new(
-                "custom is_of callbacks are not supported by interface enforcement",
-            ));
+        ) {
+            return matches_member(descriptor, &member);
+        }
+        if let Some(callback) = descriptor.attributes.get("is_of") {
+            let subject = self.interface_subject(&name, member, host)?;
+            return Ok(self
+                .call_interface_predicate(callback.clone(), subject, host)?
+                .truthy());
         }
         matches_member(descriptor, &member)
     }
@@ -703,6 +721,30 @@ fn datum_value(class: &str) -> VmValue {
         })
     }
 }
+fn subject_matches(
+    descriptor: &VmInterfaceDescriptor,
+    subject: &VmInterfaceSubject,
+) -> Result<bool, VmExecutionError> {
+    if descriptor.kind != subject.kind {
+        return Ok(false);
+    }
+    match subject.kind {
+        VmInterfaceKind::Func => {
+            Ok(vm_values_equal(
+                &descriptor.field("name")?,
+                &VmValue::String(subject.name.clone()),
+            )? && vm_values_equal(&descriptor.field("args")?, &subject.args)?)
+        }
+        VmInterfaceKind::Var => matches_datum(
+            descriptor,
+            subject
+                .storage_type
+                .as_deref()
+                .ok_or_else(|| VmExecutionError::new("storage subject has no family"))?,
+        ),
+    }
+}
+
 fn matches_member(
     descriptor: &VmInterfaceDescriptor,
     member: &VmInterfaceMember,
@@ -1667,7 +1709,7 @@ mod tests {
 
     #[test]
     fn descriptor_callback_order_skips_missing_and_plain_members() {
-        let vm = metadata_instance();
+        let mut vm = metadata_instance();
         for (name, expected) in [("constant", true), ("missing", false)] {
             let mut interface = descriptor(func(empty_tuple()));
             interface
@@ -1686,7 +1728,7 @@ mod tests {
             .enforce_descriptor(&interface, "con_descriptors", &mut NoopHost {})
             .unwrap_err()
             .to_string()
-            .contains("custom is_of"));
+            .contains("not callable"));
         interface
             .attributes
             .insert("name".into(), VmValue::List(vec![]));

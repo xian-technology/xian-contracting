@@ -1,0 +1,75 @@
+[
+  {
+    "id": "interface_subject_function_metadata",
+    "covers": [
+      "attribute.InterfaceSubject.kind",
+      "attribute.InterfaceSubject.name",
+      "attribute.InterfaceSubject.args",
+      "attribute.InterfaceSubject.storage_type"
+    ],
+    "dimension": "nominal",
+    "source": "observed = []\n@export\ndef member(amount: int, to: str):\n    return amount\ndef inspect(subject):\n    observed.append([subject.kind, subject.name, list(subject.args), subject.storage_type])\n    return True\n@export\ndef probe():\n    descriptor = importlib.Func('member', ('amount', 'to'))\n    descriptor.is_of = inspect\n    importlib.enforce_interface(importlib.import_module(ctx.this), [descriptor])\n    return observed[0]\n",
+    "expected_result": [
+      "function",
+      "member",
+      [
+        "amount",
+        "to"
+      ],
+      null
+    ]
+  },
+  {
+    "id": "interface_subject_storage_metadata",
+    "covers": [
+      "attribute.InterfaceSubject.kind",
+      "attribute.InterfaceSubject.name",
+      "attribute.InterfaceSubject.args",
+      "attribute.InterfaceSubject.storage_type"
+    ],
+    "dimension": "boundary",
+    "source": "value = Variable(default_value=0)\nobserved = []\n@export\ndef member(amount: int, to: str):\n    return amount\ndef inspect(subject):\n    observed.append([subject.kind, subject.name, subject.args, subject.storage_type])\n    return True\n@export\ndef probe():\n    descriptor = importlib.Var('value', Variable)\n    descriptor.is_of = inspect\n    importlib.enforce_interface(importlib.import_module(ctx.this), [descriptor])\n    return observed[0]\n",
+    "expected_result": [
+      "storage",
+      "__value",
+      null,
+      "Variable"
+    ]
+  },
+  {
+    "id": "interface_subject_readonly_kind",
+    "covers": [
+      "attribute.InterfaceSubject.kind"
+    ],
+    "dimension": "invalid",
+    "source": "observed = []\n@export\ndef member(amount: int, to: str):\n    return amount\ndef inspect(subject):\n    subject.kind = 'storage'\n    return True\n@export\ndef probe():\n    descriptor = importlib.Func('member', ('amount', 'to'))\n    descriptor.is_of = inspect\n    importlib.enforce_interface(importlib.import_module(ctx.this), [descriptor])\n    return True\n",
+    "expected_failure": true
+  },
+  {
+    "id": "interface_subject_readonly_name",
+    "covers": [
+      "attribute.InterfaceSubject.name"
+    ],
+    "dimension": "invalid",
+    "source": "observed = []\n@export\ndef member(amount: int, to: str):\n    return amount\ndef inspect(subject):\n    subject.name = 'changed'\n    return True\n@export\ndef probe():\n    descriptor = importlib.Func('member', ('amount', 'to'))\n    descriptor.is_of = inspect\n    importlib.enforce_interface(importlib.import_module(ctx.this), [descriptor])\n    return True\n",
+    "expected_failure": true
+  },
+  {
+    "id": "interface_subject_readonly_args",
+    "covers": [
+      "attribute.InterfaceSubject.args"
+    ],
+    "dimension": "invalid",
+    "source": "observed = []\n@export\ndef member(amount: int, to: str):\n    return amount\ndef inspect(subject):\n    subject.args = ()\n    return True\n@export\ndef probe():\n    descriptor = importlib.Func('member', ('amount', 'to'))\n    descriptor.is_of = inspect\n    importlib.enforce_interface(importlib.import_module(ctx.this), [descriptor])\n    return True\n",
+    "expected_failure": true
+  },
+  {
+    "id": "interface_subject_readonly_storage_type",
+    "covers": [
+      "attribute.InterfaceSubject.storage_type"
+    ],
+    "dimension": "invalid",
+    "source": "observed = []\n@export\ndef member(amount: int, to: str):\n    return amount\ndef inspect(subject):\n    subject.storage_type = 'Hash'\n    return True\n@export\ndef probe():\n    descriptor = importlib.Func('member', ('amount', 'to'))\n    descriptor.is_of = inspect\n    importlib.enforce_interface(importlib.import_module(ctx.this), [descriptor])\n    return True\n",
+    "expected_failure": true
+  }
+]

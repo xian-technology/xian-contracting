@@ -1488,7 +1488,9 @@ pub(super) fn vm_values_equal(left: &VmValue, right: &VmValue) -> Result<bool, V
 fn is_interface_descriptor(value: &VmValue) -> bool {
     match value {
         VmValue::Reference(reference) => reference.with_value(is_interface_descriptor),
-        VmValue::DeploymentHandle | VmValue::InterfaceDescriptor(_) => true,
+        VmValue::DeploymentHandle
+        | VmValue::InterfaceSubject(_)
+        | VmValue::InterfaceDescriptor(_) => true,
         _ => false,
     }
 }

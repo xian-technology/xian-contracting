@@ -63,6 +63,9 @@ const VM_GAS_EXPR_FORMATTED_VALUE: u64 = 96;
 mod deployment_handles;
 #[path = "host_introspection.rs"]
 mod host_introspection;
+#[path = "interface_subjects.rs"]
+mod interface_subjects;
+pub use interface_subjects::VmInterfaceSubject;
 #[path = "interface_descriptors.rs"]
 mod interface_descriptors;
 #[path = "module_aliases.rs"]

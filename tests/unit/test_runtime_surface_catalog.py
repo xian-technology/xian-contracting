@@ -142,6 +142,24 @@ def test_builtin_set_inventory_keeps_kind_boundary_and_member_domain_distinct():
     for name in discovery["builtin_set"]:
         assert rows["method.builtin_set." + name]["implementation"] == "present"
     assert rows["protocol.builtin_set.external_boundary"]["disposition"] == "restricted"
-    gap = rows["protocol.builtin_set.callable_members"]
-    assert gap["implementation"] == "missing"
-    assert "disposition" not in gap
+    members = rows["protocol.builtin_set.callable_members"]
+    assert members["implementation"] == "present"
+    assert "disposition" not in members
+    assert members["existing_test_files"] == ["tests/integration/test_vm_builtin_set_keys.py"]
+    assert "packages/xian-vm-core/src/builtin_set_keys.rs" in members["notes"]
+
+
+def test_interface_subject_inventory_lists_only_reviewed_metadata_fields():
+    members = {name: "attribute" for name in ("kind", "name", "args", "storage_type")}
+    assert discover()["value_members"]["InterfaceSubject"] == members
+    rows = {row["id"]: row for row in CATALOG["items"]}
+    for name in members:
+        row = rows["attribute.InterfaceSubject." + name]
+        assert row["implementation"] == "present"
+        assert "read-only" in row["reason"]
+        assert (
+            "tests/integration/test_vm_interface_subject_boundaries.py"
+            in row["existing_test_files"]
+        )
+    assert "InterfaceSubject" not in CATALOG["discovery"]["builtins"]
+    assert "InterfaceSubject" not in CATALOG["discovery"]["environment"]

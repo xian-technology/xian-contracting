@@ -5,6 +5,10 @@ from xian_runtime_types.decimal import CONTEXT, ContractingDecimal
 
 from contracting import constants
 from contracting.execution import runtime
+from contracting.execution.interface_subject import (
+    ensure_no_interface_subject,
+    ensure_no_interface_subjects,
+)
 from contracting.execution.module import (
     disable_restricted_imports,
     enable_restricted_imports,
@@ -193,8 +197,13 @@ class Executor:
                 if contract_name == constants.SUBMISSION_CONTRACT_NAME:
                     runtime.rt.context._base_state["submission_name"] = kwargs.get("name")
 
-                with runtime.contract_execution_scope():
-                    result = func(**kwargs)
+                ensure_no_interface_subjects(kwargs.values(), "transaction inputs")
+                try:
+                    with runtime.contract_execution_scope():
+                        result = func(**kwargs)
+                finally:
+                    ensure_no_interface_subjects(kwargs.values(), "transaction inputs")
+                ensure_no_interface_subject(result, "public results")
                 runtime.rt.deduct_return_value(result)
                 transaction_writes = deepcopy(driver.transaction_writes)
                 events = deepcopy(driver.log_events)

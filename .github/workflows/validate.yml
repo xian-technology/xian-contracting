@@ -41,7 +41,10 @@ jobs:
           uv build --wheel --out-dir "${RUNNER_TEMP}/contracting-wheel"
           uv pip install --no-deps --reinstall "${RUNNER_TEMP}"/contracting-wheel/*.whl
           uv run --no-sync python -c 'from pathlib import Path; import contracting; assert not Path(contracting.__file__).resolve().is_relative_to(Path.cwd() / "src")'
-          uv run --no-sync pytest -q tests/unit/test_module_access.py tests/security/test_attribute_mutation_guards.py
+          uv run --no-sync pytest -q \
+            tests/unit/test_module_access.py tests/security/test_attribute_mutation_guards.py \
+            tests/unit/test_access_context.py tests/unit/test_interface_subject_metadata.py \
+            tests/unit/test_interface_subject_visitor.py
 
       - name: Upload coverage report
         if: always()
