@@ -205,6 +205,7 @@ impl VmHeap {
                 | VmValue::BuiltinSet(_)
                 | VmValue::ByteArray(_)
                 | VmValue::Iterator(_)
+                | VmValue::InterfaceDescriptor(_)
         );
         let dict_slots = match &value {
             VmValue::Dict(entries) => Some(crate::dict_slots::DictSlots::new(entries)),
@@ -280,6 +281,7 @@ fn shallow_bytes(value: &VmValue) -> usize {
             std::mem::size_of::<crate::VmBoundMethod>() + bound.method.len()
         }
         VmValue::MappingProxy(_) => std::mem::size_of::<VmValue>(),
+        VmValue::InterfaceDescriptor(descriptor) => descriptor.allocation_bytes(),
         _ => 0,
     }
 }
@@ -300,6 +302,14 @@ fn map_children(
                 .map(|(k, v)| Ok((map(k)?, map(v)?)))
                 .collect::<Result<_, VmExecutionError>>()?,
         ),
+        VmValue::InterfaceDescriptor(mut descriptor) => {
+            descriptor.attributes = descriptor
+                .attributes
+                .into_iter()
+                .map(|(name, value)| Ok((name, map(value)?)))
+                .collect::<Result<_, VmExecutionError>>()?;
+            VmValue::InterfaceDescriptor(descriptor)
+        }
         VmValue::BoundMethod(mut bound) => {
             bound.receiver = map(bound.receiver)?;
             VmValue::BoundMethod(bound)
@@ -385,6 +395,11 @@ fn detach(
             "builtin sets cannot cross the VM boundary; convert with set() first",
         ));
     }
+    if matches!(value.snapshot(), VmValue::InterfaceDescriptor(_)) {
+        return Err(VmExecutionError::new(
+            "interface descriptors cannot cross the VM boundary",
+        ));
+    }
     if matches!(value.snapshot(), VmValue::BoundMethod(_)) {
         return Err(VmExecutionError::new(
             "bound methods cannot cross the VM boundary",
@@ -422,6 +437,28 @@ fn detach(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn descriptor_heap_budget_covers_entry_payload_and_tree_links() {
+        let heap = VmHeap::default();
+        // A stored field necessarily owns its key, value slot and tree link.
+        // Reserve one byte less than that independent minimum; the descriptor
+        // must fail before capture even if its values allocate no child objects.
+        let minimum = std::mem::size_of::<Object>()
+            + 5
+            + std::mem::size_of::<(String, VmValue)>()
+            + std::mem::size_of::<usize>();
+        heap.0.usage.borrow_mut().bytes = MAX_HEAP_BYTES - minimum + 1;
+        let value = VmValue::InterfaceDescriptor(Box::new(crate::VmInterfaceDescriptor {
+            kind: crate::VmInterfaceKind::Func,
+            attributes: std::collections::BTreeMap::from([("field".into(), VmValue::None)]),
+        }));
+        assert!(heap
+            .capture(value)
+            .unwrap_err()
+            .to_string()
+            .contains("heap allocation"));
+    }
 
     #[test]
     fn identity_distinguishes_equal_objects_and_preserves_singletons() {
@@ -583,6 +620,19 @@ impl ContractValueVisitor {
             )));
         }
         match value {
+            VmValue::InterfaceDescriptor(descriptor) => {
+                if self.boundary != "contract boundaries" {
+                    return Err(VmExecutionError::new(
+                        "interface descriptors cannot cross the VM boundary",
+                    ));
+                }
+                for (name, value) in &descriptor.attributes {
+                    if !descriptor.safe_storage_type(name, value) {
+                        self.visit(value, depth + 1)?;
+                    }
+                }
+                Ok(())
+            }
             VmValue::Dict(entries) => {
                 for (key, value) in entries {
                     self.visit(key, depth + 1)?;

@@ -1,0 +1,1771 @@
+[
+  {
+    "binding": "indexed",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "indexed",
+    "positional_names": []
+  },
+  {
+    "binding": "Contract.deploy",
+    "catalog": "HostCallable53",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "deploy",
+    "positional_names": [
+      "cls"
+    ]
+  },
+  {
+    "binding": "Contract.get_info",
+    "catalog": "HostCallable53",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "get_info",
+    "positional_names": [
+      "cls",
+      "name"
+    ]
+  },
+  {
+    "binding": "Contract.set_owner",
+    "catalog": "HostCallable53",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "set_owner",
+    "positional_names": [
+      "cls",
+      "name",
+      "new_owner"
+    ]
+  },
+  {
+    "binding": "Contract.set_developer",
+    "catalog": "HostCallable53",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "set_developer",
+    "positional_names": [
+      "cls",
+      "name",
+      "new_developer"
+    ]
+  },
+  {
+    "binding": "datetime.datetime.strptime",
+    "catalog": "HostCallable53",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "strptime",
+    "positional_names": [
+      "cls",
+      "date_string",
+      "format"
+    ]
+  },
+  {
+    "binding": "hashlib.sha3",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "sha3",
+    "positional_names": [
+      "hex_str"
+    ]
+  },
+  {
+    "binding": "hashlib.sha256",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "sha256",
+    "positional_names": [
+      "hex_str"
+    ]
+  },
+  {
+    "binding": "hashlib.sha3_text",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "sha3_text",
+    "positional_names": [
+      "value"
+    ]
+  },
+  {
+    "binding": "hashlib.sha3_hex",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "sha3_hex",
+    "positional_names": [
+      "value"
+    ]
+  },
+  {
+    "binding": "hashlib.sha256_text",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "sha256_text",
+    "positional_names": [
+      "value"
+    ]
+  },
+  {
+    "binding": "hashlib.sha256_hex",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "sha256_hex",
+    "positional_names": [
+      "value"
+    ]
+  },
+  {
+    "binding": "crypto.verify",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "verify",
+    "positional_names": [
+      "vk",
+      "msg",
+      "signature"
+    ]
+  },
+  {
+    "binding": "crypto.key_is_valid",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "key_is_valid",
+    "positional_names": [
+      "key"
+    ]
+  },
+  {
+    "binding": "importlib.import_module",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "import_module",
+    "positional_names": [
+      "name"
+    ]
+  },
+  {
+    "binding": "importlib.exists",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "exists",
+    "positional_names": [
+      "contract"
+    ]
+  },
+  {
+    "binding": "importlib.has_export",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "has_export",
+    "positional_names": [
+      "contract",
+      "function"
+    ]
+  },
+  {
+    "binding": "importlib.call",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "call",
+    "positional_names": [
+      "contract",
+      "function",
+      "kwargs"
+    ]
+  },
+  {
+    "binding": "importlib.enforce_interface",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "enforce_interface",
+    "positional_names": [
+      "contract",
+      "interface"
+    ]
+  },
+  {
+    "binding": "importlib.owner_of",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "owner_of",
+    "positional_names": [
+      "contract"
+    ]
+  },
+  {
+    "binding": "importlib.contract_info",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "contract_info",
+    "positional_names": [
+      "contract"
+    ]
+  },
+  {
+    "binding": "importlib.code_hash",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "code_hash",
+    "positional_names": [
+      "contract",
+      "kind"
+    ]
+  },
+  {
+    "binding": "random.seed",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "seed",
+    "positional_names": [
+      "aux_salt"
+    ]
+  },
+  {
+    "binding": "random.random",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "random",
+    "positional_names": []
+  },
+  {
+    "binding": "random.shuffle",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "shuffle",
+    "positional_names": [
+      "items"
+    ]
+  },
+  {
+    "binding": "random.getrandbits",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "getrandbits",
+    "positional_names": [
+      "k"
+    ]
+  },
+  {
+    "binding": "random.randrange",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "randrange",
+    "positional_names": [
+      "k"
+    ]
+  },
+  {
+    "binding": "random.randint",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "randint",
+    "positional_names": [
+      "a",
+      "b"
+    ]
+  },
+  {
+    "binding": "random.choice",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "choice",
+    "positional_names": [
+      "items"
+    ]
+  },
+  {
+    "binding": "random.choices",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "choices",
+    "positional_names": [
+      "items",
+      "k"
+    ]
+  },
+  {
+    "binding": "zk.is_available",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "is_available",
+    "positional_names": []
+  },
+  {
+    "binding": "zk.has_verifying_key",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "has_verifying_key",
+    "positional_names": [
+      "vk_id"
+    ]
+  },
+  {
+    "binding": "zk.get_vk_info",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "get_vk_info",
+    "positional_names": [
+      "vk_id"
+    ]
+  },
+  {
+    "binding": "zk.verify_groth16_bn254",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "verify_groth16_bn254",
+    "positional_names": [
+      "vk_hex",
+      "proof_hex",
+      "public_inputs"
+    ]
+  },
+  {
+    "binding": "zk.verify_groth16",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "verify_groth16",
+    "positional_names": [
+      "vk_id",
+      "proof_hex",
+      "public_inputs"
+    ]
+  },
+  {
+    "binding": "zk.clear_prepared_vk_cache",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "clear_prepared_vk_cache",
+    "positional_names": []
+  },
+  {
+    "binding": "zk.clear_verified_proof_cache",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "clear_verified_proof_cache",
+    "positional_names": []
+  },
+  {
+    "binding": "zk.warm_verified_proofs",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "warm_verified_proofs",
+    "positional_names": [
+      "requests"
+    ]
+  },
+  {
+    "binding": "zk.shielded_note_append_commitments",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "shielded_note_append_commitments",
+    "positional_names": [
+      "note_count",
+      "filled_subtrees",
+      "commitments"
+    ]
+  },
+  {
+    "binding": "zk.shielded_command_nullifier_digest",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "shielded_command_nullifier_digest",
+    "positional_names": [
+      "input_nullifiers"
+    ]
+  },
+  {
+    "binding": "zk.shielded_command_binding",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "shielded_command_binding",
+    "positional_names": [
+      "nullifier_digest",
+      "target_digest",
+      "payload_digest",
+      "relayer_digest",
+      "expiry_digest",
+      "chain_digest",
+      "entrypoint_digest",
+      "version_digest",
+      "fee",
+      "public_amount"
+    ]
+  },
+  {
+    "binding": "zk.shielded_command_execution_tag",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "shielded_command_execution_tag",
+    "positional_names": [
+      "nullifier_digest",
+      "command_binding"
+    ]
+  },
+  {
+    "binding": "zk.shielded_command_public_inputs",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "shielded_command_public_inputs",
+    "positional_names": [
+      "contract_name",
+      "old_root",
+      "command_binding",
+      "execution_tag",
+      "fee",
+      "public_amount",
+      "input_nullifiers",
+      "commitments",
+      "payload_hashes"
+    ]
+  },
+  {
+    "binding": "zk.shielded_deposit_public_inputs",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "shielded_deposit_public_inputs",
+    "positional_names": [
+      "contract_name",
+      "old_root",
+      "amount",
+      "commitments",
+      "payload_hashes"
+    ]
+  },
+  {
+    "binding": "zk.shielded_output_payload_hashes",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "shielded_output_payload_hashes",
+    "positional_names": [
+      "payload_hexes"
+    ]
+  },
+  {
+    "binding": "zk.shielded_output_payload_hash",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "shielded_output_payload_hash",
+    "positional_names": [
+      "payload_hex"
+    ]
+  },
+  {
+    "binding": "zk.shielded_transfer_public_inputs",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "shielded_transfer_public_inputs",
+    "positional_names": [
+      "contract_name",
+      "old_root",
+      "input_nullifiers",
+      "commitments",
+      "payload_hashes"
+    ]
+  },
+  {
+    "binding": "zk.shielded_withdraw_public_inputs",
+    "catalog": "HostCallable53",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "shielded_withdraw_public_inputs",
+    "positional_names": [
+      "contract_name",
+      "old_root",
+      "amount",
+      "recipient",
+      "input_nullifiers",
+      "commitments",
+      "payload_hashes"
+    ]
+  },
+  {
+    "binding": "pow",
+    "catalog": "allowed_builtin",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "safe_pow",
+    "positional_names": []
+  },
+  {
+    "binding": "range",
+    "catalog": "allowed_builtin",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "safe_range",
+    "positional_names": []
+  },
+  {
+    "binding": "round",
+    "catalog": "allowed_builtin",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "safe_round",
+    "positional_names": [
+      "number",
+      "ndigits"
+    ]
+  },
+  {
+    "binding": "(set).add",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "add",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "(set).clear",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "clear",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(set).copy",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "copy",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(set).difference",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "difference",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(set).discard",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "discard",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "(set).intersection",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "intersection",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(set).isdisjoint",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "isdisjoint",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(set).issubset",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "issubset",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(set).issuperset",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "issuperset",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(set).pop",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "pop",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(set).remove",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "remove",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "(set).symmetric_difference",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "symmetric_difference",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(set).union",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "union",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(frozenset).copy",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "copy",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(frozenset).difference",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "difference",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(frozenset).intersection",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "intersection",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(frozenset).isdisjoint",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "isdisjoint",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(frozenset).issubset",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "issubset",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(frozenset).issuperset",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "issuperset",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(frozenset).symmetric_difference",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "symmetric_difference",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(frozenset).union",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "union",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(Variable).append",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "append",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "(Variable).clear",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "clear",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(Variable).extend",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "extend",
+    "positional_names": [
+      "self",
+      "values"
+    ]
+  },
+  {
+    "binding": "(Variable).get",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "get",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(Variable).insert",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "insert",
+    "positional_names": [
+      "self",
+      "index",
+      "value"
+    ]
+  },
+  {
+    "binding": "(Variable).pop",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "pop",
+    "positional_names": [
+      "self",
+      "key",
+      "default"
+    ]
+  },
+  {
+    "binding": "(Variable).remove",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "remove",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "(Variable).set",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "set",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "(Variable).update",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "update",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(Hash).all",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "all",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(Hash).clear",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "clear",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(Hash).clone_from",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "clone_from",
+    "positional_names": [
+      "self",
+      "source"
+    ]
+  },
+  {
+    "binding": "(ForeignVariable).append",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "append",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "(ForeignVariable).clear",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "clear",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(ForeignVariable).extend",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "extend",
+    "positional_names": [
+      "self",
+      "values"
+    ]
+  },
+  {
+    "binding": "(ForeignVariable).get",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "get",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(ForeignVariable).insert",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "insert",
+    "positional_names": [
+      "self",
+      "index",
+      "value"
+    ]
+  },
+  {
+    "binding": "(ForeignVariable).pop",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "pop",
+    "positional_names": [
+      "self",
+      "key",
+      "default"
+    ]
+  },
+  {
+    "binding": "(ForeignVariable).remove",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "remove",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "(ForeignVariable).set",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "set",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "(ForeignVariable).update",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "update",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(ForeignHash).all",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "all",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(ForeignHash).clear",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "clear",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(ForeignHash).clone_from",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "clone_from",
+    "positional_names": [
+      "self",
+      "source"
+    ]
+  },
+  {
+    "binding": "(LogEvent).write_event",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "write_event",
+    "positional_names": [
+      "self",
+      "event_data"
+    ]
+  },
+  {
+    "binding": "(bytes).fromhex",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "fromhex",
+    "positional_names": [
+      "string"
+    ]
+  },
+  {
+    "binding": "(bytes).maketrans",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "maketrans",
+    "positional_names": [
+      "frm",
+      "to"
+    ]
+  },
+  {
+    "binding": "(bytearray).fromhex",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "fromhex",
+    "positional_names": [
+      "string"
+    ]
+  },
+  {
+    "binding": "(bytearray).maketrans",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "maketrans",
+    "positional_names": [
+      "frm",
+      "to"
+    ]
+  },
+  {
+    "binding": "(datetime.datetime).strptime",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "strptime",
+    "positional_names": [
+      "cls",
+      "date_string",
+      "format"
+    ]
+  },
+  {
+    "binding": "(Contract).deploy",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "deploy",
+    "positional_names": [
+      "cls"
+    ]
+  },
+  {
+    "binding": "(Contract).get_info",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "get_info",
+    "positional_names": [
+      "cls",
+      "name"
+    ]
+  },
+  {
+    "binding": "(Contract).set_developer",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "set_developer",
+    "positional_names": [
+      "cls",
+      "name",
+      "new_developer"
+    ]
+  },
+  {
+    "binding": "(Contract).set_owner",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "set_owner",
+    "positional_names": [
+      "cls",
+      "name",
+      "new_owner"
+    ]
+  },
+  {
+    "binding": "(Contract).submit",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "submit",
+    "positional_names": [
+      "self",
+      "name",
+      "code",
+      "owner",
+      "constructor_args",
+      "developer",
+      "deployer",
+      "initiator"
+    ]
+  },
+  {
+    "binding": "(importlib.Func).is_of",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "is_of",
+    "positional_names": [
+      "self",
+      "f"
+    ]
+  },
+  {
+    "binding": "(importlib.Var).is_of",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "function",
+    "enforce_as_function": true,
+    "code_name": "is_of",
+    "positional_names": [
+      "self",
+      "v"
+    ]
+  },
+  {
+    "binding": "(datetime.datetime(2026,1,2)).strptime",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "strptime",
+    "positional_names": [
+      "cls",
+      "date_string",
+      "format"
+    ]
+  },
+  {
+    "binding": "(Contract()).deploy",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "deploy",
+    "positional_names": [
+      "cls"
+    ]
+  },
+  {
+    "binding": "(Contract()).get_info",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "get_info",
+    "positional_names": [
+      "cls",
+      "name"
+    ]
+  },
+  {
+    "binding": "(Contract()).set_developer",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "set_developer",
+    "positional_names": [
+      "cls",
+      "name",
+      "new_developer"
+    ]
+  },
+  {
+    "binding": "(Contract()).set_owner",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "set_owner",
+    "positional_names": [
+      "cls",
+      "name",
+      "new_owner"
+    ]
+  },
+  {
+    "binding": "(Contract()).submit",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "submit",
+    "positional_names": [
+      "self",
+      "name",
+      "code",
+      "owner",
+      "constructor_args",
+      "developer",
+      "deployer",
+      "initiator"
+    ]
+  },
+  {
+    "binding": "(importlib.Func('probe')).is_of",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "is_of",
+    "positional_names": [
+      "self",
+      "f"
+    ]
+  },
+  {
+    "binding": "(importlib.Var('value',Variable)).is_of",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "is_of",
+    "positional_names": [
+      "self",
+      "v"
+    ]
+  },
+  {
+    "binding": "(set([1])).add",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "add",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "(set([1])).clear",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "clear",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(set([1])).copy",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "copy",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(set([1])).difference",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "difference",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(set([1])).discard",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "discard",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "(set([1])).intersection",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "intersection",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(set([1])).isdisjoint",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "isdisjoint",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(set([1])).issubset",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "issubset",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(set([1])).issuperset",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "issuperset",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(set([1])).pop",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "pop",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(set([1])).remove",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "remove",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "(set([1])).symmetric_difference",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "symmetric_difference",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(set([1])).union",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "union",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(frozenset([1])).copy",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "copy",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(frozenset([1])).difference",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "difference",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(frozenset([1])).intersection",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "intersection",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "(frozenset([1])).isdisjoint",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "isdisjoint",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(frozenset([1])).issubset",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "issubset",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(frozenset([1])).issuperset",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "issuperset",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(frozenset([1])).symmetric_difference",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "symmetric_difference",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "(frozenset([1])).union",
+    "catalog": "public_wrapper_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "union",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "variable.append",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "append",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "variable.clear",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "clear",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "variable.extend",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "extend",
+    "positional_names": [
+      "self",
+      "values"
+    ]
+  },
+  {
+    "binding": "variable.get",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "get",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "variable.insert",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "insert",
+    "positional_names": [
+      "self",
+      "index",
+      "value"
+    ]
+  },
+  {
+    "binding": "variable.pop",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "pop",
+    "positional_names": [
+      "self",
+      "key",
+      "default"
+    ]
+  },
+  {
+    "binding": "variable.remove",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "remove",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "variable.set",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "set",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "variable.update",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "update",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "hash.all",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "all",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "hash.clear",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "clear",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "hash.clone_from",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "clone_from",
+    "positional_names": [
+      "self",
+      "source"
+    ]
+  },
+  {
+    "binding": "foreign_variable.append",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "append",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "foreign_variable.clear",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "clear",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "foreign_variable.extend",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "extend",
+    "positional_names": [
+      "self",
+      "values"
+    ]
+  },
+  {
+    "binding": "foreign_variable.get",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "get",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "foreign_variable.insert",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "insert",
+    "positional_names": [
+      "self",
+      "index",
+      "value"
+    ]
+  },
+  {
+    "binding": "foreign_variable.pop",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "pop",
+    "positional_names": [
+      "self",
+      "key",
+      "default"
+    ]
+  },
+  {
+    "binding": "foreign_variable.remove",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "remove",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "foreign_variable.set",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "set",
+    "positional_names": [
+      "self",
+      "value"
+    ]
+  },
+  {
+    "binding": "foreign_variable.update",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "update",
+    "positional_names": [
+      "self",
+      "other"
+    ]
+  },
+  {
+    "binding": "foreign_hash.all",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "all",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "foreign_hash.clear",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "clear",
+    "positional_names": [
+      "self"
+    ]
+  },
+  {
+    "binding": "foreign_hash.clone_from",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "clone_from",
+    "positional_names": [
+      "self",
+      "source"
+    ]
+  },
+  {
+    "binding": "event.write_event",
+    "catalog": "storage_bound_candidate",
+    "callable_kind": "method",
+    "enforce_as_function": false,
+    "code_name": "write_event",
+    "positional_names": [
+      "self",
+      "event_data"
+    ]
+  }
+]

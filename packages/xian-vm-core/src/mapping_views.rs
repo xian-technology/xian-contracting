@@ -323,7 +323,9 @@ impl WorkWalker {
             self.memo.insert(id, cost);
             return cost;
         }
-        self.content(value, depth).saturating_add(1)
+        execution_key_work(value)
+            .unwrap_or_else(|| self.content(value, depth))
+            .saturating_add(1)
     }
     fn content(&mut self, value: &VmValue, depth: usize) -> u64 {
         match value {
@@ -354,6 +356,27 @@ impl WorkWalker {
         })
     }
 }
+// Callable/descriptor keys compare identity, not captured receiver contents.
+// Names still participate in equality, so charge their full UTF-8 payload.
+fn execution_key_work(value: &VmValue) -> Option<u64> {
+    match value {
+        VmValue::Builtin(name) | VmValue::TypeMarker(name) | VmValue::FunctionRef(name) => {
+            Some(name.len() as u64)
+        }
+        VmValue::HostCallable(callable) => Some(callable.binding().len() as u64),
+        VmValue::ContractHandle(handle) => Some((handle.module.len() + handle.origin.len()) as u64),
+        VmValue::BoundMethod(bound) => {
+            let receiver = match &bound.receiver {
+                VmValue::Builtin(name) | VmValue::TypeMarker(name) => name.len() as u64,
+                _ => 16,
+            };
+            Some((bound.method.len() as u64).saturating_add(receiver))
+        }
+        VmValue::InterfaceDescriptor(_) => Some(16),
+        _ => None,
+    }
+}
+
 fn collection_len(value: &VmValue) -> u64 {
     match value {
         VmValue::Reference(reference) => reference.with_value(collection_len),

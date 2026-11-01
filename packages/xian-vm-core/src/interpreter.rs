@@ -1,10 +1,10 @@
 use crate::{validate_module_ir, FunctionIr, ModuleIr};
-use ed25519_dalek::{Signature, VerifyingKey};
 use num_bigint::{BigInt, Sign};
 use num_traits::{Num, Signed, ToPrimitive, Zero};
 use serde_json::{Map, Value};
+#[cfg(test)]
 use sha2::Digest as Sha2Digest;
-use sha2::Sha256;
+#[cfg(test)]
 use sha3::Sha3_256;
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -59,6 +59,11 @@ const VM_GAS_EXPR_IF_EXPR: u64 = 96;
 const VM_GAS_EXPR_F_STRING: u64 = 96;
 const VM_GAS_EXPR_FORMATTED_VALUE: u64 = 96;
 
+#[path = "host_introspection.rs"]
+mod host_introspection;
+#[path = "interface_descriptors.rs"]
+mod interface_descriptors;
+pub use interface_descriptors::{VmInterfaceDescriptor, VmInterfaceKind, VmInterfaceMember};
 #[path = "attributes.rs"]
 mod attributes;
 #[path = "lexical_scopes.rs"]
@@ -77,6 +82,8 @@ mod builtin_set_methods;
 mod call_dispatch;
 #[path = "collection_methods.rs"]
 mod collection_methods;
+#[path = "crypto_resources.rs"]
+mod crypto_resources;
 #[path = "expression_evaluation.rs"]
 mod expression_evaluation;
 #[path = "foreign_storage.rs"]
@@ -691,6 +698,17 @@ pub trait VmHost {
         Ok(result)
     }
 
+    fn interface_member(
+        &mut self,
+        _contract: &str,
+        _name: &str,
+        _context: VmExecutionContext,
+    ) -> Result<VmInterfaceMember, VmExecutionError> {
+        Err(VmExecutionError::unsupported(
+            "host does not support live interface members",
+        ))
+    }
+
     fn validate_contract_export(
         &mut self,
         contract: &str,
@@ -795,6 +813,10 @@ enum ResolvedAssignmentTarget {
         container: VmValue,
         index: VmValue,
     },
+    Attribute {
+        receiver: VmValue,
+        name: String,
+    },
     Unsupported(String),
 }
 
@@ -807,6 +829,7 @@ pub struct VmInstance {
     lexical_bindings: HashSet<String>,
     imports: HashMap<String, String>,
     contract_exports: HashMap<(usize, String), VmValue>,
+    static_methods: HashMap<String, VmValue>,
     globals: HashMap<String, VmValue>,
     variables: HashMap<String, VariableState>,
     hashes: HashMap<String, HashState>,
@@ -857,6 +880,7 @@ impl VmInstance {
             lexical_bindings: HashSet::new(),
             imports,
             contract_exports: HashMap::new(),
+            static_methods: HashMap::new(),
             globals: HashMap::new(),
             variables: HashMap::new(),
             hashes: HashMap::new(),
@@ -2521,7 +2545,8 @@ mod tests {
                 )
             );
         }
-        assert_eq!(host.execution_costs, vec![5000, 5000]);
+        // Each three-byte hash adds six units under the per-byte gas schedule.
+        assert_eq!(host.execution_costs, vec![5000, 6, 5000, 6]);
         instance
             .call_expression_callable_value(
                 &mut host,
@@ -2530,7 +2555,7 @@ mod tests {
                 vec![],
             )
             .unwrap();
-        assert_eq!(host.execution_costs, vec![5000, 5000]);
+        assert_eq!(host.execution_costs, vec![5000, 6, 5000, 6, 6]);
         let mut limited = AssignmentMeteringHost {
             budget: Some(4999),
             ..Default::default()

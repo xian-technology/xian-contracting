@@ -184,6 +184,22 @@ impl ParityHarness {
 }
 
 impl VmHost for ParityHarness {
+    fn interface_member(
+        &mut self,
+        contract: &str,
+        name: &str,
+        _context: VmExecutionContext,
+    ) -> Result<xian_vm_core::VmInterfaceMember, VmExecutionError> {
+        let module = self
+            .modules
+            .get(contract)
+            .ok_or_else(|| VmExecutionError::new("unknown interface contract"))?;
+        Ok(module
+            .instance
+            .interface_members()?
+            .remove(name)
+            .unwrap_or(xian_vm_core::VmInterfaceMember::Missing))
+    }
     fn emit_event(&mut self, event: VmEvent) -> Result<(), VmExecutionError> {
         self.events.push(event);
         Ok(())
@@ -910,7 +926,8 @@ fn vm_value_to_json(value: &VmValue) -> Value {
         | VmValue::BoundMethod(_)
         | VmValue::MappingProxy(_)
         | VmValue::BuiltinSet(_)
-        | VmValue::HostCallable(_) => {
+        | VmValue::HostCallable(_)
+        | VmValue::InterfaceDescriptor(_) => {
             panic!("heap references must not escape the VM")
         }
         VmValue::DecimalTuple(value) => vm_value_to_json(&VmValue::Tuple(value.as_values())),
@@ -1204,7 +1221,8 @@ fn vm_value_type_name(value: &VmValue) -> &'static str {
         | VmValue::BoundMethod(_)
         | VmValue::MappingProxy(_)
         | VmValue::BuiltinSet(_)
-        | VmValue::HostCallable(_) => {
+        | VmValue::HostCallable(_)
+        | VmValue::InterfaceDescriptor(_) => {
             panic!("heap references must not escape the VM")
         }
         VmValue::None => "NoneType",

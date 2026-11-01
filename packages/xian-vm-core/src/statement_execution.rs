@@ -145,15 +145,13 @@ impl VmInstance {
                 host,
                 module_scope,
             ),
-            "subscript" => {
+            "subscript" | "attribute" => {
                 let (resolved, current) =
                     self.resolve_assignment_target(target, scope, host, false)?;
                 debug_assert!(current.is_none());
                 self.assign_resolved_target(resolved, value, scope, module_scope, host)
             }
-            "attribute" => Err(VmExecutionError::new(
-                "attribute assignment is not yet supported in xian-vm-core",
-            )),
+
             other => Err(VmExecutionError::new(format!(
                 "unsupported assignment target '{other}'"
             ))),
@@ -182,6 +180,23 @@ impl VmInstance {
                     current,
                 ))
             }
+            "attribute" => {
+                if load_value {
+                    host.charge_execution_cost(vm_expression_gas_cost("attribute", object)?)?;
+                }
+                let receiver =
+                    self.eval_expression(required_value(object, "value")?, scope, host)?;
+                let name = required_string(object, "attr")?.to_owned();
+                let current = if load_value {
+                    Some(self.read_attribute(receiver.clone(), &name, host)?)
+                } else {
+                    None
+                };
+                Ok((
+                    ResolvedAssignmentTarget::Attribute { receiver, name },
+                    current,
+                ))
+            }
             "subscript" => {
                 if load_value {
                     host.charge_execution_cost(vm_expression_gas_cost("subscript", object)?)?;
@@ -189,19 +204,20 @@ impl VmInstance {
                 let value_expression = required_value(object, "value")?;
                 let value_object = as_object(value_expression, "subscript target value")?;
                 let value_node = required_string(value_object, "node")?;
-                let (parent, container) = if matches!(value_node, "name" | "subscript") {
-                    let (parent, container) =
-                        self.resolve_assignment_target(value_expression, scope, host, true)?;
-                    let container = container.ok_or_else(|| {
-                        VmExecutionError::new("subscript assignment container has no value")
-                    })?;
-                    (parent, container)
-                } else {
-                    (
-                        ResolvedAssignmentTarget::Unsupported(value_node.to_owned()),
-                        self.eval_expression(value_expression, scope, host)?,
-                    )
-                };
+                let (parent, container) =
+                    if matches!(value_node, "name" | "subscript" | "attribute") {
+                        let (parent, container) =
+                            self.resolve_assignment_target(value_expression, scope, host, true)?;
+                        let container = container.ok_or_else(|| {
+                            VmExecutionError::new("subscript assignment container has no value")
+                        })?;
+                        (parent, container)
+                    } else {
+                        (
+                            ResolvedAssignmentTarget::Unsupported(value_node.to_owned()),
+                            self.eval_expression(value_expression, scope, host)?,
+                        )
+                    };
                 let index = self.eval_expression(required_value(object, "slice")?, scope, host)?;
                 let current = if load_value {
                     Some(self.read_subscript(container.clone(), &index, host)?)
@@ -256,6 +272,9 @@ impl VmInstance {
                 }
                 let updated = assign_subscript(container, &index, value)?;
                 self.assign_resolved_target(*parent, updated, scope, module_scope, host)
+            }
+            ResolvedAssignmentTarget::Attribute { receiver, name } => {
+                self.write_interface_attribute(receiver, &name, value)
             }
             ResolvedAssignmentTarget::Unsupported(node) => Err(VmExecutionError::new(format!(
                 "unsupported assignment target '{node}'"
@@ -338,7 +357,7 @@ impl VmInstance {
         let target = required_value(object, "target")?;
         let target_object = as_object(target, "target")?;
         let target_node = required_string(target_object, "node")?;
-        let (resolved, current) = if matches!(target_node, "name" | "subscript") {
+        let (resolved, current) = if matches!(target_node, "name" | "subscript" | "attribute") {
             let (resolved, current) = self.resolve_assignment_target(target, scope, host, true)?;
             let current = current
                 .ok_or_else(|| VmExecutionError::new("augmented assignment target has no value"))?;

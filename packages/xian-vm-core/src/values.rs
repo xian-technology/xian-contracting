@@ -745,6 +745,7 @@ pub enum VmValue {
     BoundMethod(Box<crate::VmBoundMethod>),
     MappingProxy(Box<VmValue>),
     HostCallable(crate::VmHostCallable),
+    InterfaceDescriptor(Box<crate::VmInterfaceDescriptor>),
     Builtin(String),
     FunctionRef(String),
     TypeMarker(String),
@@ -759,6 +760,7 @@ impl VmValue {
     pub(crate) fn storage_value(&self) -> Result<Self, VmExecutionError> {
         let detached = self.external_value()?;
         // Persistence eligibility cannot depend on whether chi metering is on.
+        crate::set_member_codec::validate_set_normalization_work(&detached)?;
         detached.validate_storage_payload()?;
         match detached {
             Self::RawDecimal(value) => Ok(Self::Decimal(value.to_fixed()?)),
@@ -771,17 +773,22 @@ impl VmValue {
             Self::RawDecimal(value) => {
                 value.to_fixed()?;
             }
-            Self::List(values)
-            | Self::Tuple(values)
-            | Self::Set(values)
-            | Self::BuiltinSet(values)
-            | Self::FrozenSet(values) => {
+            Self::Set(_) | Self::FrozenSet(_) => {
+                crate::set_member_codec::encode_set_value(self)?;
+            }
+            Self::List(values) | Self::Tuple(values) | Self::BuiltinSet(values) => {
                 for value in values {
                     value.validate_storage_payload()?;
                 }
             }
             Self::Dict(entries) => {
                 for (key, value) in entries {
+                    if matches!(key,Self::String(name) if crate::set_member_codec::is_reserved_tag(name))
+                    {
+                        return Err(VmExecutionError::new(
+                            "stored dictionaries cannot use reserved codec tags",
+                        ));
+                    }
                     if !matches!(
                         key,
                         Self::None
@@ -830,6 +837,7 @@ impl VmValue {
             | Self::ForeignStorageRef(_)
             | Self::EventRef(_)
             | Self::HostCallable(_)
+            | Self::InterfaceDescriptor(_)
             | Self::Builtin(_)
             | Self::FunctionRef(_)
             | Self::TypeMarker(_)
@@ -906,6 +914,9 @@ impl VmValue {
             ),
             Self::MappingProxy(value) => format!("mappingproxy({})", value.python_repr()),
             Self::HostCallable(callable) => format!("<host callable {}>", callable.binding()),
+            Self::InterfaceDescriptor(descriptor) => {
+                format!("<{} descriptor>", descriptor.class_name())
+            }
             Self::Builtin(name) => format!("<builtin:{name}>"),
             Self::FunctionRef(name) => format!("<function:{name}>"),
             Self::TypeMarker(name) => name.clone(),
@@ -1001,6 +1012,7 @@ impl VmValue {
             Self::BoundMethod(_) => "bound_method",
             Self::MappingProxy(_) => "mappingproxy",
             Self::HostCallable(_) => "host_callable",
+            Self::InterfaceDescriptor(descriptor) => descriptor.class_name(),
             Self::Builtin(_) => "builtin",
             Self::FunctionRef(_) => "function_ref",
             Self::TypeMarker(_) => "type_marker",

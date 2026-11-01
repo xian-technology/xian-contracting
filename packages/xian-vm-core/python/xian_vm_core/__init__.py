@@ -51,15 +51,6 @@ _RANDOM_SYSCALLS = {
 }
 
 
-def _interface_type_name(value: Any) -> str:
-    if isinstance(value, str):
-        return value
-    name = getattr(value, "__name__", None)
-    if isinstance(name, str) and name:
-        return name
-    return str(value)
-
-
 @dataclass(slots=True)
 class NativeExecutionResult:
     status_code: int
@@ -279,55 +270,6 @@ class NativeVmHost:
                 return True
         return False
 
-    def _contract_enforce_interface(
-        self,
-        contract: str,
-        interface: list[dict[str, Any]],
-    ) -> bool:
-        module_ir = self.load_module_ir(contract)
-        if not module_ir:
-            return False
-
-        functions = {
-            function.get("name"): function
-            for function in module_ir.get("functions", [])
-            if isinstance(function, dict)
-        }
-        storages = {
-            declaration.get("name"): declaration.get("storage_type")
-            for declaration in module_ir.get("global_declarations", [])
-            if isinstance(declaration, dict) and declaration.get("node") == "storage_decl"
-        }
-
-        for item in interface:
-            if not isinstance(item, dict):
-                raise VmRuntimeExecutionError("contract interface entries must be dict descriptors")
-            kind = item.get("__vm_interface__")
-            if kind == "func":
-                function = functions.get(item.get("name"))
-                if function is None:
-                    return False
-                expected_visibility = "private" if item.get("private") else "export"
-                if function.get("visibility") != expected_visibility:
-                    return False
-                expected_args = tuple(item.get("args", ()))
-                actual_args = tuple(
-                    parameter.get("name")
-                    for parameter in function.get("parameters", [])
-                    if isinstance(parameter, dict)
-                    and parameter.get("kind") == "positional_or_keyword"
-                )
-                if actual_args != expected_args:
-                    return False
-                continue
-            if kind == "var":
-                if storages.get(item.get("name")) != item.get("type"):
-                    return False
-                continue
-            raise VmRuntimeExecutionError(f"unsupported interface descriptor kind '{kind}'")
-
-        return True
-
     def _stage_contract_metadata_write(self, contract: str, variable: str, value: Any) -> None:
         key = self._make_key(contract, variable)
         self._stage_write(key, value)
@@ -531,25 +473,6 @@ class NativeVmHost:
             if contract_text is None:
                 return None
             return hashlib.sha3_256(contract_text.encode("utf-8")).hexdigest()
-        if syscall_id == "contract.interface.func":
-            name = args[0]
-            declared_args = tuple(args[1]) if len(args) > 1 else ()
-            return {
-                "__vm_interface__": "func",
-                "name": name,
-                "args": declared_args,
-                "private": bool(kwargs.get("private", False)),
-            }
-        if syscall_id == "contract.interface.var":
-            return {
-                "__vm_interface__": "var",
-                "name": args[0],
-                "type": _interface_type_name(args[1]),
-            }
-        if syscall_id == "contract.enforce_interface":
-            contract = args[0]
-            interface = list(args[1])
-            return self._contract_enforce_interface(contract, interface)
         if syscall_id.startswith("random."):
             function_name = syscall_id.split(".", 1)[1]
             handler = _RANDOM_SYSCALLS.get(function_name)

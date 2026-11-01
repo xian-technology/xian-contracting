@@ -252,7 +252,7 @@ fn replace_set(receiver: &VmValue, items: Vec<VmValue>) -> Result<()> {
 }
 fn charge_hashable(item: &VmValue, host: &mut dyn VmHost) -> Result<()> {
     host.charge_execution_cost(mapping_views::value_work(item).saturating_mul(32))?;
-    ensure_set_hashable(item)
+    support::builtin_set_keys::ensure_hashable(item)
 }
 fn add_set(receiver: &VmValue, item: VmValue, host: &mut dyn VmHost) -> Result<VmValue> {
     edit_set(receiver, item, true, host)?;
@@ -275,7 +275,7 @@ fn edit_set(receiver: &VmValue, item: VmValue, insert: bool, host: &mut dyn VmHo
     charge_scan(receiver, &item, host)?;
     let mut items = set_items(receiver);
     if insert {
-        set_insert_value(&mut items, item)?;
+        support::builtin_set_keys::insert(&mut items, item)?;
     } else {
         items = set_difference_values(&items, &[item])?;
     }

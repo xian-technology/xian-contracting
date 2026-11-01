@@ -12,6 +12,15 @@ impl VmInstance {
         host: &mut dyn VmHost,
         target: Option<VmContractTarget>,
     ) -> Result<VmValue, VmExecutionError> {
+        if let Some(result) = crypto_resources::dispatch(syscall_id, &args, &kwargs, host) {
+            return result;
+        }
+        if matches!(
+            syscall_id,
+            "contract.interface.func" | "contract.interface.var" | "contract.enforce_interface"
+        ) {
+            return self.dispatch_host_syscall(syscall_id, args, kwargs, host);
+        }
         let shared_args = args.clone();
         let shared_kwargs = kwargs.clone();
         let args = args.iter().map(VmValue::snapshot).collect::<Vec<_>>();
@@ -74,6 +83,17 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
+        if matches!(
+            syscall_id,
+            "contract.interface.func" | "contract.interface.var" | "contract.enforce_interface"
+        ) {
+            let callable = VmHostCallable::for_syscall(syscall_id, None)
+                .expect("interface callable catalog entry");
+            return self.call_host_callable(callable, args, kwargs, host);
+        }
+        if let Some(result) = crypto_resources::dispatch(syscall_id, &args, &kwargs, host) {
+            return result;
+        }
         let shared_args = args.clone();
         let shared_kwargs = kwargs.clone();
         let args = args.iter().map(VmValue::snapshot).collect::<Vec<_>>();
@@ -93,14 +113,6 @@ impl VmInstance {
             "time.datetime.new" => time_datetime_new(args, kwargs),
             "time.datetime.strptime" => time_datetime_strptime(args, kwargs, host),
             "time.timedelta.new" => time_timedelta_new(args, kwargs),
-            "hash.sha3_256_text" => hash_sha3_256_text(args, kwargs),
-            "hash.sha3_256_hex" => hash_sha3_256_hex(args, kwargs),
-            "hash.sha256_legacy" => hash_legacy(false, args, kwargs),
-            "hash.sha3_256_legacy" => hash_legacy(true, args, kwargs),
-            "hash.sha256_text" => hash_sha256_text(args, kwargs),
-            "hash.sha256_hex" => hash_sha256_hex(args, kwargs),
-            "crypto.ed25519_verify" => crypto_ed25519_verify(args, kwargs),
-            "crypto.key_is_valid" => crypto_key_is_valid(args, kwargs),
             "contract.import" => {
                 let module = resolve_contract_import_arg(&args, &kwargs)?;
                 Ok(VmValue::ContractHandle(VmContractHandle {

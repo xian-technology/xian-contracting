@@ -2,7 +2,7 @@
 use super::*;
 
 #[path = "type_checks.rs"]
-mod type_checks;
+pub(in crate::interpreter) mod type_checks;
 
 impl VmInstance {
     pub(super) fn call_builtin(

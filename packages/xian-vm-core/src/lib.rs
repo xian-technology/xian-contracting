@@ -20,6 +20,7 @@ mod decimal_tuple;
 mod interpreter;
 mod metering;
 mod raw_decimal;
+mod set_member_codec;
 pub use decimal_tuple::{VmDecimalExponent, VmDecimalTuple};
 mod storage_scan;
 mod values;
@@ -29,7 +30,9 @@ pub const XIAN_IR_V1: &str = "xian_ir_v1";
 pub const XIAN_VM_V1_PROFILE: &str = "xian_vm_v1";
 pub const XIAN_VM_HOST_CATALOG_V1: &str = "xian_vm_v1_host_v1";
 pub const XIAN_VM_SUPPORTED_BYTECODE_VERSIONS: &[&str] = &["xvm-1"];
-pub const XIAN_VM_SUPPORTED_GAS_SCHEDULES: &[&str] = &["xvm-gas-1"];
+pub const XIAN_VM_SUPPORTED_GAS_SCHEDULES: &[&str] = &["xvm-gas-2"];
+pub const XIAN_VM_EXECUTION_REVISION: &str = "xvm-execution-2";
+pub const XIAN_VM_SET_CODEC: &str = "xian-set-1";
 
 pub use artifacts::*;
 pub use interpreter::*;

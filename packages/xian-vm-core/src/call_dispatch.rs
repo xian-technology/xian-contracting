@@ -182,6 +182,15 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
+        let receiver = attributes::invocation_receiver(receiver);
+        if method == "is_of" {
+            if let Some(class) = interface_descriptors::descriptor_class(&receiver) {
+                return self.call_interface_class_method(class, args, kwargs, host);
+            }
+        }
+        if matches!(receiver.snapshot(), VmValue::InterfaceDescriptor(_)) {
+            return self.call_interface_method(&receiver, method, args, kwargs, host);
+        }
         if matches!(receiver.snapshot(),VmValue::Builtin(ref module) if module=="Contract") {
             let callable = VmHostCallable::named(&format!("Contract.{method}"))
                 .ok_or_else(|| VmExecutionError::new("unknown Contract method"))?;
@@ -189,6 +198,9 @@ impl VmInstance {
         }
         if let VmValue::ContractHandle(handle) = receiver.snapshot() {
             return self.call_contract_export(handle, method, args, kwargs, host);
+        }
+        if let Some(class) = method_signatures::wrapper_class(&receiver, method) {
+            return self.call_wrapper_function(class, method, args, kwargs, host);
         }
         if let Some(kind) = method_signatures::unbound_class(&receiver, method) {
             let mut arguments = args.into_iter();
@@ -463,6 +475,56 @@ impl VmInstance {
                 Ok(value)
             }
         }
+    }
+
+    fn call_wrapper_function(
+        &mut self,
+        class: &str,
+        method: &str,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+        host: &mut dyn VmHost,
+    ) -> Result<VmValue, VmExecutionError> {
+        let (instance, args, kwargs) = method_signatures::bind_wrapper_receiver(args, kwargs)?;
+        if method == "copy" {
+            return self.call_wrapper_copy(class, instance, args, kwargs, host);
+        }
+        if !method_signatures::wrapper_receiver_compatible(&instance, method) {
+            return Err(VmExecutionError::new(
+                "unbound method received an incompatible receiver",
+            ));
+        }
+        self.call_receiver(instance, method, args, kwargs, host)
+    }
+
+    fn call_wrapper_copy(
+        &mut self,
+        class: &str,
+        instance: VmValue,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+        host: &mut dyn VmHost,
+    ) -> Result<VmValue, VmExecutionError> {
+        if !args.is_empty() || !kwargs.is_empty() {
+            return Err(VmExecutionError::new("copy() expects only self"));
+        }
+        if class == "frozenset" {
+            return Ok(instance);
+        }
+        if !method_signatures::wrapper_receiver_compatible(&instance, "copy") {
+            return Err(VmExecutionError::new(
+                "unbound method received an incompatible receiver",
+            ));
+        }
+        fn copy_work(value: &VmValue) -> u64 {
+            match value {
+                VmValue::Reference(reference) => reference.with_value(copy_work),
+                VmValue::Set(items) | VmValue::FrozenSet(items) => items.len() as u64,
+                _ => 0,
+            }
+        }
+        charge_method_work(host, copy_work(&instance))?;
+        Ok(instance.snapshot())
     }
 
     fn variable_method(

@@ -47,6 +47,14 @@ ORDINARY_RAW_COSTS = {
 }
 
 
+# The module's interface metadata initialization adds 132 raw chi under gas2.
+# Source-derived work: global v=2; identity(value)=15; probe(x,y,mapping,items)=24;
+# declaration v=2; base=1. Total 44, times tree-depth bucket 3 for five entries.
+# Keep the pre-existing execution costs separate so wide-Decimal comparisons
+# still have an exact control independent of this one-time module setup fee.
+INTERFACE_METADATA_INIT_RAW_COST = 132
+
+
 def run_case(home, expression, digits, budget=500_000):
     from xian_vm_core import execute_contract
 
@@ -82,7 +90,7 @@ def test_extended_comparison_work_exhausts_budget_before_results(tmp_path, expre
     ordinary = run_case(tmp_path / "ordinary", expression, 91)
     assert ordinary.status_code == 0, ordinary.result
     assert ordinary.result == expected
-    assert ordinary.raw_cost == ORDINARY_RAW_COSTS[expression]
+    assert ordinary.raw_cost == ORDINARY_RAW_COSTS[expression] + INTERFACE_METADATA_INIT_RAW_COST
     wide = run_case(tmp_path / "wide", expression, 2000)
     assert wide.status_code == 1 and "Out of chi" in str(wide.result), wide.result
     assert wide.writes == {} and wide.events == []

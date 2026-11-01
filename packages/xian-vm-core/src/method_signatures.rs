@@ -679,6 +679,61 @@ mod tests {
     }
 }
 
+/// Python wrapper methods bind self by name, unlike C method descriptors.
+pub(super) fn wrapper_class(receiver: &VmValue, method: &str) -> Option<&'static str> {
+    let class = match receiver {
+        VmValue::Builtin(name) | VmValue::TypeMarker(name) => match name.as_str() {
+            "set" => "set",
+            "frozenset" => "frozenset",
+            _ => return None,
+        },
+        _ => return None,
+    };
+    let sample = if class == "set" {
+        VmValue::Set(vec![])
+    } else {
+        VmValue::FrozenSet(vec![])
+    };
+    signature(&sample, method).map(|_| {
+        if method != "copy" && set_signature(method, false).is_some() {
+            "set"
+        } else {
+            class
+        }
+    })
+}
+
+pub(super) fn bind_wrapper_receiver(
+    args: Vec<VmValue>,
+    kwargs: Vec<(String, VmValue)>,
+) -> Result<(VmValue, Vec<VmValue>, Vec<(String, VmValue)>), VmExecutionError> {
+    let mut args = args.into_iter();
+    let mut receiver = args.next();
+    let mut remaining = Vec::new();
+    for (name, value) in kwargs {
+        if name == "self" {
+            if receiver.replace(value).is_some() {
+                return Err(VmExecutionError::new("multiple values for self"));
+            }
+        } else {
+            remaining.push((name, value));
+        }
+    }
+    let receiver = receiver.ok_or_else(|| VmExecutionError::new("unbound method missing self"))?;
+    Ok((receiver, args.collect(), remaining))
+}
+
+pub(super) fn wrapper_receiver_compatible(value: &VmValue, method: &str) -> bool {
+    match value {
+        VmValue::Reference(reference) => {
+            reference.with_value(|value| wrapper_receiver_compatible(value, method))
+        }
+        VmValue::Set(_) => true,
+        VmValue::FrozenSet(_) => set_signature(method, false).is_some(),
+        _ => false,
+    }
+}
+
 // Native descriptors on builtin classes bind the first positional argument at
 // invocation, unlike class/static factories that retain the class receiver.
 pub(super) fn unbound_class(receiver: &VmValue, method: &str) -> Option<&'static str> {

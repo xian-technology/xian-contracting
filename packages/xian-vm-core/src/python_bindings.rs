@@ -3,8 +3,8 @@ use crate::{
     parse_module_ir, VmContractCall, VmContractTarget, VmDateTime, VmDecimal, VmEvent,
     VmExecutionContext, VmExecutionError, VmExecutionStats, VmHost, VmInstance, VmMeterConfig,
     VmTimeDelta, VmValue, VM_GAS_CROSS_CONTRACT_CALL_BASE, VM_GAS_CROSS_CONTRACT_CALL_REPEAT,
-    XIAN_IR_V1, XIAN_VM_HOST_CATALOG_V1, XIAN_VM_SUPPORTED_BYTECODE_VERSIONS,
-    XIAN_VM_SUPPORTED_GAS_SCHEDULES, XIAN_VM_V1_PROFILE,
+    XIAN_IR_V1, XIAN_VM_EXECUTION_REVISION, XIAN_VM_HOST_CATALOG_V1, XIAN_VM_SET_CODEC,
+    XIAN_VM_SUPPORTED_BYTECODE_VERSIONS, XIAN_VM_SUPPORTED_GAS_SCHEDULES, XIAN_VM_V1_PROFILE,
 };
 use num_bigint::BigInt;
 use pyo3::create_exception;
@@ -12,7 +12,7 @@ use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyByteArray, PyBytes, PyDict, PyList, PyModule, PyTuple};
 use serde_json::{json, Value as JsonValue};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::str::FromStr;
 
 create_exception!(xian_vm_core, VmIrValidationError, PyValueError);
@@ -49,6 +49,8 @@ struct PythonBundleExecutor {
     host: Py<PyAny>,
     modules: HashMap<String, crate::ModuleIr>,
     instances: HashMap<String, VmInstance>,
+    interface_members: HashMap<String, BTreeMap<String, crate::VmInterfaceMember>>,
+    initializing_modules: HashSet<String>,
     storage_overlay: HashMap<String, VmValue>,
     events: Vec<VmEvent>,
     meter: crate::VmMeter,
@@ -81,6 +83,8 @@ impl PythonBundleExecutor {
             host,
             modules,
             instances: HashMap::new(),
+            interface_members: HashMap::new(),
+            initializing_modules: HashSet::new(),
             storage_overlay: HashMap::new(),
             events: Vec::new(),
             meter: match budget {
@@ -201,6 +205,19 @@ impl PythonBundleExecutor {
         module_name: &str,
         context: &VmExecutionContext,
     ) -> Result<(), VmExecutionError> {
+        if !self.initializing_modules.insert(module_name.to_owned()) {
+            return Err(VmExecutionError::new("circular module initialization"));
+        }
+        let result = self.instantiate_module_inner(module_name, context);
+        self.initializing_modules.remove(module_name);
+        result
+    }
+
+    fn instantiate_module_inner(
+        &mut self,
+        module_name: &str,
+        context: &VmExecutionContext,
+    ) -> Result<(), VmExecutionError> {
         let module = self
             .modules
             .get(module_name)
@@ -213,6 +230,10 @@ impl PythonBundleExecutor {
         }
         let heap = self.heap.clone();
         let instance = VmInstance::new_with_heap(module, instance_context, self, heap)?;
+        self.meter
+            .charge_execution_cost(instance.interface_metadata_work())?;
+        self.interface_members
+            .insert(module_name.to_owned(), instance.interface_members()?);
         self.instances.insert(module_name.to_owned(), instance);
         Ok(())
     }
@@ -246,6 +267,29 @@ impl PythonBundleExecutor {
 }
 
 impl VmHost for PythonBundleExecutor {
+    fn interface_member(
+        &mut self,
+        contract: &str,
+        name: &str,
+        mut context: VmExecutionContext,
+    ) -> Result<crate::VmInterfaceMember, VmExecutionError> {
+        if !self.interface_members.contains_key(contract) {
+            self.ensure_module(contract)?;
+            context.caller = context.this.clone();
+            context.this = Some(contract.to_owned());
+            context.owner = self.load_owner(contract)?;
+            self.meter.enter_contract_metering(contract);
+            let result = self.instantiate_module(contract, &context);
+            self.meter.exit_contract_metering();
+            result?;
+        }
+        let member = self.interface_members[contract].get(name);
+        self.meter.charge_execution_cost(
+            name.len() as u64 + member.map_or(1, crate::VmInterfaceMember::inspection_work),
+        )?;
+        Ok(member.cloned().unwrap_or(crate::VmInterfaceMember::Missing))
+    }
+
     fn charge_execution_cost(&mut self, cost: u64) -> Result<(), VmExecutionError> {
         self.meter.charge_execution_cost(cost)
     }
@@ -1136,6 +1180,8 @@ fn runtime_info_json() -> PyResult<String> {
         "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
         "supported_bytecode_versions": XIAN_VM_SUPPORTED_BYTECODE_VERSIONS,
         "supported_gas_schedules": XIAN_VM_SUPPORTED_GAS_SCHEDULES,
+        "execution_revision": XIAN_VM_EXECUTION_REVISION,
+        "set_codec": XIAN_VM_SET_CODEC,
     }))
     .map_err(|error| PyValueError::new_err(error.to_string()))
 }

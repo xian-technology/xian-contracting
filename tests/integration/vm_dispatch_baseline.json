@@ -9,10 +9,10 @@
         "result_repr": "[True, 1, 1.0, (1,), [1], {1: 'int', '1': 'str'}]",
         "writes": {},
         "events": [],
-        "raw_cost": 11408,
+        "raw_cost": 11422,
         "chi_used": 16,
         "contract_costs": {
-          "conformance_typed_values": 11408
+          "conformance_typed_values": 11422
         }
       }
     },
@@ -24,10 +24,10 @@
         "result_repr": "6",
         "writes": {},
         "events": [],
-        "raw_cost": 13617,
+        "raw_cost": 13631,
         "chi_used": 18,
         "contract_costs": {
-          "conformance_control_flow": 13617
+          "conformance_control_flow": 13631
         }
       }
     },
@@ -39,10 +39,10 @@
         "result_repr": "6",
         "writes": {},
         "events": [],
-        "raw_cost": 10353,
+        "raw_cost": 10383,
         "chi_used": 15,
         "contract_costs": {
-          "conformance_private_call": 10353
+          "conformance_private_call": 10383
         }
       }
     },
@@ -56,10 +56,10 @@
           "conformance_state_write.state": "7"
         },
         "events": [],
-        "raw_cost": 22307,
+        "raw_cost": 22364,
         "chi_used": 27,
         "contract_costs": {
-          "conformance_state_write": 22307
+          "conformance_state_write": 22364
         }
       }
     },
@@ -71,10 +71,10 @@
         "result_repr": "AssertionError('rollback')",
         "writes": {},
         "events": [],
-        "raw_cost": 16169,
+        "raw_cost": 16226,
         "chi_used": 21,
         "contract_costs": {
-          "conformance_state_rollback": 16169
+          "conformance_state_rollback": 16226
         }
       }
     },
@@ -86,10 +86,10 @@
         "result_repr": "3.75",
         "writes": {},
         "events": [],
-        "raw_cost": 15212,
+        "raw_cost": 15226,
         "chi_used": 20,
         "contract_costs": {
-          "conformance_decimal": 15212
+          "conformance_decimal": 15226
         }
       }
     },
@@ -101,10 +101,10 @@
         "result_repr": "2026",
         "writes": {},
         "events": [],
-        "raw_cost": 5196,
+        "raw_cost": 5210,
         "chi_used": 10,
         "contract_costs": {
-          "conformance_time": 5196
+          "conformance_time": 5210
         }
       }
     },
@@ -116,10 +116,10 @@
         "result_repr": "'2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'",
         "writes": {},
         "events": [],
-        "raw_cost": 10130,
+        "raw_cost": 10164,
         "chi_used": 15,
         "contract_costs": {
-          "conformance_hashing": 10130
+          "conformance_hashing": 10164
         }
       }
     },
@@ -144,10 +144,10 @@
             "signer": "alice"
           }
         ],
-        "raw_cost": 31261,
+        "raw_cost": 31348,
         "chi_used": 36,
         "contract_costs": {
-          "conformance_event_write": 31261
+          "conformance_event_write": 31348
         }
       }
     },
@@ -159,10 +159,10 @@
         "result_repr": "\"unhashable type: 'list'\"",
         "writes": {},
         "events": [],
-        "raw_cost": 32103,
+        "raw_cost": 32190,
         "chi_used": 37,
         "contract_costs": {
-          "conformance_event_rollback": 32103
+          "conformance_event_rollback": 32190
         }
       }
     },
@@ -174,10 +174,10 @@
         "result_repr": "[[7]]",
         "writes": {},
         "events": [],
-        "raw_cost": 5901,
+        "raw_cost": 5915,
         "chi_used": 10,
         "contract_costs": {
-          "conformance_alias_nested_assignment": 5901
+          "conformance_alias_nested_assignment": 5915
         }
       }
     },
@@ -191,10 +191,10 @@
           "conformance_receiver_before_arguments.counter": "1"
         },
         "events": [],
-        "raw_cost": 43027,
+        "raw_cost": 43150,
         "chi_used": 48,
         "contract_costs": {
-          "conformance_receiver_before_arguments": 43027
+          "conformance_receiver_before_arguments": 43150
         }
       }
     },
@@ -206,10 +206,10 @@
         "result_repr": "[True, True, True, True]",
         "writes": {},
         "events": [],
-        "raw_cost": 26941,
+        "raw_cost": 26955,
         "chi_used": 31,
         "contract_costs": {
-          "conformance_immutable_conversion_identity": 26941
+          "conformance_immutable_conversion_identity": 26955
         }
       }
     },
@@ -223,10 +223,10 @@
           "conformance_storage_snapshot.v": "[1]"
         },
         "events": [],
-        "raw_cost": 39582,
+        "raw_cost": 39615,
         "chi_used": 44,
         "contract_costs": {
-          "conformance_storage_snapshot": 39582
+          "conformance_storage_snapshot": 39615
         }
       }
     },
@@ -238,11 +238,11 @@
         "result_repr": "[[1, 2], [1, 2], True]",
         "writes": {},
         "events": [],
-        "raw_cost": 26106,
+        "raw_cost": 26182,
         "chi_used": 31,
         "contract_costs": {
-          "con_alias_helper": 5224,
-          "conformance_cross_contract_alias": 20882
+          "con_alias_helper": 5252,
+          "conformance_cross_contract_alias": 20930
         }
       }
     },
@@ -254,10 +254,10 @@
         "result_repr": "[1, 2, 3]",
         "writes": {},
         "events": [],
-        "raw_cost": 42663,
+        "raw_cost": 42816,
         "chi_used": 47,
         "contract_costs": {
-          "conformance_live_list_iteration": 42663
+          "conformance_live_list_iteration": 42816
         }
       }
     },
@@ -269,10 +269,10 @@
         "result_repr": "'zip() arguments have different lengths'",
         "writes": {},
         "events": [],
-        "raw_cost": 15544,
+        "raw_cost": 15697,
         "chi_used": 20,
         "contract_costs": {
-          "conformance_zip_strict_mismatch": 15544
+          "conformance_zip_strict_mismatch": 15697
         }
       }
     },
@@ -284,10 +284,10 @@
         "result_repr": "[[1], [1, 9], [[1, 9]], []]",
         "writes": {},
         "events": [],
-        "raw_cost": 31654,
+        "raw_cost": 31807,
         "chi_used": 36,
         "contract_costs": {
-          "conformance_map_lazy": 31654
+          "conformance_map_lazy": 31807
         }
       }
     },
@@ -299,10 +299,10 @@
         "result_repr": "[[1], [[1, 9]], [1, 9], []]",
         "writes": {},
         "events": [],
-        "raw_cost": 31526,
+        "raw_cost": 31679,
         "chi_used": 36,
         "contract_costs": {
-          "conformance_filter_lazy": 31526
+          "conformance_filter_lazy": 31679
         }
       }
     },
@@ -314,10 +314,10 @@
         "result_repr": "[False, [True]]",
         "writes": {},
         "events": [],
-        "raw_cost": 21646,
+        "raw_cost": 21799,
         "chi_used": 26,
         "contract_costs": {
-          "conformance_iterator_short_circuit": 21646
+          "conformance_iterator_short_circuit": 21799
         }
       }
     },
@@ -329,10 +329,10 @@
         "result_repr": "[[3, 1], []]",
         "writes": {},
         "events": [],
-        "raw_cost": 21066,
+        "raw_cost": 21219,
         "chi_used": 26,
         "contract_costs": {
-          "conformance_iterator_reversed": 21066
+          "conformance_iterator_reversed": 21219
         }
       }
     },
@@ -344,10 +344,10 @@
         "result_repr": "[1, 2, 3]",
         "writes": {},
         "events": [],
-        "raw_cost": 42919,
-        "chi_used": 47,
+        "raw_cost": 43072,
+        "chi_used": 48,
         "contract_costs": {
-          "conformance_iterator_comprehension": 42919
+          "conformance_iterator_comprehension": 43072
         }
       }
     },
@@ -359,10 +359,10 @@
         "result_repr": "[b'\\x01\\x02', bytearray(b'\\x00\\x01\\x02')]",
         "writes": {},
         "events": [],
-        "raw_cost": 25753,
+        "raw_cost": 25785,
         "chi_used": 30,
         "contract_costs": {
-          "conformance_iterator_bytes_constructor": 25753
+          "conformance_iterator_bytes_constructor": 25785
         }
       }
     },
@@ -374,10 +374,10 @@
         "result_repr": "[[1, 2, 3], True]",
         "writes": {},
         "events": [],
-        "raw_cost": 11294,
+        "raw_cost": 11326,
         "chi_used": 16,
         "contract_costs": {
-          "conformance_iterator_augassign": 11294
+          "conformance_iterator_augassign": 11326
         }
       }
     },
@@ -389,10 +389,10 @@
         "result_repr": "[[1, 2], [1, 2], True]",
         "writes": {},
         "events": [],
-        "raw_cost": 26490,
+        "raw_cost": 26538,
         "chi_used": 31,
         "contract_costs": {
-          "conformance_default_mutable_identity": 26490
+          "conformance_default_mutable_identity": 26538
         }
       }
     },
@@ -404,10 +404,10 @@
         "result_repr": "['z', 'a', 'c', 'b']",
         "writes": {},
         "events": [],
-        "raw_cost": 15401,
+        "raw_cost": 15439,
         "chi_used": 20,
         "contract_costs": {
-          "conformance_keyword_argument_order": 15401
+          "conformance_keyword_argument_order": 15439
         }
       }
     },
@@ -419,10 +419,10 @@
         "result_repr": "[[3, 2, 1], [3, 2, 1], [1, 2, 3]]",
         "writes": {},
         "events": [],
-        "raw_cost": 23065,
+        "raw_cost": 23167,
         "chi_used": 28,
         "contract_costs": {
-          "conformance_sorted_options": 23065
+          "conformance_sorted_options": 23167
         }
       }
     },
@@ -434,10 +434,10 @@
         "result_repr": "7",
         "writes": {},
         "events": [],
-        "raw_cost": 10513,
+        "raw_cost": 10615,
         "chi_used": 15,
         "contract_costs": {
-          "conformance_sum_start_keyword": 10513
+          "conformance_sum_start_keyword": 10615
         }
       }
     },
@@ -449,10 +449,10 @@
         "result_repr": "[255, -5, 63, 0, 0]",
         "writes": {},
         "events": [],
-        "raw_cost": 30815,
+        "raw_cost": 30917,
         "chi_used": 35,
         "contract_costs": {
-          "conformance_int_base_zero": 30815
+          "conformance_int_base_zero": 30917
         }
       }
     },
@@ -464,10 +464,10 @@
         "result_repr": "[3, 3, 1, -1, 1, -2, False, True, False, 8, 2]",
         "writes": {},
         "events": [],
-        "raw_cost": 6764,
+        "raw_cost": 6866,
         "chi_used": 11,
         "contract_costs": {
-          "conformance_boolean_arithmetic": 6764
+          "conformance_boolean_arithmetic": 6866
         }
       }
     },
@@ -479,10 +479,10 @@
         "result_repr": "[-1, False, False, -1]",
         "writes": {},
         "events": [],
-        "raw_cost": 25595,
+        "raw_cost": 25697,
         "chi_used": 30,
         "contract_costs": {
-          "conformance_string_empty_search_bounds": 25595
+          "conformance_string_empty_search_bounds": 25697
         }
       }
     },
@@ -494,10 +494,10 @@
         "result_repr": "[[2, 'b'], [1, 'a'], [1, 'c']]",
         "writes": {},
         "events": [],
-        "raw_cost": 12041,
+        "raw_cost": 12143,
         "chi_used": 17,
         "contract_costs": {
-          "conformance_list_sort_key_stable": 12041
+          "conformance_list_sort_key_stable": 12143
         }
       }
     },
@@ -509,10 +509,10 @@
         "result_repr": "[{'a': [9], 'b': [9]}, True]",
         "writes": {},
         "events": [],
-        "raw_cost": 16432,
+        "raw_cost": 16534,
         "chi_used": 21,
         "contract_costs": {
-          "conformance_dict_fromkeys_alias": 16432
+          "conformance_dict_fromkeys_alias": 16534
         }
       }
     },
@@ -524,10 +524,10 @@
         "result_repr": "[[3, 2, 1], [1, 2, 3], [1], [3], 'cba', b'abc']",
         "writes": {},
         "events": [],
-        "raw_cost": 7990,
-        "chi_used": 12,
+        "raw_cost": 8092,
+        "chi_used": 13,
         "contract_costs": {
-          "conformance_huge_slice_bounds": 7990
+          "conformance_huge_slice_bounds": 8092
         }
       }
     },
@@ -539,10 +539,10 @@
         "result_repr": "[3, (-3, 2), 32, 2, False, True]",
         "writes": {},
         "events": [],
-        "raw_cost": 41242,
+        "raw_cost": 41256,
         "chi_used": 46,
         "contract_costs": {
-          "conformance_builtin_numeric_basics": 41242
+          "conformance_builtin_numeric_basics": 41256
         }
       }
     },
@@ -554,10 +554,10 @@
         "result_repr": "[\"'\\\\xe9'\", '0b101', '0xf', '0o11', '\ud83d\ude00', 233, '0012']",
         "writes": {},
         "events": [],
-        "raw_cost": 41030,
+        "raw_cost": 41044,
         "chi_used": 46,
         "contract_costs": {
-          "conformance_builtin_text_basics": 41030
+          "conformance_builtin_text_basics": 41044
         }
       }
     },
@@ -569,10 +569,10 @@
         "result_repr": "'dictionary keys changed during iteration'",
         "writes": {},
         "events": [],
-        "raw_cost": 32688,
+        "raw_cost": 32702,
         "chi_used": 37,
         "contract_costs": {
-          "conformance_dict_replace_d_a": 32688
+          "conformance_dict_replace_d_a": 32702
         }
       }
     },
@@ -584,10 +584,10 @@
         "result_repr": "['a', 'c']",
         "writes": {},
         "events": [],
-        "raw_cost": 32793,
+        "raw_cost": 32807,
         "chi_used": 37,
         "contract_costs": {
-          "conformance_dict_replace_d_b": 32793
+          "conformance_dict_replace_d_b": 32807
         }
       }
     },
@@ -599,10 +599,10 @@
         "result_repr": "[('a', 0), ('b', 1), ('c', 2)]",
         "writes": {},
         "events": [],
-        "raw_cost": 42876,
+        "raw_cost": 42930,
         "chi_used": 47,
         "contract_costs": {
-          "conformance_methods_update_lazy": 42876
+          "conformance_methods_update_lazy": 42930
         }
       }
     },
@@ -614,10 +614,10 @@
         "result_repr": "'dict.update() requires two-element entries'",
         "writes": {},
         "events": [],
-        "raw_cost": 11536,
+        "raw_cost": 11550,
         "chi_used": 16,
         "contract_costs": {
-          "conformance_methods_update_bad_pair": 11536
+          "conformance_methods_update_bad_pair": 11550
         }
       }
     },
@@ -629,10 +629,10 @@
         "result_repr": "[{'a': [1], 'b': [2], 'c': None}, True, True, None, [1]]",
         "writes": {},
         "events": [],
-        "raw_cost": 39801,
+        "raw_cost": 39815,
         "chi_used": 44,
         "contract_costs": {
-          "conformance_methods_setdefault_reference": 39801
+          "conformance_methods_setdefault_reference": 39815
         }
       }
     },
@@ -644,10 +644,10 @@
         "result_repr": "[None, [3, [], 1], True]",
         "writes": {},
         "events": [],
-        "raw_cost": 11175,
+        "raw_cost": 11189,
         "chi_used": 16,
         "contract_costs": {
-          "conformance_methods_reverse_alias": 11175
+          "conformance_methods_reverse_alias": 11189
         }
       }
     },
@@ -659,10 +659,10 @@
         "result_repr": "'414243444546'",
         "writes": {},
         "events": [],
-        "raw_cost": 15161,
+        "raw_cost": 15175,
         "chi_used": 20,
         "contract_costs": {
-          "conformance_methods_hex_spaces": 15161
+          "conformance_methods_hex_spaces": 15175
         }
       }
     },
@@ -674,10 +674,10 @@
         "result_repr": "[123, 123, 98, 56, -12]",
         "writes": {},
         "events": [],
-        "raw_cost": 30659,
+        "raw_cost": 30673,
         "chi_used": 35,
         "contract_costs": {
-          "conformance_unicode_int_scripts": 30659
+          "conformance_unicode_int_scripts": 30673
         }
       }
     },
@@ -689,10 +689,10 @@
         "result_repr": "[1, 2, 3]",
         "writes": {},
         "events": [],
-        "raw_cost": 15903,
+        "raw_cost": 15987,
         "chi_used": 20,
         "contract_costs": {
-          "conformance_module_default_order": 15903
+          "conformance_module_default_order": 15987
         }
       }
     },
@@ -704,10 +704,10 @@
         "result_repr": "[[('args',), {'k': ['keyword']}], ['args', 'keyword']]",
         "writes": {},
         "events": [],
-        "raw_cost": 31809,
+        "raw_cost": 31917,
         "chi_used": 36,
         "contract_costs": {
-          "conformance_starred_call_order": 31809
+          "conformance_starred_call_order": 31917
         }
       }
     },
@@ -719,10 +719,10 @@
         "result_repr": "TypeError(\"__f() got multiple values for keyword argument 'x'\")",
         "writes": {},
         "events": [],
-        "raw_cost": 10384,
+        "raw_cost": 10406,
         "chi_used": 15,
         "contract_costs": {
-          "conformance_starred_call_collision": 10384
+          "conformance_starred_call_collision": 10406
         }
       }
     },
@@ -734,10 +734,10 @@
         "result_repr": "[1, [2, 3], 'a', ['b', 'c'], 'd']",
         "writes": {},
         "events": [],
-        "raw_cost": 6819,
+        "raw_cost": 6833,
         "chi_used": 11,
         "contract_costs": {
-          "conformance_starred_unpack_nested": 6819
+          "conformance_starred_unpack_nested": 6833
         }
       }
     },
@@ -749,10 +749,10 @@
         "result_repr": "[[1, [2, 3]], [4, []]]",
         "writes": {},
         "events": [],
-        "raw_cost": 17194,
+        "raw_cost": 17208,
         "chi_used": 22,
         "contract_costs": {
-          "conformance_starred_unpack_for": 17194
+          "conformance_starred_unpack_for": 17208
         }
       }
     },
@@ -764,10 +764,10 @@
         "result_repr": "[[[1, [2]], [3, [4, 5]]], 8, 9]",
         "writes": {},
         "events": [],
-        "raw_cost": 7585,
+        "raw_cost": 7599,
         "chi_used": 12,
         "contract_costs": {
-          "conformance_starred_unpack_comprehension": 7585
+          "conformance_starred_unpack_comprehension": 7599
         }
       }
     },
@@ -779,10 +779,10 @@
         "result_repr": "Decimal('2.00')",
         "writes": {},
         "events": [],
-        "raw_cost": 15177,
+        "raw_cost": 15191,
         "chi_used": 20,
         "contract_costs": {
-          "conformance_quantum_result": 15177
+          "conformance_quantum_result": 15191
         }
       }
     },
@@ -794,10 +794,10 @@
         "result_repr": "['12.34', '00012.34', '+1.23e+1', '12.34', '1234.5%', '     12.34']",
         "writes": {},
         "events": [],
-        "raw_cost": 47058,
+        "raw_cost": 47072,
         "chi_used": 52,
         "contract_costs": {
-          "conformance_quantum_format": 47058
+          "conformance_quantum_format": 47072
         }
       }
     },
@@ -809,11 +809,11 @@
         "result_repr": "[Decimal('2.00'), '2.00', False, Decimal('3.00')]",
         "writes": {},
         "events": [],
-        "raw_cost": 41110,
+        "raw_cost": 41184,
         "chi_used": 46,
         "contract_costs": {
-          "con_quantum_child": 10772,
-          "conformance_quantum_cross_contract": 30338
+          "con_quantum_child": 10796,
+          "conformance_quantum_cross_contract": 30388
         }
       }
     },
@@ -825,10 +825,10 @@
         "result_repr": "'Out of chi.'",
         "writes": {},
         "events": [],
-        "raw_cost": 31046,
+        "raw_cost": 31133,
         "chi_used": 30,
         "contract_costs": {
-          "conformance_event_write": 31046
+          "conformance_event_write": 31133
         }
       }
     },
@@ -840,10 +840,10 @@
         "result_repr": "'Out of chi.'",
         "writes": {},
         "events": [],
-        "raw_cost": 32369,
+        "raw_cost": 32423,
         "chi_used": 30,
         "contract_costs": {
-          "conformance_methods_update_lazy": 32369
+          "conformance_methods_update_lazy": 32423
         }
       }
     },
@@ -855,10 +855,10 @@
         "result_repr": "'Out of chi.'",
         "writes": {},
         "events": [],
-        "raw_cost": 10288,
+        "raw_cost": 10336,
         "chi_used": 10,
         "contract_costs": {
-          "conformance_cross_contract_alias": 10288
+          "conformance_cross_contract_alias": 10336
         }
       }
     }
@@ -871,6 +871,354 @@
     "quantum_format": {
       "raw_cost_delta": 576,
       "reason": "Six raw Decimal format calls retain their existing spec charges and add 96 input-render units each (24 estimated units times 4)."
+    },
+    "hashing": {
+      "raw_cost_delta": 20,
+      "reason": "xvm-gas-2 legacy SHA256 charges 4 raw units per UTF-8 input byte before classification/hashing: hello is 5 bytes, so 5 * 4 = 20. Dispatch, result, state and events are unchanged."
+    },
+    "module_interface_metadata": {
+      "reason": "xvm-gas-2 precharges initialized module interface metadata before allocation. Independently derived from binding names, function names and all parameter names; no result/write/event fingerprints changed.",
+      "formula": "(1 + sum(global_name_bytes + 1) + sum(function_name_bytes + 1 + sum(parameter_name_bytes + 1)) + sum(declaration_name_bytes + 1)) * (floor(log2(globals + functions + declarations + 1)) + 1)",
+      "cases": {
+        "typed_values": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_typed_values": 14
+          }
+        },
+        "control_flow": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_control_flow": 14
+          }
+        },
+        "private_call": {
+          "raw_cost_delta": 30,
+          "contract_cost_deltas": {
+            "conformance_private_call": 30
+          }
+        },
+        "state_write": {
+          "raw_cost_delta": 57,
+          "contract_cost_deltas": {
+            "conformance_state_write": 57
+          }
+        },
+        "state_rollback": {
+          "raw_cost_delta": 57,
+          "contract_cost_deltas": {
+            "conformance_state_rollback": 57
+          }
+        },
+        "decimal": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_decimal": 14
+          }
+        },
+        "time": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_time": 14
+          }
+        },
+        "hashing": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_hashing": 14
+          }
+        },
+        "event_write": {
+          "raw_cost_delta": 87,
+          "contract_cost_deltas": {
+            "conformance_event_write": 87
+          }
+        },
+        "event_rollback": {
+          "raw_cost_delta": 87,
+          "contract_cost_deltas": {
+            "conformance_event_rollback": 87
+          }
+        },
+        "alias_nested_assignment": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_alias_nested_assignment": 14
+          }
+        },
+        "receiver_before_arguments": {
+          "raw_cost_delta": 123,
+          "contract_cost_deltas": {
+            "conformance_receiver_before_arguments": 123
+          }
+        },
+        "immutable_conversion_identity": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_immutable_conversion_identity": 14
+          }
+        },
+        "storage_snapshot": {
+          "raw_cost_delta": 33,
+          "contract_cost_deltas": {
+            "conformance_storage_snapshot": 33
+          }
+        },
+        "cross_contract_alias": {
+          "raw_cost_delta": 76,
+          "contract_cost_deltas": {
+            "conformance_cross_contract_alias": 48,
+            "con_alias_helper": 28
+          }
+        },
+        "live_list_iteration": {
+          "raw_cost_delta": 153,
+          "contract_cost_deltas": {
+            "conformance_live_list_iteration": 153
+          }
+        },
+        "zip_strict_mismatch": {
+          "raw_cost_delta": 153,
+          "contract_cost_deltas": {
+            "conformance_zip_strict_mismatch": 153
+          }
+        },
+        "map_lazy": {
+          "raw_cost_delta": 153,
+          "contract_cost_deltas": {
+            "conformance_map_lazy": 153
+          }
+        },
+        "filter_lazy": {
+          "raw_cost_delta": 153,
+          "contract_cost_deltas": {
+            "conformance_filter_lazy": 153
+          }
+        },
+        "iterator_short_circuit": {
+          "raw_cost_delta": 153,
+          "contract_cost_deltas": {
+            "conformance_iterator_short_circuit": 153
+          }
+        },
+        "iterator_reversed": {
+          "raw_cost_delta": 153,
+          "contract_cost_deltas": {
+            "conformance_iterator_reversed": 153
+          }
+        },
+        "iterator_comprehension": {
+          "raw_cost_delta": 153,
+          "contract_cost_deltas": {
+            "conformance_iterator_comprehension": 153
+          }
+        },
+        "iterator_bytes_constructor": {
+          "raw_cost_delta": 32,
+          "contract_cost_deltas": {
+            "conformance_iterator_bytes_constructor": 32
+          }
+        },
+        "iterator_augassign": {
+          "raw_cost_delta": 32,
+          "contract_cost_deltas": {
+            "conformance_iterator_augassign": 32
+          }
+        },
+        "default_mutable_identity": {
+          "raw_cost_delta": 48,
+          "contract_cost_deltas": {
+            "conformance_default_mutable_identity": 48
+          }
+        },
+        "keyword_argument_order": {
+          "raw_cost_delta": 38,
+          "contract_cost_deltas": {
+            "conformance_keyword_argument_order": 38
+          }
+        },
+        "sorted_options": {
+          "raw_cost_delta": 102,
+          "contract_cost_deltas": {
+            "conformance_sorted_options": 102
+          }
+        },
+        "sum_start_keyword": {
+          "raw_cost_delta": 102,
+          "contract_cost_deltas": {
+            "conformance_sum_start_keyword": 102
+          }
+        },
+        "int_base_zero": {
+          "raw_cost_delta": 102,
+          "contract_cost_deltas": {
+            "conformance_int_base_zero": 102
+          }
+        },
+        "boolean_arithmetic": {
+          "raw_cost_delta": 102,
+          "contract_cost_deltas": {
+            "conformance_boolean_arithmetic": 102
+          }
+        },
+        "string_empty_search_bounds": {
+          "raw_cost_delta": 102,
+          "contract_cost_deltas": {
+            "conformance_string_empty_search_bounds": 102
+          }
+        },
+        "list_sort_key_stable": {
+          "raw_cost_delta": 102,
+          "contract_cost_deltas": {
+            "conformance_list_sort_key_stable": 102
+          }
+        },
+        "dict_fromkeys_alias": {
+          "raw_cost_delta": 102,
+          "contract_cost_deltas": {
+            "conformance_dict_fromkeys_alias": 102
+          }
+        },
+        "huge_slice_bounds": {
+          "raw_cost_delta": 102,
+          "contract_cost_deltas": {
+            "conformance_huge_slice_bounds": 102
+          }
+        },
+        "builtin_numeric_basics": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_builtin_numeric_basics": 14
+          }
+        },
+        "builtin_text_basics": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_builtin_text_basics": 14
+          }
+        },
+        "dict_replace_d_a": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_dict_replace_d_a": 14
+          }
+        },
+        "dict_replace_d_b": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_dict_replace_d_b": 14
+          }
+        },
+        "methods_update_lazy": {
+          "raw_cost_delta": 54,
+          "contract_cost_deltas": {
+            "conformance_methods_update_lazy": 54
+          }
+        },
+        "methods_update_bad_pair": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_methods_update_bad_pair": 14
+          }
+        },
+        "methods_setdefault_reference": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_methods_setdefault_reference": 14
+          }
+        },
+        "methods_reverse_alias": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_methods_reverse_alias": 14
+          }
+        },
+        "methods_hex_spaces": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_methods_hex_spaces": 14
+          }
+        },
+        "unicode_int_scripts": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_unicode_int_scripts": 14
+          }
+        },
+        "module_default_order": {
+          "raw_cost_delta": 84,
+          "contract_cost_deltas": {
+            "conformance_module_default_order": 84
+          }
+        },
+        "starred_call_order": {
+          "raw_cost_delta": 108,
+          "contract_cost_deltas": {
+            "conformance_starred_call_order": 108
+          }
+        },
+        "starred_call_collision": {
+          "raw_cost_delta": 22,
+          "contract_cost_deltas": {
+            "conformance_starred_call_collision": 22
+          }
+        },
+        "starred_unpack_nested": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_starred_unpack_nested": 14
+          }
+        },
+        "starred_unpack_for": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_starred_unpack_for": 14
+          }
+        },
+        "starred_unpack_comprehension": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_starred_unpack_comprehension": 14
+          }
+        },
+        "quantum_result": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_quantum_result": 14
+          }
+        },
+        "quantum_format": {
+          "raw_cost_delta": 14,
+          "contract_cost_deltas": {
+            "conformance_quantum_format": 14
+          }
+        },
+        "quantum_cross_contract": {
+          "raw_cost_delta": 74,
+          "contract_cost_deltas": {
+            "conformance_quantum_cross_contract": 50,
+            "con_quantum_child": 24
+          }
+        },
+        "event_write_chi_exhaustion": {
+          "raw_cost_delta": 87,
+          "contract_cost_deltas": {
+            "conformance_event_write": 87
+          }
+        },
+        "methods_update_lazy_chi_exhaustion": {
+          "raw_cost_delta": 54,
+          "contract_cost_deltas": {
+            "conformance_methods_update_lazy": 54
+          }
+        },
+        "cross_contract_alias_chi_exhaustion": {
+          "raw_cost_delta": 48,
+          "contract_cost_deltas": {
+            "conformance_cross_contract_alias": 48
+          }
+        }
+      }
     }
   }
 }

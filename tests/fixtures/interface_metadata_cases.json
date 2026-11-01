@@ -1,0 +1,6445 @@
+[
+  {
+    "id": "metadata_000",
+    "binding": "indexed",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = indexed\n    return [importlib.Func('indexed', ()).is_of(target), importlib.Func('__wrong__', ()).is_of(target), importlib.Func('indexed', ('extra',)).is_of(target), importlib.Func('indexed', ()).is_of(indexed)]\n"
+  },
+  {
+    "id": "global_000",
+    "binding": "indexed",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = indexed\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('indexed', ()).is_of(target), importlib.Func('__wrong__', ()).is_of(target), importlib.Func('indexed', ('extra',)).is_of(target), importlib.Func('indexed', ()).is_of(indexed)]\n"
+  },
+  {
+    "id": "enforce_000",
+    "binding": "indexed",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = indexed\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_001",
+    "binding": "Contract.deploy",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = Contract.deploy\n    return [importlib.Func('deploy', ('cls',)).is_of(target), importlib.Func('__wrong__', ('cls',)).is_of(target), importlib.Func('deploy', ('cls', 'extra')).is_of(target), importlib.Func('deploy', ('cls',)).is_of(Contract.deploy)]\n"
+  },
+  {
+    "id": "global_001",
+    "binding": "Contract.deploy",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = Contract.deploy\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('deploy', ('cls',)).is_of(target), importlib.Func('__wrong__', ('cls',)).is_of(target), importlib.Func('deploy', ('cls', 'extra')).is_of(target), importlib.Func('deploy', ('cls',)).is_of(Contract.deploy)]\n"
+  },
+  {
+    "id": "enforce_001",
+    "binding": "Contract.deploy",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        true
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = Contract.deploy\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_002",
+    "binding": "Contract.get_info",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = Contract.get_info\n    return [importlib.Func('get_info', ('cls', 'name')).is_of(target), importlib.Func('__wrong__', ('cls', 'name')).is_of(target), importlib.Func('get_info', ('cls', 'name', 'extra')).is_of(target), importlib.Func('get_info', ('cls', 'name')).is_of(Contract.get_info)]\n"
+  },
+  {
+    "id": "global_002",
+    "binding": "Contract.get_info",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = Contract.get_info\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('get_info', ('cls', 'name')).is_of(target), importlib.Func('__wrong__', ('cls', 'name')).is_of(target), importlib.Func('get_info', ('cls', 'name', 'extra')).is_of(target), importlib.Func('get_info', ('cls', 'name')).is_of(Contract.get_info)]\n"
+  },
+  {
+    "id": "enforce_002",
+    "binding": "Contract.get_info",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        true
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = Contract.get_info\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_003",
+    "binding": "Contract.set_owner",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = Contract.set_owner\n    return [importlib.Func('set_owner', ('cls', 'name', 'new_owner')).is_of(target), importlib.Func('__wrong__', ('cls', 'name', 'new_owner')).is_of(target), importlib.Func('set_owner', ('cls', 'name', 'new_owner', 'extra')).is_of(target), importlib.Func('set_owner', ('cls', 'name', 'new_owner')).is_of(Contract.set_owner)]\n"
+  },
+  {
+    "id": "global_003",
+    "binding": "Contract.set_owner",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = Contract.set_owner\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('set_owner', ('cls', 'name', 'new_owner')).is_of(target), importlib.Func('__wrong__', ('cls', 'name', 'new_owner')).is_of(target), importlib.Func('set_owner', ('cls', 'name', 'new_owner', 'extra')).is_of(target), importlib.Func('set_owner', ('cls', 'name', 'new_owner')).is_of(Contract.set_owner)]\n"
+  },
+  {
+    "id": "enforce_003",
+    "binding": "Contract.set_owner",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        true
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = Contract.set_owner\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_004",
+    "binding": "Contract.set_developer",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = Contract.set_developer\n    return [importlib.Func('set_developer', ('cls', 'name', 'new_developer')).is_of(target), importlib.Func('__wrong__', ('cls', 'name', 'new_developer')).is_of(target), importlib.Func('set_developer', ('cls', 'name', 'new_developer', 'extra')).is_of(target), importlib.Func('set_developer', ('cls', 'name', 'new_developer')).is_of(Contract.set_developer)]\n"
+  },
+  {
+    "id": "global_004",
+    "binding": "Contract.set_developer",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = Contract.set_developer\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('set_developer', ('cls', 'name', 'new_developer')).is_of(target), importlib.Func('__wrong__', ('cls', 'name', 'new_developer')).is_of(target), importlib.Func('set_developer', ('cls', 'name', 'new_developer', 'extra')).is_of(target), importlib.Func('set_developer', ('cls', 'name', 'new_developer')).is_of(Contract.set_developer)]\n"
+  },
+  {
+    "id": "enforce_004",
+    "binding": "Contract.set_developer",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        true
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = Contract.set_developer\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_005",
+    "binding": "decimal",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 1
+    },
+    "source": "@export\ndef probe():\n    target = decimal\n    return importlib.Func('arbitrary').is_of(target)\n"
+  },
+  {
+    "id": "global_005",
+    "binding": "decimal",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 1
+    },
+    "source": "alias = decimal\n@export\ndef probe():\n    target = alias\n    return importlib.Func('arbitrary').is_of(target)\n"
+  },
+  {
+    "id": "enforce_005",
+    "binding": "decimal",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        true
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = decimal\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_006",
+    "binding": "datetime.datetime",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 1
+    },
+    "source": "@export\ndef probe():\n    target = datetime.datetime\n    return importlib.Func('arbitrary').is_of(target)\n"
+  },
+  {
+    "id": "global_006",
+    "binding": "datetime.datetime",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 1
+    },
+    "source": "alias = datetime.datetime\n@export\ndef probe():\n    target = alias\n    return importlib.Func('arbitrary').is_of(target)\n"
+  },
+  {
+    "id": "enforce_006",
+    "binding": "datetime.datetime",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        true
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = datetime.datetime\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_007",
+    "binding": "datetime.timedelta",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 1
+    },
+    "source": "@export\ndef probe():\n    target = datetime.timedelta\n    return importlib.Func('arbitrary').is_of(target)\n"
+  },
+  {
+    "id": "global_007",
+    "binding": "datetime.timedelta",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 1
+    },
+    "source": "alias = datetime.timedelta\n@export\ndef probe():\n    target = alias\n    return importlib.Func('arbitrary').is_of(target)\n"
+  },
+  {
+    "id": "enforce_007",
+    "binding": "datetime.timedelta",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        true
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = datetime.timedelta\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_008",
+    "binding": "datetime.datetime.strptime",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = datetime.datetime.strptime\n    return [importlib.Func('strptime', ('cls', 'date_string', 'format')).is_of(target), importlib.Func('__wrong__', ('cls', 'date_string', 'format')).is_of(target), importlib.Func('strptime', ('cls', 'date_string', 'format', 'extra')).is_of(target), importlib.Func('strptime', ('cls', 'date_string', 'format')).is_of(datetime.datetime.strptime)]\n"
+  },
+  {
+    "id": "global_008",
+    "binding": "datetime.datetime.strptime",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = datetime.datetime.strptime\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('strptime', ('cls', 'date_string', 'format')).is_of(target), importlib.Func('__wrong__', ('cls', 'date_string', 'format')).is_of(target), importlib.Func('strptime', ('cls', 'date_string', 'format', 'extra')).is_of(target), importlib.Func('strptime', ('cls', 'date_string', 'format')).is_of(datetime.datetime.strptime)]\n"
+  },
+  {
+    "id": "enforce_008",
+    "binding": "datetime.datetime.strptime",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        true
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = datetime.datetime.strptime\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_009",
+    "binding": "hashlib.sha3",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = hashlib.sha3\n    return [importlib.Func('sha3', ('hex_str',)).is_of(target), importlib.Func('__wrong__', ('hex_str',)).is_of(target), importlib.Func('sha3', ('hex_str', 'extra')).is_of(target), importlib.Func('sha3', ('hex_str',)).is_of(hashlib.sha3)]\n"
+  },
+  {
+    "id": "global_009",
+    "binding": "hashlib.sha3",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = hashlib.sha3\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('sha3', ('hex_str',)).is_of(target), importlib.Func('__wrong__', ('hex_str',)).is_of(target), importlib.Func('sha3', ('hex_str', 'extra')).is_of(target), importlib.Func('sha3', ('hex_str',)).is_of(hashlib.sha3)]\n"
+  },
+  {
+    "id": "enforce_009",
+    "binding": "hashlib.sha3",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = hashlib.sha3\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_010",
+    "binding": "hashlib.sha256",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = hashlib.sha256\n    return [importlib.Func('sha256', ('hex_str',)).is_of(target), importlib.Func('__wrong__', ('hex_str',)).is_of(target), importlib.Func('sha256', ('hex_str', 'extra')).is_of(target), importlib.Func('sha256', ('hex_str',)).is_of(hashlib.sha256)]\n"
+  },
+  {
+    "id": "global_010",
+    "binding": "hashlib.sha256",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = hashlib.sha256\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('sha256', ('hex_str',)).is_of(target), importlib.Func('__wrong__', ('hex_str',)).is_of(target), importlib.Func('sha256', ('hex_str', 'extra')).is_of(target), importlib.Func('sha256', ('hex_str',)).is_of(hashlib.sha256)]\n"
+  },
+  {
+    "id": "enforce_010",
+    "binding": "hashlib.sha256",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = hashlib.sha256\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_011",
+    "binding": "hashlib.sha3_text",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = hashlib.sha3_text\n    return [importlib.Func('sha3_text', ('value',)).is_of(target), importlib.Func('__wrong__', ('value',)).is_of(target), importlib.Func('sha3_text', ('value', 'extra')).is_of(target), importlib.Func('sha3_text', ('value',)).is_of(hashlib.sha3_text)]\n"
+  },
+  {
+    "id": "global_011",
+    "binding": "hashlib.sha3_text",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = hashlib.sha3_text\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('sha3_text', ('value',)).is_of(target), importlib.Func('__wrong__', ('value',)).is_of(target), importlib.Func('sha3_text', ('value', 'extra')).is_of(target), importlib.Func('sha3_text', ('value',)).is_of(hashlib.sha3_text)]\n"
+  },
+  {
+    "id": "enforce_011",
+    "binding": "hashlib.sha3_text",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = hashlib.sha3_text\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_012",
+    "binding": "hashlib.sha3_hex",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = hashlib.sha3_hex\n    return [importlib.Func('sha3_hex', ('value',)).is_of(target), importlib.Func('__wrong__', ('value',)).is_of(target), importlib.Func('sha3_hex', ('value', 'extra')).is_of(target), importlib.Func('sha3_hex', ('value',)).is_of(hashlib.sha3_hex)]\n"
+  },
+  {
+    "id": "global_012",
+    "binding": "hashlib.sha3_hex",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = hashlib.sha3_hex\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('sha3_hex', ('value',)).is_of(target), importlib.Func('__wrong__', ('value',)).is_of(target), importlib.Func('sha3_hex', ('value', 'extra')).is_of(target), importlib.Func('sha3_hex', ('value',)).is_of(hashlib.sha3_hex)]\n"
+  },
+  {
+    "id": "enforce_012",
+    "binding": "hashlib.sha3_hex",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = hashlib.sha3_hex\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_013",
+    "binding": "hashlib.sha256_text",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = hashlib.sha256_text\n    return [importlib.Func('sha256_text', ('value',)).is_of(target), importlib.Func('__wrong__', ('value',)).is_of(target), importlib.Func('sha256_text', ('value', 'extra')).is_of(target), importlib.Func('sha256_text', ('value',)).is_of(hashlib.sha256_text)]\n"
+  },
+  {
+    "id": "global_013",
+    "binding": "hashlib.sha256_text",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = hashlib.sha256_text\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('sha256_text', ('value',)).is_of(target), importlib.Func('__wrong__', ('value',)).is_of(target), importlib.Func('sha256_text', ('value', 'extra')).is_of(target), importlib.Func('sha256_text', ('value',)).is_of(hashlib.sha256_text)]\n"
+  },
+  {
+    "id": "enforce_013",
+    "binding": "hashlib.sha256_text",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = hashlib.sha256_text\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_014",
+    "binding": "hashlib.sha256_hex",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = hashlib.sha256_hex\n    return [importlib.Func('sha256_hex', ('value',)).is_of(target), importlib.Func('__wrong__', ('value',)).is_of(target), importlib.Func('sha256_hex', ('value', 'extra')).is_of(target), importlib.Func('sha256_hex', ('value',)).is_of(hashlib.sha256_hex)]\n"
+  },
+  {
+    "id": "global_014",
+    "binding": "hashlib.sha256_hex",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = hashlib.sha256_hex\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('sha256_hex', ('value',)).is_of(target), importlib.Func('__wrong__', ('value',)).is_of(target), importlib.Func('sha256_hex', ('value', 'extra')).is_of(target), importlib.Func('sha256_hex', ('value',)).is_of(hashlib.sha256_hex)]\n"
+  },
+  {
+    "id": "enforce_014",
+    "binding": "hashlib.sha256_hex",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = hashlib.sha256_hex\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_015",
+    "binding": "crypto.verify",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = crypto.verify\n    return [importlib.Func('verify', ('vk', 'msg', 'signature')).is_of(target), importlib.Func('__wrong__', ('vk', 'msg', 'signature')).is_of(target), importlib.Func('verify', ('vk', 'msg', 'signature', 'extra')).is_of(target), importlib.Func('verify', ('vk', 'msg', 'signature')).is_of(crypto.verify)]\n"
+  },
+  {
+    "id": "global_015",
+    "binding": "crypto.verify",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = crypto.verify\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('verify', ('vk', 'msg', 'signature')).is_of(target), importlib.Func('__wrong__', ('vk', 'msg', 'signature')).is_of(target), importlib.Func('verify', ('vk', 'msg', 'signature', 'extra')).is_of(target), importlib.Func('verify', ('vk', 'msg', 'signature')).is_of(crypto.verify)]\n"
+  },
+  {
+    "id": "enforce_015",
+    "binding": "crypto.verify",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = crypto.verify\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_016",
+    "binding": "crypto.key_is_valid",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = crypto.key_is_valid\n    return [importlib.Func('key_is_valid', ('key',)).is_of(target), importlib.Func('__wrong__', ('key',)).is_of(target), importlib.Func('key_is_valid', ('key', 'extra')).is_of(target), importlib.Func('key_is_valid', ('key',)).is_of(crypto.key_is_valid)]\n"
+  },
+  {
+    "id": "global_016",
+    "binding": "crypto.key_is_valid",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = crypto.key_is_valid\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('key_is_valid', ('key',)).is_of(target), importlib.Func('__wrong__', ('key',)).is_of(target), importlib.Func('key_is_valid', ('key', 'extra')).is_of(target), importlib.Func('key_is_valid', ('key',)).is_of(crypto.key_is_valid)]\n"
+  },
+  {
+    "id": "enforce_016",
+    "binding": "crypto.key_is_valid",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = crypto.key_is_valid\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_017",
+    "binding": "importlib.import_module",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = importlib.import_module\n    return [importlib.Func('import_module', ('name',)).is_of(target), importlib.Func('__wrong__', ('name',)).is_of(target), importlib.Func('import_module', ('name', 'extra')).is_of(target), importlib.Func('import_module', ('name',)).is_of(importlib.import_module)]\n"
+  },
+  {
+    "id": "global_017",
+    "binding": "importlib.import_module",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = importlib.import_module\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('import_module', ('name',)).is_of(target), importlib.Func('__wrong__', ('name',)).is_of(target), importlib.Func('import_module', ('name', 'extra')).is_of(target), importlib.Func('import_module', ('name',)).is_of(importlib.import_module)]\n"
+  },
+  {
+    "id": "enforce_017",
+    "binding": "importlib.import_module",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = importlib.import_module\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_018",
+    "binding": "importlib.exists",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = importlib.exists\n    return [importlib.Func('exists', ('contract',)).is_of(target), importlib.Func('__wrong__', ('contract',)).is_of(target), importlib.Func('exists', ('contract', 'extra')).is_of(target), importlib.Func('exists', ('contract',)).is_of(importlib.exists)]\n"
+  },
+  {
+    "id": "global_018",
+    "binding": "importlib.exists",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = importlib.exists\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('exists', ('contract',)).is_of(target), importlib.Func('__wrong__', ('contract',)).is_of(target), importlib.Func('exists', ('contract', 'extra')).is_of(target), importlib.Func('exists', ('contract',)).is_of(importlib.exists)]\n"
+  },
+  {
+    "id": "enforce_018",
+    "binding": "importlib.exists",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = importlib.exists\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_019",
+    "binding": "importlib.has_export",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = importlib.has_export\n    return [importlib.Func('has_export', ('contract', 'function')).is_of(target), importlib.Func('__wrong__', ('contract', 'function')).is_of(target), importlib.Func('has_export', ('contract', 'function', 'extra')).is_of(target), importlib.Func('has_export', ('contract', 'function')).is_of(importlib.has_export)]\n"
+  },
+  {
+    "id": "global_019",
+    "binding": "importlib.has_export",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = importlib.has_export\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('has_export', ('contract', 'function')).is_of(target), importlib.Func('__wrong__', ('contract', 'function')).is_of(target), importlib.Func('has_export', ('contract', 'function', 'extra')).is_of(target), importlib.Func('has_export', ('contract', 'function')).is_of(importlib.has_export)]\n"
+  },
+  {
+    "id": "enforce_019",
+    "binding": "importlib.has_export",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = importlib.has_export\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_020",
+    "binding": "importlib.call",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = importlib.call\n    return [importlib.Func('call', ('contract', 'function', 'kwargs')).is_of(target), importlib.Func('__wrong__', ('contract', 'function', 'kwargs')).is_of(target), importlib.Func('call', ('contract', 'function', 'kwargs', 'extra')).is_of(target), importlib.Func('call', ('contract', 'function', 'kwargs')).is_of(importlib.call)]\n"
+  },
+  {
+    "id": "global_020",
+    "binding": "importlib.call",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = importlib.call\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('call', ('contract', 'function', 'kwargs')).is_of(target), importlib.Func('__wrong__', ('contract', 'function', 'kwargs')).is_of(target), importlib.Func('call', ('contract', 'function', 'kwargs', 'extra')).is_of(target), importlib.Func('call', ('contract', 'function', 'kwargs')).is_of(importlib.call)]\n"
+  },
+  {
+    "id": "enforce_020",
+    "binding": "importlib.call",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = importlib.call\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_021",
+    "binding": "importlib.enforce_interface",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = importlib.enforce_interface\n    return [importlib.Func('enforce_interface', ('contract', 'interface')).is_of(target), importlib.Func('__wrong__', ('contract', 'interface')).is_of(target), importlib.Func('enforce_interface', ('contract', 'interface', 'extra')).is_of(target), importlib.Func('enforce_interface', ('contract', 'interface')).is_of(importlib.enforce_interface)]\n"
+  },
+  {
+    "id": "global_021",
+    "binding": "importlib.enforce_interface",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = importlib.enforce_interface\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('enforce_interface', ('contract', 'interface')).is_of(target), importlib.Func('__wrong__', ('contract', 'interface')).is_of(target), importlib.Func('enforce_interface', ('contract', 'interface', 'extra')).is_of(target), importlib.Func('enforce_interface', ('contract', 'interface')).is_of(importlib.enforce_interface)]\n"
+  },
+  {
+    "id": "enforce_021",
+    "binding": "importlib.enforce_interface",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = importlib.enforce_interface\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_022",
+    "binding": "importlib.owner_of",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = importlib.owner_of\n    return [importlib.Func('owner_of', ('contract',)).is_of(target), importlib.Func('__wrong__', ('contract',)).is_of(target), importlib.Func('owner_of', ('contract', 'extra')).is_of(target), importlib.Func('owner_of', ('contract',)).is_of(importlib.owner_of)]\n"
+  },
+  {
+    "id": "global_022",
+    "binding": "importlib.owner_of",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = importlib.owner_of\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('owner_of', ('contract',)).is_of(target), importlib.Func('__wrong__', ('contract',)).is_of(target), importlib.Func('owner_of', ('contract', 'extra')).is_of(target), importlib.Func('owner_of', ('contract',)).is_of(importlib.owner_of)]\n"
+  },
+  {
+    "id": "enforce_022",
+    "binding": "importlib.owner_of",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = importlib.owner_of\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_023",
+    "binding": "importlib.contract_info",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = importlib.contract_info\n    return [importlib.Func('contract_info', ('contract',)).is_of(target), importlib.Func('__wrong__', ('contract',)).is_of(target), importlib.Func('contract_info', ('contract', 'extra')).is_of(target), importlib.Func('contract_info', ('contract',)).is_of(importlib.contract_info)]\n"
+  },
+  {
+    "id": "global_023",
+    "binding": "importlib.contract_info",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = importlib.contract_info\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('contract_info', ('contract',)).is_of(target), importlib.Func('__wrong__', ('contract',)).is_of(target), importlib.Func('contract_info', ('contract', 'extra')).is_of(target), importlib.Func('contract_info', ('contract',)).is_of(importlib.contract_info)]\n"
+  },
+  {
+    "id": "enforce_023",
+    "binding": "importlib.contract_info",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = importlib.contract_info\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_024",
+    "binding": "importlib.code_hash",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = importlib.code_hash\n    return [importlib.Func('code_hash', ('contract', 'kind')).is_of(target), importlib.Func('__wrong__', ('contract', 'kind')).is_of(target), importlib.Func('code_hash', ('contract', 'kind', 'extra')).is_of(target), importlib.Func('code_hash', ('contract', 'kind')).is_of(importlib.code_hash)]\n"
+  },
+  {
+    "id": "global_024",
+    "binding": "importlib.code_hash",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = importlib.code_hash\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('code_hash', ('contract', 'kind')).is_of(target), importlib.Func('__wrong__', ('contract', 'kind')).is_of(target), importlib.Func('code_hash', ('contract', 'kind', 'extra')).is_of(target), importlib.Func('code_hash', ('contract', 'kind')).is_of(importlib.code_hash)]\n"
+  },
+  {
+    "id": "enforce_024",
+    "binding": "importlib.code_hash",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = importlib.code_hash\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_025",
+    "binding": "importlib.Func",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 1
+    },
+    "source": "@export\ndef probe():\n    target = importlib.Func\n    return importlib.Func('arbitrary').is_of(target)\n"
+  },
+  {
+    "id": "global_025",
+    "binding": "importlib.Func",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 1
+    },
+    "source": "alias = importlib.Func\n@export\ndef probe():\n    target = alias\n    return importlib.Func('arbitrary').is_of(target)\n"
+  },
+  {
+    "id": "enforce_025",
+    "binding": "importlib.Func",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        true
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = importlib.Func\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_026",
+    "binding": "importlib.Var",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 1
+    },
+    "source": "@export\ndef probe():\n    target = importlib.Var\n    return importlib.Func('arbitrary').is_of(target)\n"
+  },
+  {
+    "id": "global_026",
+    "binding": "importlib.Var",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 1
+    },
+    "source": "alias = importlib.Var\n@export\ndef probe():\n    target = alias\n    return importlib.Func('arbitrary').is_of(target)\n"
+  },
+  {
+    "id": "enforce_026",
+    "binding": "importlib.Var",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        true
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = importlib.Var\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_027",
+    "binding": "random.seed",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = random.seed\n    return [importlib.Func('seed', ('aux_salt',)).is_of(target), importlib.Func('__wrong__', ('aux_salt',)).is_of(target), importlib.Func('seed', ('aux_salt', 'extra')).is_of(target), importlib.Func('seed', ('aux_salt',)).is_of(random.seed)]\n"
+  },
+  {
+    "id": "global_027",
+    "binding": "random.seed",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = random.seed\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('seed', ('aux_salt',)).is_of(target), importlib.Func('__wrong__', ('aux_salt',)).is_of(target), importlib.Func('seed', ('aux_salt', 'extra')).is_of(target), importlib.Func('seed', ('aux_salt',)).is_of(random.seed)]\n"
+  },
+  {
+    "id": "enforce_027",
+    "binding": "random.seed",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = random.seed\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_028",
+    "binding": "random.random",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = random.random\n    return [importlib.Func('random', ()).is_of(target), importlib.Func('__wrong__', ()).is_of(target), importlib.Func('random', ('extra',)).is_of(target), importlib.Func('random', ()).is_of(random.random)]\n"
+  },
+  {
+    "id": "global_028",
+    "binding": "random.random",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = random.random\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('random', ()).is_of(target), importlib.Func('__wrong__', ()).is_of(target), importlib.Func('random', ('extra',)).is_of(target), importlib.Func('random', ()).is_of(random.random)]\n"
+  },
+  {
+    "id": "enforce_028",
+    "binding": "random.random",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = random.random\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_029",
+    "binding": "random.shuffle",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = random.shuffle\n    return [importlib.Func('shuffle', ('items',)).is_of(target), importlib.Func('__wrong__', ('items',)).is_of(target), importlib.Func('shuffle', ('items', 'extra')).is_of(target), importlib.Func('shuffle', ('items',)).is_of(random.shuffle)]\n"
+  },
+  {
+    "id": "global_029",
+    "binding": "random.shuffle",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = random.shuffle\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('shuffle', ('items',)).is_of(target), importlib.Func('__wrong__', ('items',)).is_of(target), importlib.Func('shuffle', ('items', 'extra')).is_of(target), importlib.Func('shuffle', ('items',)).is_of(random.shuffle)]\n"
+  },
+  {
+    "id": "enforce_029",
+    "binding": "random.shuffle",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = random.shuffle\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_030",
+    "binding": "random.getrandbits",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = random.getrandbits\n    return [importlib.Func('getrandbits', ('k',)).is_of(target), importlib.Func('__wrong__', ('k',)).is_of(target), importlib.Func('getrandbits', ('k', 'extra')).is_of(target), importlib.Func('getrandbits', ('k',)).is_of(random.getrandbits)]\n"
+  },
+  {
+    "id": "global_030",
+    "binding": "random.getrandbits",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = random.getrandbits\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('getrandbits', ('k',)).is_of(target), importlib.Func('__wrong__', ('k',)).is_of(target), importlib.Func('getrandbits', ('k', 'extra')).is_of(target), importlib.Func('getrandbits', ('k',)).is_of(random.getrandbits)]\n"
+  },
+  {
+    "id": "enforce_030",
+    "binding": "random.getrandbits",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = random.getrandbits\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_031",
+    "binding": "random.randrange",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = random.randrange\n    return [importlib.Func('randrange', ('k',)).is_of(target), importlib.Func('__wrong__', ('k',)).is_of(target), importlib.Func('randrange', ('k', 'extra')).is_of(target), importlib.Func('randrange', ('k',)).is_of(random.randrange)]\n"
+  },
+  {
+    "id": "global_031",
+    "binding": "random.randrange",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = random.randrange\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('randrange', ('k',)).is_of(target), importlib.Func('__wrong__', ('k',)).is_of(target), importlib.Func('randrange', ('k', 'extra')).is_of(target), importlib.Func('randrange', ('k',)).is_of(random.randrange)]\n"
+  },
+  {
+    "id": "enforce_031",
+    "binding": "random.randrange",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = random.randrange\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_032",
+    "binding": "random.randint",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = random.randint\n    return [importlib.Func('randint', ('a', 'b')).is_of(target), importlib.Func('__wrong__', ('a', 'b')).is_of(target), importlib.Func('randint', ('a', 'b', 'extra')).is_of(target), importlib.Func('randint', ('a', 'b')).is_of(random.randint)]\n"
+  },
+  {
+    "id": "global_032",
+    "binding": "random.randint",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = random.randint\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('randint', ('a', 'b')).is_of(target), importlib.Func('__wrong__', ('a', 'b')).is_of(target), importlib.Func('randint', ('a', 'b', 'extra')).is_of(target), importlib.Func('randint', ('a', 'b')).is_of(random.randint)]\n"
+  },
+  {
+    "id": "enforce_032",
+    "binding": "random.randint",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = random.randint\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_033",
+    "binding": "random.choice",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = random.choice\n    return [importlib.Func('choice', ('items',)).is_of(target), importlib.Func('__wrong__', ('items',)).is_of(target), importlib.Func('choice', ('items', 'extra')).is_of(target), importlib.Func('choice', ('items',)).is_of(random.choice)]\n"
+  },
+  {
+    "id": "global_033",
+    "binding": "random.choice",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = random.choice\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('choice', ('items',)).is_of(target), importlib.Func('__wrong__', ('items',)).is_of(target), importlib.Func('choice', ('items', 'extra')).is_of(target), importlib.Func('choice', ('items',)).is_of(random.choice)]\n"
+  },
+  {
+    "id": "enforce_033",
+    "binding": "random.choice",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = random.choice\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_034",
+    "binding": "random.choices",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = random.choices\n    return [importlib.Func('choices', ('items', 'k')).is_of(target), importlib.Func('__wrong__', ('items', 'k')).is_of(target), importlib.Func('choices', ('items', 'k', 'extra')).is_of(target), importlib.Func('choices', ('items', 'k')).is_of(random.choices)]\n"
+  },
+  {
+    "id": "global_034",
+    "binding": "random.choices",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = random.choices\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('choices', ('items', 'k')).is_of(target), importlib.Func('__wrong__', ('items', 'k')).is_of(target), importlib.Func('choices', ('items', 'k', 'extra')).is_of(target), importlib.Func('choices', ('items', 'k')).is_of(random.choices)]\n"
+  },
+  {
+    "id": "enforce_034",
+    "binding": "random.choices",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = random.choices\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_035",
+    "binding": "zk.is_available",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.is_available\n    return [importlib.Func('is_available', ()).is_of(target), importlib.Func('__wrong__', ()).is_of(target), importlib.Func('is_available', ('extra',)).is_of(target), importlib.Func('is_available', ()).is_of(zk.is_available)]\n"
+  },
+  {
+    "id": "global_035",
+    "binding": "zk.is_available",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.is_available\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('is_available', ()).is_of(target), importlib.Func('__wrong__', ()).is_of(target), importlib.Func('is_available', ('extra',)).is_of(target), importlib.Func('is_available', ()).is_of(zk.is_available)]\n"
+  },
+  {
+    "id": "enforce_035",
+    "binding": "zk.is_available",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.is_available\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_036",
+    "binding": "zk.has_verifying_key",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.has_verifying_key\n    return [importlib.Func('has_verifying_key', ('vk_id',)).is_of(target), importlib.Func('__wrong__', ('vk_id',)).is_of(target), importlib.Func('has_verifying_key', ('vk_id', 'extra')).is_of(target), importlib.Func('has_verifying_key', ('vk_id',)).is_of(zk.has_verifying_key)]\n"
+  },
+  {
+    "id": "global_036",
+    "binding": "zk.has_verifying_key",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.has_verifying_key\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('has_verifying_key', ('vk_id',)).is_of(target), importlib.Func('__wrong__', ('vk_id',)).is_of(target), importlib.Func('has_verifying_key', ('vk_id', 'extra')).is_of(target), importlib.Func('has_verifying_key', ('vk_id',)).is_of(zk.has_verifying_key)]\n"
+  },
+  {
+    "id": "enforce_036",
+    "binding": "zk.has_verifying_key",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.has_verifying_key\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_037",
+    "binding": "zk.get_vk_info",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.get_vk_info\n    return [importlib.Func('get_vk_info', ('vk_id',)).is_of(target), importlib.Func('__wrong__', ('vk_id',)).is_of(target), importlib.Func('get_vk_info', ('vk_id', 'extra')).is_of(target), importlib.Func('get_vk_info', ('vk_id',)).is_of(zk.get_vk_info)]\n"
+  },
+  {
+    "id": "global_037",
+    "binding": "zk.get_vk_info",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.get_vk_info\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('get_vk_info', ('vk_id',)).is_of(target), importlib.Func('__wrong__', ('vk_id',)).is_of(target), importlib.Func('get_vk_info', ('vk_id', 'extra')).is_of(target), importlib.Func('get_vk_info', ('vk_id',)).is_of(zk.get_vk_info)]\n"
+  },
+  {
+    "id": "enforce_037",
+    "binding": "zk.get_vk_info",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.get_vk_info\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_038",
+    "binding": "zk.verify_groth16_bn254",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.verify_groth16_bn254\n    return [importlib.Func('verify_groth16_bn254', ('vk_hex', 'proof_hex', 'public_inputs')).is_of(target), importlib.Func('__wrong__', ('vk_hex', 'proof_hex', 'public_inputs')).is_of(target), importlib.Func('verify_groth16_bn254', ('vk_hex', 'proof_hex', 'public_inputs', 'extra')).is_of(target), importlib.Func('verify_groth16_bn254', ('vk_hex', 'proof_hex', 'public_inputs')).is_of(zk.verify_groth16_bn254)]\n"
+  },
+  {
+    "id": "global_038",
+    "binding": "zk.verify_groth16_bn254",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.verify_groth16_bn254\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('verify_groth16_bn254', ('vk_hex', 'proof_hex', 'public_inputs')).is_of(target), importlib.Func('__wrong__', ('vk_hex', 'proof_hex', 'public_inputs')).is_of(target), importlib.Func('verify_groth16_bn254', ('vk_hex', 'proof_hex', 'public_inputs', 'extra')).is_of(target), importlib.Func('verify_groth16_bn254', ('vk_hex', 'proof_hex', 'public_inputs')).is_of(zk.verify_groth16_bn254)]\n"
+  },
+  {
+    "id": "enforce_038",
+    "binding": "zk.verify_groth16_bn254",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.verify_groth16_bn254\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_039",
+    "binding": "zk.verify_groth16",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.verify_groth16\n    return [importlib.Func('verify_groth16', ('vk_id', 'proof_hex', 'public_inputs')).is_of(target), importlib.Func('__wrong__', ('vk_id', 'proof_hex', 'public_inputs')).is_of(target), importlib.Func('verify_groth16', ('vk_id', 'proof_hex', 'public_inputs', 'extra')).is_of(target), importlib.Func('verify_groth16', ('vk_id', 'proof_hex', 'public_inputs')).is_of(zk.verify_groth16)]\n"
+  },
+  {
+    "id": "global_039",
+    "binding": "zk.verify_groth16",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.verify_groth16\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('verify_groth16', ('vk_id', 'proof_hex', 'public_inputs')).is_of(target), importlib.Func('__wrong__', ('vk_id', 'proof_hex', 'public_inputs')).is_of(target), importlib.Func('verify_groth16', ('vk_id', 'proof_hex', 'public_inputs', 'extra')).is_of(target), importlib.Func('verify_groth16', ('vk_id', 'proof_hex', 'public_inputs')).is_of(zk.verify_groth16)]\n"
+  },
+  {
+    "id": "enforce_039",
+    "binding": "zk.verify_groth16",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.verify_groth16\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_040",
+    "binding": "zk.clear_prepared_vk_cache",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.clear_prepared_vk_cache\n    return [importlib.Func('clear_prepared_vk_cache', ()).is_of(target), importlib.Func('__wrong__', ()).is_of(target), importlib.Func('clear_prepared_vk_cache', ('extra',)).is_of(target), importlib.Func('clear_prepared_vk_cache', ()).is_of(zk.clear_prepared_vk_cache)]\n"
+  },
+  {
+    "id": "global_040",
+    "binding": "zk.clear_prepared_vk_cache",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.clear_prepared_vk_cache\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('clear_prepared_vk_cache', ()).is_of(target), importlib.Func('__wrong__', ()).is_of(target), importlib.Func('clear_prepared_vk_cache', ('extra',)).is_of(target), importlib.Func('clear_prepared_vk_cache', ()).is_of(zk.clear_prepared_vk_cache)]\n"
+  },
+  {
+    "id": "enforce_040",
+    "binding": "zk.clear_prepared_vk_cache",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.clear_prepared_vk_cache\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_041",
+    "binding": "zk.clear_verified_proof_cache",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.clear_verified_proof_cache\n    return [importlib.Func('clear_verified_proof_cache', ()).is_of(target), importlib.Func('__wrong__', ()).is_of(target), importlib.Func('clear_verified_proof_cache', ('extra',)).is_of(target), importlib.Func('clear_verified_proof_cache', ()).is_of(zk.clear_verified_proof_cache)]\n"
+  },
+  {
+    "id": "global_041",
+    "binding": "zk.clear_verified_proof_cache",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.clear_verified_proof_cache\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('clear_verified_proof_cache', ()).is_of(target), importlib.Func('__wrong__', ()).is_of(target), importlib.Func('clear_verified_proof_cache', ('extra',)).is_of(target), importlib.Func('clear_verified_proof_cache', ()).is_of(zk.clear_verified_proof_cache)]\n"
+  },
+  {
+    "id": "enforce_041",
+    "binding": "zk.clear_verified_proof_cache",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.clear_verified_proof_cache\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_042",
+    "binding": "zk.warm_verified_proofs",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.warm_verified_proofs\n    return [importlib.Func('warm_verified_proofs', ('requests',)).is_of(target), importlib.Func('__wrong__', ('requests',)).is_of(target), importlib.Func('warm_verified_proofs', ('requests', 'extra')).is_of(target), importlib.Func('warm_verified_proofs', ('requests',)).is_of(zk.warm_verified_proofs)]\n"
+  },
+  {
+    "id": "global_042",
+    "binding": "zk.warm_verified_proofs",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.warm_verified_proofs\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('warm_verified_proofs', ('requests',)).is_of(target), importlib.Func('__wrong__', ('requests',)).is_of(target), importlib.Func('warm_verified_proofs', ('requests', 'extra')).is_of(target), importlib.Func('warm_verified_proofs', ('requests',)).is_of(zk.warm_verified_proofs)]\n"
+  },
+  {
+    "id": "enforce_042",
+    "binding": "zk.warm_verified_proofs",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.warm_verified_proofs\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_043",
+    "binding": "zk.shielded_note_append_commitments",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.shielded_note_append_commitments\n    return [importlib.Func('shielded_note_append_commitments', ('note_count', 'filled_subtrees', 'commitments')).is_of(target), importlib.Func('__wrong__', ('note_count', 'filled_subtrees', 'commitments')).is_of(target), importlib.Func('shielded_note_append_commitments', ('note_count', 'filled_subtrees', 'commitments', 'extra')).is_of(target), importlib.Func('shielded_note_append_commitments', ('note_count', 'filled_subtrees', 'commitments')).is_of(zk.shielded_note_append_commitments)]\n"
+  },
+  {
+    "id": "global_043",
+    "binding": "zk.shielded_note_append_commitments",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.shielded_note_append_commitments\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('shielded_note_append_commitments', ('note_count', 'filled_subtrees', 'commitments')).is_of(target), importlib.Func('__wrong__', ('note_count', 'filled_subtrees', 'commitments')).is_of(target), importlib.Func('shielded_note_append_commitments', ('note_count', 'filled_subtrees', 'commitments', 'extra')).is_of(target), importlib.Func('shielded_note_append_commitments', ('note_count', 'filled_subtrees', 'commitments')).is_of(zk.shielded_note_append_commitments)]\n"
+  },
+  {
+    "id": "enforce_043",
+    "binding": "zk.shielded_note_append_commitments",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.shielded_note_append_commitments\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_044",
+    "binding": "zk.shielded_command_nullifier_digest",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.shielded_command_nullifier_digest\n    return [importlib.Func('shielded_command_nullifier_digest', ('input_nullifiers',)).is_of(target), importlib.Func('__wrong__', ('input_nullifiers',)).is_of(target), importlib.Func('shielded_command_nullifier_digest', ('input_nullifiers', 'extra')).is_of(target), importlib.Func('shielded_command_nullifier_digest', ('input_nullifiers',)).is_of(zk.shielded_command_nullifier_digest)]\n"
+  },
+  {
+    "id": "global_044",
+    "binding": "zk.shielded_command_nullifier_digest",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.shielded_command_nullifier_digest\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('shielded_command_nullifier_digest', ('input_nullifiers',)).is_of(target), importlib.Func('__wrong__', ('input_nullifiers',)).is_of(target), importlib.Func('shielded_command_nullifier_digest', ('input_nullifiers', 'extra')).is_of(target), importlib.Func('shielded_command_nullifier_digest', ('input_nullifiers',)).is_of(zk.shielded_command_nullifier_digest)]\n"
+  },
+  {
+    "id": "enforce_044",
+    "binding": "zk.shielded_command_nullifier_digest",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.shielded_command_nullifier_digest\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_045",
+    "binding": "zk.shielded_command_binding",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.shielded_command_binding\n    return [importlib.Func('shielded_command_binding', ('nullifier_digest', 'target_digest', 'payload_digest', 'relayer_digest', 'expiry_digest', 'chain_digest', 'entrypoint_digest', 'version_digest', 'fee', 'public_amount')).is_of(target), importlib.Func('__wrong__', ('nullifier_digest', 'target_digest', 'payload_digest', 'relayer_digest', 'expiry_digest', 'chain_digest', 'entrypoint_digest', 'version_digest', 'fee', 'public_amount')).is_of(target), importlib.Func('shielded_command_binding', ('nullifier_digest', 'target_digest', 'payload_digest', 'relayer_digest', 'expiry_digest', 'chain_digest', 'entrypoint_digest', 'version_digest', 'fee', 'public_amount', 'extra')).is_of(target), importlib.Func('shielded_command_binding', ('nullifier_digest', 'target_digest', 'payload_digest', 'relayer_digest', 'expiry_digest', 'chain_digest', 'entrypoint_digest', 'version_digest', 'fee', 'public_amount')).is_of(zk.shielded_command_binding)]\n"
+  },
+  {
+    "id": "global_045",
+    "binding": "zk.shielded_command_binding",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.shielded_command_binding\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('shielded_command_binding', ('nullifier_digest', 'target_digest', 'payload_digest', 'relayer_digest', 'expiry_digest', 'chain_digest', 'entrypoint_digest', 'version_digest', 'fee', 'public_amount')).is_of(target), importlib.Func('__wrong__', ('nullifier_digest', 'target_digest', 'payload_digest', 'relayer_digest', 'expiry_digest', 'chain_digest', 'entrypoint_digest', 'version_digest', 'fee', 'public_amount')).is_of(target), importlib.Func('shielded_command_binding', ('nullifier_digest', 'target_digest', 'payload_digest', 'relayer_digest', 'expiry_digest', 'chain_digest', 'entrypoint_digest', 'version_digest', 'fee', 'public_amount', 'extra')).is_of(target), importlib.Func('shielded_command_binding', ('nullifier_digest', 'target_digest', 'payload_digest', 'relayer_digest', 'expiry_digest', 'chain_digest', 'entrypoint_digest', 'version_digest', 'fee', 'public_amount')).is_of(zk.shielded_command_binding)]\n"
+  },
+  {
+    "id": "enforce_045",
+    "binding": "zk.shielded_command_binding",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.shielded_command_binding\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_046",
+    "binding": "zk.shielded_command_execution_tag",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.shielded_command_execution_tag\n    return [importlib.Func('shielded_command_execution_tag', ('nullifier_digest', 'command_binding')).is_of(target), importlib.Func('__wrong__', ('nullifier_digest', 'command_binding')).is_of(target), importlib.Func('shielded_command_execution_tag', ('nullifier_digest', 'command_binding', 'extra')).is_of(target), importlib.Func('shielded_command_execution_tag', ('nullifier_digest', 'command_binding')).is_of(zk.shielded_command_execution_tag)]\n"
+  },
+  {
+    "id": "global_046",
+    "binding": "zk.shielded_command_execution_tag",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.shielded_command_execution_tag\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('shielded_command_execution_tag', ('nullifier_digest', 'command_binding')).is_of(target), importlib.Func('__wrong__', ('nullifier_digest', 'command_binding')).is_of(target), importlib.Func('shielded_command_execution_tag', ('nullifier_digest', 'command_binding', 'extra')).is_of(target), importlib.Func('shielded_command_execution_tag', ('nullifier_digest', 'command_binding')).is_of(zk.shielded_command_execution_tag)]\n"
+  },
+  {
+    "id": "enforce_046",
+    "binding": "zk.shielded_command_execution_tag",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.shielded_command_execution_tag\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_047",
+    "binding": "zk.shielded_command_public_inputs",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.shielded_command_public_inputs\n    return [importlib.Func('shielded_command_public_inputs', ('contract_name', 'old_root', 'command_binding', 'execution_tag', 'fee', 'public_amount', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('__wrong__', ('contract_name', 'old_root', 'command_binding', 'execution_tag', 'fee', 'public_amount', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('shielded_command_public_inputs', ('contract_name', 'old_root', 'command_binding', 'execution_tag', 'fee', 'public_amount', 'input_nullifiers', 'commitments', 'payload_hashes', 'extra')).is_of(target), importlib.Func('shielded_command_public_inputs', ('contract_name', 'old_root', 'command_binding', 'execution_tag', 'fee', 'public_amount', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(zk.shielded_command_public_inputs)]\n"
+  },
+  {
+    "id": "global_047",
+    "binding": "zk.shielded_command_public_inputs",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.shielded_command_public_inputs\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('shielded_command_public_inputs', ('contract_name', 'old_root', 'command_binding', 'execution_tag', 'fee', 'public_amount', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('__wrong__', ('contract_name', 'old_root', 'command_binding', 'execution_tag', 'fee', 'public_amount', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('shielded_command_public_inputs', ('contract_name', 'old_root', 'command_binding', 'execution_tag', 'fee', 'public_amount', 'input_nullifiers', 'commitments', 'payload_hashes', 'extra')).is_of(target), importlib.Func('shielded_command_public_inputs', ('contract_name', 'old_root', 'command_binding', 'execution_tag', 'fee', 'public_amount', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(zk.shielded_command_public_inputs)]\n"
+  },
+  {
+    "id": "enforce_047",
+    "binding": "zk.shielded_command_public_inputs",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.shielded_command_public_inputs\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_048",
+    "binding": "zk.shielded_deposit_public_inputs",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.shielded_deposit_public_inputs\n    return [importlib.Func('shielded_deposit_public_inputs', ('contract_name', 'old_root', 'amount', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('__wrong__', ('contract_name', 'old_root', 'amount', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('shielded_deposit_public_inputs', ('contract_name', 'old_root', 'amount', 'commitments', 'payload_hashes', 'extra')).is_of(target), importlib.Func('shielded_deposit_public_inputs', ('contract_name', 'old_root', 'amount', 'commitments', 'payload_hashes')).is_of(zk.shielded_deposit_public_inputs)]\n"
+  },
+  {
+    "id": "global_048",
+    "binding": "zk.shielded_deposit_public_inputs",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.shielded_deposit_public_inputs\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('shielded_deposit_public_inputs', ('contract_name', 'old_root', 'amount', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('__wrong__', ('contract_name', 'old_root', 'amount', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('shielded_deposit_public_inputs', ('contract_name', 'old_root', 'amount', 'commitments', 'payload_hashes', 'extra')).is_of(target), importlib.Func('shielded_deposit_public_inputs', ('contract_name', 'old_root', 'amount', 'commitments', 'payload_hashes')).is_of(zk.shielded_deposit_public_inputs)]\n"
+  },
+  {
+    "id": "enforce_048",
+    "binding": "zk.shielded_deposit_public_inputs",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.shielded_deposit_public_inputs\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_049",
+    "binding": "zk.shielded_output_payload_hashes",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.shielded_output_payload_hashes\n    return [importlib.Func('shielded_output_payload_hashes', ('payload_hexes',)).is_of(target), importlib.Func('__wrong__', ('payload_hexes',)).is_of(target), importlib.Func('shielded_output_payload_hashes', ('payload_hexes', 'extra')).is_of(target), importlib.Func('shielded_output_payload_hashes', ('payload_hexes',)).is_of(zk.shielded_output_payload_hashes)]\n"
+  },
+  {
+    "id": "global_049",
+    "binding": "zk.shielded_output_payload_hashes",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.shielded_output_payload_hashes\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('shielded_output_payload_hashes', ('payload_hexes',)).is_of(target), importlib.Func('__wrong__', ('payload_hexes',)).is_of(target), importlib.Func('shielded_output_payload_hashes', ('payload_hexes', 'extra')).is_of(target), importlib.Func('shielded_output_payload_hashes', ('payload_hexes',)).is_of(zk.shielded_output_payload_hashes)]\n"
+  },
+  {
+    "id": "enforce_049",
+    "binding": "zk.shielded_output_payload_hashes",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.shielded_output_payload_hashes\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_050",
+    "binding": "zk.shielded_output_payload_hash",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.shielded_output_payload_hash\n    return [importlib.Func('shielded_output_payload_hash', ('payload_hex',)).is_of(target), importlib.Func('__wrong__', ('payload_hex',)).is_of(target), importlib.Func('shielded_output_payload_hash', ('payload_hex', 'extra')).is_of(target), importlib.Func('shielded_output_payload_hash', ('payload_hex',)).is_of(zk.shielded_output_payload_hash)]\n"
+  },
+  {
+    "id": "global_050",
+    "binding": "zk.shielded_output_payload_hash",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.shielded_output_payload_hash\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('shielded_output_payload_hash', ('payload_hex',)).is_of(target), importlib.Func('__wrong__', ('payload_hex',)).is_of(target), importlib.Func('shielded_output_payload_hash', ('payload_hex', 'extra')).is_of(target), importlib.Func('shielded_output_payload_hash', ('payload_hex',)).is_of(zk.shielded_output_payload_hash)]\n"
+  },
+  {
+    "id": "enforce_050",
+    "binding": "zk.shielded_output_payload_hash",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.shielded_output_payload_hash\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_051",
+    "binding": "zk.shielded_transfer_public_inputs",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.shielded_transfer_public_inputs\n    return [importlib.Func('shielded_transfer_public_inputs', ('contract_name', 'old_root', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('__wrong__', ('contract_name', 'old_root', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('shielded_transfer_public_inputs', ('contract_name', 'old_root', 'input_nullifiers', 'commitments', 'payload_hashes', 'extra')).is_of(target), importlib.Func('shielded_transfer_public_inputs', ('contract_name', 'old_root', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(zk.shielded_transfer_public_inputs)]\n"
+  },
+  {
+    "id": "global_051",
+    "binding": "zk.shielded_transfer_public_inputs",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.shielded_transfer_public_inputs\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('shielded_transfer_public_inputs', ('contract_name', 'old_root', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('__wrong__', ('contract_name', 'old_root', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('shielded_transfer_public_inputs', ('contract_name', 'old_root', 'input_nullifiers', 'commitments', 'payload_hashes', 'extra')).is_of(target), importlib.Func('shielded_transfer_public_inputs', ('contract_name', 'old_root', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(zk.shielded_transfer_public_inputs)]\n"
+  },
+  {
+    "id": "enforce_051",
+    "binding": "zk.shielded_transfer_public_inputs",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.shielded_transfer_public_inputs\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_052",
+    "binding": "zk.shielded_withdraw_public_inputs",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = zk.shielded_withdraw_public_inputs\n    return [importlib.Func('shielded_withdraw_public_inputs', ('contract_name', 'old_root', 'amount', 'recipient', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('__wrong__', ('contract_name', 'old_root', 'amount', 'recipient', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('shielded_withdraw_public_inputs', ('contract_name', 'old_root', 'amount', 'recipient', 'input_nullifiers', 'commitments', 'payload_hashes', 'extra')).is_of(target), importlib.Func('shielded_withdraw_public_inputs', ('contract_name', 'old_root', 'amount', 'recipient', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(zk.shielded_withdraw_public_inputs)]\n"
+  },
+  {
+    "id": "global_052",
+    "binding": "zk.shielded_withdraw_public_inputs",
+    "catalog": "HostCallable53",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = zk.shielded_withdraw_public_inputs\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('shielded_withdraw_public_inputs', ('contract_name', 'old_root', 'amount', 'recipient', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('__wrong__', ('contract_name', 'old_root', 'amount', 'recipient', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(target), importlib.Func('shielded_withdraw_public_inputs', ('contract_name', 'old_root', 'amount', 'recipient', 'input_nullifiers', 'commitments', 'payload_hashes', 'extra')).is_of(target), importlib.Func('shielded_withdraw_public_inputs', ('contract_name', 'old_root', 'amount', 'recipient', 'input_nullifiers', 'commitments', 'payload_hashes')).is_of(zk.shielded_withdraw_public_inputs)]\n"
+  },
+  {
+    "id": "enforce_052",
+    "binding": "zk.shielded_withdraw_public_inputs",
+    "catalog": "global_host_enforcement",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "bool",
+        false
+      ]
+    },
+    "dependencies": {
+      "con_host_alias": "host = zk.shielded_withdraw_public_inputs\n@export\ndef noop():\n    return 1\n"
+    },
+    "source": "@export\ndef probe():\n    m=importlib.import_module('con_host_alias')\n    return importlib.enforce_interface(m,[importlib.Func('host', ('wrong',))])\n"
+  },
+  {
+    "id": "metadata_057",
+    "binding": "abs",
+    "catalog": "allowed_builtin",
+    "expected_current": {
+      "status_code": 1
+    },
+    "source": "@export\ndef probe():\n    target = abs\n    return importlib.Func('arbitrary').is_of(target)\n"
+  },
+  {
+    "id": "global_057",
+    "binding": "abs",
+    "catalog": "allowed_builtin",
+    "expected_current": {
+      "status_code": 1
+    },
+    "source": "alias = abs\n@export\ndef probe():\n    target = alias\n    return importlib.Func('arbitrary').is_of(target)\n"
+  },
+  {
+    "id": "metadata_083",
+    "binding": "pow",
+    "catalog": "allowed_builtin",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = pow\n    return [importlib.Func('safe_pow', ()).is_of(target), importlib.Func('__wrong__', ()).is_of(target), importlib.Func('safe_pow', ('extra',)).is_of(target), importlib.Func('safe_pow', ()).is_of(pow)]\n"
+  },
+  {
+    "id": "global_083",
+    "binding": "pow",
+    "catalog": "allowed_builtin",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = pow\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('safe_pow', ()).is_of(target), importlib.Func('__wrong__', ()).is_of(target), importlib.Func('safe_pow', ('extra',)).is_of(target), importlib.Func('safe_pow', ()).is_of(pow)]\n"
+  },
+  {
+    "id": "metadata_084",
+    "binding": "range",
+    "catalog": "allowed_builtin",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = range\n    return [importlib.Func('safe_range', ()).is_of(target), importlib.Func('__wrong__', ()).is_of(target), importlib.Func('safe_range', ('extra',)).is_of(target), importlib.Func('safe_range', ()).is_of(range)]\n"
+  },
+  {
+    "id": "global_084",
+    "binding": "range",
+    "catalog": "allowed_builtin",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = range\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('safe_range', ()).is_of(target), importlib.Func('__wrong__', ()).is_of(target), importlib.Func('safe_range', ('extra',)).is_of(target), importlib.Func('safe_range', ()).is_of(range)]\n"
+  },
+  {
+    "id": "metadata_086",
+    "binding": "round",
+    "catalog": "allowed_builtin",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = round\n    return [importlib.Func('safe_round', ('number', 'ndigits')).is_of(target), importlib.Func('__wrong__', ('number', 'ndigits')).is_of(target), importlib.Func('safe_round', ('number', 'ndigits', 'extra')).is_of(target), importlib.Func('safe_round', ('number', 'ndigits')).is_of(round)]\n"
+  },
+  {
+    "id": "global_086",
+    "binding": "round",
+    "catalog": "allowed_builtin",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "alias = round\n@export\ndef probe():\n    target = alias\n    return [importlib.Func('safe_round', ('number', 'ndigits')).is_of(target), importlib.Func('__wrong__', ('number', 'ndigits')).is_of(target), importlib.Func('safe_round', ('number', 'ndigits', 'extra')).is_of(target), importlib.Func('safe_round', ('number', 'ndigits')).is_of(round)]\n"
+  },
+  {
+    "id": "metadata_088",
+    "binding": "sorted",
+    "catalog": "allowed_builtin",
+    "expected_current": {
+      "status_code": 1
+    },
+    "source": "@export\ndef probe():\n    target = sorted\n    return importlib.Func('arbitrary').is_of(target)\n"
+  },
+  {
+    "id": "global_088",
+    "binding": "sorted",
+    "catalog": "allowed_builtin",
+    "expected_current": {
+      "status_code": 1
+    },
+    "source": "alias = sorted\n@export\ndef probe():\n    target = alias\n    return importlib.Func('arbitrary').is_of(target)\n"
+  },
+  {
+    "id": "metadata_093",
+    "binding": "(set).add",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set).add\n    return [importlib.Func('add', ('self', 'value')).is_of(target), importlib.Func('__wrong__', ('self', 'value')).is_of(target), importlib.Func('add', ('self', 'value', 'extra')).is_of(target), importlib.Func('add', ('self', 'value')).is_of((set).add)]\n"
+  },
+  {
+    "id": "metadata_094",
+    "binding": "(set).clear",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set).clear\n    return [importlib.Func('clear', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('clear', ('self', 'extra')).is_of(target), importlib.Func('clear', ('self',)).is_of((set).clear)]\n"
+  },
+  {
+    "id": "metadata_095",
+    "binding": "(set).copy",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set).copy\n    return [importlib.Func('copy', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('copy', ('self', 'extra')).is_of(target), importlib.Func('copy', ('self',)).is_of((set).copy)]\n"
+  },
+  {
+    "id": "metadata_096",
+    "binding": "(set).difference",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set).difference\n    return [importlib.Func('difference', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('difference', ('self', 'extra')).is_of(target), importlib.Func('difference', ('self',)).is_of((set).difference)]\n"
+  },
+  {
+    "id": "metadata_097",
+    "binding": "(set).discard",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set).discard\n    return [importlib.Func('discard', ('self', 'value')).is_of(target), importlib.Func('__wrong__', ('self', 'value')).is_of(target), importlib.Func('discard', ('self', 'value', 'extra')).is_of(target), importlib.Func('discard', ('self', 'value')).is_of((set).discard)]\n"
+  },
+  {
+    "id": "metadata_098",
+    "binding": "(set).intersection",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set).intersection\n    return [importlib.Func('intersection', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('intersection', ('self', 'extra')).is_of(target), importlib.Func('intersection', ('self',)).is_of((set).intersection)]\n"
+  },
+  {
+    "id": "metadata_099",
+    "binding": "(set).isdisjoint",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set).isdisjoint\n    return [importlib.Func('isdisjoint', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('isdisjoint', ('self', 'other', 'extra')).is_of(target), importlib.Func('isdisjoint', ('self', 'other')).is_of((set).isdisjoint)]\n"
+  },
+  {
+    "id": "metadata_100",
+    "binding": "(set).issubset",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set).issubset\n    return [importlib.Func('issubset', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('issubset', ('self', 'other', 'extra')).is_of(target), importlib.Func('issubset', ('self', 'other')).is_of((set).issubset)]\n"
+  },
+  {
+    "id": "metadata_101",
+    "binding": "(set).issuperset",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set).issuperset\n    return [importlib.Func('issuperset', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('issuperset', ('self', 'other', 'extra')).is_of(target), importlib.Func('issuperset', ('self', 'other')).is_of((set).issuperset)]\n"
+  },
+  {
+    "id": "metadata_102",
+    "binding": "(set).pop",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set).pop\n    return [importlib.Func('pop', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('pop', ('self', 'extra')).is_of(target), importlib.Func('pop', ('self',)).is_of((set).pop)]\n"
+  },
+  {
+    "id": "metadata_103",
+    "binding": "(set).remove",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set).remove\n    return [importlib.Func('remove', ('self', 'value')).is_of(target), importlib.Func('__wrong__', ('self', 'value')).is_of(target), importlib.Func('remove', ('self', 'value', 'extra')).is_of(target), importlib.Func('remove', ('self', 'value')).is_of((set).remove)]\n"
+  },
+  {
+    "id": "metadata_104",
+    "binding": "(set).symmetric_difference",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set).symmetric_difference\n    return [importlib.Func('symmetric_difference', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('symmetric_difference', ('self', 'other', 'extra')).is_of(target), importlib.Func('symmetric_difference', ('self', 'other')).is_of((set).symmetric_difference)]\n"
+  },
+  {
+    "id": "metadata_105",
+    "binding": "(set).union",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set).union\n    return [importlib.Func('union', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('union', ('self', 'extra')).is_of(target), importlib.Func('union', ('self',)).is_of((set).union)]\n"
+  },
+  {
+    "id": "metadata_106",
+    "binding": "(frozenset).copy",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset).copy\n    return [importlib.Func('copy', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('copy', ('self', 'extra')).is_of(target), importlib.Func('copy', ('self',)).is_of((frozenset).copy)]\n"
+  },
+  {
+    "id": "metadata_107",
+    "binding": "(frozenset).difference",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset).difference\n    return [importlib.Func('difference', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('difference', ('self', 'extra')).is_of(target), importlib.Func('difference', ('self',)).is_of((frozenset).difference)]\n"
+  },
+  {
+    "id": "metadata_108",
+    "binding": "(frozenset).intersection",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset).intersection\n    return [importlib.Func('intersection', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('intersection', ('self', 'extra')).is_of(target), importlib.Func('intersection', ('self',)).is_of((frozenset).intersection)]\n"
+  },
+  {
+    "id": "metadata_109",
+    "binding": "(frozenset).isdisjoint",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset).isdisjoint\n    return [importlib.Func('isdisjoint', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('isdisjoint', ('self', 'other', 'extra')).is_of(target), importlib.Func('isdisjoint', ('self', 'other')).is_of((frozenset).isdisjoint)]\n"
+  },
+  {
+    "id": "metadata_110",
+    "binding": "(frozenset).issubset",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset).issubset\n    return [importlib.Func('issubset', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('issubset', ('self', 'other', 'extra')).is_of(target), importlib.Func('issubset', ('self', 'other')).is_of((frozenset).issubset)]\n"
+  },
+  {
+    "id": "metadata_111",
+    "binding": "(frozenset).issuperset",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset).issuperset\n    return [importlib.Func('issuperset', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('issuperset', ('self', 'other', 'extra')).is_of(target), importlib.Func('issuperset', ('self', 'other')).is_of((frozenset).issuperset)]\n"
+  },
+  {
+    "id": "metadata_112",
+    "binding": "(frozenset).symmetric_difference",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset).symmetric_difference\n    return [importlib.Func('symmetric_difference', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('symmetric_difference', ('self', 'other', 'extra')).is_of(target), importlib.Func('symmetric_difference', ('self', 'other')).is_of((frozenset).symmetric_difference)]\n"
+  },
+  {
+    "id": "metadata_113",
+    "binding": "(frozenset).union",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset).union\n    return [importlib.Func('union', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('union', ('self', 'extra')).is_of(target), importlib.Func('union', ('self',)).is_of((frozenset).union)]\n"
+  },
+  {
+    "id": "metadata_199",
+    "binding": "(bytes).fromhex",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (bytes).fromhex\n    return [importlib.Func('fromhex', ('string',)).is_of(target), importlib.Func('__wrong__', ('string',)).is_of(target), importlib.Func('fromhex', ('string', 'extra')).is_of(target), importlib.Func('fromhex', ('string',)).is_of((bytes).fromhex)]\n"
+  },
+  {
+    "id": "metadata_200",
+    "binding": "(bytes).maketrans",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (bytes).maketrans\n    return [importlib.Func('maketrans', ('frm', 'to')).is_of(target), importlib.Func('__wrong__', ('frm', 'to')).is_of(target), importlib.Func('maketrans', ('frm', 'to', 'extra')).is_of(target), importlib.Func('maketrans', ('frm', 'to')).is_of((bytes).maketrans)]\n"
+  },
+  {
+    "id": "metadata_201",
+    "binding": "(bytearray).fromhex",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (bytearray).fromhex\n    return [importlib.Func('fromhex', ('string',)).is_of(target), importlib.Func('__wrong__', ('string',)).is_of(target), importlib.Func('fromhex', ('string', 'extra')).is_of(target), importlib.Func('fromhex', ('string',)).is_of((bytearray).fromhex)]\n"
+  },
+  {
+    "id": "metadata_202",
+    "binding": "(bytearray).maketrans",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (bytearray).maketrans\n    return [importlib.Func('maketrans', ('frm', 'to')).is_of(target), importlib.Func('__wrong__', ('frm', 'to')).is_of(target), importlib.Func('maketrans', ('frm', 'to', 'extra')).is_of(target), importlib.Func('maketrans', ('frm', 'to')).is_of((bytearray).maketrans)]\n"
+  },
+  {
+    "id": "metadata_203",
+    "binding": "(datetime.datetime).strptime",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (datetime.datetime).strptime\n    return [importlib.Func('strptime', ('cls', 'date_string', 'format')).is_of(target), importlib.Func('__wrong__', ('cls', 'date_string', 'format')).is_of(target), importlib.Func('strptime', ('cls', 'date_string', 'format', 'extra')).is_of(target), importlib.Func('strptime', ('cls', 'date_string', 'format')).is_of((datetime.datetime).strptime)]\n"
+  },
+  {
+    "id": "metadata_204",
+    "binding": "(Contract).deploy",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (Contract).deploy\n    return [importlib.Func('deploy', ('cls',)).is_of(target), importlib.Func('__wrong__', ('cls',)).is_of(target), importlib.Func('deploy', ('cls', 'extra')).is_of(target), importlib.Func('deploy', ('cls',)).is_of((Contract).deploy)]\n"
+  },
+  {
+    "id": "metadata_205",
+    "binding": "(Contract).get_info",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (Contract).get_info\n    return [importlib.Func('get_info', ('cls', 'name')).is_of(target), importlib.Func('__wrong__', ('cls', 'name')).is_of(target), importlib.Func('get_info', ('cls', 'name', 'extra')).is_of(target), importlib.Func('get_info', ('cls', 'name')).is_of((Contract).get_info)]\n"
+  },
+  {
+    "id": "metadata_206",
+    "binding": "(Contract).set_developer",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (Contract).set_developer\n    return [importlib.Func('set_developer', ('cls', 'name', 'new_developer')).is_of(target), importlib.Func('__wrong__', ('cls', 'name', 'new_developer')).is_of(target), importlib.Func('set_developer', ('cls', 'name', 'new_developer', 'extra')).is_of(target), importlib.Func('set_developer', ('cls', 'name', 'new_developer')).is_of((Contract).set_developer)]\n"
+  },
+  {
+    "id": "metadata_207",
+    "binding": "(Contract).set_owner",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (Contract).set_owner\n    return [importlib.Func('set_owner', ('cls', 'name', 'new_owner')).is_of(target), importlib.Func('__wrong__', ('cls', 'name', 'new_owner')).is_of(target), importlib.Func('set_owner', ('cls', 'name', 'new_owner', 'extra')).is_of(target), importlib.Func('set_owner', ('cls', 'name', 'new_owner')).is_of((Contract).set_owner)]\n"
+  },
+  {
+    "id": "metadata_209",
+    "binding": "(importlib.Func).is_of",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (importlib.Func).is_of\n    return [importlib.Func('is_of', ('self', 'f')).is_of(target), importlib.Func('__wrong__', ('self', 'f')).is_of(target), importlib.Func('is_of', ('self', 'f', 'extra')).is_of(target), importlib.Func('is_of', ('self', 'f')).is_of((importlib.Func).is_of)]\n"
+  },
+  {
+    "id": "metadata_210",
+    "binding": "(importlib.Var).is_of",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (importlib.Var).is_of\n    return [importlib.Func('is_of', ('self', 'v')).is_of(target), importlib.Func('__wrong__', ('self', 'v')).is_of(target), importlib.Func('is_of', ('self', 'v', 'extra')).is_of(target), importlib.Func('is_of', ('self', 'v')).is_of((importlib.Var).is_of)]\n"
+  },
+  {
+    "id": "metadata_364",
+    "binding": "(datetime.datetime(2026,1,2)).strptime",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (datetime.datetime(2026,1,2)).strptime\n    return [importlib.Func('strptime', ('cls', 'date_string', 'format')).is_of(target), importlib.Func('__wrong__', ('cls', 'date_string', 'format')).is_of(target), importlib.Func('strptime', ('cls', 'date_string', 'format', 'extra')).is_of(target), importlib.Func('strptime', ('cls', 'date_string', 'format')).is_of((datetime.datetime(2026,1,2)).strptime)]\n"
+  },
+  {
+    "id": "metadata_370",
+    "binding": "(importlib.Func('probe')).is_of",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (importlib.Func('probe')).is_of\n    return [importlib.Func('is_of', ('self', 'f')).is_of(target), importlib.Func('__wrong__', ('self', 'f')).is_of(target), importlib.Func('is_of', ('self', 'f', 'extra')).is_of(target), importlib.Func('is_of', ('self', 'f')).is_of((importlib.Func('probe')).is_of)]\n"
+  },
+  {
+    "id": "metadata_371",
+    "binding": "(importlib.Var('value',Variable)).is_of",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (importlib.Var('value',Variable)).is_of\n    return [importlib.Func('is_of', ('self', 'v')).is_of(target), importlib.Func('__wrong__', ('self', 'v')).is_of(target), importlib.Func('is_of', ('self', 'v', 'extra')).is_of(target), importlib.Func('is_of', ('self', 'v')).is_of((importlib.Var('value',Variable)).is_of)]\n"
+  },
+  {
+    "id": "metadata_372",
+    "binding": "(importlib.Var('value',Variable)).type",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 1
+    },
+    "source": "@export\ndef probe():\n    target = (importlib.Var('value',Variable)).type\n    return importlib.Func('arbitrary').is_of(target)\n"
+  },
+  {
+    "id": "metadata_397",
+    "binding": "(set([1])).add",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set([1])).add\n    return [importlib.Func('add', ('self', 'value')).is_of(target), importlib.Func('__wrong__', ('self', 'value')).is_of(target), importlib.Func('add', ('self', 'value', 'extra')).is_of(target), importlib.Func('add', ('self', 'value')).is_of((set([1])).add)]\n"
+  },
+  {
+    "id": "metadata_398",
+    "binding": "(set([1])).clear",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set([1])).clear\n    return [importlib.Func('clear', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('clear', ('self', 'extra')).is_of(target), importlib.Func('clear', ('self',)).is_of((set([1])).clear)]\n"
+  },
+  {
+    "id": "metadata_399",
+    "binding": "(set([1])).copy",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set([1])).copy\n    return [importlib.Func('copy', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('copy', ('self', 'extra')).is_of(target), importlib.Func('copy', ('self',)).is_of((set([1])).copy)]\n"
+  },
+  {
+    "id": "metadata_400",
+    "binding": "(set([1])).difference",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set([1])).difference\n    return [importlib.Func('difference', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('difference', ('self', 'extra')).is_of(target), importlib.Func('difference', ('self',)).is_of((set([1])).difference)]\n"
+  },
+  {
+    "id": "metadata_401",
+    "binding": "(set([1])).discard",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set([1])).discard\n    return [importlib.Func('discard', ('self', 'value')).is_of(target), importlib.Func('__wrong__', ('self', 'value')).is_of(target), importlib.Func('discard', ('self', 'value', 'extra')).is_of(target), importlib.Func('discard', ('self', 'value')).is_of((set([1])).discard)]\n"
+  },
+  {
+    "id": "metadata_402",
+    "binding": "(set([1])).intersection",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set([1])).intersection\n    return [importlib.Func('intersection', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('intersection', ('self', 'extra')).is_of(target), importlib.Func('intersection', ('self',)).is_of((set([1])).intersection)]\n"
+  },
+  {
+    "id": "metadata_403",
+    "binding": "(set([1])).isdisjoint",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set([1])).isdisjoint\n    return [importlib.Func('isdisjoint', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('isdisjoint', ('self', 'other', 'extra')).is_of(target), importlib.Func('isdisjoint', ('self', 'other')).is_of((set([1])).isdisjoint)]\n"
+  },
+  {
+    "id": "metadata_404",
+    "binding": "(set([1])).issubset",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set([1])).issubset\n    return [importlib.Func('issubset', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('issubset', ('self', 'other', 'extra')).is_of(target), importlib.Func('issubset', ('self', 'other')).is_of((set([1])).issubset)]\n"
+  },
+  {
+    "id": "metadata_405",
+    "binding": "(set([1])).issuperset",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set([1])).issuperset\n    return [importlib.Func('issuperset', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('issuperset', ('self', 'other', 'extra')).is_of(target), importlib.Func('issuperset', ('self', 'other')).is_of((set([1])).issuperset)]\n"
+  },
+  {
+    "id": "metadata_406",
+    "binding": "(set([1])).pop",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set([1])).pop\n    return [importlib.Func('pop', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('pop', ('self', 'extra')).is_of(target), importlib.Func('pop', ('self',)).is_of((set([1])).pop)]\n"
+  },
+  {
+    "id": "metadata_407",
+    "binding": "(set([1])).remove",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set([1])).remove\n    return [importlib.Func('remove', ('self', 'value')).is_of(target), importlib.Func('__wrong__', ('self', 'value')).is_of(target), importlib.Func('remove', ('self', 'value', 'extra')).is_of(target), importlib.Func('remove', ('self', 'value')).is_of((set([1])).remove)]\n"
+  },
+  {
+    "id": "metadata_408",
+    "binding": "(set([1])).symmetric_difference",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set([1])).symmetric_difference\n    return [importlib.Func('symmetric_difference', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('symmetric_difference', ('self', 'other', 'extra')).is_of(target), importlib.Func('symmetric_difference', ('self', 'other')).is_of((set([1])).symmetric_difference)]\n"
+  },
+  {
+    "id": "metadata_409",
+    "binding": "(set([1])).union",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (set([1])).union\n    return [importlib.Func('union', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('union', ('self', 'extra')).is_of(target), importlib.Func('union', ('self',)).is_of((set([1])).union)]\n"
+  },
+  {
+    "id": "metadata_410",
+    "binding": "(frozenset([1])).copy",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset([1])).copy\n    return [importlib.Func('copy', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('copy', ('self', 'extra')).is_of(target), importlib.Func('copy', ('self',)).is_of((frozenset([1])).copy)]\n"
+  },
+  {
+    "id": "metadata_411",
+    "binding": "(frozenset([1])).difference",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset([1])).difference\n    return [importlib.Func('difference', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('difference', ('self', 'extra')).is_of(target), importlib.Func('difference', ('self',)).is_of((frozenset([1])).difference)]\n"
+  },
+  {
+    "id": "metadata_412",
+    "binding": "(frozenset([1])).intersection",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset([1])).intersection\n    return [importlib.Func('intersection', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('intersection', ('self', 'extra')).is_of(target), importlib.Func('intersection', ('self',)).is_of((frozenset([1])).intersection)]\n"
+  },
+  {
+    "id": "metadata_413",
+    "binding": "(frozenset([1])).isdisjoint",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset([1])).isdisjoint\n    return [importlib.Func('isdisjoint', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('isdisjoint', ('self', 'other', 'extra')).is_of(target), importlib.Func('isdisjoint', ('self', 'other')).is_of((frozenset([1])).isdisjoint)]\n"
+  },
+  {
+    "id": "metadata_414",
+    "binding": "(frozenset([1])).issubset",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset([1])).issubset\n    return [importlib.Func('issubset', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('issubset', ('self', 'other', 'extra')).is_of(target), importlib.Func('issubset', ('self', 'other')).is_of((frozenset([1])).issubset)]\n"
+  },
+  {
+    "id": "metadata_415",
+    "binding": "(frozenset([1])).issuperset",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset([1])).issuperset\n    return [importlib.Func('issuperset', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('issuperset', ('self', 'other', 'extra')).is_of(target), importlib.Func('issuperset', ('self', 'other')).is_of((frozenset([1])).issuperset)]\n"
+  },
+  {
+    "id": "metadata_416",
+    "binding": "(frozenset([1])).symmetric_difference",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset([1])).symmetric_difference\n    return [importlib.Func('symmetric_difference', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('symmetric_difference', ('self', 'other', 'extra')).is_of(target), importlib.Func('symmetric_difference', ('self', 'other')).is_of((frozenset([1])).symmetric_difference)]\n"
+  },
+  {
+    "id": "metadata_417",
+    "binding": "(frozenset([1])).union",
+    "catalog": "public_wrapper_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "@export\ndef probe():\n    target = (frozenset([1])).union\n    return [importlib.Func('union', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('union', ('self', 'extra')).is_of(target), importlib.Func('union', ('self',)).is_of((frozenset([1])).union)]\n"
+  },
+  {
+    "id": "metadata_485",
+    "binding": "variable.append",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "variable=Variable()\n@export\ndef probe():\n    target = variable.append\n    return [importlib.Func('append', ('self', 'value')).is_of(target), importlib.Func('__wrong__', ('self', 'value')).is_of(target), importlib.Func('append', ('self', 'value', 'extra')).is_of(target), importlib.Func('append', ('self', 'value')).is_of(variable.append)]\n"
+  },
+  {
+    "id": "metadata_486",
+    "binding": "variable.clear",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "variable=Variable()\n@export\ndef probe():\n    target = variable.clear\n    return [importlib.Func('clear', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('clear', ('self', 'extra')).is_of(target), importlib.Func('clear', ('self',)).is_of(variable.clear)]\n"
+  },
+  {
+    "id": "metadata_487",
+    "binding": "variable.extend",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "variable=Variable()\n@export\ndef probe():\n    target = variable.extend\n    return [importlib.Func('extend', ('self', 'values')).is_of(target), importlib.Func('__wrong__', ('self', 'values')).is_of(target), importlib.Func('extend', ('self', 'values', 'extra')).is_of(target), importlib.Func('extend', ('self', 'values')).is_of(variable.extend)]\n"
+  },
+  {
+    "id": "metadata_488",
+    "binding": "variable.get",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "variable=Variable()\n@export\ndef probe():\n    target = variable.get\n    return [importlib.Func('get', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('get', ('self', 'extra')).is_of(target), importlib.Func('get', ('self',)).is_of(variable.get)]\n"
+  },
+  {
+    "id": "metadata_489",
+    "binding": "variable.insert",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "variable=Variable()\n@export\ndef probe():\n    target = variable.insert\n    return [importlib.Func('insert', ('self', 'index', 'value')).is_of(target), importlib.Func('__wrong__', ('self', 'index', 'value')).is_of(target), importlib.Func('insert', ('self', 'index', 'value', 'extra')).is_of(target), importlib.Func('insert', ('self', 'index', 'value')).is_of(variable.insert)]\n"
+  },
+  {
+    "id": "metadata_490",
+    "binding": "variable.pop",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "variable=Variable()\n@export\ndef probe():\n    target = variable.pop\n    return [importlib.Func('pop', ('self', 'key', 'default')).is_of(target), importlib.Func('__wrong__', ('self', 'key', 'default')).is_of(target), importlib.Func('pop', ('self', 'key', 'default', 'extra')).is_of(target), importlib.Func('pop', ('self', 'key', 'default')).is_of(variable.pop)]\n"
+  },
+  {
+    "id": "metadata_491",
+    "binding": "variable.remove",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "variable=Variable()\n@export\ndef probe():\n    target = variable.remove\n    return [importlib.Func('remove', ('self', 'value')).is_of(target), importlib.Func('__wrong__', ('self', 'value')).is_of(target), importlib.Func('remove', ('self', 'value', 'extra')).is_of(target), importlib.Func('remove', ('self', 'value')).is_of(variable.remove)]\n"
+  },
+  {
+    "id": "metadata_492",
+    "binding": "variable.set",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "variable=Variable()\n@export\ndef probe():\n    target = variable.set\n    return [importlib.Func('set', ('self', 'value')).is_of(target), importlib.Func('__wrong__', ('self', 'value')).is_of(target), importlib.Func('set', ('self', 'value', 'extra')).is_of(target), importlib.Func('set', ('self', 'value')).is_of(variable.set)]\n"
+  },
+  {
+    "id": "metadata_493",
+    "binding": "variable.update",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "variable=Variable()\n@export\ndef probe():\n    target = variable.update\n    return [importlib.Func('update', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('update', ('self', 'other', 'extra')).is_of(target), importlib.Func('update', ('self', 'other')).is_of(variable.update)]\n"
+  },
+  {
+    "id": "metadata_494",
+    "binding": "hash.all",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "hash=Hash()\n@export\ndef probe():\n    target = hash.all\n    return [importlib.Func('all', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('all', ('self', 'extra')).is_of(target), importlib.Func('all', ('self',)).is_of(hash.all)]\n"
+  },
+  {
+    "id": "metadata_495",
+    "binding": "hash.clear",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "hash=Hash()\n@export\ndef probe():\n    target = hash.clear\n    return [importlib.Func('clear', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('clear', ('self', 'extra')).is_of(target), importlib.Func('clear', ('self',)).is_of(hash.clear)]\n"
+  },
+  {
+    "id": "metadata_496",
+    "binding": "hash.clone_from",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "hash=Hash()\n@export\ndef probe():\n    target = hash.clone_from\n    return [importlib.Func('clone_from', ('self', 'source')).is_of(target), importlib.Func('__wrong__', ('self', 'source')).is_of(target), importlib.Func('clone_from', ('self', 'source', 'extra')).is_of(target), importlib.Func('clone_from', ('self', 'source')).is_of(hash.clone_from)]\n"
+  },
+  {
+    "id": "metadata_497",
+    "binding": "foreign_variable.append",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "foreign_variable=ForeignVariable(foreign_contract='con_other',foreign_name='value')\n@export\ndef probe():\n    target = foreign_variable.append\n    return [importlib.Func('append', ('self', 'value')).is_of(target), importlib.Func('__wrong__', ('self', 'value')).is_of(target), importlib.Func('append', ('self', 'value', 'extra')).is_of(target), importlib.Func('append', ('self', 'value')).is_of(foreign_variable.append)]\n"
+  },
+  {
+    "id": "metadata_498",
+    "binding": "foreign_variable.clear",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "foreign_variable=ForeignVariable(foreign_contract='con_other',foreign_name='value')\n@export\ndef probe():\n    target = foreign_variable.clear\n    return [importlib.Func('clear', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('clear', ('self', 'extra')).is_of(target), importlib.Func('clear', ('self',)).is_of(foreign_variable.clear)]\n"
+  },
+  {
+    "id": "metadata_499",
+    "binding": "foreign_variable.extend",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "foreign_variable=ForeignVariable(foreign_contract='con_other',foreign_name='value')\n@export\ndef probe():\n    target = foreign_variable.extend\n    return [importlib.Func('extend', ('self', 'values')).is_of(target), importlib.Func('__wrong__', ('self', 'values')).is_of(target), importlib.Func('extend', ('self', 'values', 'extra')).is_of(target), importlib.Func('extend', ('self', 'values')).is_of(foreign_variable.extend)]\n"
+  },
+  {
+    "id": "metadata_500",
+    "binding": "foreign_variable.get",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "foreign_variable=ForeignVariable(foreign_contract='con_other',foreign_name='value')\n@export\ndef probe():\n    target = foreign_variable.get\n    return [importlib.Func('get', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('get', ('self', 'extra')).is_of(target), importlib.Func('get', ('self',)).is_of(foreign_variable.get)]\n"
+  },
+  {
+    "id": "metadata_501",
+    "binding": "foreign_variable.insert",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "foreign_variable=ForeignVariable(foreign_contract='con_other',foreign_name='value')\n@export\ndef probe():\n    target = foreign_variable.insert\n    return [importlib.Func('insert', ('self', 'index', 'value')).is_of(target), importlib.Func('__wrong__', ('self', 'index', 'value')).is_of(target), importlib.Func('insert', ('self', 'index', 'value', 'extra')).is_of(target), importlib.Func('insert', ('self', 'index', 'value')).is_of(foreign_variable.insert)]\n"
+  },
+  {
+    "id": "metadata_502",
+    "binding": "foreign_variable.pop",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "foreign_variable=ForeignVariable(foreign_contract='con_other',foreign_name='value')\n@export\ndef probe():\n    target = foreign_variable.pop\n    return [importlib.Func('pop', ('self', 'key', 'default')).is_of(target), importlib.Func('__wrong__', ('self', 'key', 'default')).is_of(target), importlib.Func('pop', ('self', 'key', 'default', 'extra')).is_of(target), importlib.Func('pop', ('self', 'key', 'default')).is_of(foreign_variable.pop)]\n"
+  },
+  {
+    "id": "metadata_503",
+    "binding": "foreign_variable.remove",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "foreign_variable=ForeignVariable(foreign_contract='con_other',foreign_name='value')\n@export\ndef probe():\n    target = foreign_variable.remove\n    return [importlib.Func('remove', ('self', 'value')).is_of(target), importlib.Func('__wrong__', ('self', 'value')).is_of(target), importlib.Func('remove', ('self', 'value', 'extra')).is_of(target), importlib.Func('remove', ('self', 'value')).is_of(foreign_variable.remove)]\n"
+  },
+  {
+    "id": "metadata_504",
+    "binding": "foreign_variable.set",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "foreign_variable=ForeignVariable(foreign_contract='con_other',foreign_name='value')\n@export\ndef probe():\n    target = foreign_variable.set\n    return [importlib.Func('set', ('self', 'value')).is_of(target), importlib.Func('__wrong__', ('self', 'value')).is_of(target), importlib.Func('set', ('self', 'value', 'extra')).is_of(target), importlib.Func('set', ('self', 'value')).is_of(foreign_variable.set)]\n"
+  },
+  {
+    "id": "metadata_505",
+    "binding": "foreign_variable.update",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "foreign_variable=ForeignVariable(foreign_contract='con_other',foreign_name='value')\n@export\ndef probe():\n    target = foreign_variable.update\n    return [importlib.Func('update', ('self', 'other')).is_of(target), importlib.Func('__wrong__', ('self', 'other')).is_of(target), importlib.Func('update', ('self', 'other', 'extra')).is_of(target), importlib.Func('update', ('self', 'other')).is_of(foreign_variable.update)]\n"
+  },
+  {
+    "id": "metadata_506",
+    "binding": "foreign_hash.all",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "foreign_hash=ForeignHash(foreign_contract='con_other',foreign_name='values')\n@export\ndef probe():\n    target = foreign_hash.all\n    return [importlib.Func('all', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('all', ('self', 'extra')).is_of(target), importlib.Func('all', ('self',)).is_of(foreign_hash.all)]\n"
+  },
+  {
+    "id": "metadata_507",
+    "binding": "foreign_hash.clear",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "foreign_hash=ForeignHash(foreign_contract='con_other',foreign_name='values')\n@export\ndef probe():\n    target = foreign_hash.clear\n    return [importlib.Func('clear', ('self',)).is_of(target), importlib.Func('__wrong__', ('self',)).is_of(target), importlib.Func('clear', ('self', 'extra')).is_of(target), importlib.Func('clear', ('self',)).is_of(foreign_hash.clear)]\n"
+  },
+  {
+    "id": "metadata_508",
+    "binding": "foreign_hash.clone_from",
+    "catalog": "storage_bound_candidate",
+    "expected_current": {
+      "status_code": 0,
+      "result": [
+        "list",
+        [
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "bool",
+            true
+          ]
+        ]
+      ]
+    },
+    "source": "foreign_hash=ForeignHash(foreign_contract='con_other',foreign_name='values')\n@export\ndef probe():\n    target = foreign_hash.clone_from\n    return [importlib.Func('clone_from', ('self', 'source')).is_of(target), importlib.Func('__wrong__', ('self', 'source')).is_of(target), importlib.Func('clone_from', ('self', 'source', 'extra')).is_of(target), importlib.Func('clone_from', ('self', 'source')).is_of(foreign_hash.clone_from)]\n"
+  }
+]

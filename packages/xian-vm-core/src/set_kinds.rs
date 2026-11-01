@@ -28,7 +28,7 @@ pub(in crate::interpreter) fn normalized(
     items: Vec<VmValue>,
     limit: usize,
 ) -> Result<VmValue, VmExecutionError> {
-    let items = normalize_set_items(items)?;
+    let items = builtin_set_keys::normalize(items)?;
     if items.len() > limit {
         return Err(VmExecutionError::new("set allocation limit exceeded"));
     }
@@ -83,7 +83,7 @@ pub(in crate::interpreter) fn method(
                     Err(VmExecutionError::new("set.remove(): value not found"))
                 };
             }
-            ensure_set_hashable(needle)?;
+            builtin_set_keys::ensure_hashable(needle)?;
         }
     }
     Ok(

@@ -349,31 +349,8 @@ fn vm_value_to_json(value: &VmValue) -> Result<Value, VmExecutionError> {
             );
             Value::Object(object)
         }
-        VmValue::Set(values) => {
-            let mut object = Map::new();
-            object.insert(
-                "__set__".to_owned(),
-                Value::Array(
-                    values
-                        .iter()
-                        .map(vm_value_to_json)
-                        .collect::<Result<Vec<_>, _>>()?,
-                ),
-            );
-            Value::Object(object)
-        }
-        VmValue::FrozenSet(values) => {
-            let mut object = Map::new();
-            object.insert(
-                "__frozenset__".to_owned(),
-                Value::Array(
-                    values
-                        .iter()
-                        .map(vm_value_to_json)
-                        .collect::<Result<Vec<_>, _>>()?,
-                ),
-            );
-            Value::Object(object)
+        VmValue::Set(_) | VmValue::FrozenSet(_) => {
+            crate::set_member_codec::encode_set_value(value)?
         }
         VmValue::DecimalTuple(value) => {
             return vm_value_to_json(&VmValue::Tuple(value.as_values()))
@@ -434,6 +411,29 @@ mod tests {
         VM_GAS_CROSS_CONTRACT_CALL_REPEAT, VM_MAX_RAW_CHI, VM_TRANSACTION_BASE_CHI,
         VM_TRANSACTION_BASE_CHI_RAW,
     };
+
+    #[test]
+    fn set_metering_uses_lossless_typed_members_and_utf8_bytes() {
+        use crate::{VmRawDecimal, VmValue};
+        let value = VmValue::Set(vec![VmValue::Tuple(vec![
+            VmValue::String("雪".into()),
+            VmValue::RawDecimal(VmRawDecimal::parse("1.2300").unwrap()),
+        ])]);
+        let encoded = super::encode_vm_value(&value).unwrap();
+        let expected = serde_json::json!({"__set__": {
+            "codec": "xian-set-1",
+            "items": [["tuple", [["str", "雪"], ["raw_decimal", 0, "12300", -4]]]]
+        }});
+        assert_eq!(encoded, serde_json::to_vec(&expected).unwrap());
+        assert!(encoded
+            .windows("雪".len())
+            .any(|bytes| bytes == "雪".as_bytes()));
+        // Non-set serialization retains the existing wire shape.
+        assert_eq!(
+            super::encode_vm_value(&VmValue::Tuple(vec![VmValue::Int(3.into())])).unwrap(),
+            b"[3]"
+        );
+    }
 
     #[test]
     fn disabled_meter_still_reports_base_chi_and_fixed_overhead() {

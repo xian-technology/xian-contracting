@@ -1,3 +1,5 @@
+#[path = "builtin_set_keys.rs"]
+pub(in crate::interpreter) mod builtin_set_keys;
 #[path = "native_methods.rs"]
 mod native_methods;
 #[path = "set_kinds.rs"]
@@ -363,17 +365,17 @@ pub(super) fn set_like_values(value: &VmValue) -> Option<&[VmValue]> {
 }
 
 pub(super) fn normalize_set_items(values: Vec<VmValue>) -> Result<Vec<VmValue>, VmExecutionError> {
-    let mut normalized: Vec<(VmValue, VmSetKey)> = Vec::new();
+    normalize_set_items_by_key(values, vm_set_key)
+}
+
+fn normalize_set_items_by_key<K: Ord>(
+    values: Vec<VmValue>,
+    key_for: impl Fn(&VmValue) -> Result<K, VmExecutionError>,
+) -> Result<Vec<VmValue>, VmExecutionError> {
+    let mut normalized: Vec<(VmValue, K)> = Vec::new();
     for value in values {
-        let key = vm_set_key(&value)?;
-        let mut matched_index = None;
-        for (index, (existing, _)) in normalized.iter().enumerate() {
-            if vm_values_equal(existing, &value)? {
-                matched_index = Some(index);
-                break;
-            }
-        }
-        if let Some(index) = matched_index {
+        let key = key_for(&value)?;
+        if let Some(index) = equal_position(normalized.iter().map(|(value, _)| value), &value)? {
             if key < normalized[index].1 {
                 normalized[index] = (value, key);
             }
@@ -386,13 +388,14 @@ pub(super) fn normalize_set_items(values: Vec<VmValue>) -> Result<Vec<VmValue>, 
 }
 
 /// Insert into an already canonical set without re-normalizing every pair.
-pub(super) fn set_insert_value(
+fn insert_set_item_by_key<K: Ord>(
     values: &mut Vec<VmValue>,
     value: VmValue,
+    key_for: impl Fn(&VmValue) -> Result<K, VmExecutionError>,
 ) -> Result<(), VmExecutionError> {
-    let key = vm_set_key(&value)?;
+    let key = key_for(&value)?;
     if let Some(index) = equal_position(values.iter(), &value)? {
-        if key >= vm_set_key(&values[index])? {
+        if key >= key_for(&values[index])? {
             return Ok(());
         }
         values.remove(index);
@@ -400,22 +403,22 @@ pub(super) fn set_insert_value(
     if values.len() >= MAX_SEQUENCE_LENGTH {
         return Err(VmExecutionError::new("set allocation limit exceeded"));
     }
-    let position = set_insertion_position(values, &key)?;
+    let position = set_insertion_position(values, &key, &key_for)?;
     values.insert(position, value);
     Ok(())
 }
 
-fn set_insertion_position(values: &[VmValue], key: &VmSetKey) -> Result<usize, VmExecutionError> {
+fn set_insertion_position<K: Ord>(
+    values: &[VmValue],
+    key: &K,
+    key_for: &impl Fn(&VmValue) -> Result<K, VmExecutionError>,
+) -> Result<usize, VmExecutionError> {
     for (index, existing) in values.iter().enumerate() {
-        if vm_set_key(existing)? > *key {
+        if key_for(existing)? > *key {
             return Ok(index);
         }
     }
     Ok(values.len())
-}
-
-pub(super) fn ensure_set_hashable(value: &VmValue) -> Result<(), VmExecutionError> {
-    vm_set_key(value).map(|_| ())
 }
 
 fn vm_set_key(value: &VmValue) -> Result<VmSetKey, VmExecutionError> {
@@ -1189,169 +1192,31 @@ pub(super) fn time_timedelta_new(
     )?))
 }
 
-fn strict_hash_hex_bytes(value: &str) -> Result<Vec<u8>, VmExecutionError> {
-    if value.len() % 2 != 0 {
-        return Err(VmExecutionError::new(
-            "hash hex input must contain whole bytes",
-        ));
-    }
-    hex::decode(value)
-        .map_err(|_| VmExecutionError::new("hash hex input must be unprefixed hexadecimal"))
-}
-
-pub(super) fn hash_legacy(
-    sha3: bool,
-    args: Vec<VmValue>,
-    kwargs: Vec<(String, VmValue)>,
-) -> Result<VmValue, VmExecutionError> {
-    let input = match (args.as_slice(), kwargs.as_slice()) {
-        ([value], []) => value,
-        ([], [(key, value)]) if key == "hex_str" => value,
-        _ => {
-            return Err(VmExecutionError::new(
-                "legacy hash expects one hex_str argument",
-            ))
-        }
-    }
-    .as_string()?;
-    let bytes = legacy_hex(&input).unwrap_or_else(|| input.into_bytes());
-    let digest = if sha3 {
-        hex::encode(Sha3_256::digest(&bytes))
-    } else {
-        hex::encode(Sha256::digest(&bytes))
-    };
-    Ok(VmValue::String(digest))
-}
-
-fn legacy_hex(value: &str) -> Option<Vec<u8>> {
-    let mut bytes = value.as_bytes().iter().copied().peekable();
-    let mut output = Vec::new();
-    loop {
-        while bytes
-            .peek()
-            .is_some_and(|byte| matches!(byte, b' ' | b'\t' | b'\r' | b'\n' | 11 | 12))
-        {
-            bytes.next();
-        }
-        let Some(high) = bytes.next() else {
-            return Some(output);
-        };
-        let low = bytes.next()?;
-        let high = (high as char).to_digit(16)?;
-        let low = (low as char).to_digit(16)?;
-        output.push((high * 16 + low) as u8);
-    }
-}
-
+#[cfg(test)]
 pub(super) fn hash_sha3_256_text(
     args: Vec<VmValue>,
     kwargs: Vec<(String, VmValue)>,
 ) -> Result<VmValue, VmExecutionError> {
-    if !kwargs.is_empty() || args.len() != 1 {
-        return Err(VmExecutionError::new(
-            "hashlib.sha3_text() expects one argument",
-        ));
-    }
-    let mut hasher = Sha3_256::new();
-    hasher.update(args[0].as_string()?.as_bytes());
-    Ok(VmValue::String(hex::encode(hasher.finalize())))
+    crypto_resources::dispatch("hash.sha3_256_text", &args, &kwargs, &mut NoopHost)
+        .expect("known crypto syscall")
 }
 
+#[cfg(test)]
 pub(super) fn hash_sha3_256_hex(
     args: Vec<VmValue>,
     kwargs: Vec<(String, VmValue)>,
 ) -> Result<VmValue, VmExecutionError> {
-    if !kwargs.is_empty() || args.len() != 1 {
-        return Err(VmExecutionError::new(
-            "hashlib.sha3_hex() expects one argument",
-        ));
-    }
-    let mut hasher = Sha3_256::new();
-    hasher.update(strict_hash_hex_bytes(&args[0].as_string()?)?);
-    Ok(VmValue::String(hex::encode(hasher.finalize())))
+    crypto_resources::dispatch("hash.sha3_256_hex", &args, &kwargs, &mut NoopHost)
+        .expect("known crypto syscall")
 }
 
-pub(super) fn hash_sha256_text(
-    args: Vec<VmValue>,
-    kwargs: Vec<(String, VmValue)>,
-) -> Result<VmValue, VmExecutionError> {
-    if !kwargs.is_empty() || args.len() != 1 {
-        return Err(VmExecutionError::new(
-            "hashlib.sha256_text() expects one argument",
-        ));
-    }
-    let mut hasher = Sha256::new();
-    hasher.update(args[0].as_string()?.as_bytes());
-    Ok(VmValue::String(hex::encode(hasher.finalize())))
-}
-
-pub(super) fn hash_sha256_hex(
-    args: Vec<VmValue>,
-    kwargs: Vec<(String, VmValue)>,
-) -> Result<VmValue, VmExecutionError> {
-    if !kwargs.is_empty() || args.len() != 1 {
-        return Err(VmExecutionError::new(
-            "hashlib.sha256_hex() expects one argument",
-        ));
-    }
-    let mut hasher = Sha256::new();
-    hasher.update(strict_hash_hex_bytes(&args[0].as_string()?)?);
-    Ok(VmValue::String(hex::encode(hasher.finalize())))
-}
-
+#[cfg(test)]
 pub(super) fn crypto_ed25519_verify(
     args: Vec<VmValue>,
     kwargs: Vec<(String, VmValue)>,
 ) -> Result<VmValue, VmExecutionError> {
-    if !kwargs.is_empty() || args.len() != 3 {
-        return Err(VmExecutionError::new(
-            "crypto.verify() expects three positional arguments",
-        ));
-    }
-    let key_hex = args[0].as_string()?;
-    let message = args[1].as_string()?;
-    let signature_hex = args[2].as_string()?;
-
-    let key_bytes = match hex::decode(key_hex) {
-        Ok(bytes) => bytes,
-        Err(_) => return Ok(VmValue::Bool(false)),
-    };
-    let signature_bytes = match hex::decode(signature_hex) {
-        Ok(bytes) => bytes,
-        Err(_) => return Ok(VmValue::Bool(false)),
-    };
-    let verifying_key = match VerifyingKey::from_bytes(
-        &key_bytes
-            .try_into()
-            .map_err(|_| VmExecutionError::new("invalid verify key length"))?,
-    ) {
-        Ok(key) => key,
-        Err(_) => return Ok(VmValue::Bool(false)),
-    };
-    let signature = match Signature::try_from(signature_bytes.as_slice()) {
-        Ok(signature) => signature,
-        Err(_) => return Ok(VmValue::Bool(false)),
-    };
-    Ok(VmValue::Bool(
-        verifying_key
-            .verify_strict(message.as_bytes(), &signature)
-            .is_ok(),
-    ))
-}
-
-pub(super) fn crypto_key_is_valid(
-    args: Vec<VmValue>,
-    kwargs: Vec<(String, VmValue)>,
-) -> Result<VmValue, VmExecutionError> {
-    if !kwargs.is_empty() || args.len() != 1 {
-        return Err(VmExecutionError::new(
-            "crypto.key_is_valid() expects one argument",
-        ));
-    }
-    let key = args[0].as_string()?;
-    Ok(VmValue::Bool(
-        key.len() == 64 && key.chars().all(|ch| ch.is_ascii_hexdigit()),
-    ))
+    crypto_resources::dispatch("crypto.ed25519_verify", &args, &kwargs, &mut NoopHost)
+        .expect("known crypto syscall")
 }
 
 fn time_arguments<const N: usize>(
@@ -1643,6 +1508,14 @@ pub(super) fn vm_values_equal(left: &VmValue, right: &VmValue) -> Result<bool, V
     vm_values_equal_at(left, right, 0)
 }
 
+fn is_interface_descriptor(value: &VmValue) -> bool {
+    match value {
+        VmValue::Reference(reference) => reference.with_value(is_interface_descriptor),
+        VmValue::InterfaceDescriptor(_) => true,
+        _ => false,
+    }
+}
+
 fn vm_values_equal_at(
     left: &VmValue,
     right: &VmValue,
@@ -1650,6 +1523,11 @@ fn vm_values_equal_at(
 ) -> Result<bool, VmExecutionError> {
     if left.identical(right) {
         return Ok(true);
+    }
+    // Descriptor equality uses identity only. Do not clone its public fields
+    // (which can include cycles) to compare two distinct objects.
+    if is_interface_descriptor(left) || is_interface_descriptor(right) {
+        return Ok(false);
     }
     if depth > 128 {
         return Err(VmExecutionError::new(
@@ -1750,7 +1628,7 @@ pub(super) fn contains_value(
             if matches!(needle.snapshot(), VmValue::BuiltinSet(_)) {
                 return Ok(false);
             }
-            vm_set_key(&needle.snapshot())?;
+            builtin_set_keys::ensure_hashable(needle)?;
             set_contains_value(values, needle)
         }
         VmValue::Set(values) | VmValue::FrozenSet(values) => set_contains_value(values, needle),

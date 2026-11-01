@@ -510,8 +510,16 @@ static CATALOG: &[HostCallableSpec] = &[
         7,
     ),
 ];
+#[cfg(test)]
+pub(super) fn catalog_bindings() -> impl Iterator<Item = &'static str> {
+    CATALOG.iter().map(|spec| spec.binding)
+}
+
 impl VmHostCallable {
     pub(super) fn value(self) -> VmValue {
+        if matches!(self.binding(), "importlib.Func" | "importlib.Var") {
+            return VmValue::TypeMarker(self.binding().into());
+        }
         if self.binding().starts_with("Contract.") {
             VmValue::BoundMethod(Box::new(VmBoundMethod {
                 receiver: VmValue::Builtin("Contract".into()),
@@ -631,7 +639,13 @@ impl VmInstance {
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
         let (args, kwargs) = callable.bind(args, kwargs)?;
-        self.dispatch_host_syscall(callable.syscall(), args, kwargs, host)
+        match callable.syscall() {
+            "contract.interface.func" | "contract.interface.var" => {
+                interface_descriptors::construct(callable.syscall(), &args, &kwargs)
+            }
+            "contract.enforce_interface" => self.enforce_interface(args, host),
+            _ => self.dispatch_host_syscall(callable.syscall(), args, kwargs, host),
+        }
     }
 }
 
@@ -893,8 +907,11 @@ pub(super) fn callback_needs_dispatch_charge(value: &VmValue) -> bool {
 
 fn bound_callback_needs_dispatch_charge(bound: &VmBoundMethod) -> bool {
     match bound.receiver.snapshot() {
-        VmValue::ContractHandle(_) => true,
-        VmValue::Builtin(name) => name == "Contract",
+        VmValue::ContractHandle(_) | VmValue::InterfaceDescriptor(_) => true,
+        VmValue::Builtin(name) => matches!(
+            name.as_str(),
+            "Contract" | "importlib.Func" | "importlib.Var"
+        ),
         VmValue::TypeMarker(name) => name == "datetime.datetime" && bound.method == "strptime",
         _ => false,
     }

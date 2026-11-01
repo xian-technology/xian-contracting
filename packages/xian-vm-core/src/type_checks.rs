@@ -5,7 +5,7 @@ type Result<T> = std::result::Result<T, VmExecutionError>;
 const MAX_CLASSINFO_DEPTH: usize = 128;
 const MAX_CLASSINFO_NODES: usize = 128 * 1024;
 
-pub(super) fn isinstance(value: &VmValue, target: &VmValue) -> Result<bool> {
+pub(in crate::interpreter) fn isinstance(value: &VmValue, target: &VmValue) -> Result<bool> {
     walk(target, 0, &mut 0, &mut |name| instance_of(value, name))
 }
 
@@ -87,6 +87,8 @@ fn class_name(value: &VmValue) -> Option<&str> {
         "ForeignVariable",
         "ForeignHash",
         "LogEvent",
+        "importlib.Func",
+        "importlib.Var",
     ];
     CLASSES.contains(&name.as_str()).then_some(name.as_str())
 }
@@ -103,6 +105,7 @@ fn instance_of(value: &VmValue, name: &str) -> Result<bool> {
     Ok(match value {
         VmValue::Iterator(iterator) => iterator.matches_public_class(name),
         VmValue::Exception(_) => name == "Exception",
+        VmValue::InterfaceDescriptor(descriptor) => descriptor.class_name() == name,
         VmValue::StorageRef(storage) => storage.storage_type == name,
         VmValue::ForeignStorageRef(storage) => {
             name == if storage.is_hash {
