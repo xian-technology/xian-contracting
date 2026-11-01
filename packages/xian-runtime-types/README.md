@@ -22,5 +22,72 @@ The package is covered by the root test suite:
 ```bash
 uv run pytest -q tests/unit/test_decimal.py tests/unit/test_datetime.py \
   tests/unit/test_timedelta.py tests/unit/test_contracting_collections.py \
-  tests/unit/test_encode.py
+  tests/unit/test_encode.py tests/unit/test_set_codec.py
 ```
+
+## Persistent wrapper sets (`xian-set-1`)
+
+New `ContractingSet` and `ContractingFrozenSet` writes retain the outer
+`__set__` / `__frozenset__` tag and contain an explicit member envelope:
+
+```json
+{"__set__":{"codec":"xian-set-1","items":[["tuple",[["int","1"],["int","2"]]]]}}
+```
+
+Members use a closed typed grammar. This preserves tuple hashability, finite
+binary64 bits including negative zero, raw Decimal precision/quantum, and the
+fixed-versus-raw Decimal distinction.
+
+| Node | Payload |
+| --- | --- |
+| `["none"]` | No payload |
+| `["bool", value]` | JSON boolean |
+| `["int", digits]` | Canonical signed decimal integer string |
+| `["float", bits]` | Exactly 16 lowercase hexadecimal IEEE754 binary64 bits |
+| `["fixed", scaled]` | Canonical integer string at the existing `10**30` scale |
+| `["raw_decimal", sign, digits, exponent]` | Sign 0/1, unsigned coefficient string, exact base-10 exponent |
+| `["str", text]` | Unicode scalar string |
+| `["bytes", hex]` | Lowercase hexadecimal byte string |
+| `["datetime", parts]` | Year, month, day, hour, minute, second, microsecond |
+| `["timedelta", seconds]` | Canonical signed integer seconds string |
+| `["tuple", members]` | Typed child nodes |
+| `["frozenset", members]` | Canonically ordered typed child nodes |
+
+Mutable sets, lists, mappings, callables, proxies and non-finite numbers cannot
+be members. The existing deterministic wrapper normalization defines order and
+deduplication; decoding rejects noncanonical new envelopes instead of silently
+rewriting them. Ordinary scalar/container encodings outside wrapper sets retain
+their existing representation.
+
+The codec bounds each wrapper payload to depth 64, 131,072 typed nodes and an
+8 MiB conservative JSON byte cap, measured with Python-compatible ASCII escapes.
+Astral characters count as two six-byte surrogate escapes for this cap. The VM's
+metering representation remains compact UTF-8 JSON, so this conservative cap is
+not the gas byte-count formula. Existing transaction/write limits can be stricter.
+Integer members have at most 1,048,576 bits; raw Decimal digits, canonical text
+and absolute exponent are bounded by 131,072. The sum of squared cardinalities
+of every wrapper set/frozen set in one persistence payload must not exceed
+8,388,608, checked before normalization. A single set can therefore contain at
+most 2,896 members; nesting and multiple wrapper roots share that work budget.
+Legacy decoding shares the same budget across object-hook constructions without
+counting an already reconstructed nested wrapper twice.
+
+Legacy list-shaped set envelopes remain readable. Arrays that occur as legacy
+set members are restored recursively as tuples; ordinary JSON arrays elsewhere
+remain lists. Legacy `__fixed__` values retain their historical fixed type because
+old writes cannot recover already-lost raw Decimal quantum.
+
+The public helpers exported by `xian_runtime_types.encoding` are:
+
+- `is_wrapper_set(value)` identifies the deterministic wrapper families.
+- `encode_set_value(value)` returns a plain versioned JSON object.
+- `decode_set_value(tag, payload)` reads a new envelope or legacy list payload.
+- `validate_persistent_value(value)` checks finite values, bounded traversal,
+  cycles, unsupported objects and reserved-key collisions before serialization.
+
+New ordinary persisted dictionaries cannot contain any reserved runtime codec
+key, even with siblings or inside another container. This covers every key in
+`encoding.TYPES`, not just set tags. Actual typed objects remain valid. Trusted
+wire data must be decoded with `decode`/`convert_dict` before re-encoding; feeding
+an already-tagged ordinary dictionary to `encode` intentionally fails. Legacy
+read behavior remains available, including historical tag recognition.

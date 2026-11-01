@@ -1,0 +1,17 @@
+[
+  {"id":"none","wire":{"__set__":{"codec":"xian-set-1","items":[["none"]]}}},
+  {"id":"bool","wire":{"__set__":{"codec":"xian-set-1","items":[["bool",true]]}}},
+  {"id":"int","wire":{"__set__":{"codec":"xian-set-1","items":[["int","1237940039285380274899124224"]]}}},
+  {"id":"negative_zero","wire":{"__set__":{"codec":"xian-set-1","items":[["float","8000000000000000"]]}}},
+  {"id":"fixed","wire":{"__set__":{"codec":"xian-set-1","items":[["fixed","1250000000000000000000000000000"]]}}},
+  {"id":"raw","wire":{"__set__":{"codec":"xian-set-1","items":[["raw_decimal",0,"12300",-4]]}}},
+  {"id":"raw_negative_zero","wire":{"__set__":{"codec":"xian-set-1","items":[["raw_decimal",1,"0",-2]]}}},
+  {"id":"unicode","wire":{"__set__":{"codec":"xian-set-1","items":[["str","雪😀\n"]]}}},
+  {"id":"bytes","wire":{"__set__":{"codec":"xian-set-1","items":[["bytes","00ff"]]}}},
+  {"id":"datetime","wire":{"__set__":{"codec":"xian-set-1","items":[["datetime",[2026,1,2,3,4,5,123456]]]}}},
+  {"id":"timedelta","wire":{"__set__":{"codec":"xian-set-1","items":[["timedelta","-90001"]]}}},
+  {"id":"tuple","wire":{"__set__":{"codec":"xian-set-1","items":[["tuple",[["int","1"],["str","a"],["raw_decimal",0,"200",-2]]]]}}},
+  {"id":"nested_frozen","wire":{"__set__":{"codec":"xian-set-1","items":[["frozenset",[["tuple",[["int","1"],["int","2"]]]]]]}}},
+  {"id":"empty_set","wire":{"__set__":{"codec":"xian-set-1","items":[]}}},
+  {"id":"empty_frozen","wire":{"__frozenset__":{"codec":"xian-set-1","items":[]}}}
+]

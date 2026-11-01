@@ -1,22 +1,20 @@
 import decimal
 import json
 
-from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal, fix_precision
+from xian_runtime_types.set_codec import (
+    RESERVED_TAGS,
+    _NormalizationBudget,
+    decode_set_value,
+    encode_set_value,
+    is_wrapper_set,
+    validate_persistent_value,
+)
 from xian_runtime_types.time import Datetime, Timedelta
 
 MIN_INT = -(2**63)
 MAX_INT = 2**63 - 1
-TYPES = {
-    "__fixed__",
-    "__delta__",
-    "__frozenset__",
-    "__bytes__",
-    "__bytearray__",
-    "__set__",
-    "__time__",
-    "__big_int__",
-}
+TYPES = set(RESERVED_TAGS)
 
 
 def safe_repr(obj, max_len=1024):
@@ -31,6 +29,10 @@ def safe_repr(obj, max_len=1024):
 
 
 class Encoder(json.JSONEncoder):
+    def iterencode(self, value, _one_shot=False):
+        validate_persistent_value(value)
+        return super().iterencode(value, _one_shot)
+
     def default(self, value, *args):
         if isinstance(value, Datetime) or value.__class__.__name__ == Datetime.__name__:
             return {
@@ -51,10 +53,8 @@ class Encoder(json.JSONEncoder):
                     value._timedelta.seconds,
                 ]
             }
-        if isinstance(value, ContractingSet):
-            return {"__set__": list(value)}
-        if isinstance(value, ContractingFrozenSet):
-            return {"__frozenset__": list(value)}
+        if is_wrapper_set(value):
+            return encode_set_value(value)
         if isinstance(value, bytes):
             return {"__bytes__": value.hex()}
         if isinstance(value, bytearray):
@@ -95,18 +95,23 @@ def _encode_ints(value):
 
 
 def encode(data):
-    return json.dumps(_encode_ints(data), cls=Encoder, separators=(",", ":"))
+    validate_persistent_value(data)
+    encoder = Encoder(separators=(",", ":"))
+    # Generated bigint tags are trusted codec output, not caller dictionaries.
+    return "".join(json.JSONEncoder.iterencode(encoder, _encode_ints(data), _one_shot=True))
 
 
-def as_object(value):
+def as_object(value, *, _normalization=None):
     if "__time__" in value:
         return Datetime(*value["__time__"])
     if "__delta__" in value:
         return Timedelta(days=value["__delta__"][0], seconds=value["__delta__"][1])
     if "__set__" in value:
-        return ContractingSet(value["__set__"])
+        return decode_set_value("__set__", value["__set__"], _normalization=_normalization)
     if "__frozenset__" in value:
-        return ContractingFrozenSet(value["__frozenset__"])
+        return decode_set_value(
+            "__frozenset__", value["__frozenset__"], _normalization=_normalization
+        )
     if "__bytes__" in value:
         return bytes.fromhex(value["__bytes__"])
     if "__bytearray__" in value:
@@ -124,7 +129,10 @@ def decode(data):
     if isinstance(data, bytes):
         data = data.decode()
     try:
-        return json.loads(data, object_hook=as_object)
+        normalization = _NormalizationBudget()
+        return json.loads(
+            data, object_hook=lambda value: as_object(value, _normalization=normalization)
+        )
     except json.decoder.JSONDecodeError:
         return None
 
@@ -137,15 +145,29 @@ def decode_kv(key, value):
     return key.decode(), decode(value)
 
 
-def convert(key, value):
+def convert(key, value, *, _normalization=None):
+    if _normalization is None:
+        _normalization = _NormalizationBudget()
     if key == "__fixed__":
         return ContractingDecimal(value)
     if key == "__delta__":
         return Timedelta(days=value[0], seconds=value[1])
     if key == "__set__":
-        return ContractingSet(convert_dict(item) for item in value)
+        return decode_set_value(
+            key,
+            [convert_dict(item, _normalization=_normalization) for item in value]
+            if isinstance(value, list)
+            else value,
+            _normalization=_normalization,
+        )
     if key == "__frozenset__":
-        return ContractingFrozenSet(convert_dict(item) for item in value)
+        return decode_set_value(
+            key,
+            [convert_dict(item, _normalization=_normalization) for item in value]
+            if isinstance(value, list)
+            else value,
+            _normalization=_normalization,
+        )
     if key == "__bytes__":
         return bytes.fromhex(value)
     if key == "__bytearray__":
@@ -157,15 +179,17 @@ def convert(key, value):
     return value
 
 
-def convert_dict(data):
+def convert_dict(data, *, _normalization=None):
+    if _normalization is None:
+        _normalization = _NormalizationBudget()
     if isinstance(data, list):
-        return [convert_dict(item) for item in data]
+        return [convert_dict(item, _normalization=_normalization) for item in data]
     if not isinstance(data, dict):
         return data
 
     converted = {}
     for key, value in data.items():
         if key in TYPES:
-            return convert(key, value)
-        converted[key] = convert_dict(value)
+            return convert(key, value, _normalization=_normalization)
+        converted[key] = convert_dict(value, _normalization=_normalization)
     return converted

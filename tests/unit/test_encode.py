@@ -39,7 +39,8 @@ class TestEncode(TestCase):
 
     def test_nested_plain_values_and_wrappers_remain_compatible(self):
         value = {"data": [[1, True, False, None, {"__big_int__": str(2**80)}]]}
-        self.assertEqual(json.loads(encode(value)), value)
+        with self.assertRaisesRegex(ValueError, "reserved"):
+            encode(value)
         self.assertEqual(convert_dict(value), {"data": [[1, True, False, None, 2**80]]})
 
     def test_int_to_bytes(self):
@@ -224,13 +225,17 @@ class TestEncode(TestCase):
     def test_contracting_set_encode_and_decode(self):
         encoded = encode(ContractingSet([3, 1, 3]))
 
-        self.assertEqual(encoded, '{"__set__":[1,3]}')
+        self.assertEqual(
+            encoded, '{"__set__":{"codec":"xian-set-1","items":[["int","1"],["int","3"]]}}'
+        )
         self.assertEqual(decode(encoded), ContractingSet([1, 3]))
 
     def test_contracting_frozenset_encode_and_decode(self):
         encoded = encode(ContractingFrozenSet([3, 1, 3]))
 
-        self.assertEqual(encoded, '{"__frozenset__":[1,3]}')
+        self.assertEqual(
+            encoded, '{"__frozenset__":{"codec":"xian-set-1","items":[["int","1"],["int","3"]]}}'
+        )
         self.assertEqual(decode(encoded), ContractingFrozenSet([1, 3]))
 
     def test_encode_unsupported_object_raises_type_error(self):
@@ -241,6 +246,8 @@ class TestEncode(TestCase):
         b = '{"__fixed__":"1.10"}'
 
         d = decode(b)
+        self.assertIsInstance(d, ContractingDecimal)
+        self.assertEqual(d, ContractingDecimal("1.1"))
 
     def test_encoding_fixed_trailing_zeros(self):
         b = ContractingDecimal("123.000000")
