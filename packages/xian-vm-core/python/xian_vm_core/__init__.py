@@ -313,8 +313,9 @@ class NativeVmHost:
                 expected_args = tuple(item.get("args", ()))
                 actual_args = tuple(
                     parameter.get("name")
-                    for parameter in function.get("params", [])
+                    for parameter in function.get("parameters", [])
                     if isinstance(parameter, dict)
+                    and parameter.get("kind") == "positional_or_keyword"
                 )
                 if actual_args != expected_args:
                     return False

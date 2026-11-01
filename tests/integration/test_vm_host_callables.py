@@ -66,6 +66,16 @@ CALLABLE_BINDINGS = (
 
 NOMINAL_CASES = [
     (
+        "interface_positional_parameter_policy",
+        'f = importlib.Func\ncheck = importlib.enforce_interface\nreturn [check("con_host_callable_target", [f(name, args=names)]) for name, names in [("keyword", ("left",)), ("keyword", ("left", "right")), ("variadic", ("left",)), ("variadic", ("left", "rest", "options"))]]',
+        [True, False, True, False],
+    ),
+    (
+        "interface_parameter_names",
+        'f = importlib.Func\ncheck = importlib.enforce_interface\nreturn [check("con_host_callable_target", [f("combine", args=names)]) for names in [("left", "right"), ("right", "left"), (), ("left",), ("left", "right", "extra")]]',
+        [True, False, False, False, False],
+    ),
+    (
         "instance_classmethod_identity",
         "value = datetime.datetime(2000, 1, 1)\nf = value.strptime\nreturn [f == datetime.datetime.strptime, f is datetime.datetime.strptime, f is f]",
         [True, False, True],
@@ -204,7 +214,21 @@ def execute_case(home, body, *, native, meter=False, prefix=""):
         + "state = Variable()\n@export\ndef probe():\n"
         + "".join("    " + line + "\n" for line in body.splitlines())
     )
-    target = "state = Variable()\nledger = Hash()\n@export\ndef value():\n    return 7\n"
+    target = """state = Variable()
+ledger = Hash()
+@export
+def value():
+    return 7
+@export
+def combine(left: int, right: int):
+    return left + right
+@export
+def keyword(left: int, *, right: int):
+    return left + right
+@export
+def variadic(left: int, *rest: int, **options: int):
+    return left
+"""
     with Driver(storage_home=home) as driver:
         driver.set_contract_from_source("con_host_callable_target", target, owner=None)
         driver.set("con_host_callable_target.state", 7)
