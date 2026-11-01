@@ -189,6 +189,7 @@ fn collection_signature(receiver: &VmValue, method: &str) -> Option<Signature> {
             positionals(method, &[(&["count"], 1, 1), (&["index"], 1, 3)])
         }
         VmValue::Dict(_) => dict_signature(method),
+        VmValue::BuiltinSet(_) => builtin_set_signature(method),
         VmValue::Set(_) | VmValue::FrozenSet(_) => {
             set_signature(method, matches!(receiver, VmValue::Set(_)))
         }
@@ -388,6 +389,14 @@ fn dict_signature(method: &str) -> Option<Signature> {
         "get" | "pop" | "setdefault" | "fromkeys" => Pos(1, 2),
         "keys" | "values" | "items" | "clear" | "copy" | "popitem" => Pos(0, 0),
         "update" => Custom,
+        _ => return None,
+    })
+}
+fn builtin_set_signature(method: &str) -> Option<Signature> {
+    Some(match method {
+        "add" | "remove" | "discard" | "issubset" | "issuperset" | "isdisjoint" | "symmetric_difference" | "symmetric_difference_update" => Pos(1, 1),
+        "union" | "intersection" | "difference" | "update" | "intersection_update" | "difference_update" => Pos(0, usize::MAX),
+        "clear" | "pop" | "copy" => Pos(0, 0),
         _ => return None,
     })
 }

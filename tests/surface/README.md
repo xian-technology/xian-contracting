@@ -4,11 +4,13 @@ This suite separates discovery, implementation and behavioral evidence. A name
 appearing in a test or an implementation match arm is not proof of correctness.
 
 - `catalog.json` records the builtin whitelist, public environment exports, host
-  bindings, annotation names and public members of 28 value families. The drift
+  bindings, annotation names and public members of 29 value families. The drift
   test fails when those discovered names change without a reviewed update.
 - `builtin-cases.json` gives every callable builtin nominal, boundary and invalid
   input cases. Expectations are explicit; the Xian restriction on negative
   modular exponents is recorded separately from ordinary Python behavior.
+- `builtin-set-cases.json` separately covers builtin sets produced by dictionary
+  view algebra, their methods, kind-sensitive protocols, and boundary policy.
 - `value-cases.json` covers the implemented value-method/attribute surface and
   representative value protocols. The catalog also keeps missing native members
   visible; they are not counted as supported merely because Python exposes them.
@@ -20,7 +22,8 @@ appearing in a test or an implementation match arm is not proof of correctness.
 - Cases with `native_only` are explicit language-policy rejection checks, with a
   required `policy_reason`. They are skipped in the current Python oracle, whose
   broader API is not the consensus definition. The report counts these separately
-  from shared compatibility cases; a rejected member is not reported as supported.
+  from shared compatibility cases. Missing/deferred APIs and restrictions on an
+  implemented value protocol have different inventory dispositions.
 
 Run from the repository root:
 
@@ -36,13 +39,14 @@ tests automatically; a cached or ignored older extension is not valid evidence.
 
 ## Interpreting the report
 
-The inventory has 486 entries and 565 direct cases: 560 shared compatibility
-cases and five native-only policy checks. All 37 callable builtins have three
-behavioral dimensions. There are 307 public Python value members, including the
-live read-only mapping views exposed through dictionary views. Member entries
-are not counts of distinct bugs: inherited methods repeat across types.
-Native implementations and successful shared cases cover 302 of those members;
-the remaining five have the explicit policy dispositions below.
+The inventory has 507 entries and 595 direct cases: 586 shared compatibility
+cases and nine native-only policy checks. All 37 callable builtins have three
+behavioral dimensions. There are 324 public Python value members, including
+live read-only mapping proxies and the distinct builtin-set family. Member
+entries are not counts of distinct bugs: inherited methods repeat across types.
+Native implementations and successful shared cases cover 319 of those members;
+the remaining five have the explicit API dispositions below. A separate
+unresolved protocol entry records callable-valued builtin-set members.
 
 `float.from_number`, `Decimal.from_number` and `bytearray.resize` postdate the
 pinned Python 3.12 historical baseline and are explicitly deferred. Exception
@@ -86,8 +90,33 @@ Known gaps must remain documented, and a new public function needs both an
 inventory decision and behavioral evidence. Do not regenerate expected results
 from a failing native implementation.
 
-One known protocol gap is not an absent method: Python view algebra produces
-builtin sets distinct from the contract's deterministic `ContractingSet` wrapper,
-whereas native values currently share one set representation. Cross-family
-equality/type behavior is not fully compatible. Keep this representation gap
-explicit even when all ordinary member entries have direct passing cases.
+## Builtin sets and wrapper sets
+
+The `set` and `frozenset` families describe Contracting's deterministic wrapper
+constructors. The `builtin_set` family describes values produced by dictionary
+keys/items view algebra. It has 17 methods, including `update`,
+`intersection_update`, `difference_update` and `symmetric_difference_update`,
+which the wrapper set does not expose. Builtin methods use their own positional
+signatures; wrapper methods retain their existing named parameters.
+
+Builtin set kind remains distinct through method results, nested containers and
+cross-contract calls. Comparison and mixed-operator rules follow that distinction:
+a builtin set can equal its source view while comparing unequal to a wrapper set
+with the same members. Authored `isinstance(value, set)` checks the wrapper family.
+Set iteration and `pop()` retain the VM's approved deterministic canonical order
+and NaN identity policy rather than Python's process-dependent hash order.
+
+Builtin sets cannot be persisted or returned as serialized public results,
+including when nested in another value. Explicit `set(value)` conversion creates
+a wrapper value for those boundaries, subject to the wrapper's admitted member
+domain. The inventory marks this implemented protocol as `restricted`, with four
+native-only rejection cases and a successful shared explicit-conversion case;
+it is not counted as a missing implementation. Dedicated set-kind tests also
+check rollback/follow-up recovery and cross-contract alias preservation.
+
+`protocol.builtin_set.callable_members` remains an unresolved domain limitation:
+Python admits bound methods, functions and classes as builtin-set members, while
+the native canonical normalizer rejects those callable-valued members even when
+the dictionary key is admitted. This requires a deterministic execution identity
+and ordering policy coordinated with callable ownership. Passing cases for all
+17 method names do not claim full member-domain parity or resolve that gap.

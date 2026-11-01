@@ -64,6 +64,8 @@ mod attributes;
 pub use attributes::VmBoundMethod;
 #[path = "builtin_collections.rs"]
 mod builtin_collections;
+#[path = "builtin_set_methods.rs"]
+mod builtin_set_methods;
 #[path = "builtin_dispatch.rs"]
 mod builtin_dispatch;
 #[path = "call_dispatch.rs"]

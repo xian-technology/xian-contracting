@@ -295,7 +295,7 @@ fn sequence_shape(
         VmValue::DecimalTuple(v) => (heap.capture(VmValue::Tuple(v.as_values()))?, 3, None),
         VmValue::Bytes(v) | VmValue::ByteArray(v) => (source.clone(), v.len(), None),
         VmValue::Dict(v) => (source.clone(), v.len(), Some(v.len())),
-        VmValue::Set(v) | VmValue::FrozenSet(v) if !reverse => {
+        VmValue::Set(v) | VmValue::BuiltinSet(v) | VmValue::FrozenSet(v) if !reverse => {
             (source.clone(), v.len(), Some(v.len()))
         }
         VmValue::String(v) => {
@@ -535,7 +535,7 @@ fn sequence_item(
 
 fn item(value: &VmValue, index: usize, expected_size: Option<usize>) -> Result<Option<VmValue>> {
     let (length, result) = match value {
-        VmValue::List(v) | VmValue::Tuple(v) | VmValue::Set(v) | VmValue::FrozenSet(v) => {
+        VmValue::List(v) | VmValue::Tuple(v) | VmValue::Set(v) | VmValue::BuiltinSet(v) | VmValue::FrozenSet(v) => {
             (v.len(), v.get(index).cloned())
         }
         VmValue::Dict(v) => (v.len(), v.get(index).map(|(key, _)| key.clone())),

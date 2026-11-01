@@ -281,7 +281,7 @@ impl VmInstance {
                 crate::decimal_metering::comparison(host, &receiver, needle, false)?;
             }
         }
-        let set_comparison = matches!(receiver.snapshot(), VmValue::Set(_) | VmValue::FrozenSet(_))
+        let set_comparison = matches!(receiver.snapshot(), VmValue::Set(_) | VmValue::FrozenSet(_) | VmValue::BuiltinSet(_))
             && matches!(
                 method,
                 "add"
@@ -294,11 +294,18 @@ impl VmInstance {
                     | "intersection"
                     | "difference"
                     | "symmetric_difference"
+                    | "update"
+                    | "intersection_update"
+                    | "difference_update"
+                    | "symmetric_difference_update"
             );
         if set_comparison {
             let mut values = vec![receiver.clone()];
             values.extend(args.iter().cloned());
             crate::decimal_metering::normalization(host, &values)?;
+        }
+        if matches!(receiver.snapshot(), VmValue::BuiltinSet(_)) {
+            return self.call_builtin_set_method(receiver, method, args, host);
         }
         if method == "isdisjoint" && matches!(receiver.snapshot(), VmValue::View(_)) {
             return self.view_isdisjoint(&receiver, &args[0], host);

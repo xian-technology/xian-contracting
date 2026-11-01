@@ -120,6 +120,7 @@ impl VmInstance {
             VmValue::List(values)
             | VmValue::Tuple(values)
             | VmValue::Set(values)
+            | VmValue::BuiltinSet(values)
             | VmValue::FrozenSet(values) => Ok(vm_int(values.len())),
             VmValue::Dict(entries) => Ok(vm_int(entries.len())),
             VmValue::Range(range) => {

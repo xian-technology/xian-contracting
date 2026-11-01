@@ -23,6 +23,7 @@ def value_examples():
         "tuple": (1,),
         "dict": {"a": 1},
         "set": ContractingSet([1]),
+        "builtin_set": {"a": 1}.keys() | [],
         "frozenset": ContractingFrozenSet([1]),
         "range": range(3),
         "iterator.map": map(str, [1]),

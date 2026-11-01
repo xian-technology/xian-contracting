@@ -56,6 +56,7 @@ pub(in crate::interpreter) fn call_native_method_collected(
         VmValue::Bytes(value) => call_bytes_method(value, method, args, collect),
         VmValue::ByteArray(value) => call_bytearray_method(value, method, args, collect),
         VmValue::Set(values) => call_set_method(values, method, args, collect),
+        VmValue::BuiltinSet(values) => set_kinds::method(values, method, args, collect),
         VmValue::FrozenSet(values) => call_frozenset_method(values, method, args, collect),
         VmValue::Dict(entries) => call_dict_method(entries, method, args),
         other => Err(VmExecutionError::new(format!(
@@ -320,7 +321,7 @@ fn call_bytearray_method(
     binary_methods::call(value, true, method, args, collect)
 }
 
-fn call_set_method(
+pub(super) fn call_set_method(
     mut values: Vec<VmValue>,
     method: &str,
     args: Vec<VmValue>,

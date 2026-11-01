@@ -202,6 +202,7 @@ impl VmHeap {
             VmValue::List(_)
                 | VmValue::Dict(_)
                 | VmValue::Set(_)
+                | VmValue::BuiltinSet(_)
                 | VmValue::ByteArray(_)
                 | VmValue::Iterator(_)
         );
@@ -257,7 +258,7 @@ fn immutable_depth(value: &VmValue) -> usize {
 fn shallow_bytes(value: &VmValue) -> usize {
     let base = std::mem::size_of::<Object>();
     base + match value {
-        VmValue::List(v) | VmValue::Tuple(v) | VmValue::Set(v) | VmValue::FrozenSet(v) => {
+        VmValue::List(v) | VmValue::Tuple(v) | VmValue::Set(v) | VmValue::BuiltinSet(v) | VmValue::FrozenSet(v) => {
             v.len() * std::mem::size_of::<VmValue>()
         }
         VmValue::Dict(v) => {
@@ -289,6 +290,7 @@ fn map_children(
         VmValue::Tuple(v) => VmValue::Tuple(map_items(v, &mut map)?),
         VmValue::DecimalTuple(v) => VmValue::DecimalTuple(v.map_fields(map)?),
         VmValue::Set(v) => VmValue::Set(map_items(v, &mut map)?),
+        VmValue::BuiltinSet(v) => VmValue::BuiltinSet(map_items(v, &mut map)?),
         VmValue::FrozenSet(v) => VmValue::FrozenSet(map_items(v, &mut map)?),
         VmValue::Dict(v) => VmValue::Dict(
             v.into_iter()
@@ -373,6 +375,9 @@ fn detach(
                 "cyclic value cannot cross a VM boundary",
             ));
         }
+    }
+    if matches!(value.snapshot(), VmValue::BuiltinSet(_)) {
+        return Err(VmExecutionError::new("builtin sets cannot cross the VM boundary; convert with set() first"));
     }
     if matches!(value.snapshot(), VmValue::BoundMethod(_)) {
         return Err(VmExecutionError::new(
@@ -563,7 +568,7 @@ impl ContractValueVisitor {
             }
             VmValue::List(items)
             | VmValue::Tuple(items)
-            | VmValue::Set(items)
+            | VmValue::Set(items) | VmValue::BuiltinSet(items)
             | VmValue::FrozenSet(items) => self.items(items, depth),
             VmValue::Exception(exception) => self.items(&exception.args, depth),
             VmValue::DecimalTuple(tuple) => self.items(&tuple.as_values(), depth),

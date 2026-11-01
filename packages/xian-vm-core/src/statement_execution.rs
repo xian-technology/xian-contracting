@@ -348,6 +348,7 @@ impl VmInstance {
         if union_cost > 0 {
             host.charge_execution_cost(union_cost)?;
         }
+        support::set_kinds::charge_binary(operator, &current, &operand, host)?;
         let result = if matches!(operator, "bitand" | "bitor" | "bitxor" | "sub")
             && (mapping_views::is_set_view(&current) || mapping_views::is_set_view(&operand))
         {

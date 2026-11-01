@@ -106,12 +106,14 @@ def test_policy_cases_are_distinct_from_shared_compatibility_cases():
     policy_cases = [case for case in cases if case.get("native_only")]
     assert report["counts"]["native_only_policy_cases"] == len(policy_cases)
     assert report["counts"]["shared_compatibility_cases"] == len(cases) - len(policy_cases)
-    assert report["counts"]["policy_disposition"] == {"deferred": 4, "excluded": 1}
+    assert report["counts"]["policy_disposition"] == {"deferred": 4, "excluded": 1, "restricted": 1}
     rows = {row["id"]: row for row in report["items"]}
     for case in policy_cases:
         for name in case["covers"]:
-            assert rows[name]["disposition"] in {"deferred", "excluded"}, name
-            assert rows[name]["implementation"] == "missing", name
+            disposition = rows[name]["disposition"]
+            assert disposition in {"deferred", "excluded", "restricted"}, name
+            implementation = "present" if disposition == "restricted" else "missing"
+            assert rows[name]["implementation"] == implementation, name
     unresolved = [
         row
         for row in report["items"]
@@ -125,3 +127,21 @@ def test_historical_and_newer_policy_members_have_explicit_scope():
     for name in ("float.from_number", "Decimal.from_number", "bytearray.resize"):
         assert rows["method." + name]["historical_python_312"] is False
     assert rows["method.Exception.with_traceback"]["historical_python_312"] is True
+
+
+def test_builtin_set_inventory_keeps_kind_boundary_and_member_domain_distinct():
+    rows = {row["id"]: row for row in CATALOG["items"]}
+    discovery = CATALOG["discovery"]["value_members"]
+    extra_methods = {
+        "update",
+        "intersection_update",
+        "difference_update",
+        "symmetric_difference_update",
+    }
+    assert set(discovery["builtin_set"]) - set(discovery["set"]) == extra_methods
+    for name in discovery["builtin_set"]:
+        assert rows["method.builtin_set." + name]["implementation"] == "present"
+    assert rows["protocol.builtin_set.external_boundary"]["disposition"] == "restricted"
+    gap = rows["protocol.builtin_set.callable_members"]
+    assert gap["implementation"] == "missing"
+    assert "disposition" not in gap

@@ -155,7 +155,7 @@ fn sequence_parts(value: &VmValue) -> Option<(&[VmValue], &str, &str)> {
     match value {
         VmValue::List(items) => Some((items, "[", "]")),
         VmValue::Tuple(items) => Some((items, "(", if items.len() == 1 { ",)" } else { ")" })),
-        VmValue::Set(items) => Some((
+        VmValue::Set(items) | VmValue::BuiltinSet(items) => Some((
             items,
             if items.is_empty() { "set(" } else { "{" },
             if items.is_empty() { ")" } else { "}" },

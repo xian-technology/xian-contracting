@@ -1,0 +1,411 @@
+[
+  {
+    "id": "builtin_set_add",
+    "covers": [
+      "method.builtin_set.add"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    result=value.add('c')\n    return [result,sorted(value),isinstance(value,set)]\n",
+    "expected_result": [
+      null,
+      [
+        "a",
+        "b",
+        "c"
+      ],
+      false
+    ]
+  },
+  {
+    "id": "builtin_set_clear",
+    "covers": [
+      "method.builtin_set.clear"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    result=value.clear()\n    return [result,sorted(value),isinstance(value,set)]\n",
+    "expected_result": [
+      null,
+      [],
+      false
+    ]
+  },
+  {
+    "id": "builtin_set_discard",
+    "covers": [
+      "method.builtin_set.discard"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    result=value.discard('a')\n    return [result,sorted(value),isinstance(value,set)]\n",
+    "expected_result": [
+      null,
+      [
+        "b"
+      ],
+      false
+    ]
+  },
+  {
+    "id": "builtin_set_remove",
+    "covers": [
+      "method.builtin_set.remove"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    result=value.remove('b')\n    return [result,sorted(value),isinstance(value,set)]\n",
+    "expected_result": [
+      null,
+      [
+        "a"
+      ],
+      false
+    ]
+  },
+  {
+    "id": "builtin_set_update",
+    "covers": [
+      "method.builtin_set.update"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    result=value.update(['c'],['d'])\n    return [result,sorted(value),isinstance(value,set)]\n",
+    "expected_result": [
+      null,
+      [
+        "a",
+        "b",
+        "c",
+        "d"
+      ],
+      false
+    ]
+  },
+  {
+    "id": "builtin_set_intersection_update",
+    "covers": [
+      "method.builtin_set.intersection_update"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    result=value.intersection_update(['b','c'],['a','b'])\n    return [result,sorted(value),isinstance(value,set)]\n",
+    "expected_result": [
+      null,
+      [
+        "b"
+      ],
+      false
+    ]
+  },
+  {
+    "id": "builtin_set_difference_update",
+    "covers": [
+      "method.builtin_set.difference_update"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    result=value.difference_update(['a'],['z'])\n    return [result,sorted(value),isinstance(value,set)]\n",
+    "expected_result": [
+      null,
+      [
+        "b"
+      ],
+      false
+    ]
+  },
+  {
+    "id": "builtin_set_symmetric_difference_update",
+    "covers": [
+      "method.builtin_set.symmetric_difference_update"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    result=value.symmetric_difference_update(['b','c'])\n    return [result,sorted(value),isinstance(value,set)]\n",
+    "expected_result": [
+      null,
+      [
+        "a",
+        "c"
+      ],
+      false
+    ]
+  },
+  {
+    "id": "builtin_set_copy",
+    "covers": [
+      "method.builtin_set.copy"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    result=value.copy()\n    return [sorted(result),isinstance(result,set),result is value]\n",
+    "expected_result": [
+      [
+        "a",
+        "b"
+      ],
+      false,
+      false
+    ]
+  },
+  {
+    "id": "builtin_set_difference",
+    "covers": [
+      "method.builtin_set.difference"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    result=value.difference(['b'])\n    return [sorted(result),isinstance(result,set),result is value]\n",
+    "expected_result": [
+      [
+        "a"
+      ],
+      false,
+      false
+    ]
+  },
+  {
+    "id": "builtin_set_intersection",
+    "covers": [
+      "method.builtin_set.intersection"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    result=value.intersection(['b','z'])\n    return [sorted(result),isinstance(result,set),result is value]\n",
+    "expected_result": [
+      [
+        "b"
+      ],
+      false,
+      false
+    ]
+  },
+  {
+    "id": "builtin_set_symmetric_difference",
+    "covers": [
+      "method.builtin_set.symmetric_difference"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    result=value.symmetric_difference(['b','c'])\n    return [sorted(result),isinstance(result,set),result is value]\n",
+    "expected_result": [
+      [
+        "a",
+        "c"
+      ],
+      false,
+      false
+    ]
+  },
+  {
+    "id": "builtin_set_union",
+    "covers": [
+      "method.builtin_set.union"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    result=value.union(['c'])\n    return [sorted(result),isinstance(result,set),result is value]\n",
+    "expected_result": [
+      [
+        "a",
+        "b",
+        "c"
+      ],
+      false,
+      false
+    ]
+  },
+  {
+    "id": "builtin_set_isdisjoint",
+    "covers": [
+      "method.builtin_set.isdisjoint"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    return value.isdisjoint(['z'])\n",
+    "expected_result": true
+  },
+  {
+    "id": "builtin_set_issubset",
+    "covers": [
+      "method.builtin_set.issubset"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    return value.issubset(['a','b','z'])\n",
+    "expected_result": true
+  },
+  {
+    "id": "builtin_set_issuperset",
+    "covers": [
+      "method.builtin_set.issuperset"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    return value.issuperset(['a'])\n",
+    "expected_result": true
+  },
+  {
+    "id": "builtin_set_pop",
+    "covers": [
+      "method.builtin_set.pop"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1}.keys()|[]\n    return [value.pop(),len(value)]\n",
+    "expected_result": [
+      "a",
+      0
+    ]
+  },
+  {
+    "id": "builtin_set_kind_comparisons",
+    "covers": [
+      "protocol.builtin_set.kind"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    view={'a':1}.keys()\n    value=view|[]\n    wrapped=set(['a'])\n    return [value==view,view==value,value==wrapped,wrapped==value,isinstance(value,set),isinstance(wrapped,set),[value]==[wrapped]]\n",
+    "expected_result": [
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  {
+    "id": "builtin_set_explicit_normalization",
+    "covers": [
+      "protocol.builtin_set.external_boundary",
+      "builtin.set"
+    ],
+    "dimension": "nominal",
+    "source": "@export\ndef probe():\n    value={'a':1}.keys()|[]\n    wrapped=set(value)\n    return [list(wrapped),isinstance(wrapped,set),wrapped==set(['a'])]\n",
+    "expected_result": [
+      [
+        "a"
+      ],
+      true,
+      true
+    ]
+  },
+  {
+    "id": "builtin_set_cross_contract",
+    "covers": [
+      "protocol.builtin_set.cross_contract"
+    ],
+    "dimension": "nominal",
+    "source": "import con_surface_set_target\n@export\ndef probe():\n    value={'a':1}.keys()|[]\n    result=con_surface_set_target.mutate([value])\n    return [sorted(value),result is value,isinstance(result,set),result=={'a':1,'b':2}.keys()]\n",
+    "expected_result": [
+      [
+        "a",
+        "b"
+      ],
+      true,
+      false,
+      true
+    ],
+    "dependencies": {
+      "con_surface_set_target": "@export\ndef mutate(values: list):\n    values[0].add('b')\n    return values[0]\n"
+    }
+  },
+  {
+    "id": "builtin_set_return_raw",
+    "covers": [
+      "protocol.builtin_set.external_boundary"
+    ],
+    "dimension": "invalid",
+    "source": "state=Variable()\n@export\ndef probe():\n    state.set(99)\n    value={'a':1}.keys()|[]\n    return value\n",
+    "expected_failure": true,
+    "native_only": true,
+    "policy_reason": "Approved VM boundary policy: builtin sets must be explicitly normalized with set() before persistence or serialized public results."
+  },
+  {
+    "id": "builtin_set_return_nested",
+    "covers": [
+      "protocol.builtin_set.external_boundary"
+    ],
+    "dimension": "invalid",
+    "source": "state=Variable()\n@export\ndef probe():\n    state.set(99)\n    value={'a':1}.keys()|[]\n    return [value]\n",
+    "expected_failure": true,
+    "native_only": true,
+    "policy_reason": "Approved VM boundary policy: builtin sets must be explicitly normalized with set() before persistence or serialized public results."
+  },
+  {
+    "id": "builtin_set_persist_raw",
+    "covers": [
+      "protocol.builtin_set.external_boundary"
+    ],
+    "dimension": "invalid",
+    "source": "state=Variable()\n@export\ndef probe():\n    state.set(99)\n    value={'a':1}.keys()|[]\n    state.set(value)\n    return 1\n",
+    "expected_failure": true,
+    "native_only": true,
+    "policy_reason": "Approved VM boundary policy: builtin sets must be explicitly normalized with set() before persistence or serialized public results."
+  },
+  {
+    "id": "builtin_set_persist_nested",
+    "covers": [
+      "protocol.builtin_set.external_boundary"
+    ],
+    "dimension": "invalid",
+    "source": "state=Variable()\n@export\ndef probe():\n    state.set(99)\n    value={'a':1}.keys()|[]\n    state.set({'value':value})\n    return 1\n",
+    "expected_failure": true,
+    "native_only": true,
+    "policy_reason": "Approved VM boundary policy: builtin sets must be explicitly normalized with set() before persistence or serialized public results."
+  },
+  {
+    "id": "builtin_set_positional_signature",
+    "covers": [
+      "method.builtin_set.add"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    value.add(value='c')\n    return 1\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_set_unhashable_lookup",
+    "covers": [
+      "protocol.builtin_set.kind"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    return [] in value\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_set_mixed_left",
+    "covers": [
+      "protocol.builtin_set.kind"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    return value|set(['a'])\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_set_mixed_right",
+    "covers": [
+      "protocol.builtin_set.kind"
+    ],
+    "dimension": "invalid",
+    "source": "@export\ndef probe():\n    value={'a':1,'b':2}.keys()|[]\n    return set(['a'])|value\n",
+    "expected_failure": true
+  },
+  {
+    "id": "builtin_set_decisive_match",
+    "covers": [
+      "method.builtin_set.intersection",
+      "method.builtin_set.issubset",
+      "method.builtin_set.isdisjoint"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    value={'a':1}.keys()|[]\n    return [sorted(value.intersection(['a',[]])),value.issubset(['a',[]]),value.isdisjoint(['a',[]])]\n",
+    "expected_result": [
+      [
+        "a"
+      ],
+      true,
+      false
+    ]
+  },
+  {
+    "id": "builtin_set_nan_identity",
+    "covers": [
+      "method.builtin_set.copy",
+      "method.builtin_set.add",
+      "protocol.builtin_set.kind"
+    ],
+    "dimension": "boundary",
+    "source": "@export\ndef probe():\n    first=float('nan')\n    second=float('nan')\n    value={first:1,second:2}.keys()|[]\n    copy=value.copy()\n    copy.add(first)\n    return [len(copy),first in copy,second in copy,float('nan') in copy,copy==value]\n",
+    "expected_result": [
+      2,
+      true,
+      true,
+      false,
+      true
+    ]
+  }
+]

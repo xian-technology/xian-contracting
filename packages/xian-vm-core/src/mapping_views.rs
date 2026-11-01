@@ -6,6 +6,10 @@ pub(super) fn is_set_view(value: &VmValue) -> bool {
     matches!(value.snapshot(), VmValue::View(view) if !matches!(view.mode, ViewMode::Values))
 }
 
+fn is_builtin_setlike(value: &VmValue) -> bool {
+    matches!(value.snapshot(), VmValue::BuiltinSet(_)) || is_set_view(value)
+}
+
 pub(super) fn contains(
     view: &crate::VmDictView,
     needle: &VmValue,
@@ -40,7 +44,7 @@ pub(super) fn contains(
 
 fn set_values(value: &VmValue) -> Option<Vec<VmValue>> {
     match value.snapshot() {
-        VmValue::Set(values) | VmValue::FrozenSet(values) => Some(values),
+        VmValue::BuiltinSet(values) => Some(values),
         VmValue::View(view) if !matches!(view.mode, ViewMode::Values) => {
             let VmValue::Dict(entries) = view.source.snapshot() else {
                 return None;
@@ -60,7 +64,7 @@ fn set_values(value: &VmValue) -> Option<Vec<VmValue>> {
 }
 
 pub(super) fn comparison_work(left: &VmValue, right: &VmValue) -> u64 {
-    if !is_set_view(left) && !is_set_view(right) {
+    if !is_builtin_setlike(left) && !is_builtin_setlike(right) {
         return 0;
     }
     pair_work(left, right)
@@ -72,13 +76,13 @@ pub(super) fn compare(
     right: &VmValue,
 ) -> Option<Result<bool, VmExecutionError>> {
     if !matches!(operator, "eq" | "not_eq" | "lt" | "lt_e" | "gt" | "gt_e")
-        || (!is_set_view(left) && !is_set_view(right))
+        || (!is_builtin_setlike(left) && !is_builtin_setlike(right))
     {
         return None;
     }
     // Contracting's public set/frozenset classes are iterable wrappers, not
     // Python builtin sets, and do not participate in view rich comparison.
-    if !is_set_view(left) || !is_set_view(right) {
+    if !is_builtin_setlike(left) || !is_builtin_setlike(right) {
         return Some(match operator {
             "eq" => Ok(false),
             "not_eq" => Ok(true),
@@ -244,7 +248,7 @@ impl VmInstance {
                 .saturating_mul(32),
         )?;
         crate::decimal_metering::normalization(host, &[value.clone()])?;
-        Ok(VmValue::Set(normalize_set_items(values.clone())?))
+        support::set_kinds::normalized(values.clone(), MAX_SEQUENCE_LENGTH)
     }
 }
 
@@ -273,9 +277,25 @@ fn is_items_view(value: &VmValue) -> bool {
 
 // Comparison scans must account for payload length, not just item count. Borrow
 // heap nodes and memoize aliases so profiling itself remains bounded.
-fn value_work(value: &VmValue) -> u64 {
+pub(super) fn value_work(value: &VmValue) -> u64 {
     let mut walker = WorkWalker::default();
     walker.value(value, 0)
+}
+
+/// Payload work of the members, without the top-level set comparison factor.
+/// Nested structural values retain their own comparison work and shared nodes
+/// are profiled once. Saturation makes excessive graphs reject at precharge.
+pub(super) fn set_items_work(value: &VmValue) -> u64 {
+    fn visit(value: &VmValue, walker: &mut WorkWalker) -> u64 {
+        match value {
+            VmValue::Reference(reference) => reference.with_value(|value| visit(value, walker)),
+            VmValue::Set(items) | VmValue::BuiltinSet(items) | VmValue::FrozenSet(items) => {
+                walker.items(items, 0)
+            }
+            _ => walker.value(value, 0),
+        }
+    }
+    visit(value, &mut WorkWalker::default())
 }
 
 #[derive(Default)]
@@ -287,7 +307,7 @@ struct WorkWalker {
 impl WorkWalker {
     fn value(&mut self, value: &VmValue, depth: usize) -> u64 {
         self.visited += 1;
-        if depth > 128 || self.visited > 131072 {
+        if depth > 128 || self.visited > 1024 * 1024 {
             return u64::MAX;
         }
         if let VmValue::Reference(reference) = value {
@@ -313,7 +333,7 @@ impl WorkWalker {
             VmValue::Decimal(number) => number.scaled.bits().div_ceil(8),
             VmValue::RawDecimal(number) => number.coefficient.bits().div_ceil(8),
             VmValue::List(items) | VmValue::Tuple(items) => self.items(items, depth),
-            VmValue::Set(items) | VmValue::FrozenSet(items) => {
+            VmValue::Set(items) | VmValue::BuiltinSet(items) | VmValue::FrozenSet(items) => {
                 self.items(items, depth).saturating_mul(items.len() as u64)
             }
             VmValue::Dict(items) => items
@@ -340,9 +360,10 @@ fn collection_len(value: &VmValue) -> u64 {
         VmValue::View(view) => view.len() as u64,
         VmValue::MappingProxy(mapping) => collection_len(mapping),
         VmValue::Dict(items) => items.len() as u64,
-        VmValue::Set(items) | VmValue::FrozenSet(items) | VmValue::List(items) => {
-            items.len() as u64
-        }
+        VmValue::Set(items)
+        | VmValue::BuiltinSet(items)
+        | VmValue::FrozenSet(items)
+        | VmValue::List(items) => items.len() as u64,
         _ => 1,
     }
 }

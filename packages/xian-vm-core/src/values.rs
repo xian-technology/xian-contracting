@@ -731,6 +731,8 @@ pub enum VmValue {
     Bytes(Vec<u8>),
     ByteArray(Vec<u8>),
     Set(Vec<VmValue>),
+    /// Builtin set produced by dictionary-view algebra; normalize explicitly at external boundaries.
+    BuiltinSet(Vec<VmValue>),
     FrozenSet(Vec<VmValue>),
     List(Vec<VmValue>),
     Tuple(Vec<VmValue>),
@@ -766,7 +768,7 @@ impl VmValue {
             }
             Self::List(values)
             | Self::Tuple(values)
-            | Self::Set(values)
+            | Self::Set(values) | Self::BuiltinSet(values)
             | Self::FrozenSet(values) => {
                 for value in values {
                     value.validate_storage_payload()?;
@@ -812,7 +814,7 @@ impl VmValue {
             Self::TimeDelta(value) => value.seconds() != 0,
             Self::String(value) => !value.is_empty(),
             Self::Bytes(value) | Self::ByteArray(value) => !value.is_empty(),
-            Self::Set(values) | Self::FrozenSet(values) => !values.is_empty(),
+            Self::Set(values) | Self::BuiltinSet(values) | Self::FrozenSet(values) => !values.is_empty(),
             Self::List(values) | Self::Tuple(values) => !values.is_empty(),
             Self::Dict(entries) => !entries.is_empty(),
             Self::ContractHandle(_)
@@ -851,7 +853,7 @@ impl VmValue {
             Self::String(value) => value.clone(),
             Self::Bytes(value) => python_bytes_repr(value),
             Self::ByteArray(value) => python_bytearray_repr(value),
-            Self::Set(values) => python_set_repr(values),
+            Self::Set(values) | Self::BuiltinSet(values) => python_set_repr(values),
             Self::FrozenSet(values) => python_frozenset_repr(values),
             Self::List(values) => format!(
                 "[{}]",
@@ -976,7 +978,7 @@ impl VmValue {
             Self::String(_) => "str",
             Self::Bytes(_) => "bytes",
             Self::ByteArray(_) => "bytearray",
-            Self::Set(_) => "set",
+            Self::Set(_) | Self::BuiltinSet(_) => "set",
             Self::FrozenSet(_) => "frozenset",
             Self::List(_) => "list",
             Self::Tuple(_) => "tuple",

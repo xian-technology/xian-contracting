@@ -861,6 +861,7 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
         VmValue::String(value) => Ok(value.clone().into_pyobject(py)?.into_any().unbind()),
         VmValue::Bytes(value) => Ok(PyBytes::new(py, value).into_any().unbind()),
         VmValue::ByteArray(value) => Ok(PyByteArray::new(py, value).into_any().unbind()),
+        VmValue::BuiltinSet(_) => Err(PyValueError::new_err("builtin sets cannot cross the VM boundary; convert with set() first")),
         VmValue::Set(values) => {
             let module = PyModule::import(py, "xian_runtime_types.collections")?;
             let list = PyList::empty(py);

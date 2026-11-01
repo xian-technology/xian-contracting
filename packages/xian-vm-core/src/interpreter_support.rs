@@ -1,3 +1,5 @@
+#[path = "set_kinds.rs"]
+pub(in crate::interpreter) mod set_kinds;
 #[path = "native_methods.rs"]
 mod native_methods;
 pub(super) use native_methods::binary_methods;
@@ -383,6 +385,32 @@ pub(super) fn normalize_set_items(values: Vec<VmValue>) -> Result<Vec<VmValue>, 
     Ok(normalized.into_iter().map(|(value, _)| value).collect())
 }
 
+/// Insert into an already canonical set without re-normalizing every pair.
+pub(super) fn set_insert_value(values: &mut Vec<VmValue>, value: VmValue) -> Result<(), VmExecutionError> {
+    let key = vm_set_key(&value)?;
+    if let Some(index) = equal_position(values.iter(), &value)? {
+        if key >= vm_set_key(&values[index])? { return Ok(()); }
+        values.remove(index);
+    }
+    if values.len() >= MAX_SEQUENCE_LENGTH {
+        return Err(VmExecutionError::new("set allocation limit exceeded"));
+    }
+    let position = set_insertion_position(values, &key)?;
+    values.insert(position, value);
+    Ok(())
+}
+
+fn set_insertion_position(values: &[VmValue], key: &VmSetKey) -> Result<usize, VmExecutionError> {
+    for (index, existing) in values.iter().enumerate() {
+        if vm_set_key(existing)? > *key { return Ok(index); }
+    }
+    Ok(values.len())
+}
+
+pub(super) fn ensure_set_hashable(value: &VmValue) -> Result<(), VmExecutionError> {
+    vm_set_key(value).map(|_| ())
+}
+
 fn vm_set_key(value: &VmValue) -> Result<VmSetKey, VmExecutionError> {
     let value = &tuple_equivalent(value.snapshot());
     match value {
@@ -428,7 +456,7 @@ fn vm_set_key(value: &VmValue) -> Result<VmSetKey, VmExecutionError> {
     }
 }
 
-fn set_contains_value(values: &[VmValue], needle: &VmValue) -> Result<bool, VmExecutionError> {
+pub(super) fn set_contains_value(values: &[VmValue], needle: &VmValue) -> Result<bool, VmExecutionError> {
     for value in values {
         if vm_values_equal(value, needle)? {
             return Ok(true);
@@ -437,7 +465,7 @@ fn set_contains_value(values: &[VmValue], needle: &VmValue) -> Result<bool, VmEx
     Ok(false)
 }
 
-fn set_values_equal(left: &[VmValue], right: &[VmValue]) -> Result<bool, VmExecutionError> {
+pub(super) fn set_values_equal(left: &[VmValue], right: &[VmValue]) -> Result<bool, VmExecutionError> {
     if left.len() != right.len() {
         return Ok(false);
     }
@@ -449,7 +477,7 @@ fn set_values_equal(left: &[VmValue], right: &[VmValue]) -> Result<bool, VmExecu
     Ok(true)
 }
 
-fn set_is_subset(left: &[VmValue], right: &[VmValue]) -> Result<bool, VmExecutionError> {
+pub(super) fn set_is_subset(left: &[VmValue], right: &[VmValue]) -> Result<bool, VmExecutionError> {
     for value in left {
         if !set_contains_value(right, value)? {
             return Ok(false);
@@ -458,13 +486,13 @@ fn set_is_subset(left: &[VmValue], right: &[VmValue]) -> Result<bool, VmExecutio
     Ok(true)
 }
 
-fn set_union_values(left: &[VmValue], right: &[VmValue]) -> Vec<VmValue> {
+pub(super) fn set_union_values(left: &[VmValue], right: &[VmValue]) -> Vec<VmValue> {
     let mut values = left.to_vec();
     values.extend(right.iter().cloned());
     values
 }
 
-fn set_intersection_values(
+pub(super) fn set_intersection_values(
     left: &[VmValue],
     right: &[VmValue],
 ) -> Result<Vec<VmValue>, VmExecutionError> {
@@ -477,7 +505,7 @@ fn set_intersection_values(
     Ok(values)
 }
 
-fn set_difference_values(
+pub(super) fn set_difference_values(
     left: &[VmValue],
     right: &[VmValue],
 ) -> Result<Vec<VmValue>, VmExecutionError> {
@@ -490,7 +518,7 @@ fn set_difference_values(
     Ok(values)
 }
 
-fn set_symmetric_difference_values(
+pub(super) fn set_symmetric_difference_values(
     left: &[VmValue],
     right: &[VmValue],
 ) -> Result<Vec<VmValue>, VmExecutionError> {
@@ -517,6 +545,9 @@ pub(super) fn apply_binary_operator(
 ) -> Result<VmValue, VmExecutionError> {
     let left = tuple_equivalent(left.snapshot());
     let right = tuple_equivalent(right.snapshot());
+    if let (VmValue::BuiltinSet(a), VmValue::BuiltinSet(b)) = (&left, &right) {
+        return set_kinds::binary(operator, a, b);
+    }
     let left = if operator == "bitor" {
         mapping_views::unwrap_mapping(left)
     } else {
@@ -898,7 +929,7 @@ pub(super) fn apply_inplace_operator(
     if let VmValue::Reference(reference) = &left {
         if matches!(
             result,
-            VmValue::List(_) | VmValue::Dict(_) | VmValue::Set(_) | VmValue::ByteArray(_)
+            VmValue::List(_) | VmValue::Dict(_) | VmValue::Set(_) | VmValue::BuiltinSet(_) | VmValue::ByteArray(_)
         ) {
             reference.replace(result)?;
             return Ok(left);
@@ -1614,6 +1645,7 @@ fn vm_values_equal_at(
     if let VmValue::MappingProxy(mapping) = right.snapshot() {
         return vm_values_equal_at(left, &mapping, depth + 1);
     }
+    if let Some(result) = mapping_views::compare("eq", left, right) { return result; }
     let left = &tuple_equivalent(left.snapshot());
     let right = &tuple_equivalent(right.snapshot());
     if let Some(equal) = nan_equality(left, right)? {
@@ -1626,6 +1658,7 @@ fn vm_values_equal_at(
     match (left, right) {
         (VmValue::Iterator(_), _) | (_, VmValue::Iterator(_)) => Ok(false),
         (VmValue::Range(left), VmValue::Range(right)) => Ok(left.equivalent(right)),
+        (VmValue::BuiltinSet(left), VmValue::BuiltinSet(right)) => set_values_equal(left, right),
         (VmValue::Set(left), VmValue::Set(right))
         | (VmValue::Set(left), VmValue::FrozenSet(right))
         | (VmValue::FrozenSet(left), VmValue::Set(right))
@@ -1693,6 +1726,11 @@ pub(super) fn contains_value(
                 other.type_name()
             ))),
         },
+        VmValue::BuiltinSet(values) => {
+            if matches!(needle.snapshot(), VmValue::BuiltinSet(_)) { return Ok(false); }
+            vm_set_key(&needle.snapshot())?;
+            set_contains_value(values, needle)
+        }
         VmValue::Set(values) | VmValue::FrozenSet(values) => set_contains_value(values, needle),
         VmValue::List(values) | VmValue::Tuple(values) => {
             for item in values {
@@ -1723,6 +1761,7 @@ pub(super) fn iterate_value(value: &VmValue) -> Result<Vec<VmValue>, VmExecution
         VmValue::List(values)
         | VmValue::Tuple(values)
         | VmValue::Set(values)
+        | VmValue::BuiltinSet(values)
         | VmValue::FrozenSet(values) => Ok(values.clone()),
         VmValue::Dict(entries) => Ok(entries.iter().map(|(key, _)| key.clone()).collect()),
         VmValue::String(value) => Ok(value

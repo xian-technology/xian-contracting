@@ -1107,6 +1107,25 @@
         "add_note": "method",
         "args": "attribute",
         "with_traceback": "method"
+      },
+      "builtin_set": {
+        "add": "method",
+        "clear": "method",
+        "copy": "method",
+        "difference": "method",
+        "difference_update": "method",
+        "discard": "method",
+        "intersection": "method",
+        "intersection_update": "method",
+        "isdisjoint": "method",
+        "issubset": "method",
+        "issuperset": "method",
+        "pop": "method",
+        "remove": "method",
+        "symmetric_difference": "method",
+        "symmetric_difference_update": "method",
+        "union": "method",
+        "update": "method"
       }
     }
   },
@@ -3717,6 +3736,176 @@
       ]
     },
     {
+      "id": "method.builtin_set.add",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.clear",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.copy",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.difference",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.difference_update",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.discard",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.intersection",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.intersection_update",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.isdisjoint",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.issubset",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.issuperset",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.pop",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.remove",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.symmetric_difference",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.symmetric_difference_update",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.union",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "method.builtin_set.update",
+      "kind": "method",
+      "implementation": "present",
+      "historical_python_312": true,
+      "reason": "Dictionary-view algebra produces a distinct execution-time builtin set. Its methods retain builtin kind and use the reviewed deterministic ordering/member domain.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
       "id": "method.bytearray.append",
       "kind": "method",
       "implementation": "present",
@@ -5836,6 +6025,41 @@
       "existing_test_files": [
         "tests/integration/test_vm_bound_methods.py",
         "tests/integration/test_vm_surface_matrix.py"
+      ]
+    },
+    {
+      "id": "protocol.builtin_set.callable_members",
+      "kind": "protocol",
+      "implementation": "missing",
+      "reason": "Python builtin sets admit bound methods/functions/classes already allowed as dictionary keys; native canonical set normalization still rejects these callable-valued members. A deterministic execution identity/order policy remains separately scoped; this is not a missing method.",
+      "existing_test_files": []
+    },
+    {
+      "id": "protocol.builtin_set.cross_contract",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Shared execution-time values preserve builtin set kind and receiver identity across nested contract calls.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ]
+    },
+    {
+      "id": "protocol.builtin_set.external_boundary",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Builtin sets, including nested instances, are rejected from persisted state and serialized public results; explicit set(value) conversion is required.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
+      ],
+      "disposition": "restricted"
+    },
+    {
+      "id": "protocol.builtin_set.kind",
+      "kind": "protocol",
+      "implementation": "present",
+      "reason": "Builtin sets are distinct from ContractingSet/ContractingFrozenSet in comparisons, operator compatibility, method results and isinstance.",
+      "existing_test_files": [
+        "tests/integration/test_vm_set_kinds.py"
       ]
     },
     {
