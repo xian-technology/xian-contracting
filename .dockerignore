@@ -4,6 +4,15 @@
 .mypy_cache
 .ruff_cache
 .coverage
+.coverage.*
+.artifacts
+.metrics
+.tmp-home
+graphify-out
+htmlcov
+coverage.xml
+**/*.egg-info
+**/*.so
 .DS_Store
 .idea
 .vscode
