@@ -55,6 +55,15 @@ ORDINARY_RAW_COSTS = {
 INTERFACE_METADATA_INIT_RAW_COST = 132
 
 
+# Public callable metadata is constructed once after module initialization.
+# Source-derived work: global v costs its two-byte binding entry plus one for
+# its unsafe storage value; identity costs 8 + 17 + 2, probe costs 5 + 17 + 2
+# (function name, con_decimal_meter module name, delimiters), and the base is 1.
+# Four source entries including the base use tree-depth bucket 3: (3+27+24+1)*3.
+# Retain the historical ordinary execution table independently of this fee.
+PUBLIC_CALLABLE_METADATA_INIT_RAW_COST = 165
+
+
 def run_case(home, expression, digits, budget=500_000):
     from xian_vm_core import execute_contract
 
@@ -90,7 +99,11 @@ def test_extended_comparison_work_exhausts_budget_before_results(tmp_path, expre
     ordinary = run_case(tmp_path / "ordinary", expression, 91)
     assert ordinary.status_code == 0, ordinary.result
     assert ordinary.result == expected
-    assert ordinary.raw_cost == ORDINARY_RAW_COSTS[expression] + INTERFACE_METADATA_INIT_RAW_COST
+    assert ordinary.raw_cost == (
+        ORDINARY_RAW_COSTS[expression]
+        + INTERFACE_METADATA_INIT_RAW_COST
+        + PUBLIC_CALLABLE_METADATA_INIT_RAW_COST
+    )
     wide = run_case(tmp_path / "wide", expression, 2000)
     assert wide.status_code == 1 and "Out of chi" in str(wide.result), wide.result
     assert wide.writes == {} and wide.events == []

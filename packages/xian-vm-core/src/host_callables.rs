@@ -823,26 +823,18 @@ impl VmInstance {
         name: &str,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
-        let receiver = self.heap.capture(value.clone())?;
-        let VmValue::Reference(reference) = &receiver else {
-            return Err(VmExecutionError::new(
-                "contract handle has no execution identity",
-            ));
+        let descriptor = if module == self.module.module_name {
+            host.charge_execution_cost(self.public_callable_metadata_work())?;
+            self.public_callable(name)
+        } else {
+            host.public_callable(module, name, self.context.clone())?
         };
-        let key = (reference.id(), name.to_owned());
-        if let Some(value) = self.contract_exports.get(&key) {
-            return Ok(value.clone());
-        }
-        host.validate_contract_export(module, name)?;
-        let function = self
-            .heap
-            .capture(VmValue::BoundMethod(Box::new(VmBoundMethod {
-                receiver,
-                method: name.into(),
-            })))?;
-        self.contract_exports.insert(key, function.clone());
-        Ok(function)
+        let descriptor = descriptor.ok_or_else(|| {
+            VmExecutionError::new("module attribute is not an admitted public callable")
+        })?;
+        self.materialize_public_callable(value.clone(), descriptor, host)
     }
+
     fn host_module_attribute(
         &self,
         module: &str,
@@ -907,7 +899,9 @@ pub(super) fn callback_needs_dispatch_charge(value: &VmValue) -> bool {
 
 fn bound_callback_needs_dispatch_charge(bound: &VmBoundMethod) -> bool {
     match bound.receiver.snapshot() {
-        VmValue::ContractHandle(_) | VmValue::InterfaceDescriptor(_) => true,
+        VmValue::DeploymentHandle
+        | VmValue::ContractHandle(_)
+        | VmValue::InterfaceDescriptor(_) => true,
         VmValue::Builtin(name) => matches!(
             name.as_str(),
             "Contract" | "importlib.Func" | "importlib.Var"

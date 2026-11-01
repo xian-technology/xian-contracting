@@ -238,9 +238,16 @@ def enforce_interface(contract, interface: list):
     implemented = vars(module)
 
     for i in interface:
+        if not isinstance(i, (Func, Var)):
+            raise TypeError("interface entries must be Func or Var descriptors")
         attribute = implemented.get(i.name)
         if attribute is None:
             return False
+
+        if isinstance(attribute, (Datum, FunctionType)) and "is_of" in vars(i):
+            raise AssertionError(
+                "custom is_of callbacks are not supported by interface enforcement"
+            )
 
         # Branch for data types
         if isinstance(attribute, Datum):

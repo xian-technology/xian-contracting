@@ -16,6 +16,7 @@ from contracting.execution.tracer_common import (
     CallLimitExceededError,
     ChiExceededError,
 )
+from contracting.stdlib.bridge.imports import _resolve_exported_function
 from contracting.stdlib.bridge.random import clear_random_state
 from contracting.storage.driver import Driver
 
@@ -73,6 +74,11 @@ class Executor:
     def wipe_modules(self):
         uninstall_builtins()
         install_contract_module_loader()
+
+    def _resolve_entrypoint(self, module, function_name):
+        if not self.bypass_privates:
+            return _resolve_exported_function(module, function_name)[0]
+        return getattr(module, function_name)
 
     @staticmethod
     def _coerce_balance_value(balance):
@@ -182,7 +188,7 @@ class Executor:
                 runtime.rt.begin_contract_metering(contract_name)
 
                 module = import_contract_module(contract_name)
-                func = getattr(module, function_name)
+                func = self._resolve_entrypoint(module, function_name)
 
                 if contract_name == constants.SUBMISSION_CONTRACT_NAME:
                     runtime.rt.context._base_state["submission_name"] = kwargs.get("name")

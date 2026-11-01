@@ -38,6 +38,19 @@ enum Signature {
 use self::Default::{Bool, Int, None as Null, Text};
 use self::Signature::{BinaryTranslate, Custom, Named, Positional as Pos};
 
+pub(super) fn bind_one(
+    name: &str,
+    args: Vec<VmValue>,
+    kwargs: Vec<(String, VmValue)>,
+) -> Result<VmValue, VmExecutionError> {
+    let (mut args, _) = bind_named(name, args, kwargs, &[name], &[Null], 1, 1)?;
+    Ok(args.remove(0))
+}
+
+pub(super) fn storage_supports(kind: &str, method: &str) -> bool {
+    storage_signature(kind, method).is_some()
+}
+
 pub(super) fn supports(receiver: &VmValue, method: &str) -> bool {
     signature(receiver, method).is_some()
 }
@@ -206,6 +219,12 @@ fn capability_signature(receiver: &VmValue, method: &str) -> Option<Signature> {
             && method == "isdisjoint")
             .then_some(Pos(1, 1)),
         VmValue::Builtin(name) | VmValue::TypeMarker(name) => class_signature(name, method),
+        VmValue::EventRef(_) if method == "write_event" => Some(Named {
+            names: &["event_data"],
+            defaults: &[Null],
+            required: 1,
+            positional: 1,
+        }),
         VmValue::StorageRef(storage) => storage_signature(&storage.storage_type, method),
         VmValue::ForeignStorageRef(storage) => storage_signature(
             if storage.is_hash {
@@ -469,6 +488,9 @@ fn integer_signature(method: &str) -> Option<Signature> {
 }
 
 fn class_signature(name: &str, method: &str) -> Option<Signature> {
+    if orm_methods::class_method(&VmValue::TypeMarker(name.into()), method).is_some() {
+        return Some(Custom);
+    }
     match (name, method) {
         ("str", "maketrans") => Some(Pos(1, 3)),
         ("bytes" | "bytearray", "fromhex") => Some(Pos(1, 1)),
@@ -775,4 +797,33 @@ fn representative(name: &str) -> Option<VmValue> {
 }
 pub(super) fn receiver_matches(kind: &str, value: &VmValue) -> bool {
     super::type_matches_name(value, kind)
+}
+
+pub(super) fn bind_deployment_submit(
+    args: Vec<VmValue>,
+    kwargs: Vec<(String, VmValue)>,
+    unbound: bool,
+) -> Result<Vec<VmValue>, VmExecutionError> {
+    const NAMES: &[&str] = &[
+        "self",
+        "name",
+        "code",
+        "owner",
+        "constructor_args",
+        "developer",
+        "deployer",
+        "initiator",
+    ];
+    let names = if unbound { NAMES } else { &NAMES[1..] };
+    let required = if unbound { 3 } else { 2 };
+    let (args, _) = bind_named(
+        "Contract.submit",
+        args,
+        kwargs,
+        names,
+        &[Null; 8],
+        required,
+        names.len(),
+    )?;
+    Ok(args)
 }

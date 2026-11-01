@@ -59,15 +59,24 @@ const VM_GAS_EXPR_IF_EXPR: u64 = 96;
 const VM_GAS_EXPR_F_STRING: u64 = 96;
 const VM_GAS_EXPR_FORMATTED_VALUE: u64 = 96;
 
+#[path = "deployment_handles.rs"]
+mod deployment_handles;
 #[path = "host_introspection.rs"]
 mod host_introspection;
 #[path = "interface_descriptors.rs"]
 mod interface_descriptors;
+#[path = "module_aliases.rs"]
+mod module_aliases;
 pub use interface_descriptors::{VmInterfaceDescriptor, VmInterfaceKind, VmInterfaceMember};
+pub use module_aliases::VmPublicCallable;
 #[path = "attributes.rs"]
 mod attributes;
+#[path = "event_methods.rs"]
+mod event_methods;
 #[path = "lexical_scopes.rs"]
 mod lexical_scopes;
+#[path = "orm_methods.rs"]
+mod orm_methods;
 pub use attributes::VmBoundMethod;
 #[path = "host_callables.rs"]
 mod host_callables;
@@ -698,6 +707,20 @@ pub trait VmHost {
         Ok(result)
     }
 
+    fn public_callable(
+        &mut self,
+        module: &str,
+        name: &str,
+        _context: VmExecutionContext,
+    ) -> Result<Option<VmPublicCallable>, VmExecutionError> {
+        self.validate_contract_export(module, name)?;
+        Ok(Some(VmPublicCallable::Export {
+            module: module.into(),
+            function: name.into(),
+            identity: None,
+        }))
+    }
+
     fn interface_member(
         &mut self,
         _contract: &str,
@@ -1273,6 +1296,8 @@ impl VmInstance {
                     &mut self.globals.clone(),
                     host,
                 )?;
+                host.charge_execution_cost(event_methods::work_cost(&params, None))?;
+                let params = event_methods::declaration_schema(&event_name, &params)?;
                 self.globals.insert(
                     binding.clone(),
                     VmValue::EventRef(Box::new(VmEventDefinition {
@@ -1413,6 +1438,7 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
         match callee.snapshot() {
+            VmValue::EventRef(event) => self.call_event(&event, args, kwargs, host),
             VmValue::BoundMethod(bound) => {
                 self.call_receiver(bound.receiver, &bound.method, args, kwargs, host)
             }
@@ -1610,6 +1636,17 @@ mod tests {
     }
 
     impl VmHost for RecordingHost {
+        fn validate_contract_export(
+            &mut self,
+            module: &str,
+            name: &str,
+        ) -> Result<(), VmExecutionError> {
+            match (module, name) {
+                ("currency", "transfer") | ("shielded_note", "balance_of") => Ok(()),
+                _ => Err(VmExecutionError::new("unknown fixture export")),
+            }
+        }
+
         fn emit_event(&mut self, event: VmEvent) -> Result<(), VmExecutionError> {
             self.events.push(event);
             Ok(())
@@ -3105,13 +3142,14 @@ mod tests {
 
         assert_eq!(result, vm_int(77));
         assert_eq!(host.calls.len(), 1);
-        match &host.calls[0].target {
-            VmContractTarget::FactoryCall { factory, module } => {
-                assert_eq!(factory, "load_token");
-                assert_eq!(module, "shielded_note");
-            }
-            other => panic!("unexpected contract target: {other:?}"),
-        }
+        // Attribute calls resolve a callable before evaluating its arguments;
+        // the resulting handle retains the canonical module, independent of
+        // whether source syntax obtained it through a factory or an import.
+        assert_eq!(
+            contract_target_label(&host.calls[0].target),
+            "shielded_note"
+        );
+        assert_eq!(host.calls[0].caller_contract.as_deref(), Some("adapter"));
         assert_eq!(host.calls[0].function, "balance_of");
     }
 

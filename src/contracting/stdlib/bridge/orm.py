@@ -1,4 +1,9 @@
-from contracting.execution.runtime import consume_orm_declaration, orm_declaration_scope, rt
+from contracting.execution.runtime import (
+    _contract_execution_active,
+    consume_orm_declaration,
+    orm_declaration_scope,
+    rt,
+)
 from contracting.storage.contract import Contract
 from contracting.storage.orm import (
     ForeignHash,
@@ -35,10 +40,12 @@ class FH(_StorageDeclaration, ForeignHash):
 
 
 class C(Contract):
-    def __init__(self, *args, **kwargs):
-        if rt.env.get("__Driver") is not None:
-            kwargs["driver"] = rt.env.get("__Driver")
-        super().__init__(*args, **kwargs)
+    def __init__(self, driver=None):
+        if _contract_execution_active.get() and driver is not None:
+            raise TypeError("Contract() cannot receive a driver during contract execution.")
+        if driver is None:
+            driver = rt.env.get("__Driver")
+        super().__init__(driver=driver)
 
 
 class LE(_StorageDeclaration, LogEvent):

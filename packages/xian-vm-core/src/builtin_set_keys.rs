@@ -73,7 +73,8 @@ fn classify_leaf(value: &VmValue, domain: Domain) -> Result<bool> {
         {
             Ok(false)
         }
-        VmValue::ContractHandle(_)
+        VmValue::DeploymentHandle
+        | VmValue::ContractHandle(_)
         | VmValue::HostCallable(_)
         | VmValue::Builtin(_)
         | VmValue::BoundMethod(_)

@@ -94,6 +94,9 @@ impl VmInstance {
         if let Some(result) = crypto_resources::dispatch(syscall_id, &args, &kwargs, host) {
             return result;
         }
+        if syscall_id == "event.indexed" {
+            return event_methods::indexed(args, kwargs, host);
+        }
         let shared_args = args.clone();
         let shared_kwargs = kwargs.clone();
         let args = args.iter().map(VmValue::snapshot).collect::<Vec<_>>();
@@ -121,17 +124,6 @@ impl VmInstance {
                 }))
             }
             "contract.call" => self.syscall_contract_call(args, kwargs, host),
-            "event.indexed" => {
-                let type_value = if args.len() == 1 {
-                    coerce_type_marker(args[0].clone())
-                } else {
-                    VmValue::Tuple(args.into_iter().map(coerce_type_marker).collect())
-                };
-                Ok(VmValue::Dict(vec![
-                    (VmValue::String("type".to_owned()), type_value),
-                    (VmValue::String("idx".to_owned()), VmValue::Bool(true)),
-                ]))
-            }
             "random.shuffle" => shuffle_shared(&shared_args, &shared_kwargs, host),
             "random.choice" | "random.choices" => {
                 random_selection_shared(syscall_id, shared_args, shared_kwargs, host)
@@ -276,52 +268,16 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
-        host.charge_execution_cost(VM_GAS_EVENT_EMIT)?;
         let event_binding = required_string(object, "event_binding")?;
         let event = self.globals.get(event_binding).cloned().ok_or_else(|| {
             VmExecutionError::new(format!("unknown event binding '{event_binding}'"))
         })?;
-        let event = match event {
-            VmValue::EventRef(event) => *event,
-            other => {
-                return Err(VmExecutionError::new(format!(
-                    "binding '{event_binding}' is not an event reference but {}",
-                    other.type_name()
-                )))
-            }
+        let VmValue::EventRef(event) = event else {
+            return Err(VmExecutionError::new(
+                "event binding is not an event reference",
+            ));
         };
-        let payload = if let Some(first) = args.first() {
-            first.clone()
-        } else if kwargs.is_empty() {
-            VmValue::None
-        } else {
-            VmValue::Dict(
-                kwargs
-                    .iter()
-                    .map(|(key, value)| (VmValue::String(key.clone()), value.clone()))
-                    .collect(),
-            )
-        };
-        let (data_indexed, data) = normalize_event_payload(&event.params, payload)?;
-        for (key, value) in data_indexed.iter().map(|(key, value)| (key, value)) {
-            host.charge_storage_write(key, value)?;
-        }
-        for (key, value) in data.iter().map(|(key, value)| (key, value)) {
-            host.charge_storage_write(key, value)?;
-        }
-        host.emit_event(VmEvent {
-            contract: self
-                .context
-                .this
-                .clone()
-                .unwrap_or_else(|| self.module.module_name.clone()),
-            event: event.event_name,
-            signer: option_string_value(&self.context.signer),
-            caller: option_string_value(&self.context.caller),
-            data_indexed,
-            data,
-        })?;
-        Ok(VmValue::None)
+        self.call_event(&event, args, kwargs, host)
     }
 
     fn syscall_variable_set(

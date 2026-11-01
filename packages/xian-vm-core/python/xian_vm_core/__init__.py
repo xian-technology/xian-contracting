@@ -360,9 +360,9 @@ class NativeVmHost:
         initiator: str | None,
     ) -> None:
         source, vm_ir_json, module_ir = self._deployment_artifacts(name, code)
-        deployment_developer = developer or self._context.get("caller")
-        deployment_deployer = deployer or self._context.get("caller")
-        deployment_initiator = initiator or self._context.get("signer")
+        deployment_developer = self._context.get("caller") if developer is None else developer
+        deployment_deployer = self._context.get("caller") if deployer is None else deployer
+        deployment_initiator = self._context.get("signer") if initiator is None else initiator
         submitted_at = self._context.get("now")
         if submitted_at is None:
             raise VmRuntimeExecutionError(

@@ -5,7 +5,7 @@ from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.encoding import encode_kv
 
 from contracting import constants
-from contracting.execution.runtime import rt
+from contracting.execution.runtime import _contract_execution_active, rt
 from contracting.stdlib.builtins import safe_bytearray, safe_bytes, safe_int
 from contracting.storage.driver import Driver
 
@@ -57,8 +57,18 @@ def indexed(*types):
     }
 
 
+def _require_receiver(value, family, *, write=False):
+    if not isinstance(value, family):
+        raise TypeError("ORM method received an incompatible receiver")
+    if _contract_execution_active.get() and value._owner != rt.context.this:
+        raise ReferenceError("Storage objects may only be used by their declaring contract")
+    if write and isinstance(value, (ForeignVariable, ForeignHash)):
+        raise ReferenceError("cannot write to foreign storage")
+
+
 class Datum:
     def __init__(self, contract, name, driver: Driver):
+        self._owner = contract
         self._driver = driver
         self._key = self._driver.make_key(contract, name)
 
@@ -83,6 +93,7 @@ class Variable(Datum):
         super().__init__(contract, name, driver=resolved_driver)
 
     def set(self, value):
+        _require_receiver(self, Variable, write=True)
         if self._type is not None and value is not None:
             if not isinstance(value, self._type):
                 raise TypeError(
@@ -92,6 +103,7 @@ class Variable(Datum):
         self._driver.set(self._key, value, True)
 
     def get(self):
+        _require_receiver(self, Variable)
         value = self._driver.get(self._key)
         if value is None:
             return _copy_mutable(self._default_value)
@@ -208,9 +220,11 @@ class Hash(Datum):
         self._default_value = default_value
 
     def _set(self, key, value):
+        _require_receiver(self, Hash, write=True)
         self._driver.set(f"{self._key}{self._delimiter}{key}", value, True)
 
     def _get(self, item):
+        _require_receiver(self, Hash)
         value = self._driver.get(f"{self._key}{self._delimiter}{item}")
 
         # Add Python defaultdict behavior for easier smart contracting
@@ -263,20 +277,24 @@ class Hash(Datum):
         return prefix
 
     def all(self, *args):
+        _require_receiver(self, Hash)
         prefix = self._prefix_for_args(args)
         return self._driver.values(prefix=prefix)
 
     def _items(self, *args):
+        _require_receiver(self, Hash)
         prefix = self._prefix_for_args(args)
         return self._driver.items(prefix=prefix)
 
     def clear(self, *args):
+        _require_receiver(self, Hash, write=True)
         kvs = self._items(*args)
 
         for k in kvs.keys():
             self._driver.set(k, None, True)
 
     def clone_from(self, source):
+        _require_receiver(self, Hash, write=True)
         assert isinstance(source, Hash), "Hash.clone_from() requires a Hash or ForeignHash source."
 
         source_items = source._items()
@@ -395,11 +413,12 @@ class LogEvent(Datum):
         assert all(isinstance(t, type) for t in normalized_types), (
             f"Argument {arg_name} type spec must contain only types."
         )
+        normalized_types = tuple(_canonicalize_event_type(t) for t in normalized_types)
         assert all(issubclass(t, EVENT_ALLOWED_TYPES) for t in normalized_types), (
             "Each type in args must be str, int, float, decimal or bool."
         )
 
-        return tuple(_canonicalize_event_type(t) for t in normalized_types)
+        return normalized_types
 
     @classmethod
     def _normalize_param(cls, arg_name, param):
@@ -438,6 +457,7 @@ class LogEvent(Datum):
         return normalized
 
     def write_event(self, event_data):
+        _require_receiver(self, LogEvent, write=True)
         assert isinstance(event_data, dict), "Event data must be a dictionary."
         caller = rt.context.caller
         signer = rt.context.signer
@@ -471,10 +491,12 @@ class LogEvent(Datum):
             "signer": signer,
             "caller": caller,
             "data_indexed": {
-                arg: event_data[arg] for arg in self._params if self._params[arg].get("idx", False)
+                arg: _copy_mutable(event_data[arg])
+                for arg in self._params
+                if self._params[arg].get("idx", False)
             },
             "data": {
-                arg: event_data[arg]
+                arg: _copy_mutable(event_data[arg])
                 for arg in self._params
                 if not self._params[arg].get("idx", False)
             },

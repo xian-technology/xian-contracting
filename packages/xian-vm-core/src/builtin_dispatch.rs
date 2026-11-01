@@ -40,6 +40,7 @@ impl VmInstance {
             .map(|(k, v)| (k, v.snapshot()))
             .collect::<Vec<_>>();
         match name {
+            "Contract" => deployment_handles::constructor(&args, &kwargs),
             "datetime.datetime.strptime" => time_datetime_strptime(args, kwargs, host),
             "len" => self.builtin_len(args, kwargs),
             "range" => self.builtin_range(args, kwargs),

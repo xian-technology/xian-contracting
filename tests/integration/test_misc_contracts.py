@@ -308,11 +308,26 @@ class TestPassHash(TestCase):
         self.pass_hash = self.c.get_contract_proxy("con_pass_hash")
         self.test_pass_hash = self.c.get_contract_proxy("con_test_pass_hash")
 
-    def test_store_value(self):
-        self.test_pass_hash.store(k="thing", v="value")
-        output = self.test_pass_hash.get(k="thing")
-
-        self.assertEqual(output, "value")
+    def test_storage_handle_cannot_grant_another_contract_write_authority(self):
+        # Storage capabilities belong to their declaring contract; passing a
+        # writable Hash to a helper must not transfer that authority.
+        output = self.c.executor.execute(
+            sender="stu",
+            contract_name="con_test_pass_hash",
+            function_name="store",
+            kwargs={"k": "thing", "v": "value"},
+            metering=False,
+        )
+        self.assertEqual(output["status_code"], 1)
+        self.assertEqual(output["writes"], {})
+        self.assertIsNone(self.test_pass_hash.get(k="thing"))
+        self.c.set_var(
+            contract="con_test_pass_hash",
+            variable="my_hash",
+            arguments=["thing"],
+            value="local",
+        )
+        self.assertEqual(self.test_pass_hash.get(k="thing"), "local")
 
 
 def some_test_contract():

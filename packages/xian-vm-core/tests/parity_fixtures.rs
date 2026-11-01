@@ -927,7 +927,8 @@ fn vm_value_to_json(value: &VmValue) -> Value {
         | VmValue::MappingProxy(_)
         | VmValue::BuiltinSet(_)
         | VmValue::HostCallable(_)
-        | VmValue::InterfaceDescriptor(_) => {
+        | VmValue::InterfaceDescriptor(_)
+        | VmValue::DeploymentHandle => {
             panic!("heap references must not escape the VM")
         }
         VmValue::DecimalTuple(value) => vm_value_to_json(&VmValue::Tuple(value.as_values())),
@@ -1242,6 +1243,7 @@ fn vm_value_type_name(value: &VmValue) -> &'static str {
         VmValue::List(_) => "list",
         VmValue::Tuple(_) => "tuple",
         VmValue::Dict(_) => "dict",
+        VmValue::DeploymentHandle => "Contract",
         VmValue::ContractHandle(_) => "contract_handle",
         VmValue::StorageRef(_) => "storage_ref",
         VmValue::ForeignStorageRef(_) => "foreign_storage_ref",

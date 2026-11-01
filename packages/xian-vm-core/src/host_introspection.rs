@@ -27,6 +27,23 @@ impl CodeMetadata {
 
 static CATALOG: &[(&str, CodeMetadata)] = &[
     (
+        "Contract.submit",
+        CodeMetadata {
+            name: "submit",
+            args: &[
+                "self",
+                "name",
+                "code",
+                "owner",
+                "constructor_args",
+                "developer",
+                "deployer",
+                "initiator",
+            ],
+            function: true,
+        },
+    ),
+    (
         "indexed",
         CodeMetadata {
             name: "indexed",
@@ -924,6 +941,7 @@ fn concrete_method_metadata(receiver: &VmValue, method: &str) -> Option<CodeMeta
         VmValue::StorageRef(storage) => instance_metadata(&storage.storage_type, method),
         VmValue::ForeignStorageRef(storage) => foreign_metadata(storage.is_hash, method),
         VmValue::EventRef(_) => instance_metadata("LogEvent", method),
+        VmValue::DeploymentHandle => instance_metadata("Contract", method),
         VmValue::InterfaceDescriptor(descriptor) => {
             instance_metadata(descriptor.class_name(), method)
         }

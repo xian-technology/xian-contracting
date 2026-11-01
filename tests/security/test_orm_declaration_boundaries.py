@@ -4,7 +4,7 @@ import pytest
 
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution.executor import Executor
-from contracting.execution.runtime import contract_execution_scope, orm_declaration_scope
+from contracting.execution.runtime import contract_execution_scope, orm_declaration_scope, rt
 from contracting.stdlib.bridge import orm
 from contracting.storage.contract import Contract
 from contracting.storage.driver import Driver
@@ -108,7 +108,8 @@ def test_unpermitted_constructor_aliases_are_rejected(storage_class):
         factory(contract="foreign_contract", name="value")
 
 
-def test_declaration_permit_is_single_use_and_bound_to_the_declaration(tmp_path):
+def test_declaration_permit_is_single_use_and_bound_to_the_declaration(tmp_path, monkeypatch):
+    monkeypatch.setattr(rt.context, "_base_state", {**rt.context._base_state, "this": "own"})
     driver = Driver(storage_home=tmp_path)
     with contract_execution_scope(), orm_declaration_scope(orm.V, "own", "value"):
         with pytest.raises(TypeError, match="module declarations"):

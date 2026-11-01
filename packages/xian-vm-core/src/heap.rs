@@ -554,6 +554,7 @@ mod tests {
 
 fn execution_local_capability(value: &VmValue) -> Option<&'static str> {
     match value {
+        VmValue::DeploymentHandle => Some("deployment handles"),
         VmValue::HostCallable(_) => Some("host callables"),
         VmValue::Builtin(_) | VmValue::TypeMarker(_) => Some("callables"),
         VmValue::BoundMethod(_) => Some("bound methods"),

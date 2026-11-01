@@ -50,6 +50,7 @@ struct PythonBundleExecutor {
     modules: HashMap<String, crate::ModuleIr>,
     instances: HashMap<String, VmInstance>,
     interface_members: HashMap<String, BTreeMap<String, crate::VmInterfaceMember>>,
+    public_callables: HashMap<String, BTreeMap<String, crate::VmPublicCallable>>,
     initializing_modules: HashSet<String>,
     storage_overlay: HashMap<String, VmValue>,
     events: Vec<VmEvent>,
@@ -84,6 +85,7 @@ impl PythonBundleExecutor {
             modules,
             instances: HashMap::new(),
             interface_members: HashMap::new(),
+            public_callables: HashMap::new(),
             initializing_modules: HashSet::new(),
             storage_overlay: HashMap::new(),
             events: Vec::new(),
@@ -232,10 +234,39 @@ impl PythonBundleExecutor {
         let instance = VmInstance::new_with_heap(module, instance_context, self, heap)?;
         self.meter
             .charge_execution_cost(instance.interface_metadata_work())?;
+        let interface_members = instance.interface_members()?;
+        self.meter
+            .charge_execution_cost(instance.public_callable_metadata_work())?;
+        let public_callables = instance.public_callables();
         self.interface_members
-            .insert(module_name.to_owned(), instance.interface_members()?);
+            .insert(module_name.to_owned(), interface_members);
+        // Admitted function bodies cannot rebind module globals. These specs
+        // contain only immutable callable metadata, never mutable receivers or
+        // raw values; final initialization overrides have already been applied.
+        // Keep them available while execute_call temporarily removes an active
+        // instance, so nested callers cannot accidentally reinitialize it.
+        self.public_callables
+            .insert(module_name.to_owned(), public_callables);
         self.instances.insert(module_name.to_owned(), instance);
         Ok(())
+    }
+
+    fn ensure_initialized_metadata(
+        &mut self,
+        contract: &str,
+        mut context: VmExecutionContext,
+    ) -> Result<(), VmExecutionError> {
+        if self.interface_members.contains_key(contract) {
+            return Ok(());
+        }
+        self.ensure_module(contract)?;
+        context.caller = context.this.clone();
+        context.this = Some(contract.to_owned());
+        context.owner = self.load_owner(contract)?;
+        self.meter.enter_contract_metering(contract);
+        let result = self.instantiate_module(contract, &context);
+        self.meter.exit_contract_metering();
+        result
     }
 
     fn ensure_exported_function(
@@ -271,23 +302,29 @@ impl VmHost for PythonBundleExecutor {
         &mut self,
         contract: &str,
         name: &str,
-        mut context: VmExecutionContext,
+        context: VmExecutionContext,
     ) -> Result<crate::VmInterfaceMember, VmExecutionError> {
-        if !self.interface_members.contains_key(contract) {
-            self.ensure_module(contract)?;
-            context.caller = context.this.clone();
-            context.this = Some(contract.to_owned());
-            context.owner = self.load_owner(contract)?;
-            self.meter.enter_contract_metering(contract);
-            let result = self.instantiate_module(contract, &context);
-            self.meter.exit_contract_metering();
-            result?;
-        }
+        self.ensure_initialized_metadata(contract, context)?;
         let member = self.interface_members[contract].get(name);
         self.meter.charge_execution_cost(
             name.len() as u64 + member.map_or(1, crate::VmInterfaceMember::inspection_work),
         )?;
         Ok(member.cloned().unwrap_or(crate::VmInterfaceMember::Missing))
+    }
+
+    fn public_callable(
+        &mut self,
+        contract: &str,
+        name: &str,
+        context: VmExecutionContext,
+    ) -> Result<Option<crate::VmPublicCallable>, VmExecutionError> {
+        self.ensure_initialized_metadata(contract, context)?;
+        let member = self.public_callables[contract].get(name);
+        self.meter.charge_execution_cost(
+            (name.len() as u64)
+                .saturating_add(member.map_or(1, crate::VmPublicCallable::inspection_work)),
+        )?;
+        Ok(member.cloned())
     }
 
     fn charge_execution_cost(&mut self, cost: u64) -> Result<(), VmExecutionError> {

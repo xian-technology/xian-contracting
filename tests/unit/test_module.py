@@ -5,6 +5,7 @@ import sys
 import tempfile
 import types
 from contextvars import copy_context
+from importlib.machinery import ModuleSpec
 from unittest import TestCase
 
 from contracting.execution.module import (
@@ -60,11 +61,13 @@ class TestContractModuleLoader(TestCase):
         )
 
     def test_create_module(self):
-        self.assertEqual(
-            self.loader.create_module(None),
-            None,
-            "self.create_module should return None",
-        )
+        from contracting.execution.module_access import ContractModule
+
+        module = self.loader.create_module(ModuleSpec("con_created", self.loader))
+        self.assertIsInstance(module, ContractModule)
+        self.assertEqual(module.__name__, "con_created")
+        module.host_value = 7
+        self.assertEqual(module.host_value, 7)
 
     def test_exec_module(self):
         module = types.ModuleType("test")
@@ -184,12 +187,8 @@ print("ok")
             context_a = copy_context()
             context_b = copy_context()
 
-            self.assertTrue(
-                context_a.run(resolve_contract, driver_a, "a = 111")
-            )
-            self.assertTrue(
-                context_b.run(resolve_contract, driver_b, "a = 222")
-            )
+            self.assertTrue(context_a.run(resolve_contract, driver_a, "a = 111"))
+            self.assertTrue(context_b.run(resolve_contract, driver_b, "a = 222"))
 
 
 driver = Driver()
@@ -201,9 +200,7 @@ class TestModuleLoadingIntegration(TestCase):
         driver.flush_full()
 
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        contracts = glob.glob(
-            os.path.join(self.script_dir, "test_sys_contracts", "*.py")
-        )
+        contracts = glob.glob(os.path.join(self.script_dir, "test_sys_contracts", "*.py"))
         for contract in contracts:
             name = contract.split("/")[-1].split(".")[0]
             if not is_safe_contract_name(name):

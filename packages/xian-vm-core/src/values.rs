@@ -739,6 +739,7 @@ pub enum VmValue {
     DecimalTuple(crate::VmDecimalTuple),
     Dict(Vec<(VmValue, VmValue)>),
     ContractHandle(VmContractHandle),
+    DeploymentHandle,
     StorageRef(VmStorageRef),
     ForeignStorageRef(VmForeignStorageRef),
     EventRef(Box<VmEventDefinition>),
@@ -832,7 +833,8 @@ impl VmValue {
             }
             Self::List(values) | Self::Tuple(values) => !values.is_empty(),
             Self::Dict(entries) => !entries.is_empty(),
-            Self::ContractHandle(_)
+            Self::DeploymentHandle
+            | Self::ContractHandle(_)
             | Self::StorageRef(_)
             | Self::ForeignStorageRef(_)
             | Self::EventRef(_)
@@ -901,6 +903,7 @@ impl VmValue {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
+            Self::DeploymentHandle => "<Contract deployment helper>".into(),
             Self::ContractHandle(handle) => format!("<contract:{}>", handle.module),
             Self::StorageRef(storage) => format!("<storage:{}>", storage.binding),
             Self::ForeignStorageRef(storage) => {
@@ -1005,6 +1008,7 @@ impl VmValue {
             Self::Tuple(_) => "tuple",
             Self::DecimalTuple(_) => "DecimalTuple",
             Self::Dict(_) => "dict",
+            Self::DeploymentHandle => "Contract",
             Self::ContractHandle(_) => "contract_handle",
             Self::StorageRef(_) => "storage_ref",
             Self::ForeignStorageRef(_) => "foreign_storage_ref",

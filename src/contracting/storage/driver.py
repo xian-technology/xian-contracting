@@ -191,9 +191,10 @@ class Driver:
         mark=True,
         *,
         enforce_write_cap: bool = True,
+        is_txn_write: bool = False,
     ):
         key = self.make_key(contract, variable, arguments)
-        self.set(key, value, enforce_write_cap=enforce_write_cap)
+        self.set(key, value, is_txn_write=is_txn_write, enforce_write_cap=enforce_write_cap)
 
     def get_var(self, contract, variable, arguments=None, mark=True):
         key = self.make_key(contract, variable, arguments)
@@ -309,6 +310,7 @@ class Driver:
         developer=None,
         deployer=None,
         initiator=None,
+        is_txn_write: bool = False,
     ):
         assert_safe_contract_name(name)
 
@@ -330,6 +332,7 @@ class Driver:
                 SOURCE_KEY,
                 value=source,
                 enforce_write_cap=False,
+                is_txn_write=is_txn_write,
             )
         if vm_ir_json is not None:
             self.set_var(
@@ -337,26 +340,34 @@ class Driver:
                 XIAN_VM_V1_IR_KEY,
                 value=vm_ir_json,
                 enforce_write_cap=False,
+                is_txn_write=is_txn_write,
             )
-        self.set_var(name, OWNER_KEY, value=owner, enforce_write_cap=False)
-        self.set_var(name, TIME_KEY, value=timestamp, enforce_write_cap=False)
+        self.set_var(
+            name, OWNER_KEY, value=owner, enforce_write_cap=False, is_txn_write=is_txn_write
+        )
+        self.set_var(
+            name, TIME_KEY, value=timestamp, enforce_write_cap=False, is_txn_write=is_txn_write
+        )
         self.set_var(
             name,
             DEVELOPER_KEY,
             value=developer,
             enforce_write_cap=False,
+            is_txn_write=is_txn_write,
         )
         self.set_var(
             name,
             DEPLOYER_KEY,
             value=deployer,
             enforce_write_cap=False,
+            is_txn_write=is_txn_write,
         )
         self.set_var(
             name,
             INITIATOR_KEY,
             value=initiator,
             enforce_write_cap=False,
+            is_txn_write=is_txn_write,
         )
 
     def delete_contract(self, name):

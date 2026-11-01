@@ -2,6 +2,7 @@ import ast
 import json
 
 from contracting import constants
+from contracting.compilation.attribute_guards import guard_attribute_targets
 from contracting.compilation.linter import Linter, LintingError
 from contracting.compilation.lowering import XianIrLowerer
 from contracting.compilation.vm import (
@@ -71,7 +72,7 @@ def guard_legacy_orm_declarations(tree, module_name):
                 if keyword.arg not in ("contract", "name")
             ]
             node.value = _orm_declaration_call(node.value, module_name, storage_name)
-    return ast.fix_missing_locations(tree)
+    return guard_attribute_targets(tree)
 
 
 class ContractingCompiler(ast.NodeTransformer):
@@ -115,9 +116,7 @@ class ContractingCompiler(ast.NodeTransformer):
                 if node.id in self.private_names or node.id in self.orm_names:
                     node.id = self.privatize(node.id)
 
-            ast.fix_missing_locations(tree)
-
-            return tree
+            return guard_attribute_targets(tree)
         finally:
             # Reset on every exit so a failed parse cannot leak one
             # contract's names into the next parse on this instance.

@@ -372,7 +372,7 @@ fn execution_key_work(value: &VmValue) -> Option<u64> {
             };
             Some((bound.method.len() as u64).saturating_add(receiver))
         }
-        VmValue::InterfaceDescriptor(_) => Some(16),
+        VmValue::DeploymentHandle | VmValue::InterfaceDescriptor(_) => Some(16),
         _ => None,
     }
 }

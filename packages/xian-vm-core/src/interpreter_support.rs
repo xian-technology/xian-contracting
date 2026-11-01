@@ -9,6 +9,7 @@ pub(super) use native_methods::call_native_method_collected;
 #[cfg(test)]
 pub(super) use native_methods::call_native_method_with;
 pub(super) use native_methods::string_methods;
+pub(super) use native_methods::unicode_strings::is_whitespace as unicode_whitespace;
 
 use super::*;
 
@@ -25,30 +26,6 @@ pub(super) fn builtin_name_value(name: &str) -> Option<VmValue> {
         | "round" | "Exception" => Some(VmValue::Builtin(name.to_owned())),
         "Any" | "decimal" => Some(VmValue::TypeMarker(name.to_owned())),
         _ => None,
-    }
-}
-
-pub(super) fn coerce_type_marker(value: VmValue) -> VmValue {
-    match value {
-        VmValue::Builtin(name)
-            if matches!(
-                name.as_str(),
-                "str"
-                    | "int"
-                    | "float"
-                    | "bool"
-                    | "bytes"
-                    | "bytearray"
-                    | "list"
-                    | "dict"
-                    | "tuple"
-                    | "set"
-                    | "frozenset"
-            ) =>
-        {
-            VmValue::TypeMarker(name)
-        }
-        other => other,
     }
 }
 
@@ -1511,7 +1488,7 @@ pub(super) fn vm_values_equal(left: &VmValue, right: &VmValue) -> Result<bool, V
 fn is_interface_descriptor(value: &VmValue) -> bool {
     match value {
         VmValue::Reference(reference) => reference.with_value(is_interface_descriptor),
-        VmValue::InterfaceDescriptor(_) => true,
+        VmValue::DeploymentHandle | VmValue::InterfaceDescriptor(_) => true,
         _ => false,
     }
 }

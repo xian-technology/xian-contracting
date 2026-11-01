@@ -70,6 +70,16 @@ impl VmInstance {
     ) -> Result<VmValue, VmExecutionError> {
         let func = required_value(object, "func")?;
         let lexical_call = self.optimized_call_is_local(func)?;
+        if optional_string(object, "syscall_id") == Some("contract.export_call")
+            && func.get("node").and_then(Value::as_str) == Some("attribute")
+        {
+            return self.eval_public_attribute_call(
+                object,
+                as_object(func, "callable")?,
+                scope,
+                host,
+            );
+        }
         if let Some(syscall_id) = optional_string(object, "syscall_id").filter(|_| !lexical_call) {
             let target = object
                 .get("contract_target")
@@ -107,13 +117,7 @@ impl VmInstance {
         if required_string(callable, "node")? == "attribute"
             && optional_string(callable, "host_binding_id").is_none()
         {
-            let receiver = self.eval_expression(required_value(callable, "value")?, scope, host)?;
-            let method = required_string(callable, "attr")?;
-            let callee = self.read_attribute(receiver, method, host)?;
-            let args = self.eval_call_arguments(required_array(object, "args")?, scope, host)?;
-            let kwargs =
-                self.eval_call_keywords(required_array(object, "keywords")?, scope, host, None)?;
-            return self.call_expression_callable_value(host, callee, args, kwargs);
+            return self.eval_public_attribute_call(object, callable, scope, host);
         }
         let callee = self.eval_expression(func, scope, host)?;
         let args = self.eval_call_arguments(required_array(object, "args")?, scope, host)?;
@@ -128,6 +132,22 @@ impl VmInstance {
             function_name,
         )?;
         self.call_expression_callable_value(host, callee, args, kwargs)
+    }
+
+    fn eval_public_attribute_call(
+        &mut self,
+        object: &Map<String, Value>,
+        callable: &Map<String, Value>,
+        scope: &mut HashMap<String, VmValue>,
+        host: &mut dyn VmHost,
+    ) -> Result<VmValue, VmExecutionError> {
+        let receiver = self.eval_expression(required_value(callable, "value")?, scope, host)?;
+        let method = required_string(callable, "attr")?;
+        let callee = self.read_attribute(receiver, method, host)?;
+        let args = self.eval_call_arguments(required_array(object, "args")?, scope, host)?;
+        let kwargs =
+            self.eval_call_keywords(required_array(object, "keywords")?, scope, host, None)?;
+        return self.call_expression_callable_value(host, callee, args, kwargs);
     }
 
     pub(super) fn next_item(
@@ -183,6 +203,9 @@ impl VmInstance {
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
         let receiver = attributes::invocation_receiver(receiver);
+        if let Some(class) = orm_methods::class_method(&receiver, method) {
+            return self.call_orm_class_method(class, method, args, kwargs, host);
+        }
         if method == "is_of" {
             if let Some(class) = interface_descriptors::descriptor_class(&receiver) {
                 return self.call_interface_class_method(class, args, kwargs, host);
@@ -190,6 +213,11 @@ impl VmInstance {
         }
         if matches!(receiver.snapshot(), VmValue::InterfaceDescriptor(_)) {
             return self.call_interface_method(&receiver, method, args, kwargs, host);
+        }
+        if deployment_handles::is_instance(&receiver)
+            || (deployment_handles::is_class(&receiver) && method == "submit")
+        {
+            return self.call_deployment_method(&receiver, method, args, kwargs, host);
         }
         if matches!(receiver.snapshot(),VmValue::Builtin(ref module) if module=="Contract") {
             let callable = VmHostCallable::named(&format!("Contract.{method}"))
@@ -215,6 +243,9 @@ impl VmInstance {
             return self.call_receiver(instance, method, arguments.collect(), kwargs, host);
         }
         let (mut args, kwargs) = method_signatures::bind(&receiver, method, args, kwargs)?;
+        if let VmValue::EventRef(event) = receiver.snapshot() {
+            return self.emit_declared_event(&event, args.remove(0), host);
+        }
         if let VmValue::MappingProxy(mapping) = receiver.snapshot() {
             return self.call_receiver(*mapping, method, args, kwargs, host);
         }

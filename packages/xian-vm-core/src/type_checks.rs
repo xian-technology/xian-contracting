@@ -87,6 +87,7 @@ fn class_name(value: &VmValue) -> Option<&str> {
         "ForeignVariable",
         "ForeignHash",
         "LogEvent",
+        "Contract",
         "importlib.Func",
         "importlib.Var",
     ];
@@ -105,6 +106,7 @@ fn instance_of(value: &VmValue, name: &str) -> Result<bool> {
     Ok(match value {
         VmValue::Iterator(iterator) => iterator.matches_public_class(name),
         VmValue::Exception(_) => name == "Exception",
+        VmValue::DeploymentHandle => name == "Contract",
         VmValue::InterfaceDescriptor(descriptor) => descriptor.class_name() == name,
         VmValue::StorageRef(storage) => storage.storage_type == name,
         VmValue::ForeignStorageRef(storage) => {

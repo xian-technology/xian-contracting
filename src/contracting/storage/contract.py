@@ -67,6 +67,7 @@ class Contract:
         initiator=None,
     ):
         with rt.execution_lock:
+            driver = cls._require_submission_metadata_context(driver=driver)
             assert_safe_contract_name(name)
 
             if driver.has_contract(name):
@@ -158,30 +159,18 @@ class Contract:
                 else:
                     rt.env.update({"__Driver": previous_driver})
 
-            now = scope.get("now")
-            if now is not None:
-                driver.set_contract(
-                    name=name,
-                    source=source_obj,
-                    vm_ir_json=vm_ir_json,
-                    owner=owner,
-                    overwrite=False,
-                    timestamp=now,
-                    developer=deployment_developer,
-                    deployer=deployment_deployer,
-                    initiator=deployment_initiator,
-                )
-            else:
-                driver.set_contract(
-                    name=name,
-                    source=source_obj,
-                    vm_ir_json=vm_ir_json,
-                    owner=owner,
-                    overwrite=False,
-                    developer=deployment_developer,
-                    deployer=deployment_deployer,
-                    initiator=deployment_initiator,
-                )
+            driver.set_contract(
+                name=name,
+                source=source_obj,
+                vm_ir_json=vm_ir_json,
+                owner=owner,
+                overwrite=False,
+                timestamp=scope.get("now"),
+                developer=deployment_developer,
+                deployer=deployment_deployer,
+                initiator=deployment_initiator,
+                is_txn_write=cls._active_contract_name() is not None,
+            )
 
     def submit(
         self,
@@ -242,6 +231,16 @@ class Contract:
         }
 
     @classmethod
+    def _set_metadata(cls, name, key, value, *, driver=None):
+        assert_safe_contract_name(name)
+        cls._require_submission_metadata_context(driver=driver).set_var(
+            name,
+            key,
+            value=value,
+            is_txn_write=cls._active_contract_name() is not None,
+        )
+
+    @classmethod
     def set_owner(
         cls,
         name: str,
@@ -249,14 +248,7 @@ class Contract:
         *,
         driver: Driver | None = None,
     ) -> None:
-        assert_safe_contract_name(name)
-        cls._require_submission_metadata_context(
-            driver=driver,
-        ).set_var(
-            name,
-            OWNER_KEY,
-            value=new_owner,
-        )
+        cls._set_metadata(name, OWNER_KEY, new_owner, driver=driver)
 
     @classmethod
     def set_developer(
@@ -266,11 +258,4 @@ class Contract:
         *,
         driver: Driver | None = None,
     ) -> None:
-        assert_safe_contract_name(name)
-        cls._require_submission_metadata_context(
-            driver=driver,
-        ).set_var(
-            name,
-            DEVELOPER_KEY,
-            value=new_developer,
-        )
+        cls._set_metadata(name, DEVELOPER_KEY, new_developer, driver=driver)

@@ -1,10 +1,13 @@
-"""Execution and chi fingerprints captured before decomposing VM dispatch.
+"""Original execution fingerprints with explicitly audited execution-3 chi.
 
 Fixtures are observations of commit 005a1048, not a second interpreter. Changing
 these values requires explaining a semantic or metering change, not regenerating
 snapshots to make a refactor pass.
 Explicit later metering adjustments are recorded with their derivation in the
 fixture metadata; all result, write and event fingerprints remain unchanged.
+Execution 3 adds bounded public-callable metadata/lookup and event validation.
+The fixture records each source-derived component, contract attribution and
+out-of-chi stopping point; expected costs must not be copied from observations.
 """
 
 import json
@@ -26,6 +29,15 @@ CASES = {
     for case in json.loads((Path(__file__).parents[1] / "compatibility/cases.json").read_text())
 }
 BASELINE = json.loads(BASELINE_PATH.read_text())
+
+
+@pytest.fixture(scope="module", autouse=True)
+def pinned_execution_revision():
+    from xian_vm_core import runtime_info
+
+    info = runtime_info()
+    assert info["execution_revision"] == BASELINE["execution_revision"]
+    assert BASELINE["gas_schedule"] in info["supported_gas_schedules"]
 
 
 def observe_dispatch(case, storage_home, chi_budget_raw):
@@ -65,7 +77,7 @@ def observe_dispatch(case, storage_home, chi_budget_raw):
 
 
 @pytest.mark.parametrize("case_id", BASELINE["cases"])
-def test_dispatch_observables_and_chi_are_unchanged(tmp_path, case_id):
+def test_dispatch_observables_and_execution3_chi(tmp_path, case_id):
     expected = BASELINE["cases"][case_id]
     case = CASES[expected["source_case"]]
     assert observe_dispatch(case, tmp_path, expected["chi_budget_raw"]) == expected["output"]

@@ -14,6 +14,17 @@ impl VmInstance {
         name: &str,
         _host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
+        if deployment_handles::is_class(&value) && name == "submit" {
+            return self.static_method("Contract", name);
+        }
+        if deployment_handles::is_instance(&value) {
+            if name == "submit" {
+                return self.bound_public_method(value, name);
+            }
+            if let Some(callable) = VmHostCallable::named(&format!("Contract.{name}")) {
+                return Ok(callable.value());
+            }
+        }
         if name.starts_with('_') {
             return Err(VmExecutionError::new(
                 "private attributes are not available to contracts",
@@ -44,6 +55,9 @@ impl VmInstance {
         value: &VmValue,
         name: &str,
     ) -> Option<Result<VmValue, VmExecutionError>> {
+        if let Some(class) = orm_methods::class_method(value, name) {
+            return Some(self.static_method(class, name));
+        }
         if name == "is_of" {
             if let Some(class) = interface_descriptors::descriptor_class(&value.snapshot()) {
                 return Some(self.static_method(class, name));
@@ -70,7 +84,11 @@ impl VmInstance {
             method: name.into(),
         })))
     }
-    fn static_method(&mut self, class: &str, method: &str) -> Result<VmValue, VmExecutionError> {
+    pub(super) fn static_method(
+        &mut self,
+        class: &str,
+        method: &str,
+    ) -> Result<VmValue, VmExecutionError> {
         let key = format!("{class}.{method}");
         if let Some(value) = self.static_methods.get(&key) {
             return Ok(value.clone());

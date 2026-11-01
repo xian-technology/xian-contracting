@@ -535,20 +535,24 @@ impl VmInstance {
         contract: &str,
         host: &mut dyn VmHost,
     ) -> Result<bool, VmExecutionError> {
-        if descriptor.attributes.contains_key("is_of") {
-            return Err(VmExecutionError::new(
-                "custom is_of callbacks are not supported by interface enforcement",
-            ));
-        }
         let name = descriptor.field("name")?;
         dict_get(&[], &name)?;
         let VmValue::String(name) = name.snapshot() else {
             return Ok(false);
         };
-        matches_member(
-            descriptor,
-            &self.resolve_interface_member(contract, &name, host)?,
-        )
+        let member = self.resolve_interface_member(contract, &name, host)?;
+        // Python only consults is_of for FunctionType and Datum members.
+        // A missing/None member or ordinary data never reads the override.
+        if !matches!(
+            member,
+            VmInterfaceMember::Missing | VmInterfaceMember::Other
+        ) && descriptor.attributes.contains_key("is_of")
+        {
+            return Err(VmExecutionError::new(
+                "custom is_of callbacks are not supported by interface enforcement",
+            ));
+        }
+        matches_member(descriptor, &member)
     }
 }
 
@@ -1659,5 +1663,37 @@ mod tests {
             16
         );
         assert_eq!(host_introspection::named("set.add").unwrap().work(), 15);
+    }
+
+    #[test]
+    fn descriptor_callback_order_skips_missing_and_plain_members() {
+        let vm = metadata_instance();
+        for (name, expected) in [("constant", true), ("missing", false)] {
+            let mut interface = descriptor(func(empty_tuple()));
+            interface
+                .attributes
+                .insert("name".into(), VmValue::String(name.into()));
+            interface.attributes.insert("is_of".into(), vm_int(7));
+            assert_eq!(
+                vm.enforce_descriptor(&interface, "con_descriptors", &mut NoopHost {})
+                    .unwrap(),
+                expected
+            );
+        }
+        let mut interface = descriptor(func(empty_tuple()));
+        interface.attributes.insert("is_of".into(), vm_int(7));
+        assert!(vm
+            .enforce_descriptor(&interface, "con_descriptors", &mut NoopHost {})
+            .unwrap_err()
+            .to_string()
+            .contains("custom is_of"));
+        interface
+            .attributes
+            .insert("name".into(), VmValue::List(vec![]));
+        assert!(vm
+            .enforce_descriptor(&interface, "con_descriptors", &mut NoopHost {})
+            .unwrap_err()
+            .to_string()
+            .contains("unhashable"));
     }
 }

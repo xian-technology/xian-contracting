@@ -160,7 +160,13 @@ class ContractModuleLoader(Loader):
         self.driver = driver or ContractModuleFinder.current_driver()
 
     def create_module(self, spec):
-        return None
+        from contracting.execution.module_access import (
+            ContractModule,
+            initialize_public_callable_catalog,
+        )
+
+        initialize_public_callable_catalog()
+        return ContractModule(spec.name)
 
     def exec_module(self, module):
         # fetch the individual contract
@@ -179,7 +185,14 @@ class ContractModuleLoader(Loader):
         scope["__builtins__"] = build_contract_builtins(restricted_import)
 
         # execute the module with the std env and update the module to pass forward
-        with contract_execution_scope():
+        state = dict(rt.context._get_state())
+        if state["this"] != module.__name__:
+            state.update(
+                this=module.__name__,
+                caller=state["this"],
+                owner=self.driver.get_owner(module.__name__),
+            )
+        with rt.push_context_state(state), contract_execution_scope():
             exec(compiled, scope)
 
         # Update the module's attributes with the new scope

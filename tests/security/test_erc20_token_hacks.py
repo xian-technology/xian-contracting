@@ -1,6 +1,9 @@
 import os
 from unittest import TestCase
 
+from xian_runtime_types.decimal import ContractingDecimal
+
+from contracting import constants
 from contracting.local import ContractingClient
 
 
@@ -36,24 +39,40 @@ class TestTokenHacks(TestCase):
         self.c.raw_driver.flush_full()
 
     def test_orm_rename_hack(self):
-        # This hack renames the contract property on its own balances hash to modify the erc20 balances
-
-        pre_hack_balance = self.c.raw_driver.get_var(
-            "con_erc20", "balances", arguments=["stu"]
-        )
+        # Reject the attribute mutation before the constructor can write balances.
+        driver = self.c.raw_driver
+        balance_key = driver.make_key("con_erc20", "balances", ["stu"])
+        pre_hack_balance = driver.get(balance_key)
+        pre_hack_state = driver.items(prefix="con_erc20.")
 
         with open(
             os.path.join(self.script_dir, "contracts", "hack_tokens.s.py")
         ) as f:
             code = f.read()
-            self.c.submit(code, name="con_token_hack", signer="stu")
-
-        post_hack_balance = self.c.raw_driver.get_var(
-            "con_erc20", "balances", arguments=["stu"]
+        output = self.c.get_contract_proxy("submission").submit_contract(
+            name="con_token_hack",
+            code=code,
+            signer="stu",
+            return_full_output=True,
         )
 
-        # Assert greater because some of the balance is lost to chi
-        self.assertGreater(pre_hack_balance, post_hack_balance)
+        self.assertEqual(output["status_code"], 1)
+        self.assertIsInstance(output["result"], TypeError)
+        self.assertIn("interface descriptor", str(output["result"]))
+        self.assertFalse(driver.has_contract("con_token_hack"))
+        self.assertEqual(driver.items(prefix="con_token_hack."), {})
+        self.assertEqual(output["events"], [])
+
+        # Failed execution still pays its measured fee; no other state changes.
+        post_hack_balance = driver.get(balance_key)
+        self.assertGreater(output["chi_used"], 0)
+        self.assertEqual(
+            pre_hack_balance - post_hack_balance,
+            ContractingDecimal(output["chi_used"]) / ContractingDecimal(constants.CHI_PER_T),
+        )
+        self.assertEqual(output["writes"], {balance_key: post_hack_balance})
+        pre_hack_state[balance_key] = post_hack_balance
+        self.assertEqual(driver.items(prefix="con_erc20."), pre_hack_state)
 
     def test_orm_setattr_hack(self):
         # This hack uses setattr instead of direct property access to do the same thing as above
