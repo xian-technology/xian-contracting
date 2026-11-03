@@ -532,7 +532,9 @@ def execute_contract(
         )
     bundle_payload = {contract_name: module_ir}
     previous_env = dict(rt.env)
-    rt.env = {**previous_env, **context, "__Driver": driver}
+    # Host syscalls must use only this execution's explicit inputs. Ambient
+    # state is restored afterward, never inherited into consensus execution.
+    rt.env = {**context, "__Driver": driver}
     random_bridge.clear_random_state()
     try:
         raw = execute_bundle(
@@ -567,7 +569,7 @@ def execute_contract(
     return NativeExecutionResult(
         status_code=status_code,
         result=result,
-        writes=writes,
+        writes=dict(sorted(writes.items())),
         events=events,
         snapshots=list(raw["snapshots"]),
         raw_cost=int(raw.get("raw_cost", 0)) + host.extra_raw_cost,
@@ -599,7 +601,7 @@ def _merge_contract_costs(left: dict[str, int], right: dict[str, int]) -> dict[s
     merged = dict(left)
     for contract, raw_cost in right.items():
         merged[contract] = int(merged.get(contract, 0)) + int(raw_cost)
-    return merged
+    return dict(sorted(merged.items()))
 
 
 def _coerce_native_error_result(status_code: int, result: Any) -> Any:

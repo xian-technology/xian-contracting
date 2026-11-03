@@ -173,6 +173,16 @@ differences have exact expected values; all other observations compare strictly.
 The [compatibility guide](tests/compatibility/README.md) also describes the
 separate language-level corpus and historical capture procedure.
 
+The [determinism campaign](tests/determinism/README.md) compares exact metered
+native observations across fresh-process perturbations and supported platforms.
+It includes the full reviewed surface corpus, seeded generated stateful programs,
+semantic oracles, rollback and reopen checks. Run a larger local campaign with:
+
+```sh
+uv run --no-sync python -m tests.determinism.campaign \
+  --output .artifacts/determinism-run --seed 20261103 --generated 256 --extended
+```
+
 If you change metering, tracing, storage encoding, or import restrictions,
 treat the change as consensus-sensitive and run the relevant `tests/security/`
 and `tests/integration/` paths explicitly.

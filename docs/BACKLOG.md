@@ -54,3 +54,20 @@ later fields once an append exceeds the cap. A post-join length check does not
 prevent the allocation. Add paired failure/side-effect/rollback tests for nested
 specifications and aggregate growth before replacing this execution-only AST
 operation. Stored source, canonical artifacts and the native VM need no change.
+
+## Binary-float operator compatibility
+
+Explicit binary-float values currently reject floor division, remainder and
+`divmod` (for example `divmod(float('1'), float('0.1'))`). The determinism corpus
+records these as explicit unsupported-operation boundaries, not Python parity.
+A separate compatibility change needs signed-zero, negative quotient/remainder,
+subnormal and rounding-boundary cases plus historical and cross-platform evidence.
+NaN-payload constructor syntax is also rejected; canonical NaN values remain
+separately tested.
+
+The authoritative native VM uses pinned software binary-float power under
+execution5. The optional Python harness still delegates binary-float power to
+host Python/libm; it is not an exact cross-platform oracle for those values.
+Aligning that harness needs a shared portable math binding or a reviewed Python
+implementation, not a tolerance that hides divergent stored values. Native
+platform campaigns remain the release evidence for binary-float powers.

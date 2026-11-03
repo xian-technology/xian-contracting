@@ -377,14 +377,16 @@ impl VmInstance {
                 VmDecimal::from_vm_value(base)?.pow(exponent)?,
             )),
             (VmValue::Float(base), VmValue::Float(exponent)) => {
-                Ok(VmValue::Float(base.powf(*exponent)))
+                Ok(VmValue::Float(float_pow(*base, *exponent)))
             }
-            (VmValue::Float(base), VmValue::Int(exponent)) => Ok(VmValue::Float(
-                base.powf(bigint_to_f64(exponent, "pow() exponent")?),
-            )),
-            (VmValue::Int(base), VmValue::Float(exponent)) => Ok(VmValue::Float(
-                bigint_to_f64(base, "pow() base")?.powf(*exponent),
-            )),
+            (VmValue::Float(base), VmValue::Int(exponent)) => Ok(VmValue::Float(float_pow(
+                *base,
+                bigint_to_f64(exponent, "pow() exponent")?,
+            ))),
+            (VmValue::Int(base), VmValue::Float(exponent)) => Ok(VmValue::Float(float_pow(
+                bigint_to_f64(base, "pow() base")?,
+                *exponent,
+            ))),
             (left, right) => Err(VmExecutionError::new(format!(
                 "pow() does not support {} and {}",
                 left.type_name(),

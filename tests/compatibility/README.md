@@ -162,3 +162,12 @@ Use `scripts/capture-application-baseline.py` to regenerate only the application
 snapshot. It verifies the historical installed package bytes as well as source,
 lock and interpreter provenance. See the application guide for capture commands,
 the trusted bootstrap adapter, exact policy values and coverage limits.
+
+## Protocol write order under execution 5
+
+Native transaction write maps and per-contract cost maps use sorted storage or
+contract keys. This removes host HashMap iteration from exposed protocol outputs;
+contract-authored dictionaries retain their insertion order. The historical
+`quantum_storage` fixture records Variable-before-Hash writes. Its native
+comparison checks the exact historical shape and exchanges only those two
+top-level entries. The historical capture, values, result and events stay intact.

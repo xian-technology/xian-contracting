@@ -51,6 +51,20 @@ This file records the runtime properties that must hold before a
 - Native deployment must reject client-supplied IR artifacts and derive VM IR
   from submitted source before staging contract writes.
 
+## Host Independence
+
+- Native host calls use only explicit execution context. A previous host value
+  must never supply a missing transaction seed or block field.
+- The node forwards its transaction input hash into native random seeding.
+- Protocol write and cost maps have stable key ordering; nested authored
+  dictionaries preserve their language-defined insertion order.
+- Exact determinism campaigns retain value types, float bits, decimal cohorts,
+  ordering, costs, outcomes, artifacts and persisted state. Normalization must
+  not hide a difference in an observable contract value.
+- The same recorded corpus must pass across supported native platforms. Host
+  perturbation and cross-platform equality complement semantic oracles; neither
+  alone establishes correctness for untested inputs.
+
 ## Release Gate
 
 Use `./scripts/validate-release.sh` before release. The gate covers:

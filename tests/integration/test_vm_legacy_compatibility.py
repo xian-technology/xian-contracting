@@ -58,6 +58,15 @@ def test_historical_admission_and_execution(tmp_path, case, native):
         assert actual["writes"] == encode({"baseline_storage_snapshot.v": [1]})
         assert actual["events"] == encode([])
         return
+    if native and case["id"] == "quantum_storage":
+        # Execution 5 makes protocol write-map order stable across processes.
+        # Preserve the historical fixture and verify its exact original shape;
+        # only these two top-level entries exchange order. Values stay exact.
+        assert expected["writes"] == ["dict", [
+            [["str", "baseline_quantum_storage.v"], ["ContractingDecimal", "2"]],
+            [["str", "baseline_quantum_storage.h:x"], ["ContractingDecimal", "2"]],
+        ]]
+        expected = {**expected, "writes": ["dict", list(reversed(expected["writes"][1]))]}
     assert comparable(actual) == comparable(expected), actual
 
 

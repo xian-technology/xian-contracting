@@ -13,6 +13,10 @@ pub(super) use native_methods::unicode_strings::is_whitespace as unicode_whitesp
 
 use super::*;
 
+#[path = "float_power.rs"]
+mod float_power;
+pub(super) use float_power::pow as float_pow;
+
 #[path = "dictionary.rs"]
 mod dictionary;
 pub(super) use dictionary::*;
@@ -816,13 +820,17 @@ pub(super) fn apply_binary_operator(
             (left, VmValue::Decimal(right)) => Ok(VmValue::Decimal(
                 coerce_decimal(&left, "left")?.pow(&right)?,
             )),
-            (VmValue::Float(left), VmValue::Float(right)) => Ok(VmValue::Float(left.powf(right))),
-            (VmValue::Float(left), VmValue::Int(right)) => Ok(VmValue::Float(
-                left.powf(bigint_to_f64(&right, "pow exponent")?),
-            )),
-            (VmValue::Int(left), VmValue::Float(right)) => Ok(VmValue::Float(
-                bigint_to_f64(&left, "pow base")?.powf(right),
-            )),
+            (VmValue::Float(left), VmValue::Float(right)) => {
+                Ok(VmValue::Float(float_pow(left, right)))
+            }
+            (VmValue::Float(left), VmValue::Int(right)) => Ok(VmValue::Float(float_pow(
+                left,
+                bigint_to_f64(&right, "pow exponent")?,
+            ))),
+            (VmValue::Int(left), VmValue::Float(right)) => Ok(VmValue::Float(float_pow(
+                bigint_to_f64(&left, "pow base")?,
+                right,
+            ))),
             (left, right) => Err(VmExecutionError::new(format!(
                 "unsupported pow operands {} and {}",
                 left.type_name(),

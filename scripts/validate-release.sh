@@ -71,3 +71,11 @@ UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" pyte
 UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" pip install --no-deps --reinstall ./packages/xian-vm-core
 UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" --no-sync \
   python -m pytest -q -m optional_native
+
+# Keep the exact corpus and observations for reproducing any release mismatch.
+mkdir -p "${repo_root}/.artifacts"
+determinism_dir="$(mktemp -d "${repo_root}/.artifacts/determinism-release.XXXXXX")"
+UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" --no-sync \
+  python -m tests.determinism.campaign --output "${determinism_dir}/campaign" \
+  --seed 20261103 --generated 256 --extended
+printf 'Determinism evidence: %s\n' "${determinism_dir}/campaign"

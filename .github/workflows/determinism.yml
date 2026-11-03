@@ -1,0 +1,191 @@
+name: Contract Determinism
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: Reproducible seed (0 through 4294967295)
+        type: string
+        default: "20261103"
+      generated:
+        description: Generated cases in addition to the complete surface corpus (1 through 1024)
+        type: number
+        default: 256
+      extended:
+        description: Include extended environment scenarios
+        type: boolean
+        default: true
+  schedule:
+    - cron: "43 3 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      seed: ${{ steps.settings.outputs.seed }}
+      generated: ${{ steps.settings.outputs.generated }}
+      extended: ${{ steps.settings.outputs.extended }}
+    steps:
+      - name: Select one bounded corpus for all platforms
+        id: settings
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_SEED: ${{ inputs.seed }}
+          INPUT_GENERATED: ${{ inputs.generated }}
+          INPUT_EXTENDED: ${{ inputs.extended }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from datetime import UTC, datetime
+
+          event = os.environ['EVENT_NAME']
+          seed, generated, extended = '20261103', '32', 'false'
+          if event == 'schedule':
+              seed = datetime.now(UTC).strftime('%Y%m%d')
+              generated, extended = '256', 'true'
+          elif event == 'workflow_dispatch':
+              seed = os.environ['INPUT_SEED']
+              generated = os.environ['INPUT_GENERATED']
+              extended = os.environ['INPUT_EXTENDED']
+          for name, value, maximum in [('seed', seed, 4294967295), ('generated', generated, 1024)]:
+              if not value.isascii() or not value.isdecimal() or not 0 <= int(value) <= maximum:
+                  raise SystemExit(f'Invalid {name}: expected an integer from 0 through {maximum}')
+          if int(generated) < 1 or extended not in ('true', 'false'):
+              raise SystemExit('Generated count must be positive and extended must be boolean')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              print(f'seed={int(seed)}\ngenerated={int(generated)}\nextended={extended}', file=output)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              print(f'Corpus seed: {seed}; generated cases: {generated}; extended: {extended}', file=summary)
+          PY
+
+  campaign:
+    name: Determinism (${{ matrix.platform }})
+    needs: configure
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runner: ubuntu-24.04
+            system: Linux
+            machine: x86_64
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+            system: Linux
+            machine: aarch64
+          - platform: macos-arm64
+            runner: macos-15
+            system: Darwin
+            machine: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Verify actual platform and record campaign configuration
+        env:
+          EXPECTED_SYSTEM: ${{ matrix.system }}
+          EXPECTED_MACHINE: ${{ matrix.machine }}
+          CAMPAIGN_SEED: ${{ needs.configure.outputs.seed }}
+          CAMPAIGN_GENERATED: ${{ needs.configure.outputs.generated }}
+          CAMPAIGN_EXTENDED: ${{ needs.configure.outputs.extended }}
+        run: |
+          python - <<'PY'
+          import json, os, platform
+          from pathlib import Path
+
+          actual = (platform.system(), platform.machine())
+          expected = (os.environ['EXPECTED_SYSTEM'], os.environ['EXPECTED_MACHINE'])
+          output = Path('.artifacts/determinism')
+          output.mkdir(parents=True, exist_ok=True)
+          record = dict(system=actual[0], machine=actual[1], python=platform.python_version(),
+                        revision=os.environ['GITHUB_SHA'], seed=int(os.environ['CAMPAIGN_SEED']),
+                        generated=int(os.environ['CAMPAIGN_GENERATED']),
+                        extended=os.environ['CAMPAIGN_EXTENDED'] == 'true')
+          (output / 'runner.json').write_text(json.dumps(record, indent=2) + '\n')
+          if actual != expected:
+              raise SystemExit(f'Wrong native runner: {actual!r}; expected {expected!r}')
+          PY
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install uv
+        run: python -m pip install uv
+      - name: Install native runtime and development dependencies
+        run: |
+          uv sync --group dev --extra native --extra zk
+          uv pip install --no-deps ./packages/xian-vm-core
+      - name: Run the complete surface and generated corpus
+        shell: bash
+        env:
+          CAMPAIGN_SEED: ${{ needs.configure.outputs.seed }}
+          CAMPAIGN_GENERATED: ${{ needs.configure.outputs.generated }}
+          CAMPAIGN_EXTENDED: ${{ needs.configure.outputs.extended }}
+          CAMPAIGN_HOME: ${{ runner.temp }}/determinism-home
+        run: |
+          set -euo pipefail
+          mkdir -p "$CAMPAIGN_HOME"
+          options=()
+          if [[ "$CAMPAIGN_EXTENDED" == true ]]; then
+            options+=(--extended)
+          fi
+          HOME="$CAMPAIGN_HOME" .venv/bin/python -m tests.determinism.campaign \
+            --output .artifacts/determinism/campaign --seed "$CAMPAIGN_SEED" \
+            --generated "$CAMPAIGN_GENERATED" "${options[@]}" \
+            2>&1 | tee .artifacts/determinism/campaign.log
+      - name: Upload all observations and failure evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: determinism-${{ matrix.platform }}
+          path: .artifacts/determinism/
+          include-hidden-files: true
+          if-no-files-found: error
+
+  compare:
+    name: Compare all three native platforms
+    if: always()
+    needs: [configure, campaign]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: determinism-*
+          path: artifacts
+      - name: Require every platform and compare exact corpus observations
+        shell: bash
+        env:
+          CAMPAIGN_RESULT: ${{ needs.campaign.result }}
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee comparison.log
+          import os, subprocess, sys
+          from pathlib import Path
+
+          expected = {Path('artifacts') / f'determinism-{name}' / 'campaign' / 'baseline.json'
+                      for name in ('linux-x86_64', 'linux-arm64', 'macos-arm64')}
+          actual = set(Path('artifacts').rglob('baseline.json'))
+          if actual != expected or os.environ['CAMPAIGN_RESULT'] != 'success':
+              raise SystemExit(f'Incomplete campaign: result={os.environ["CAMPAIGN_RESULT"]}; '
+                               f'expected={sorted(map(str, expected))}; actual={sorted(map(str, actual))}')
+          subprocess.run([sys.executable, '-m', 'tests.determinism.campaign', '--compare',
+                          *map(str, sorted(actual))], check=True)
+          PY
+      - name: Upload cross-platform comparison
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: determinism-comparison
+          path: comparison.log
+          if-no-files-found: warn
