@@ -1,0 +1,166 @@
+{
+  "schema": 1,
+  "runtime_revision": "3b82001f2d587bbfb51f3d9235a2a8dcd0078a9a",
+  "evidence": "Real published contract sources; newly authored scenarios, not historical chain transactions.",
+  "sources": [
+    {
+      "id": "nameservice",
+      "role": "primary",
+      "repo": "xian-contracts",
+      "revision": "45d1334ac4de44c67afc46b68b435dca7d711281",
+      "path": "con_nameservice.py",
+      "git_blob": "05a93dd1c925ee1429f2ce07f53214653e8ebb9d",
+      "sha256": "49450039605910850978ec49618a6a05099d4e214e00d9bd5f5e246c4254b2ce",
+      "bytes": 6284,
+      "dependencies": [
+        "currency"
+      ],
+      "authored_flow_suggestions": "mint, resolve, metadata, transfer/approval, renewal and expiry boundaries",
+      "export_names": [
+        "mint_name",
+        "transfer",
+        "approve",
+        "revoke_approval",
+        "transfer_from",
+        "set_main_name_to_caller",
+        "set_data",
+        "get_main_name_to_address",
+        "get_address_to_main_name",
+        "get_owner",
+        "get_expiry_time",
+        "get_data",
+        "is_owner",
+        "renew_name",
+        "set_mint_price",
+        "set_royalty_fee_percentage",
+        "set_manager",
+        "set_contract_allowlist",
+        "set_registration_period",
+        "set_enabled"
+      ],
+      "source_evidence": "committed pre-VM public application source; no deployed-state or transaction-history claim",
+      "file": "sources/nameservice.py.txt",
+      "license": "No LICENSE file present at the pinned repository revision; provenance retained, no license inferred."
+    },
+    {
+      "id": "staking",
+      "role": "primary",
+      "repo": "xian-contracts",
+      "revision": "45d1334ac4de44c67afc46b68b435dca7d711281",
+      "path": "staking/con_staking.py",
+      "git_blob": "d9c3cefa0389382fdbb5eeb0a503b8a3a43c3cc6",
+      "sha256": "cd1aabb8d8e093f79620a7c6b456621e6f230f96cbc9c42be9515ed0955cef04",
+      "bytes": 11693,
+      "dependencies": [
+        "dynamic stake/reward/fee token contracts"
+      ],
+      "authored_flow_suggestions": "create pool, fund rewards, stake, elapsed-time reward calculation, early/mature withdrawal and pause",
+      "export_names": [
+        "create_pool",
+        "stake",
+        "unstake",
+        "deposit_rewards",
+        "withdraw_creator_fees",
+        "get_pool_info",
+        "get_stake_info",
+        "calculate_rewards",
+        "emergency_pause",
+        "emergency_unpause",
+        "emergency_withdraw_token",
+        "get_contract_status"
+      ],
+      "source_evidence": "committed pre-VM public application source; no deployed-state or transaction-history claim",
+      "file": "sources/staking.py.txt",
+      "license": "No LICENSE file present at the pinned repository revision; provenance retained, no license inferred."
+    },
+    {
+      "id": "reflection",
+      "role": "primary",
+      "repo": "xian-contracts",
+      "revision": "45d1334ac4de44c67afc46b68b435dca7d711281",
+      "path": "reflection_token/con_reflection_token.py",
+      "git_blob": "df7cbdcf4194241253350dc9317e4832b037c26b",
+      "sha256": "5728d0bd1ac33a7b360f4b10c36a773b9173bd65c6518e4a7030482a72edc6d1",
+      "bytes": 6909,
+      "dependencies": [],
+      "authored_flow_suggestions": "transfer, approval/delegated transfer, fee target, exclusion/inclusion, reflected supply conservation",
+      "export_names": [
+        "change_metadata",
+        "transfer",
+        "approve",
+        "transfer_from",
+        "balance_of",
+        "allowance",
+        "get_total_supply",
+        "exclude_from_rewards",
+        "include_in_rewards",
+        "set_fee_target"
+      ],
+      "source_evidence": "committed pre-VM public application source; no deployed-state or transaction-history claim",
+      "file": "sources/reflection.py.txt",
+      "license": "No LICENSE file present at the pinned repository revision; provenance retained, no license inferred."
+    },
+    {
+      "id": "dex_router",
+      "role": "primary",
+      "repo": "xian-contracts",
+      "revision": "45d1334ac4de44c67afc46b68b435dca7d711281",
+      "path": "dex/con_dex.py",
+      "git_blob": "d618dc35bc13a1adc49f0ea4eed47f8c3cc845ff",
+      "sha256": "6ceca00a726ab4bcaf30fdd9fe75064c4ea90c9a6d79c84b09d9b609375a271d",
+      "bytes": 8522,
+      "dependencies": [
+        "con_pairs",
+        "dynamic tokens with transfer/transfer_from/balance_of"
+      ],
+      "authored_flow_suggestions": "liquidity addition/removal, quote, exact-input swap, multihop and fee-token branches",
+      "export_names": [
+        "addLiquidity",
+        "removeLiquidity",
+        "getAmountOut",
+        "getAmountsOut",
+        "swapExactTokenForToken",
+        "swapExactTokenForTokenSupportingFeeOnTransferTokens",
+        "swapExactTokensForTokensSupportingFeeOnTransferTokens",
+        "swapExactTokensForTokens"
+      ],
+      "source_evidence": "committed pre-VM public application source; no deployed-state or transaction-history claim",
+      "suggested_module_name": "con_dex",
+      "file": "sources/dex_router.py.txt",
+      "license": "No LICENSE file present at pinned revision; no license inferred."
+    },
+    {
+      "id": "dex_pairs",
+      "role": "primary",
+      "repo": "xian-contracts",
+      "revision": "45d1334ac4de44c67afc46b68b435dca7d711281",
+      "path": "dex/con_pairs.py",
+      "git_blob": "f92121812fbfe6dba192c6bcfaaca610d13d9201",
+      "sha256": "59e01ee12782bc18771c84ae2b2de11ef5e954e588a91a25de6c5be73125108d",
+      "bytes": 15949,
+      "dependencies": [
+        "dynamic tokens with transfer/transfer_from/balance_of"
+      ],
+      "authored_flow_suggestions": "pair creation, reserve updates, LP approvals/transfers, mint/burn/swap invariants",
+      "export_names": [
+        "enableFee",
+        "createPair",
+        "pairFor",
+        "liqTransfer",
+        "liqApprove",
+        "liqTransfer_from",
+        "sync2",
+        "getReserves",
+        "getSurplus",
+        "burn",
+        "mint",
+        "swap",
+        "swapToPair"
+      ],
+      "source_evidence": "committed pre-VM public application source; no deployed-state or transaction-history claim",
+      "suggested_module_name": "con_pairs",
+      "file": "sources/dex_pairs.py.txt",
+      "license": "No LICENSE file present at pinned revision; no license inferred."
+    }
+  ]
+}

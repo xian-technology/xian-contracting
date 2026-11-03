@@ -1,0 +1,1554 @@
+{
+  "schema": 1,
+  "policies": {
+    "constructor_child_context": {
+      "introduced_by": "e020d23a",
+      "reason": "Constructors now execute with child this/owner; historical submission frame is an authority bug. Only reflection excluded-key locations differ here."
+    },
+    "fixed_scale_square_root": {
+      "introduced_by": "c9bb1ac2797f79d004c27452df42eaa74786bd6d",
+      "reason": "Fixed-scaled Decimal square root computes exact sqrt(1000000)=1000; historical general Decimal power undershot before 30-digit quantization. No numeric tolerance is applied."
+    }
+  },
+  "replacements": [
+    {
+      "scenario": "reflection_allowance",
+      "step": "deploy_con_token",
+      "path": [
+        "writes",
+        1,
+        2,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "reflection_allowance",
+      "step": "deploy_con_token",
+      "path": [
+        "state",
+        1,
+        2,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "reflection_allowance",
+      "step": "transfer",
+      "path": [
+        "state",
+        1,
+        3,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "reflection_allowance",
+      "step": "approve",
+      "path": [
+        "state",
+        1,
+        4,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "reflection_allowance",
+      "step": "transfer_from",
+      "path": [
+        "state",
+        1,
+        5,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "reflection_allowance",
+      "step": "allowance",
+      "path": [
+        "state",
+        1,
+        5,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "reflection_allowance",
+      "step": "over_allowance",
+      "path": [
+        "state",
+        1,
+        5,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "reflection_allowance",
+      "step": "followup_allowance",
+      "path": [
+        "state",
+        1,
+        5,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "reflection_allowance",
+      "step": "set_fee_target",
+      "path": [
+        "state",
+        1,
+        5,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "reflection_allowance",
+      "step": "fee_transfer",
+      "path": [
+        "state",
+        1,
+        5,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "reflection_allowance",
+      "step": "balance_of",
+      "path": [
+        "state",
+        1,
+        5,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "reflection_allowance",
+      "step": "get_total_supply",
+      "path": [
+        "state",
+        1,
+        5,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "reflection_allowance",
+      "step": "unauthorized_metadata",
+      "path": [
+        "state",
+        1,
+        5,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "reflection_allowance",
+      "step": "change_metadata",
+      "path": [
+        "state",
+        1,
+        5,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "reflection_allowance",
+      "step": "final_balance",
+      "path": [
+        "state",
+        1,
+        5,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "deploy_currency",
+      "path": [
+        "writes",
+        1,
+        2,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "deploy_currency",
+      "path": [
+        "state",
+        1,
+        2,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "deploy_con_nameservice",
+      "path": [
+        "state",
+        1,
+        8,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "set_enabled",
+      "path": [
+        "state",
+        1,
+        8,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "currency_approve",
+      "path": [
+        "state",
+        1,
+        9,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "mint_name",
+      "path": [
+        "state",
+        1,
+        13,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "duplicate_name",
+      "path": [
+        "state",
+        1,
+        13,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "set_main_name_to_caller",
+      "path": [
+        "state",
+        1,
+        15,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "get_main_name_to_address",
+      "path": [
+        "state",
+        1,
+        15,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "set_data",
+      "path": [
+        "state",
+        1,
+        15,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "get_data",
+      "path": [
+        "state",
+        1,
+        15,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "con_nameservice_approve",
+      "path": [
+        "state",
+        1,
+        16,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "transfer_from",
+      "path": [
+        "state",
+        1,
+        15,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "get_owner",
+      "path": [
+        "state",
+        1,
+        15,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "get_address_to_main_name",
+      "path": [
+        "state",
+        1,
+        15,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "previous_owner_rejected",
+      "path": [
+        "state",
+        1,
+        15,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "transfer",
+      "path": [
+        "state",
+        1,
+        17,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "expired_owner",
+      "path": [
+        "state",
+        1,
+        17,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "expired_remint",
+      "path": [
+        "state",
+        1,
+        17,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "nameservice_lifecycle",
+      "step": "reminted_owner",
+      "path": [
+        "state",
+        1,
+        17,
+        0,
+        1
+      ],
+      "historical": "currency.excluded:submission",
+      "current": "currency.excluded:currency",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "deploy_con_token",
+      "path": [
+        "writes",
+        1,
+        2,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "deploy_con_token",
+      "path": [
+        "state",
+        1,
+        2,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "deploy_con_staking",
+      "path": [
+        "state",
+        1,
+        5,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "approve",
+      "path": [
+        "state",
+        1,
+        6,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "create_pool",
+      "path": [
+        "state",
+        1,
+        8,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "deposit_rewards",
+      "path": [
+        "state",
+        1,
+        9,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "stake",
+      "path": [
+        "state",
+        1,
+        10,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "duplicate_stake",
+      "path": [
+        "state",
+        1,
+        10,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "calculate_rewards",
+      "path": [
+        "state",
+        1,
+        10,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "unstake",
+      "path": [
+        "state",
+        1,
+        9,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "withdraw_creator_fees",
+      "path": [
+        "state",
+        1,
+        9,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "get_pool_info",
+      "path": [
+        "state",
+        1,
+        9,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "pause_unauthorized",
+      "path": [
+        "state",
+        1,
+        9,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "emergency_pause",
+      "path": [
+        "state",
+        1,
+        9,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "paused_stake",
+      "path": [
+        "state",
+        1,
+        9,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "emergency_unpause",
+      "path": [
+        "state",
+        1,
+        9,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "followup_stake",
+      "path": [
+        "state",
+        1,
+        10,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "mature_unstake",
+      "path": [
+        "state",
+        1,
+        9,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "staking_lifecycle",
+      "step": "get_contract_status",
+      "path": [
+        "state",
+        1,
+        9,
+        0,
+        1
+      ],
+      "historical": "con_token.excluded:submission",
+      "current": "con_token.excluded:con_token",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "deploy_con_token_a",
+      "path": [
+        "writes",
+        1,
+        2,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "deploy_con_token_a",
+      "path": [
+        "state",
+        1,
+        2,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "deploy_con_token_b",
+      "path": [
+        "writes",
+        1,
+        2,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "deploy_con_token_b",
+      "path": [
+        "state",
+        1,
+        2,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "deploy_con_token_b",
+      "path": [
+        "state",
+        1,
+        13,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "deploy_con_pairs",
+      "path": [
+        "state",
+        1,
+        6,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "deploy_con_pairs",
+      "path": [
+        "state",
+        1,
+        17,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "deploy_con_dex",
+      "path": [
+        "state",
+        1,
+        6,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "deploy_con_dex",
+      "path": [
+        "state",
+        1,
+        17,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "con_token_a_approve",
+      "path": [
+        "state",
+        1,
+        7,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "con_token_a_approve",
+      "path": [
+        "state",
+        1,
+        18,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "con_token_b_approve",
+      "path": [
+        "state",
+        1,
+        7,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "con_token_b_approve",
+      "path": [
+        "state",
+        1,
+        19,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "addLiquidity",
+      "path": [
+        "writes",
+        1,
+        6,
+        1,
+        1
+      ],
+      "historical": "999.999999989999999999999999999999",
+      "current": "999.99999999",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "addLiquidity",
+      "path": [
+        "writes",
+        1,
+        14,
+        1,
+        1
+      ],
+      "historical": "999.999999999999999999999999999999",
+      "current": "1E+3",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "addLiquidity",
+      "path": [
+        "result",
+        1,
+        2,
+        1
+      ],
+      "historical": "999.999999989999999999999999999999",
+      "current": "999.99999999",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "addLiquidity",
+      "path": [
+        "state",
+        1,
+        8,
+        1,
+        1
+      ],
+      "historical": "999.999999989999999999999999999999",
+      "current": "999.99999999",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "addLiquidity",
+      "path": [
+        "state",
+        1,
+        16,
+        1,
+        1
+      ],
+      "historical": "999.999999999999999999999999999999",
+      "current": "1E+3",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "addLiquidity",
+      "path": [
+        "state",
+        1,
+        23,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "addLiquidity",
+      "path": [
+        "state",
+        1,
+        36,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "getReserves",
+      "path": [
+        "state",
+        1,
+        8,
+        1,
+        1
+      ],
+      "historical": "999.999999989999999999999999999999",
+      "current": "999.99999999",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "getReserves",
+      "path": [
+        "state",
+        1,
+        16,
+        1,
+        1
+      ],
+      "historical": "999.999999999999999999999999999999",
+      "current": "1E+3",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "getReserves",
+      "path": [
+        "state",
+        1,
+        23,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "getReserves",
+      "path": [
+        "state",
+        1,
+        36,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "duplicate_pair",
+      "path": [
+        "state",
+        1,
+        8,
+        1,
+        1
+      ],
+      "historical": "999.999999989999999999999999999999",
+      "current": "999.99999999",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "duplicate_pair",
+      "path": [
+        "state",
+        1,
+        16,
+        1,
+        1
+      ],
+      "historical": "999.999999999999999999999999999999",
+      "current": "1E+3",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "duplicate_pair",
+      "path": [
+        "state",
+        1,
+        23,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "duplicate_pair",
+      "path": [
+        "state",
+        1,
+        36,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "getAmountsOut",
+      "path": [
+        "state",
+        1,
+        8,
+        1,
+        1
+      ],
+      "historical": "999.999999989999999999999999999999",
+      "current": "999.99999999",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "getAmountsOut",
+      "path": [
+        "state",
+        1,
+        16,
+        1,
+        1
+      ],
+      "historical": "999.999999999999999999999999999999",
+      "current": "1E+3",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "getAmountsOut",
+      "path": [
+        "state",
+        1,
+        23,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "getAmountsOut",
+      "path": [
+        "state",
+        1,
+        36,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "slippage_rejected",
+      "path": [
+        "state",
+        1,
+        8,
+        1,
+        1
+      ],
+      "historical": "999.999999989999999999999999999999",
+      "current": "999.99999999",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "slippage_rejected",
+      "path": [
+        "state",
+        1,
+        16,
+        1,
+        1
+      ],
+      "historical": "999.999999999999999999999999999999",
+      "current": "1E+3",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "slippage_rejected",
+      "path": [
+        "state",
+        1,
+        23,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "slippage_rejected",
+      "path": [
+        "state",
+        1,
+        36,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "swapExactTokenForToken",
+      "path": [
+        "state",
+        1,
+        8,
+        1,
+        1
+      ],
+      "historical": "999.999999989999999999999999999999",
+      "current": "999.99999999",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "swapExactTokenForToken",
+      "path": [
+        "state",
+        1,
+        16,
+        1,
+        1
+      ],
+      "historical": "999.999999999999999999999999999999",
+      "current": "1E+3",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "swapExactTokenForToken",
+      "path": [
+        "state",
+        1,
+        23,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "swapExactTokenForToken",
+      "path": [
+        "state",
+        1,
+        36,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "reserves_after_swap",
+      "path": [
+        "state",
+        1,
+        8,
+        1,
+        1
+      ],
+      "historical": "999.999999989999999999999999999999",
+      "current": "999.99999999",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "reserves_after_swap",
+      "path": [
+        "state",
+        1,
+        16,
+        1,
+        1
+      ],
+      "historical": "999.999999999999999999999999999999",
+      "current": "1E+3",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "reserves_after_swap",
+      "path": [
+        "state",
+        1,
+        23,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "reserves_after_swap",
+      "path": [
+        "state",
+        1,
+        36,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "liqApprove",
+      "path": [
+        "state",
+        1,
+        8,
+        1,
+        1
+      ],
+      "historical": "999.999999989999999999999999999999",
+      "current": "999.99999999",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "liqApprove",
+      "path": [
+        "state",
+        1,
+        17,
+        1,
+        1
+      ],
+      "historical": "999.999999999999999999999999999999",
+      "current": "1E+3",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "liqApprove",
+      "path": [
+        "state",
+        1,
+        24,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "liqApprove",
+      "path": [
+        "state",
+        1,
+        37,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "late_burn_rollback",
+      "path": [
+        "state",
+        1,
+        8,
+        1,
+        1
+      ],
+      "historical": "999.999999989999999999999999999999",
+      "current": "999.99999999",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "late_burn_rollback",
+      "path": [
+        "state",
+        1,
+        17,
+        1,
+        1
+      ],
+      "historical": "999.999999999999999999999999999999",
+      "current": "1E+3",
+      "policy": "fixed_scale_square_root"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "late_burn_rollback",
+      "path": [
+        "state",
+        1,
+        24,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "late_burn_rollback",
+      "path": [
+        "state",
+        1,
+        37,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "removeLiquidity",
+      "path": [
+        "state",
+        1,
+        25,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "removeLiquidity",
+      "path": [
+        "state",
+        1,
+        38,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "final_reserves",
+      "path": [
+        "state",
+        1,
+        25,
+        0,
+        1
+      ],
+      "historical": "con_token_a.excluded:submission",
+      "current": "con_token_a.excluded:con_token_a",
+      "policy": "constructor_child_context"
+    },
+    {
+      "scenario": "dex_liquidity_swap",
+      "step": "final_reserves",
+      "path": [
+        "state",
+        1,
+        38,
+        0,
+        1
+      ],
+      "historical": "con_token_b.excluded:submission",
+      "current": "con_token_b.excluded:con_token_b",
+      "policy": "constructor_child_context"
+    }
+  ]
+}

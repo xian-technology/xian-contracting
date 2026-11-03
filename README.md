@@ -159,6 +159,20 @@ checks, the WASM compiler package build, optional-native parity and fuzz
 coverage, and the Rust-side package checks used by release CI. It is the gate
 for tagging a release.
 
+The [published application corpus](tests/compatibility/applications/README.md)
+compares bounded token, nameservice, staking and DEX workflows with a pinned
+pre-VM Python capture. Run it against an already installed native runtime:
+
+```sh
+python tests/compatibility/application_runner.py --engine native-metered --check
+```
+
+These are authored workflows over unchanged historical sources, not historical
+chain transactions. Two documented constructor-context and square-root policy
+differences have exact expected values; all other observations compare strictly.
+The [compatibility guide](tests/compatibility/README.md) also describes the
+separate language-level corpus and historical capture procedure.
+
 If you change metering, tracing, storage encoding, or import restrictions,
 treat the change as consensus-sensitive and run the relevant `tests/security/`
 and `tests/integration/` paths explicitly.

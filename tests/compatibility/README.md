@@ -135,3 +135,30 @@ The historical `clear` write-set omission is deliberately fixed rather than
 preserved. Resource limits and rollback have additional current-engine tests.
 CI and release validation run all optional-native tests after installing the VM,
 so new regression modules do not require a separate hand-maintained test list.
+
+## Published application workflows
+
+The separate [application corpus](applications/README.md) runs 68 observations
+across token/allowance, nameservice, staking and DEX workflows using five
+byte-pinned sources from `xian-contracts@45d1334ac4de44c67afc46b68b435dca7d711281`.
+Its real pre-VM oracle is the same runtime revision and Python version documented
+above. These sequences are newly authored tests, not historical transactions.
+
+Run the standalone observer from the repository root with an installed runtime:
+
+```sh
+python tests/compatibility/application_runner.py --engine native-metered --check --output /tmp/applications.json
+```
+
+It compares typed results, writes, events, complete fixture application state,
+failure rollback and follow-up calls, reopening storage between calls. The
+historical snapshot is retained unchanged. Two existing policies—child
+constructor authority context and fixed-scaled square root—account for 110
+explicit expected leaf differences; there is no numerical tolerance or blanket
+workflow exemption. Historical gas prices and production submission metadata
+are outside this comparison.
+
+Use `scripts/capture-application-baseline.py` to regenerate only the application
+snapshot. It verifies the historical installed package bytes as well as source,
+lock and interpreter provenance. See the application guide for capture commands,
+the trusted bootstrap adapter, exact policy values and coverage limits.

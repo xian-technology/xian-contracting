@@ -1,0 +1,685 @@
+[
+  {
+    "id": "reflection_allowance",
+    "deployments": [
+      {
+        "name": "con_token",
+        "source": "reflection"
+      }
+    ],
+    "steps": [
+      {
+        "id": "transfer",
+        "contract": "con_token",
+        "function": "transfer",
+        "kwargs": {
+          "amount": 1000,
+          "to": "bob"
+        }
+      },
+      {
+        "id": "approve",
+        "contract": "con_token",
+        "function": "approve",
+        "kwargs": {
+          "amount": 100,
+          "to": "bob"
+        }
+      },
+      {
+        "id": "transfer_from",
+        "contract": "con_token",
+        "function": "transfer_from",
+        "kwargs": {
+          "amount": 40,
+          "to": "carol",
+          "main_account": "alice"
+        },
+        "sender": "bob"
+      },
+      {
+        "id": "allowance",
+        "contract": "con_token",
+        "function": "allowance",
+        "kwargs": {
+          "owner": "alice",
+          "spender": "bob"
+        }
+      },
+      {
+        "id": "over_allowance",
+        "contract": "con_token",
+        "function": "transfer_from",
+        "kwargs": {
+          "amount": 61,
+          "to": "carol",
+          "main_account": "alice"
+        },
+        "sender": "bob",
+        "error": "Not enough coins approved!"
+      },
+      {
+        "id": "followup_allowance",
+        "contract": "con_token",
+        "function": "transfer_from",
+        "kwargs": {
+          "amount": 60,
+          "to": "carol",
+          "main_account": "alice"
+        },
+        "sender": "bob"
+      },
+      {
+        "id": "set_fee_target",
+        "contract": "con_token",
+        "function": "set_fee_target",
+        "kwargs": {
+          "address": "bob",
+          "enabled": true
+        }
+      },
+      {
+        "id": "fee_transfer",
+        "contract": "con_token",
+        "function": "transfer",
+        "kwargs": {
+          "amount": 100,
+          "to": "carol"
+        },
+        "sender": "bob"
+      },
+      {
+        "id": "balance_of",
+        "contract": "con_token",
+        "function": "balance_of",
+        "kwargs": {
+          "address": "carol"
+        }
+      },
+      {
+        "id": "get_total_supply",
+        "contract": "con_token",
+        "function": "get_total_supply",
+        "kwargs": {}
+      },
+      {
+        "id": "unauthorized_metadata",
+        "contract": "con_token",
+        "function": "change_metadata",
+        "kwargs": {
+          "key": "token_name",
+          "value": "forged"
+        },
+        "sender": "bob",
+        "error": "Only operator"
+      },
+      {
+        "id": "change_metadata",
+        "contract": "con_token",
+        "function": "change_metadata",
+        "kwargs": {
+          "key": "token_name",
+          "value": "Corpus"
+        }
+      },
+      {
+        "id": "final_balance",
+        "contract": "con_token",
+        "function": "balance_of",
+        "kwargs": {
+          "address": "alice"
+        }
+      }
+    ]
+  },
+  {
+    "id": "nameservice_lifecycle",
+    "deployments": [
+      {
+        "name": "currency",
+        "source": "reflection"
+      },
+      {
+        "name": "con_nameservice",
+        "source": "nameservice"
+      }
+    ],
+    "steps": [
+      {
+        "id": "set_enabled",
+        "contract": "con_nameservice",
+        "function": "set_enabled",
+        "kwargs": {
+          "state": true
+        }
+      },
+      {
+        "id": "currency_approve",
+        "contract": "currency",
+        "function": "approve",
+        "kwargs": {
+          "amount": 10,
+          "to": "con_nameservice"
+        }
+      },
+      {
+        "id": "mint_name",
+        "contract": "con_nameservice",
+        "function": "mint_name",
+        "kwargs": {
+          "name": "Alice123"
+        }
+      },
+      {
+        "id": "duplicate_name",
+        "contract": "con_nameservice",
+        "function": "mint_name",
+        "kwargs": {
+          "name": "alice123"
+        },
+        "error": "Name already exists"
+      },
+      {
+        "id": "set_main_name_to_caller",
+        "contract": "con_nameservice",
+        "function": "set_main_name_to_caller",
+        "kwargs": {
+          "name": "alice123"
+        }
+      },
+      {
+        "id": "get_main_name_to_address",
+        "contract": "con_nameservice",
+        "function": "get_main_name_to_address",
+        "kwargs": {
+          "name": "alice123"
+        }
+      },
+      {
+        "id": "set_data",
+        "contract": "con_nameservice",
+        "function": "set_data",
+        "kwargs": {
+          "name": "alice123",
+          "data": {
+            "ipfs": "cid-example",
+            "records": [
+              1,
+              2
+            ]
+          }
+        }
+      },
+      {
+        "id": "get_data",
+        "contract": "con_nameservice",
+        "function": "get_data",
+        "kwargs": {
+          "name": "alice123"
+        }
+      },
+      {
+        "id": "con_nameservice_approve",
+        "contract": "con_nameservice",
+        "function": "approve",
+        "kwargs": {
+          "name": "alice123",
+          "to": "bob"
+        }
+      },
+      {
+        "id": "transfer_from",
+        "contract": "con_nameservice",
+        "function": "transfer_from",
+        "kwargs": {
+          "name": "alice123",
+          "to": "bob",
+          "main_account": "alice"
+        },
+        "sender": "bob"
+      },
+      {
+        "id": "get_owner",
+        "contract": "con_nameservice",
+        "function": "get_owner",
+        "kwargs": {
+          "name": "alice123"
+        }
+      },
+      {
+        "id": "get_address_to_main_name",
+        "contract": "con_nameservice",
+        "function": "get_address_to_main_name",
+        "kwargs": {
+          "address": "alice"
+        }
+      },
+      {
+        "id": "previous_owner_rejected",
+        "contract": "con_nameservice",
+        "function": "set_data",
+        "kwargs": {
+          "name": "alice123",
+          "data": {}
+        },
+        "error": "not the owner"
+      },
+      {
+        "id": "transfer",
+        "contract": "con_nameservice",
+        "function": "transfer",
+        "kwargs": {
+          "name": "alice123",
+          "to": "carol"
+        },
+        "sender": "bob"
+      },
+      {
+        "id": "expired_owner",
+        "contract": "con_nameservice",
+        "function": "get_owner",
+        "kwargs": {
+          "name": "alice123"
+        },
+        "now": [
+          2027,
+          1,
+          1
+        ]
+      },
+      {
+        "id": "expired_remint",
+        "contract": "con_nameservice",
+        "function": "mint_name",
+        "kwargs": {
+          "name": "alice123"
+        },
+        "now": [
+          2027,
+          1,
+          1
+        ]
+      },
+      {
+        "id": "reminted_owner",
+        "contract": "con_nameservice",
+        "function": "get_owner",
+        "kwargs": {
+          "name": "alice123"
+        },
+        "now": [
+          2027,
+          1,
+          1
+        ]
+      }
+    ]
+  },
+  {
+    "id": "staking_lifecycle",
+    "deployments": [
+      {
+        "name": "con_token",
+        "source": "reflection"
+      },
+      {
+        "name": "con_staking",
+        "source": "staking"
+      }
+    ],
+    "steps": [
+      {
+        "id": "approve",
+        "contract": "con_token",
+        "function": "approve",
+        "kwargs": {
+          "amount": 10000,
+          "to": "con_staking"
+        }
+      },
+      {
+        "id": "create_pool",
+        "contract": "con_staking",
+        "function": "create_pool",
+        "kwargs": {
+          "stake_token": "con_token",
+          "reward_token": "con_token",
+          "apy": 10,
+          "lock_duration": 3600,
+          "max_positions": 2,
+          "stake_amount": 100,
+          "entry_fee_amount": 5,
+          "entry_fee_token": "con_token"
+        }
+      },
+      {
+        "id": "deposit_rewards",
+        "contract": "con_staking",
+        "function": "deposit_rewards",
+        "kwargs": {
+          "pool_id": "0",
+          "amount": 1000
+        }
+      },
+      {
+        "id": "stake",
+        "contract": "con_staking",
+        "function": "stake",
+        "kwargs": {
+          "pool_id": "0"
+        }
+      },
+      {
+        "id": "duplicate_stake",
+        "contract": "con_staking",
+        "function": "stake",
+        "kwargs": {
+          "pool_id": "0"
+        },
+        "error": "Already staking"
+      },
+      {
+        "id": "calculate_rewards",
+        "contract": "con_staking",
+        "function": "calculate_rewards",
+        "kwargs": {
+          "pool_id": "0",
+          "staker": "alice"
+        },
+        "now": [
+          2025,
+          10,
+          27,
+          0,
+          30
+        ]
+      },
+      {
+        "id": "unstake",
+        "contract": "con_staking",
+        "function": "unstake",
+        "kwargs": {
+          "pool_id": "0"
+        },
+        "now": [
+          2025,
+          10,
+          27,
+          0,
+          30
+        ]
+      },
+      {
+        "id": "withdraw_creator_fees",
+        "contract": "con_staking",
+        "function": "withdraw_creator_fees",
+        "kwargs": {
+          "pool_id": "0"
+        }
+      },
+      {
+        "id": "get_pool_info",
+        "contract": "con_staking",
+        "function": "get_pool_info",
+        "kwargs": {
+          "pool_id": "0"
+        }
+      },
+      {
+        "id": "pause_unauthorized",
+        "contract": "con_staking",
+        "function": "emergency_pause",
+        "kwargs": {},
+        "sender": "bob",
+        "error": "Only contract owner"
+      },
+      {
+        "id": "emergency_pause",
+        "contract": "con_staking",
+        "function": "emergency_pause",
+        "kwargs": {}
+      },
+      {
+        "id": "paused_stake",
+        "contract": "con_staking",
+        "function": "stake",
+        "kwargs": {
+          "pool_id": "0"
+        },
+        "error": "Contract is paused"
+      },
+      {
+        "id": "emergency_unpause",
+        "contract": "con_staking",
+        "function": "emergency_unpause",
+        "kwargs": {}
+      },
+      {
+        "id": "followup_stake",
+        "contract": "con_staking",
+        "function": "stake",
+        "kwargs": {
+          "pool_id": "0"
+        }
+      },
+      {
+        "id": "mature_unstake",
+        "contract": "con_staking",
+        "function": "unstake",
+        "kwargs": {
+          "pool_id": "0"
+        },
+        "now": [
+          2025,
+          10,
+          27,
+          2
+        ]
+      },
+      {
+        "id": "get_contract_status",
+        "contract": "con_staking",
+        "function": "get_contract_status",
+        "kwargs": {}
+      }
+    ]
+  },
+  {
+    "id": "dex_liquidity_swap",
+    "deployments": [
+      {
+        "name": "con_token_a",
+        "source": "reflection"
+      },
+      {
+        "name": "con_token_b",
+        "source": "reflection"
+      },
+      {
+        "name": "con_pairs",
+        "source": "dex_pairs"
+      },
+      {
+        "name": "con_dex",
+        "source": "dex_router"
+      }
+    ],
+    "steps": [
+      {
+        "id": "con_token_a_approve",
+        "contract": "con_token_a",
+        "function": "approve",
+        "kwargs": {
+          "amount": 10000,
+          "to": "con_dex"
+        }
+      },
+      {
+        "id": "con_token_b_approve",
+        "contract": "con_token_b",
+        "function": "approve",
+        "kwargs": {
+          "amount": 10000,
+          "to": "con_dex"
+        }
+      },
+      {
+        "id": "addLiquidity",
+        "contract": "con_dex",
+        "function": "addLiquidity",
+        "kwargs": {
+          "tokenA": "con_token_a",
+          "tokenB": "con_token_b",
+          "amountADesired": 1000,
+          "amountBDesired": 1000,
+          "amountAMin": 0,
+          "amountBMin": 0,
+          "to": "alice",
+          "deadline": {
+            "$datetime": [
+              2025,
+              10,
+              28
+            ]
+          }
+        }
+      },
+      {
+        "id": "getReserves",
+        "contract": "con_pairs",
+        "function": "getReserves",
+        "kwargs": {
+          "pair": 1
+        }
+      },
+      {
+        "id": "duplicate_pair",
+        "contract": "con_pairs",
+        "function": "createPair",
+        "kwargs": {
+          "tokenA": "con_token_a",
+          "tokenB": "con_token_b"
+        },
+        "error": "PAIR_EXISTS"
+      },
+      {
+        "id": "getAmountsOut",
+        "contract": "con_dex",
+        "function": "getAmountsOut",
+        "kwargs": {
+          "amountIn": 10,
+          "src": "con_token_a",
+          "path": [
+            1
+          ]
+        }
+      },
+      {
+        "id": "slippage_rejected",
+        "contract": "con_dex",
+        "function": "swapExactTokenForToken",
+        "kwargs": {
+          "amountIn": 10,
+          "amountOutMin": 999,
+          "pair": 1,
+          "src": "con_token_a",
+          "to": "alice",
+          "deadline": {
+            "$datetime": [
+              2025,
+              10,
+              28
+            ]
+          }
+        },
+        "error": "INSUFFICIENT_OUTPUT_AMOUNT"
+      },
+      {
+        "id": "swapExactTokenForToken",
+        "contract": "con_dex",
+        "function": "swapExactTokenForToken",
+        "kwargs": {
+          "amountIn": 10,
+          "amountOutMin": 0,
+          "pair": 1,
+          "src": "con_token_a",
+          "to": "alice",
+          "deadline": {
+            "$datetime": [
+              2025,
+              10,
+              28
+            ]
+          }
+        }
+      },
+      {
+        "id": "reserves_after_swap",
+        "contract": "con_pairs",
+        "function": "getReserves",
+        "kwargs": {
+          "pair": 1
+        }
+      },
+      {
+        "id": "liqApprove",
+        "contract": "con_pairs",
+        "function": "liqApprove",
+        "kwargs": {
+          "pair": 1,
+          "amount": 10,
+          "to": "con_dex"
+        }
+      },
+      {
+        "id": "late_burn_rollback",
+        "contract": "con_dex",
+        "function": "removeLiquidity",
+        "kwargs": {
+          "tokenA": "con_token_a",
+          "tokenB": "con_token_b",
+          "liquidity": 10,
+          "amountAMin": 9999,
+          "amountBMin": 0,
+          "to": "alice",
+          "deadline": {
+            "$datetime": [
+              2025,
+              10,
+              28
+            ]
+          }
+        },
+        "error": "INSUFFICIENT_A_AMOUNT"
+      },
+      {
+        "id": "removeLiquidity",
+        "contract": "con_dex",
+        "function": "removeLiquidity",
+        "kwargs": {
+          "tokenA": "con_token_a",
+          "tokenB": "con_token_b",
+          "liquidity": 10,
+          "amountAMin": 0,
+          "amountBMin": 0,
+          "to": "alice",
+          "deadline": {
+            "$datetime": [
+              2025,
+              10,
+              28
+            ]
+          }
+        }
+      },
+      {
+        "id": "final_reserves",
+        "contract": "con_pairs",
+        "function": "getReserves",
+        "kwargs": {
+          "pair": 1
+        }
+      }
+    ]
+  }
+]
