@@ -22,3 +22,23 @@ Current themes:
 - keep compiler cleanup behind behavior parity and measurable justification;
   use `RUST_COMPILER_CORE.md` as the migration plan if compiler ownership moves
   from Python to Rust
+
+## Source parser compatibility
+
+Escapes in f-string format specifications need a source-aware parser repair.
+For example, `f"{value:\x7b<4}"` should use `{` as the fill character, but
+RustPython 0.4 retains the escape spelling in its AST. Repeated normalization
+then grows the backslashes, and an artifact can fail validation immediately
+after compilation. Fixing only the normalizer would hide the unstable artifact
+without restoring the intended value. Preserve raw-string prefixes and adjacent
+literal boundaries, then test normal/raw escapes, named Unicode escapes,
+dynamic specifications, canonical idempotence and artifact self-validation.
+This remains an open bug; the execution-4 quote/dictionary/control-character
+normalization fixes do not resolve it.
+
+Other admission decisions remain separate: RustPython 0.4 does not implement
+all PEP 701 same-delimiter f-strings; the tracer-era ban on single-line compound
+bodies is retained, but does not consistently catch inline `else` bodies.
+Decide whether that restriction remains part of VM source admission before
+changing it. Historical acceptance alone is not evidence to bypass current
+capability or resource boundaries.

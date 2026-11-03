@@ -679,52 +679,114 @@ fn format_comprehensions(comprehensions: &[SyntaxComprehension]) -> String {
         .join(" ")
 }
 
-fn format_fstring(values: &[SyntaxExpression]) -> String {
-    let content = values.iter().map(format_fstring_part).collect::<String>();
-    format!("f'{}'", escape_fstring_content(&content))
+enum FStringPart<'a> {
+    Literal(&'a str),
+    Code(String),
 }
 
-fn format_fstring_part(expression: &SyntaxExpression) -> String {
+fn format_fstring(values: &[SyntaxExpression]) -> String {
+    let mut parts = Vec::new();
+    for value in values {
+        append_fstring_parts(value, &mut parts);
+    }
+    // Literal text can be escaped, but replacement expressions must remain code.
+    // Keep the established single-quote representation whenever it is safe.
+    let delimiter = ["'", "\"", "\"\"\"", "'''"]
+        .into_iter()
+        .find(|delimiter| {
+            parts.iter().all(|part| match part {
+                FStringPart::Literal(_) => true,
+                FStringPart::Code(code) => !code.contains(delimiter),
+            })
+        })
+        .unwrap_or("\"\"\"");
+    format!(
+        "f{delimiter}{}{delimiter}",
+        render_fstring_parts(&parts, delimiter)
+    )
+}
+
+fn append_fstring_parts<'a>(expression: &'a SyntaxExpression, parts: &mut Vec<FStringPart<'a>>) {
     match expression {
         SyntaxExpression::Constant {
             value: SyntaxConstant::Str(value),
             ..
-        } => value.replace('{', "{{").replace('}', "}}"),
+        } => parts.push(FStringPart::Literal(value)),
         SyntaxExpression::FormattedValue {
             value,
             conversion,
             format_spec,
             ..
         } => {
-            let mut output = format_expression(value);
+            let mut code = format_expression(value);
+            // An adjacent opening brace would be parsed as literal `{{`.
+            if code.starts_with('{') {
+                code = format!("({code})");
+            }
             if let Some(conversion) = conversion {
-                output.push('!');
-                output.push(*conversion);
+                code.push('!');
+                code.push(*conversion);
             }
+            if format_spec.is_some() {
+                code.push(':');
+            }
+            parts.push(FStringPart::Code(format!("{{{code}")));
             if let Some(format_spec) = format_spec {
-                output.push(':');
-                output.push_str(&match format_spec.as_ref() {
-                    SyntaxExpression::FString { values, .. } => {
-                        values.iter().map(format_fstring_part).collect::<String>()
-                    }
-                    other => format_expression(other),
-                });
+                append_format_spec_parts(format_spec, parts);
             }
-            format!("{{{output}}}")
+            parts.push(FStringPart::Code("}".to_string()));
         }
-        other => format_expression(other),
+        other => parts.push(FStringPart::Code(format_expression(other))),
     }
 }
 
-fn escape_fstring_content(value: &str) -> String {
+fn append_format_spec_parts<'a>(
+    expression: &'a SyntaxExpression,
+    parts: &mut Vec<FStringPart<'a>>,
+) {
+    match expression {
+        SyntaxExpression::FString { values, .. } => {
+            for value in values {
+                append_fstring_parts(value, parts);
+            }
+        }
+        other => parts.push(FStringPart::Code(format_expression(other))),
+    }
+}
+
+fn render_fstring_parts(parts: &[FStringPart<'_>], delimiter: &str) -> String {
+    parts
+        .iter()
+        .map(|part| match part {
+            FStringPart::Literal(value) => escape_fstring_literal(value, delimiter),
+            FStringPart::Code(code) => code.clone(),
+        })
+        .collect()
+}
+
+fn format_fstring_part(expression: &SyntaxExpression) -> String {
+    let mut parts = Vec::new();
+    append_fstring_parts(expression, &mut parts);
+    render_fstring_parts(&parts, "'")
+}
+
+fn escape_fstring_literal(value: &str, delimiter: &str) -> String {
     let mut output = String::new();
-    for character in value.chars() {
+    let quote = delimiter.chars().next().unwrap_or('\'');
+    let escaped_braces = value.replace('{', "{{").replace('}', "}}");
+    for character in escaped_braces.chars() {
         match character {
             '\\' => output.push_str("\\\\"),
-            '\'' => output.push_str("\\'"),
             '\n' => output.push_str("\\n"),
             '\r' => output.push_str("\\r"),
             '\t' => output.push_str("\\t"),
+            character if character == quote => {
+                output.push('\\');
+                output.push(character);
+            }
+            character if character.is_control() => {
+                output.push_str(&format_python_unicode_escape(character));
+            }
             _ => output.push(character),
         }
     }
@@ -768,7 +830,23 @@ fn quote_string(value: &str) -> String {
 }
 
 fn quote_triple_string(value: &str) -> String {
-    format!("\"\"\"{}\"\"\"", value.replace("\"\"\"", "\\\"\"\""))
+    let mut escaped = String::new();
+    for character in value.chars() {
+        match character {
+            '\\' => escaped.push_str("\\\\"),
+            character if character.is_control() && character != '\n' => {
+                escaped.push_str(&format_python_unicode_escape(character));
+            }
+            character => escaped.push(character),
+        }
+    }
+    // Escape the remaining one or two trailing quotes as well as complete
+    // triples, so content cannot merge with the closing triple delimiter.
+    let trailing_remainder = escaped.chars().rev().take_while(|ch| *ch == '"').count() % 3;
+    let body_end = escaped.len() - trailing_remainder;
+    let mut content = escaped[..body_end].replace("\"\"\"", "\\\"\\\"\\\"");
+    content.push_str(&"\\\"".repeat(trailing_remainder));
+    format!("\"\"\"{content}\"\"\"")
 }
 
 fn quote_string_with_delimiter(value: &str, delimiter: char) -> String {

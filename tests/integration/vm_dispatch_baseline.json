@@ -2150,6 +2150,6 @@
       }
     }
   },
-  "execution_revision": "xvm-execution-3",
+  "execution_revision": "xvm-execution-4",
   "gas_schedule": "xvm-gas-2"
 }
