@@ -447,7 +447,8 @@
   {
     "id": "builtin_format_nominal",
     "covers": [
-      "builtin.format"
+      "builtin.format",
+      "env.format"
     ],
     "dimension": "nominal",
     "source": "@export\ndef probe():\n    return format(255, \"08b\")\n",
@@ -456,7 +457,8 @@
   {
     "id": "builtin_format_boundary",
     "covers": [
-      "builtin.format"
+      "builtin.format",
+      "env.format"
     ],
     "dimension": "boundary",
     "source": "@export\ndef probe():\n    return [format(0, \"\"), format(-7, \"04d\")]\n",
@@ -468,7 +470,8 @@
   {
     "id": "builtin_format_invalid",
     "covers": [
-      "builtin.format"
+      "builtin.format",
+      "env.format"
     ],
     "dimension": "invalid",
     "source": "@export\ndef probe():\n    return format(1, \"Q\")\n",

@@ -6,6 +6,7 @@ from pathlib import Path
 from types import BuiltinFunctionType, FunctionType, MethodType, ModuleType
 
 from contracting.compilation.ir import HOST_BINDINGS
+from contracting.execution.format_policy import format_attribute
 from contracting.execution.runtime import _contract_execution_active
 from contracting.execution.sandbox import build_contract_builtins
 from contracting.stdlib import env
@@ -39,7 +40,7 @@ def _class_functions(namespace):
     for binding, methods in _CLASS_METHODS.items():
         cls = _resolve(namespace, binding)
         for name in methods:
-            yield getattr(cls, name)
+            yield format_attribute(cls, name)
 
 
 @lru_cache(maxsize=1)

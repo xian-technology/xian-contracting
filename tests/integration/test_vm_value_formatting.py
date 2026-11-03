@@ -120,9 +120,9 @@ def probe():
     actual = run_case({"id": "format_evaluation_order", "source": source}, tmp_path, native=native)
     assert actual["admission"] == "accepted", actual
     assert actual["status_code"] == 0, actual
-    # Python 3.12 converts after evaluating the spec; the development Python
-    # 3.14 compiler converts first. The VM deliberately retains the historical order.
-    assert actual["result"] == encode("[1, 2]" if native else "[1]")
+    # Both engines follow the historical VM policy: evaluate the specification
+    # before conversion, including its mutation of the value being converted.
+    assert actual["result"] == encode("[1, 2]")
 
 
 @pytest.mark.parametrize("native", [False, pytest.param(True, marks=pytest.mark.optional_native)])

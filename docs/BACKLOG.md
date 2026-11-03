@@ -42,3 +42,15 @@ bodies is retained, but does not consistently catch inline `else` bodies.
 Decide whether that restriction remains part of VM source admission before
 changing it. Historical acceptance alone is not evidence to bypass current
 capability or resource boundaries.
+
+## Python harness aggregate f-string allocation
+
+Runtime-only formatting guards bound individual f-string fields and cumulative
+`str.format` / `format_map` output. Python's surrounding `JoinedStr` still uses
+host string joining: two individually allowed 70,000-byte fields can produce a
+140,000-byte f-string, exceeding the native 131,072-byte aggregate cap.
+A bounded builder must preserve evaluation order and stop before evaluating
+later fields once an append exceeds the cap. A post-join length check does not
+prevent the allocation. Add paired failure/side-effect/rollback tests for nested
+specifications and aggregate growth before replacing this execution-only AST
+operation. Stored source, canonical artifacts and the native VM need no change.

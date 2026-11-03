@@ -1,6 +1,7 @@
 import builtins
 
 from contracting import constants
+from contracting.execution.format_policy import contract_format
 
 
 def _allocation_limit_error(kind: str, limit: int) -> AssertionError:
@@ -248,6 +249,7 @@ def safe_rshift(left, right):
 
 
 exports = {
+    "format": contract_format,
     "map": builtins.map,
     "filter": builtins.filter,
     "range": safe_range,

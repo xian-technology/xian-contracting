@@ -101,6 +101,9 @@
       "filter": {
         "kind": "value"
       },
+      "format": {
+        "kind": "value"
+      },
       "frozenset": {
         "kind": "value"
       },
@@ -2488,7 +2491,10 @@
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
         "tests/unit/test_client.py",
-        "tests/integration/test_vm_raw_decimal.py"
+        "tests/integration/test_vm_raw_decimal.py",
+        "tests/unit/test_format_guards.py",
+        "tests/integration/test_vm_formatting_policy.py",
+        "tests/integration/test_vm_value_formatting.py"
       ]
     },
     {
@@ -3073,6 +3079,20 @@
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": []
+    },
+    {
+      "id": "env.format",
+      "kind": "value",
+      "implementation": "declared",
+      "reason": "Guarded builtin override exported in the public environment; the same format calls cover both bindings.",
+      "existing_test_files": [
+        "tests/unit/test_format_guards.py",
+        "tests/integration/test_vm_formatting_policy.py",
+        "tests/integration/test_vm_value_formatting.py"
+      ],
+      "notes": [
+        "Stable guarded callable identity is shared by sandbox builtins, the public environment and imported public aliases."
+      ]
     },
     {
       "id": "env.frozenset",

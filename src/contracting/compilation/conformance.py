@@ -512,7 +512,7 @@ def render(values: list[int]):
     {
         "id": "builtin_scalar_helpers",
         "description": "Scalar/text builtins follow Xian VM semantics.",
-        "covers_env": ("round",),
+        "covers_env": ("format", "round"),
         "covers_builtins": (
             "abs",
             "ascii",

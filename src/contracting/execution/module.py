@@ -13,6 +13,7 @@ import lmdb
 from cachetools import LRUCache
 
 from contracting.compilation.compiler import guard_legacy_orm_declarations
+from contracting.compilation.format_guards import guard_formatting
 from contracting.execution.runtime import contract_execution_scope, rt
 from contracting.execution.sandbox import build_contract_builtins
 from contracting.stdlib import env
@@ -150,6 +151,7 @@ def _compile_contract_runtime_source(name: str, runtime_source: str):
         # PYTHONOPTIMIZE / -O which would strip asserts and __debug__-guarded
         # blocks from contract code and produce divergent state.
         tree = guard_legacy_orm_declarations(ast.parse(runtime_source), name)
+        tree = guard_formatting(tree)
         compiled = compile(tree, name, "exec", optimize=0)
         COMPILED_CODE_CACHE[cache_key] = compiled
     return compiled
