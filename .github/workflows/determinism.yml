@@ -131,13 +131,15 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$CAMPAIGN_HOME"
-          options=()
+          campaign_command=(
+            .venv/bin/python -m tests.determinism.campaign
+            --output .artifacts/determinism/campaign --seed "$CAMPAIGN_SEED"
+            --generated "$CAMPAIGN_GENERATED"
+          )
           if [[ "$CAMPAIGN_EXTENDED" == true ]]; then
-            options+=(--extended)
+            campaign_command+=(--extended)
           fi
-          HOME="$CAMPAIGN_HOME" .venv/bin/python -m tests.determinism.campaign \
-            --output .artifacts/determinism/campaign --seed "$CAMPAIGN_SEED" \
-            --generated "$CAMPAIGN_GENERATED" "${options[@]}" \
+          HOME="$CAMPAIGN_HOME" "${campaign_command[@]}" \
             2>&1 | tee .artifacts/determinism/campaign.log
       - name: Upload all observations and failure evidence
         if: always()
