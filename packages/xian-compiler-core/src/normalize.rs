@@ -338,10 +338,9 @@ fn format_expression_with_precedence(
         ),
         SyntaxExpression::Tuple { elements, .. } => format_tuple(elements),
         SyntaxExpression::Dict { entries, .. } => format_dict(entries),
-        SyntaxExpression::Attribute { value, attr, .. } => format!(
-            "{}.{attr}",
-            format_expression_with_precedence(value, PRECEDENCE_POSTFIX)
-        ),
+        SyntaxExpression::Attribute { value, attr, .. } => {
+            format!("{}.{attr}", format_attribute_receiver(value))
+        }
         SyntaxExpression::Subscript { value, slice, .. } => format!(
             "{}[{}]",
             format_expression_with_precedence(value, PRECEDENCE_POSTFIX),
@@ -448,6 +447,22 @@ const PRECEDENCE_UNARY: u8 = 80;
 const PRECEDENCE_POWER: u8 = 90;
 const PRECEDENCE_POSTFIX: u8 = 100;
 const PRECEDENCE_ATOM: u8 = 110;
+
+// Precedence alone cannot distinguish an integer's attribute dot from a
+// decimal point: `0.bit_length()` tokenizes differently from `(0).bit_length()`.
+fn format_attribute_receiver(value: &SyntaxExpression) -> String {
+    if matches!(
+        value,
+        SyntaxExpression::Constant {
+            value: SyntaxConstant::Int(_),
+            ..
+        }
+    ) {
+        format!("({})", format_expression(value))
+    } else {
+        format_expression_with_precedence(value, PRECEDENCE_POSTFIX)
+    }
+}
 
 fn expression_precedence(expression: &SyntaxExpression) -> u8 {
     match expression {
