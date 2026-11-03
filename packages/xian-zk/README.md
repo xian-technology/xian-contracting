@@ -136,3 +136,14 @@ Published/CI wheels build `--release` regardless.
   MPC ceremony.
 - Proof generation uses real randomness even when the proving bundle is a
   deterministic dev bundle.
+
+## Prover-service diagnostics
+
+Unexpected HTTP failures return a generic 500 error with an `incident_id`, also
+included in the client-visible reference message. The `xian_zk.prover_service`
+logger emits a UTC error record with that identifier, exception type and bounded
+stack locations. It omits exception messages, locals, request paths, headers,
+witnesses and proof material. The package does not configure global logging;
+applications may attach their own handlers. A failed handler cannot prevent the
+generic response. Expected validation/authentication errors retain their existing
+HTTP statuses and are not logged as unexpected operator failures.

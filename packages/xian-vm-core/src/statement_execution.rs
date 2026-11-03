@@ -28,7 +28,7 @@ impl VmInstance {
         host.charge_execution_cost(vm_statement_gas_cost(node, object)?)?;
         let trace_statements = vm_trace_enabled("XIAN_VM_TRACE_STATEMENTS");
         if trace_statements {
-            eprintln!("[vm-stmt] {} {}", self.module.module_name, node);
+            diagnostics::emit("statement", &self.module.module_name, "-", node);
         }
         match node {
             "assign" => self.execute_assign(object, scope, host),

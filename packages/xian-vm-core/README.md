@@ -180,3 +180,13 @@ and environment `pypi-xian-vm-core`.
 Runtime semantics are consensus-sensitive. Validators must use the same
 accepted VM version; existing histories containing previously failed dynamic
 foreign-storage calls need an explicit upgrade boundary.
+
+## Local VM diagnostics
+
+Setting `XIAN_VM_TRACE_CALLS` or `XIAN_VM_TRACE_STATEMENTS` enables best-effort
+UTC diagnostic lines on stderr. Records contain bounded contract/function names,
+operation kinds, success/error status and the process ID for worker correlation.
+They omit caller/signer identifiers,
+arguments, return values, storage contents and exception text. Diagnostic sink
+errors are ignored so a closed stderr cannot change execution results or chi.
+These timestamps are operator metadata; they are never part of VM outputs.

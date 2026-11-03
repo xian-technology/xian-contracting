@@ -4,12 +4,17 @@ import argparse
 import hmac
 import ipaddress
 import json
+import logging
 import socket
 import threading
+import traceback
 import urllib.error
 import urllib.request
+import uuid
 from dataclasses import asdict, is_dataclass
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from itertools import islice
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +43,37 @@ from xian_zk.shielded_relay import (
 # malformed or hostile Content-Length. Witness payloads are small (a few field
 # elements plus Merkle paths), so 16 MiB is generous.
 MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024
+
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def _diagnostic_label(value: str) -> str:
+    return "".join(
+        char if char.isascii() and (char.isalnum() or char in "_-.") else "_" for char in value[:64]
+    )
+
+
+def _report_unexpected_failure(error: Exception) -> str:
+    incident_id = uuid.uuid4().hex
+    try:
+        frames = [
+            f"{_diagnostic_label(Path(frame.f_code.co_filename).name)}:{line}:{_diagnostic_label(frame.f_code.co_name)}"
+            for frame, line in islice(traceback.walk_tb(error.__traceback__), 16)
+        ]
+        timestamp = datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        _LOGGER.error(
+            "%s | ERROR | xian-zk/prover | Prover request failed | incident_id=%s error_type=%s frames=%s",
+            timestamp,
+            incident_id,
+            _diagnostic_label(type(error).__name__),
+            ";".join(frames),
+        )
+    except Exception:
+        # Logging handlers are operator infrastructure; failure must not expose
+        # the original exception or prevent a generic, correlated response.
+        pass
+    return incident_id
 
 
 class _IPv6HTTPServer(HTTPServer):
@@ -487,7 +523,15 @@ class ShieldedZkProverService:
         except LookupError as exc:
             self._send_json(handler, 404, {"error": str(exc)})
         except Exception as exc:
-            self._send_json(handler, 500, {"error": str(exc)})
+            incident_id = _report_unexpected_failure(exc)
+            self._send_json(
+                handler,
+                500,
+                {
+                    "error": f"internal prover error; reference {incident_id}",
+                    "incident_id": incident_id,
+                },
+            )
 
     def _handle_get(self, path: str) -> dict[str, Any]:
         if path == "/healthz":

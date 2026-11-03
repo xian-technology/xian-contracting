@@ -10,6 +10,9 @@ use std::collections::{HashMap, HashSet};
 use std::env;
 use std::str::FromStr;
 
+#[path = "diagnostics.rs"]
+mod diagnostics;
+
 const STORAGE_DELIMITER: &str = ":";
 const STORAGE_INDEX_SEPARATOR: &str = ".";
 const MAX_HASH_DIMENSIONS: usize = 16;
@@ -1208,13 +1211,7 @@ impl VmInstance {
             .collect::<Result<_, VmExecutionError>>()?;
         let trace_calls = vm_trace_enabled("XIAN_VM_TRACE_CALLS");
         if trace_calls {
-            eprintln!(
-                "[vm-call] enter {}.{} caller={} signer={}",
-                self.module.module_name,
-                name,
-                option_string_value(&self.context.caller).python_repr(),
-                option_string_value(&self.context.signer).python_repr(),
-            );
+            diagnostics::emit("call_enter", &self.module.module_name, name, "start");
         }
         let previous_entry = self.context.entry.clone();
         let injected_entry = if self.context.entry.is_none() {
@@ -1228,19 +1225,12 @@ impl VmInstance {
             self.context.entry = previous_entry;
         }
         if trace_calls {
-            match &result {
-                Ok(value) => eprintln!(
-                    "[vm-call] exit {}.{} -> {} ({})",
-                    self.module.module_name,
-                    name,
-                    value.python_repr(),
-                    value.type_name(),
-                ),
-                Err(err) => eprintln!(
-                    "[vm-call] error {}.{} -> {}",
-                    self.module.module_name, name, err
-                ),
-            }
+            let (event, kind) = if result.is_ok() {
+                ("call_exit", "ok")
+            } else {
+                ("call_error", "error")
+            };
+            diagnostics::emit(event, &self.module.module_name, name, kind);
         }
         result
     }
