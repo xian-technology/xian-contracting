@@ -4,11 +4,17 @@ from collections.abc import MutableMapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from decimal import Decimal
 
 from contracting import constants
 from contracting.execution.tracer import (
     create_tracer,
 )
+
+# libmpdec 2.x lazily imports and caches Python's Decimal formatter for `z`.
+# Initialize that trusted fallback before contract imports become restricted;
+# libmpdec 4.x handles this format directly. Private modules remain inaccessible.
+format(Decimal(0), "z.2f")
 
 _contract_execution_active = ContextVar("contract_execution_active", default=False)
 _orm_declaration_permit = ContextVar("orm_declaration_permit", default=None)
