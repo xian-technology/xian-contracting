@@ -639,6 +639,16 @@ impl<'a> SyntaxBuilder<'a> {
                     values: self.convert_fstring_values(span, &node.values)?,
                 })
             }
+            ast::Expr::FormattedValue(node)
+                if matches!(node.format_spec.as_deref(), Some(ast::Expr::JoinedStr(spec))
+                    if spec.values.iter().any(ambiguous_format_literal)) =>
+            {
+                self.unsupported_expression(
+                    node.range,
+                    "format_spec_literal",
+                    "literal format-spec text cannot contain backslashes, braces, quotes or control characters",
+                )
+            }
             ast::Expr::FormattedValue(node) => Some(SyntaxExpression::FormattedValue {
                 span: self.span(node.range),
                 value: Box::new(self.convert_expr(&node.value)?),
@@ -967,6 +977,18 @@ impl<'a> SyntaxBuilder<'a> {
 
 fn parsed_suite(parsed: &ParsedModule) -> &[ast::Stmt] {
     parsed.suite()
+}
+
+// RustPython can retain escape spelling in a format spec. Re-escaping that text
+// when emitting canonical source changes the spec on each compilation.
+fn ambiguous_format_literal(part: &ast::Expr) -> bool {
+    let ast::Expr::Constant(ast::ExprConstant {
+        value: Constant::Str(text),
+        ..
+    }) = part else {
+        return false;
+    };
+    text.contains(|ch: char| ch.is_control() || matches!(ch, '\\' | '{' | '}' | '\'' | '"'))
 }
 
 fn fstring_content_bounds(

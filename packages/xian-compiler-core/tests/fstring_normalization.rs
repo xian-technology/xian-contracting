@@ -1,6 +1,7 @@
 use serde_json::Value;
 use xian_compiler_core::{
-    compile_contract_artifact, normalize_source, parse_to_syntax, CompileOptions, SourceUnit,
+    compile_contract_artifact, normalize_source, parse_to_syntax, validate_contract_artifact,
+    CompileOptions, SourceUnit,
 };
 
 fn without_locations(mut value: Value) -> Value {
@@ -37,6 +38,7 @@ fn roundtrip(expression: &str) {
     );
     let artifact = compile_contract_artifact("con_fstring", &source, &CompileOptions::default())
         .unwrap_or_else(|error| panic!("{expression}: {error:?}"));
+    validate_contract_artifact(&artifact, "con_fstring", Some(&source)).unwrap();
     assert_eq!(artifact.source, normalized);
     assert_eq!(
         normalize_source("con_fstring", &normalized, &CompileOptions::default()).unwrap(),
@@ -187,5 +189,40 @@ fn multiline_literal_trailing_quotes_cannot_merge_with_the_delimiter() {
             );
             compile_contract_artifact("con_fstring", &source, &CompileOptions::default()).unwrap();
         }
+    }
+}
+
+#[test]
+fn ambiguous_literal_format_specs_fail_during_compilation() {
+    for expr in [
+        r#"f"{value:\x7b<4}""#,
+        r#"rf"{value:\x7b<4}""#,
+        r#"'tag' f"{value:\u0030{value}d}""#,
+        r#"f"{value:{value}\x7b}""#,
+        r#"f"{value:{value}\x7d}""#,
+        r#"f'{value:"<4}'"#,
+        r#"f"{value:'<4}""#,
+        "f\"{value:\t<4}\"",
+    ] {
+        let source = format!("@export\ndef render(value: int):\n    return {expr}\n");
+        let errors = compile_contract_artifact("con_fstring", &source, &CompileOptions::default())
+            .expect_err(expr);
+        assert!(
+            errors.iter().any(|error| error.code
+                == "xian.syntax.unsupported_expression.format_spec_literal"),
+            "{expr}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn ordinary_format_specs_and_escapes_outside_the_spec_roundtrip() {
+    for expr in [
+        r#"f"\x7b{value:02d}\x7d""#,
+        r#"f"{value:.{data['digits']}f}""#,
+        r#"f"{value:{data['line\n']}}""#,
+        r#"f"{value:·<4}""#,
+    ] {
+        roundtrip(expr);
     }
 }
