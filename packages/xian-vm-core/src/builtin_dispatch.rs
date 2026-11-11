@@ -39,6 +39,22 @@ impl VmInstance {
             .into_iter()
             .map(|(k, v)| (k, v.snapshot()))
             .collect::<Vec<_>>();
+        if numeric_v2::active() {
+            match name {
+                "mul_div_floor" | "mul_div_ceil" | "quantize" | "sqrt" => {
+                    return numeric_v2::helper(name, args, kwargs, host)
+                }
+                "float" | "round" => {
+                    return Err(VmExecutionError::new(
+                        "use decimal or quantize in xian_vm_v2",
+                    ))
+                }
+                "abs" if matches!(args.first(), Some(VmValue::Bool(_))) => {
+                    return Err(VmExecutionError::new("abs requires a number"))
+                }
+                _ => {}
+            }
+        }
         match name {
             "Contract" => deployment_handles::constructor(&args, &kwargs),
             "datetime.datetime.strptime" => time_datetime_strptime(args, kwargs, host),
@@ -67,6 +83,9 @@ impl VmInstance {
             "divmod" => {
                 if args.len() != 2 || !kwargs.is_empty() {
                     return Err(VmExecutionError::new("divmod() expects two arguments"));
+                }
+                if numeric_v2::active() {
+                    host.charge_execution_cost(2 * numeric_v2::OP_GAS)?;
                 }
                 let quotient = apply_binary_operator("floordiv", args[0].clone(), args[1].clone())?;
                 let remainder = apply_binary_operator("mod", args[0].clone(), args[1].clone())?;
@@ -315,6 +334,15 @@ impl VmInstance {
             return Err(VmExecutionError::new(
                 "pow() expects two or three positional arguments",
             ));
+        }
+        if numeric_v2::active() {
+            host.charge_execution_cost(numeric_v2::op_cost("pow", &args[0], &args[1]))?;
+            if args.len() == 2 {
+                return numeric_v2::binary("pow", &args[0], &args[1]);
+            }
+            if !args.iter().all(|v| matches!(v, VmValue::Int(_))) {
+                return Err(VmExecutionError::new("modular pow requires integers"));
+            }
         }
         if let Some(modulus) = args.get(2) {
             if args

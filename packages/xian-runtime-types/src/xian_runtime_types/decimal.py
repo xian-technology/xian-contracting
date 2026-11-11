@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import math
+import re
 from decimal import (
     ROUND_DOWN,
     Context,
@@ -38,6 +41,44 @@ MIN_DECIMAL = Decimal(make_min_decimal_str(MAX_LOWER_PRECISION))
 
 class DecimalOverflowError(OverflowError):
     pass
+
+
+_FIXED_INPUT = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
+
+
+def canonical_fixed(value: Decimal | str | int | ContractingDecimal) -> str:
+    """Canonical, lossless plain-decimal text for a V2 typed value."""
+    if isinstance(value, ContractingDecimal):
+        value = value._d
+    elif type(value) is str:
+        if not _FIXED_INPUT.fullmatch(value):
+            raise ValueError("invalid decimal spelling")
+        if not re.search(r"[1-9]", value.partition("e")[0].partition("E")[0]):
+            return "0"
+        try:
+            value = Decimal(value)
+        except InvalidOperation as exc:
+            raise ValueError("invalid decimal exponent") from exc
+    elif type(value) is int:
+        if value.bit_length() > 512:
+            raise OverflowError("integer exceeds 512 bits")
+        value = Decimal(value)
+    elif not isinstance(value, Decimal):
+        raise TypeError("decimal input requires decimal text, an exact decimal or an integer")
+    if not value.is_finite():
+        raise ValueError("decimal must be finite")
+    if value.is_zero():
+        return "0"
+    if value.adjusted() >= MAX_UPPER_PRECISION:
+        raise DecimalOverflowError("decimal exceeds the supported range")
+    sign, digits, exponent = value.as_tuple()
+    discard = max(0, -MAX_LOWER_PRECISION - exponent)
+    if discard:
+        if discard >= len(digits) or any(digits[-discard:]):
+            raise ValueError("decimal is not exactly representable at scale 30")
+        value = Decimal((sign, digits[:-discard], exponent + discard))
+    plain = format(value, "f")
+    return plain.rstrip("0").rstrip(".") if "." in plain else plain
 
 
 def _coerce_decimal(value) -> Decimal:

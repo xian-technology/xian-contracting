@@ -1,0 +1,132 @@
+{
+  "artifact": {
+    "format": "xian_contract_artifact_v1",
+    "hashes": {
+      "input_source_sha256": "33f46f31737ac9708cca38a39d182624e359ec71dcb68c206d1ff1beac7f4036",
+      "source_sha256": "5523a6216392fb91de87f861c09eee291a566c97470701558c9efec5a57e4b37",
+      "vm_ir_sha256": "2f184d6d30785a5777e938f849bab5f23709204c907a6a8f3162e3093e09d055"
+    },
+    "module_name": "con_numeric_v2",
+    "source": "@export\ndef quote(amount: decimal) -> decimal:\n    return amount + 9007199254740993.125",
+    "vm_ir_json": "{\"docstring\": null, \"functions\": [{\"body\": [{\"node\": \"return\", \"span\": {\"col\": 4, \"end_col\": 40, \"end_line\": 3, \"line\": 3}, \"value\": {\"left\": {\"host_binding_id\": null, \"id\": \"amount\", \"node\": \"name\", \"span\": {\"col\": 11, \"end_col\": 17, \"end_line\": 3, \"line\": 3}}, \"node\": \"bin_op\", \"operator\": \"add\", \"right\": {\"node\": \"constant\", \"span\": {\"col\": 20, \"end_col\": 40, \"end_line\": 3, \"line\": 3}, \"value\": \"9007199254740993.125\", \"value_type\": \"decimal\"}, \"span\": {\"col\": 11, \"end_col\": 40, \"end_line\": 3, \"line\": 3}}}], \"decorator\": {\"args\": [], \"keywords\": [], \"name\": \"export\", \"node\": \"decorator\", \"span\": {\"col\": 1, \"end_col\": 7, \"end_line\": 1, \"line\": 1}}, \"docstring\": null, \"name\": \"quote\", \"node\": \"function\", \"parameters\": [{\"annotation\": \"decimal\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"amount\", \"span\": {\"col\": 10, \"end_col\": 25, \"end_line\": 2, \"line\": 2}}], \"returns\": \"decimal\", \"span\": {\"col\": 0, \"end_col\": 40, \"end_line\": 3, \"line\": 2}, \"visibility\": \"export\"}], \"global_declarations\": [], \"host_catalog_version\": \"xian_vm_v1_host_v1\", \"host_dependencies\": [{\"binding\": \"decimal\", \"category\": \"numeric\", \"id\": \"numeric.decimal.new\", \"kind\": \"syscall\"}], \"imports\": [], \"ir_version\": \"xian_ir_v1\", \"module_body\": [], \"module_name\": \"con_numeric_v2\", \"source_hash\": \"5523a6216392fb91de87f861c09eee291a566c97470701558c9efec5a57e4b37\", \"vm_profile\": \"xian_vm_v2\"}",
+    "vm_profile": "xian_vm_v2"
+  },
+  "diagnostics": [],
+  "expected": {
+    "accepted": true
+  },
+  "generator": {
+    "artifact_format": "xian_contract_artifact_v1",
+    "name": "xian-compiler-core-python-binding"
+  },
+  "input_source": "@export\ndef quote(amount: decimal) -> decimal:\n    return amount + 9_007_199_254_740_993.125_000\n",
+  "module_name": "con_numeric_v2",
+  "name": "con_numeric_v2",
+  "normalized_source": "@export\ndef quote(amount: decimal) -> decimal:\n    return amount + 9007199254740993.125",
+  "schema": "xian.compiler_fixture.v1",
+  "source_path": "packages/xian-compiler-core/tests/sources_v2/con_numeric_v2.s.py",
+  "vm_ir": {
+    "docstring": null,
+    "functions": [
+      {
+        "body": [
+          {
+            "node": "return",
+            "span": {
+              "col": 4,
+              "end_col": 40,
+              "end_line": 3,
+              "line": 3
+            },
+            "value": {
+              "left": {
+                "host_binding_id": null,
+                "id": "amount",
+                "node": "name",
+                "span": {
+                  "col": 11,
+                  "end_col": 17,
+                  "end_line": 3,
+                  "line": 3
+                }
+              },
+              "node": "bin_op",
+              "operator": "add",
+              "right": {
+                "node": "constant",
+                "span": {
+                  "col": 20,
+                  "end_col": 40,
+                  "end_line": 3,
+                  "line": 3
+                },
+                "value": "9007199254740993.125",
+                "value_type": "decimal"
+              },
+              "span": {
+                "col": 11,
+                "end_col": 40,
+                "end_line": 3,
+                "line": 3
+              }
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 1,
+            "line": 1
+          }
+        },
+        "docstring": null,
+        "name": "quote",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "decimal",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "amount",
+            "span": {
+              "col": 10,
+              "end_col": 25,
+              "end_line": 2,
+              "line": 2
+            }
+          }
+        ],
+        "returns": "decimal",
+        "span": {
+          "col": 0,
+          "end_col": 40,
+          "end_line": 3,
+          "line": 2
+        },
+        "visibility": "export"
+      }
+    ],
+    "global_declarations": [],
+    "host_catalog_version": "xian_vm_v1_host_v1",
+    "host_dependencies": [
+      {
+        "binding": "decimal",
+        "category": "numeric",
+        "id": "numeric.decimal.new",
+        "kind": "syscall"
+      }
+    ],
+    "imports": [],
+    "ir_version": "xian_ir_v1",
+    "module_body": [],
+    "module_name": "con_numeric_v2",
+    "source_hash": "5523a6216392fb91de87f861c09eee291a566c97470701558c9efec5a57e4b37",
+    "vm_profile": "xian_vm_v2"
+  },
+  "vm_profile": "xian_vm_v2"
+}

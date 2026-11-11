@@ -7,6 +7,7 @@ from contracting.compilation.linter import Linter, LintingError
 from contracting.compilation.lowering import XianIrLowerer
 from contracting.compilation.vm import (
     XIAN_VM_V1_PROFILE,
+    XIAN_VM_V2_PROFILE,
     VmCompatibilityChecker,
     VmCompatibilityError,
 )
@@ -89,6 +90,10 @@ class ContractingCompiler(ast.NodeTransformer):
         self.module_declarations = set()
 
     def parse(self, source: str, lint=True, vm_profile: str | None = None):
+        if vm_profile == XIAN_VM_V2_PROFILE:
+            raise ValueError(
+                "Python AST cannot represent exact V2 literals; use normalize_source or lower_to_ir"
+            )
         self.constructor_visited = False
         self.source = source
 
@@ -170,6 +175,12 @@ class ContractingCompiler(ast.NodeTransformer):
         return compiled_code
 
     def normalize_source(self, source: str, lint=True, vm_profile: str | None = None):
+        if vm_profile == XIAN_VM_V2_PROFILE:
+            import xian_compiler_core
+
+            return xian_compiler_core.normalize_source(
+                self.module_name, source, vm_profile=vm_profile, lint=lint
+            )
         tree = ast.parse(source)
 
         if lint:
@@ -183,6 +194,8 @@ class ContractingCompiler(ast.NodeTransformer):
         return ast.unparse(tree)
 
     def parse_to_code(self, source, lint=True, vm_profile: str | None = None):
+        if vm_profile == XIAN_VM_V2_PROFILE:
+            return self.normalize_source(source, lint=lint, vm_profile=vm_profile)
         tree = self.parse(source, lint=lint, vm_profile=vm_profile)
         return ast.unparse(tree)
 
@@ -195,6 +208,14 @@ class ContractingCompiler(ast.NodeTransformer):
         lint=True,
         vm_profile: str | None = XIAN_VM_V1_PROFILE,
     ):
+        if vm_profile == XIAN_VM_V2_PROFILE:
+            import xian_compiler_core
+
+            return json.loads(
+                xian_compiler_core.lower_source_to_ir_json(
+                    self.module_name, source, vm_profile=vm_profile, lint=lint
+                )
+            )
         tree = ast.parse(source)
 
         if lint:

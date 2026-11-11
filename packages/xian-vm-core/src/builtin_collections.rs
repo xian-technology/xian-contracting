@@ -138,6 +138,9 @@ impl VmInstance {
         let iterator = crate::iteration::iter(&args[0], &self.heap)?;
         while let Some(value) = self.next_item(&iterator, host)? {
             host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
+            if numeric_v2::active() {
+                host.charge_execution_cost(numeric_v2::op_cost("add", &total, &value))?;
+            }
             total = apply_binary_operator("add", total, value)?;
         }
         Ok(total)

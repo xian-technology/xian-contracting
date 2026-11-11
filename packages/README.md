@@ -6,6 +6,7 @@ small, purpose-built packages instead of growing one monolithic runtime.
 
 ## Contents
 
+- `xian-numeric/`: exact V2 decimal input grammar and bounds shared by the Rust compiler and VM
 - `xian-runtime-types/`: deterministic shared value types and encoding
 - `xian-accounts/`: shared signing and account primitives
 - `xian-compiler-core/`: shared Rust/WASM compiler core, published as

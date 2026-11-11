@@ -248,15 +248,21 @@ def _decode_raw(node):
     return Decimal((sign, tuple(map(int, digits)), exponent))
 
 
-def _decode_member(node, budget, depth):
+def _decode_member(node, budget, depth, exact_numbers=False):
     budget.visit(depth)
     tag = _node(node, (1, 2, 4))
     if tag in ("tuple", "frozenset") and len(node) == 2 and isinstance(node[1], list):
         budget.container(tag, len(node[1]))
         if tag == "frozenset":
             budget.normalize(len(node[1]))
-        children = [_decode_member(item, budget, depth + 1) for item in node[1]]
-        return tuple(children) if tag == "tuple" else ContractingFrozenSet(children)
+        children = [_decode_member(item, budget, depth + 1, exact_numbers) for item in node[1]]
+        if tag == "tuple":
+            return tuple(children)
+        return (
+            ContractingFrozenSet._from_v2_members(children)
+            if exact_numbers
+            else ContractingFrozenSet(children)
+        )
     if tag == "raw_decimal" and len(node) == 4:
         result = _decode_raw(node)
         budget.scalar(node)
@@ -292,7 +298,7 @@ def _legacy_member(value, budget, depth):
     return value
 
 
-def decode_set_value(tag, payload, *, _normalization=None):
+def decode_set_value(tag, payload, *, _normalization=None, exact_numbers=False):
     if tag not in ("__set__", "__frozenset__"):
         raise ValueError("invalid wrapper set tag")
     wrapper = ContractingSet if tag == "__set__" else ContractingFrozenSet
@@ -316,7 +322,8 @@ def decode_set_value(tag, payload, *, _normalization=None):
         + max(0, len(items) - 1)
     )
     budget.normalize(len(items))
-    value = wrapper(_decode_member(item, budget, 1) for item in items)
+    construct = wrapper._from_v2_members if exact_numbers else wrapper
+    value = construct(_decode_member(item, budget, 1, exact_numbers) for item in items)
     # Reject noncanonical order/duplicates and numeric representatives.
     if encode_set_value(value)[tag] != payload:
         raise ValueError("noncanonical set codec members")

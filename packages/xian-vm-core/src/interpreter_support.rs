@@ -22,6 +22,15 @@ mod dictionary;
 pub(super) use dictionary::*;
 
 pub(super) fn builtin_name_value(name: &str) -> Option<VmValue> {
+    if numeric_v2::active() {
+        match name {
+            "float" | "round" => return None,
+            "quantize" | "sqrt" | "mul_div_floor" | "mul_div_ceil" => {
+                return Some(VmValue::Builtin(name.to_owned()))
+            }
+            _ => {}
+        }
+    }
     match name {
         "len" | "range" | "str" | "bool" | "int" | "float" | "bytes" | "bytearray" | "dict"
         | "list" | "tuple" | "set" | "frozenset" | "isinstance" | "issubclass" | "sorted"
@@ -44,7 +53,7 @@ pub(super) fn byte_from_value(value: &VmValue) -> Result<u8, VmExecutionError> {
     let value = &value.snapshot();
     let bigint = match value {
         VmValue::Int(value) => value.clone(),
-        VmValue::Bool(value) => {
+        VmValue::Bool(value) if !numeric_v2::active() => {
             if *value {
                 BigInt::from(1u8)
             } else {
@@ -542,6 +551,9 @@ pub(super) fn apply_binary_operator(
 ) -> Result<VmValue, VmExecutionError> {
     let left = tuple_equivalent(left.snapshot());
     let right = tuple_equivalent(right.snapshot());
+    if numeric_v2::active() && numeric_v2::handles_binary(&left, &right) {
+        return numeric_v2::binary(operator, &left, &right);
+    }
     if let (VmValue::BuiltinSet(a), VmValue::BuiltinSet(b)) = (&left, &right) {
         return set_kinds::binary(operator, a, b);
     }
@@ -947,7 +959,11 @@ pub(super) fn apply_unary_operator(
     operator: &str,
     operand: VmValue,
 ) -> Result<VmValue, VmExecutionError> {
-    let operand = bool_number(operand.snapshot());
+    let operand = operand.snapshot();
+    if numeric_v2::active() && operator != "not" && matches!(operand, VmValue::Bool(_)) {
+        return Err(VmExecutionError::new("bool is not an arithmetic operand"));
+    }
+    let operand = bool_number(operand);
     match operator {
         "not" => Ok(VmValue::Bool(!operand.truthy())),
         "neg" => match operand {
@@ -1334,6 +1350,11 @@ fn compare_values_at(
     }
     let left = &tuple_equivalent(left.snapshot());
     let right = &tuple_equivalent(right.snapshot());
+    if numeric_v2::active() {
+        if let Some(ordering) = numeric_v2::ordering(left, right) {
+            return ordering;
+        }
+    }
     match (left, right) {
         (VmValue::List(left), VmValue::List(right))
         | (VmValue::Tuple(left), VmValue::Tuple(right)) => {
@@ -1532,6 +1553,9 @@ fn vm_values_equal_at(
     }
     let left = &tuple_equivalent(left.snapshot());
     let right = &tuple_equivalent(right.snapshot());
+    if numeric_v2::active() && numeric_v2::bool_number_pair(left, right) {
+        return Ok(false);
+    }
     if let Some(equal) = nan_equality(left, right)? {
         return Ok(equal);
     }
@@ -2039,6 +2063,7 @@ pub(super) fn type_matches_name(value: &VmValue, name: &str) -> bool {
     match name {
         "Any" => true,
         "bool" => matches!(value, VmValue::Bool(_)),
+        "int" if numeric_v2::active() => matches!(value, VmValue::Int(_)),
         "int" => matches!(value, VmValue::Int(_) | VmValue::Bool(_)),
         "float" => matches!(value, VmValue::Float(_)),
         "decimal" => matches!(value, VmValue::Decimal(_)),

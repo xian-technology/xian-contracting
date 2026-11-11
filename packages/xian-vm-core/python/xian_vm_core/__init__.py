@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from xian_runtime_types.decimal import ContractingDecimal
-from xian_runtime_types.encoding import encode_kv
+from xian_runtime_types.encoding import decode_wire_numbers, encode_kv, normalize_wire_numbers
 
 from contracting import constants
 from contracting.artifacts import compile_contract_source
@@ -63,8 +63,8 @@ class NativeExecutionResult:
     contract_costs: dict[str, int]
 
 
-def runtime_info() -> dict:
-    return json.loads(runtime_info_json())
+def runtime_info(vm_profile: str = "xian_vm_v1") -> dict:
+    return json.loads(runtime_info_json(vm_profile))
 
 
 def validate_module_ir(module_ir: dict | str) -> None:
@@ -150,7 +150,7 @@ class NativeVmHost:
             self._extra_raw_cost += raw_cost
 
     def _write_raw_cost(self, key: str, value: Any) -> int:
-        encoded_key, encoded_value = encode_kv(key, value)
+        encoded_key, encoded_value = encode_kv(key, value, vm_profile=self.vm_profile)
         return (len(encoded_key) + len(encoded_value)) * constants.WRITE_COST_PER_BYTE
 
     def _charge_host_write(
@@ -162,7 +162,7 @@ class NativeVmHost:
     ) -> None:
         if not self._meter_enabled:
             return
-        encoded_key, encoded_value = encode_kv(key, value)
+        encoded_key, encoded_value = encode_kv(key, value, vm_profile=self.vm_profile)
         written = len(encoded_key) + len(encoded_value)
         if enforce_write_cap:
             self._written_bytes += written
@@ -231,6 +231,10 @@ class NativeVmHost:
         if not module_ir_json:
             return None
         module_ir = json.loads(module_ir_json)
+        if module_ir.get("vm_profile") != self.vm_profile:
+            raise VmRuntimeExecutionError(
+                f"contract {module_name!r} does not target {self.vm_profile}"
+            )
         self._reject_disabled_runtime_features(module_name, module_ir)
         self._parsed_ir_cache[module_name] = module_ir
         return module_ir
@@ -305,12 +309,13 @@ class NativeVmHost:
             name,
             construct_name,
             [],
-            _coerce_external_call_kwargs(dict(constructor_args or {})),
+            _coerce_external_call_kwargs(dict(constructor_args or {}), self.vm_profile),
             context,
             self,
             meter=self._meter_enabled,
             transaction_size_bytes=0,
             budget=self._budget,
+            vm_profile=self.vm_profile,
         )
         # Native execution already debited the shared budget. Keep its measured
         # work and attribution even when construction fails and state rolls back.
@@ -500,12 +505,16 @@ def execute_contract(
     meter: bool = False,
     chi_budget_raw: int = 0,
     transaction_size_bytes: int = 0,
+    vm_profile: str = "xian_vm_v1",
 ) -> NativeExecutionResult:
     context = dict(context or {})
-    coerced_args = _coerce_external_call_args(args or [])
-    coerced_kwargs = _coerce_external_call_kwargs(kwargs or {})
+    if getattr(driver, "vm_profile", vm_profile) != vm_profile:
+        raise ValueError("execution profile differs from the storage driver profile")
+    coerced_args = _coerce_external_call_args(args or [], vm_profile)
+    coerced_kwargs = _coerce_external_call_kwargs(kwargs or {}, vm_profile)
     host = NativeVmHost(
         driver,
+        vm_profile=vm_profile,
         entry_contract=contract_name,
         meter_enabled=meter,
         chi_budget_raw=chi_budget_raw,
@@ -514,7 +523,7 @@ def execute_contract(
     module_ir = host.load_module_ir(contract_name)
     if module_ir is None:
         raise VmRuntimeExecutionError(
-            "xian_vm_v1 requires persisted __xian_ir_v1__ for contract "
+            f"{vm_profile} requires persisted __xian_ir_v1__ for contract "
             f"'{contract_name}'; stored source is inspection-only"
         )
     # A contract with an owner may only be called by that owner, whether the
@@ -549,6 +558,7 @@ def execute_contract(
             chi_budget_raw=max(int(chi_budget_raw), 0),
             transaction_size_bytes=max(int(transaction_size_bytes), 0),
             budget=host._budget,
+            vm_profile=vm_profile,
         )
     finally:
         random_bridge.clear_random_state()
@@ -586,11 +596,15 @@ def execute_contract(
     )
 
 
-def _coerce_external_call_args(args: list[Any]) -> list[Any]:
+def _coerce_external_call_args(args: list[Any], vm_profile="xian_vm_v1") -> list[Any]:
+    if vm_profile == "xian_vm_v2":
+        return decode_wire_numbers(normalize_wire_numbers(args))
     return [ContractingDecimal(str(value)) if isinstance(value, float) else value for value in args]
 
 
-def _coerce_external_call_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
+def _coerce_external_call_kwargs(kwargs: dict[str, Any], vm_profile="xian_vm_v1") -> dict[str, Any]:
+    if vm_profile == "xian_vm_v2":
+        return decode_wire_numbers(normalize_wire_numbers(kwargs))
     return {
         key: ContractingDecimal(str(value)) if isinstance(value, float) else value
         for key, value in kwargs.items()

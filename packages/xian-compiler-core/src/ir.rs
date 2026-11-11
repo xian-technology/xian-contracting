@@ -5,7 +5,7 @@ use serde_json::{json, Number, Value};
 
 use crate::artifact::{build_contract_artifact, ContractArtifact};
 use crate::compiler::CompileOptions;
-use crate::constants::{XIAN_IR_V1, XIAN_VM_HOST_CATALOG_V1, XIAN_VM_V1_PROFILE};
+use crate::constants::{XIAN_IR_V1, XIAN_VM_HOST_CATALOG_V1, validate_profile};
 use crate::diagnostic::{CompilerDiagnostic, SourceRange};
 use crate::frontend::parse_source;
 use crate::limits::{validate_ir_json_limits, MAX_CONTRACT_HANDLE_INFERENCE_PASSES};
@@ -460,7 +460,7 @@ pub fn lower_syntax_to_ir(
     module: &SyntaxModule,
     vm_profile: &str,
 ) -> Result<Value, IrLoweringError> {
-    if vm_profile != XIAN_VM_V1_PROFILE {
+    if validate_profile(vm_profile).is_err() || vm_profile != module.vm_profile {
         return Err(IrLoweringError::new(
             format!("unsupported vm_profile '{vm_profile}'"),
             None,
@@ -2660,6 +2660,12 @@ fn lower_constant(span: SourceRange, constant: &SyntaxConstant) -> Value {
                 "value": value,
             })
         }
+        SyntaxConstant::Decimal(value) => json!({
+            "node": "constant",
+            "span": span_value(span),
+            "value_type": "decimal",
+            "value": value,
+        }),
         SyntaxConstant::Float(value) => json!({
             "node": "constant",
             "span": span_value(span),
@@ -2696,6 +2702,7 @@ fn lower_constant_without_span(constant: &SyntaxConstant) -> Value {
             .parse::<i64>()
             .map(Value::from)
             .unwrap_or_else(|_| Value::String(value.clone())),
+        SyntaxConstant::Decimal(value) => json!({"__fixed__": value}),
         SyntaxConstant::Float(value) => Number::from_f64(*value)
             .map(Value::Number)
             .unwrap_or(Value::Null),
@@ -2823,7 +2830,11 @@ mod tests {
                 .as_str()
                 .expect("fixture module_name should exist");
 
-            let lowered = lower_source_to_ir(module_name, source, &CompileOptions::default())
+            let options = CompileOptions {
+                vm_profile: fixture["vm_profile"].as_str().unwrap().to_owned(),
+                ..CompileOptions::default()
+            };
+            let lowered = lower_source_to_ir(module_name, source, &options)
                 .unwrap_or_else(|error| panic!("{} should lower: {error:?}", path.display()));
 
             assert_eq!(lowered, fixture["vm_ir"], "{} IR mismatch", path.display());

@@ -1,5 +1,5 @@
 //! Bounded Python 3.12 scalar attributes and methods; dispatch binds keywords.
-use crate::interpreter::{MAX_BINARY_ALLOCATION_BYTES, MAX_INTEGER_BITS};
+use crate::interpreter::{numeric_v2, MAX_BINARY_ALLOCATION_BYTES, MAX_INTEGER_BITS};
 use crate::{VmDecimal, VmExecutionError, VmRange, VmRawDecimal, VmValue};
 use num_bigint::{BigInt, Sign};
 use num_traits::{FromPrimitive, Signed, ToPrimitive, Zero};
@@ -9,6 +9,9 @@ mod float;
 type Result<T> = std::result::Result<T, VmExecutionError>;
 
 pub(crate) fn supports(value: &VmValue, method: &str) -> bool {
+    if numeric_v2::active() && is_bool_receiver(value) {
+        return false;
+    }
     match value.snapshot() {
         VmValue::Range(_) => matches!(method, "count" | "index"),
         VmValue::Int(_) | VmValue::Bool(_) => matches!(
@@ -48,7 +51,9 @@ pub(crate) fn attribute(value: &VmValue, name: &str) -> Option<Result<VmValue>> 
             _ => return None,
         },
         VmValue::Int(number) => integer_attribute(number, name)?,
-        VmValue::Bool(boolean) => integer_attribute(BigInt::from(boolean as u8), name)?,
+        VmValue::Bool(boolean) if !numeric_v2::active() => {
+            integer_attribute(BigInt::from(boolean as u8), name)?
+        }
         VmValue::Float(number) => match name {
             "real" => VmValue::Float(number),
             "imag" => VmValue::Float(0.0),
@@ -94,7 +99,9 @@ pub(crate) fn call(value: &VmValue, method: &str, args: Vec<VmValue>) -> Result<
     }
     match value.snapshot() {
         VmValue::Range(range) => range_method(&range, method, &args),
-        VmValue::Bool(number) => integer_method(BigInt::from(number as u8), method, &args),
+        VmValue::Bool(number) if !numeric_v2::active() => {
+            integer_method(BigInt::from(number as u8), method, &args)
+        }
         VmValue::Int(number) => integer_method(number, method, &args),
         VmValue::Float(number) => float::call(number, method, &args),
         _ => Err(VmExecutionError::new("unsupported scalar method")),
@@ -133,7 +140,7 @@ fn integer_method(number: BigInt, method: &str, args: &[VmValue]) -> Result<VmVa
 fn index_integer(value: &VmValue) -> Result<BigInt> {
     match value.snapshot() {
         VmValue::Int(number) => Ok(number),
-        VmValue::Bool(number) => Ok(BigInt::from(number as u8)),
+        VmValue::Bool(number) if !numeric_v2::active() => Ok(BigInt::from(number as u8)),
         _ => Err(VmExecutionError::new("an integer is required")),
     }
 }
@@ -248,7 +255,7 @@ fn byte_input(value: &VmValue) -> Result<Vec<u8>> {
 fn exact_integer(value: &VmValue) -> Result<Option<BigInt>> {
     Ok(match value.snapshot() {
         VmValue::Int(number) => Some(number),
-        VmValue::Bool(number) => Some(BigInt::from(number as u8)),
+        VmValue::Bool(number) if !numeric_v2::active() => Some(BigInt::from(number as u8)),
         VmValue::Float(number) if number.is_finite() && number.fract() == 0.0 => {
             BigInt::from_f64(number)
         }

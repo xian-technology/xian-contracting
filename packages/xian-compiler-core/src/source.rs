@@ -1,5 +1,5 @@
-use crate::constants::XIAN_VM_V1_PROFILE;
-use crate::error::{ensure_eq, ensure_non_empty, ValidationError};
+use crate::constants::{validate_profile, XIAN_VM_V1_PROFILE};
+use crate::error::{ensure_non_empty, ValidationError};
 use crate::hashing::sha256_hex;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,7 +27,7 @@ impl SourceUnit {
         let vm_profile = vm_profile.into();
         ensure_non_empty("module_name", &module_name)?;
         ensure_non_empty("source", &source)?;
-        ensure_eq("vm_profile", &vm_profile, XIAN_VM_V1_PROFILE)?;
+        validate_profile(&vm_profile)?;
         Ok(Self {
             module_name,
             source,

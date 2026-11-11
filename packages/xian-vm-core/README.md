@@ -1,12 +1,11 @@
 # xian-vm-core
 
-`xian-vm-core` is the Rust-side consumer of the frozen `xian_vm_v1` compiler IR
-emitted by `xian-contracting`.
+`xian-vm-core` is the Rust-side consumer of the versioned `xian_ir_v1` contract IR emitted by the Xian compiler.
 
 ```mermaid
 flowchart LR
   Source["Contract source"] --> Compiler["xian-contracting compiler"]
-  Compiler --> IR["xian_vm_v1 IR"]
+  Compiler --> IR["xian_ir_v1"]
   IR --> Validator["Rust IR validator"]
   Validator --> VM["Native VM execution slice"]
   VM --> Host["Host storage and syscall bridge"]
@@ -24,7 +23,16 @@ Supported scope:
 - expose a minimal Python-facing native capability surface for `xian-abci`
   probing via `xian_vm_core._native`
 
-Execution coverage is intentionally narrow but real:
+## Numeric profiles
+
+The chain selects a profile for artifact admission and execution. Every module in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports the V2 execution revision `xvm-execution-6`, bytecode version `xvm-2` and gas schedule `xvm-gas-3`. Older chains select `xian_vm_v1`.
+
+V2 integers have a maximum magnitude of 512 bits. Fixed decimals have 30 fractional places and magnitude below `10**61`. Fractional literals carry exact decimal text. Numeric `/` returns a decimal, truncating toward zero at the smallest representable unit. Decimal multiplication uses the same rule. Integer `//` rounds down and `%` follows the divisor's sign. Integer exponentiation requires a nonnegative integer exponent. Boolean values are distinct from numbers.
+
+`quantize(value, places, mode)` supports 0 through 30 places with `toward_zero`, `floor`, `ceil` and `half_even`. `sqrt(value)` returns the floor of the square root on the decimal grid. `mul_div_floor(a, b, d)` and `mul_div_ceil(a, b, d)` use an exact intermediate integer product and require a positive divisor. The bounded numeric formatter truncates discarded decimal places toward zero. Apply `quantize` first to select a different display rounding mode. Native binary floats and raw Python Decimal intermediates are rejected. Fixed decimal values and large integers use exact tagged JSON at the network boundary.
+
+## V1 execution coverage
+
 
 - local function calls and builtin calls such as `len`, `range`, `str`, and
   `isinstance`

@@ -5,11 +5,12 @@ from contracting.compilation.artifacts import (
     diagnose_contract_source,
     validate_contract_artifacts,
 )
-from contracting.compilation.vm import XIAN_VM_V1_PROFILE
+from contracting.compilation.vm import XIAN_VM_V1_PROFILE, XIAN_VM_V2_PROFILE
 
 __all__ = [
     "CONTRACT_ARTIFACT_FORMAT_V1",
     "XIAN_VM_V1_PROFILE",
+    "XIAN_VM_V2_PROFILE",
     "build_contract_artifacts",
     "compile_contract_source",
     "diagnose_contract_source",

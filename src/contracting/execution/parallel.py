@@ -241,6 +241,7 @@ class _WorkerConfig:
     balances_hash: str
     bypass_privates: bool
     bypass_balance_amount: bool
+    vm_profile: str = "xian_vm_v1"
 
 
 @dataclass(frozen=True)
@@ -261,15 +262,21 @@ def _get_worker_runtime(config: _WorkerConfig) -> _WorkerRuntime:
     driver = Driver(
         storage_home=Path(config.storage_home),
         bypass_cache=True,
+        vm_profile=config.vm_profile,
     )
-    executor = Executor(
-        driver=driver,
-        metering=config.metering,
-        currency_contract=config.currency_contract,
-        balances_hash=config.balances_hash,
-        bypass_privates=config.bypass_privates,
-        bypass_balance_amount=config.bypass_balance_amount,
-    )
+    if config.vm_profile == "xian_vm_v2":
+        from contracting.local.native_executor import NativeExecutor
+
+        executor = NativeExecutor(driver, metering=config.metering)
+    else:
+        executor = Executor(
+            driver=driver,
+            metering=config.metering,
+            currency_contract=config.currency_contract,
+            balances_hash=config.balances_hash,
+            bypass_privates=config.bypass_privates,
+            bypass_balance_amount=config.bypass_balance_amount,
+        )
     worker_runtime = _WorkerRuntime(driver=driver, executor=executor)
     _WORKER_RUNTIMES[config] = worker_runtime
     return worker_runtime
@@ -971,10 +978,11 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
         task_template = _WorkerConfig(
             storage_home=str(self.executor.driver.storage_home),
             metering=self.executor.metering,
-            currency_contract=self.executor.currency_contract,
-            balances_hash=self.executor.balances_hash,
-            bypass_privates=self.executor.bypass_privates,
-            bypass_balance_amount=self.executor.bypass_balance_amount,
+            vm_profile=self.executor.driver.vm_profile,
+            currency_contract=getattr(self.executor, "currency_contract", "currency"),
+            balances_hash=getattr(self.executor, "balances_hash", "balances"),
+            bypass_privates=getattr(self.executor, "bypass_privates", False),
+            bypass_balance_amount=getattr(self.executor, "bypass_balance_amount", False),
         )
         tasks = [
             _SpeculativeTask(

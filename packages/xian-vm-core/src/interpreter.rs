@@ -109,6 +109,8 @@ mod mapping_views;
 mod method_signatures;
 #[path = "numeric_text.rs"]
 mod numeric_text;
+#[path = "numeric_v2.rs"]
+pub(crate) mod numeric_v2;
 #[path = "rounding.rs"]
 mod rounding;
 #[path = "statement_execution.rs"]
@@ -444,6 +446,15 @@ fn check_function_arguments(
         let Some(value) = scope.get(&parameter.name) else {
             continue;
         };
+        if numeric_v2::active()
+            && matches!(value, VmValue::None)
+            && parameter
+                .default
+                .as_ref()
+                .is_some_and(|v| v["value_type"] == "none")
+        {
+            continue;
+        }
         let parsed = parse_type_annotation(annotation).ok_or_else(|| {
             VmExecutionError::new(format!("unsupported type annotation '{annotation}'"))
         })?;
@@ -533,6 +544,13 @@ fn check_typed_value(
         }
         "int" => {
             if matches!(value, VmValue::Int(_)) {
+                Ok(())
+            } else {
+                Err(typecheck_error(label, annotation, value))
+            }
+        }
+        "decimal" if numeric_v2::active() => {
+            if matches!(value, VmValue::Decimal(_)) {
                 Ok(())
             } else {
                 Err(typecheck_error(label, annotation, value))
@@ -884,6 +902,7 @@ impl VmInstance {
         host: &mut dyn VmHost,
         heap: crate::heap::VmHeap,
     ) -> Result<Self, VmExecutionError> {
+        let _scope = numeric_v2::Scope::enter(&module.vm_profile);
         validate_module_ir(&module).map_err(|err| VmExecutionError::new(err.to_string()))?;
 
         let imports = module
@@ -1190,6 +1209,7 @@ impl VmInstance {
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
+        let _scope = numeric_v2::Scope::enter(&self.module.vm_profile);
         self.call_function_shared(host, name, args, kwargs)?
             .external_value()
     }
@@ -1201,6 +1221,7 @@ impl VmInstance {
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
+        let _scope = numeric_v2::Scope::enter(&self.module.vm_profile);
         let args = args
             .into_iter()
             .map(|v| self.heap.capture(v))
@@ -1388,6 +1409,23 @@ impl VmInstance {
             .ok_or_else(|| VmExecutionError::new(format!("unknown function '{name}'")))?;
         host.charge_execution_cost(function_entry_gas_cost(&function))?;
         let mut scope = self.bind_function_arguments(&function, args, kwargs, host)?;
+        let public_v2 =
+            numeric_v2::active() && matches!(function.visibility.as_str(), "export" | "construct");
+        if public_v2 {
+            for parameter in &function.parameters {
+                if let (Some(annotation), Some(value)) =
+                    (&parameter.annotation, scope.get_mut(&parameter.name))
+                {
+                    let optional = parameter
+                        .default
+                        .as_ref()
+                        .is_some_and(|default| default["value_type"] == "none");
+                    if !(optional && matches!(value, VmValue::None)) {
+                        numeric_v2::bind_numeric_annotation(value, annotation, &self.heap)?;
+                    }
+                }
+            }
+        }
         let typecheck = export_typecheck_enabled(&function);
         if typecheck {
             check_function_arguments(&function, &scope)?;
@@ -1398,13 +1436,18 @@ impl VmInstance {
         );
         let execution = self.execute_block(&function.body, &mut scope, host);
         self.lexical_bindings = previous;
-        let result = match execution? {
+        let mut result = match execution? {
             ControlFlow::Next => Ok(VmValue::None),
             ControlFlow::Return(value) => Ok(value),
             ControlFlow::Break | ControlFlow::Continue => Err(VmExecutionError::new(format!(
                 "function '{name}' leaked loop control"
             ))),
         }?;
+        if public_v2 {
+            if let Some(annotation) = &function.returns {
+                numeric_v2::bind_numeric_annotation(&mut result, annotation, &self.heap)?;
+            }
+        }
         if typecheck {
             check_function_return(&function, &result)?;
         }

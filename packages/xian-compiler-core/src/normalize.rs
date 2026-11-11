@@ -820,6 +820,8 @@ fn format_constant(constant: &SyntaxConstant) -> String {
         }
         SyntaxConstant::Int(value) => value.clone(),
         SyntaxConstant::Float(value) => format_float(*value),
+        SyntaxConstant::Decimal(value) if value.contains('.') => value.clone(),
+        SyntaxConstant::Decimal(value) => format!("{value}.0"),
         SyntaxConstant::Str(value) => quote_string(value),
         SyntaxConstant::Bytes(value) => quote_bytes(value),
         SyntaxConstant::Tuple(values) => match values.as_slice() {

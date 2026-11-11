@@ -11,7 +11,8 @@ from typing import Any
 from contracting.compilation.linter import ErrorCode, Linter, LintError
 
 XIAN_VM_V1_PROFILE = "xian_vm_v1"
-SUPPORTED_VM_PROFILES = (XIAN_VM_V1_PROFILE,)
+XIAN_VM_V2_PROFILE = "xian_vm_v2"
+SUPPORTED_VM_PROFILES = (XIAN_VM_V1_PROFILE, XIAN_VM_V2_PROFILE)
 
 _TRACKED_CALL_FEATURES = {
     "all",
@@ -178,6 +179,31 @@ class _VmCompatibilityVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
+def _native_compatibility_report(source: str, profile: str) -> VmCompatibilityReport:
+    import xian_compiler_core
+
+    errors = []
+    for diagnostic in xian_compiler_core.diagnose_contract("con_check", source, vm_profile=profile):
+        if diagnostic["severity"] != "error":
+            continue
+        code = diagnostic["code"].split(".")[-1]
+        span = diagnostic.get("range") or {}
+        errors.append(
+            LintError(
+                code=ErrorCode(code) if code in ErrorCode else ErrorCode.E022,
+                message=diagnostic["message"],
+                line=span.get("start_line", 1),
+                col=span.get("start_column", 0),
+                end_line=span.get("end_line", 1),
+                end_col=span.get("end_column", 0),
+            )
+        )
+    visitor = _VmCompatibilityVisitor(profile)
+    if not errors:
+        visitor.visit(ast.parse(source))
+    return VmCompatibilityReport(profile, tuple(errors), dict(visitor.feature_counts))
+
+
 class VmCompatibilityChecker:
     def __init__(self, linter: Linter | None = None) -> None:
         self.linter = linter or Linter()
@@ -191,6 +217,10 @@ class VmCompatibilityChecker:
         if profile not in SUPPORTED_VM_PROFILES:
             raise ValueError(f"vm profile must be one of {sorted(SUPPORTED_VM_PROFILES)}")
 
+        if profile == XIAN_VM_V2_PROFILE:
+            if not isinstance(source_or_tree, str):
+                raise ValueError("exact V2 compatibility checking requires original source text")
+            return _native_compatibility_report(source_or_tree, profile)
         tree, parse_errors = self._parse(source_or_tree)
         errors: list[LintError] = list(parse_errors)
         feature_counts: Counter[str] = Counter()

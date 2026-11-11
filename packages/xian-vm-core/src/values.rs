@@ -176,6 +176,9 @@ impl VmDecimal {
     }
 
     pub(crate) fn python_repr(&self) -> String {
+        if crate::interpreter::numeric_v2::active() {
+            return self.to_string();
+        }
         if self.scaled.is_zero() {
             return "0".to_owned();
         }
@@ -324,7 +327,7 @@ impl fmt::Display for VmDecimal {
     }
 }
 
-fn decimal_scale_factor() -> &'static BigInt {
+pub(crate) fn decimal_scale_factor() -> &'static BigInt {
     static SCALE_FACTOR: OnceLock<BigInt> = OnceLock::new();
     SCALE_FACTOR.get_or_init(|| BigInt::from(10u8).pow(DECIMAL_SCALE))
 }
@@ -942,6 +945,9 @@ impl VmValue {
     pub(crate) fn as_i64(&self) -> Result<i64, VmExecutionError> {
         match self {
             Self::Reference(value) => value.value().as_i64(),
+            Self::Bool(_) | Self::Decimal(_) if crate::interpreter::numeric_v2::active() => {
+                Err(VmExecutionError::new("expected an integer"))
+            }
             Self::Int(value) => bigint_to_i64(value, "integer value"),
             Self::Bool(value) => Ok(if *value { 1 } else { 0 }),
             Self::Decimal(value) => value.to_i64(),
@@ -955,6 +961,9 @@ impl VmValue {
     pub(crate) fn as_bigint(&self) -> Result<BigInt, VmExecutionError> {
         match self {
             Self::Reference(value) => value.value().as_bigint(),
+            Self::Bool(_) | Self::Decimal(_) if crate::interpreter::numeric_v2::active() => {
+                Err(VmExecutionError::new("expected an integer"))
+            }
             Self::Int(value) => Ok(value.clone()),
             Self::Bool(value) => Ok(if *value {
                 BigInt::from(1)

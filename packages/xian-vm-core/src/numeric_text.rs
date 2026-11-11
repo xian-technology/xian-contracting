@@ -66,7 +66,7 @@ fn numeric_int(value: &VmValue, explicit_base: bool) -> Result<VmValue, VmExecut
     }
     match value {
         VmValue::Int(value) => checked_int_value(value.clone(), "int()"),
-        VmValue::Bool(value) => Ok(vm_int(*value as u8)),
+        VmValue::Bool(value) if !numeric_v2::active() => Ok(vm_int(*value as u8)),
         VmValue::Float(value) => checked_int_value(f64_to_bigint_trunc(*value, "int()")?, "int()"),
         VmValue::Decimal(value) => checked_int_value(value.to_bigint(), "int()"),
         VmValue::RawDecimal(value) => checked_int_value(value.integer()?, "int()"),

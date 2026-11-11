@@ -17,6 +17,16 @@ def _values_equal(left, right) -> bool:
         return False
 
 
+def _exact_values_equal(left, right):
+    if isinstance(left, bool) or isinstance(right, bool):
+        return type(left) is type(right) and left == right
+    if isinstance(left, tuple) and isinstance(right, tuple):
+        return len(left) == len(right) and all(
+            _exact_values_equal(a, b) for a, b in zip(left, right)
+        )
+    return _values_equal(left, right)
+
+
 def _canonical_key(value):
     if value is None:
         return (0, "")
@@ -69,13 +79,13 @@ def _ensure_hashable(value):
     _canonical_key(value)
 
 
-def _normalize_set_items(iterable: Iterable):
+def _normalize_set_items(iterable: Iterable, equals=_values_equal):
     normalized: list[tuple[object, tuple]] = []
     for value in iterable:
         _ensure_hashable(value)
         key = _canonical_key(value)
         for index, (existing, existing_key) in enumerate(normalized):
-            if _values_equal(existing, value):
+            if equals(existing, value):
                 if key < existing_key:
                     normalized[index] = (value, key)
                 break
@@ -95,7 +105,25 @@ def _iterable_values(iterable=None):
 
 
 class _ContractingSetBase:
-    __slots__ = ("_values",)
+    __slots__ = ("_exact_numbers", "_values")
+
+    @classmethod
+    def _from_v2_members(cls, iterable):
+        result = cls.__new__(cls)
+        result._init_members(iterable, exact_numbers=True)
+        return result
+
+    def _init_members(self, iterable, *, exact_numbers=False):
+        object.__setattr__(self, "_exact_numbers", exact_numbers)
+        values = _normalize_set_items(_iterable_values(iterable), self._equals)
+        object.__setattr__(self, "_values", values)
+
+    @property
+    def _equals(self):
+        return _exact_values_equal if self._exact_numbers else _values_equal
+
+    def _new(self, values):
+        return self._from_v2_members(values) if self._exact_numbers else type(self)(values)
 
     def __iter__(self):
         return iter(self._values)
@@ -107,7 +135,7 @@ class _ContractingSetBase:
         return bool(self._values)
 
     def __contains__(self, item):
-        return any(_values_equal(existing, item) for existing in self._values)
+        return any(self._equals(existing, item) for existing in self._values)
 
     def __eq__(self, other):
         if isinstance(other, _ContractingSetBase):
@@ -163,45 +191,45 @@ class _ContractingSetBase:
         return self.symmetric_difference(other)
 
     def issubset(self, other):
-        other = self.__class__(self._iterable_other(other))
+        other = self._new(self._iterable_other(other))
         return self <= other
 
     def issuperset(self, other):
-        other = self.__class__(self._iterable_other(other))
+        other = self._new(self._iterable_other(other))
         return self >= other
 
     def isdisjoint(self, other):
-        other = self.__class__(self._iterable_other(other))
+        other = self._new(self._iterable_other(other))
         return all(item not in other for item in self)
 
     def union(self, *others):
         values = list(self._values)
         for other in others:
             values.extend(self._iterable_other(other))
-        return self.__class__(values)
+        return self._new(values)
 
     def intersection(self, *others):
         result = list(self._values)
         for other in others:
-            other = self.__class__(self._iterable_other(other))
+            other = self._new(self._iterable_other(other))
             result = [item for item in result if item in other]
-        return self.__class__(result)
+        return self._new(result)
 
     def difference(self, *others):
         result = list(self._values)
         for other in others:
-            other = self.__class__(self._iterable_other(other))
+            other = self._new(self._iterable_other(other))
             result = [item for item in result if item not in other]
-        return self.__class__(result)
+        return self._new(result)
 
     def symmetric_difference(self, other):
-        other = self.__class__(self._iterable_other(other))
+        other = self._new(self._iterable_other(other))
         left_only = [item for item in self if item not in other]
         right_only = [item for item in other if item not in self]
-        return self.__class__([*left_only, *right_only])
+        return self._new([*left_only, *right_only])
 
     def copy(self):
-        return self.__class__(self._values)
+        return self._new(self._values)
 
     @classmethod
     def __class_getitem__(cls, item):
@@ -224,10 +252,10 @@ def _require_mutable_set(value):
 
 
 class ContractingSet(_ContractingSetBase):
-    __slots__ = ("_values",)
+    __slots__ = ()
 
     def __init__(self, iterable=None):
-        self._values = _normalize_set_items(_iterable_values(iterable))
+        self._init_members(iterable)
 
     def __repr__(self):
         if not self._values:
@@ -236,13 +264,13 @@ class ContractingSet(_ContractingSetBase):
 
     def add(self, value):
         _require_mutable_set(self)
-        self._values = _normalize_set_items([*self._values, value])
+        self._values = _normalize_set_items([*self._values, value], self._equals)
 
     def remove(self, value):
         _require_mutable_set(self)
         if value not in self:
             raise KeyError(value)
-        self._values = tuple(item for item in self._values if not _values_equal(item, value))
+        self._values = tuple(item for item in self._values if not self._equals(item, value))
 
     def discard(self, value):
         _require_mutable_set(self)
@@ -263,20 +291,15 @@ class ContractingSet(_ContractingSetBase):
 
 
 class ContractingFrozenSet(_ContractingSetBase):
-    __slots__ = ("_values", "_hash")
+    __slots__ = ("_hash",)
 
     def __init__(self, iterable=None):
-        values = _normalize_set_items(_iterable_values(iterable))
-        object.__setattr__(self, "_values", values)
-        object.__setattr__(
-            self,
-            "_hash",
-            # Canonical ordering distinguishes True/1/1.0 even though set
-            # equality does not. Equal frozen sets must hash equally as dict
-            # keys. Cardinality is stable under all supported numeric equality
-            # rules (including ContractingDecimal's float coercion).
-            hash(len(values)),
-        )
+        self._init_members(iterable)
+
+    def _init_members(self, iterable, *, exact_numbers=False):
+        super()._init_members(iterable, exact_numbers=exact_numbers)
+        # Equal frozen sets share cardinality under either numeric profile.
+        object.__setattr__(self, "_hash", hash(len(self)))
 
     def __setattr__(self, name, value):
         raise AttributeError("ContractingFrozenSet is immutable")
@@ -287,7 +310,8 @@ class ContractingFrozenSet(_ContractingSetBase):
     def __reduce__(self):
         # Reconstruct through the initializer so values and cached hash agree.
         # Copy/deepcopy/pickle must not assign immutable slots.
-        return type(self), (self._values,)
+        constructor = self._from_v2_members if self._exact_numbers else type(self)
+        return constructor, (self._values,)
 
     def __repr__(self):
         if not self._values:

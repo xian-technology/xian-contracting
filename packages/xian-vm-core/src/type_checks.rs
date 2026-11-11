@@ -14,7 +14,8 @@ pub(super) fn issubclass(candidate: &VmValue, target: &VmValue) -> Result<bool> 
     // the candidate only when reaching a class, in the same order as Python.
     walk(target, 0, &mut 0, &mut |name| {
         let candidate = candidate_name(candidate)?;
-        Ok(candidate == name || (candidate == "bool" && name == "int"))
+        Ok(candidate == name
+            || (!crate::interpreter::numeric_v2::active() && candidate == "bool" && name == "int"))
     })
 }
 

@@ -183,7 +183,18 @@ pub(super) fn format_value(value: &VmValue, text: &str) -> Result<String> {
     if let VmValue::RawDecimal(value) = &value {
         return value.format(text);
     }
-    bounded(format_scalar(&value, &parse(text)?)?)
+    let spec = parse(text)?;
+    if numeric_v2::active() {
+        match &value {
+            VmValue::Decimal(n) => return crate::VmRawDecimal::parse(&n.to_string())?.format(text),
+            VmValue::Int(n) if spec.kind.is_some_and(|ch| "eEfFgG%".contains(ch)) => {
+                return crate::VmRawDecimal::from_integer(n.clone())?.format(text);
+            }
+            VmValue::Bool(_) => return Err(error()),
+            _ => {}
+        }
+    }
+    bounded(format_scalar(&value, &spec)?)
 }
 fn format_scalar(value: &VmValue, spec: &Spec) -> Result<String> {
     match value {

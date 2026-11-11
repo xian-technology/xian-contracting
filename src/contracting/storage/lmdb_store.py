@@ -24,7 +24,10 @@ DEFAULT_MAP_SIZE = int(
 class LMDBStore:
     """Thin wrapper around a single LMDB environment."""
 
-    def __init__(self, path: str | Path, map_size: int = DEFAULT_MAP_SIZE):
+    def __init__(
+        self, path: str | Path, map_size: int = DEFAULT_MAP_SIZE, *, vm_profile="xian_vm_v1"
+    ):
+        self.vm_profile = vm_profile
         self._path = Path(path)
         self._map_size = map_size
         self._lease = DEFAULT_ENVIRONMENT_POOL.acquire(
@@ -78,7 +81,7 @@ class LMDBStore:
             value = txn.get(key.encode("utf-8"))
         if value is None:
             return None
-        return decode(value)
+        return decode(value, vm_profile=self.vm_profile)
 
     def batch_set(self, writes: dict[str, object]):
         if not writes:
@@ -90,7 +93,7 @@ class LMDBStore:
                 if value is None:
                     txn.delete(encoded_key)
                 else:
-                    txn.put(encoded_key, encode(value).encode("utf-8"))
+                    txn.put(encoded_key, encode(value, vm_profile=self.vm_profile).encode("utf-8"))
 
         self._run_write_transaction(operation)
 
@@ -158,7 +161,7 @@ class LMDBStore:
             for key_bytes, value_bytes in cursor:
                 if not key_bytes.startswith(prefix_bytes):
                     break
-                yield key_bytes.decode("utf-8"), decode(value_bytes)
+                yield key_bytes.decode("utf-8"), decode(value_bytes, vm_profile=self.vm_profile)
 
     def items(self, prefix: str = ""):
         prefix_bytes = prefix.encode("utf-8")
@@ -174,7 +177,7 @@ class LMDBStore:
             for key_bytes, value_bytes in cursor:
                 if prefix_bytes and not key_bytes.startswith(prefix_bytes):
                     break
-                items[key_bytes.decode("utf-8")] = decode(value_bytes)
+                items[key_bytes.decode("utf-8")] = decode(value_bytes, vm_profile=self.vm_profile)
         return items
 
     def delete(self, key: str):

@@ -15,6 +15,27 @@ same deterministic value semantics without importing the full contract runtime.
 The encoder and `convert_dict` normalize nested lists and dictionaries recursively.
 Large integers use `__big_int__` at every depth; booleans retain their JSON type.
 
+## Fresh-genesis numbers
+
+Pass `vm_profile="xian_vm_v2"` to `encode_wire` for SDK/transaction JSON or
+to `encode` and `decode` for typed stored values. Bare JSON integers range
+from `-(2**53 - 1)` to `2**53 - 1`. Larger magnitudes use a canonical signed
+decimal string under `__big_int__`, with magnitude below `2**512`. Decimals
+use `{"__fixed__": "1.25"}` at every depth. Wire spelling uses plain ASCII
+digits, a leading minus for negative values, and no redundant zeros. The
+smallest unit is `10**-30` and the absolute value must be below `10**61`.
+`canonical_fixed` converts exact Python decimal values, strings and integers
+to this form. Binary float, nonfinite values and unrepresentable input fail.
+
+`normalize_wire_numbers` turns typed input into a JSON tree, and
+`loads_wire_json` parses incoming JSON while retaining its tags and rejecting
+noncanonical numeric tokens such as `-0`, `1.0` and `1e-400`.
+`decode_wire_numbers` checks and decodes the resulting wire tree. Numeric tags
+already supplied as JSON must be canonical. V2 stored dictionaries and
+wire objects use string keys. Numeric members of the existing versioned set
+codec support integers and fixed decimals. V2 sets preserve distinct boolean
+and integer members, including inside tuples and nested frozen sets.
+
 ## Validation
 
 The package is covered by the root test suite:

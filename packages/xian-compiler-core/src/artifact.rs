@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::compiler::CompileOptions;
-use crate::constants::{CONTRACT_ARTIFACT_FORMAT_V1, XIAN_IR_V1, XIAN_VM_V1_PROFILE};
+use crate::constants::{validate_profile, CONTRACT_ARTIFACT_FORMAT_V1, XIAN_IR_V1};
 use crate::error::{ensure_eq, ensure_non_empty, ensure_sha256_hex, ValidationError};
 use crate::hashing::sha256_hex;
 use crate::ir::lower_source_to_ir_json;
@@ -43,10 +43,13 @@ pub fn build_contract_artifact(
     ensure_non_empty("input_source", input_source)?;
     ensure_non_empty("normalized_source", normalized_source)?;
     ensure_non_empty("vm_ir_json", vm_ir_json)?;
+    let vm_ir = parse_vm_ir_json(vm_ir_json)?;
+    let vm_profile = required_ir_str(&vm_ir, "vm_profile")?;
+    validate_profile(vm_profile)?;
     let artifact = ContractArtifact {
         format: CONTRACT_ARTIFACT_FORMAT_V1.to_string(),
         module_name: module_name.to_string(),
-        vm_profile: XIAN_VM_V1_PROFILE.to_string(),
+        vm_profile: vm_profile.to_owned(),
         source: normalized_source.to_string(),
         vm_ir_json: vm_ir_json.to_string(),
         hashes: ArtifactHashes {
@@ -55,7 +58,6 @@ pub fn build_contract_artifact(
             vm_ir_sha256: sha256_hex(vm_ir_json),
         },
     };
-    let vm_ir = parse_vm_ir_json(vm_ir_json)?;
     validate_ir_identity(&vm_ir, &artifact)?;
     Ok(artifact)
 }
@@ -70,11 +72,7 @@ pub fn validate_contract_artifact(
         &artifact.format,
         CONTRACT_ARTIFACT_FORMAT_V1,
     )?;
-    ensure_eq(
-        "artifact.vm_profile",
-        &artifact.vm_profile,
-        XIAN_VM_V1_PROFILE,
-    )?;
+    validate_profile(&artifact.vm_profile)?;
     ensure_eq(
         "artifact.module_name",
         &artifact.module_name,
@@ -163,7 +161,7 @@ fn validate_ir_identity(vm_ir: &Value, artifact: &ContractArtifact) -> Result<()
     ensure_eq(
         "artifact.vm_ir.vm_profile",
         required_ir_str(vm_ir, "vm_profile")?,
-        XIAN_VM_V1_PROFILE,
+        &artifact.vm_profile,
     )?;
     let source_hash = required_ir_str(vm_ir, "source_hash")?;
     ensure_sha256_hex("artifact.vm_ir.source_hash", source_hash)?;

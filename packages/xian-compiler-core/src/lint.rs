@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use crate::XIAN_VM_V2_PROFILE;
 use crate::diagnostic::{CompilerDiagnostic, SourceRange};
 use crate::syntax::{
     SyntaxBinaryOperator, SyntaxConstant, SyntaxDictEntry, SyntaxExpression, SyntaxImportAlias,
@@ -24,7 +25,6 @@ const ALLOWED_ANNOTATION_TYPES: &[&str] = &[
     "datetime.datetime",
     "datetime.timedelta",
     "dict",
-    "float",
     "frozenset",
     "int",
     "list",
@@ -169,6 +169,7 @@ const DISALLOWED_STDLIB_IMPORTS: &[&str] = &[
 
 #[derive(Debug, Default)]
 pub struct SyntaxLinter {
+    exact_numbers: bool,
     diagnostics: Vec<CompilerDiagnostic>,
     orm_names: HashSet<String>,
     export_args: Vec<(String, SourceRange)>,
@@ -185,6 +186,7 @@ pub fn lint_syntax(module: &SyntaxModule) -> Vec<CompilerDiagnostic> {
 
 impl SyntaxLinter {
     pub fn lint(mut self, module: &SyntaxModule) -> Vec<CompilerDiagnostic> {
+        self.exact_numbers = module.vm_profile == XIAN_VM_V2_PROFILE;
         self.visit_statements(&module.body, 0);
         self.run_final_checks();
         self.diagnostics
@@ -535,7 +537,12 @@ impl SyntaxLinter {
 
     fn visit_expression(&mut self, expression: &SyntaxExpression) {
         match expression {
-            SyntaxExpression::Name { span, id, .. } => self.check_name(id, span),
+            SyntaxExpression::Name { span, id, .. } => {
+                if self.exact_numbers && matches!(id.as_str(), "float" | "round") {
+                    self.push("E014", format!("'{id}' is unavailable in {XIAN_VM_V2_PROFILE}"), span);
+                }
+                self.check_name(id, span);
+            }
             SyntaxExpression::Constant { .. } => {}
             SyntaxExpression::Starred { value, .. } => self.visit_expression(value),
             SyntaxExpression::List { elements, .. } | SyntaxExpression::Tuple { elements, .. } => {
@@ -572,6 +579,9 @@ impl SyntaxLinter {
             SyntaxExpression::Attribute {
                 span, value, attr, ..
             } => {
+                if self.exact_numbers && attr == "Decimal" && name_expr(value) == Some("decimal") {
+                    self.push("E014", "use decimal(value) for fixed-point values", span);
+                }
                 self.check_name(attr, span);
                 self.visit_expression(value);
             }
@@ -691,7 +701,8 @@ impl SyntaxLinter {
             }
         }
 
-        let allowed = allowed_annotations_message();
+        let numeric_type = if self.exact_numbers { "decimal" } else { "float" };
+        let allowed = allowed_annotations_message(numeric_type);
         let arg_annotations = self.arg_annotations.clone();
         for (annotation, span) in arg_annotations {
             match annotation {
@@ -700,7 +711,7 @@ impl SyntaxLinter {
                     "All @export function arguments must have type annotations",
                     &span,
                 ),
-                Some(annotation) if !annotation_allowed(&annotation) => self.push(
+                Some(annotation) if !annotation_allowed(&annotation, numeric_type) => self.push(
                     "E016",
                     format!("Type annotation '{annotation}' is not allowed; use one of: {allowed}"),
                     &span,
@@ -712,7 +723,7 @@ impl SyntaxLinter {
         let return_annotations = self.return_annotations.clone();
         for (annotation, span) in return_annotations {
             if let Some(annotation) = annotation {
-                if !annotation_allowed(&annotation) {
+                if !annotation_allowed(&annotation, numeric_type) {
                     self.push(
                         "E018",
                         format!(
@@ -815,7 +826,7 @@ fn compact_constant(constant: &SyntaxConstant) -> String {
                 "False".to_string()
             }
         }
-        SyntaxConstant::Int(value) | SyntaxConstant::Str(value) | SyntaxConstant::Bytes(value) => {
+        SyntaxConstant::Decimal(value) | SyntaxConstant::Int(value) | SyntaxConstant::Str(value) | SyntaxConstant::Bytes(value) => {
             value.clone()
         }
         SyntaxConstant::Float(value) => value.to_string(),
@@ -827,15 +838,23 @@ fn compact_constant(constant: &SyntaxConstant) -> String {
     }
 }
 
-fn annotation_allowed(annotation: &str) -> bool {
+fn annotation_allowed(annotation: &str, numeric_type: &str) -> bool {
+    if numeric_type == "decimal"
+        && annotation.split(['[', ']', ',']).any(|name| {
+            matches!(name.trim(), "float" | "Decimal" | "decimal.Decimal")
+        })
+    {
+        return false;
+    }
     let base = annotation
         .split_once('[')
         .map_or(annotation, |(base, _)| base);
-    ALLOWED_ANNOTATION_TYPES.contains(&base)
+    base == numeric_type || ALLOWED_ANNOTATION_TYPES.contains(&base)
 }
 
-fn allowed_annotations_message() -> String {
+fn allowed_annotations_message(numeric_type: &str) -> String {
     let mut allowed = ALLOWED_ANNOTATION_TYPES.to_vec();
+    allowed.push(numeric_type);
     allowed.sort_unstable();
     allowed.join(", ")
 }

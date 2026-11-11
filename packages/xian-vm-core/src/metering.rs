@@ -287,7 +287,10 @@ fn vm_value_to_json(value: &VmValue) -> Result<Value, VmExecutionError> {
         VmValue::None => Value::Null,
         VmValue::Bool(value) => Value::Bool(*value),
         VmValue::Int(value) => {
-            if let Some(number) = value.to_i64() {
+            if let Some(number) = value
+                .to_i64()
+                .filter(|_| !crate::interpreter::numeric_v2::active() || value.bits() <= 53)
+            {
                 Value::Number(number.into())
             } else {
                 let mut object = Map::new();

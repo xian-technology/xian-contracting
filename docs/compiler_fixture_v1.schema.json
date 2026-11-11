@@ -38,7 +38,7 @@
       "minLength": 1
     },
     "vm_profile": {
-      "const": "xian_vm_v1"
+      "enum": ["xian_vm_v1", "xian_vm_v2"]
     },
     "input_source": {
       "type": "string",
@@ -61,7 +61,7 @@
       "properties": {
         "format": {"const": "xian_contract_artifact_v1"},
         "module_name": {"type": "string", "minLength": 1},
-        "vm_profile": {"const": "xian_vm_v1"},
+        "vm_profile": {"enum": ["xian_vm_v1", "xian_vm_v2"]},
         "source": {"type": "string", "minLength": 1},
         "vm_ir_json": {"type": "string", "minLength": 1},
         "hashes": {

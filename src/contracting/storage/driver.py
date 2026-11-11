@@ -8,12 +8,18 @@ from pathlib import Path
 
 from cachetools import TTLCache
 from xian_runtime_types.collections import ContractingSet
-from xian_runtime_types.decimal import ContractingDecimal
-from xian_runtime_types.encoding import encode_kv
+from xian_runtime_types.decimal import ContractingDecimal, canonical_fixed
+from xian_runtime_types.encoding import (
+    decode_wire_numbers,
+    encode_kv,
+    normalize_wire_numbers,
+    validate_persistent_value,
+)
 from xian_runtime_types.time import Datetime
 
 from contracting import constants
 from contracting.compilation.compiler import ContractingCompiler
+from contracting.compilation.vm import SUPPORTED_VM_PROFILES, XIAN_VM_V1_PROFILE, XIAN_VM_V2_PROFILE
 from contracting.execution.interface_subject import ensure_no_interface_subject
 from contracting.execution.runtime import _contract_execution_active, rt
 from contracting.names import assert_safe_contract_name
@@ -53,7 +59,12 @@ class Driver:
         self,
         bypass_cache: bool = False,
         storage_home: Path = constants.STORAGE_HOME,
+        *,
+        vm_profile: str = XIAN_VM_V1_PROFILE,
     ) -> None:
+        if vm_profile not in SUPPORTED_VM_PROFILES:
+            raise ValueError(f"unsupported vm_profile {vm_profile!r}")
+        self.vm_profile = vm_profile
         self.pending_deltas = {}
         self.pending_writes = {}
         self.pending_reads = {}
@@ -67,7 +78,7 @@ class Driver:
         self.storage_home = Path(storage_home)
         self.storage_path = self.storage_home / "lmdb"
         self.storage_path.mkdir(parents=True, exist_ok=True)
-        self._store = LMDBStore(self.storage_path)
+        self._store = LMDBStore(self.storage_path, vm_profile=vm_profile)
 
     def close(self) -> None:
         self._store.close()
@@ -98,23 +109,26 @@ class Driver:
         if _contract_execution_active.get():
             ensure_no_interface_subject(value, "storage")
         rt.deduct_write(
-            *encode_kv(key, value),
+            *encode_kv(key, value, vm_profile=self.vm_profile),
             enforce_write_cap=enforce_write_cap,
         )
         if self.pending_reads.get(key) is None:
             self.get(key)
-        if isinstance(value, (decimal.Decimal, float)):
-            value = ContractingDecimal(str(value))
-        value = _copy_mutable_value(value)
+        value = _copy_mutable_value(self._typed_value(value))
         self.pending_writes[key] = value
         if is_txn_write:
             self.transaction_writes[key] = value
 
+    def _typed_value(self, value):
+        if self.vm_profile == XIAN_VM_V2_PROFILE:
+            validate_persistent_value(value)
+            return decode_wire_numbers(normalize_wire_numbers(value))
+        if isinstance(value, (decimal.Decimal, float)):
+            return ContractingDecimal(str(value))
+        return value
+
     def apply_writes(self, writes: dict[str, object]) -> None:
-        for key, value in writes.items():
-            if isinstance(value, (decimal.Decimal, float)):
-                value = ContractingDecimal(str(value))
-            self.pending_writes[key] = value
+        self.pending_writes.update({key: self._typed_value(value) for key, value in writes.items()})
 
     def find(self, key: str):
         value = self.pending_writes.get(key, _MISSING)
@@ -182,7 +196,15 @@ class Driver:
     def make_key(self, contract, variable, args=None):
         contract_variable = INDEX_SEPARATOR.join((contract, variable))
         if args:
-            return HASH_DELIMITER.join((contract_variable, *[str(arg) for arg in args]))
+
+            def key_text(arg):
+                if self.vm_profile == XIAN_VM_V2_PROFILE and isinstance(
+                    arg, (decimal.Decimal, ContractingDecimal)
+                ):
+                    return canonical_fixed(arg)
+                return str(arg)
+
+            return HASH_DELIMITER.join((contract_variable, *map(key_text, args)))
         return contract_variable
 
     def set_var(
@@ -215,8 +237,8 @@ class Driver:
     def get_contract_source(self, name):
         return self.get_var(name, SOURCE_KEY)
 
-    def get_contract_ir(self, name, *, vm_profile: str = "xian_vm_v1"):
-        if vm_profile != "xian_vm_v1":
+    def get_contract_ir(self, name, *, vm_profile: str | None = None):
+        if vm_profile is not None and vm_profile != self.vm_profile:
             raise ValueError(f"unsupported vm_profile {vm_profile!r}")
         return self.get_var(name, XIAN_VM_V1_IR_KEY)
 
@@ -276,19 +298,27 @@ class Driver:
         initiator=None,
         lint=True,
     ):
-        compiler = ContractingCompiler(module_name=name)
-        normalized_source = compiler.normalize_source(
-            source,
-            lint=lint,
-            vm_profile="xian_vm_v1",
-        )
-        vm_ir_json = compiler.lower_to_ir_json(
-            normalized_source,
-            lint=False,
-            vm_profile="xian_vm_v1",
-            indent=None,
-            sort_keys=True,
-        )
+        if self.vm_profile == XIAN_VM_V2_PROFILE:
+            from contracting.artifacts import compile_contract_source
+
+            compiled = compile_contract_source(
+                module_name=name, source=source, lint=lint, vm_profile=self.vm_profile
+            )
+            normalized_source, vm_ir_json = compiled["source"], compiled["vm_ir_json"]
+        else:
+            compiler = ContractingCompiler(module_name=name)
+            normalized_source = compiler.normalize_source(
+                source,
+                lint=lint,
+                vm_profile="xian_vm_v1",
+            )
+            vm_ir_json = compiler.lower_to_ir_json(
+                normalized_source,
+                lint=False,
+                vm_profile="xian_vm_v1",
+                indent=None,
+                sort_keys=True,
+            )
         self.set_contract(
             name=name,
             source=normalized_source,

@@ -3,7 +3,7 @@ use serde_json::Value;
 
 use crate::artifact::{validate_contract_artifact, ContractArtifact};
 use crate::constants::{
-    COMPILER_FIXTURE_SCHEMA_V1, CONTRACT_ARTIFACT_FORMAT_V1, XIAN_VM_V1_PROFILE,
+    COMPILER_FIXTURE_SCHEMA_V1, CONTRACT_ARTIFACT_FORMAT_V1, validate_profile,
 };
 use crate::diagnostic::{CompilerDiagnostic, DiagnosticSeverity};
 use crate::error::{ensure_eq, ensure_non_empty, ValidationError};
@@ -62,7 +62,7 @@ impl CompilerFixture {
             CONTRACT_ARTIFACT_FORMAT_V1,
         )?;
         ensure_non_empty("module_name", &self.module_name)?;
-        ensure_eq("vm_profile", &self.vm_profile, XIAN_VM_V1_PROFILE)?;
+        validate_profile(&self.vm_profile)?;
         ensure_non_empty("input_source", &self.input_source)?;
         Ok(())
     }
@@ -83,6 +83,7 @@ impl CompilerFixture {
         let artifact = self.artifact.as_ref().ok_or_else(|| {
             ValidationError::field("artifact", "accepted fixture requires artifact")
         })?;
+        ensure_eq("artifact.vm_profile", &artifact.vm_profile, &self.vm_profile)?;
         ensure_eq("artifact.source", &artifact.source, normalized_source)?;
 
         let expected_vm_ir = self

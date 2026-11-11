@@ -27,6 +27,7 @@ mod values;
 pub use raw_decimal::VmRawDecimal;
 
 pub const XIAN_IR_V1: &str = "xian_ir_v1";
+pub const XIAN_VM_V2_PROFILE: &str = "xian_vm_v2";
 pub const XIAN_VM_V1_PROFILE: &str = "xian_vm_v1";
 pub const XIAN_VM_HOST_CATALOG_V1: &str = "xian_vm_v1_host_v1";
 pub const XIAN_VM_SUPPORTED_BYTECODE_VERSIONS: &[&str] = &["xvm-1"];
@@ -147,7 +148,11 @@ pub fn validate_module_ir(module: &ModuleIr) -> Result<(), IrValidationError> {
             module.ir_version
         )));
     }
-    if module.vm_profile != XIAN_VM_V1_PROFILE {
+    let _scope = interpreter::numeric_v2::Scope::enter(&module.vm_profile);
+    if !matches!(
+        module.vm_profile.as_str(),
+        XIAN_VM_V1_PROFILE | XIAN_VM_V2_PROFILE
+    ) {
         return Err(IrValidationError::new(format!(
             "unsupported vm_profile '{}'",
             module.vm_profile
@@ -539,8 +544,37 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
             ensure_allowed(
                 "expression.constant.value_type",
                 expect_string_field(object, "value_type")?,
-                &["none", "bool", "int", "float", "str", "bytes"],
+                if interpreter::numeric_v2::active() {
+                    &["none", "bool", "int", "decimal", "str", "bytes"]
+                } else {
+                    &["none", "bool", "int", "float", "str", "bytes"]
+                },
             )?;
+            if interpreter::numeric_v2::active() && object["value_type"] == "int" {
+                let payload = expect_value_field(object, "value")?;
+                let text = match payload {
+                    Value::String(text) => std::borrow::Cow::Borrowed(text.as_str()),
+                    Value::Number(number) => std::borrow::Cow::Owned(number.to_string()),
+                    _ => return Err(IrValidationError::new("int constant requires an integer")),
+                };
+                if text.len() > 156
+                    || text.parse::<num_bigint::BigInt>().map_or(true, |n| {
+                        n.bits() > xian_numeric::INTEGER_BITS || n.to_string() != text
+                    })
+                {
+                    return Err(IrValidationError::new(
+                        "invalid or out-of-range V2 int constant",
+                    ));
+                }
+            }
+            if object.get("value_type").and_then(Value::as_str) == Some("decimal") {
+                let value = expect_string_field(object, "value")?;
+                if xian_numeric::canonical_decimal(value).as_deref() != Ok(value) {
+                    return Err(IrValidationError::new(
+                        "decimal constant must have canonical exact value",
+                    ));
+                }
+            }
             if object.get("value_type").and_then(Value::as_str) == Some("float") {
                 ensure_non_empty(
                     "expression.constant.literal",

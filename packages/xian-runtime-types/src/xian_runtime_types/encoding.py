@@ -2,6 +2,11 @@ import decimal
 import json
 
 from xian_runtime_types.decimal import ContractingDecimal, fix_precision
+from xian_runtime_types.numeric_wire import (
+    SAFE_INTEGER,
+    decode_wire_numbers,
+    normalize_wire_numbers,
+)
 from xian_runtime_types.set_codec import (
     RESERVED_TAGS,
     _NormalizationBudget,
@@ -95,17 +100,27 @@ def _encode_ints(value):
     return value
 
 
-def encode(data):
+def _exact_profile(vm_profile):
+    if vm_profile not in ("xian_vm_v1", "xian_vm_v2"):
+        raise ValueError(f"unknown VM profile {vm_profile!r}")
+    return vm_profile == "xian_vm_v2"
+
+
+def encode(data, *, vm_profile="xian_vm_v1"):
     validate_persistent_value(data)
+    if _exact_profile(vm_profile):
+        return json.dumps(normalize_wire_numbers(data), separators=(",", ":"))
     return _encode_document(data)
 
 
-def encode_wire(data):
+def encode_wire(data, *, vm_profile="xian_vm_v1"):
     """Serialize wire JSON with opaque codec tags; never use for persistence.
 
     Actual runtime objects retain their typed encoding and resource limits.
     Tag dictionaries are preserved, not decoded or semantically validated.
     """
+    if _exact_profile(vm_profile):
+        return json.dumps(normalize_wire_numbers(data), separators=(",", ":"))
     _validate_serializable_value(data, allow_codec_tags=True)
     return _encode_document(data)
 
@@ -138,11 +153,37 @@ def as_object(value, *, _normalization=None):
     return dict(value)
 
 
-def decode(data):
+def _wire_integer(token):
+    if token == "-0" or len(token.lstrip("-")) > 16 or abs(value := int(token)) > SAFE_INTEGER:
+        raise ValueError("V2 JSON requires canonical safe integers or __big_int__")
+    return value
+
+
+def _reject_json_fraction(token):
+    raise ValueError("V2 fractional JSON numbers require __fixed__")
+
+
+def loads_wire_json(data):
+    """Read V2 JSON without erasing the lexical distinction between -0 and 0.
+
+    Returns the original tagged tree for signature validation and hashing.
+    Use decode_wire_numbers on value fields to obtain typed contract arguments.
+    """
+    return json.loads(
+        data,
+        parse_int=_wire_integer,
+        parse_float=_reject_json_fraction,
+        parse_constant=_reject_json_fraction,
+    )
+
+
+def decode(data, *, vm_profile="xian_vm_v1"):
     if data is None:
         return None
     if isinstance(data, bytes):
         data = data.decode()
+    if _exact_profile(vm_profile):
+        return decode_wire_numbers(loads_wire_json(data))
     try:
         normalization = _NormalizationBudget()
         return json.loads(
@@ -152,12 +193,12 @@ def decode(data):
         return None
 
 
-def encode_kv(key, value):
-    return key.encode(), encode(value).encode()
+def encode_kv(key, value, *, vm_profile="xian_vm_v1"):
+    return key.encode(), encode(value, vm_profile=vm_profile).encode()
 
 
-def decode_kv(key, value):
-    return key.decode(), decode(value)
+def decode_kv(key, value, *, vm_profile="xian_vm_v1"):
+    return key.decode(), decode(value, vm_profile=vm_profile)
 
 
 def convert(key, value, *, _normalization=None):

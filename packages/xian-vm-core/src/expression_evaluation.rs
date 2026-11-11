@@ -368,6 +368,9 @@ impl VmInstance {
             "none" => Ok(VmValue::None),
             "bool" => Ok(VmValue::Bool(required_bool(object, "value")?)),
             "int" => Ok(VmValue::Int(required_bigint(object, "value")?)),
+            "decimal" => {
+                numeric_v2::exact_decimal(required_string(object, "value")?).map(VmValue::Decimal)
+            }
             "float" => {
                 let literal = if let Some(literal) = optional_string(object, "literal") {
                     literal.to_owned()
@@ -592,7 +595,11 @@ impl VmInstance {
         {
             crate::decimal_metering::normalization(host, &[left.clone(), right.clone()])?;
         }
-        host.charge_execution_cost(crate::raw_decimal::work_cost(operator, &left, &right))?;
+        if numeric_v2::active() {
+            host.charge_execution_cost(numeric_v2::op_cost(operator, &left, &right))?;
+        } else {
+            host.charge_execution_cost(crate::raw_decimal::work_cost(operator, &left, &right))?;
+        }
         apply_binary_operator(operator, left, right)
     }
 

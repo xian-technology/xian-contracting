@@ -125,6 +125,15 @@ fn bind_positional(
     Ok((args, vec![]))
 }
 
+pub(super) fn bind_required(
+    name: &str,
+    names: &[&str],
+    args: Vec<VmValue>,
+    kwargs: Vec<(String, VmValue)>,
+) -> Result<Vec<VmValue>, VmExecutionError> {
+    Ok(bind_named(name, args, kwargs, names, &[], names.len(), names.len())?.0)
+}
+
 fn bind_named(
     method: &str,
     args: Vec<VmValue>,

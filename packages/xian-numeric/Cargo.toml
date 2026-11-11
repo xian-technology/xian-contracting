@@ -1,0 +1,7 @@
+[package]
+name = "xian-numeric"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Exact numeric input rules shared by the Xian compiler and VM"
+repository = "https://github.com/xian-technology/xian-contracting"

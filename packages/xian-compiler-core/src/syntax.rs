@@ -12,9 +12,19 @@ use crate::source::SourceUnit;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SyntaxModule {
+    #[serde(default = "default_syntax_profile", skip_serializing_if = "is_default_syntax_profile")]
+    pub vm_profile: String,
     pub module_name: String,
     pub source_sha256: String,
     pub body: Vec<SyntaxStatement>,
+}
+
+fn default_syntax_profile() -> String {
+    crate::XIAN_VM_V1_PROFILE.to_owned()
+}
+
+fn is_default_syntax_profile(profile: &str) -> bool {
+    profile == crate::XIAN_VM_V1_PROFILE
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -257,6 +267,7 @@ pub enum SyntaxConstant {
     Bool(bool),
     Int(String),
     Float(f64),
+    Decimal(String),
     Str(String),
     Bytes(String),
     Tuple(Vec<SyntaxConstant>),
@@ -349,6 +360,7 @@ impl<'a> SyntaxBuilder<'a> {
         }
 
         Ok(SyntaxModule {
+            vm_profile: self.parsed.source_unit().vm_profile().to_owned(),
             module_name: self.parsed.module_name().to_string(),
             source_sha256: self.parsed.source_unit().source_sha256(),
             body,
@@ -865,7 +877,22 @@ impl<'a> SyntaxBuilder<'a> {
         constant: &Constant,
         range: TextRange,
     ) -> Option<SyntaxConstant> {
+        let exact = self.parsed.source_unit().vm_profile() == crate::XIAN_VM_V2_PROFILE;
         match constant {
+            Constant::Int(value) if exact && value.bits() > xian_numeric::INTEGER_BITS => {
+                self.unsupported_constant(range, "int", "integer magnitude must be below 2^512")
+            }
+            Constant::Float(_) if exact => {
+                // RustPython rounds the AST payload to f64. Its UTF-8 range
+                // still identifies all original numeric digits, including in interpolations.
+                let source = self.parsed.source()
+                    .get(range.start().to_usize()..range.end().to_usize())
+                    .unwrap_or("");
+                match xian_numeric::canonical_decimal(&source.replace('_', "")) {
+                    Ok(value) => Some(SyntaxConstant::Decimal(value)),
+                    Err(message) => self.unsupported_constant(range, "decimal", message),
+                }
+            }
             Constant::None => Some(SyntaxConstant::None),
             Constant::Bool(value) => Some(SyntaxConstant::Bool(*value)),
             Constant::Int(value) => Some(SyntaxConstant::Int(value.to_string())),

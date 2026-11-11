@@ -18,7 +18,7 @@ fn arity(args: &[VmValue], minimum: usize, maximum: usize) -> Result<()> {
 fn integer(value: &VmValue) -> Result<BigInt> {
     match value.snapshot() {
         VmValue::Int(v) => Ok(v),
-        VmValue::Bool(v) => Ok(u8::from(v).into()),
+        VmValue::Bool(v) if !numeric_v2::active() => Ok(u8::from(v).into()),
         _ => Err(error("binary method requires an integer")),
     }
 }

@@ -70,7 +70,7 @@ fn round_integer(number: &BigInt, places: i32) -> BigInt {
     round_ratio(number, &factor) * factor
 }
 
-fn round_ratio(number: &BigInt, denominator: &BigInt) -> BigInt {
+pub(super) fn round_ratio(number: &BigInt, denominator: &BigInt) -> BigInt {
     let quotient = number / denominator;
     let remainder = (number % denominator).abs() * BigInt::from(2u8);
     let odd = (&quotient % BigInt::from(2u8)) != BigInt::zero();

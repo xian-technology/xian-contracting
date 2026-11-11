@@ -10,10 +10,17 @@ from types import FunctionType
 from xian_runtime_types.time import Datetime
 
 from contracting import constants
-from contracting.artifacts import build_contract_artifacts
+from contracting.artifacts import (
+    XIAN_VM_V1_PROFILE,
+    XIAN_VM_V2_PROFILE,
+    build_contract_artifacts,
+    compile_contract_source,
+    diagnose_contract_source,
+)
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.execution.executor import Executor
 from contracting.execution.parallel import ParallelBatchExecutor
+from contracting.local.native_executor import NativeExecutor
 from contracting.storage.driver import Driver
 from contracting.storage.orm import Hash, Variable
 
@@ -49,8 +56,9 @@ class AbstractContract:
 
             # set the kwargs to None. these will fail if they are not provided
             default_kwargs = {}
-            for kwarg in kwargs:
-                default_kwargs[kwarg] = None
+            if not isinstance(executor, NativeExecutor):
+                for kwarg in kwargs:
+                    default_kwargs[kwarg] = None
 
             # each function is a partial that allows kwarg overloading and overriding
             setattr(
@@ -178,7 +186,7 @@ class AbstractContract:
 
         # for k, v in kwargs.items():
         #     assert v is not None, 'Keyword "{}" not provided. Must not be None.'.format(k)
-        environment = environment or self.environment
+        environment = dict(environment or self.environment)
 
         if now is None:
             now = self.now()
@@ -214,10 +222,24 @@ class ContractingClient:
         metering=False,
         compiler: ContractingCompiler | None = None,
         environment: dict | None = None,
+        vm_profile: str | None = None,
     ):
+        self.vm_profile = vm_profile or (
+            driver.vm_profile if driver is not None else XIAN_VM_V1_PROFILE
+        )
+        if driver is not None and driver.vm_profile != self.vm_profile:
+            raise ValueError("client and storage driver profiles must match")
         self._owns_driver = driver is None
-        driver = driver if driver is not None else Driver(storage_home=storage_home)
-        self.executor = Executor(metering=metering, driver=driver)
+        driver = (
+            driver
+            if driver is not None
+            else Driver(storage_home=storage_home, vm_profile=self.vm_profile)
+        )
+        self.executor = (
+            NativeExecutor(driver, metering=metering)
+            if self.vm_profile == XIAN_VM_V2_PROFILE
+            else Executor(metering=metering, driver=driver)
+        )
         self.raw_driver = driver
         self.signer = signer
         self.compiler = compiler if compiler is not None else ContractingCompiler()
@@ -280,6 +302,16 @@ class ContractingClient:
 
         source_code = None
         vm_ir_json = None
+        if self.vm_profile == XIAN_VM_V2_PROFILE:
+            source_code = (
+                BUILTIN_SUBMISSION_SOURCE_PATH.read_text(encoding="utf-8")
+                if runtime_path == BUILTIN_SUBMISSION_RUNTIME_PATH
+                else local_source
+            )
+            compiled = compile_contract_source(
+                module_name="submission", source=source_code, lint=False, vm_profile=self.vm_profile
+            )
+            return local_source, compiled["source"], compiled["vm_ir_json"]
         if runtime_path == BUILTIN_SUBMISSION_RUNTIME_PATH:
             source_code = BUILTIN_SUBMISSION_SOURCE_PATH.read_text(encoding="utf-8")
             previous_module_name = self.compiler.module_name
@@ -327,7 +359,10 @@ class ContractingClient:
 
     # Returns abstract contract which has partial methods mapped to each exported function.
     def get_contract_proxy(self, name):
-        contract = self.raw_driver.get_local_contract_runtime(name)
+        if self.vm_profile == XIAN_VM_V2_PROFILE:
+            contract = self.raw_driver.get_contract_source(name)
+        else:
+            contract = self.raw_driver.get_local_contract_runtime(name)
 
         if contract is None:
             return None
@@ -335,6 +370,12 @@ class ContractingClient:
         tree = ast.parse(contract)
 
         function_defs = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+        if self.vm_profile == XIAN_VM_V2_PROFILE:
+            function_defs = [
+                n
+                for n in function_defs
+                if any(isinstance(d, ast.Name) and d.id == "export" for d in n.decorator_list)
+            ]
 
         funcs = []
         for definition in function_defs:
@@ -354,7 +395,7 @@ class ContractingClient:
     def get_contract_source(self, name):
         return self.raw_driver.get_contract_source(name)
 
-    def get_contract_ir(self, name, *, vm_profile: str = "xian_vm_v1"):
+    def get_contract_ir(self, name, *, vm_profile: str | None = None):
         return self.raw_driver.get_contract_ir(name, vm_profile=vm_profile)
 
     def closure_to_code_string(self, f):
@@ -368,6 +409,14 @@ class ContractingClient:
         )
 
         func_def_body = closure_tree.body[0]
+        if self.vm_profile == XIAN_VM_V2_PROFILE:
+            # Preserve original literal digits when the caller submits a Python function.
+            first = func_def_body.body[0]
+            decorators = getattr(first, "decorator_list", [])
+            start = min([first.lineno, *(d.lineno for d in decorators)]) - 1
+            return textwrap.dedent(
+                "".join(closure_code.splitlines(keepends=True)[start:])
+            ), func_def_body.name
         closure_tree.body = func_def_body.body
 
         contract_source = ast.unparse(closure_tree)
@@ -379,6 +428,13 @@ class ContractingClient:
         if isinstance(f, FunctionType):
             f, _ = self.closure_to_code_string(f)
 
+        if self.vm_profile == XIAN_VM_V2_PROFILE:
+            diagnostics = diagnose_contract_source(
+                module_name="con_lint", source=f, vm_profile=self.vm_profile
+            )
+            if raise_errors and diagnostics:
+                raise ValueError(diagnostics[0]["message"])
+            return diagnostics or None
         if raise_errors:
             self.compiler.linter.check_raise(f)
             return None
@@ -389,6 +445,10 @@ class ContractingClient:
         if isinstance(f, FunctionType):
             f, _ = self.closure_to_code_string(f)
 
+        if self.vm_profile == XIAN_VM_V2_PROFILE:
+            return compile_contract_source(
+                module_name="con_compile", source=f, vm_profile=self.vm_profile
+            )["source"]
         code = self.compiler.parse_to_code(f)
         return code
 
@@ -404,7 +464,7 @@ class ContractingClient:
             module_name=name,
             source=f,
             lint=True,
-            vm_profile="xian_vm_v1",
+            vm_profile=self.vm_profile,
         )
 
     def submit(

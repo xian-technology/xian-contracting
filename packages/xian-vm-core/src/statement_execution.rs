@@ -343,6 +343,9 @@ impl VmInstance {
         let current = self.hash_get(binding, &key, host)?;
         let operand = self.eval_expression(required_value(object, "value")?, scope, host)?;
         let operator = required_string(object, "operator")?;
+        if numeric_v2::active() {
+            host.charge_execution_cost(numeric_v2::op_cost(operator, &current, &operand))?;
+        }
         let result = apply_binary_operator(operator, current, operand)?;
         self.write_hash_value(binding, &key, result, host)?;
         Ok(ControlFlow::Next)
@@ -371,6 +374,9 @@ impl VmInstance {
             return Err(VmExecutionError::new(
                 "mappingproxy does not support in-place union",
             ));
+        }
+        if numeric_v2::active() {
+            host.charge_execution_cost(numeric_v2::op_cost(operator, &current, &operand))?;
         }
         let union_cost = mapping_views::union_work(operator, &current, &operand);
         if union_cost > 0 {

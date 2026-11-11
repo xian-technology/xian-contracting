@@ -109,6 +109,9 @@ impl VmInstance {
                 if !kwargs.is_empty() || args.len() != 1 {
                     return Err(VmExecutionError::new("decimal() expects one argument"));
                 }
+                if numeric_v2::active() {
+                    return numeric_v2::new_decimal(&args[0]);
+                }
                 Ok(VmValue::Decimal(VmDecimal::from_vm_value(
                     args.first().expect("decimal() argument should exist"),
                 )?))

@@ -1,4 +1,6 @@
+use crate::interpreter::numeric_v2;
 use crate::interpreter::{vm_hash_storage_key, vm_variable_storage_key};
+use crate::XIAN_VM_V2_PROFILE;
 use crate::{
     parse_module_ir, VmContractCall, VmContractTarget, VmDateTime, VmDecimal, VmEvent,
     VmExecutionContext, VmExecutionError, VmExecutionStats, VmHost, VmInstance, VmMeterConfig,
@@ -56,6 +58,21 @@ struct PythonBundleExecutor {
     events: Vec<VmEvent>,
     meter: crate::VmMeter,
     contract_call_count: u64,
+    vm_profile: String,
+}
+
+fn validate_bundle_module(
+    module: &crate::ModuleIr,
+    name: &str,
+    profile: &str,
+) -> Result<(), VmExecutionError> {
+    if module.vm_profile != profile || (profile == XIAN_VM_V2_PROFILE && module.module_name != name)
+    {
+        return Err(VmExecutionError::new(
+            "bundle module name or execution profile mismatch",
+        ));
+    }
+    Ok(())
 }
 
 impl PythonBundleExecutor {
@@ -64,6 +81,7 @@ impl PythonBundleExecutor {
         bundle_ir_json: &str,
         meter_config: VmMeterConfig,
         budget: Option<crate::VmBudget>,
+        vm_profile: &str,
     ) -> Result<Self, VmExecutionError> {
         let parsed: JsonValue = serde_json::from_str(bundle_ir_json)
             .map_err(|error| VmExecutionError::new(error.to_string()))?;
@@ -77,6 +95,7 @@ impl PythonBundleExecutor {
                     .map_err(|error| VmExecutionError::new(error.to_string()))?,
             )
             .map_err(|error| VmExecutionError::new(error.to_string()))?;
+            validate_bundle_module(&module, module_name, vm_profile)?;
             modules.insert(module_name.clone(), module);
         }
         Ok(Self {
@@ -94,6 +113,7 @@ impl PythonBundleExecutor {
                 None => crate::VmMeter::new(meter_config),
             },
             contract_call_count: 0,
+            vm_profile: vm_profile.to_owned(),
         })
     }
 
@@ -198,6 +218,7 @@ impl PythonBundleExecutor {
         };
         let module = parse_module_ir(&module_ir_json)
             .map_err(|error| VmExecutionError::new(error.to_string()))?;
+        validate_bundle_module(&module, module_name, &self.vm_profile)?;
         self.modules.insert(module_name.to_owned(), module);
         Ok(())
     }
@@ -719,6 +740,11 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
         return Ok(VmValue::None);
     }
     let type_name = python_type_name(&value);
+    if numeric_v2::active() && matches!(type_name.as_str(), "float" | "Decimal" | "DecimalTuple") {
+        return Err(VmExecutionError::new(
+            "binary float and raw Decimal are unavailable in xian_vm_v2",
+        ));
+    }
     if let Ok(boolean) = value.extract::<bool>() {
         if type_name == "bool" {
             return Ok(VmValue::Bool(boolean));
@@ -753,7 +779,11 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
             .map_err(|error| VmExecutionError::new(error.to_string()))?;
         let mut entries = Vec::new();
         for (key, item) in dict.iter() {
-            entries.push((py_to_vm(key)?, py_to_vm(item)?));
+            let key = py_to_vm(key)?;
+            if numeric_v2::active() {
+                numeric_v2::wire_dict_key(&key)?;
+            }
+            entries.push((key, py_to_vm(item)?));
         }
         return Ok(VmValue::Dict(entries));
     }
@@ -803,13 +833,17 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
                 )?));
             }
             ("xian_runtime_types.decimal", "ContractingDecimal") => {
-                return Ok(VmValue::Decimal(VmDecimal::from_str_literal(
-                    value
-                        .str()
-                        .map_err(|error| VmExecutionError::new(error.to_string()))?
-                        .to_str()
-                        .map_err(|error| VmExecutionError::new(error.to_string()))?,
-                )?));
+                let rendered = value
+                    .str()
+                    .map_err(|error| VmExecutionError::new(error.to_string()))?;
+                let text = rendered
+                    .to_str()
+                    .map_err(|error| VmExecutionError::new(error.to_string()))?;
+                return Ok(VmValue::Decimal(if numeric_v2::active() {
+                    numeric_v2::exact_decimal(text)?
+                } else {
+                    VmDecimal::from_str_literal(text)?
+                }));
             }
             ("xian_runtime_types.time", "Datetime") | ("datetime", "datetime") => {
                 return Ok(VmValue::DateTime(VmDateTime::new(
@@ -836,6 +870,17 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
         }
     }
     if type_name == "int" {
+        if numeric_v2::active()
+            && value
+                .call_method0("bit_length")
+                .and_then(|n| n.extract::<u64>())
+                .map_err(|error| VmExecutionError::new(error.to_string()))?
+                > xian_numeric::INTEGER_BITS
+        {
+            return Err(VmExecutionError::new(
+                "integer exceeds the 512-bit magnitude limit",
+            ));
+        }
         let rendered = value
             .str()
             .map_err(|error| VmExecutionError::new(error.to_string()))?
@@ -953,24 +998,19 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
         VmValue::BuiltinSet(_) => Err(PyValueError::new_err(
             "builtin sets cannot cross the VM boundary; convert with set() first",
         )),
-        VmValue::Set(values) => {
-            let module = PyModule::import(py, "xian_runtime_types.collections")?;
+        VmValue::Set(values) | VmValue::FrozenSet(values) => {
+            let class = if matches!(value, VmValue::Set(_)) { "ContractingSet" } else { "ContractingFrozenSet" };
+            let wrapper = PyModule::import(py, "xian_runtime_types.collections")?.getattr(class)?;
             let list = PyList::empty(py);
             for item in values {
                 list.append(vm_to_py(py, item)?)?;
             }
-            Ok(module.getattr("ContractingSet")?.call1((list,))?.unbind())
-        }
-        VmValue::FrozenSet(values) => {
-            let module = PyModule::import(py, "xian_runtime_types.collections")?;
-            let list = PyList::empty(py);
-            for item in values {
-                list.append(vm_to_py(py, item)?)?;
-            }
-            Ok(module
-                .getattr("ContractingFrozenSet")?
-                .call1((list,))?
-                .unbind())
+            let set = if numeric_v2::active() {
+                wrapper.call_method1("_from_v2_members", (list,))?
+            } else {
+                wrapper.call1((list,))?
+            };
+            Ok(set.unbind())
         }
         VmValue::List(values) => {
             let list = PyList::empty(py);
@@ -1209,24 +1249,39 @@ fn execution_result_to_py(py: Python<'_>, result: PyExecutionResult) -> PyResult
     Ok(payload.into_any().unbind())
 }
 
-#[pyfunction]
-fn runtime_info_json() -> PyResult<String> {
+#[pyfunction(signature=(vm_profile="xian_vm_v1"))]
+fn runtime_info_json(vm_profile: &str) -> PyResult<String> {
+    let (bytecode, gas, revision) = match vm_profile {
+        XIAN_VM_V1_PROFILE => (
+            XIAN_VM_SUPPORTED_BYTECODE_VERSIONS,
+            XIAN_VM_SUPPORTED_GAS_SCHEDULES,
+            XIAN_VM_EXECUTION_REVISION,
+        ),
+        XIAN_VM_V2_PROFILE => (&["xvm-2"][..], &["xvm-gas-3"][..], "xvm-execution-6"),
+        _ => return Err(PyValueError::new_err("unknown VM profile")),
+    };
     serde_json::to_string(&json!({
         "ir_version": XIAN_IR_V1,
-        "vm_profile": XIAN_VM_V1_PROFILE,
+        "vm_profile": vm_profile,
         "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
-        "supported_bytecode_versions": XIAN_VM_SUPPORTED_BYTECODE_VERSIONS,
-        "supported_gas_schedules": XIAN_VM_SUPPORTED_GAS_SCHEDULES,
-        "execution_revision": XIAN_VM_EXECUTION_REVISION,
+        "supported_bytecode_versions": bytecode,
+        "supported_gas_schedules": gas,
+        "execution_revision": revision,
         "set_codec": XIAN_VM_SET_CODEC,
     }))
     .map_err(|error| PyValueError::new_err(error.to_string()))
 }
 
-#[pyfunction]
-fn supports_execution_policy(bytecode_version: &str, gas_schedule: &str) -> bool {
-    XIAN_VM_SUPPORTED_BYTECODE_VERSIONS.contains(&bytecode_version)
-        && XIAN_VM_SUPPORTED_GAS_SCHEDULES.contains(&gas_schedule)
+#[pyfunction(signature=(bytecode_version,gas_schedule,vm_profile="xian_vm_v1"))]
+fn supports_execution_policy(bytecode_version: &str, gas_schedule: &str, vm_profile: &str) -> bool {
+    match vm_profile {
+        XIAN_VM_V1_PROFILE => {
+            XIAN_VM_SUPPORTED_BYTECODE_VERSIONS.contains(&bytecode_version)
+                && XIAN_VM_SUPPORTED_GAS_SCHEDULES.contains(&gas_schedule)
+        }
+        XIAN_VM_V2_PROFILE => bytecode_version == "xvm-2" && gas_schedule == "xvm-gas-3",
+        _ => false,
+    }
 }
 
 #[pyfunction]
@@ -1275,7 +1330,8 @@ fn validate_deployment_artifacts_json(
     meter=false,
     chi_budget_raw=0,
     transaction_size_bytes=0,
-    budget=None
+    budget=None,
+    vm_profile="xian_vm_v1"
 ))]
 fn execute_bundle(
     py: Python<'_>,
@@ -1290,7 +1346,12 @@ fn execute_bundle(
     chi_budget_raw: u64,
     transaction_size_bytes: usize,
     budget: Option<PyRef<'_, PyTransactionBudget>>,
+    vm_profile: &str,
 ) -> PyResult<Py<PyAny>> {
+    if !matches!(vm_profile, XIAN_VM_V1_PROFILE | XIAN_VM_V2_PROFILE) {
+        return Err(PyValueError::new_err("unknown VM profile"));
+    }
+    let _scope = numeric_v2::Scope::enter(vm_profile);
     let args = args.bind(py);
     let kwargs = kwargs.bind(py);
     let context = context.bind(py);
@@ -1323,6 +1384,7 @@ fn execute_bundle(
             transaction_size_bytes,
         },
         budget.map(|shared| shared.budget.clone()),
+        vm_profile,
     )
     .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?;
     let result =

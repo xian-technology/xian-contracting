@@ -2,7 +2,7 @@
 
 `xian-contracting` is the contract compiler, source/artifact utility layer,
 local test harness, and standard-library bridge for Xian. Network execution is
-defined by the Xian VM (`xian_vm_v1`).
+defined by the chain's Xian VM profile. The fresh-genesis profile is `xian_vm_v2`.
 
 The published PyPI package is `xian-tech-contracting`. The import package
 remains `contracting`. Side packages under `packages/` (deterministic runtime
@@ -68,6 +68,22 @@ token.transfer(amount=100, to="bob")
 
 `submit(...)` accepts contract source as a string or a Python function whose
 body is the contract.
+
+For the fresh-genesis language install `xian-tech-contracting[v2]`. Select
+`vm_profile="xian_vm_v2"` when constructing the client. It compiles with the
+Rust compiler and executes deployments and calls on the native VM, including
+constructor calls and contracts called by another contract. Use Python
+`decimal.Decimal("1.25")` for a fractional input.
+
+```python
+from decimal import Decimal
+from contracting.local import ContractingClient
+
+with ContractingClient(vm_profile="xian_vm_v2") as client:
+    client.submit("@export\ndef half(amount: decimal):\n    return amount / 2", name="con_math")
+    result = client.get_contract_proxy("con_math").half(amount=Decimal("0.25"))
+    assert result == Decimal("0.125")
+```
 
 Use the storage driver directly:
 

@@ -167,6 +167,9 @@ impl VmHeap {
         if depth > MAX_VALUE_DEPTH {
             return Err(VmExecutionError::new("VM value depth limit exceeded"));
         }
+        if crate::interpreter::numeric_v2::active() {
+            crate::interpreter::numeric_v2::validate_leaf(&value)?;
+        }
         let value = map_children(value, |item| self.capture_at(item, depth + 1))?;
         if matches!(
             value,
@@ -643,6 +646,11 @@ impl ContractValueVisitor {
             }
             VmValue::Dict(entries) => {
                 for (key, value) in entries {
+                    if self.boundary == "the VM boundary"
+                        && crate::interpreter::numeric_v2::active()
+                    {
+                        crate::interpreter::numeric_v2::wire_dict_key(key)?;
+                    }
                     self.visit(key, depth + 1)?;
                     self.visit(value, depth + 1)?;
                 }
