@@ -18,6 +18,8 @@ classifiers = [
 dependencies = ["xian-tech-contracting>=1.1.4,<2"]
 
 [tool.uv]
+# When developing this package directly, the project itself provides the VM.
+no-sources-package = ["xian-tech-vm-core"]
 # Local path installs must rebuild when the native code or Python binding changes.
 cache-keys = [
     { file = "pyproject.toml" },
