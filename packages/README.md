@@ -13,7 +13,7 @@ small, purpose-built packages instead of growing one monolithic runtime.
   `xian-tech-compiler-core`
 - `xian-fastpath-core/`: optional native fast paths for transaction admission,
   published as `xian-tech-fastpath-core`
-- `xian-vm-core/`: native `xian_ir_v1` validation and early VM execution work,
+- `xian-vm-core/`: native `xian_ir_v1` validation and execution under V1 and V2,
   published as `xian-tech-vm-core`
 - `xian-zk/`: native Groth16 BN254 verification and shielded-note proving
   toolkit, published as `xian-tech-zk`
@@ -21,13 +21,14 @@ small, purpose-built packages instead of growing one monolithic runtime.
 ```mermaid
 flowchart LR
   Contracting["xian-tech-contracting"] --> RuntimeTypes["xian-runtime-types"]
-  Contracting --> Accounts["xian-accounts"]
   Contracting --> Compiler["xian-compiler-core"]
-  Contracting --> VM["xian-vm-core"]
-  Contracting --> ZK["xian-zk"]
+  Contracting -->|v2 extra| VM["xian-vm-core"]
+  Contracting -->|zk extra| ZK["xian-zk"]
   ABCI["xian-abci"] --> Fastpath["xian-fastpath-core"]
   ABCI --> VM
-  SDK["xian-py"] --> Accounts
+  SDK["xian-py"] --> Accounts["xian-accounts"]
+  Compiler --> Numeric["xian-numeric"]
+  VM --> Numeric
 ```
 
 ## Notes

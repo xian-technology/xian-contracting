@@ -15,85 +15,63 @@ node runtime.
 ```mermaid
 flowchart LR
   Source["Authored contract source"] --> Compiler["Compiler and linter"]
-  Compiler --> Artifact["Offline artifacts"]
-  Compiler --> VM["xian_vm_v1 execution target"]
-  Source --> Executor["Local harness"]
-  Executor --> Storage["Deterministic storage"]
-  Executor --> Stdlib["Stdlib bridge"]
-  Executor --> Events["LogEvent output"]
+  Compiler --> Artifact["Profile-tagged Xian IR"]
+  Artifact --> VM["Native VM under the selected chain profile"]
+  Executor["V2 local harness"] --> VM
+  VM --> Storage["Deterministic storage"]
+  VM --> Stdlib["Host bridge"]
+  VM --> Events["LogEvent output"]
   Packages["Side packages"] --> VM
   Packages --> ZK["xian-zk"]
 ```
 
 ## Quick Start
 
-Install the package:
+From this checkout, install the local compiler, matching runtime types and V2
+VM with Python 3.14:
 
 ```bash
-uv add xian-tech-contracting
+uv sync --extra v2
 ```
 
-Optional zk helpers are kept off the default install:
+The V2 dependency extra is `xian-tech-contracting[v2]` in contracting 1.1.4
+and later. An installation from a package index requires matching releases of
+the compiler, VM and runtime types. Add the `zk` extra for the optional zk
+helpers.
 
-```bash
-uv add 'xian-tech-contracting[zk]'
-```
-
-Compile source or build artifacts for offline inspection:
+Compile artifacts for the fresh-genesis profile:
 
 ```python
-from contracting.artifacts import build_contract_artifacts, compile_contract_source
+from contracting.artifacts import build_contract_artifacts
 
-compiled = compile_contract_source(
-    module_name="con_token",
-    source=contract_source,
-)
+contract_source = "@export\ndef half(amount: decimal):\n    return amount / 2"
 artifacts = build_contract_artifacts(
-    module_name="con_token",
-    source=contract_source,
+    module_name="con_math", source=contract_source, vm_profile="xian_vm_v2"
 )
 ```
 
-Run a contract in the local harness:
-
-```python
-from contracting.local import ContractingClient
-
-client = ContractingClient()
-client.submit(contract_source, name="con_token")
-
-token = client.get_contract_proxy("con_token")
-token.transfer(amount=100, to="bob")
-```
-
-`submit(...)` accepts contract source as a string or a Python function whose
-body is the contract.
-
-For the fresh-genesis language install `xian-tech-contracting[v2]`. Select
-`vm_profile="xian_vm_v2"` when constructing the client. It compiles with the
-Rust compiler and executes deployments and calls on the native VM, including
-constructor calls and contracts called by another contract. Use Python
-`decimal.Decimal("1.25")` for a fractional input.
+Run the same source under the native VM. The local harness compiles deployments
+and executes constructors, exported functions and cross-contract calls with
+the selected profile. Fractional Python inputs use `decimal.Decimal`.
 
 ```python
 from decimal import Decimal
+from tempfile import TemporaryDirectory
 from contracting.local import ContractingClient
 
-with ContractingClient(vm_profile="xian_vm_v2") as client:
-    client.submit("@export\ndef half(amount: decimal):\n    return amount / 2", name="con_math")
-    result = client.get_contract_proxy("con_math").half(amount=Decimal("0.25"))
-    assert result == Decimal("0.125")
+with TemporaryDirectory() as home:
+    with ContractingClient(storage_home=home, vm_profile="xian_vm_v2") as client:
+        client.submit(contract_source, name="con_math")
+        result = client.get_contract_proxy("con_math").half(amount=Decimal("0.25"))
+        assert result == Decimal("0.125")
 ```
 
-Use the storage driver directly:
-
-```python
-from contracting.storage.driver import Driver
-
-driver = Driver()
-driver.set("example.key", "value")
-print(driver.get("example.key"))
-```
+`submit` accepts source text or a Python function containing the contract
+definition. The Python compiler, `ContractingClient` and storage `Driver`
+default to `xian_vm_v1` for historical callers. Select V2 explicitly when
+building artifacts, opening contract storage or creating a local client for a
+fresh-genesis chain. A default V1 client runs the historical Python harness.
+Validators select the native VM profile in chain policy.
 
 ## Principles
 
@@ -147,11 +125,11 @@ print(driver.get("example.key"))
 - contract-side runtime helpers (`stdlib` bridge)
 - speculative parallel batch execution primitives
 - native zero-knowledge verifier building blocks
-- Xian VM IR generation, validation, parity fixtures, and early native VM work
+- Xian VM IR generation, validation, native execution and compatibility fixtures
 
 ## Validation
 
-Default CI path (pure-Python, no Rust extensions):
+Default CI runs the Python suite with the required Rust compiler extension:
 
 ```bash
 uv sync --group dev
