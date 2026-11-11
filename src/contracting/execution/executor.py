@@ -125,10 +125,11 @@ class Executor:
         # parallelism uses separate worker processes, so this does not reduce
         # node-side speculative parallel execution.
         with runtime.rt.execution_lock:
-            current_driver_pending_writes = deepcopy(self.driver.pending_writes)
-            self.driver.clear_transaction_reads()
-            self.driver.clear_transaction_writes()
-            self.driver.clear_events()
+            driver = driver or self.driver
+            current_driver_pending_writes = deepcopy(driver.pending_writes)
+            driver.clear_transaction_reads()
+            driver.clear_transaction_writes()
+            driver.clear_events()
             environment = {} if environment is None else dict(environment)
 
             if not self.bypass_privates and function_name.startswith(
@@ -139,7 +140,6 @@ class Executor:
             if metering is None:
                 metering = self.metering
 
-            driver = driver or self.driver
             runtime.rt.env.update({"__Driver": driver})
             clear_random_state()
 

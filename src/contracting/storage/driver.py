@@ -450,10 +450,11 @@ class Driver:
         )
 
     def delete_contract(self, name):
-        for key in self.keys(name):
+        prefix = f"{name}{INDEX_SEPARATOR}"
+        for key in self.keys(prefix):
             self.cache.pop(key, None)
             self.pending_writes.pop(key, None)
-        self._store.delete_prefix(f"{name}{INDEX_SEPARATOR}")
+        self._store.delete_prefix(prefix)
 
     def get_contract_files(self):
         contracts = set()

@@ -190,6 +190,19 @@ class TestDriverWithLMDB(TestCase):
         self.assertIsNone(self.driver.get_contract_ir("con_test"))
         self.assertIsNone(self.driver.get_contract_source("con_test"))
 
+    def test_delete_contract_preserves_pending_state_of_longer_contract_name(self):
+        self.driver.set_var("con_test", "value", value=1)
+        self.driver.set_var("con_test_other", "value", value=2)
+        self.driver.commit()
+        self.driver.set_var("con_test_other", "value", value=3)
+
+        self.driver.delete_contract("con_test")
+
+        self.assertIsNone(self.driver.get_var("con_test", "value"))
+        self.assertEqual(self.driver.get_var("con_test_other", "value"), 3)
+        self.driver.commit()
+        self.assertEqual(self.driver.value_from_disk("con_test_other.value"), 3)
+
     def test_driver_context_manager_closes_store(self):
         from contracting.storage.driver import Driver
 
