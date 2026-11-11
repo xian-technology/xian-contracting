@@ -592,6 +592,7 @@ def execute_contract(
     result = _coerce_native_error_result(
         int(raw["status_code"]),
         raw["result"],
+        vm_profile=vm_profile,
     )
     status_code = int(raw["status_code"])
     writes = {
@@ -644,39 +645,27 @@ def _merge_contract_costs(left: dict[str, int], right: dict[str, int]) -> dict[s
     return dict(sorted(merged.items()))
 
 
-def _coerce_native_error_result(status_code: int, result: Any) -> Any:
+def _coerce_native_error_result(
+    status_code: int, result: Any, *, vm_profile: str = "xian_vm_v2"
+) -> Any:
     if int(status_code) == 0 or not isinstance(result, str):
         return result
-    return _native_exception_from_repr(result) or result
+    return _native_exception_from_repr(result, vm_profile=vm_profile) or result
 
 
-def _native_exception_from_repr(result: str) -> BaseException | None:
-    if result == "Contract metadata changes are restricted to submission.":
-        return AssertionError(result)
-    exception_types: dict[str, type[BaseException]] = {
-        "AssertionError": AssertionError,
-        "TypeError": TypeError,
-        "ValueError": ValueError,
-        "RuntimeError": RuntimeError,
-        "Exception": Exception,
-        "KeyError": KeyError,
-        "IndexError": IndexError,
-    }
-    prefixed_name, separator, remainder = result.partition(": ")
-    if separator == ": ":
-        nested = _native_exception_from_repr(remainder)
-        if nested is not None:
-            return nested
-        exception_type = exception_types.get(prefixed_name)
-        if exception_type is not None:
-            return exception_type(remainder)
-    name, separator, args_repr = result.partition("(")
-    if separator != "(" or not result.endswith(")"):
-        return None
-    exception_type = exception_types.get(name)
-    if exception_type is None:
-        return None
-    inner = args_repr[:-1]
+_NATIVE_EXCEPTION_TYPES: dict[str, type[BaseException]] = {
+    "AssertionError": AssertionError,
+    "TypeError": TypeError,
+    "ValueError": ValueError,
+    "RuntimeError": RuntimeError,
+    "Exception": Exception,
+    "KeyError": KeyError,
+    "IndexError": IndexError,
+}
+_METADATA_AUTHORITY_ERROR = "Contract metadata changes are restricted to submission."
+
+
+def _literal_native_exception(exception_type, inner):
     if inner == "":
         return exception_type()
     try:
@@ -686,6 +675,47 @@ def _native_exception_from_repr(result: str) -> BaseException | None:
     if not isinstance(args, tuple):
         args = (args,)
     return exception_type(*args)
+
+
+def _native_exception_at(result, start):
+    if len(result) - start == len(_METADATA_AUTHORITY_ERROR) and result.startswith(
+        _METADATA_AUTHORITY_ERROR, start
+    ):
+        return AssertionError(_METADATA_AUTHORITY_ERROR)
+    for name, exception_type in _NATIVE_EXCEPTION_TYPES.items():
+        if result.startswith(f"{name}: ", start):
+            return exception_type(result[start + len(name) + 2 :])
+        if result.startswith(f"{name}(", start) and result.endswith(")"):
+            return _literal_native_exception(exception_type, result[start + len(name) + 1 : -1])
+    return None
+
+
+def _native_exception_offsets(result, *, reverse):
+    if not reverse:
+        yield 0
+    position = len(result) if reverse else 0
+    while True:
+        position = result.rfind(": ", 0, position) if reverse else result.find(": ", position)
+        if position < 0:
+            break
+        yield position + 2
+        if not reverse:
+            position += 2
+    if reverse:
+        yield 0
+
+
+def _native_exception_from_repr(
+    result: str, *, vm_profile: str = "xian_vm_v2"
+) -> BaseException | None:
+    # V2 treats the first recognized exception's message as data. Archival V1
+    # keeps rightmost-prefix precedence. Both scan offsets without recursion or
+    # retaining successively shorter copies of an untrusted error message.
+    for start in _native_exception_offsets(result, reverse=vm_profile == "xian_vm_v1"):
+        error = _native_exception_at(result, start)
+        if error is not None:
+            return error
+    return None
 
 
 def _combined_chi_used(

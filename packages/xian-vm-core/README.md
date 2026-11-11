@@ -27,7 +27,7 @@ Supported scope:
 
 The chain selects a profile for artifact admission and execution. Every module
 in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports
-execution revision `xvm-execution-8`, bytecode version `xvm-2` and gas schedule
+execution revision `xvm-execution-9`, bytecode version `xvm-2` and gas schedule
 `xvm-gas-3`. The native and Python host bindings select V2 by default. Public
 `ContractingClient` and `ParallelBatchExecutor` execution accepts only V2.
 
@@ -41,6 +41,12 @@ V2 external entrypoints must be exported functions. Constructors execute only
 through trusted deployment. Code-hash inspection accepts only the `runtime`,
 `ir` and `source` selectors; other kinds fail. Archival V1 semantics remain
 separate from these V2 checks.
+
+V2 failure decoding preserves the first recognized exception type and treats
+its message as data, even when that message contains exception-like text.
+Descriptive host prefixes can precede the exception. Archival V1 retains its
+rightmost-prefix classification. Both profiles decode long error messages
+without recursive host calls.
 
 F-string output is limited to 128 KiB in UTF-8 bytes across the complete result, including literal text and every interpolated field. The VM checks each append before allocating the aggregate output.
 
