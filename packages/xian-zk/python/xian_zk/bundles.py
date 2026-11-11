@@ -31,7 +31,7 @@ def _require_string(value: Any, *, label: str, allow_empty: bool = False) -> str
 
 
 def _require_non_negative_int(value: Any, *, label: str) -> int:
-    if not isinstance(value, int) or value < 0:
+    if type(value) is not int or value < 0:
         raise ValueError(f"{label} must be a non-negative integer")
     return value
 
@@ -114,7 +114,7 @@ def _validate_common_payload(
             payload.get("max_outputs"),
             label="max_outputs",
         )
-        if normalized["leaf_capacity"] < 2 ** normalized["tree_depth"]:
+        if normalized["tree_depth"] >= normalized["leaf_capacity"].bit_length():
             raise ValueError("leaf_capacity must be large enough to cover the declared tree_depth")
 
     action_names = _BUNDLE_ACTIONS[bundle_type]

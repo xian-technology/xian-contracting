@@ -66,6 +66,11 @@ generation helpers used by the Python bindings and tests.
 - Proofs: compressed canonical bytes as `0x`-prefixed hex
 - Public inputs: 32-byte big-endian field elements as `0x`-prefixed hex
 
+Bundle dimensions (`tree_depth`, `leaf_capacity`, `max_inputs`, `max_outputs`)
+are JSON integers, with booleans rejected. Note and command bundles require
+positive dimensions and sufficient capacity for the declared depth; capacity
+validation does not allocate a tree or construct an exponential integer.
+
 ## Validation
 - `cargo test --manifest-path packages/xian-zk/Cargo.toml --no-default-features`
 - `cargo run --manifest-path packages/xian-zk/Cargo.toml --no-default-features --example generate_test_vector`
