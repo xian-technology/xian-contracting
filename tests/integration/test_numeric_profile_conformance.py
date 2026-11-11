@@ -1,6 +1,7 @@
 """Reviewed V2 consensus examples through source, artifact admission and metered VM."""
 
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from xian_runtime_types.decimal import ContractingDecimal
@@ -16,7 +17,7 @@ MODULE = "con_numeric_vectors"
 
 
 @pytest.fixture(scope="module")
-def contract(tmp_path_factory):
+def numeric_artifact():
     source = "scratch = Variable()\n\n"
     for index, (expression, _) in enumerate(VECTORS):
         source += f"@export\ndef vector_{index}():\n    return {expression}\n\n"
@@ -29,13 +30,16 @@ def contract(tmp_path_factory):
     validate_contract_artifacts(
         module_name=MODULE, artifacts=artifact, input_source=source, vm_profile=PROFILE
     )
-    driver = Driver(storage_home=tmp_path_factory.mktemp("numeric-v2"), vm_profile=PROFILE)
-    try:
+    return artifact
+
+
+@pytest.fixture
+def contract(numeric_artifact):
+    with Driver(vm_profile=PROFILE) as driver:
+        artifact = numeric_artifact
         driver.set_contract(MODULE, source=artifact["source"], vm_ir_json=artifact["vm_ir_json"])
         driver.commit()
         yield driver
-    finally:
-        driver._store.close()
 
 
 def call(driver, function, **kwargs):
@@ -51,6 +55,10 @@ def call(driver, function, **kwargs):
         meter=True,
         chi_budget_raw=100_000_000,
     )
+
+
+def test_contract_storage_belongs_to_this_tests_home(contract):
+    assert contract.storage_home.is_relative_to(Path.home())
 
 
 @pytest.mark.parametrize("index", range(len(VECTORS)), ids=[expr for expr, _ in VECTORS])

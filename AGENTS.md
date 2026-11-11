@@ -33,7 +33,9 @@
 - If you touch security boundaries or metering, run the relevant `tests/security/` and `tests/integration/` paths explicitly.
 
 ## Notes
-- The test suite now uses a repo-local HOME via `tests/conftest.py`, so it does not need host access to `~/.cometbft`.
+- `tests/conftest.py` gives each test a private HOME, node home, and default
+  storage directory. Collection imports use a separate temporary home per
+  pytest process, so tests do not access the host's `~/.cometbft`.
 - Review `examples/` and release helpers critically before expanding them; do not add convenience tooling that belongs in `xian-cli` or `xian-stack`.
 - If you touch metering, tracing, imports, or storage encoding, assume the change is consensus-sensitive and test accordingly.
 

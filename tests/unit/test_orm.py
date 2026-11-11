@@ -1,5 +1,4 @@
-from tempfile import TemporaryDirectory
-from unittest import TestCase, addModuleCleanup
+from unittest import TestCase
 
 from xian_runtime_types.decimal import ContractingDecimal
 
@@ -16,44 +15,23 @@ from contracting.storage.orm import (
     indexed,
 )
 
-# from contracting.stdlib.env import gather
 
-# Variable = gather()['Variable']
-# Hash = gather()['Hash']
-# ForeignVariable = gather()['ForeignVariable']
-# ForeignHash = gather()['ForeignHash']
-
-driver: Driver
-
-
-def setUpModule():
-    global driver
-    directory = TemporaryDirectory()
-    addModuleCleanup(directory.cleanup)
-    driver = Driver(storage_home=directory.name)
-    addModuleCleanup(driver.close)
-
-
-class TestDatum(TestCase):
+class ORMTestCase(TestCase):
     def setUp(self):
-        driver.flush_full()
+        self.driver = Driver()
+        self.addCleanup(self.driver.close)
 
-    def tearDown(self):
-        driver.flush_full()
 
+class TestDatum(ORMTestCase):
     def test_init(self):
-        d = Datum("stustu", "test", driver)
-        self.assertEqual(d._key, driver.make_key("stustu", "test"))
+        d = Datum("stustu", "test", self.driver)
+        self.assertEqual(d._key, self.driver.make_key("stustu", "test"))
+
+    def test_driver_belongs_to_this_tests_node_home(self):
+        self.assertEqual(self.driver.storage_home, constants.STORAGE_HOME)
 
 
-class TestVariable(TestCase):
-    def setUp(self):
-        driver.flush_full()
-
-    def tearDown(self):
-        # _driver.flush_full()
-        pass
-
+class TestVariable(ORMTestCase):
     def test_set(self):
         contract = "stustu"
         name = "balance"
@@ -61,10 +39,10 @@ class TestVariable(TestCase):
 
         raw_key = "{}{}{}".format(contract, delimiter, name)
 
-        v = Variable(contract, name, driver=driver)
+        v = Variable(contract, name, driver=self.driver)
         v.set(1000)
 
-        self.assertEqual(driver.get(raw_key), 1000)
+        self.assertEqual(self.driver.get(raw_key), 1000)
 
     def test_get(self):
         contract = "stustu"
@@ -72,9 +50,9 @@ class TestVariable(TestCase):
         delimiter = constants.INDEX_SEPARATOR
 
         raw_key = "{}{}{}".format(contract, delimiter, name)
-        driver.set(raw_key, 1234)
+        self.driver.set(raw_key, 1234)
 
-        v = Variable(contract, name, driver=driver)
+        v = Variable(contract, name, driver=self.driver)
         _v = v.get()
 
         self.assertEqual(_v, 1234)
@@ -83,7 +61,7 @@ class TestVariable(TestCase):
         contract = "stustu"
         name = "balance"
 
-        v = Variable(contract, name, driver=driver)
+        v = Variable(contract, name, driver=self.driver)
         v.set(1000)
 
         _v = v.get()
@@ -94,7 +72,7 @@ class TestVariable(TestCase):
         contract = "stustu"
         name = "balance"
 
-        v = Variable(contract, name, driver=driver, default_value=999)
+        v = Variable(contract, name, driver=self.driver, default_value=999)
         self.assertEqual(v.get(), 999)
 
         v.set(123)
@@ -106,7 +84,7 @@ class TestVariable(TestCase):
     def test_mutable_default_is_copied(self):
         contract = "stustu"
         name = "cfg"
-        v = Variable(contract, name, driver=driver, default_value={"a": []})
+        v = Variable(contract, name, driver=self.driver, default_value={"a": []})
         first = v.get()
         first["a"].append(1)
         second = v.get()
@@ -115,42 +93,38 @@ class TestVariable(TestCase):
     def test_stored_mutable_value_is_copied_on_get(self):
         contract = "stustu"
         name = "cfg"
-        raw_key = driver.make_key(contract, name)
-        driver.set(raw_key, {"a": []})
+        raw_key = self.driver.make_key(contract, name)
+        self.driver.set(raw_key, {"a": []})
 
-        v = Variable(contract, name, driver=driver)
+        v = Variable(contract, name, driver=self.driver)
         first = v.get()
         first["a"].append(1)
 
         self.assertEqual(v.get(), {"a": []})
 
     def test_setitem_persists_dict_mutation(self):
-        v = Variable("stustu", "cfg", driver=driver, default_value={})
+        v = Variable("stustu", "cfg", driver=self.driver, default_value={})
 
         v["mode"] = "strict"
 
         self.assertEqual(v.get(), {"mode": "strict"})
 
     def test_delitem_persists_dict_mutation(self):
-        v = Variable(
-            "stustu", "cfg", driver=driver, default_value={"mode": "strict"}
-        )
+        v = Variable("stustu", "cfg", driver=self.driver, default_value={"mode": "strict"})
 
         del v["mode"]
 
         self.assertEqual(v.get(), {})
 
     def test_update_persists_dict_mutation(self):
-        v = Variable(
-            "stustu", "cfg", driver=driver, default_value={"mode": "strict"}
-        )
+        v = Variable("stustu", "cfg", driver=self.driver, default_value={"mode": "strict"})
 
         v.update({"retry": 3})
 
         self.assertEqual(v.get(), {"mode": "strict", "retry": 3})
 
     def test_append_and_index_assignment_persist_list_mutation(self):
-        v = Variable("stustu", "queue", driver=driver, default_value=[])
+        v = Variable("stustu", "queue", driver=self.driver, default_value=[])
 
         v.append(1)
         v.append(2)
@@ -159,7 +133,7 @@ class TestVariable(TestCase):
         self.assertEqual(v.get(), [9, 2])
 
     def test_pop_persists_list_mutation_and_returns_value(self):
-        v = Variable("stustu", "queue", driver=driver, default_value=[1, 2, 3])
+        v = Variable("stustu", "queue", driver=self.driver, default_value=[1, 2, 3])
 
         value = v.pop()
 
@@ -167,12 +141,8 @@ class TestVariable(TestCase):
         self.assertEqual(v.get(), [1, 2])
 
     def test_clear_persists_collection_mutation(self):
-        dict_var = Variable(
-            "stustu", "cfg", driver=driver, default_value={"mode": "strict"}
-        )
-        list_var = Variable(
-            "stustu", "queue", driver=driver, default_value=[1, 2]
-        )
+        dict_var = Variable("stustu", "cfg", driver=self.driver, default_value={"mode": "strict"})
+        list_var = Variable("stustu", "queue", driver=self.driver, default_value=[1, 2])
 
         dict_var.clear()
         list_var.clear()
@@ -181,55 +151,49 @@ class TestVariable(TestCase):
         self.assertEqual(list_var.get(), [])
 
     def test_list_helpers_require_list_values(self):
-        v = Variable("stustu", "value", driver=driver, default_value=123)
+        v = Variable("stustu", "value", driver=self.driver, default_value=123)
 
         with self.assertRaises(TypeError):
             v.append(1)
 
     def test_dict_helpers_require_dict_values(self):
-        v = Variable("stustu", "value", driver=driver, default_value=123)
+        v = Variable("stustu", "value", driver=self.driver, default_value=123)
 
         with self.assertRaises(TypeError):
             v.update({"mode": "strict"})
 
     def test_set_rejects_wrong_declared_type(self):
-        v = Variable("stustu", "value", driver=driver, t=int)
+        v = Variable("stustu", "value", driver=self.driver, t=int)
 
         with self.assertRaises(TypeError):
             v.set("1")
 
     def test_update_requires_dict_argument(self):
-        v = Variable("stustu", "cfg", driver=driver, default_value={})
+        v = Variable("stustu", "cfg", driver=self.driver, default_value={})
 
         with self.assertRaises(TypeError):
             v.update([("mode", "strict")])
 
     def test_extend_requires_list_argument(self):
-        v = Variable("stustu", "queue", driver=driver, default_value=[])
+        v = Variable("stustu", "queue", driver=self.driver, default_value=[])
 
         with self.assertRaises(TypeError):
             v.extend((1, 2))
 
     def test_pop_rejects_missing_dict_key(self):
-        v = Variable("stustu", "cfg", driver=driver, default_value={"mode": "strict"})
+        v = Variable("stustu", "cfg", driver=self.driver, default_value={"mode": "strict"})
 
         with self.assertRaises(TypeError):
             v.pop()
 
     def test_pop_rejects_list_default(self):
-        v = Variable("stustu", "queue", driver=driver, default_value=[1, 2])
+        v = Variable("stustu", "queue", driver=self.driver, default_value=[1, 2])
 
         with self.assertRaises(TypeError):
             v.pop(0, None)
 
 
-class TestHash(TestCase):
-    def setUp(self):
-        driver.flush_full()
-
-    def tearDown(self):
-        driver.flush_full()
-
+class TestHash(ORMTestCase):
     def test_set(self):
         contract = "stustu"
         name = "balance"
@@ -238,13 +202,13 @@ class TestHash(TestCase):
         raw_key_1 = "{}{}{}".format(contract, delimiter, name)
         raw_key_1 += ":stu"
 
-        h = Hash(contract, name, driver=driver)
+        h = Hash(contract, name, driver=self.driver)
 
         h._set("stu", 1234)
 
-        driver.commit()
+        self.driver.commit()
 
-        self.assertEqual(driver.get(raw_key_1), 1234)
+        self.assertEqual(self.driver.get(raw_key_1), 1234)
 
     def test_get(self):
         contract = "stustu"
@@ -254,9 +218,9 @@ class TestHash(TestCase):
         raw_key_1 = "{}{}{}".format(contract, delimiter, name)
         raw_key_1 += ":stu"
 
-        driver.set(raw_key_1, 1234)
+        self.driver.set(raw_key_1, 1234)
 
-        h = Hash(contract, name, driver=driver)
+        h = Hash(contract, name, driver=self.driver)
 
         self.assertEqual(h._get("stu"), 1234)
 
@@ -264,7 +228,7 @@ class TestHash(TestCase):
         contract = "stustu"
         name = "balance"
 
-        h = Hash(contract, name, driver=driver)
+        h = Hash(contract, name, driver=self.driver)
 
         h._set("stu", 1234)
         _h = h._get("stu")
@@ -281,7 +245,7 @@ class TestHash(TestCase):
         name = "scoob"
         delimiter = constants.INDEX_SEPARATOR
 
-        h = Hash(contract, name, driver=driver)
+        h = Hash(contract, name, driver=self.driver)
 
         prefix = "{}{}{}{}".format(contract, delimiter, name, h._delimiter)
 
@@ -289,20 +253,20 @@ class TestHash(TestCase):
 
         raw_key = "{}stu".format(prefix)
 
-        self.assertEqual(driver.get(raw_key), 9999999)
+        self.assertEqual(self.driver.get(raw_key), 9999999)
 
     def test_getitem(self):
         contract = "blah"
         name = "scoob"
         delimiter = constants.INDEX_SEPARATOR
 
-        h = Hash(contract, name, driver=driver)
+        h = Hash(contract, name, driver=self.driver)
 
         prefix = "{}{}{}{}".format(contract, delimiter, name, h._delimiter)
 
         raw_key = "{}stu".format(prefix)
 
-        driver.set(raw_key, 54321)
+        self.driver.set(raw_key, 54321)
 
         self.assertEqual(h["stu"], 54321)
 
@@ -310,19 +274,19 @@ class TestHash(TestCase):
         contract = "blah"
         name = "scoob"
 
-        h = Hash(contract, name, driver=driver)
+        h = Hash(contract, name, driver=self.driver)
         h["stu"] = 123
         h["stu", "raghu"] = 1000
-        driver.commit()
+        self.driver.commit()
 
-        val = driver.get("blah.scoob:stu:raghu")
+        val = self.driver.get("blah.scoob:stu:raghu")
         self.assertEqual(val, 1000)
 
     def test_setitem_delimiter_illegal(self):
         contract = "blah"
         name = "scoob"
 
-        h = Hash(contract, name, driver=driver)
+        h = Hash(contract, name, driver=self.driver)
         with self.assertRaises(AssertionError):
             h["stu:123"] = 123
 
@@ -330,7 +294,7 @@ class TestHash(TestCase):
         contract = "blah"
         name = "scoob"
 
-        h = Hash(contract, name, driver=driver)
+        h = Hash(contract, name, driver=self.driver)
 
         with self.assertRaises(Exception):
             h[
@@ -358,7 +322,7 @@ class TestHash(TestCase):
         contract = "blah"
         name = "scoob"
 
-        h = Hash(contract, name, driver=driver)
+        h = Hash(contract, name, driver=self.driver)
 
         key = "a" * 1025
 
@@ -372,7 +336,7 @@ class TestHash(TestCase):
         contract = "blah"
         name = "scoob"
 
-        h = Hash(contract, name, driver=driver)
+        h = Hash(contract, name, driver=self.driver)
 
         key1 = "a" * 800
         key2 = "b" * 100
@@ -386,28 +350,27 @@ class TestHash(TestCase):
         name = "scoob"
         delimiter = constants.INDEX_SEPARATOR
 
-        h = Hash(contract, name, driver=driver)
+        h = Hash(contract, name, driver=self.driver)
 
         prefix = "{}{}{}{}".format(contract, delimiter, name, h._delimiter)
 
         raw_key = "{}stu:raghu".format(prefix)
 
-        driver.set(raw_key, 54321)
+        self.driver.set(raw_key, 54321)
 
-        driver.commit()
+        self.driver.commit()
 
         self.assertEqual(h["stu", "raghu"], 54321)
 
     def test_getsetitems(self):
         contract = "blah"
         name = "scoob"
-        delimiter = constants.INDEX_SEPARATOR
 
-        h = Hash(contract, name, driver=driver)
+        h = Hash(contract, name, driver=self.driver)
 
         h["stu", "raghu"] = 999
 
-        driver.commit()
+        self.driver.commit()
 
         self.assertEqual(h["stu", "raghu"], 999)
 
@@ -415,23 +378,23 @@ class TestHash(TestCase):
         contract = "blah"
         name = "scoob"
 
-        h = Hash(contract, name, driver=driver)
+        h = Hash(contract, name, driver=self.driver)
 
         key1 = "a" * 800
         key2 = "b" * 100
         key3 = "c" * 200
 
         with self.assertRaises(Exception):
-            x = h[key1, key2, key3]
+            h[key1, key2, key3]
 
     def test_getitems_too_many_dimensions_fails(self):
         contract = "blah"
         name = "scoob"
 
-        h = Hash(contract, name, driver=driver)
+        h = Hash(contract, name, driver=self.driver)
 
         with self.assertRaises(Exception):
-            a = h[
+            h[
                 "a",
                 "b",
                 "c",
@@ -456,18 +419,18 @@ class TestHash(TestCase):
         contract = "blah"
         name = "scoob"
 
-        h = Hash(contract, name, driver=driver)
+        h = Hash(contract, name, driver=self.driver)
 
         key = "a" * 1025
 
         with self.assertRaises(Exception):
-            a = h[key]
+            h[key]
 
     def test_getitem_returns_default_value_if_none(self):
         contract = "blah"
         name = "scoob"
 
-        h = Hash(contract, name, driver=driver, default_value=0)
+        h = Hash(contract, name, driver=self.driver, default_value=0)
 
         self.assertEqual(h["hello"], 0)
 
@@ -475,7 +438,7 @@ class TestHash(TestCase):
         contract = "blah"
         name = "scoob"
 
-        h = Hash(contract, name, driver=driver, default_value=0)
+        h = Hash(contract, name, driver=self.driver, default_value=0)
         all = h.all()
         self.assertEqual(all, [])
 
@@ -483,25 +446,25 @@ class TestHash(TestCase):
         contract = "blah"
         name = "scoob"
 
-        hsh = Hash(contract, name, driver=driver, default_value=0)
+        hsh = Hash(contract, name, driver=self.driver, default_value=0)
 
         hsh["1"] = 123
         hsh["2"] = 456
         hsh["3"] = 789
 
-        l = [123, 456, 789]
+        expected_values = [123, 456, 789]
 
         # TODO - this ok ? :D
         # driver.commit()
 
         # we care about whats included, not order
-        self.assertSetEqual(set(hsh.all()), set(l))
+        self.assertSetEqual(set(hsh.all()), set(expected_values))
 
     def test_get_all_returns_defensive_copies_for_mutable_values(self):
         contract = "blah"
         name = "scoob"
 
-        hsh = Hash(contract, name, driver=driver, default_value={})
+        hsh = Hash(contract, name, driver=self.driver, default_value={})
         hsh["1"] = {"count": 1}
 
         values = hsh.all()
@@ -513,7 +476,7 @@ class TestHash(TestCase):
         contract = "blah"
         name = "scoob"
 
-        hsh = Hash(contract, name, driver=driver, default_value=0)
+        hsh = Hash(contract, name, driver=self.driver, default_value=0)
 
         hsh["1"] = 123
         hsh["2"] = 456
@@ -531,7 +494,7 @@ class TestHash(TestCase):
         contract = "blah"
         name = "scoob"
 
-        hsh = Hash(contract, name, driver=driver, default_value={})
+        hsh = Hash(contract, name, driver=self.driver, default_value={})
         hsh["1"] = {"count": 1}
 
         items = hsh._items()
@@ -543,7 +506,7 @@ class TestHash(TestCase):
         contract = "blah"
         name = "scoob"
 
-        hsh = Hash(contract, name, driver=driver, default_value=0)
+        hsh = Hash(contract, name, driver=self.driver, default_value=0)
 
         hsh[0, "1"] = 123
         hsh[0, "2"] = 456
@@ -569,7 +532,7 @@ class TestHash(TestCase):
         contract = "blah"
         name = "scoob"
 
-        hsh = Hash(contract, name, driver=driver, default_value=0)
+        hsh = Hash(contract, name, driver=self.driver, default_value=0)
 
         hsh[0, "1"] = 123
         hsh[0, "2"] = 456
@@ -598,7 +561,7 @@ class TestHash(TestCase):
         contract = "blah"
         name = "scoob"
 
-        hsh = Hash(contract, name, driver=driver, default_value=0)
+        hsh = Hash(contract, name, driver=self.driver, default_value=0)
 
         hsh[0, "1"] = 123
         hsh[0, "2"] = 456
@@ -628,7 +591,7 @@ class TestHash(TestCase):
         contract = "blah"
         name = "scoob"
 
-        hsh = Hash(contract, name, driver=driver, default_value=0)
+        hsh = Hash(contract, name, driver=self.driver, default_value=0)
 
         hsh[0, "1"] = 123
         hsh[0, "2"] = 456
@@ -638,20 +601,20 @@ class TestHash(TestCase):
         hsh[1, "2"] = 888
         hsh[1, "3"] = 777
 
-        l = [123, 456, 789]
+        expected_values = [123, 456, 789]
 
         # TODO
         # Test works when below line is commented out - not sure if our driver works differently now
         # driver.commit()
 
         # we care about whats included, not order
-        self.assertSetEqual(set(hsh.all(0)), set(l))
+        self.assertSetEqual(set(hsh.all(0)), set(expected_values))
 
     def test_multihash_multiple_dims_clear_behaves_similar_to_single_dim(self):
         contract = "blah"
         name = "scoob"
 
-        hsh = Hash(contract, name, driver=driver, default_value=0)
+        hsh = Hash(contract, name, driver=self.driver, default_value=0)
 
         hsh[1, 0, "1"] = 123
         hsh[1, 0, "2"] = 456
@@ -681,7 +644,7 @@ class TestHash(TestCase):
         contract = "blah"
         name = "scoob"
 
-        hsh = Hash(contract, name, driver=driver, default_value=0)
+        hsh = Hash(contract, name, driver=self.driver, default_value=0)
 
         hsh[1, 0, "1"] = 123
         hsh[1, 0, "2"] = 456
@@ -691,18 +654,18 @@ class TestHash(TestCase):
         hsh[1, 1, "2"] = 888
         hsh[1, 1, "3"] = 777
 
-        l = [123, 456, 789]
+        expected_values = [123, 456, 789]
 
         # driver.commit()
 
         # we care about whats included, not order
-        self.assertSetEqual(set(hsh.all(1, 0)), set(l))
+        self.assertSetEqual(set(hsh.all(1, 0)), set(expected_values))
 
     def test_clear_items_deletes_all_key_value_pairs(self):
         contract = "blah"
         name = "scoob"
 
-        hsh = Hash(contract, name, driver=driver, default_value=0)
+        hsh = Hash(contract, name, driver=self.driver, default_value=0)
 
         hsh["1"] = 123
         hsh["2"] = 456
@@ -725,8 +688,8 @@ class TestHash(TestCase):
         self.assertDictEqual({}, got)
 
     def test_clone_from_hash_replaces_existing_contents(self):
-        source = Hash("source", "balances", driver=driver, default_value=0)
-        target = Hash("target", "balances", driver=driver, default_value=0)
+        source = Hash("source", "balances", driver=self.driver, default_value=0)
+        target = Hash("target", "balances", driver=self.driver, default_value=0)
 
         source["alice"] = 100
         source["bob"] = 200
@@ -736,14 +699,17 @@ class TestHash(TestCase):
 
         self.assertEqual(target["alice"], 100)
         self.assertEqual(target["bob"], 200)
-        self.assertEqual(target._items(), {
-            "target.balances:alice": 100,
-            "target.balances:bob": 200,
-        })
+        self.assertEqual(
+            target._items(),
+            {
+                "target.balances:alice": 100,
+                "target.balances:bob": 200,
+            },
+        )
 
     def test_clone_from_hash_copies_mutable_values(self):
-        source = Hash("source", "settings", driver=driver, default_value={})
-        target = Hash("target", "settings", driver=driver, default_value={})
+        source = Hash("source", "settings", driver=self.driver, default_value={})
+        target = Hash("target", "settings", driver=self.driver, default_value={})
 
         source["limits"] = {"daily": 7}
 
@@ -757,13 +723,7 @@ class TestHash(TestCase):
         self.assertEqual(target["limits"], {"daily": 99})
 
 
-class TestForeignVariable(TestCase):
-    def setUp(self):
-        driver.flush_full()
-
-    def tearDown(self):
-        driver.flush_full()
-
+class TestForeignVariable(ORMTestCase):
     def test_set(self):
         contract = "stustu"
         name = "balance"
@@ -771,7 +731,7 @@ class TestForeignVariable(TestCase):
         f_contract = "colinbucks"
         f_name = "balances"
 
-        f = ForeignVariable(contract, name, f_contract, f_name, driver=driver)
+        f = ForeignVariable(contract, name, f_contract, f_name, driver=self.driver)
 
         with self.assertRaises(ReferenceError):
             f.set("poo")
@@ -784,23 +744,16 @@ class TestForeignVariable(TestCase):
         f_contract = "colinbucks"
         f_name = "balances"
 
-        f = ForeignVariable(contract, name, f_contract, f_name, driver=driver)
+        f = ForeignVariable(contract, name, f_contract, f_name, driver=self.driver)
 
         # set the variable using the foreign names (assuming this is another contract namespace)
-        v = Variable(f_contract, f_name, driver=driver)
+        v = Variable(f_contract, f_name, driver=self.driver)
         v.set("howdy")
 
         self.assertEqual(f.get(), "howdy")
 
 
-class TestForeignHash(TestCase):
-    def setUp(self):
-        driver.flush_full()
-
-    def tearDown(self):
-        # _driver.flush_full()
-        pass
-
+class TestForeignHash(ORMTestCase):
     def test_set(self):
         # set up the foreign variable
         contract = "stustu"
@@ -809,7 +762,7 @@ class TestForeignHash(TestCase):
         f_contract = "colinbucks"
         f_name = "balances"
 
-        f = ForeignHash(contract, name, f_contract, f_name, driver=driver)
+        f = ForeignHash(contract, name, f_contract, f_name, driver=self.driver)
 
         with self.assertRaises(ReferenceError):
             f._set("stu", 1234)
@@ -822,9 +775,9 @@ class TestForeignHash(TestCase):
         f_contract = "colinbucks"
         f_name = "balances"
 
-        f = ForeignHash(contract, name, f_contract, f_name, driver=driver)
+        f = ForeignHash(contract, name, f_contract, f_name, driver=self.driver)
 
-        h = Hash(f_contract, f_name, driver=driver)
+        h = Hash(f_contract, f_name, driver=self.driver)
         h._set("howdy", 555)
 
         self.assertEqual(f._get("howdy"), 555)
@@ -837,7 +790,7 @@ class TestForeignHash(TestCase):
         f_contract = "colinbucks"
         f_name = "balances"
 
-        f = ForeignHash(contract, name, f_contract, f_name, driver=driver)
+        f = ForeignHash(contract, name, f_contract, f_name, driver=self.driver)
 
         with self.assertRaises(ReferenceError):
             f["stu"] = 1234
@@ -850,9 +803,9 @@ class TestForeignHash(TestCase):
         f_contract = "colinbucks"
         f_name = "balances"
 
-        f = ForeignHash(contract, name, f_contract, f_name, driver=driver)
+        f = ForeignHash(contract, name, f_contract, f_name, driver=self.driver)
 
-        h = Hash(f_contract, f_name, driver=driver)
+        h = Hash(f_contract, f_name, driver=self.driver)
         h["howdy"] = 555
 
         self.assertEqual(f["howdy"], 555)
@@ -863,9 +816,9 @@ class TestForeignHash(TestCase):
         f_contract = "colinbucks"
         f_name = "balances"
 
-        f = ForeignHash(contract, name, f_contract, f_name, driver=driver)
+        f = ForeignHash(contract, name, f_contract, f_name, driver=self.driver)
 
-        h = Hash(f_contract, f_name, driver=driver)
+        h = Hash(f_contract, f_name, driver=self.driver)
         h["settings"] = {"limit": 7}
 
         value = f["settings"]
@@ -874,7 +827,7 @@ class TestForeignHash(TestCase):
         self.assertEqual(f["settings"], {"limit": 7})
 
     def test_clone_from_foreign_hash(self):
-        source = Hash("colinbucks", "balances", driver=driver, default_value=0)
+        source = Hash("colinbucks", "balances", driver=self.driver, default_value=0)
         source["howdy"] = 555
         source["there"] = 777
 
@@ -883,19 +836,22 @@ class TestForeignHash(TestCase):
             "balance",
             "colinbucks",
             "balances",
-            driver=driver,
+            driver=self.driver,
         )
-        target = Hash("stustu", "snapshot", driver=driver, default_value=0)
+        target = Hash("stustu", "snapshot", driver=self.driver, default_value=0)
         target["stale"] = 123
 
         target.clone_from(foreign)
 
         self.assertEqual(target["howdy"], 555)
         self.assertEqual(target["there"], 777)
-        self.assertEqual(target._items(), {
-            "stustu.snapshot:howdy": 555,
-            "stustu.snapshot:there": 777,
-        })
+        self.assertEqual(
+            target._items(),
+            {
+                "stustu.snapshot:howdy": 555,
+                "stustu.snapshot:there": 777,
+            },
+        )
 
     def test_clone_from_raises_for_foreign_hash_target(self):
         foreign = ForeignHash(
@@ -903,17 +859,17 @@ class TestForeignHash(TestCase):
             "balance",
             "colinbucks",
             "balances",
-            driver=driver,
+            driver=self.driver,
         )
-        source = Hash("source", "balances", driver=driver, default_value=0)
+        source = Hash("source", "balances", driver=self.driver, default_value=0)
 
         with self.assertRaises(ReferenceError):
             foreign.clone_from(source)
 
 
-class TestLogEvent(TestCase):
+class TestLogEvent(ORMTestCase):
     def setUp(self):
-        driver.flush_full()
+        super().setUp()
         self.base_state = rt.context._base_state.copy()
         rt.context._reset()
         rt.context._base_state = {
@@ -934,13 +890,12 @@ class TestLogEvent(TestCase):
             self.args,
             contract="test_contract",
             name="transfer_event",
-            driver=driver,
+            driver=self.driver,
         )
 
     def tearDown(self):
         rt.context._reset()
         rt.context._base_state = self.base_state
-        driver.flush_full()
 
     def test_log_event_accepts_clean_constructor(self):
         self.assertEqual(self.log_event._event, "Transfer")
@@ -955,7 +910,7 @@ class TestLogEvent(TestCase):
                 "approve_event",
                 event="Approve",
                 params={"owner": str},
-                driver=driver,
+                driver=self.driver,
             )
 
         with self.assertRaises(TypeError):
@@ -964,7 +919,7 @@ class TestLogEvent(TestCase):
                 "approve_event",
                 "Approve",
                 {"owner": str},
-                driver=driver,
+                driver=self.driver,
             )
 
     def test_log_event_accepts_keyword_constructor(self):
@@ -973,7 +928,7 @@ class TestLogEvent(TestCase):
             params={"owner": str},
             contract="token",
             name="approve_event",
-            driver=driver,
+            driver=self.driver,
         )
 
         self.assertEqual(log_event._contract, "token")
@@ -994,7 +949,7 @@ class TestLogEvent(TestCase):
             raw_args,
             contract="token",
             name="approve_event",
-            driver=driver,
+            driver=self.driver,
         )
 
         self.assertIs(raw_args["owner"], str)
@@ -1007,15 +962,13 @@ class TestLogEvent(TestCase):
         )
 
     def test_log_event_rejects_empty_event_names(self):
-        with self.assertRaisesRegex(
-            AssertionError, "Event name must not be empty."
-        ):
+        with self.assertRaisesRegex(AssertionError, "Event name must not be empty."):
             LogEvent(
                 "",
                 {"owner": str},
                 contract="token",
                 name="approve_event",
-                driver=driver,
+                driver=self.driver,
             )
 
     def test_log_event_with_max_indexed_args(self):
@@ -1028,7 +981,7 @@ class TestLogEvent(TestCase):
             },
             contract="currency",
             name="transfer_event",
-            driver=driver,
+            driver=self.driver,
         )
 
         self.assertIsInstance(log_event, LogEvent)
@@ -1047,19 +1000,17 @@ class TestLogEvent(TestCase):
                 },
                 contract="currency",
                 name="transfer_event",
-                driver=driver,
+                driver=self.driver,
             )
 
     def test_log_event_rejects_malformed_schema(self):
-        with self.assertRaisesRegex(
-            AssertionError, "Argument owner must declare a type."
-        ):
+        with self.assertRaisesRegex(AssertionError, "Argument owner must declare a type."):
             LogEvent(
                 "Approve",
                 {"owner": {"idx": True}},
                 contract="token",
                 name="approve_event",
-                driver=driver,
+                driver=self.driver,
             )
 
     def test_log_event_rejects_non_standard_types(self):
@@ -1072,7 +1023,7 @@ class TestLogEvent(TestCase):
                 {"from": indexed(list)},
                 contract="token",
                 name="transfer_event",
-                driver=driver,
+                driver=self.driver,
             )
 
     def test_write_event_success_uses_emit_time_context(self):
@@ -1087,7 +1038,7 @@ class TestLogEvent(TestCase):
             }
         )
 
-        emitted = driver.log_events[-1]
+        emitted = self.driver.log_events[-1]
         self.assertEqual(emitted["contract"], "test_contract")
         self.assertEqual(emitted["event"], "Transfer")
         self.assertEqual(emitted["signer"], "signer_2")
@@ -1101,23 +1052,23 @@ class TestLogEvent(TestCase):
             {"from": str},
             contract="contract_a",
             name="transfer_a",
-            driver=driver,
+            driver=self.driver,
         )
         second = LogEvent(
             "Transfer",
             {"from": str},
             contract="contract_b",
             name="transfer_b",
-            driver=driver,
+            driver=self.driver,
         )
 
         first.write_event({"from": "Alice"})
         second.write_event({"from": "Bob"})
 
-        self.assertEqual(driver.log_events[-2]["contract"], "contract_a")
-        self.assertEqual(driver.log_events[-1]["contract"], "contract_b")
-        self.assertEqual(driver.log_events[-2]["event"], "Transfer")
-        self.assertEqual(driver.log_events[-1]["event"], "Transfer")
+        self.assertEqual(self.driver.log_events[-2]["contract"], "contract_a")
+        self.assertEqual(self.driver.log_events[-1]["contract"], "contract_b")
+        self.assertEqual(self.driver.log_events[-2]["event"], "Transfer")
+        self.assertEqual(self.driver.log_events[-1]["event"], "Transfer")
 
     def test_write_event_missing_argument(self):
         with self.assertRaisesRegex(
@@ -1127,9 +1078,7 @@ class TestLogEvent(TestCase):
             self.log_event.write_event({"from": "Alice", "amount": 100})
 
     def test_write_event_rejects_non_dict_data(self):
-        with self.assertRaisesRegex(
-            AssertionError, "Event data must be a dictionary."
-        ):
+        with self.assertRaisesRegex(AssertionError, "Event data must be a dictionary."):
             self.log_event.write_event(None)
 
     def test_write_event_with_invalid_argument_names(self):
@@ -1146,9 +1095,7 @@ class TestLogEvent(TestCase):
             )
 
     def test_write_event_wrong_type(self):
-        with self.assertRaisesRegex(
-            AssertionError, "Argument amount is the wrong type!"
-        ):
+        with self.assertRaisesRegex(AssertionError, "Argument amount is the wrong type!"):
             self.log_event.write_event(
                 {
                     "from": "Alice",
@@ -1158,9 +1105,7 @@ class TestLogEvent(TestCase):
             )
 
     def test_write_event_rejects_large_values(self):
-        with self.assertRaisesRegex(
-            AssertionError, "Argument from is too large"
-        ):
+        with self.assertRaisesRegex(AssertionError, "Argument from is too large"):
             self.log_event.write_event(
                 {
                     "from": "A" * 2048,

@@ -22,3 +22,17 @@ whenever a change touches execution semantics, import restrictions, metering, or
 storage encoding. The optional-native release gate includes the stateful
 local-harness-vs-VM fuzz coverage in
 `integration/test_vm_stateful_fuzz.py`.
+
+## State Isolation
+
+Each test receives a private `test_home`, with `node_home` at
+`test_home/.cometbft` and default contract storage at `node_home/xian`.
+The autouse fixture sets `HOME` and `contracting.constants.STORAGE_HOME`
+consistently, so a subprocess inheriting the test environment opens the same
+default storage as its parent. Tests that need independent stores should pass
+their own `tmp_path` subdirectories explicitly.
+
+Collection-time imports use a separate temporary home for each pytest process.
+The original environment and working directory are restored through pytest's
+cleanup hooks. Tests must keep mutable files inside their provided temporary
+directories; checked-in contract sources and fixtures remain read-only inputs.
