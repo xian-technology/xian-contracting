@@ -46,6 +46,7 @@ jobs:
             tests/unit/test_native_client_boundary.py \
             tests/unit/test_native_host_independence.py \
             tests/unit/test_native_language_metadata.py \
+            tests/unit/test_removed_engine_modules.py \
             tests/integration/test_native_entry_policy.py \
             tests/security/test_attribute_mutation_guards.py
 
