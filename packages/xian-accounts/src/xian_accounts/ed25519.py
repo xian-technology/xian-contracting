@@ -9,13 +9,13 @@ _KEY_HEX_LENGTH = 64
 
 
 def _is_hex_string(value: str, *, expected_length: int = _KEY_HEX_LENGTH) -> bool:
-    if len(value) != expected_length:
+    if not isinstance(value, str) or len(value) != expected_length:
         return False
     try:
-        bytes.fromhex(value)
+        decoded = bytes.fromhex(value)
     except ValueError:
         return False
-    return True
+    return len(decoded) * 2 == expected_length
 
 
 def is_valid_ed25519_key(key: str) -> bool:

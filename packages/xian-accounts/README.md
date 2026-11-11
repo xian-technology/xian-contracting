@@ -17,6 +17,10 @@ external SDK and should not be mixed into deterministic runtime types.
 - `Ed25519Account.sign_message(message)`
 - `Ed25519Account.verify_message(message, signature)`
 
+Keys are exactly 32 bytes encoded as 64 hexadecimal characters. Lowercase,
+uppercase and mixed-case hex are accepted; whitespace and non-string values
+are invalid. Account construction validates the key before retaining it.
+
 `sign_msg(...)` and `verify_msg(...)` remain small aliases for wallet-style
 callers in the wider Xian workspace.
 
