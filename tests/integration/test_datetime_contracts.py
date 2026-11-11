@@ -25,10 +25,9 @@ class TestSenecaClientReplacesExecutor(TestCase):
         self.dater.replicate(d=Datetime(year=3000, month=1, day=1))
 
     def test_datetime_passed_argument_and_now_are_correctly_compared_json(self):
-        with self.assertRaises(TypeError):
-            self.dater.replicate(d={'__time__':[3000, 12, 15, 12, 12, 12, 0]})
+        self.dater.replicate(d={'__time__': [3000, 12, 15, 12, 12, 12, 0]})
 
-        with self.assertRaises(TypeError):
+        with self.assertRaisesRegex(RuntimeError, "not order-comparable"):
             self.dater.replicate(d=[2025, 11, 15, 21, 47, 14, 0])
 
     def test_datetime_subtracts(self):

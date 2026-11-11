@@ -19,17 +19,17 @@ runtime/VM work. They are not node operation scripts.
 - `generate_compiler_fixtures.py`: records authoritative Rust compiler source,
   normalization, artifact, IR, hash, and rejection behavior through the Python
   binding as `xian.compiler_fixture.v1` JSON.
-- `generate_vm_parity_fixtures.py`: regenerates curated VM conformance fixtures
-  from current local harness behavior and selected authored contract sources in
-  the wider Xian workspace.
+- `generate_vm_parity_fixtures.py`: regenerates historical V1 VM conformance fixtures
+  from the V1 harness and historical authored sources.
 
 ## Notes
 
 - Most scripts expect to run from the repository root through `uv run`.
 - VM fixture generation depends on sibling repos such as `xian-contracts`,
   `xian-configs`, and `xian-stable-protocol` being present under the same
-  workspace root. DEX fixtures use the pinned bundle from the sibling `xian-dex` repo by
-  default. Set `XIAN_WORKSPACE_ROOT` to point at a different workspace root, or
+  workspace root, alongside `xian-dex`. The generator reads pinned revisions
+  with `git show`; those commits must exist in each checkout.
+  Set `XIAN_WORKSPACE_ROOT` to point at a different workspace root, or
   `XIAN_DEX_BUNDLE` / `XIAN_DEX_SRC_DIR` for DEX-specific overrides.
 - Do not put node lifecycle, genesis, or operator workflow scripts here; those
   belong in `xian-stack`, `xian-cli`, or `xian-abci`.

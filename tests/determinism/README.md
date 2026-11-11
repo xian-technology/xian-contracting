@@ -2,9 +2,11 @@
 
 This campaign checks whether the same admitted contract programs produce exactly
 the same observations across host environments and native architectures. It runs
-the complete allowed-surface corpus (currently 601 cases), plus reproducibly
+the historical V1 allowed-surface corpus, plus reproducibly
 generated programs with explicit expected results and failures, and 32 fixed
-binary-float edge cases under V1. The same campaign includes all 26 V2 numeric
+binary-float edge cases under V1. Generated integer, collection, Unicode, time,
+and stateful programs run on V2. The generated raw-decimal/binary-float and
+random-float families select V1. The same campaign includes all 26 V2 numeric
 conformance vectors, including signed division, wide intermediates, rounding,
 square root, overflow and rollback. Each profile is selected explicitly for
 artifact generation, execution, storage and reopen checks. Every case uses

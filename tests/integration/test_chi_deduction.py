@@ -41,7 +41,7 @@ TEST_SUBMISSION_KWARGS = {
 class TestMetering(TestCase):
     def setUp(self):
         # Hard load the submission contract
-        self.d = Driver()
+        self.d = Driver(vm_profile="xian_vm_v1")
         self.d.flush_full()
 
         submission_path = os.path.join(

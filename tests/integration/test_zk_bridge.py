@@ -5,7 +5,6 @@ from unittest import TestCase
 import pytest
 
 from contracting.local import ContractingClient
-from contracting.storage.contract import Contract
 
 pytestmark = pytest.mark.optional_native
 
@@ -27,12 +26,12 @@ class TestZkBridge(TestCase):
         registry_path = os.path.abspath(registry_path)
         with open(registry_path) as registry_file:
             registry_source = registry_file.read()
-            Contract(driver=self.c.raw_driver).submit(
+            self.c.submit(
+                registry_source,
                 name="zk_registry",
-                code=registry_source,
+                signer="sys",
                 constructor_args={"owner": "stu"},
             )
-        self.c.raw_driver.commit()
 
         contract_path = os.path.join(
             os.path.dirname(__file__),

@@ -1,5 +1,5 @@
 import json
-from decimal import Decimal
+from decimal import Decimal, localcontext
 
 import pytest
 from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
@@ -26,6 +26,15 @@ def test_exact_numeric_wire_and_storage_roundtrip():
     assert isinstance(decoded[-1], ContractingDecimal)
     assert decoded == data
     assert encode(decoded, vm_profile=PROFILE) == output
+
+
+def test_exact_decimal_decode_is_independent_of_python_context():
+    values = ["-" + "9" * 61 + "." + "9" * 30, "0." + "0" * 29 + "1"]
+    wire = json.dumps([{"__fixed__": value} for value in values])
+    with localcontext(prec=5):
+        decoded = decode(wire)
+        assert [value._d for value in decoded] == [Decimal(value) for value in values]
+        assert json.loads(encode(decoded)) == json.loads(wire)
 
 
 @pytest.mark.parametrize(
@@ -117,3 +126,34 @@ def test_v2_sets_preserve_boolean_identity_through_nested_storage():
     value.add((1,))
     assert encode(value, vm_profile=PROFILE) == encode(decoded, vm_profile=PROFILE)
     assert len(ContractingSet([True, 1])) == 1
+
+
+def test_unqualified_wire_apis_select_the_current_numeric_profile():
+    import json
+
+    from xian_runtime_types import encoding
+
+    amount = 2**53
+    tagged = {"__big_int__": str(amount)}
+    assert (
+        encoding.encode(amount)
+        == encoding.encode_wire(amount)
+        == '{"__big_int__":"9007199254740992"}'
+    )
+    assert json.loads(json.dumps({"amount": amount}, cls=encoding.Encoder)) == {"amount": tagged}
+    class IntegerSubclass(int):
+        pass
+
+    assert encoding.encode_wire(IntegerSubclass(amount)) == encoding.encode_wire(amount)
+    assert encoding.encode_int(amount) == tagged
+    assert encoding.encode_ints_in_dict({"amount": amount}) == {"amount": tagged}
+    assert encoding.decode_kv(*encoding.encode_kv("amount", amount)) == ("amount", amount)
+    assert encoding.convert_dict({"amount": tagged}) == {"amount": amount}
+    for decoder in (encoding.as_object, encoding.convert_dict):
+        with pytest.raises(ValueError):
+            decoder({"__big_int__": "3"})
+    with pytest.raises(ValueError):
+        encoding.decode(str(amount))
+    with pytest.raises(TypeError):
+        encoding.encode_wire(1.5)
+    assert encoding.encode_wire(amount, vm_profile="xian_vm_v1") == str(amount)

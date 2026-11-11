@@ -31,9 +31,9 @@ EXPRESSIONS = [
     "'ab'.translate({97: 'X'}.keys().mapping)",
     "['a\\nb'.splitlines('yes'), 'a\\nb'.splitlines([]), 'a\\nb'.splitlines(10**100)]",
     "['abc'.translate(range(1000)), 'abc'.translate('X' * 100), ''.translate(None)]",
-    "''.maketrans('ab', 'XY', 'c')",
-    "''.maketrans({'a': 'XYZ', 98: None, '中': 67})",
-    "str.maketrans('ab', 'XY')",
+    "sorted(''.maketrans('ab', 'XY', 'c').items())",
+    "sorted(''.maketrans({'a': 'XYZ', 98: None, '中': 67}).items())",
+    "sorted(str.maketrans('ab', 'XY').items())",
 ]
 
 

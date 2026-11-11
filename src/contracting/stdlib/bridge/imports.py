@@ -90,7 +90,7 @@ def _contract_exists_by_name(name):
     if not _contract_name_is_valid(name):
         return False
 
-    _driver = rt.env.get("__Driver") or Driver()
+    _driver = rt.env.get("__Driver") or Driver(vm_profile="xian_vm_v1")
     return _driver.has_contract(name)
 
 
@@ -112,7 +112,7 @@ def _resolve_contract_module(contract):
     if not isinstance(contract, ModuleType):
         raise AssertionError("Contract target must be a contract name or imported contract module!")
 
-    _driver = rt.env.get("__Driver") or Driver()
+    _driver = rt.env.get("__Driver") or Driver(vm_profile="xian_vm_v1")
     if not _driver.has_contract(contract.__name__):
         raise AssertionError("Contract module must reference an existing deployed contract!")
 
@@ -133,7 +133,7 @@ def exists(contract):
     if not isinstance(contract, ModuleType):
         raise AssertionError("Contract target must be a contract name or imported contract module!")
 
-    _driver = rt.env.get("__Driver") or Driver()
+    _driver = rt.env.get("__Driver") or Driver(vm_profile="xian_vm_v1")
     return _driver.has_contract(contract.__name__)
 
 
@@ -279,14 +279,14 @@ def enforce_interface(contract, interface: list):
 
 def owner_of(contract):
     contract_name = _contract_name_from_target(contract)
-    _driver = rt.env.get("__Driver") or Driver()
+    _driver = rt.env.get("__Driver") or Driver(vm_profile="xian_vm_v1")
     owner = _driver.get_var(contract_name, OWNER_KEY)
     return owner
 
 
 def contract_info(contract):
     contract_name = _contract_name_from_target(contract)
-    _driver = rt.env.get("__Driver") or Driver()
+    _driver = rt.env.get("__Driver") or Driver(vm_profile="xian_vm_v1")
     return {
         "name": contract_name,
         "owner": _driver.get_var(contract_name, OWNER_KEY),
@@ -304,7 +304,7 @@ def code_hash(contract, kind="runtime"):
         raise AssertionError("Hash kind must be 'ir' or 'source'!")
 
     contract_name = _contract_name_from_target(contract)
-    _driver = rt.env.get("__Driver") or Driver()
+    _driver = rt.env.get("__Driver") or Driver(vm_profile="xian_vm_v1")
     if kind == "ir":
         contract_text = _driver.get_var(contract_name, XIAN_VM_V1_IR_KEY)
     else:

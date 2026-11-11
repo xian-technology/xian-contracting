@@ -72,6 +72,7 @@ def test_exact_wrapper_sets_keep_observed_iteration_and_fixed_decimal_type():
 def test_observations_equal_across_fresh_homes_and_reopened_driver(tmp_path):
     case = {
         "id": "stateful",
+        "vm_profile": "xian_vm_v1",
         "source": """value = Variable()
 @export
 def probe():

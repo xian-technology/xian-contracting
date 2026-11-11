@@ -10,13 +10,7 @@ compiler fixture loader. The checked-in accepted and rejected fixtures are the
 shared parity oracle for Rust, Python, WASM/JavaScript, linter, and node
 admission surfaces.
 
-Select the fresh-chain numeric rules with `vm_profile="xian_vm_v2"` in Python
-or `{vm_profile: "xian_vm_v2"}` in WASM options JSON. V2 parses decimal literals
-from their UTF-8 source digits, validates the 30-place fixed-point range, and
-emits a decimal constant with a canonical string value. Its exported decimal
-parameter and return annotations are spelled `decimal`. The default V1 profile
-preserves historical compilation. Both profiles use the `xian_ir_v1` envelope.
-An artifact carries its profile and self-validation recompiles under that profile.
+Rust, Python and WASM default to the fresh-chain profile `xian_vm_v2`. V2 reads decimal literals from their UTF-8 source digits and emits canonical decimal strings. Use `decimal` for exported fixed-point values. To reproduce a historical artifact, pass `vm_profile="xian_vm_v1"` in Python or `{"vm_profile":"xian_vm_v1"}` in WASM options JSON. Both profiles use the `xian_ir_v1` envelope.
 
 ## Current Surface
 
@@ -61,10 +55,10 @@ Fixtures are refreshed through the authoritative Python binding with:
 
 ```bash
 uv run python scripts/generate_compiler_fixtures.py \
-  packages/xian-compiler-core/tests/sources
+  --profile xian_vm_v1 packages/xian-compiler-core/tests/sources
 ```
 
-For V2 fixtures, pass `--profile xian_vm_v2` and use the sources in
+To regenerate the default V2 fixtures, use the sources in
 `packages/xian-compiler-core/tests/sources_v2`.
 
 Run the Rust fixture checks with:

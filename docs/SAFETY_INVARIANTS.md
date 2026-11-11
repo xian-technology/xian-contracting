@@ -44,7 +44,9 @@ This file records the runtime properties that must hold before a
 
 ## VM Conformance
 
-- `xian_vm_v1` execution must match the local harness conformance oracle for
+- With no profile selected, a local compiler or test client must produce the same V2
+  artifacts and contract results as explicit fresh-chain execution.
+- Explicit `xian_vm_v1` execution must match its Python conformance oracle for
   result, writes, events, and failure mode across the curated matrix.
 - Stateful contract sequences must preserve the same committed state across the
   oracle and VM checks, including rollback after deliberate post-write failure.

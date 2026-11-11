@@ -35,7 +35,7 @@ BASELINE = json.loads(BASELINE_PATH.read_text())
 def pinned_execution_revision():
     from xian_vm_core import runtime_info
 
-    info = runtime_info()
+    info = runtime_info("xian_vm_v1")
     assert info["execution_revision"] == BASELINE["execution_revision"]
     assert BASELINE["gas_schedule"] in info["supported_gas_schedules"]
 
@@ -44,7 +44,7 @@ def observe_dispatch(case, storage_home, chi_budget_raw):
     from xian_vm_core import execute_contract
 
     name = f"conformance_{case['id']}"
-    with Driver(storage_home=storage_home) as driver:
+    with Driver(storage_home=storage_home, vm_profile="xian_vm_v1") as driver:
         _deploy_case_contracts(
             driver,
             {
@@ -58,6 +58,7 @@ def observe_dispatch(case, storage_home, chi_budget_raw):
         )
         result = execute_contract(
             driver=driver,
+            vm_profile=driver.vm_profile,
             contract_name=name,
             function_name=case.get("function", "probe"),
             kwargs=case.get("kwargs", {}),

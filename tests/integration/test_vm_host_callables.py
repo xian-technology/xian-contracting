@@ -229,7 +229,7 @@ def keyword(left: int, *, right: int):
 def variadic(left: int, *rest: int, **options: int):
     return left
 """
-    with Driver(storage_home=home) as driver:
+    with Driver(storage_home=home, vm_profile="xian_vm_v2" if native else "xian_vm_v1") as driver:
         driver.set_contract_from_source("con_host_callable_target", target, owner=None)
         driver.set("con_host_callable_target.state", 7)
         driver.set("con_host_callable_target.ledger:ready", 9)

@@ -29,7 +29,8 @@ class TestClient(TestCase):
             self.client.flush()
             self.client.close()
 
-    def test_set_submission_updates_contract_file(self):
+    def test_set_submission_updates_legacy_runtime_file(self):
+        self.driver = Driver(vm_profile="xian_vm_v1")
         self.client = ContractingClient(driver=self.driver)
         self.client.flush()
 
@@ -101,8 +102,8 @@ class TestClient(TestCase):
             self.assertIsNone(store._env)
 
     def test_gets_submission_contract_from_state_if_no_filename_provided(self):
-        self.driver.set_contract(
-            name='submission', source=self.submission_contract_file
+        self.driver.set_contract_from_source(
+            name="submission", source="@export\ndef submit_contract():\n    pass",
         )
         self.driver.commit()
 
@@ -116,13 +117,13 @@ class TestClient(TestCase):
         self.client.raw_driver.flush_full()
         self.client.submission_contract = None
 
-        contract = self.client.raw_driver.get_local_contract_runtime('submission')
+        contract = self.client.get_contract_ir('submission')
         self.assertIsNone(contract)
         self.assertIsNone(self.client.submission_contract)
 
         self.client.set_submission_contract()
 
-        contract = self.client.raw_driver.get_local_contract_runtime('submission')
+        contract = self.client.get_contract_ir('submission')
         self.assertIsNotNone(contract)
         self.assertIsNotNone(self.client.submission_contract)
 
@@ -132,18 +133,18 @@ class TestClient(TestCase):
         self.client.raw_driver.flush_full()
         self.client.submission_contract = None
 
-        contract = self.client.raw_driver.get_local_contract_runtime('submission')
+        contract = self.client.get_contract_ir('submission')
         self.assertIsNone(contract)
         self.assertIsNone(self.client.submission_contract)
 
-        self.driver.set_contract(
-            name='submission', source=self.submission_contract_file
+        self.driver.set_contract_from_source(
+            name="submission", source="@export\ndef submit_contract():\n    pass",
         )
         self.driver.commit()
 
         self.client.set_submission_contract()
 
-        contract = self.client.raw_driver.get_local_contract_runtime('submission')
+        contract = self.client.get_contract_ir('submission')
         self.assertIsNotNone(contract)
         self.assertIsNotNone(self.client.submission_contract)
 
@@ -162,7 +163,7 @@ class TestClient(TestCase):
         with self.assertRaises(AssertionError):
             self.client.submit(f="")
 
-    def test_closure_to_code_string_dedents_and_unparses_nested_source(self):
+    def test_closure_to_code_string_preserves_original_source(self):
         self.client = ContractingClient(submission_filename=None, driver=self.driver)
 
         def con_nested_source():
@@ -175,7 +176,7 @@ class TestClient(TestCase):
         code, name = self.client.closure_to_code_string(con_nested_source)
 
         self.assertEqual(name, "con_nested_source")
-        self.assertIn("values = [1, 2, 3]", code)
+        self.assertIn("values=[1,2,3]", code)
 
     def test_closure_to_code_string_does_not_execute_source(self):
         self.client = ContractingClient(submission_filename=None, driver=self.driver)
@@ -216,7 +217,7 @@ def ping():
 
         self.assertEqual(artifacts["format"], CONTRACT_ARTIFACT_FORMAT_V1)
         self.assertEqual(artifacts["module_name"], "con_bundle_probe")
-        self.assertEqual(artifacts["vm_profile"], "xian_vm_v1")
+        self.assertEqual(artifacts["vm_profile"], "xian_vm_v2")
         self.assertIn("source", artifacts)
         self.assertNotIn("runtime_code", artifacts)
         self.assertIn("vm_ir_json", artifacts)
@@ -297,3 +298,29 @@ def ping():
         self.assertIs(result, output)
         self.assertEqual(result["status_code"], 1)
         self.assertIs(result["result"], error)
+
+
+def test_default_client_runs_exact_native_arithmetic(tmp_path):
+    from decimal import Decimal
+
+    with ContractingClient(storage_home=tmp_path) as client:
+        assert client.vm_profile == "xian_vm_v2"
+        client.submit("@export\ndef divide():\n    return 1 / 3", name="con_divide")
+        assert client.get_contract_proxy("con_divide").divide() == Decimal("0." + "3" * 30)
+
+
+
+def test_cpython_executor_requires_explicit_legacy_selection(tmp_path):
+    import pytest
+    from contracting.execution.executor import Executor
+
+    with pytest.raises(ValueError, match="ContractingClient"):
+        Executor()
+    with ContractingClient(storage_home=tmp_path) as client:
+        with pytest.raises(ValueError, match="V1 driver"):
+            Executor(driver=client.raw_driver)
+    legacy = Executor(vm_profile="xian_vm_v1")
+    try:
+        assert legacy.driver.vm_profile == "xian_vm_v1"
+    finally:
+        legacy.driver.close()

@@ -294,7 +294,7 @@ def observe_case(case, home, *, reopen=False):
     """
     home = Path(home)
     name = "determinism_" + case["id"]
-    profile = case.get("vm_profile", "xian_vm_v1")
+    profile = case.get("vm_profile", "xian_vm_v2")
     driver = Driver(storage_home=home, vm_profile=profile)
     try:
         _require(not driver.keys_from_disk(), f"{case['id']}: expected fresh storage home")

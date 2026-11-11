@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 
-from .decimal import ContractingDecimal, canonical_fixed
+from .decimal import ContractingDecimal, _decimal_to_scaled, canonical_fixed
 from .set_codec import (
     RESERVED_TAGS,
     _NormalizationBudget,
@@ -35,45 +35,33 @@ def _tagged_integer(text):
     return number
 
 
-def _check_set_node(node):
-    # The set codec first checks the closed grammar and enforces depth/work limits.
-    tag = node[0]
-    if tag in ("tuple", "frozenset"):
-        for child in node[1]:
-            _check_set_node(child)
-    elif tag in ("raw_decimal", "float"):
-        raise ValueError("V2 set members cannot contain binary float or raw Decimal")
-    elif tag == "int":
-        if len(node[1]) > 156:
-            raise ValueError("integer exceeds 512 bits")
-        _check_int(int(node[1]))
-
-
 def _fixed_payload(payload):
     if not isinstance(payload, str) or len(payload) > 93 or canonical_fixed(payload) != payload:
         raise ValueError("noncanonical __fixed__ decimal string")
-    return ContractingDecimal(payload)
+    return ContractingDecimal._from_scaled(_decimal_to_scaled(Decimal(payload)))
 
 
 def _decode_tag(tag, payload, budget):
-    from .encoding import as_object
-
     if tag == "__fixed__":
         return _fixed_payload(payload)
     if tag == "__big_int__":
         return _tagged_integer(payload)
     if tag in ("__set__", "__frozenset__"):
-        if not isinstance(payload, dict):
-            raise ValueError("V2 set requires a typed member envelope")
-        decoded = decode_set_value(tag, payload, _normalization=budget, exact_numbers=True)
-        for node in payload["items"]:
-            _check_set_node(node)
-        return decoded
+        return decode_set_value(tag, payload, _normalization=budget)
     if isinstance(payload, list) and not all(
         type(x) is int and abs(x) <= SAFE_INTEGER for x in payload
     ):
         raise ValueError("invalid numeric value in runtime wrapper")
-    return as_object({tag: payload})
+    if tag == "__time__":
+        return Datetime(*payload)
+    if tag == "__delta__":
+        days, seconds = payload
+        return Timedelta(days=days, seconds=seconds)
+    if tag == "__bytes__":
+        return bytes.fromhex(payload)
+    if tag == "__bytearray__":
+        return bytearray.fromhex(payload)
+    raise ValueError(f"unknown runtime tag {tag}")
 
 
 def _integer(number, decoding):
@@ -97,8 +85,8 @@ def _numbers(value, decoding, budget):
         return {key: _numbers(item, decoding, budget) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [_numbers(item, decoding, budget) for item in value]
-    if type(value) is int:
-        return _integer(value, decoding)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return _integer(int.__int__(value), decoding)
     if isinstance(value, float):
         raise TypeError("binary float is not a contract number")
     if isinstance(value, (ContractingDecimal, Decimal)):
@@ -114,9 +102,13 @@ def _numbers(value, decoding, budget):
     return value
 
 
-def _process(value, *, decoding):
-    _validate_serializable_value(value, allow_codec_tags=True)
+def _process(value, *, decoding, allow_codec_tags=True):
+    _validate_serializable_value(value, allow_codec_tags=allow_codec_tags)
     return _numbers(value, decoding, _NormalizationBudget())
+
+
+def _persistent_numbers(value):
+    return _process(value, decoding=False, allow_codec_tags=False)
 
 
 def normalize_wire_numbers(value):

@@ -6,7 +6,7 @@ from contracting.local import ContractingClient
 
 class TestRunPrivateFunction(TestCase):
     def setUp(self):
-        self.client = ContractingClient()
+        self.client = ContractingClient(vm_profile="xian_vm_v1")
 
         private_methods_path = os.path.join(os.path.dirname(__file__), "test_contracts", "private_methods.s.py")
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from contracting.compilation.linter import LintingError
+from xian_compiler_core import CompilerError
 from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 
@@ -81,7 +81,7 @@ def execute_source(home, body, *, native=True):
         "state = Variable()\ndef append_for(values):\n    return values.append\n@export\ndef probe():\n"
         + "".join("    " + line + "\n" for line in body.splitlines())
     )
-    with Driver(storage_home=home) as driver:
+    with Driver(storage_home=home, vm_profile="xian_vm_v2" if native else "xian_vm_v1") as driver:
         driver.set_contract_from_source("con_bound", source, owner=None)
         driver.commit()
         if native:
@@ -117,7 +117,7 @@ def test_bound_method_semantics(tmp_path, native, case_id, body, expected):
 @pytest.mark.parametrize(("case_id", "body"), INVALID, ids=[case[0] for case in INVALID])
 def test_bound_method_invalid_calls_and_boundaries(tmp_path, case_id, body):
     if case_id == "private_attribute":
-        with pytest.raises(LintingError, match="E002"):
+        with pytest.raises(CompilerError, match="E002"):
             execute_source(tmp_path, body)
         return
     status, result, writes = execute_source(tmp_path, body)

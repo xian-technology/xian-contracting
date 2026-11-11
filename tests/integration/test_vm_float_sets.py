@@ -10,6 +10,7 @@ pytestmark = pytest.mark.optional_native
 def assert_float_set_result(tmp_path, body, expected):
     case = {
         "id": "float_set_order",
+        "vm_profile": "xian_vm_v1",
         "source": "@export\ndef probe():\n"
         + "".join("    " + line + "\n" for line in body.splitlines()),
         "function_name": "probe",

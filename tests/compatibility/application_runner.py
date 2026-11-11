@@ -97,6 +97,7 @@ def invoke(driver, step, engine):
 
         result = execute_contract(
             driver=driver,
+            vm_profile="xian_vm_v1",
             contract_name=step["contract"],
             function_name=step["function"],
             kwargs=kwargs,
@@ -167,7 +168,9 @@ def install_bootstrap(driver, engine):
     if engine in ("native", "native-metered"):
         from contracting.artifacts import build_contract_artifacts
 
-        artifact = build_contract_artifacts(module_name="submission", source=deployer, lint=False)
+        artifact = build_contract_artifacts(
+            module_name="submission", source=deployer, lint=False, vm_profile="xian_vm_v1"
+        )
         driver.set_contract(
             "submission", source=artifact["source"], vm_ir_json=artifact["vm_ir_json"]
         )
@@ -178,7 +181,9 @@ def install_bootstrap(driver, engine):
 def run_sequence(sequence, sources, home, engine):
     from contracting.storage.driver import Driver
 
-    driver = Driver(storage_home=home)
+    # Only the pre-VM oracle installation has no profile argument.
+    profile = {} if engine == "historical-python" else {"vm_profile": "xian_vm_v1"}
+    driver = Driver(storage_home=home, **profile)
     try:
         install_bootstrap(driver, engine)
         driver.commit()
@@ -197,7 +202,7 @@ def run_sequence(sequence, sources, home, engine):
     observations = []
     previous = None
     for step in steps:
-        driver = Driver(storage_home=home)
+        driver = Driver(storage_home=home, **profile)
         try:
             if previous is not None and encode(data_state(driver, names)) != previous:
                 raise AssertionError("Persisted state differs after reopening storage")
@@ -206,7 +211,7 @@ def run_sequence(sequence, sources, home, engine):
             observations.append(observation)
         finally:
             driver._store.close()
-    driver = Driver(storage_home=home)
+    driver = Driver(storage_home=home, **profile)
     try:
         if encode(data_state(driver, names)) != previous:
             raise AssertionError("Final persisted state differs after reopening storage")
@@ -236,7 +241,7 @@ def comparison(observations):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--engine", choices=["python", "native", "native-metered"], default="native"
+        "--engine", choices=["historical-python", "python", "native", "native-metered"], default="native"
     )
     parser.add_argument("--output", type=Path)
     parser.add_argument("--check", action="store_true")

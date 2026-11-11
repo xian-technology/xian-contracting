@@ -1,4 +1,5 @@
-from unittest import TestCase
+from tempfile import TemporaryDirectory
+from unittest import TestCase, addModuleCleanup
 
 from xian_runtime_types.decimal import ContractingDecimal
 
@@ -22,7 +23,15 @@ from contracting.storage.orm import (
 # ForeignVariable = gather()['ForeignVariable']
 # ForeignHash = gather()['ForeignHash']
 
-driver = Driver()
+driver: Driver
+
+
+def setUpModule():
+    global driver
+    directory = TemporaryDirectory()
+    addModuleCleanup(directory.cleanup)
+    driver = Driver(storage_home=directory.name)
+    addModuleCleanup(driver.close)
 
 
 class TestDatum(TestCase):

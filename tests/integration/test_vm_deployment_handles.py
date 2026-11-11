@@ -24,7 +24,7 @@ def execute(home, body, *, native, module="submission", child=CHILD, target=None
     )
     if target is not None:
         source = "import con_target\n" + source
-    with Driver(storage_home=home) as driver:
+    with Driver(storage_home=home, vm_profile="xian_vm_v2" if native else "xian_vm_v1") as driver:
         if target is not None:
             driver.set_contract_from_source("con_target", target, owner=None)
         driver.set_contract_from_source(module, source, owner=None)
@@ -97,7 +97,7 @@ def test_only_none_defaults_deployment_metadata(tmp_path, native, metadata):
 
 def test_trusted_host_can_submit_without_active_contract(tmp_path):
     with (
-        Driver(storage_home=tmp_path) as driver,
+        Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver,
         rt.push_context_state(
             {"this": None, "caller": "host", "signer": "host", "entry": None, "owner": None}
         ),
@@ -260,7 +260,10 @@ def test_contract_default_driver_spellings(tmp_path, native, constructor):
 def test_trusted_host_can_choose_bridge_driver(tmp_path):
     from contracting.stdlib.bridge.orm import C
 
-    with Driver(storage_home=tmp_path / "one") as one, Driver(storage_home=tmp_path / "two") as two:
+    with (
+        Driver(storage_home=tmp_path / "one", vm_profile="xian_vm_v1") as one,
+        Driver(storage_home=tmp_path / "two", vm_profile="xian_vm_v1") as two,
+    ):
         previous = rt.env.get("__Driver")
         rt.env["__Driver"] = one
         try:

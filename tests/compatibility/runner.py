@@ -29,12 +29,14 @@ def encode(value):
     raise TypeError(f"Unrecorded baseline value type: {kind}")
 
 
-def run_case(case, storage_home, *, native=False):
+def run_case(case, storage_home, *, native=False, historical_install=False):
     from contracting.execution.executor import Executor
     from contracting.storage.driver import Driver
     from xian_runtime_types.time import Datetime
 
-    driver = Driver(storage_home=storage_home)
+    # The archived Python distribution predates VM profile selection.
+    options = {} if historical_install else {"vm_profile": "xian_vm_v1"}
+    driver = Driver(storage_home=storage_home, **options)
     name = "baseline_" + case["id"]
     try:
         for dependency, source in case.get("dependencies", {}).items():
@@ -59,6 +61,7 @@ def run_case(case, storage_home, *, native=False):
 
         result = xian_vm_core.execute_contract(
             driver=driver,
+            vm_profile="xian_vm_v1",
             contract_name=name,
             function_name="probe",
             kwargs={},
@@ -107,5 +110,8 @@ if __name__ == "__main__":
 
     cases = json.loads(Path(sys.argv[1]).read_text())
     with tempfile.TemporaryDirectory() as directory:
-        results = {case["id"]: run_case(case, Path(directory) / case["id"]) for case in cases}
+        results = {
+            case["id"]: run_case(case, Path(directory) / case["id"], historical_install=True)
+            for case in cases
+        }
     Path(sys.argv[2]).write_text(json.dumps(results, indent=2) + "\n")

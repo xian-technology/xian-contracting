@@ -26,7 +26,10 @@ def observe(value):
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case["id"])
 @pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
 def test_reviewed_host_code_metadata(tmp_path, case, native):
-    with Driver(storage_home=tmp_path) as driver:
+    # Historical metadata for round() is retained for replay.
+    legacy = not native or case["id"] in ("metadata_086", "global_086")
+    profile = "xian_vm_v1" if legacy else "xian_vm_v2"
+    with Driver(storage_home=tmp_path, vm_profile=profile) as driver:
         for name, source in case.get("dependencies", {}).items():
             driver.set_contract_from_source(name, source, owner=None)
         driver.set_contract_from_source("con_metadata", case["source"], owner=None)
@@ -41,6 +44,7 @@ def test_reviewed_host_code_metadata(tmp_path, case, native):
                 kwargs={},
                 context={"caller": "alice", "signer": "alice", "this": "con_metadata"},
                 meter=False,
+                vm_profile=driver.vm_profile,
             )
             status, value = result.status_code, result.result
         else:

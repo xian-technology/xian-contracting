@@ -1,7 +1,7 @@
 # Central Rust/WASM Compiler Architecture
 
-This document defines the target architecture for contract compilation after the
-move to `xian_vm_v1` as the only network execution mode.
+This document defines the architecture for contract compilation. Standalone
+tools default to the fresh-chain execution profile, `xian_vm_v2`.
 
 The decision: Xian should have one authoritative compiler core. SDKs, the CLI,
 the browser IDE, CI, and optional node-side validation should all call that same
@@ -16,12 +16,12 @@ tags.
 
 ## Goals
 
-- Make `source -> normalized source -> xian_vm_v1 IR` one canonical
+- Make `source -> normalized source -> profile-tagged IR` one canonical
   implementation used by validators and tooling.
 - Keep the offline artifact contract stable:
   - `format = xian_contract_artifact_v1`
   - `module_name`
-  - `vm_profile = xian_vm_v1`
+  - `vm_profile = xian_vm_v2` by default, or `xian_vm_v1` for explicit compatibility tests
   - `source`
   - `vm_ir_json`
   - `hashes.source_sha256`
@@ -57,7 +57,7 @@ Current behavior:
 - parses source through `rustpython-parser`
 - normalizes source with Xian-owned Rust formatting
 - runs lint and VM compatibility checks
-- lowers accepted source to canonical `xian_vm_v1` JSON IR
+- lowers accepted source to canonical profile-tagged JSON IR
 - builds `xian_contract_artifact_v1` artifacts for offline inspection
 - validates artifact shape, hashes, normalized source, and canonical compiler
   output for offline consumers
@@ -175,7 +175,7 @@ compiler_version() -> version metadata
 
 Options:
 
-- `vm_profile`: only `xian_vm_v1` initially.
+- `vm_profile`: defaults to `xian_vm_v2`. Select `xian_vm_v1` explicitly for V1 fixtures.
 - `lint`: default `true`.
 - `diagnostic_format`: default stable machine-readable diagnostics.
 

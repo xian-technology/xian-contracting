@@ -63,7 +63,7 @@ class NativeExecutionResult:
     contract_costs: dict[str, int]
 
 
-def runtime_info(vm_profile: str = "xian_vm_v1") -> dict:
+def runtime_info(vm_profile: str = "xian_vm_v2") -> dict:
     return json.loads(runtime_info_json(vm_profile))
 
 
@@ -81,12 +81,14 @@ class NativeVmHost:
         self,
         driver,
         *,
-        vm_profile: str = "xian_vm_v1",
+        vm_profile: str = "xian_vm_v2",
         entry_contract: str | None = None,
         meter_enabled: bool = False,
         chi_budget_raw: int = 0,
         context: dict[str, Any] | None = None,
     ) -> None:
+        if getattr(driver, "vm_profile", vm_profile) != vm_profile:
+            raise ValueError("execution profile differs from the storage driver profile")
         self.driver = driver
         self.vm_profile = vm_profile
         self._ir_cache: dict[str, str] = {}
@@ -505,13 +507,9 @@ def execute_contract(
     meter: bool = False,
     chi_budget_raw: int = 0,
     transaction_size_bytes: int = 0,
-    vm_profile: str = "xian_vm_v1",
+    vm_profile: str = "xian_vm_v2",
 ) -> NativeExecutionResult:
     context = dict(context or {})
-    if getattr(driver, "vm_profile", vm_profile) != vm_profile:
-        raise ValueError("execution profile differs from the storage driver profile")
-    coerced_args = _coerce_external_call_args(args or [], vm_profile)
-    coerced_kwargs = _coerce_external_call_kwargs(kwargs or {}, vm_profile)
     host = NativeVmHost(
         driver,
         vm_profile=vm_profile,
@@ -520,6 +518,8 @@ def execute_contract(
         chi_budget_raw=chi_budget_raw,
         context=context,
     )
+    coerced_args = _coerce_external_call_args(args or [], vm_profile)
+    coerced_kwargs = _coerce_external_call_kwargs(kwargs or {}, vm_profile)
     module_ir = host.load_module_ir(contract_name)
     if module_ir is None:
         raise VmRuntimeExecutionError(
@@ -596,13 +596,13 @@ def execute_contract(
     )
 
 
-def _coerce_external_call_args(args: list[Any], vm_profile="xian_vm_v1") -> list[Any]:
+def _coerce_external_call_args(args: list[Any], vm_profile) -> list[Any]:
     if vm_profile == "xian_vm_v2":
         return decode_wire_numbers(normalize_wire_numbers(args))
     return [ContractingDecimal(str(value)) if isinstance(value, float) else value for value in args]
 
 
-def _coerce_external_call_kwargs(kwargs: dict[str, Any], vm_profile="xian_vm_v1") -> dict[str, Any]:
+def _coerce_external_call_kwargs(kwargs: dict[str, Any], vm_profile) -> dict[str, Any]:
     if vm_profile == "xian_vm_v2":
         return decode_wire_numbers(normalize_wire_numbers(kwargs))
     return {

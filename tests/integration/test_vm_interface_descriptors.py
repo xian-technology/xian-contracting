@@ -41,7 +41,7 @@ def execute(home, body, *, native=True, meter=False, prefix="", target=TARGET):
         + "state = Variable()\n@export\ndef probe():\n"
         + "".join("    " + line + "\n" for line in body.splitlines())
     )
-    with Driver(storage_home=home) as driver:
+    with Driver(storage_home=home, vm_profile="xian_vm_v2" if native else "xian_vm_v1") as driver:
         driver.set_contract_from_source("con_descriptor_target", target, owner=None)
         driver.set_contract_from_source("con_descriptor_probe", source, owner=None)
         driver.commit()

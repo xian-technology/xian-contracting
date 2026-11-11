@@ -197,7 +197,7 @@ def test_worker_records_actual_runtime_policy_and_reversed_case_order(tmp_path, 
 
     from tests.determinism import campaign, observer
 
-    cases = [{"id": "a"}, {"id": "b", "vm_profile": "xian_vm_v2"}]
+    cases = [{"id": "a", "vm_profile": "xian_vm_v1"}, {"id": "b", "vm_profile": "xian_vm_v2"}]
     workload, destination = tmp_path / "workload.json", tmp_path / "report.json"
     campaign.write_json(workload, cases)
     calls = []

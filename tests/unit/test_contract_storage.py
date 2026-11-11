@@ -21,7 +21,7 @@ class TestContractStorage(TestCase):
             driver.flush_full()
 
     def test_deploy_requires_source_code(self):
-        driver = Driver()
+        driver = Driver(vm_profile="xian_vm_v1")
         try:
             with self.assertRaisesRegex(
                 TypeError,

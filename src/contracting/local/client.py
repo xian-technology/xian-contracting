@@ -12,7 +12,7 @@ from xian_runtime_types.time import Datetime
 
 from contracting import constants
 from contracting.artifacts import (
-    XIAN_VM_V1_PROFILE,
+    DEFAULT_VM_PROFILE,
     XIAN_VM_V2_PROFILE,
     build_contract_artifacts,
     compile_contract_source,
@@ -114,6 +114,8 @@ class AbstractContract:
         self.executor.driver.commit()
 
     def run_private_function(self, f, signer=None, environment=None, **kwargs):
+        if isinstance(self.executor, NativeExecutor):
+            raise ValueError("The native VM only allows exported entrypoints.")
         # Override kwargs if provided
         signer = signer or self.signer
         environment = environment or self.environment
@@ -218,15 +220,17 @@ class ContractingClient:
         self,
         signer="sys",
         submission_filename=BUILTIN_SUBMISSION_RUNTIME_FILENAME,
-        storage_home=constants.STORAGE_HOME,
+        storage_home=None,
         driver: Driver | None = None,
         metering=False,
         compiler: ContractingCompiler | None = None,
         environment: dict | None = None,
         vm_profile: str | None = None,
     ):
-        self.vm_profile = vm_profile or (
-            driver.vm_profile if driver is not None else XIAN_VM_V1_PROFILE
+        self.vm_profile = (
+            vm_profile
+            if vm_profile is not None
+            else (driver.vm_profile if driver is not None else DEFAULT_VM_PROFILE)
         )
         if driver is not None and driver.vm_profile != self.vm_profile:
             raise ValueError("client and storage driver profiles must match")
@@ -444,7 +448,7 @@ class ContractingClient:
             return compile_contract_source(
                 module_name="con_compile", source=f, vm_profile=self.vm_profile
             )["source"]
-        code = self.compiler.parse_to_code(f)
+        code = self.compiler.parse_to_code(f, vm_profile="xian_vm_v1")
         return code
 
     def build_contract_artifacts(self, f, *, name=None):

@@ -3,12 +3,13 @@
 `xian-contracting` owns two related but separate surfaces:
 
 - the compiler/artifact surface, which turns authored source into canonical
-  `xian_vm_v1` IR and optional offline artifacts
+  IR tagged with the selected profile (V2 by default) and optional offline artifacts
 - the local harness surface, which lets developers test contracts against
   deterministic storage and stdlib behavior without running a node
 
-Network execution is owned by the Xian VM. The local harness is a developer
-tool and parity oracle; it is not a second chain runtime.
+The default local client compiles and executes contracts with the same Rust
+compiler and V2 VM as validators. Its storage and call context are local to
+the test. The explicit V1 harness also serves as a compatibility oracle.
 
 Main areas:
 
@@ -38,7 +39,7 @@ should be treated as protocol-affecting.
   that source and persist canonical IR.
 - The local harness may derive transient Python source/proxies for tests, but
   that output is not a deployable chain artifact.
-- Stored `vm_ir_json` is the executable payload for `xian_vm_v1`; it is derived
-  by validators from submitted source, not trusted from clients.
+- Validators derive the stored executable payload, `vm_ir_json`, from submitted
+  source under their configured execution profile.
 - The Rust compiler core is the compiler/artifact authority behind public APIs;
   the Python transformer is limited to local-harness execution support.

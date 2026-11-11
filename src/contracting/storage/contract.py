@@ -25,11 +25,11 @@ XIAN_EXECUTION_MODE_ENV_KEY = "__xian_execution_mode__"
 
 class Contract:
     def __init__(self, driver: Driver | None = None):
-        self._driver = driver or rt.env.get("__Driver") or Driver()
+        self._driver = driver or rt.env.get("__Driver") or Driver(vm_profile="xian_vm_v1")
 
     @staticmethod
     def _resolve_driver(driver: Driver | None = None) -> Driver:
-        return driver or rt.env.get("__Driver") or Driver()
+        return driver or rt.env.get("__Driver") or Driver(vm_profile="xian_vm_v1")
 
     @classmethod
     def _active_contract_name(cls) -> str | None:
@@ -68,6 +68,8 @@ class Contract:
     ):
         with rt.execution_lock:
             driver = cls._require_submission_metadata_context(driver=driver)
+            if driver.vm_profile != "xian_vm_v1":
+                raise ValueError("Use ContractingClient.submit for native V2 deployment.")
             assert_safe_contract_name(name)
 
             if driver.has_contract(name):

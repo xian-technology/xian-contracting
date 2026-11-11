@@ -21,11 +21,11 @@ def _case(body, dependencies=()):
     }
 
 
-def _compare(tmp_path, body, dependencies=()):
+def _compare(tmp_path, body, dependencies=(), *, vm_profile="xian_vm_v2"):
     case = _case(body, dependencies)
     expected = _run_python_case(case, tmp_path / "python")
     assert expected["status_code"] == 0, expected
-    assert _run_native_case(case, tmp_path / "native") == expected
+    assert _run_native_case(case, tmp_path / "native", vm_profile=vm_profile) == expected
 
 
 def _reject(tmp_path, body):
@@ -38,14 +38,17 @@ def _reject(tmp_path, body):
     assert actual["writes"] == {} and actual["events"] == []
 
 
-HASHABLE_VALUES = [
-    "None",
-    "True",
-    "2",
+LEGACY_HASHABLE_VALUES = [
     "float('1.25')",
     "float('nan')",
     "round(decimal('1.25'), 2)",
     "round(decimal('1'), 0).from_float(float('nan'))",
+]
+HASHABLE_VALUES = [
+    "None",
+    "True",
+    "2",
+    *LEGACY_HASHABLE_VALUES,
     "'abc'",
     "b'abc'",
     "(1, 'abc')",
@@ -72,6 +75,7 @@ def test_builtin_hashable_scalar_and_frozen_families(tmp_path, expression):
         f"value={expression}\nresult={{}}.keys()|[]\nresult.add(value)\n"
         "merged=result.union([value])\n"
         "return [len(result),value in result,len(merged),result.issubset([value])]",
+        vm_profile="xian_vm_v1" if expression in LEGACY_HASHABLE_VALUES else "xian_vm_v2",
     )
 
 
@@ -252,4 +256,5 @@ def test_callable_tuple_nan_identity_is_preserved(tmp_path):
         "nan=float('nan')\nfirst=(helper,nan)\nsecond=(helper,nan)\n"
         "other=(helper,float('nan'))\nresult={first:1,second:2,other:3}.keys()|[]\n"
         "return [len(result),first in result,second in result,other in result]",
+        vm_profile="xian_vm_v1",
     )

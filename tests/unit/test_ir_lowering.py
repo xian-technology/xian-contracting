@@ -1,23 +1,24 @@
 import json
 from unittest import TestCase
 
+from xian_compiler_core import CompilerError
+
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.compilation.ir import (
     XIAN_IR_V1,
     XIAN_VM_HOST_CATALOG_V1,
 )
-from contracting.compilation.linter import LintingError
-from contracting.compilation.vm import XIAN_VM_V1_PROFILE, VmCompatibilityError
+from contracting.compilation.vm import XIAN_VM_V1_PROFILE, XIAN_VM_V2_PROFILE
 
 
 class TestCompilerIrLowering(TestCase):
     ANNOTATION_MATRIX = [
         "bool",
         "int",
-        "float",
+        "decimal",
         "str",
         "list[int]",
-        "list[float]",
+        "list[decimal]",
         "dict[str, int]",
         "dict[str, list[int]]",
         "set[int]",
@@ -67,7 +68,7 @@ def transfer(amount: int, to: str):
         transfer = functions_by_name["transfer"]
 
         self.assertEqual(ir["ir_version"], XIAN_IR_V1)
-        self.assertEqual(ir["vm_profile"], XIAN_VM_V1_PROFILE)
+        self.assertEqual(ir["vm_profile"], XIAN_VM_V2_PROFILE)
         self.assertEqual(ir["host_catalog_version"], XIAN_VM_HOST_CATALOG_V1)
         self.assertEqual(ir["module_name"], "sample_token")
         self.assertEqual(len(ir["global_declarations"]), 3)
@@ -119,7 +120,7 @@ def render(values: list[int]) -> int:
         self.assertEqual(decoded["module_name"], "counter")
         self.assertEqual(decoded["functions"][0]["name"], "render")
 
-    def test_lower_to_ir_and_python_codegen_preserve_annotation_matrix(self):
+    def test_lower_to_ir_and_normalization_preserve_annotation_matrix(self):
         args = ", ".join(
             f"arg_{index}: {annotation}" for index, annotation in enumerate(self.ANNOTATION_MATRIX)
         )
@@ -130,24 +131,29 @@ def typed({args}) -> dict[str, list[int]]:
 """
         compiler = ContractingCompiler(module_name="typed_matrix")
 
-        code = compiler.parse_to_code(source, vm_profile=XIAN_VM_V1_PROFILE)
+        code = compiler.normalize_source(source)
+        legacy_code = compiler.parse_to_code(
+            source.replace("decimal", "float"), vm_profile=XIAN_VM_V1_PROFILE
+        )
         ir = compiler.lower_to_ir(source)
         typed = next(function for function in ir["functions"] if function["name"] == "typed")
 
         for index, annotation in enumerate(self.ANNOTATION_MATRIX):
             with self.subTest(annotation=annotation):
                 self.assertIn(f"arg_{index}: {annotation}", code)
+                legacy_annotation = annotation.replace("decimal", "float")
+                self.assertIn(f"arg_{index}: {legacy_annotation}", legacy_code)
         self.assertEqual(
             [parameter["annotation"] for parameter in typed["parameters"]],
             self.ANNOTATION_MATRIX,
         )
         self.assertEqual(typed["returns"], "dict[str, list[int]]")
 
-    def test_lower_to_ir_and_python_codegen_preserve_subscripted_annotations(self):
+    def test_lower_to_ir_and_normalization_preserve_subscripted_annotations(self):
         source = """
 @export(typecheck=True)
 def route(
-    amounts: list[float],
+    amounts: list[decimal],
     path: list[int],
     metadata: dict[str, list[int]],
 ) -> dict[str, int]:
@@ -155,16 +161,16 @@ def route(
 """
         compiler = ContractingCompiler(module_name="typed_route")
 
-        code = compiler.parse_to_code(source, vm_profile=XIAN_VM_V1_PROFILE)
+        code = compiler.normalize_source(source)
         ir = compiler.lower_to_ir(source)
         route = next(function for function in ir["functions"] if function["name"] == "route")
 
-        self.assertIn("amounts: list[float]", code)
+        self.assertIn("amounts: list[decimal]", code)
         self.assertIn("path: list[int]", code)
         self.assertIn("metadata: dict[str, list[int]]", code)
         self.assertEqual(
             [parameter["annotation"] for parameter in route["parameters"]],
-            ["list[float]", "list[int]", "dict[str, list[int]]"],
+            ["list[decimal]", "list[int]", "dict[str, list[int]]"],
         )
         self.assertEqual(route["returns"], "dict[str, int]")
 
@@ -176,7 +182,7 @@ def unsupported(values: list[int]):
 """
         compiler = ContractingCompiler(module_name="bad")
 
-        with self.assertRaises((LintingError, VmCompatibilityError)):
+        with self.assertRaisesRegex(CompilerError, "unsupported_expression.set_comp"):
             compiler.lower_to_ir(source)
 
     def test_lower_to_ir_records_decimal_runtime_usage(self):

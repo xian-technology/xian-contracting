@@ -14,6 +14,7 @@ def test_decimal_methods_quantum_and_signatures(tmp_path):
         "return [x.quantize(exp=y,rounding='ROUND_HALF_EVEN',context=None),"
         "x.to_integral_value(rounding='ROUND_UP'),x.fma(other=2,third=1),"
         "x.sqrt(),x.as_integer_ratio(),x.as_tuple()]",
+        vm_profile="xian_vm_v1",
     )
 
 
@@ -24,6 +25,7 @@ def test_decimal_exact_constructors_and_identity(tmp_path):
         "return [str(y),y.as_integer_ratio(),y.as_tuple().exponent,"
         "x.canonical() is x,x.conjugate() is x,x.copy_abs() is x,"
         "x.from_float(10**150)]",
+        vm_profile="xian_vm_v1",
     )
 
 
@@ -50,14 +52,14 @@ def test_decimal_method_invalid_signatures(tmp_path, call):
         "kwargs": {},
     }
     assert _run_python_case(case, tmp_path / "python")["status_code"] == 1
-    assert _run_native_case(case, tmp_path / "native")["status_code"] == 1
+    assert _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1")["status_code"] == 1
 
 
 def test_modular_decimal_power_charges_all_operands_before_work(tmp_path):
     from contracting.storage.driver import Driver
     from xian_vm_core import execute_contract
 
-    with Driver(storage_home=tmp_path) as driver:
+    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
         driver.set_contract_from_source(
             "con_modular_budget",
             "v=Variable()\n@export\ndef probe(exponent:int):\n"
@@ -73,6 +75,7 @@ def test_modular_decimal_power_charges_all_operands_before_work(tmp_path):
             context={"caller": "alice", "signer": "alice", "this": "con_modular_budget"},
             meter=True,
             chi_budget_raw=50_000,
+            vm_profile=driver.vm_profile,
         )
         assert output.status_code == 1 and "Out of chi" in str(output.result)
         assert output.writes == {} and output.events == []
@@ -89,7 +92,7 @@ def test_sequence_index_rejects_excess_arguments(tmp_path, receiver):
         "kwargs": {},
     }
     assert _run_python_case(case, tmp_path / "python")["status_code"] == 1
-    assert _run_native_case(case, tmp_path / "native")["status_code"] == 1
+    assert _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1")["status_code"] == 1
 
 
 def test_quiet_nan_rounding_propagates_outside_finite_context(tmp_path):
@@ -97,4 +100,5 @@ def test_quiet_nan_rounding_propagates_outside_finite_context(tmp_path):
         tmp_path,
         "x=round(decimal('0'),0).from_float(float('nan'))\n"
         "return [str(round(x,191)),str(round(x,-101)),str(round(x,1000))]",
+        vm_profile="xian_vm_v1",
     )

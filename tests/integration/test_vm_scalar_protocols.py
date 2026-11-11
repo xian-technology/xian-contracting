@@ -22,11 +22,17 @@ pytestmark = pytest.mark.optional_native
         "float('5e-324').as_integer_ratio(),y.conjugate()]",
         "r=range(10,-5,-3)\nreturn [r.start,r.stop,r.step,r.count(4),r.index(4),"
         "r.count(float('4.0')),r.count(decimal('4')),r.count('4')]",
-        "r=range(10**100,10**100+30,3)\nreturn [r.count(10**100+9),r.index(10**100+9),r.count(10**100+10)]",
     ],
 )
 def test_scalar_protocols_match_python(tmp_path, body):
-    compare(tmp_path, body)
+    compare(tmp_path, body, vm_profile="xian_vm_v1")
+
+
+def test_wide_integer_range_matches_python(tmp_path):
+    compare(
+        tmp_path,
+        "r=range(10**100,10**100+30,3)\nreturn [r.count(10**100+9),r.index(10**100+9),r.count(10**100+10)]",
+    )
 
 
 def test_dictionary_popitem_and_live_mapping(tmp_path):
@@ -102,14 +108,22 @@ def test_invalid_scalar_and_view_calls_fail(tmp_path, expression):
         "kwargs": {},
     }
     expected = _run_python_case(case, tmp_path / "python")
-    actual = _run_native_case(case, tmp_path / "native")
+    actual = _run_native_case(
+        case,
+        tmp_path / "native",
+        vm_profile="xian_vm_v1" if "float" in expression else "xian_vm_v2",
+    )
     assert expected["status_code"] == actual["status_code"] == 1
     assert expected["writes"] == actual["writes"] == {}
     assert expected["events"] == actual["events"] == []
 
 
 def test_numeric_self_attributes_and_methods_preserve_identity(tmp_path):
-    compare(tmp_path, "i=1000\nf=float('1.25')\nreturn [i.real is i,i.numerator is i,i.conjugate() is i,i.as_integer_ratio()[0] is i,f.real is f,f.conjugate() is f]")
+    compare(
+        tmp_path,
+        "i=1000\nf=float('1.25')\nreturn [i.real is i,i.numerator is i,i.conjugate() is i,i.as_integer_ratio()[0] is i,f.real is f,f.conjugate() is f]",
+        vm_profile="xian_vm_v1",
+    )
 
 
 def test_items_symmetric_difference_cancels_equal_unhashable_values(tmp_path):

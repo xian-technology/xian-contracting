@@ -42,7 +42,7 @@ TEST_SUBMISSION_KWARGS = {
 
 class TestAtomicSwapContract(TestCase):
     def setUp(self):
-        self.d = Driver()
+        self.d = Driver(vm_profile="xian_vm_v1")
         self.d.flush_full()
 
         with open(contracting.__path__[0] + '/contracts/submission.s.py') as f:
@@ -52,7 +52,7 @@ class TestAtomicSwapContract(TestCase):
                             source=contract)
         self.d.commit()
 
-        self.e = Executor(currency_contract='con_erc20_clone', metering=False)
+        self.e = Executor(driver=self.d, currency_contract='con_erc20_clone', metering=False)
 
         environment = {'now': Datetime(2019, 1, 1)}
 

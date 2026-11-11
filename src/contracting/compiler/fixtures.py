@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from contracting.artifacts import build_contract_artifacts, diagnose_contract_source
-from contracting.compilation.vm import XIAN_VM_V1_PROFILE
+from contracting.compilation.vm import DEFAULT_VM_PROFILE
 
 COMPILER_FIXTURE_SCHEMA_V1 = "xian.compiler_fixture.v1"
 COMPILER_FIXTURE_GENERATOR = "xian-compiler-core-python-binding"
@@ -30,7 +30,7 @@ def build_compiler_fixture(
     source: str,
     name: str | None = None,
     source_path: str | None = None,
-    vm_profile: str = XIAN_VM_V1_PROFILE,
+    vm_profile: str = DEFAULT_VM_PROFILE,
     lint: bool = True,
 ) -> dict[str, Any]:
     fixture: dict[str, Any] = {
@@ -87,7 +87,7 @@ def build_compiler_fixture(
 def build_compiler_fixture_from_path(
     path: Path,
     *,
-    vm_profile: str = XIAN_VM_V1_PROFILE,
+    vm_profile: str = DEFAULT_VM_PROFILE,
     lint: bool = True,
 ) -> dict[str, Any]:
     path = path.resolve()

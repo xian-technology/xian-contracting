@@ -1,3 +1,4 @@
+from decimal import Decimal
 from unittest import TestCase
 
 from contracting.execution import runtime
@@ -5,7 +6,7 @@ from contracting.local import ContractingClient
 
 TERNARY_CONTRACT = """
 @export
-def classify(limit: float) -> str:
+def classify(limit: decimal) -> str:
     return 'YES' if limit > 0.1 else 'NO'
 """
 
@@ -31,14 +32,14 @@ class TestIfExpSupport(TestCase):
                 sender="stu",
                 contract_name=contract_name,
                 function_name="classify",
-                kwargs={"limit": 0.2},
+                kwargs={"limit": Decimal("0.2")},
                 metering=True,
             )
             false_output = client.executor.execute(
                 sender="stu",
                 contract_name=contract_name,
                 function_name="classify",
-                kwargs={"limit": 0.0},
+                kwargs={"limit": 0},
                 metering=True,
             )
 

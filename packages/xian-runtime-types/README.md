@@ -17,8 +17,9 @@ Large integers use `__big_int__` at every depth; booleans retain their JSON type
 
 ## Fresh-genesis numbers
 
-Pass `vm_profile="xian_vm_v2"` to `encode_wire` for SDK/transaction JSON or
-to `encode` and `decode` for typed stored values. Bare JSON integers range
+The public encoder and decoder APIs default to `xian_vm_v2`. Use `encode_wire`
+for SDK and transaction JSON and `encode` / `decode` for stored values.
+Select `vm_profile="xian_vm_v1"` explicitly for historical state. Bare JSON integers range
 from `-(2**53 - 1)` to `2**53 - 1`. Larger magnitudes use a canonical signed
 decimal string under `__big_int__`, with magnitude below `2**512`. Decimals
 use `{"__fixed__": "1.25"}` at every depth. Wire spelling uses plain ASCII
@@ -35,6 +36,12 @@ already supplied as JSON must be canonical. V2 stored dictionaries and
 wire objects use string keys. Numeric members of the existing versioned set
 codec support integers and fixed decimals. V2 sets preserve distinct boolean
 and integer members, including inside tuples and nested frozen sets.
+
+For off-chain contract arguments, construct Python `int` and `decimal.Decimal`
+values from integers or strings and pass them through the current codecs.
+`ContractingDecimal` and the wrapper collection classes also implement legacy
+CPython operations for archival replay. The native VM executes V2 contract
+arithmetic and determines the types returned to the client.
 
 ## Validation
 
@@ -55,18 +62,17 @@ New `ContractingSet` and `ContractingFrozenSet` writes retain the outer
 {"__set__":{"codec":"xian-set-1","items":[["tuple",[["int","1"],["int","2"]]]]}}
 ```
 
-Members use a closed typed grammar. This preserves tuple hashability, finite
-binary64 bits including negative zero, raw Decimal precision/quantum, and the
-fixed-versus-raw Decimal distinction.
+Members use a closed typed grammar. V2 supports the following member tags, with
+two additional historical tags available only through explicit V1 decoding.
 
 | Node | Payload |
 | --- | --- |
 | `["none"]` | No payload |
 | `["bool", value]` | JSON boolean |
 | `["int", digits]` | Canonical signed decimal integer string |
-| `["float", bits]` | Exactly 16 lowercase hexadecimal IEEE754 binary64 bits |
+| `["float", bits]` | V1 only. Exactly 16 lowercase hexadecimal IEEE754 binary64 bits |
 | `["fixed", scaled]` | Canonical integer string at the existing `10**30` scale |
-| `["raw_decimal", sign, digits, exponent]` | Sign 0/1, unsigned coefficient string, exact base-10 exponent |
+| `["raw_decimal", sign, digits, exponent]` | V1 only. Sign 0/1, unsigned coefficient string, exact base-10 exponent |
 | `["str", text]` | Unicode scalar string |
 | `["bytes", hex]` | Lowercase hexadecimal byte string |
 | `["datetime", parts]` | Year, month, day, hour, minute, second, microsecond |
@@ -85,12 +91,13 @@ The codec bounds each wrapper payload to depth 64, 131,072 typed nodes and an
 Astral characters count as two six-byte surrogate escapes for this cap. The VM's
 metering representation remains compact UTF-8 JSON, so this conservative cap is
 not the gas byte-count formula. Existing transaction/write limits can be stricter.
-Integer members have at most 1,048,576 bits; raw Decimal digits, canonical text
-and absolute exponent are bounded by 131,072. The sum of squared cardinalities
+V2 integer members have at most 512 bits of magnitude. In V1, the integer
+limit is 1,048,576 bits and raw Decimal digits, canonical text and absolute
+exponent are bounded by 131,072. The sum of squared cardinalities
 of every wrapper set/frozen set in one persistence payload must not exceed
 8,388,608, checked before normalization. A single set can therefore contain at
 most 2,896 members; nesting and multiple wrapper roots share that work budget.
-Legacy decoding shares the same budget across object-hook constructions without
+Explicit V1 decoding shares the same budget across object-hook constructions without
 counting an already reconstructed nested wrapper twice.
 
 Before serialization, `encode`, `Encoder` and `validate_persistent_value` also
@@ -106,7 +113,7 @@ depth 128 on the complete transaction JSON, including its outer envelope; the
 VM independently bounds external values to depth 128 and 131,072 visited
 values. Transaction sizes, execution budgets and storage limits also apply.
 
-Legacy list-shaped set envelopes remain readable. Arrays that occur as legacy
+Select V1 to read a legacy list-shaped set envelope. Arrays that occur as legacy
 set members are restored recursively as tuples; ordinary JSON arrays elsewhere
 remain lists. Legacy `__fixed__` values retain their historical fixed type because
 old writes cannot recover already-lost raw Decimal quantum.
@@ -115,7 +122,7 @@ The public helpers exported by `xian_runtime_types.encoding` are:
 
 - `is_wrapper_set(value)` identifies the deterministic wrapper families.
 - `encode_set_value(value)` returns a plain versioned JSON object.
-- `decode_set_value(tag, payload)` reads a new envelope or legacy list payload.
+- `decode_set_value(tag, payload)` reads the typed V2 envelope. Pass `exact_numbers=False` to either set helper for the historical V1 representation.
 - `validate_persistent_value(value)` checks finite values, bounded traversal,
   cycles, unsupported objects and reserved-key collisions before serialization.
 
@@ -123,25 +130,18 @@ New ordinary persisted dictionaries cannot contain any reserved runtime codec
 key, even with siblings or inside another container. This covers every key in
 `encoding.TYPES`, not just set tags. Actual typed objects remain valid. Trusted
 wire data must be decoded with `decode`/`convert_dict` before re-encoding; feeding
-an already-tagged ordinary dictionary to `encode` intentionally fails. Legacy
-read behavior remains available, including historical tag recognition.
+an already-tagged ordinary dictionary to `encode` intentionally fails. Explicit V1 reads retain historical tag recognition.
 
 ## Wire documents and persistent values
 
-Use `xian_runtime_types.encoding.encode_wire(value)` for transaction kwargs,
-transaction envelopes and loaded genesis/config JSON that may already contain
-codec tags. It preserves these dictionaries as opaque JSON, including payload
-quantum, order and sibling keys; it does not decode or validate their codec
-meaning. The consuming decoder and node enforce semantic validity. Wire object
-keys must be strings.
+Use `encode_wire(value)` for transaction kwargs, envelopes and genesis/config
+documents that may already contain canonical codec tags. A tagged value must
+use the complete representation for its type. The default V2 decoder rejects
+malformed wrappers, alternate numeric spellings and extra sibling keys.
 
-Wire serialization retains the same compact ASCII escaping and bigint wrapping
-as `encode`. Actual runtime objects still receive their typed encoding, and
-actual wrapper sets share the aggregate normalization budget. Generic depth,
-visit-count, cycle, unsupported-object and finite-number checks apply to the
-whole wire value. A string inside a raw tag is opaque data; an actual non-finite
-float or Decimal is rejected.
-
-Keep `encode`, `Encoder` and `validate_persistent_value` at storage and effect
-boundaries. They reject ordinary dictionaries containing reserved codec tags.
-Never use `encode_wire` to bypass persistence validation.
+Use `encode(value)`, `Encoder` or `validate_persistent_value` when working
+with typed storage and effect values. They reject ordinary dictionaries that
+contain reserved codec keys. Both storage and transaction objects require
+string keys. For an archived V1 document, select `vm_profile="xian_vm_v1"`
+explicitly. Its historical wire encoder preserves opaque tags and its decoder
+accepts legacy set-array representations.

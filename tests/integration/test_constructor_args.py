@@ -1,4 +1,5 @@
 import os
+from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 from contracting.local import ContractingClient
@@ -8,18 +9,7 @@ from contracting.storage.contract import Contract
 class TestSenecaClientReplacesExecutor(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
-        self.c.raw_driver.flush_full()
-
-        submission_path = os.path.join(
-            os.path.dirname(__file__), "test_contracts", "submission.s.py"
-        )
-
-        with open(submission_path) as f:
-            contract = f.read()
-
-        self.c.raw_driver.set_contract(name="submission", source=contract)
-
-        self.c.raw_driver.commit()
+        self.c.flush()
 
         # submit erc20 clone
         constructor_args_contract_path = os.path.join(
@@ -61,15 +51,17 @@ class TestSenecaClientReplacesExecutor(TestCase):
             )
 
     def test_direct_contract_submit_uses_provided_driver_for_constructor(self):
-        Contract(driver=self.c.raw_driver).submit(
-            name="con_constructor_args_contract",
-            code=self.code,
-            constructor_args={"a": 123, "b": 321},
-        )
-        self.c.raw_driver.commit()
-
-        contract = self.c.get_contract_proxy("con_constructor_args_contract")
-        a, b = contract.get()
+        with TemporaryDirectory() as path, ContractingClient(
+            storage_home=path, vm_profile="xian_vm_v1"
+        ) as legacy:
+            Contract(driver=legacy.raw_driver).submit(
+                name="con_constructor_args_contract",
+                code=self.code,
+                constructor_args={"a": 123, "b": 321},
+            )
+            legacy.raw_driver.commit()
+            contract = legacy.get_contract_proxy("con_constructor_args_contract")
+            a, b = contract.get()
 
         self.assertEqual(a, 123)
         self.assertEqual(b, 321)

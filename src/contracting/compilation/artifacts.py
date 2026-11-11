@@ -6,7 +6,7 @@ from functools import lru_cache
 import xian_compiler_core
 
 from contracting.compilation.ir import HOST_BINDINGS, XIAN_VM_HOST_CATALOG_V1
-from contracting.compilation.vm import XIAN_VM_V1_PROFILE
+from contracting.compilation.vm import DEFAULT_VM_PROFILE
 
 CONTRACT_ARTIFACT_FORMAT_V1 = "xian_contract_artifact_v1"
 
@@ -20,7 +20,7 @@ def diagnose_contract_source(
     module_name: str,
     source: str,
     lint: bool = True,
-    vm_profile: str = XIAN_VM_V1_PROFILE,
+    vm_profile: str = DEFAULT_VM_PROFILE,
 ) -> list[dict[str, object]]:
     """Return authoritative Rust compiler diagnostics for contract source."""
 
@@ -97,7 +97,7 @@ def build_contract_artifacts(
     module_name: str,
     source: str,
     lint: bool = True,
-    vm_profile: str = XIAN_VM_V1_PROFILE,
+    vm_profile: str = DEFAULT_VM_PROFILE,
     compact: bool = False,
 ) -> dict[str, object]:
     _assert_native_compiler_host_surface_current()
@@ -114,7 +114,7 @@ def compile_contract_source(
     module_name: str,
     source: str,
     lint: bool = True,
-    vm_profile: str = XIAN_VM_V1_PROFILE,
+    vm_profile: str = DEFAULT_VM_PROFILE,
 ) -> dict[str, str]:
     _assert_native_compiler_host_surface_current()
 
@@ -143,7 +143,7 @@ def validate_contract_artifacts(
     module_name: str,
     artifacts: dict[str, object],
     input_source: str | None = None,
-    vm_profile: str = XIAN_VM_V1_PROFILE,
+    vm_profile: str = DEFAULT_VM_PROFILE,
 ) -> dict[str, str]:
     _assert_native_compiler_host_surface_current()
 

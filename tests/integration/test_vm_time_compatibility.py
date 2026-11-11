@@ -69,6 +69,7 @@ def test_time_factory_methods_and_integer_coercion(tmp_path):
     compare(
         tmp_path,
         "x=datetime.datetime(2026,2,3)\ny=x.strptime('2027','%Y')\nz=datetime.timedelta(seconds='12',minutes=float('1.9'),hours=round(decimal('1.9'),1))\nreturn [str(y),z.seconds]",
+        vm_profile="xian_vm_v1",
     )
 
 

@@ -11,7 +11,7 @@ from typing import Any
 import xian_compiler_core
 
 from contracting.compilation.compiler import ContractingCompiler
-from contracting.compilation.vm import XIAN_VM_V1_PROFILE
+from contracting.compilation.vm import XIAN_VM_V2_PROFILE
 from contracting.compiler.fixtures import infer_module_name
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -265,7 +265,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--profile",
-        default=XIAN_VM_V1_PROFILE,
+        default=XIAN_VM_V2_PROFILE,
         help="VM profile to compile for",
     )
     parser.add_argument(

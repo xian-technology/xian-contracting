@@ -41,7 +41,7 @@ TEST_SUBMISSION_KWARGS = {
 
 class TestExecutor(TestCase):
     def setUp(self):
-        self.d = Driver()
+        self.d = Driver(vm_profile="xian_vm_v1")
         self.d.flush_full()
 
         submission_path = os.path.join(
@@ -60,7 +60,7 @@ class TestExecutor(TestCase):
         self.d.flush_full()
 
     def test_submission(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         code = """@export
 def d():
@@ -79,7 +79,7 @@ def d():
         e.execute(**TEST_SUBMISSION_KWARGS, kwargs=kwargs, auto_commit=True)
 
         self.compiler.module_name = "con_stubucks"
-        new_code = self.compiler.parse_to_code(code)
+        new_code = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
 
         self.assertEqual(self.d.get_local_contract_runtime("con_stubucks"), new_code)
 
@@ -93,7 +93,7 @@ def d():
 
         with patch.object(
             ContractingCompiler,
-            "parse_to_code",
+            "parse_legacy_runtime",
             side_effect=AttributeError("unsupported contract syntax"),
         ):
             with self.assertRaises(AttributeError):
@@ -106,7 +106,7 @@ def d():
 
         with patch.object(
             ContractingCompiler,
-            "parse_to_code",
+            "parse_legacy_runtime",
             side_effect=AttributeError("unsupported helper syntax"),
         ):
             with self.assertLogs("contracting.storage.driver", level="WARNING") as logs:
@@ -120,14 +120,14 @@ def d():
 
         with patch.object(
             ContractingCompiler,
-            "parse_to_code",
+            "parse_legacy_runtime",
             side_effect=RuntimeError("compiler regression"),
         ):
             with self.assertRaises(RuntimeError):
                 self.d.get_local_contract_runtime("con_helper_module")
 
     def test_submission_then_function_call(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         code = """@export
 def d():
@@ -154,7 +154,7 @@ def d():
         self.assertEqual(output["status_code"], 0)
 
     def test_submission_rejects_unsafe_contract_name(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         code = """@export
 def ping():
@@ -186,7 +186,7 @@ def ping():
             self.assertIsNone(self.d.get_local_contract_runtime(bad_name))
 
     def test_submission_rejects_invalid_owner_type(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         code = """@export
 def ping():
@@ -209,7 +209,7 @@ def ping():
         self.assertIsNone(self.d.get_local_contract_runtime("con_valid_name"))
 
     def test_change_developer_rejects_empty_string(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         code = """@export
 def ping():
@@ -268,7 +268,7 @@ def get_v():
         )
 
     def test_orm_variable_sets_in_contract(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         test_orm_variable_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -294,7 +294,7 @@ def get_v():
         self.assertEqual(i, 1000)
 
     def test_orm_variable_gets_in_contract(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         test_orm_variable_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -312,7 +312,7 @@ def get_v():
         self.assertEqual(res["result"], None)
 
     def test_orm_variable_gets_and_sets_in_contract(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         test_orm_variable_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -333,7 +333,7 @@ def get_v():
         self.assertEqual(res["result"], 1000)
 
     def test_orm_variable_collection_helpers_work_in_contract(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         code = """settings = Variable(default_value={})
 queue = Variable(default_value=[])
@@ -412,7 +412,7 @@ def get_queue():
         self.assertEqual(queue["result"], [9, 2])
 
     def test_orm_hash_sets_in_contract(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         test_orm_hash_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -448,7 +448,7 @@ def get_queue():
         self.assertEqual(another_key, 9999)
 
     def test_orm_hash_gets_in_contract(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         test_orm_hash_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -468,7 +468,7 @@ def get_queue():
         self.assertEqual(res["result"], None)
 
     def test_orm_hash_gets_and_sets_in_contract(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         test_orm_hash_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -505,7 +505,7 @@ def get_queue():
         self.assertEqual(another_key["result"], 9999)
 
     def test_orm_foreign_variable_sets_in_contract_doesnt_work(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         test_orm_variable_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -544,7 +544,7 @@ def get_queue():
         self.assertEqual(i["result"], 1000)
 
     def test_orm_foreign_variable_gets_in_contract(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         test_orm_variable_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -579,7 +579,7 @@ def get_queue():
         self.assertEqual(i["result"], 424242)
 
     def test_orm_foreign_hash_sets_in_contract_doesnt_work(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         test_orm_hash_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -644,7 +644,7 @@ def get_queue():
         self.assertEqual(status_2["status_code"], 1)
 
     def test_orm_foreign_hash_gets_and_sets_in_contract(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         test_orm_hash_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -699,7 +699,7 @@ def get_queue():
         self.assertEqual(another_key["result"], 9999)
 
     def test_orm_contract_not_accessible(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         test_orm_no_contract_access_path = os.path.join(
             os.path.dirname(__file__),
@@ -718,7 +718,7 @@ def get_queue():
         )
 
     def test_construct_function_sets_properly(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         test_construct_function_works_path = os.path.join(
             os.path.dirname(__file__),
@@ -740,7 +740,7 @@ def get_queue():
         self.assertEqual(output["result"], 42)
 
     def test_import_exported_function_works(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         import_this_path = os.path.join(
             os.path.dirname(__file__), "test_contracts", "import_this.s.py"
@@ -763,7 +763,7 @@ def get_queue():
         self.assertEqual(output["result"], 12345 - 1000)
 
     def test_arbitrary_environment_passing_works_via_executor(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         i_use_env_path = os.path.join(
             os.path.dirname(__file__), "test_contracts", "i_use_env.s.py"
@@ -785,7 +785,7 @@ def get_queue():
         self.assertEqual(output["result"], this_is_a_passed_in_variable)
 
     def test_arbitrary_environment_passing_fails_if_not_passed_correctly(self):
-        e = Executor(metering=False)
+        e = Executor(driver=self.d, metering=False)
 
         i_use_env_path = os.path.join(
             os.path.dirname(__file__), "test_contracts", "i_use_env.s.py"

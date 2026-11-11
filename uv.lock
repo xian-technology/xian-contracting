@@ -290,14 +290,12 @@ dependencies = [
     { name = "pynacl" },
     { name = "xian-tech-compiler-core" },
     { name = "xian-tech-runtime-types" },
+    { name = "xian-tech-vm-core" },
 ]
 
 [package.optional-dependencies]
 native = [
     { name = "xian-tech-fastpath-core" },
-]
-v2 = [
-    { name = "xian-tech-vm-core" },
 ]
 zk = [
     { name = "xian-tech-zk" },
@@ -319,7 +317,7 @@ requires-dist = [
     { name = "xian-tech-compiler-core", directory = "packages/xian-compiler-core" },
     { name = "xian-tech-fastpath-core", marker = "extra == 'native'", editable = "packages/xian-fastpath-core" },
     { name = "xian-tech-runtime-types", editable = "packages/xian-runtime-types" },
-    { name = "xian-tech-vm-core", marker = "extra == 'v2'", directory = "packages/xian-vm-core" },
+    { name = "xian-tech-vm-core", directory = "packages/xian-vm-core" },
     { name = "xian-tech-zk", marker = "extra == 'zk'", editable = "packages/xian-zk" },
 ]
 provides-extras = ["v2", "native", "zk"]

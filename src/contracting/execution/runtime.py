@@ -336,7 +336,7 @@ class Runtime:
 
         from xian_runtime_types.encoding import encode
 
-        encoded = encode(value).encode("utf-8")
+        encoded = encode(value, vm_profile="xian_vm_v1").encode("utf-8")
         size = len(encoded)
         if size > constants.MAX_RETURN_VALUE_SIZE:
             raise AssertionError("Return value exceeds the maximum allowed size.")

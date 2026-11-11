@@ -5,6 +5,7 @@ from unittest import TestCase
 
 from contracting import constants
 from contracting.compilation.compiler import ContractingCompiler
+from contracting.compilation.vm import XIAN_VM_V1_PROFILE
 from contracting.stdlib import env
 
 
@@ -12,9 +13,13 @@ class TestSenecaCompiler(TestCase):
     def test_visit_assign_variable(self):
         code = '''
 v = Variable()
+
+@export
+def inspect():
+    return v.get()
 '''
         c = ContractingCompiler()
-        comp = c.parse(code, lint=False)
+        comp = c.parse(code, lint=False, vm_profile=XIAN_VM_V1_PROFILE)
         code_str = ast.unparse(comp)
 
         scope = env.gather()
@@ -28,9 +33,13 @@ v = Variable()
     def test_visit_assign_foreign_variable(self):
         code = '''
 fv = ForeignVariable(foreign_contract='scoob', foreign_name='kumbucha')
+
+@export
+def inspect():
+    return fv.get()
         '''
         c = ContractingCompiler()
-        comp = c.parse(code, lint=False)
+        comp = c.parse(code, lint=False, vm_profile=XIAN_VM_V1_PROFILE)
         code_str = ast.unparse(comp)
         scope = env.gather()
 
@@ -43,9 +52,13 @@ fv = ForeignVariable(foreign_contract='scoob', foreign_name='kumbucha')
     def test_assign_hash_variable(self):
         code = '''
 h = Hash()
+
+@export
+def inspect():
+    return h["item"]
         '''
         c = ContractingCompiler()
-        comp = c.parse(code, lint=False)
+        comp = c.parse(code, lint=False, vm_profile=XIAN_VM_V1_PROFILE)
         code_str = ast.unparse(comp)
 
         scope = env.gather()
@@ -63,9 +76,12 @@ approve = LogEvent("Approve", {
     "spender": indexed(str),
     "amount": int,
 })
-        '''
+
+@export
+def inspect():
+    return True'''
         c = ContractingCompiler(module_name='token')
-        comp = c.parse(code, lint=False)
+        comp = c.parse(code, lint=False, vm_profile=XIAN_VM_V1_PROFILE)
         code_str = ast.unparse(comp)
 
         scope = env.gather()
@@ -85,10 +101,14 @@ approve = LogEvent("Approve", {
     def test_assign_foreign_hash(self):
         code = '''
 fv = ForeignHash(foreign_contract='scoob', foreign_name='kumbucha')
+
+@export
+def inspect():
+    return fv["item"]
         '''
 
         c = ContractingCompiler()
-        comp = c.parse(code, lint=False)
+        comp = c.parse(code, lint=False, vm_profile=XIAN_VM_V1_PROFILE)
         code_str = ast.unparse(comp)
 
         scope = env.gather()
@@ -116,11 +136,15 @@ fv = ForeignHash(foreign_contract='scoob', foreign_name='kumbucha')
     def test_private_function_prefixes_properly(self):
         code = '''
 def private():
-    print('cool')
+    return 'cool'
+
+@export
+def invoke():
+    return private()
         '''
 
         c = ContractingCompiler()
-        comp = c.parse(code, lint=False)
+        comp = c.parse(code, lint=False, vm_profile=XIAN_VM_V1_PROFILE)
         code_str = ast.unparse(comp)
 
         self.assertIn('__private', code_str)
@@ -131,12 +155,12 @@ def private():
 def public():
     private('hello')
     
-def private(message):
-    print(message)
+def private(message: str):
+    return message
 '''
 
         c = ContractingCompiler()
-        comp = c.parse(code, lint=False)
+        comp = c.parse(code, lint=False, vm_profile=XIAN_VM_V1_PROFILE)
         code_str = ast.unparse(comp)
 
         # there should be two private occurances of the method call
@@ -154,33 +178,38 @@ def c():
     e()
     
 def d():
-    print('hello')
+    return 'hello'
     
 def e():
-    d()        
+    d()
+
+@export
+def inspect():
+    return True
 '''
         c = ContractingCompiler()
-        comp = c.parse(code, lint=False)
+        comp = c.parse(code, lint=False, vm_profile=XIAN_VM_V1_PROFILE)
         code_str = ast.unparse(comp)
 
-        self.assertEqual(len([m.start() for m in re.finditer(constants.PRIVATE_METHOD_PREFIX, code_str)]), 9)
+        for name, count in {"a": 1, "b": 2, "c": 2, "d": 2, "e": 2}.items():
+            self.assertEqual(code_str.count(f"{constants.PRIVATE_METHOD_PREFIX}{name}("), count)
 
     def test_construct_renames_properly(self):
         code = '''
 @construct
 def seed():
-    print('yes')
+    pass
 
 @export
 def hello():
-    print('no')
+    return 'no'
     
 def goodbye():
-    print('idk')
+    return 'idk'
         '''
 
         c = ContractingCompiler()
-        comp = c.parse(code, lint=False)
+        comp = c.parse(code, lint=False, vm_profile=XIAN_VM_V1_PROFILE)
         code_str = ast.unparse(comp)
         self.assertIn("def ____():", code_str)
 
@@ -192,7 +221,7 @@ def goodbye():
 
 
         c = ContractingCompiler()
-        comp = c.parse(code, lint=False)
+        comp = c.parse(code, lint=False, vm_profile=XIAN_VM_V1_PROFILE)
         self.assertIsInstance(ast.unparse(comp), str)
 
     def test_export_decorator_argument_is_added(self):
@@ -202,7 +231,7 @@ def test():
     pass        
         '''
         c = ContractingCompiler()
-        comp = c.parse(code, lint=False)
+        comp = c.parse(code, lint=False, vm_profile=XIAN_VM_V1_PROFILE)
         code_str = ast.unparse(comp)
         self.assertIn("@__export('__main__')", code_str)
 
@@ -213,6 +242,6 @@ def test(limit: float) -> str:
     return 'ok'
         '''
         c = ContractingCompiler()
-        comp = c.parse(code, lint=False)
+        comp = c.parse(code, lint=False, vm_profile=XIAN_VM_V1_PROFILE)
         code_str = ast.unparse(comp)
         self.assertIn("@__export('__main__', typecheck=True)", code_str)

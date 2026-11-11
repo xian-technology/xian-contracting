@@ -307,6 +307,7 @@ def execute_format_call(driver, function, native):
             kwargs={},
             context=context,
             meter=False,
+            vm_profile=driver.vm_profile,
         )
         return result.status_code, result.result, result.writes, result.events
     from contracting.execution.executor import Executor
@@ -338,7 +339,7 @@ def fail():
 def recover():
     return [state.get(), format(round(decimal('-0.004'), 3), 'z.2f')]
 """
-    with Driver(storage_home=tmp_path) as driver:
+    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
         driver.set_contract_from_source("con_format_rollback", source, owner=None)
         driver.set("con_format_rollback.state", 7)
         driver.commit()

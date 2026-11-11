@@ -1,3 +1,4 @@
+from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 from contracting.local import ContractingClient
@@ -196,13 +197,18 @@ class TestRuntimeSecurity(TestCase):
         self.assertEqual(contract.mutate_via_all(), {"count": 1})
 
     def test_runtime_builtins_are_restricted_even_for_unlinted_source(self):
-        self.client.raw_driver.set_contract(
-            name="con_builtin_probe",
-            source=HOST_BUILTINS_PROBE_CONTRACT,
-            owner="stu",
-        )
-        self.client.raw_driver.commit()
+        # This fixture injects transformed CPython source to check its host builtins.
+        with (
+            TemporaryDirectory() as home,
+            ContractingClient(signer="stu", storage_home=home, vm_profile="xian_vm_v1") as legacy,
+        ):
+            legacy.raw_driver.set_contract(
+                name="con_builtin_probe",
+                source=HOST_BUILTINS_PROBE_CONTRACT,
+                owner="stu",
+            )
+            legacy.raw_driver.commit()
 
-        contract = self.client.get_contract_proxy("con_builtin_probe")
+            contract = legacy.get_contract_proxy("con_builtin_probe")
 
-        self.assertFalse(contract.can_reach_host_open())
+            self.assertFalse(contract.can_reach_host_open())

@@ -3,7 +3,7 @@ import con_erc20_clone
 swaps = Hash()
 
 @export
-def initiate(participant: str, expiration: datetime.datetime, hashlock: str, amount: float):
+def initiate(participant: str, expiration: datetime.datetime, hashlock: str, amount: int):
     allowance = con_erc20_clone.allowance(ctx.caller, ctx.this)
 
     assert allowance >= amount, \

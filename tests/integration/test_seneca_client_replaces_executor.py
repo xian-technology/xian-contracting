@@ -9,16 +9,7 @@ from contracting.local import ContractingClient
 class TestSenecaClientReplacesExecutor(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer='stu')
-        self.c.raw_driver.flush_full()
-
-        submission_path = os.path.join(os.path.dirname(__file__), "test_contracts", "submission.s.py")
-
-        with open(submission_path) as f:
-            contract = f.read()
-
-        self.c.raw_driver.set_contract(name='submission', source=contract,)
-
-        self.c.raw_driver.commit()
+        self.c.flush()
 
         submission = self.c.get_contract_proxy('submission')
 

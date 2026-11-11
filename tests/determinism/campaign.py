@@ -175,7 +175,7 @@ def run_worker(workload, destination, scenario):
             "corpus_sha256": corpus_digest(cases),
             "execution_policy": {
                 profile: runtime_info(vm_profile=profile)
-                for profile in sorted({case.get("vm_profile", "xian_vm_v1") for case in cases})
+                for profile in sorted({case["vm_profile"] for case in cases})
             },
             "observations": dict(sorted(observations.items())),
             "host": {
@@ -230,7 +230,7 @@ def collect_cases(seed, generated):
     from tests.surface.catalog import load_cases
 
     cases = sorted(
-        load_cases()
+        [dict(case, vm_profile="xian_vm_v1") for case in load_cases()]
         + generated_cases(seed=seed, count=generated)
         + float_cases()
         + numeric_cases(),

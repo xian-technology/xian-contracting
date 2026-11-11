@@ -18,17 +18,27 @@ def change():
 """
 
 
-@pytest.fixture
-def driver(tmp_path):
-    driver = Driver(storage_home=tmp_path)
+def _data_driver(storage_home, profile):
+    driver = Driver(storage_home=storage_home, vm_profile=profile)
     driver.set_contract_from_source("con_data", DATA_SOURCE, owner=None)
     driver.set_var("con_data", "metadata", ["standard"], "XSC-0005")
     driver.set_var("con_data", "metadata", ["nested"], [1, 2])
     driver.set_var("con_data", "metadata", ["group", "a"], 3)
     driver.set_var("con_data", "value", value=7)
     driver.commit()
-    yield driver
-    driver.flush_full()
+    return driver
+
+
+@pytest.fixture
+def driver(tmp_path):
+    with _data_driver(tmp_path / "native", "xian_vm_v2") as driver:
+        yield driver
+
+
+@pytest.fixture
+def python_driver(tmp_path):
+    with _data_driver(tmp_path / "python", "xian_vm_v1") as driver:
+        yield driver
 
 
 def run(driver, body, *, native=True, meter=False, budget=10_000_000, kwargs=None):
@@ -95,12 +105,12 @@ def run(driver, body, *, native=True, meter=False, budget=10_000_000, kwargs=Non
         ),
     ],
 )
-def test_dynamic_reads_match_python(driver, body, expected):
+def test_dynamic_reads_match_python(driver, python_driver, body, expected):
     native = run(driver, body)
     assert native.status_code == 0, native.result
     assert native.result == expected
     assert native.writes == {}
-    python = run(driver, body, native=False)
+    python = run(python_driver, body, native=False)
     assert python["status_code"] == 0, python["result"]
     assert python["result"] == expected
 
@@ -177,9 +187,9 @@ def test_read_charges_and_budget_are_enforced(driver):
 
 
 @pytest.mark.parametrize("operation", ["h['nested'].append(3)", "h['nested'][0] = 9"])
-def test_foreign_read_returns_a_mutable_detached_copy(driver, operation):
+def test_foreign_read_returns_a_mutable_detached_copy(driver, python_driver, operation):
     body = "h = ForeignHash(foreign_contract=contract, foreign_name='metadata')\n" + operation + "\nreturn h['nested']"
-    expected = run(driver, body, native=False)
+    expected = run(python_driver, body, native=False)
     actual = run(driver, body)
     assert expected["status_code"] == actual.status_code == 0
     assert expected["result"] == actual.result == [1, 2]

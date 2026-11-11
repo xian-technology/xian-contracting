@@ -55,7 +55,7 @@ def test_func(arg: str, arg2: int):
     return arg, arg2
         '''
 
-        compiled = self.compiler.parse_to_code(code)
+        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
 
         expected = [{
             'name': 'test_func',
@@ -81,7 +81,7 @@ def test_func(arg: str, arg2: int):
 def thing(arg: datetime.datetime, arg2: datetime.timedelta):
     return 123        
 '''
-        compiled = self.compiler.parse_to_code(code)
+        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
         got = parser.methods_for_contract(compiled)
 
         expected = [
@@ -212,7 +212,7 @@ def another_one(something: Any, something_else: dict):
 def add(a, b):
     return a + b
 '''
-        compiled = self.compiler.parse_to_code(code)
+        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
 
         expected = [{
             'name': 'test_func',
@@ -292,7 +292,7 @@ def vote(policy: str, value: Any):
     p.vote(vk=ctx.caller, obj=value)
     '''
 
-        compiled = self.compiler.parse_to_code(code)
+        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
 
         got = parser.variables_for_contract(compiled)
 
@@ -314,7 +314,7 @@ def something():
    return 1
         '''
 
-        compiled = self.compiler.parse_to_code(code)
+        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
 
         got = parser.variables_for_contract(compiled)
 
@@ -336,7 +336,7 @@ def something():
    return 1
         '''
 
-        compiled = self.compiler.parse_to_code(code)
+        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
 
         got = parser.variables_for_contract(compiled)
 
@@ -361,7 +361,7 @@ def something():
    return 1
         '''
 
-        compiled = self.compiler.parse_to_code(code)
+        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
 
         got = parser.variables_for_contract(compiled)
 
@@ -420,7 +420,7 @@ def amount() -> float:
     return 0.123456789012345678901234567890
 """
 
-        compiled = self.compiler.parse_to_code(code)
+        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
 
         self.assertIn(
             "decimal('0.123456789012345678901234567890')",
@@ -435,7 +435,7 @@ def configure(rate: float = 0.1) -> float:
     return rate
 """
 
-        compiled = self.compiler.parse_to_code(code)
+        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
 
         self.assertIn("rate: float=decimal('0.1')", compiled)
         self.assertIn("rate >= decimal('0.0')", compiled)
@@ -448,6 +448,6 @@ def configure(*, rate: float = 0.1) -> float:
     return rate
 """
 
-        compiled = self.compiler.parse_to_code(code)
+        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
 
         self.assertIn("*, rate: float=decimal('0.1')", compiled)

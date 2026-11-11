@@ -9,7 +9,7 @@ from tests.integration.test_vm_language_conformance import _run_native_case, _ru
 pytestmark = pytest.mark.optional_native
 
 
-def compare(tmp_path: Path, body: str):
+def compare(tmp_path: Path, body: str, *, vm_profile="xian_vm_v2"):
     case = {
         "id": "raw_decimal",
         "source": "@export\ndef probe():\n"
@@ -19,7 +19,7 @@ def compare(tmp_path: Path, body: str):
     }
     expected = _run_python_case(case, tmp_path / "python")
     assert expected["status_code"] == 0, expected
-    assert _run_native_case(case, tmp_path / "native") == expected
+    assert _run_native_case(case, tmp_path / "native", vm_profile=vm_profile) == expected
 
 
 def test_seeded_decimal_arithmetic(tmp_path):
@@ -31,6 +31,7 @@ def test_seeded_decimal_arithmetic(tmp_path):
     compare(
         tmp_path,
         f"pairs={pairs!r}\nout=[]\nfor a,b,n in pairs:\n    x=round(decimal(a),n)/7\n    y=round(decimal(b),n+1)/3\n    out.append([str(x+y),str(x-y),str(x*y),str(x/y),str(x//y),str(x%y),str(x**2),str(x**-2),str(round(x,n))])\nreturn out",
+        vm_profile="xian_vm_v1",
     )
 
 
@@ -60,6 +61,7 @@ def test_decimal_format_matrix(tmp_path):
     compare(
         tmp_path,
         f"out=[]\nfor text in {values!r}:\n    x=round(decimal(text),8)\n    for spec in {specs!r}:\n        out.append(format(x,spec))\nreturn out",
+        vm_profile="xian_vm_v1",
     )
 
 
@@ -67,6 +69,7 @@ def test_raw_decimal_set_order_and_duplicates(tmp_path):
     compare(
         tmp_path,
         "a=round(decimal('2'),2)\nb=round(decimal('1'),3)\ns=set([a,b,a,2,decimal('1')])\nreturn [str(list(s)),list(s),a in s, b in s]",
+        vm_profile="xian_vm_v1",
     )
 
 
@@ -85,7 +88,7 @@ def test_raw_decimal_work_exhausts_budget_and_rolls_back(tmp_path, operation):
     from contracting.storage.driver import Driver
     from xian_vm_core import execute_contract
 
-    with Driver(storage_home=tmp_path) as driver:
+    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
         source = (
             "v=Variable()\n@export\ndef probe():\n    v.set(1)\n    x=round(decimal('1.000000000000000001'),18)\n    return "
             + operation
@@ -101,6 +104,7 @@ def test_raw_decimal_work_exhausts_budget_and_rolls_back(tmp_path, operation):
             context={"caller": "alice", "signer": "alice", "this": "con_quantum_budget"},
             meter=True,
             chi_budget_raw=50_000,
+            vm_profile=driver.vm_profile,
         )
         assert output.status_code == 1 and "Out of chi" in str(output.result)
         assert output.writes == {} and output.events == []
@@ -110,6 +114,7 @@ def test_exact_powers_keep_decimal_context_quantum(tmp_path):
     compare(
         tmp_path,
         "x=round(decimal('1'),2)\ny=round(decimal('-1'),2)\nz=round(decimal('-0.001'),2)\nreturn [str(x**(10**50)),str(x**-(10**50)),str(y**(10**50+1)),str(z**round(decimal('0.5'),1))]",
+        vm_profile="xian_vm_v1",
     )
 
 
@@ -131,7 +136,7 @@ def test_typed_variable_checks_before_storage_conversion(tmp_path, marker, value
         "kwargs": {},
     }
     expected = _run_python_case(case, tmp_path / "python")
-    actual = _run_native_case(case, tmp_path / "native")
+    actual = _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1")
     assert expected["status_code"] == int(not accepted)
     if accepted:
         assert actual == expected

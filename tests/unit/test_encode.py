@@ -59,7 +59,7 @@ class TestEncode(TestCase):
         d = 1.098409840984
         b = "1.098409840984"
 
-        self.assertEqual(encode(d), b)
+        self.assertEqual(encode(d, vm_profile="xian_vm_v1"), b)
 
     def test_decode_bytes_to_int(self):
         b = "1234"
@@ -83,7 +83,8 @@ class TestEncode(TestCase):
     def test_decode_failure(self):
         b = b"xwow"
 
-        self.assertIsNone(decode(b))
+        with self.assertRaises(ValueError):
+            decode(b)
 
     def test_date_encode(self):
         d = Datetime(2019, 1, 1)
@@ -131,7 +132,7 @@ class TestEncode(TestCase):
         self.assertEqual('{"__big_int__":"' + str(si) + '"}', encode(si))
 
     def test_bigint_decode(self):
-        _bi = '{"__big_int__":' + str(MAX_INT + 1) + "}"
+        _bi = json.dumps({"__big_int__": str(MAX_INT + 1)})
 
         self.assertEqual(decode(_bi), MAX_INT + 1)
 
@@ -245,7 +246,7 @@ class TestEncode(TestCase):
     def test_decode_fixed_trailing_doesnt_get_rid_of_zeros_properly(self):
         b = '{"__fixed__":"1.10"}'
 
-        d = decode(b)
+        d = decode(b, vm_profile="xian_vm_v1")
         self.assertIsInstance(d, ContractingDecimal)
         self.assertEqual(d, ContractingDecimal("1.1"))
 
@@ -257,7 +258,7 @@ class TestEncode(TestCase):
         print(e)
 
     def test_convert_returns_normal_dict(self):
-        d = {1: 2, "a": "b"}
+        d = {"1": 2, "a": "b"}
 
         d2 = convert_dict(d)
         self.assertEqual(d, d2)
@@ -308,14 +309,14 @@ class TestEncode(TestCase):
 
         expected = {"kwargs": ContractingSet([1, 3])}
 
-        self.assertEqual(expected, convert_dict(d))
+        self.assertEqual(expected, convert_dict(d, vm_profile="xian_vm_v1"))
 
     def test_convert_contracting_frozenset(self):
         d = {"kwargs": {"__frozenset__": [3, 1, 3]}}
 
         expected = {"kwargs": ContractingFrozenSet([1, 3])}
 
-        self.assertEqual(expected, convert_dict(d))
+        self.assertEqual(expected, convert_dict(d, vm_profile="xian_vm_v1"))
 
     def test_multiple_conversions(self):
         d = {

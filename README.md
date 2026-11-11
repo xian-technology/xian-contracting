@@ -31,13 +31,11 @@ From this checkout, install the local compiler, matching runtime types and V2
 VM with Python 3.14:
 
 ```bash
-uv sync --extra v2
+uv sync
 ```
 
-The V2 dependency extra is `xian-tech-contracting[v2]` in contracting 1.1.4
-and later. An installation from a package index requires matching releases of
-the compiler, VM and runtime types. Add the `zk` extra for the optional zk
-helpers.
+The base installation includes the native VM, compiler and runtime types. Add
+the `zk` extra for the optional zk helpers.
 
 Compile artifacts for the fresh-genesis profile:
 
@@ -45,9 +43,7 @@ Compile artifacts for the fresh-genesis profile:
 from contracting.artifacts import build_contract_artifacts
 
 contract_source = "@export\ndef half(amount: decimal):\n    return amount / 2"
-artifacts = build_contract_artifacts(
-    module_name="con_math", source=contract_source, vm_profile="xian_vm_v2"
-)
+artifacts = build_contract_artifacts(module_name="con_math", source=contract_source)
 ```
 
 Run the same source under the native VM. The local harness compiles deployments
@@ -60,18 +56,23 @@ from tempfile import TemporaryDirectory
 from contracting.local import ContractingClient
 
 with TemporaryDirectory() as home:
-    with ContractingClient(storage_home=home, vm_profile="xian_vm_v2") as client:
+    with ContractingClient(storage_home=home) as client:
         client.submit(contract_source, name="con_math")
         result = client.get_contract_proxy("con_math").half(amount=Decimal("0.25"))
         assert result == Decimal("0.125")
 ```
 
 `submit` accepts source text or a Python function containing the contract
-definition. The Python compiler, `ContractingClient` and storage `Driver`
-default to `xian_vm_v1` for historical callers. Select V2 explicitly when
-building artifacts, opening contract storage or creating a local client for a
-fresh-genesis chain. A default V1 client runs the historical Python harness.
-Validators select the native VM profile in chain policy.
+definition. With the default settings the compiler, local client and storage
+use `xian_vm_v2`, the execution profile selected by the fresh-chain validator
+policy. Use `vm_profile="xian_vm_v1"` explicitly to reproduce a V1 fixture.
+A client constructed with a driver uses that driver’s selected profile. Keep
+local storage for the two profiles in separate directories.
+
+Use `compile_contract_source` or `build_contract_artifacts` from
+`contracting.artifacts` to compile offline. The legacy methods
+`ContractingCompiler.parse` and `.compile` produce a CPython AST or Python
+bytecode and require explicit V1 selection.
 
 ## Principles
 

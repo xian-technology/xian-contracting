@@ -39,6 +39,7 @@ UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" sync \
   --python "${python_version}" \
   --group dev \
   --reinstall-package xian-tech-compiler-core \
+  --reinstall-package xian-tech-vm-core \
   --extra native \
   --extra zk
 
@@ -66,9 +67,6 @@ UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" pyte
   tests/integration/test_chi_deduction.py \
   tests/security/test_runtime_security.py
 
-# Install the actual local wheel into the tested environment. A cached `uv run
-# --with` overlay can retain an older native binary even after source changes.
-UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" pip install --no-deps --reinstall ./packages/xian-vm-core
 UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" --no-sync \
   python -m pytest -q -m optional_native
 

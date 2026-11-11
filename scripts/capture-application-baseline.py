@@ -83,7 +83,7 @@ def capture(directory):
         env = dict(os.environ, HOME=temporary)
         env.pop("PYTHONPATH", None)
         subprocess.run(
-            [str(python), str(runner), "--engine", "python", "--output", str(output)],
+            [str(python), str(runner), "--engine", "historical-python", "--output", str(output)],
             cwd=directory,
             env=env,
             check=True,

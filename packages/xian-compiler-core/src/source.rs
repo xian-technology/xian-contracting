@@ -1,4 +1,4 @@
-use crate::constants::{validate_profile, XIAN_VM_V1_PROFILE};
+use crate::constants::{validate_profile, DEFAULT_VM_PROFILE};
 use crate::error::{ensure_non_empty, ValidationError};
 use crate::hashing::sha256_hex;
 
@@ -14,7 +14,7 @@ impl SourceUnit {
         module_name: impl Into<String>,
         source: impl Into<String>,
     ) -> Result<Self, ValidationError> {
-        Self::with_profile(module_name, source, XIAN_VM_V1_PROFILE)
+        Self::with_profile(module_name, source, DEFAULT_VM_PROFILE)
     }
 
     pub fn with_profile(

@@ -25,7 +25,7 @@ Supported scope:
 
 ## Numeric profiles
 
-The chain selects a profile for artifact admission and execution. Every module in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports the V2 execution revision `xvm-execution-6`, bytecode version `xvm-2` and gas schedule `xvm-gas-3`. The Python bindings default to `xian_vm_v1` for historical callers. Pass the chain profile to `execute_contract`, `execute_bundle` and `runtime_info` when targeting V2.
+The chain selects a profile for artifact admission and execution. Every module in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports the V2 execution revision `xvm-execution-6`, bytecode version `xvm-2` and gas schedule `xvm-gas-3`. The native and Python bindings select V2 by default. To replay a V1 module, pass `vm_profile="xian_vm_v1"` to the driver and execution entry point. `runtime_info("xian_vm_v1")` reports the historical policy.
 
 V2 integers have a maximum magnitude of 512 bits. Fixed decimals have 30 fractional places and magnitude below `10**61`. Fractional literals carry exact decimal text. Numeric `/` returns a decimal, truncating toward zero at the smallest representable unit. Decimal multiplication uses the same rule. Integer `//` rounds down and `%` follows the divisor's sign. Integer exponentiation requires a nonnegative integer exponent. Boolean values are distinct from numbers.
 

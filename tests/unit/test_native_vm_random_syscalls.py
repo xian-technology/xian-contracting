@@ -105,6 +105,7 @@ def test_native_vm_random_syscalls_match_stdlib_bridge():
 
     context = _context()
     output = xian_vm_core.execute_contract(
+        vm_profile="xian_vm_v1",
         driver=FakeDriver(),
         contract_name=CONTRACT_NAME,
         function_name="probe",

@@ -51,6 +51,7 @@ def test_authored_float_vector_executes_with_meter_and_checked_oracle(tmp_path, 
 def test_portable_power_routes_preserve_exact_boundary_values(tmp_path, expression, expected):
     case = {
         "id": "portable_pow",
+        "vm_profile": "xian_vm_v1",
         "source": f"@export\ndef probe():\n    return ({expression}).hex()\n",
         "expected_result": expected,
     }
@@ -72,6 +73,7 @@ def test_power_nan_results_have_canonical_positive_formatting(tmp_path, expressi
     # deliberately rejects raw non-finite floats, including inside containers.
     case = {
         "id": "power_nan",
+        "vm_profile": "xian_vm_v1",
         "source": f"@export\ndef probe():\n    value = {expression}\n"
         "    return [value != value, value.hex(), format(value, '+')]\n",
         "expected_result": [True, "nan", "+nan"],

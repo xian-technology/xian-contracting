@@ -46,7 +46,7 @@ public_alias = run
 private_alias = hidden
 helper_alias = hashlib.sha3_text
 """
-    with Driver(storage_home=tmp_path) as driver:
+    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v2" if native else "xian_vm_v1") as driver:
         driver.set_contract_from_source("con_entry", source, owner=None)
         driver.commit()
         output = execute(
@@ -78,7 +78,7 @@ def probe():
     result = target.read()
     return [result, ctx.this, ctx.caller, ctx.signer]
 """
-    with Driver(storage_home=tmp_path) as driver:
+    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v2" if native else "xian_vm_v1") as driver:
         driver.set_contract_from_source("con_target", target, owner="con_probe")
         driver.set_contract_from_source("con_probe", source, owner=None)
         driver.commit()

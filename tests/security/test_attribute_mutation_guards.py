@@ -22,7 +22,11 @@ def test_non_descriptor_targets_are_rejected(legacy, statement):
     class Target:
         marker = 3
 
-    tree = ast.parse(statement) if legacy else ContractingCompiler().parse(statement, lint=False)
+    tree = (
+        ast.parse(statement)
+        if legacy
+        else ContractingCompiler().parse_legacy_runtime(statement, lint=False)
+    )
     tree = guard_legacy_orm_declarations(tree, "con_guard")
     namespace = {"target": Target, "__builtins__": build_contract_builtins(None)}
     with pytest.raises(TypeError, match="interface descriptor"):
@@ -57,7 +61,11 @@ del receiver(a, 'delete').extra, receiver(b, 'delete_b').args
         "value": value,
         "__builtins__": build_contract_builtins(None),
     }
-    tree = ast.parse(source) if legacy else ContractingCompiler().parse(source, lint=False)
+    tree = (
+        ast.parse(source)
+        if legacy
+        else ContractingCompiler().parse_legacy_runtime(source, lint=False)
+    )
     tree = guard_legacy_orm_declarations(tree, "con_guard")
     before = ast.dump(tree)
     tree = guard_legacy_orm_declarations(tree, "con_guard")
@@ -86,7 +94,7 @@ del receiver(a, 'delete').extra, receiver(b, 'delete_b').args
 
 def test_var_descriptor_fields_remain_mutable():
     value = Var("balance", V)
-    tree = ContractingCompiler().parse(
+    tree = ContractingCompiler().parse_legacy_runtime(
         "descriptor.name = 'renamed'\ndescriptor.type = cls", lint=False
     )
     namespace = {"descriptor": value, "cls": V, "__builtins__": build_contract_builtins(None)}
@@ -110,7 +118,7 @@ source = "@export\ndef hidden(value: Any = None):\n    return 731\n"
 source += ("@construct\ndef seed():\n" if constructor else "@export\ndef poison():\n")
 source += "    " + assignment + "\n"
 source += "    assert False, 'rollback'\n" if fail else "    return True\n"
-with Driver(storage_home=Path(storage)) as driver:
+with Driver(storage_home=Path(storage), vm_profile="xian_vm_v1") as driver:
     if constructor:
         try:
             Contract(driver=driver).submit('con_poison', source)
@@ -170,7 +178,7 @@ def test_private_descriptor_attributes_and_subclasses_are_not_mutable():
 
     for value, name in [(Func("x"), "_hidden"), (Subclass("x"), "name")]:
         source = f"descriptor.{name} = 1"
-        tree = ContractingCompiler().parse(source, lint=False)
+        tree = ContractingCompiler().parse_legacy_runtime(source, lint=False)
         with pytest.raises(TypeError):
             exec(
                 compile(tree, "con_guard", "exec"),
@@ -182,8 +190,8 @@ def test_authored_source_cannot_name_the_private_guard():
     from contracting.compilation.linter import LintingError
 
     with pytest.raises(LintingError):
-        ContractingCompiler().parse(
-            "@export\ndef probe():\n    return __xian_attribute_target__(Contract, 'submit')\n"
+        ContractingCompiler().parse_legacy_runtime(
+            "@export\ndef probe():\n    return __xian_attribute_target__(Contract, 'submit')\n",
         )
 
 
@@ -197,7 +205,7 @@ def test_call_receiver_is_checked_once_and_guard_is_idempotent():
         calls.append(True)
         return Target
 
-    tree = ContractingCompiler().parse("factory().marker = 7", lint=False)
+    tree = ContractingCompiler().parse_legacy_runtime("factory().marker = 7", lint=False)
     with pytest.raises(TypeError, match="interface descriptor"):
         exec(
             compile(tree, "con_guard", "exec"),
@@ -205,6 +213,6 @@ def test_call_receiver_is_checked_once_and_guard_is_idempotent():
         )
     assert calls == [True]
     assert Target.marker == 3
-    tree = ContractingCompiler().parse("target.marker = 7", lint=False)
+    tree = ContractingCompiler().parse_legacy_runtime("target.marker = 7", lint=False)
     before = ast.dump(tree)
     assert ast.dump(guard_legacy_orm_declarations(tree, "con_guard")) == before

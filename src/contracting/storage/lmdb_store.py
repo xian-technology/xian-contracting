@@ -25,7 +25,7 @@ class LMDBStore:
     """Thin wrapper around a single LMDB environment."""
 
     def __init__(
-        self, path: str | Path, map_size: int = DEFAULT_MAP_SIZE, *, vm_profile="xian_vm_v1"
+        self, path: str | Path, map_size: int = DEFAULT_MAP_SIZE, *, vm_profile="xian_vm_v2"
     ):
         self.vm_profile = vm_profile
         self._path = Path(path)
@@ -113,6 +113,14 @@ class LMDBStore:
                     break
                 keys.append(key_bytes.decode("utf-8"))
         return keys
+
+    def first_key_with_suffix(self, suffixes: tuple[str, ...]) -> str | None:
+        encoded_suffixes = tuple(suffix.encode("utf-8") for suffix in suffixes)
+        with self._require_open().begin() as txn:
+            for key in txn.cursor().iternext(values=False):
+                if key.endswith(encoded_suffixes):
+                    return key.decode("utf-8")
+        return None
 
     def scan_keys(
         self,

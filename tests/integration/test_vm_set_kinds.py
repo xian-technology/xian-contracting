@@ -22,9 +22,9 @@ def _case(body, dependencies=()):
     }
 
 
-def _compare(tmp_path, body, dependencies=()):
+def _compare(tmp_path, body, dependencies=(), *, vm_profile="xian_vm_v2"):
     case = _case(body, dependencies)
-    _compare_case(tmp_path, case)
+    _compare_case(tmp_path, case | {"vm_profile": vm_profile})
 
 
 def _compare_case(tmp_path, case):
@@ -155,6 +155,7 @@ def test_nan_membership_and_copy_preserve_distinct_objects(tmp_path):
         "copy==values,copy is values,isinstance(copy,set),"
         "len(values.intersection(copy)),len(values.difference(copy)),"
         "len(values.symmetric_difference(copy))]",
+        vm_profile="xian_vm_v1",
     )
 
 

@@ -50,12 +50,13 @@ def _execute(driver, function, meter):
         context={"caller": "alice", "signer": "alice", "this": "con_set_codec"},
         meter=meter,
         chi_budget_raw=100_000_000,
+        vm_profile=driver.vm_profile,
     )
 
 
 @pytest.mark.parametrize("meter", [False, True])
 def test_native_members_keep_types_and_quantum_after_lmdb_reopen(tmp_path, meter):
-    with Driver(storage_home=tmp_path) as driver:
+    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
         driver.set_contract_from_source("con_set_codec", SOURCE, owner=None)
         driver.commit()
         result = _execute(driver, "seed", meter)
@@ -63,7 +64,7 @@ def test_native_members_keep_types_and_quantum_after_lmdb_reopen(tmp_path, meter
         for key, value in result.writes.items():
             driver.set(key, value)
         driver.commit()
-    with Driver(storage_home=tmp_path) as driver:
+    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
         result = _execute(driver, "probe", meter)
         assert result.status_code == 0, result.result
         smallest = Decimal.from_float(5e-324)
@@ -78,13 +79,13 @@ def test_native_members_keep_types_and_quantum_after_lmdb_reopen(tmp_path, meter
         ]
 
 
-def _assert_rejected_then_recovers(home, expression, meter, fragment):
+def _assert_rejected_then_recovers(home, expression, meter, fragment, *, vm_profile="xian_vm_v2"):
     source = (
         "state=Variable()\n@export\ndef fail():\n    state.set(1)\n    state.set("
         + expression
         + ")\n    return 0\n@export\ndef recover():\n    assert state.get() is None\n    state.set(set([(1,2)]))\n    return 7\n"
     )
-    with Driver(storage_home=home) as driver:
+    with Driver(storage_home=home, vm_profile=vm_profile) as driver:
         driver.set_contract_from_source("con_set_codec", source, owner=None)
         driver.commit()
         failed = _execute(driver, "fail", meter)
@@ -99,7 +100,9 @@ def _assert_rejected_then_recovers(home, expression, meter, fragment):
     "member", ["float('nan')", "float('inf')", "round(decimal('1'),0).from_float(float('inf'))"]
 )
 def test_nonfinite_persistent_set_members_fail_even_without_metering(tmp_path, meter, member):
-    _assert_rejected_then_recovers(tmp_path, "set([(" + member + ",)])", meter, "finite")
+    _assert_rejected_then_recovers(
+        tmp_path, "set([(" + member + ",)])", meter, "finite", vm_profile="xian_vm_v1"
+    )
 
 
 @pytest.mark.parametrize("meter", [False, True])

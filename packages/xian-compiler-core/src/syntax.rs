@@ -12,18 +12,19 @@ use crate::source::SourceUnit;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SyntaxModule {
-    #[serde(default = "default_syntax_profile", skip_serializing_if = "is_default_syntax_profile")]
+    #[serde(default = "legacy_syntax_profile", skip_serializing_if = "is_legacy_syntax_profile")]
     pub vm_profile: String,
     pub module_name: String,
     pub source_sha256: String,
     pub body: Vec<SyntaxStatement>,
 }
 
-fn default_syntax_profile() -> String {
+// Archived V1 syntax trees predate the serialized profile field.
+fn legacy_syntax_profile() -> String {
     crate::XIAN_VM_V1_PROFILE.to_owned()
 }
 
-fn is_default_syntax_profile(profile: &str) -> bool {
+fn is_legacy_syntax_profile(profile: &str) -> bool {
     profile == crate::XIAN_VM_V1_PROFILE
 }
 

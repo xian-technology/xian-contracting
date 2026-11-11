@@ -19,7 +19,9 @@ const artifacts = JSON.parse(
   compileContractArtifactJson(
     "con_counter",
     source,
-    JSON.stringify({ lint: true, vm_profile: "xian_vm_v1" })
+    JSON.stringify({ lint: true })
   )
 );
 ```
+
+The omitted compiler profile is `xian_vm_v2`. Supply `vm_profile: "xian_vm_v1"` in options JSON to reproduce V1 artifacts.

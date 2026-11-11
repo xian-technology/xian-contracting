@@ -54,6 +54,15 @@ for (const { name, fixture } of await compilerFixtures()) {
   });
 }
 
+test("omitted WASM options compile the fresh-chain fixture exactly", async () => {
+  const fixture = JSON.parse(await readFile(new URL("con_numeric_v2.json", fixtureDirectory), "utf8"));
+  assert.equal(JSON.parse(compilerVersionJson()).vm_profile, "xian_vm_v2");
+  for (const options of [undefined, "{}"]) {
+    const artifact = JSON.parse(compileContractArtifactJson(fixture.module_name, fixture.input_source, options));
+    assert.deepEqual(artifact, fixture.artifact);
+  }
+});
+
 const limits = JSON.parse(compilerVersionJson()).limits;
 
 function diagnosticCode(source) {

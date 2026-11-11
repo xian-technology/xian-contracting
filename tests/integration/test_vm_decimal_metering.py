@@ -78,7 +78,7 @@ def run_case(home, expression, digits, budget=500_000):
         f"        answer = {expression}\n"
         "    return answer\n"
     )
-    with Driver(storage_home=home) as driver:
+    with Driver(storage_home=home, vm_profile="xian_vm_v1") as driver:
         driver.set_contract_from_source("con_decimal_meter", source, owner=None)
         driver.commit()
         return execute_contract(
@@ -89,6 +89,7 @@ def run_case(home, expression, digits, budget=500_000):
             context={"caller": "alice", "signer": "alice", "this": "con_decimal_meter"},
             meter=True,
             chi_budget_raw=budget,
+            vm_profile=driver.vm_profile,
         )
 
 

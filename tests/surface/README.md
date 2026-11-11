@@ -1,5 +1,9 @@
 # Contract surface coverage
 
+The Python/native comparison in this directory uses the explicit historical
+`xian_vm_v1` profile. Fresh contracts use `xian_vm_v2`; its numeric admission,
+wire values and arithmetic have separate compiler and native execution tests.
+
 This suite separates discovery, implementation and behavioral evidence. A name
 appearing in a test or an implementation match arm is not proof of correctness.
 

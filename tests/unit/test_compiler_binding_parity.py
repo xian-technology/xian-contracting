@@ -82,3 +82,17 @@ def test_python_binding_enforces_syntax_depth_limit() -> None:
         + "True\n"
     )
     assert _diagnostic_code(source) == "xian.limit.syntax_depth"
+
+
+def test_omitted_profile_uses_exact_native_compiler():
+    name = "con_numeric_default"
+    value = "9007199254740993.125"
+    source = f"@export\ndef amount(x: decimal):\n    return x + {value}"
+    assert xian_compiler_core.compiler_version()["vm_profile"] == "xian_vm_v2"
+    assert xian_compiler_core.diagnose_contract(name, source) == []
+    assert value in xian_compiler_core.normalize_source(name, source)
+    ir = json.loads(xian_compiler_core.lower_source_to_ir_json(name, source))
+    assert ir["vm_profile"] == "xian_vm_v2" and value in json.dumps(ir)
+    artifact = xian_compiler_core.compile_contract_artifact(name, source)
+    assert artifact["vm_profile"] == "xian_vm_v2"
+    assert xian_compiler_core.diagnose_contract(name, source.replace("decimal", "float"))

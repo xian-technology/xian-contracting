@@ -32,7 +32,9 @@ def probe():
     result = importlib.enforce_interface(module, [descriptor])
     return [result, state.get()]
 """.replace("CALLBACK", selection)
-    with Driver(storage_home=tmp_path) as driver:
+    with Driver(
+        storage_home=tmp_path, vm_profile="xian_vm_v2" if native else "xian_vm_v1"
+    ) as driver:
         driver.set_contract_from_source("con_self_subject", source, owner="alice")
         driver.commit()
         if native:

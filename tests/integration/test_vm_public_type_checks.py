@@ -27,11 +27,9 @@ CASES = [
     ("issubclass(1, ())", False),
     ("issubclass((int,), ((),))", False),
     ("issubclass(int, (int, abs))", True),
-    ("issubclass(bool, (str, (int, abs)))", True),
     ("issubclass(int, Any)", False),
     ("issubclass(Any, Any)", True),
     ("issubclass(Any, int)", False),
-    ("issubclass(bool, int)", True),
     ("issubclass(int, bool)", False),
     ("issubclass(bytes, bytes)", True),
     ("issubclass(bytearray, bytearray)", True),
@@ -83,7 +81,7 @@ def execute_expression(home, expression, native):
         'fh = ForeignHash(foreign_contract="con_type_checks", foreign_name="h")\n'
         f"@export\ndef probe():\n    return {expression}\n"
     )
-    with Driver(storage_home=home) as driver:
+    with Driver(storage_home=home, vm_profile="xian_vm_v2" if native else "xian_vm_v1") as driver:
         driver.set_contract_from_source("con_type_checks", source, owner=None)
         driver.commit()
         if native:
@@ -122,3 +120,16 @@ def test_public_type_checks_and_exception_text(tmp_path, expression, expected, n
 def test_public_type_checks_reject_invalid_descriptors(tmp_path, expression, native):
     status, result = execute_expression(tmp_path, expression, native)
     assert status == 1, result
+
+
+@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
+def test_bool_has_its_own_numeric_type_hierarchy(tmp_path, native):
+    status, result = execute_expression(tmp_path, "issubclass(bool, int)", native)
+    assert status == 0 and result is (not native)
+    status, result = execute_expression(
+        tmp_path / "nested", "issubclass(bool, (str, (int, abs)))", native
+    )
+    if native:
+        assert status == 1 and "classinfo" in str(result)
+    else:
+        assert status == 0 and result is True

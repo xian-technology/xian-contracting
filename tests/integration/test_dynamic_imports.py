@@ -1,7 +1,9 @@
 import hashlib
 import os
+from tempfile import TemporaryDirectory
 from unittest import TestCase
 
+from contracting.constants import TRANSACTION_BASE_CHI
 from contracting.local import ContractingClient
 
 
@@ -197,7 +199,7 @@ class TestDynamicImports(TestCase):
             )
 
     def test_dynamic_call_rejects_bad_kwargs(self):
-        with self.assertRaises(AssertionError):
+        with self.assertRaisesRegex(TypeError, "missing required argument 'account'"):
             self.dynamic_importing.dynamic_call_with_bad_kwargs(
                 tok="con_stubucks",
                 function_name="balance_of",
@@ -252,7 +254,6 @@ class TestDynamicImports(TestCase):
         )
 
     def test_executor_reports_nested_contract_costs(self):
-        self.c.executor.bypass_balance_amount = True
         output = self.c.executor.execute(
             sender="stu",
             contract_name="con_dynamic_importing",
@@ -272,7 +273,7 @@ class TestDynamicImports(TestCase):
         self.assertGreater(output["contract_costs"]["con_dynamic_importing"], 0)
         self.assertGreater(output["contract_costs"]["con_stubucks"], 0)
         self.assertEqual(
-            sum(output["contract_costs"].values()) // 1000,
+            TRANSACTION_BASE_CHI + sum(output["contract_costs"].values()) // 1000,
             output["chi_used"],
         )
 
@@ -456,23 +457,22 @@ class TestDynamicImports(TestCase):
             expected_source_hash,
         )
 
-    def test_code_hash_rejects_invalid_kind(self):
-        owner_stuff_path = os.path.join(
-            os.path.dirname(__file__), "test_contracts", "owner_stuff.s.py"
+        self.assertEqual(
+            owner_stuff.get_code_hash_by_name(s="con_owner_stuff", kind="runtime", signer="poo"),
+            expected_ir_hash,
         )
 
-        with open(owner_stuff_path) as f:
-            code = f.read()
-            self.c.submit(code, name="con_owner_stuff", owner="poo")
-
-        owner_stuff = self.c.get_contract_proxy("con_owner_stuff")
-
-        with self.assertRaises(AssertionError):
-            owner_stuff.get_code_hash_by_name(
-                s="con_owner_stuff",
-                kind="compiled",
-                signer="poo",
-            )
+    def test_legacy_python_code_hash_rejects_invalid_kind(self):
+        source = """@export
+def inspect():
+    return importlib.code_hash(ctx.this, kind="compiled")
+"""
+        with TemporaryDirectory() as storage, ContractingClient(
+            signer="stu", storage_home=storage, vm_profile="xian_vm_v1"
+        ) as legacy:
+            legacy.submit(source, name="con_hash_kind")
+            with self.assertRaisesRegex(AssertionError, "Hash kind"):
+                legacy.get_contract_proxy("con_hash_kind").inspect()
 
     def test_ctx_owner_works(self):
         owner_stuff_path = os.path.join(

@@ -21,11 +21,14 @@ from ._native import (
 
 def _options_json(
     *,
-    vm_profile: str = "xian_vm_v1",
+    vm_profile: str | None = None,
     lint: bool = True,
 ) -> str:
+    options: dict[str, Any] = {"lint": lint}
+    if vm_profile is not None:
+        options["vm_profile"] = vm_profile
     return json.dumps(
-        {"vm_profile": vm_profile, "lint": lint},
+        options,
         separators=(",", ":"),
         sort_keys=True,
     )
@@ -43,7 +46,7 @@ def diagnose_contract(
     module_name: str,
     source: str,
     *,
-    vm_profile: str = "xian_vm_v1",
+    vm_profile: str | None = None,
     lint: bool = True,
 ) -> list[dict[str, Any]]:
     return json.loads(
@@ -59,7 +62,7 @@ def normalize_source(
     module_name: str,
     source: str,
     *,
-    vm_profile: str = "xian_vm_v1",
+    vm_profile: str | None = None,
     lint: bool = True,
 ) -> str:
     return _normalize_source(
@@ -73,7 +76,7 @@ def lower_source_to_ir_json(
     module_name: str,
     source: str,
     *,
-    vm_profile: str = "xian_vm_v1",
+    vm_profile: str | None = None,
     lint: bool = True,
 ) -> str:
     return _lower_source_to_ir_json(
@@ -87,7 +90,7 @@ def lower_source_to_ir(
     module_name: str,
     source: str,
     *,
-    vm_profile: str = "xian_vm_v1",
+    vm_profile: str | None = None,
     lint: bool = True,
 ) -> dict[str, Any]:
     return json.loads(
@@ -104,7 +107,7 @@ def compile_contract_artifact(
     module_name: str,
     source: str,
     *,
-    vm_profile: str = "xian_vm_v1",
+    vm_profile: str | None = None,
     lint: bool = True,
 ) -> dict[str, Any]:
     return json.loads(

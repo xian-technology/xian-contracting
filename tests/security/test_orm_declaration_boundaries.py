@@ -151,7 +151,7 @@ def test_failed_declaration_cannot_leave_authority_for_later_calls(tmp_path):
     ],
 )
 def test_module_loading_rejects_dynamic_and_unguarded_legacy_storage(tmp_path, source):
-    driver = Driver(storage_home=tmp_path)
+    driver = Driver(storage_home=tmp_path, vm_profile="xian_vm_v1")
     driver.set_contract("legacy", source=source)
     output = Executor(driver=driver, metering=False).execute(
         sender="alice", contract_name="legacy", function_name="probe", kwargs={}
@@ -162,7 +162,7 @@ def test_module_loading_rejects_dynamic_and_unguarded_legacy_storage(tmp_path, s
 
 
 def test_deployment_constructor_cannot_create_dynamic_storage(tmp_path):
-    driver = Driver(storage_home=tmp_path)
+    driver = Driver(storage_home=tmp_path, vm_profile="xian_vm_v1")
     source = """
 @construct
 def seed():
@@ -195,7 +195,7 @@ value = Variable(default_value=attempt())
 def probe():
     return value.get()
 """
-    driver = Driver(storage_home=tmp_path)
+    driver = Driver(storage_home=tmp_path, vm_profile="xian_vm_v1")
     driver.set_contract("con_argument_attack", source=source)
     output = Executor(driver=driver, metering=False).execute(
         sender="alice", contract_name="con_argument_attack", function_name="probe", kwargs={}
@@ -213,7 +213,9 @@ def probe():
     other = Variable()
     return other.get()
 """
-    transformed = ContractingCompiler(module_name="con_scope").parse_to_code(source, lint=False)
+    transformed = ContractingCompiler(module_name="con_scope").parse_to_code(
+        source, lint=False, vm_profile="xian_vm_v1"
+    )
     assert transformed.count("__xian_orm_declaration__(") == 1
     assert "other = Variable(" in transformed
 
@@ -223,7 +225,7 @@ def test_authored_source_cannot_name_private_declaration_helper():
 
     source = "@export\ndef probe():\n    return __xian_orm_declaration__(Variable, 'victim', 'x')\n"
     with pytest.raises(LintingError):
-        ContractingCompiler(module_name="con_forged_permit").parse(source)
+        ContractingCompiler(module_name="con_forged_permit").parse(source, vm_profile="xian_vm_v1")
 
 
 def test_declaration_helper_rejects_nonstorage_callables():
@@ -238,7 +240,7 @@ def test_declaration_helper_rejects_nonstorage_callables():
 
 
 def test_legacy_declaration_works_only_with_verified_local_ownership(tmp_path):
-    driver = Driver(storage_home=tmp_path)
+    driver = Driver(storage_home=tmp_path, vm_profile="xian_vm_v1")
     driver.set_contract(
         "legacy",
         source="__value = Variable(contract='legacy', name='value')\n"
@@ -264,7 +266,7 @@ def test_legacy_declaration_works_only_with_verified_local_ownership(tmp_path):
     ],
 )
 def test_legacy_metadata_cannot_authorize_forged_declarations(tmp_path, declaration):
-    driver = Driver(storage_home=tmp_path)
+    driver = Driver(storage_home=tmp_path, vm_profile="xian_vm_v1")
     driver.set_contract(
         "legacy",
         source=declaration + "\n@__export('legacy')\ndef probe():\n    return True\n",

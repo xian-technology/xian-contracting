@@ -3,7 +3,7 @@
 import pytest
 
 from contracting.compilation.compiler import ContractingCompiler
-from contracting.compilation.lowering import IrLoweringError
+from xian_compiler_core import CompilerError
 from contracting.storage.driver import Driver
 
 pytestmark = pytest.mark.optional_native
@@ -119,7 +119,7 @@ def probe():
 
 def test_function_cannot_rebind_module_globals_after_metadata_is_cached():
     source = "alias = len\n@export\ndef probe():\n    global alias\n    alias = abs\n"
-    with pytest.raises(IrLoweringError, match="[Gg]lobal"):
+    with pytest.raises(CompilerError, match="[Gg]lobal"):
         ContractingCompiler(module_name="con_alias_global").lower_to_ir(source)
 
 

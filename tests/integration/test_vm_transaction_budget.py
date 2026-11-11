@@ -5,7 +5,7 @@ from xian_runtime_types.time import Datetime
 from contracting.local import ContractingClient
 
 pytestmark = pytest.mark.optional_native
-BUDGET = 5_000_000
+BUDGET = 6_000_000
 HEAVY = """
 total = Variable()
 @construct

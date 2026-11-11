@@ -930,6 +930,13 @@ fn py_decimal_tuple_to_vm(value: &Bound<'_, PyAny>) -> Result<VmValue, VmExecuti
     )?))
 }
 
+fn bigint_to_py(py: Python<'_>, value: &BigInt) -> PyResult<Py<PyAny>> {
+    Ok(PyModule::import(py, "builtins")?
+        .getattr("int")?
+        .call1((value.to_string(),))?
+        .unbind())
+}
+
 fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
     match value {
         VmValue::Reference(_) => vm_to_py(
@@ -945,13 +952,7 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
         }
         VmValue::None => Ok(py.None()),
         VmValue::Bool(value) => Ok((*value).into_pyobject(py)?.to_owned().into_any().unbind()),
-        VmValue::Int(value) => {
-            let builtins = PyModule::import(py, "builtins")?;
-            Ok(builtins
-                .getattr("int")?
-                .call1((value.to_string(),))?
-                .unbind())
-        }
+        VmValue::Int(value) => bigint_to_py(py, value),
         VmValue::Float(value) => Ok(value.into_pyobject(py)?.into_any().unbind()),
         VmValue::RawDecimal(value) => Ok(PyModule::import(py, "decimal")?
             .getattr("Decimal")?
@@ -961,7 +962,7 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
             let module = PyModule::import(py, "xian_runtime_types.decimal")?;
             Ok(module
                 .getattr("ContractingDecimal")?
-                .call1((value.to_string(),))?
+                .call_method1("_from_scaled", (bigint_to_py(py, &value.scaled)?,))?
                 .unbind())
         }
         VmValue::DateTime(value) => {
@@ -1249,39 +1250,49 @@ fn execution_result_to_py(py: Python<'_>, result: PyExecutionResult) -> PyResult
     Ok(payload.into_any().unbind())
 }
 
-#[pyfunction(signature=(vm_profile="xian_vm_v1"))]
+struct ProfilePolicy {
+    bytecode: &'static [&'static str],
+    gas: &'static [&'static str],
+    revision: &'static str,
+}
+
+fn profile_policy(vm_profile: &str) -> Option<ProfilePolicy> {
+    match vm_profile {
+        XIAN_VM_V2_PROFILE => Some(ProfilePolicy {
+            bytecode: XIAN_VM_SUPPORTED_BYTECODE_VERSIONS,
+            gas: XIAN_VM_SUPPORTED_GAS_SCHEDULES,
+            revision: XIAN_VM_EXECUTION_REVISION,
+        }),
+        XIAN_VM_V1_PROFILE => Some(ProfilePolicy {
+            bytecode: &["xvm-1"],
+            gas: &["xvm-gas-2"],
+            revision: "xvm-execution-5",
+        }),
+        _ => None,
+    }
+}
+
+#[pyfunction(signature=(vm_profile="xian_vm_v2"))]
 fn runtime_info_json(vm_profile: &str) -> PyResult<String> {
-    let (bytecode, gas, revision) = match vm_profile {
-        XIAN_VM_V1_PROFILE => (
-            XIAN_VM_SUPPORTED_BYTECODE_VERSIONS,
-            XIAN_VM_SUPPORTED_GAS_SCHEDULES,
-            XIAN_VM_EXECUTION_REVISION,
-        ),
-        XIAN_VM_V2_PROFILE => (&["xvm-2"][..], &["xvm-gas-3"][..], "xvm-execution-6"),
-        _ => return Err(PyValueError::new_err("unknown VM profile")),
-    };
+    let policy = profile_policy(vm_profile)
+        .ok_or_else(|| PyValueError::new_err("unknown VM profile"))?;
     serde_json::to_string(&json!({
         "ir_version": XIAN_IR_V1,
         "vm_profile": vm_profile,
         "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
-        "supported_bytecode_versions": bytecode,
-        "supported_gas_schedules": gas,
-        "execution_revision": revision,
+        "supported_bytecode_versions": policy.bytecode,
+        "supported_gas_schedules": policy.gas,
+        "execution_revision": policy.revision,
         "set_codec": XIAN_VM_SET_CODEC,
     }))
     .map_err(|error| PyValueError::new_err(error.to_string()))
 }
 
-#[pyfunction(signature=(bytecode_version,gas_schedule,vm_profile="xian_vm_v1"))]
+#[pyfunction(signature=(bytecode_version,gas_schedule,vm_profile="xian_vm_v2"))]
 fn supports_execution_policy(bytecode_version: &str, gas_schedule: &str, vm_profile: &str) -> bool {
-    match vm_profile {
-        XIAN_VM_V1_PROFILE => {
-            XIAN_VM_SUPPORTED_BYTECODE_VERSIONS.contains(&bytecode_version)
-                && XIAN_VM_SUPPORTED_GAS_SCHEDULES.contains(&gas_schedule)
-        }
-        XIAN_VM_V2_PROFILE => bytecode_version == "xvm-2" && gas_schedule == "xvm-gas-3",
-        _ => false,
-    }
+    profile_policy(vm_profile).is_some_and(|policy| {
+        policy.bytecode.contains(&bytecode_version) && policy.gas.contains(&gas_schedule)
+    })
 }
 
 #[pyfunction]
@@ -1296,7 +1307,7 @@ fn validate_module_ir_json(module_ir_json: &str) -> PyResult<()> {
     artifacts_json,
     *,
     input_source=None,
-    vm_profile="xian_vm_v1"
+    vm_profile="xian_vm_v2"
 ))]
 fn validate_deployment_artifacts_json(
     py: Python<'_>,
@@ -1331,7 +1342,7 @@ fn validate_deployment_artifacts_json(
     chi_budget_raw=0,
     transaction_size_bytes=0,
     budget=None,
-    vm_profile="xian_vm_v1"
+    vm_profile="xian_vm_v2"
 ))]
 fn execute_bundle(
     py: Python<'_>,

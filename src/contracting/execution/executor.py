@@ -60,13 +60,23 @@ class Executor:
         bypass_privates=False,
         bypass_balance_amount=False,
         bypass_cache=False,
+        *,
+        vm_profile: str | None = None,
     ):
-
+        if vm_profile is not None and vm_profile != "xian_vm_v1":
+            raise ValueError("Use ContractingClient for native V2 execution.")
+        if driver is None:
+            if vm_profile is None:
+                raise ValueError(
+                    "Use ContractingClient for V2, or select vm_profile='xian_vm_v1' for CPython."
+                )
+            driver = Driver(bypass_cache=bypass_cache, vm_profile=vm_profile)
+        elif driver.vm_profile != "xian_vm_v1":
+            raise ValueError(
+                "The CPython executor requires a V1 driver. Use ContractingClient for V2."
+            )
         self.metering = metering
         self.driver = driver
-
-        if not self.driver:
-            self.driver = Driver(bypass_cache=bypass_cache)
         self.production = production
 
         self.currency_contract = currency_contract

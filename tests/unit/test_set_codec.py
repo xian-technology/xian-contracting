@@ -49,14 +49,16 @@ def signature(value):
 )
 def test_set_members_roundtrip_without_losing_type_or_quantum(wrapper, member):
     value = wrapper([member])
-    assert signature(decode(encode(value))) == signature(value)
-    assert signature(convert_dict(json.loads(encode(value)))) == signature(value)
-    assert signature(decode(json.dumps(value, cls=Encoder))) == signature(value)
+    encoded = encode(value, vm_profile="xian_vm_v1")
+    assert signature(decode(encoded, vm_profile="xian_vm_v1")) == signature(value)
+    assert signature(convert_dict(json.loads(encoded), vm_profile="xian_vm_v1")) == signature(value)
+    encoded = json.dumps(value, cls=Encoder, vm_profile="xian_vm_v1")
+    assert signature(decode(encoded, vm_profile="xian_vm_v1")) == signature(value)
 
 
 @pytest.mark.parametrize("tag", ["__set__", "__frozenset__"])
 def test_legacy_set_arrays_recover_only_member_tuples(tag):
-    value = decode(json.dumps({tag: [[1, [2, 3]]]}))
+    value = decode(json.dumps({tag: [[1, [2, 3]]]}), vm_profile="xian_vm_v1")
     assert list(value) == [(1, (2, 3))]
     assert decode("[1,[2,3]]") == [1, [2, 3]]
 
@@ -76,6 +78,8 @@ def test_ordinary_reserved_tag_dictionaries_are_rejected_recursively(tag):
 def test_nonfinite_set_members_never_persist(member):
     for value in [ContractingSet([member]), ContractingFrozenSet([(member,)])]:
         with pytest.raises((ValueError, TypeError), match="finite"):
+            encode(value, vm_profile="xian_vm_v1")
+        with pytest.raises((ValueError, TypeError), match="finite|raw Decimal"):
             encode(value)
 
 
@@ -181,16 +185,22 @@ def test_noncanonical_sets_are_not_silently_rewritten():
         [["bool", True], ["int", "1"]],
     ]:
         with pytest.raises(ValueError, match="noncanonical"):
-            decode_set_value("__set__", {"codec": "xian-set-1", "items": items})
+            decode_set_value(
+                "__set__", {"codec": "xian-set-1", "items": items}, exact_numbers=False
+            )
 
 
 def test_wide_integer_roundtrip_does_not_depend_on_python_digit_limit():
     value = ContractingSet([2**20000])
-    assert list(decode(encode(value))) == list(value)
+    assert list(decode(encode(value, vm_profile="xian_vm_v1"), vm_profile="xian_vm_v1")) == list(
+        value
+    )
 
 
 def test_legacy_nested_frozen_and_fixed_members_keep_historical_kind():
-    value = decode('{"__set__":[{"__frozenset__":[[1,2]]},{"__fixed__":"1.2300"}]}')
+    value = decode(
+        '{"__set__":[{"__frozenset__":[[1,2]]},{"__fixed__":"1.2300"}]}', vm_profile="xian_vm_v1"
+    )
     assert any(isinstance(item, ContractingFrozenSet) and list(item) == [(1, 2)] for item in value)
     assert any(isinstance(item, ContractingDecimal) for item in value)
 
@@ -235,8 +245,10 @@ def test_python_and_rust_share_independent_structural_wire_goldens():
             value = ContractingFrozenSet()
         else:
             value = ContractingSet([members[case["id"]]])
-        assert encode_set_value(value) == case["wire"], case["id"]
-        assert signature(decode(json.dumps(case["wire"]))) == signature(value)
+        assert encode_set_value(value, exact_numbers=False) == case["wire"], case["id"]
+        assert signature(decode(json.dumps(case["wire"]), vm_profile="xian_vm_v1")) == signature(
+            value
+        )
 
 
 def test_ascii_escape_cap_counts_astral_pairs_and_control_escapes(monkeypatch):
@@ -275,10 +287,10 @@ def test_lossless_set_members_survive_lmdb_close_and_reopen(tmp_path):
     value = ContractingSet(
         [(1, Decimal("1.2300")), ContractingFrozenSet([(2, 3)]), Decimal("-0.00")]
     )
-    with Driver(storage_home=tmp_path) as driver:
+    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
         driver.set("con_codec.value", value)
         driver.commit()
-    with Driver(storage_home=tmp_path) as driver:
+    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
         assert signature(driver.get("con_codec.value")) == signature(value)
 
 
@@ -286,10 +298,10 @@ def test_raw_decimal_text_bound_keeps_persisted_members_native_reloadable():
     from xian_runtime_types.encoding import encode_set_value
 
     digits = "9" * 131072
-    assert encode_set_value(ContractingSet([Decimal(digits)]))
+    assert encode_set_value(ContractingSet([Decimal(digits)]), exact_numbers=False)
     for value in [Decimal("-" + digits), Decimal(digits + "E-1")]:
         with pytest.raises(ValueError, match="raw decimal text"):
-            encode_set_value(ContractingSet([value]))
+            encode_set_value(ContractingSet([value]), exact_numbers=False)
 
 
 def test_many_wrapper_roots_share_one_persistence_work_budget(monkeypatch):
@@ -301,9 +313,9 @@ def test_many_wrapper_roots_share_one_persistence_work_budget(monkeypatch):
         encode([value, value])
     legacy = '[{"__set__":[1,2]},{"__set__":[1,2]}]'
     with pytest.raises(ValueError, match="aggregate normalization"):
-        decode(legacy)
+        decode(legacy, vm_profile="xian_vm_v1")
     with pytest.raises(ValueError, match="aggregate normalization"):
-        convert_dict(json.loads(legacy))
+        convert_dict(json.loads(legacy), vm_profile="xian_vm_v1")
     wire = codec.encode_set_value(value)
     with pytest.raises(ValueError, match="aggregate normalization"):
         decode(json.dumps([wire, wire]))
@@ -314,8 +326,8 @@ def test_legacy_nested_sets_count_each_constructor_once(monkeypatch):
 
     monkeypatch.setattr(codec, "MAX_NORMALIZATION_WORK", 5)
     wire = '{"__set__":[{"__frozenset__":[1,2]}]}'
-    value = decode(wire)
-    assert signature(convert_dict(json.loads(wire))) == signature(value)
+    value = decode(wire, vm_profile="xian_vm_v1")
+    assert signature(convert_dict(json.loads(wire), vm_profile="xian_vm_v1")) == signature(value)
     assert encode(value)
 
 
@@ -324,7 +336,10 @@ def test_legacy_nested_sets_count_each_constructor_once(monkeypatch):
 )
 def test_equal_float_zero_members_keep_the_first_retained_bits(values, hex_value):
     original = ContractingSet(values)
-    assert list(decode(encode(original)))[0].hex() == hex_value
+    assert (
+        list(decode(encode(original, vm_profile="xian_vm_v1"), vm_profile="xian_vm_v1"))[0].hex()
+        == hex_value
+    )
 
 
 def test_python_storage_rejects_aggregate_wrapper_work_then_accepts_followup(tmp_path):

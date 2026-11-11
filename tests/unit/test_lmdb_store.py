@@ -28,7 +28,6 @@ class TestLMDBStoreBasic(TestCase):
         data = {
             "string": "value",
             "int": 42,
-            "float": 3.14,
             "bool": True,
             "list": [1, 2, 3],
             "dict": {"a": 1},
@@ -175,21 +174,20 @@ class TestDriverWithLMDB(TestCase):
     def test_set_contract(self):
         source = (
             "balances = Hash(default_value=0)\n\n"
-            "@export\ndef transfer(amount: float, to: str):\n    pass\n"
+            "@export\ndef transfer(amount: decimal, to: str):\n    pass\n"
         )
         self.driver.set_contract_from_source("con_test", source)
         self.driver.commit()
         stored_source = self.driver.get_contract_source("con_test")
         self.assertIn("@export", stored_source)
-        self.assertIn("def transfer(amount: float, to: str):", stored_source)
-        self.assertIsNotNone(self.driver.get_local_contract_runtime("con_test"))
+        self.assertIn("def transfer(amount: decimal, to: str):", stored_source)
         self.assertIsNotNone(self.driver.get_contract_ir("con_test"))
 
     def test_delete_contract(self):
-        self.driver.set_contract("con_test", source="x = 1")
+        self.driver.set_contract("con_test", source="@export\ndef ping():\n    return 1")
         self.driver.commit()
         self.driver.delete_contract("con_test")
-        self.assertIsNone(self.driver.get_local_contract_runtime("con_test"))
+        self.assertIsNone(self.driver.get_contract_ir("con_test"))
         self.assertIsNone(self.driver.get_contract_source("con_test"))
 
     def test_driver_context_manager_closes_store(self):

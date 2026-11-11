@@ -31,7 +31,7 @@ class NativeExecutor:
         transaction_size_bytes=0,
         chi_cost=constants.CHI_PER_T,
     ):
-        from xian_vm_core import execute_contract
+        from xian_vm_core import NativeExecutionResult, execute_contract
 
         driver = self.driver if driver is None else driver
         context = dict(environment or {})
@@ -42,22 +42,36 @@ class NativeExecutor:
             caller=sender,
             this=contract_name,
             entry=(contract_name, function_name),
+            submission_name=kwargs.get("name") if contract_name == "submission" else None,
         )
         # The Python host bridge installs transaction context for the native VM.
         with rt.execution_lock:
             driver.clear_transaction_reads()
             context["owner"] = driver.get_owner(contract_name)
-            result = execute_contract(
-                driver=driver,
-                contract_name=contract_name,
-                function_name=function_name,
-                context=context,
-                kwargs=kwargs,
-                meter=self.metering if metering is None else metering,
-                chi_budget_raw=chi * 1000,
-                transaction_size_bytes=transaction_size_bytes,
-                vm_profile=driver.vm_profile,
-            )
+            try:
+                result = execute_contract(
+                    driver=driver,
+                    contract_name=contract_name,
+                    function_name=function_name,
+                    context=context,
+                    kwargs=kwargs,
+                    meter=self.metering if metering is None else metering,
+                    chi_budget_raw=max(int(chi), 0) * 1000,
+                    transaction_size_bytes=max(int(transaction_size_bytes), 0),
+                    vm_profile=driver.vm_profile,
+                )
+            except Exception as exc:
+                # Argument conversion and the host bridge can fail before VM entry.
+                result = NativeExecutionResult(
+                    status_code=1,
+                    result=exc,
+                    writes={},
+                    events=[],
+                    snapshots=[],
+                    raw_cost=0,
+                    chi_used=0,
+                    contract_costs={},
+                )
             error = None
             if result.status_code:
                 error = (

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -86,8 +87,30 @@ MIMC_ROUNDS = 91
 MAX_ZK_INPUTS = 4
 
 
-def _sha256_file(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+# These programs are evidence for the historical V1 VM. Read their immutable
+# source from sibling Git objects without switching the working checkouts.
+V1_SOURCE_REVISIONS = {
+    "xian-configs": "da1ceceeb4dee5bbb4742c44c49508a6a379acd2",
+    "xian-contracts": "dd500b037bd5e22b06ce1b8f202070f41433f5ae",
+    "xian-dex": "f42ff874e43f6c4fd9eae76b1708910ae8303279",
+    "xian-stable-protocol": "8c1383b0501b84160a25a079e9c50c0490f8ab24",
+}
+
+
+def _fixture_bytes(path: Path) -> bytes:
+    if not path.is_relative_to(WORKSPACE_ROOT):
+        return path.read_bytes()
+    repo, *parts = path.relative_to(WORKSPACE_ROOT).parts
+    if repo not in V1_SOURCE_REVISIONS or (
+        repo == "xian-dex"
+        and any(
+            os.environ.get(key)
+            for key in ("XIAN_DEX_BUNDLE", "XIAN_DEX_BUNDLE_PATH", "XIAN_DEX_SRC_DIR")
+        )
+    ):
+        return path.read_bytes()
+    target = f"{V1_SOURCE_REVISIONS[repo]}:{'/'.join(parts)}"
+    return subprocess.check_output(["git", "show", target], cwd=WORKSPACE_ROOT / repo)
 
 
 def _dex_bundle_path() -> Path:
@@ -104,14 +127,14 @@ def _dex_source_path(role: str, fallback_name: str) -> Path:
         return Path(src_override).expanduser() / fallback_name
 
     bundle_path = _dex_bundle_path()
-    payload = json.loads(bundle_path.read_text(encoding="utf-8"))
+    payload = json.loads(_fixture_bytes(bundle_path))
     for contract in payload.get("contracts", []):
         if contract.get("role") != role:
             continue
         source_path = (bundle_path.parent / contract["path"]).resolve()
         expected_sha256 = contract.get("sha256")
         if expected_sha256:
-            actual_sha256 = _sha256_file(source_path)
+            actual_sha256 = hashlib.sha256(_fixture_bytes(source_path)).hexdigest()
             if actual_sha256 != expected_sha256:
                 raise RuntimeError(
                     f"DEX bundle sha256 mismatch for {source_path}: "
@@ -169,7 +192,7 @@ def _module_source(spec: dict[str, Any]) -> str:
         path = Path(source_path)
         if not path.is_absolute():
             path = WORKSPACE_ROOT / path
-        resolved = path.read_text(encoding="utf-8")
+        resolved = _fixture_bytes(path).decode("utf-8")
     for old, new in spec.get("source_replacements", []):
         resolved = resolved.replace(old, new)
     return resolved
@@ -2266,6 +2289,7 @@ def build_fixture(spec: dict[str, Any]) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="xian-vm-parity-") as tempdir:
         client = ContractingClient(
             signer=spec["context"]["signer"],
+            vm_profile="xian_vm_v1",
             storage_home=Path(tempdir),
             metering=False,
         )
@@ -2315,7 +2339,7 @@ def build_fixture(spec: dict[str, Any]) -> dict[str, Any]:
                 "module_name": module["module_name"],
                 "owner": module.get("owner"),
                 "ir": ContractingCompiler(module_name=module["module_name"]).lower_to_ir(
-                    module["_resolved_source"]
+                    module["_resolved_source"], vm_profile="xian_vm_v1"
                 ),
                 "initial_state": module_initial_states[module["module_name"]],
             }

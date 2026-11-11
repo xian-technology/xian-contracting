@@ -224,5 +224,9 @@ def generated_cases(*, seed=DEFAULT_SEED, count=256):
     for index in range(count):
         family = FAMILIES[index % len(FAMILIES)]
         case = GENERATORS[family](rng, index)
-        cases.append({"id": f"generated_{family}_{index:04d}", "family": family, **case})
+        # The numeric and random-stream probes intentionally exercise binary floats.
+        profile = "xian_vm_v1" if family in ("numeric", "random_stream") else "xian_vm_v2"
+        cases.append(
+            {"id": f"generated_{family}_{index:04d}", "family": family, "vm_profile": profile, **case}
+        )
     return cases

@@ -11,6 +11,7 @@ import textwrap
 
 def _case(name, body, expected, *, record=False):
     return {
+        "vm_profile": "xian_vm_v1",
         "id": "float_edge_" + name,
         "source": ("observed = Variable()\n" if record else "")
         + "@export\ndef probe():\n"

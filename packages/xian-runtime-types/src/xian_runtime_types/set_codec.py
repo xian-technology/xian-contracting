@@ -134,21 +134,29 @@ def _raw_parts(value):
     return parts.sign, "".join(map(str, parts.digits)), parts.exponent
 
 
-def _encode_member(value, budget, depth):
+def _encode_member(value, budget, depth, exact_numbers):
     budget.visit(depth)
     if value is None:
         return budget.scalar(["none"])
     if type(value) is bool:
         return budget.scalar(["bool", value])
     if type(value) is int:
+        if exact_numbers:
+            from .numeric_wire import _check_int
+
+            _check_int(value)
         return budget.scalar(["int", _integer_text(value)])
     if type(value) is float:
         if not math.isfinite(value):
             raise ValueError("set codec requires finite numeric members")
+        if exact_numbers:
+            raise ValueError("V2 set members cannot contain binary float")
         return budget.scalar(["float", struct.pack(">d", value).hex()])
     if isinstance(value, ContractingDecimal):
         return budget.scalar(["fixed", _integer_text(value._scaled)])
     if isinstance(value, Decimal):
+        if exact_numbers:
+            raise ValueError("V2 set members cannot contain raw Decimal")
         return budget.scalar(["raw_decimal", *_raw_parts(value)])
     if isinstance(value, str):
         return budget.scalar(["str", value])
@@ -174,11 +182,11 @@ def _encode_member(value, budget, depth):
         budget.container(tag, len(value))
         if tag == "frozenset":
             budget.normalize(len(value))
-        return [tag, [_encode_member(item, budget, depth + 1) for item in value]]
+        return [tag, [_encode_member(item, budget, depth + 1, exact_numbers) for item in value]]
     raise TypeError("unsupported set member: " + type(value).__name__)
 
 
-def encode_set_value(value, *, _normalization=None):
+def encode_set_value(value, *, _normalization=None, exact_numbers=True):
     if not is_wrapper_set(value):
         raise TypeError("expected deterministic wrapper set")
     tag = "__set__" if isinstance(value, ContractingSet) else "__frozenset__"
@@ -188,7 +196,7 @@ def encode_set_value(value, *, _normalization=None):
         raise ValueError("set codec node limit exceeded")
     budget.normalize(len(value))
     budget.add(max(0, len(value) - 1))
-    items = [_encode_member(item, budget, 1) for item in value]
+    items = [_encode_member(item, budget, 1, exact_numbers) for item in value]
     return {tag: {"codec": SET_CODEC, "items": items}}
 
 
@@ -248,9 +256,19 @@ def _decode_raw(node):
     return Decimal((sign, tuple(map(int, digits)), exponent))
 
 
-def _decode_member(node, budget, depth, exact_numbers=False):
+def _decode_member(node, budget, depth, exact_numbers):
     budget.visit(depth)
     tag = _node(node, (1, 2, 4))
+    if exact_numbers and tag in ("raw_decimal", "float"):
+        raise ValueError("V2 set members cannot contain binary float or raw Decimal")
+    if (
+        exact_numbers
+        and tag == "int"
+        and len(node) == 2
+        and isinstance(node[1], str)
+        and len(node[1]) > 156
+    ):
+        raise ValueError("integer exceeds 512 bits")
     if tag in ("tuple", "frozenset") and len(node) == 2 and isinstance(node[1], list):
         budget.container(tag, len(node[1]))
         if tag == "frozenset":
@@ -298,15 +316,19 @@ def _legacy_member(value, budget, depth):
     return value
 
 
-def decode_set_value(tag, payload, *, _normalization=None, exact_numbers=False):
+def decode_set_value(tag, payload, *, _normalization=None, exact_numbers=True):
     if tag not in ("__set__", "__frozenset__"):
         raise ValueError("invalid wrapper set tag")
     wrapper = ContractingSet if tag == "__set__" else ContractingFrozenSet
     budget = _Budget(_normalization)
     if isinstance(payload, list):
+        if exact_numbers:
+            raise ValueError("V2 set requires a typed member envelope")
         budget.normalize(len(payload))
         value = wrapper(_legacy_member(item, budget, 1) for item in payload)
-        encode_set_value(value)  # Apply the same finite/member/resource boundary.
+        encode_set_value(
+            value, exact_numbers=False
+        )  # Apply the same finite/member/resource boundary.
         return value
     if (
         not isinstance(payload, dict)
@@ -325,12 +347,12 @@ def decode_set_value(tag, payload, *, _normalization=None, exact_numbers=False):
     construct = wrapper._from_v2_members if exact_numbers else wrapper
     value = construct(_decode_member(item, budget, 1, exact_numbers) for item in items)
     # Reject noncanonical order/duplicates and numeric representatives.
-    if encode_set_value(value)[tag] != payload:
+    if encode_set_value(value, exact_numbers=exact_numbers)[tag] != payload:
         raise ValueError("noncanonical set codec members")
     return value
 
 
-def _validate_serializable_value(value, *, allow_codec_tags):
+def _validate_serializable_value(value, *, allow_codec_tags, exact_numbers=True):
     active = set()
     count = 0
     normalization = _NormalizationBudget()
@@ -341,12 +363,17 @@ def _validate_serializable_value(value, *, allow_codec_tags):
         if depth > 128 or count > 1024 * 1024:
             raise ValueError("persistent value traversal limit exceeded")
         if is_wrapper_set(item):
-            encode_set_value(item, _normalization=normalization)
+            encode_set_value(item, _normalization=normalization, exact_numbers=exact_numbers)
             return
         if isinstance(item, float) and not math.isfinite(item):
             raise ValueError("persistent values require finite numbers")
         if isinstance(item, Decimal) and not item.is_finite():
             raise ValueError("persistent values require finite numbers")
+        if exact_numbers and allow_codec_tags and isinstance(item, dict) and len(item) == 1:
+            # The typed set decoder bounds member depth, bytes and aggregate work.
+            # Its envelope uses several JSON layers per logical tuple.
+            if next(iter(item)) in ("__set__", "__frozenset__"):
+                return
         if isinstance(item, (dict, list, tuple)):
             identity = id(item)
             if identity in active:
@@ -354,7 +381,7 @@ def _validate_serializable_value(value, *, allow_codec_tags):
             active.add(identity)
             if isinstance(item, dict):
                 for key, child in item.items():
-                    if allow_codec_tags and not isinstance(key, str):
+                    if (exact_numbers or allow_codec_tags) and not isinstance(key, str):
                         raise TypeError("wire JSON object keys must be strings")
                     if not allow_codec_tags and isinstance(key, str) and key in RESERVED_TAGS:
                         raise ValueError("reserved runtime codec dictionary key: " + key)
@@ -384,6 +411,12 @@ def _validate_serializable_value(value, *, allow_codec_tags):
     visit(value, 0)
 
 
-def validate_persistent_value(value):
-    """Reject tag impersonation and unsupported values before persistence."""
-    _validate_serializable_value(value, allow_codec_tags=False)
+def validate_persistent_value(value, *, vm_profile="xian_vm_v2"):
+    """Reject invalid numbers, reserved wire tags and unsupported storage values."""
+    from .encoding import _exact_profile
+    from .numeric_wire import _persistent_numbers
+
+    if _exact_profile(vm_profile):
+        _persistent_numbers(value)
+    else:
+        _validate_serializable_value(value, allow_codec_tags=False, exact_numbers=False)

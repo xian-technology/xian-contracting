@@ -29,7 +29,7 @@ def get():
     assert fixture["module_name"] == "con_counter"
     assert fixture["normalized_source"] == fixture["artifact"]["source"]
     assert fixture["artifact"]["module_name"] == "con_counter"
-    assert fixture["artifact"]["vm_profile"] == "xian_vm_v1"
+    assert fixture["artifact"]["vm_profile"] == "xian_vm_v2"
     assert fixture["artifact"]["hashes"]["source_sha256"]
     assert fixture["artifact"]["hashes"]["vm_ir_sha256"]
     assert json.loads(fixture["artifact"]["vm_ir_json"]) == fixture["vm_ir"]

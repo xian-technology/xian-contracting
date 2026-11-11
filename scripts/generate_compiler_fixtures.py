@@ -7,6 +7,7 @@ from pathlib import Path
 
 from contracting.compilation.vm import (
     SUPPORTED_VM_PROFILES,
+    XIAN_VM_V2_PROFILE,
     iter_contract_sources,
 )
 from contracting.compiler.fixtures import (
@@ -34,7 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--profile",
-        default=SUPPORTED_VM_PROFILES[0],
+        default=XIAN_VM_V2_PROFILE,
         choices=sorted(SUPPORTED_VM_PROFILES),
         help="VM profile to compile for",
     )

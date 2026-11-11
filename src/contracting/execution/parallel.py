@@ -241,7 +241,7 @@ class _WorkerConfig:
     balances_hash: str
     bypass_privates: bool
     bypass_balance_amount: bool
-    vm_profile: str = "xian_vm_v1"
+    vm_profile: str = "xian_vm_v2"
 
 
 @dataclass(frozen=True)

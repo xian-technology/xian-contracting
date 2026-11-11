@@ -1,12 +1,11 @@
+from decimal import Decimal
 from unittest import TestCase
-
-from xian_runtime_types.decimal import ContractingDecimal
 
 from contracting.local import ContractingClient
 
 TYPECHECKED_CONTRACT = """
 @export(typecheck=True)
-def calculate(limit: float) -> str:
+def calculate(limit: decimal) -> str:
     return 'YES' if limit > 0.1 else 'NO'
 
 @export(typecheck=True)
@@ -17,7 +16,7 @@ def summarize(items: list[int], metadata: dict[str, list[int]]) -> int:
 
 BAD_RETURN_CONTRACT = """
 @export(typecheck=True)
-def label(limit: float) -> str:
+def label(limit: decimal) -> str:
     return 123
 """
 
@@ -51,28 +50,22 @@ class TestExportTypecheck(TestCase):
         contract = self.client.get_contract_proxy("con_typed_calc")
 
         self.assertEqual(contract.calculate(limit=3), "YES")
-        self.assertEqual(contract.calculate(limit=0.2), "YES")
-        self.assertEqual(
-            contract.calculate(limit=ContractingDecimal("0.2")),
-            "YES",
-        )
+        self.assertEqual(contract.calculate(limit=Decimal("0.2")), "YES")
+        with self.assertRaises(TypeError):
+            contract.calculate(limit=0.2)
 
     def test_typechecked_export_rejects_bad_argument_type(self):
         self.client.submit(TYPECHECKED_CONTRACT, name="con_typed_calc")
         contract = self.client.get_contract_proxy("con_typed_calc")
 
-        with self.assertRaisesRegex(
-            TypeError, "Argument 'limit' must be <class 'float'>"
-        ):
+        with self.assertRaisesRegex(TypeError, "ABI value must be <class 'decimal'>, got str"):
             contract.calculate(limit="3")
 
     def test_typechecked_export_rejects_nested_container_mismatches(self):
         self.client.submit(TYPECHECKED_CONTRACT, name="con_typed_calc")
         contract = self.client.get_contract_proxy("con_typed_calc")
 
-        with self.assertRaisesRegex(
-            TypeError, "Argument 'metadata'\\['counts'\\]\\[1\\]"
-        ):
+        with self.assertRaisesRegex(TypeError, "ABI value must be <class 'int'>, got str"):
             contract.summarize(
                 items=[1, 2],
                 metadata={"counts": [1, "2"]},
@@ -82,9 +75,7 @@ class TestExportTypecheck(TestCase):
         self.client.submit(BAD_RETURN_CONTRACT, name="con_bad_return")
         contract = self.client.get_contract_proxy("con_bad_return")
 
-        with self.assertRaisesRegex(
-            TypeError, "Return value must be <class 'str'>"
-        ):
+        with self.assertRaisesRegex(TypeError, "Return value must be <class 'str'>"):
             contract.label(limit=1)
 
     def test_typechecked_export_applies_to_contract_to_contract_calls(self):
@@ -93,7 +84,5 @@ class TestExportTypecheck(TestCase):
 
         outer = self.client.get_contract_proxy("con_outer_typed")
 
-        with self.assertRaisesRegex(
-            TypeError, "Argument 'count' must be <class 'int'>"
-        ):
+        with self.assertRaisesRegex(TypeError, "ABI value must be <class 'int'>, got str"):
             outer.relay_bad()

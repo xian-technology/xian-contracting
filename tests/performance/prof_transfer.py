@@ -36,7 +36,7 @@ TEST_SUBMISSION_KWARGS = {
 }
 
 
-d = Driver()
+d = Driver(vm_profile="xian_vm_v1")
 d.flush_full()
 
 with open('../../contracting/contracts/submission.s.py') as f:
@@ -49,7 +49,7 @@ d.commit()
 recipients = [secrets.token_hex(16) for _ in range(1000)]
 
 
-e = Executor()
+e = Executor(driver=d)
 
 e.execute(**TEST_SUBMISSION_KWARGS,
           kwargs=submission_kwargs_for_file('../integration/test_contracts/erc20_clone.s.py'))

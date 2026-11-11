@@ -12,6 +12,7 @@ from contracting.compilation.linter import ErrorCode, Linter, LintError
 
 XIAN_VM_V1_PROFILE = "xian_vm_v1"
 XIAN_VM_V2_PROFILE = "xian_vm_v2"
+DEFAULT_VM_PROFILE = XIAN_VM_V2_PROFILE
 SUPPORTED_VM_PROFILES = (XIAN_VM_V1_PROFILE, XIAN_VM_V2_PROFILE)
 
 _TRACKED_CALL_FEATURES = {
@@ -212,7 +213,7 @@ class VmCompatibilityChecker:
         self,
         source_or_tree: str | ast.AST,
         *,
-        profile: str = XIAN_VM_V1_PROFILE,
+        profile: str = DEFAULT_VM_PROFILE,
     ) -> VmCompatibilityReport:
         if profile not in SUPPORTED_VM_PROFILES:
             raise ValueError(f"vm profile must be one of {sorted(SUPPORTED_VM_PROFILES)}")
@@ -251,7 +252,7 @@ class VmCompatibilityChecker:
         self,
         source_or_tree: str | ast.AST,
         *,
-        profile: str = XIAN_VM_V1_PROFILE,
+        profile: str = DEFAULT_VM_PROFILE,
     ) -> None:
         report = self.check(source_or_tree, profile=profile)
         if not report.compatible:

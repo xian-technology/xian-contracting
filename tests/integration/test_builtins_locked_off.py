@@ -47,7 +47,7 @@ class TestMathBuiltinsLockedOff(TestCase):
 
 class TestContractModuleLoaderLoadsFirst(TestCase):
     def setUp(self):
-        self.c = ContractingClient(signer="stu")
+        self.c = ContractingClient(signer="stu", vm_profile="xian_vm_v1")
 
     def tearDown(self):
         self.c.raw_driver.flush_full()
@@ -73,7 +73,7 @@ class TestContractModuleLoaderLoadsFirst(TestCase):
 
 class TestDynamicImport(TestCase):
     def setUp(self):
-        self.c = ContractingClient(signer="stu")
+        self.c = ContractingClient(signer="stu", vm_profile="xian_vm_v1")
 
     def tearDown(self):
         self.c.raw_driver.flush_full()
@@ -95,7 +95,7 @@ class TestDynamicImport(TestCase):
 
 class TestFloatIssue(TestCase):
     def setUp(self):
-        self.c = ContractingClient(signer="stu")
+        self.c = ContractingClient(signer="stu", vm_profile="xian_vm_v1")
 
     def tearDown(self):
         self.c.raw_driver.flush_full()

@@ -304,7 +304,7 @@ class Hash(Datum):
         self.clear()
 
         for source_key, value in source_items.items():
-            rt.deduct_read(*encode_kv(source_key, value))
+            rt.deduct_read(*encode_kv(source_key, value, vm_profile=self._driver.vm_profile))
             suffix = source_key.removeprefix(source_prefix)
             self._driver.set(
                 f"{target_prefix}{suffix}",
@@ -503,10 +503,10 @@ class LogEvent(Datum):
         }
 
         for arg, value in event["data_indexed"].items():
-            encoded = encode_kv(arg, value)
+            encoded = encode_kv(arg, value, vm_profile=self._driver.vm_profile)
             rt.deduct_write(*encoded)
         for arg, value in event["data"].items():
-            encoded = encode_kv(arg, value)
+            encoded = encode_kv(arg, value, vm_profile=self._driver.vm_profile)
             rt.deduct_write(*encoded)
 
         self._driver.set_event(event)

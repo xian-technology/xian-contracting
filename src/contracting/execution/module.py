@@ -73,7 +73,7 @@ def _remove_contract_module_finders():
 
 def install_contract_module_loader(driver=None):
     if driver is None:
-        driver = ContractModuleFinder.current_driver() or Driver()
+        driver = ContractModuleFinder.current_driver() or Driver(vm_profile="xian_vm_v1")
     _CONTRACT_MODULE_DRIVER.set(driver)
     ContractModuleFinder.default_driver = driver
     _remove_contract_module_finders()
@@ -113,7 +113,7 @@ class ContractModuleFinder:
     def current_driver(cls):
         driver = rt.env.get("__Driver") or _CONTRACT_MODULE_DRIVER.get() or cls.default_driver
         if driver is None:
-            driver = Driver()
+            driver = Driver(vm_profile="xian_vm_v1")
             cls.default_driver = driver
         return driver
 

@@ -19,7 +19,14 @@ def test_empty_builtin_defaults_match_python(tmp_path: Path, expression: str):
     }
     expected = _run_python_case(case, tmp_path / "python")
     assert expected["status_code"] == 0
-    assert _run_native_case(case, tmp_path / "native") == expected
+    assert (
+        _run_native_case(
+            case,
+            tmp_path / "native",
+            vm_profile="xian_vm_v1" if expression == "float()" else "xian_vm_v2",
+        )
+        == expected
+    )
 
 
 @pytest.mark.parametrize(
@@ -65,7 +72,7 @@ def test_numeric_builtin_boundaries_match_python(tmp_path: Path, expression: str
     }
     expected = _run_python_case(case, tmp_path / "python")
     assert expected["status_code"] == 0
-    assert _run_native_case(case, tmp_path / "native") == expected
+    assert _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1") == expected
 
 
 def test_float_bytes_reject_non_ascii_whitespace(tmp_path: Path):
@@ -76,4 +83,4 @@ def test_float_bytes_reject_non_ascii_whitespace(tmp_path: Path):
         "kwargs": {},
     }
     assert _run_python_case(case, tmp_path / "python")["status_code"] == 1
-    assert _run_native_case(case, tmp_path / "native")["status_code"] == 1
+    assert _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1")["status_code"] == 1

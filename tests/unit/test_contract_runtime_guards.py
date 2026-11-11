@@ -169,7 +169,7 @@ def repeat(n: int):
     return "a" * n
 """
 
-        compiled_source = compiler.parse_to_code(code)
+        compiled_source = compiler.parse_to_code(code, vm_profile="xian_vm_v1")
 
         self.assertIn("__xian_mul__", compiled_source)
 
@@ -181,7 +181,7 @@ def calculate(n: int):
     return (2 ** n) + (1 << n) + (8 >> n)
 """
 
-        compiled_source = compiler.parse_to_code(code)
+        compiled_source = compiler.parse_to_code(code, vm_profile="xian_vm_v1")
 
         self.assertIn("__xian_pow__", compiled_source)
         self.assertIn("__xian_lshift__", compiled_source)
@@ -195,7 +195,7 @@ def calculate(value: str):
     return int(value) + pow(2, 8)
 """
 
-        compiled_source = compiler.parse_to_code(code)
+        compiled_source = compiler.parse_to_code(code, vm_profile="xian_vm_v1")
 
         self.assertIn("__xian_int__", compiled_source)
         self.assertIn("__xian_pow__", compiled_source)

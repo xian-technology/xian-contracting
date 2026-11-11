@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import decimal
+import json
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -12,7 +13,7 @@ from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime
 
 from contracting.execution.executor import Executor
-from contracting.storage.driver import Driver
+from contracting.storage.driver import XIAN_VM_V1_IR_KEY, Driver
 
 pytestmark = pytest.mark.optional_native
 
@@ -146,6 +147,11 @@ def _normalize_state(state: dict[str, Any]) -> dict[str, Any]:
         key: _normalize(value) for key, value in sorted(state.items())
     }
     normalized.pop("submission.__submitted__", None)
+    for key in normalized:
+        if key.endswith("." + XIAN_VM_V1_IR_KEY):
+            artifact = json.loads(normalized[key])
+            del artifact["vm_profile"]
+            normalized[key] = artifact
     return normalized
 
 
@@ -158,6 +164,8 @@ def _deploy_probe(driver: Driver, contract_name: str) -> None:
         timestamp=FIXED_TIMESTAMP,
     )
     driver.commit()
+    artifact = json.loads(driver.get(f"{contract_name}.{XIAN_VM_V1_IR_KEY}"))
+    assert artifact["vm_profile"] == driver.vm_profile
 
 
 def _run_python_step(
@@ -351,7 +359,7 @@ def test_python_and_native_vm_match_for_stateful_sequences(
 ):
     with tempfile.TemporaryDirectory(prefix="xian-vm-stateful-fuzz-") as tmpdir:
         contract_name = "con_vm_fuzz_probe"
-        python_driver = Driver(storage_home=Path(tmpdir) / "python")
+        python_driver = Driver(storage_home=Path(tmpdir) / "python", vm_profile="xian_vm_v1")
         native_driver = Driver(storage_home=Path(tmpdir) / "native")
         _deploy_probe(python_driver, contract_name)
         _deploy_probe(native_driver, contract_name)
@@ -397,7 +405,7 @@ def test_python_and_native_vm_match_for_stateful_sequences(
 def test_python_and_native_vm_roll_back_post_write_failures() -> None:
     contract_name = "con_vm_fuzz_probe"
     with tempfile.TemporaryDirectory(prefix="xian-vm-stateful-failure-") as tmpdir:
-        python_driver = Driver(storage_home=Path(tmpdir) / "python")
+        python_driver = Driver(storage_home=Path(tmpdir) / "python", vm_profile="xian_vm_v1")
         native_driver = Driver(storage_home=Path(tmpdir) / "native")
         _deploy_probe(python_driver, contract_name)
         _deploy_probe(native_driver, contract_name)

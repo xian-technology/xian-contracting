@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::constants::{
-    COMPILER_FIXTURE_SCHEMA_V1, CONTRACT_ARTIFACT_FORMAT_V1, XIAN_VM_HOST_CATALOG_V1,
+    COMPILER_FIXTURE_SCHEMA_V1, CONTRACT_ARTIFACT_FORMAT_V1, DEFAULT_VM_PROFILE, XIAN_VM_HOST_CATALOG_V1,
     XIAN_VM_V1_PROFILE, XIAN_VM_V2_PROFILE,
 };
 use crate::diagnostic::CompilerDiagnostic;
@@ -18,7 +18,7 @@ pub struct CompileOptions {
 impl Default for CompileOptions {
     fn default() -> Self {
         Self {
-            vm_profile: XIAN_VM_V1_PROFILE.to_string(),
+            vm_profile: DEFAULT_VM_PROFILE.to_owned(),
             lint: true,
         }
     }
@@ -54,7 +54,7 @@ pub fn compiler_version() -> CompilerVersion {
         version: env!("CARGO_PKG_VERSION").to_string(),
         artifact_format: CONTRACT_ARTIFACT_FORMAT_V1.to_string(),
         fixture_schema: COMPILER_FIXTURE_SCHEMA_V1.to_string(),
-        vm_profile: XIAN_VM_V1_PROFILE.to_string(),
+        vm_profile: DEFAULT_VM_PROFILE.to_owned(),
         supported_vm_profiles: vec![XIAN_VM_V1_PROFILE.into(), XIAN_VM_V2_PROFILE.into()],
         host_catalog_version: XIAN_VM_HOST_CATALOG_V1.to_string(),
         limits: compiler_limits(),
@@ -103,7 +103,7 @@ mod tests {
 
         assert_eq!(version.artifact_format, "xian_contract_artifact_v1");
         assert_eq!(version.fixture_schema, "xian.compiler_fixture.v1");
-        assert_eq!(version.vm_profile, "xian_vm_v1");
+        assert_eq!(version.vm_profile, "xian_vm_v2");
         assert_eq!(version.supported_vm_profiles, ["xian_vm_v1", "xian_vm_v2"]);
         assert_eq!(version.host_catalog_version, "xian_vm_v1_host_v1");
         assert_eq!(version.limits.max_source_bytes, 131_072);

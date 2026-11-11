@@ -12,7 +12,9 @@ from xian_runtime_types.time import Datetime
 @pytest.mark.parametrize("tag", sorted(encoding.TYPES))
 def test_wire_preserves_opaque_tag_payloads_and_siblings(tag):
     value = {"nested": [{tag: ["opaque", {"__fixed__": "1.2300"}], "sibling": "雪"}]}
-    assert encoding.encode_wire(value) == json.dumps(value, separators=(",", ":"))
+    assert encoding.encode_wire(value, vm_profile="xian_vm_v1") == json.dumps(
+        value, separators=(",", ":")
+    )
     with pytest.raises(ValueError, match="reserved"):
         encoding.encode(value)
     with pytest.raises(ValueError, match="reserved"):
@@ -27,7 +29,7 @@ def test_wire_mixes_raw_tags_and_typed_runtime_values_without_decoding():
         "raw_decimal": {"__fixed__": "1.2300"},
         "set": ContractingSet([(1, 2)]),
     }
-    assert encoding.encode_wire(value) == (
+    assert encoding.encode_wire(value, vm_profile="xian_vm_v1") == (
         '{"raw":{"__time__":[2026,1,2,3,4,5,6]},'
         '"typed":{"__time__":[2026,1,2,3,4,5,6]},'
         '"integer":{"__big_int__":"1237940039285380274899124224"},'
@@ -40,6 +42,8 @@ def test_wire_mixes_raw_tags_and_typed_runtime_values_without_decoding():
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), Decimal("NaN")])
 def test_wire_rejects_actual_nonfinite_numbers_even_inside_raw_tags(value):
     with pytest.raises(ValueError, match="finite"):
+        encoding.encode_wire({"__set__": [value]}, vm_profile="xian_vm_v1")
+    with pytest.raises(ValueError, match="typed member envelope"):
         encoding.encode_wire({"__set__": [value]})
 
 
@@ -73,8 +77,10 @@ def test_wire_keeps_persistence_bytes_for_ordinary_and_typed_values():
 
 
 @pytest.mark.parametrize("key", [1, None, True, 1.5])
-def test_wire_requires_string_object_keys_without_changing_persistence(key):
+def test_wire_and_current_persistence_require_string_object_keys(key):
     value = {"nested": {key: "value"}}
     with pytest.raises(TypeError, match="keys must be strings"):
         encoding.encode_wire(value)
-    assert encoding.encode(value)
+    with pytest.raises(TypeError, match="keys must be strings"):
+        encoding.encode(value)
+    assert encoding.encode(value, vm_profile="xian_vm_v1")

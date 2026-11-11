@@ -173,8 +173,8 @@ CASES = [
     ),
     (
         "dict_comprehension_target",
-        contract("result = {value: value + 1 for value in [1, 2]}\nreturn [value, result]"),
-        [41, {1: 2, 2: 3}],
+        contract("result = {str(value): value + 1 for value in [1, 2]}\nreturn [value, result]"),
+        [41, {"1": 2, "2": 3}],
         False,
     ),
     ("comprehension_builtin_target", contract("return [len for len in [1, 2]]", ""), [1, 2], False),
@@ -378,7 +378,7 @@ def assert_failure_category(case_id, result):
 
 
 def execute_source(home, source, native):
-    with Driver(storage_home=home) as driver:
+    with Driver(storage_home=home, vm_profile="xian_vm_v2" if native else "xian_vm_v1") as driver:
         driver.set_contract_from_source("con_scoping", source, owner=None)
         driver.commit()
         if native:

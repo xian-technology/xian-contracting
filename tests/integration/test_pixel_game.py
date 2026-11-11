@@ -175,7 +175,7 @@ def con_pixel_game():
         landlord.set(ctx.caller)
 
     @export
-    def buy_plot(x: int, y: int, amount: float, price: float):
+    def buy_plot(x: int, y: int, amount: decimal, price: decimal):
         assert_in_bounds(x, y)
 
         plot = plots[x, y]

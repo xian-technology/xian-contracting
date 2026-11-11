@@ -108,7 +108,7 @@ def _deploy_case_contracts(
 
 
 def _run_python_case(case: dict, storage_home: Path) -> dict:
-    driver = Driver(storage_home=storage_home)
+    driver = Driver(storage_home=storage_home, vm_profile="xian_vm_v1")
     contract_name = f"conformance_{case['id']}"
     driver.flush_full()
     _deploy_case_contracts(driver, case, contract_name)
@@ -131,15 +131,17 @@ def _run_python_case(case: dict, storage_home: Path) -> dict:
     }
 
 
-def _run_native_case(case: dict, storage_home: Path) -> dict:
+def _run_native_case(case: dict, storage_home: Path, *, vm_profile=None) -> dict:
     import xian_vm_core
 
-    driver = Driver(storage_home=storage_home)
+    vm_profile = vm_profile or case.get("vm_profile", "xian_vm_v2")
+    driver = Driver(storage_home=storage_home, vm_profile=vm_profile)
     contract_name = f"conformance_{case['id']}"
     driver.flush_full()
     _deploy_case_contracts(driver, case, contract_name)
     context = _execution_context(contract_name, case["function_name"], "alice")
     output = xian_vm_core.execute_contract(
+        vm_profile=vm_profile,
         driver=driver,
         contract_name=contract_name,
         function_name=case["function_name"],
@@ -166,7 +168,15 @@ def test_python_and_xian_vm_match_for_conformance_cases(
     tmp_path: Path, case: dict
 ):
     python_output = _run_python_case(case, tmp_path / "python")
-    native_output = _run_native_case(case, tmp_path / "native")
+    # These archived sources use float annotations, round or decimal exponentiation.
+    legacy = {
+        "subscripted_export_typecheck",
+        "builtin_scalar_helpers",
+        "decimal_scaled_integer_edges",
+        "authored_reward_change_flow",
+    }
+    profile = "xian_vm_v1" if case["id"] in legacy else "xian_vm_v2"
+    native_output = _run_native_case(case, tmp_path / "native", vm_profile=profile)
 
     assert native_output == python_output, case["description"]
 
@@ -214,7 +224,7 @@ def test_python_and_xian_vm_reject_decimal_edge_cases(
         "kwargs": {},
     }
     python_output = _run_python_case(case, tmp_path / "python")
-    native_output = _run_native_case(case, tmp_path / "native")
+    native_output = _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1")
 
     assert python_output["status_code"] == 1
     assert native_output["status_code"] == 1
@@ -247,6 +257,6 @@ def test_python_and_xian_vm_match_for_typecheck_rejections(
         "kwargs": kwargs,
     }
     python_output = _run_python_case(case, tmp_path / "python")
-    native_output = _run_native_case(case, tmp_path / "native")
+    native_output = _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1")
 
     assert native_output == python_output

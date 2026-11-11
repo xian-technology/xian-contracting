@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 import decimal
+import json
 import logging
 from copy import deepcopy
 from datetime import datetime
@@ -19,7 +21,7 @@ from xian_runtime_types.time import Datetime
 
 from contracting import constants
 from contracting.compilation.compiler import ContractingCompiler
-from contracting.compilation.vm import SUPPORTED_VM_PROFILES, XIAN_VM_V1_PROFILE, XIAN_VM_V2_PROFILE
+from contracting.compilation.vm import DEFAULT_VM_PROFILE, SUPPORTED_VM_PROFILES, XIAN_VM_V2_PROFILE
 from contracting.execution.interface_subject import ensure_no_interface_subject
 from contracting.execution.runtime import _contract_execution_active, rt
 from contracting.names import assert_safe_contract_name
@@ -58,9 +60,9 @@ class Driver:
     def __init__(
         self,
         bypass_cache: bool = False,
-        storage_home: Path = constants.STORAGE_HOME,
+        storage_home: Path | None = None,
         *,
-        vm_profile: str = XIAN_VM_V1_PROFILE,
+        vm_profile: str = DEFAULT_VM_PROFILE,
     ) -> None:
         if vm_profile not in SUPPORTED_VM_PROFILES:
             raise ValueError(f"unsupported vm_profile {vm_profile!r}")
@@ -75,10 +77,37 @@ class Driver:
         self.track_transaction_reads = True
         self.cache = TTLCache(maxsize=1000, ttl=6 * 3600)
         self.bypass_cache = bypass_cache
-        self.storage_home = Path(storage_home)
+        self.storage_home = (
+            Path(storage_home) if storage_home is not None else constants.STORAGE_HOME
+        )
         self.storage_path = self.storage_home / "lmdb"
         self.storage_path.mkdir(parents=True, exist_ok=True)
         self._store = LMDBStore(self.storage_path, vm_profile=vm_profile)
+
+        try:
+            self._check_bootstrap_profile()
+        except Exception:
+            self.close()
+            raise
+
+    def _check_bootstrap_profile(self):
+        # The submission IR identifies an initialized chain without decoding its
+        # application state. Pre-IR submission contracts used the V1 runtime.
+        name = "submission"
+        if not self.is_file(name):
+            # Some local stores have contracts but no submission contract yet.
+            key = self._store.first_key_with_suffix((f".{XIAN_VM_V1_IR_KEY}", f".{SOURCE_KEY}"))
+            if key is None:
+                return
+            name, _ = key.rsplit(".", 1)
+        ir = self._store.get(f"{name}.{XIAN_VM_V1_IR_KEY}")
+        stored_profile = json.loads(ir)["vm_profile"] if ir is not None else "xian_vm_v1"
+        if stored_profile != self.vm_profile:
+            raise ValueError(
+                f"storage at {self.storage_home} uses {stored_profile!r}, "
+                f"requested {self.vm_profile!r}. Open it with its original profile "
+                "or choose a fresh storage directory."
+            )
 
     def close(self) -> None:
         self._store.close()
@@ -121,7 +150,7 @@ class Driver:
 
     def _typed_value(self, value):
         if self.vm_profile == XIAN_VM_V2_PROFILE:
-            validate_persistent_value(value)
+            validate_persistent_value(value, vm_profile=self.vm_profile)
             return decode_wire_numbers(normalize_wire_numbers(value))
         if isinstance(value, (decimal.Decimal, float)):
             return ContractingDecimal(str(value))
@@ -255,12 +284,14 @@ class Driver:
         source = self.get_contract_source(name)
         if source is None:
             return None
+        if self.vm_profile == XIAN_VM_V2_PROFILE:
+            raise ValueError("The native VM executes IR. Use get_contract_ir for V2 contracts.")
         if "@__export" in source:
             return source
 
         compiler = ContractingCompiler(module_name=name)
         try:
-            return compiler.parse_to_code(source, lint=False)
+            return ast.unparse(compiler.parse_legacy_runtime(source, lint=False))
         except SOURCE_RUNTIME_FALLBACK_EXCEPTIONS as exc:
             if "@export" in source or "@construct" in source:
                 logger.exception(
@@ -331,6 +362,26 @@ class Driver:
             initiator=initiator,
         )
 
+    def _prepare_contract_artifacts(self, name, source, vm_ir_json):
+        if source is None and vm_ir_json is None:
+            raise TypeError("set_contract requires at least one contract artifact.")
+        if source is not None and not isinstance(source, str):
+            raise TypeError("Contract source must be a string.")
+        if self.vm_profile == XIAN_VM_V2_PROFILE and source is not None and vm_ir_json is None:
+            from contracting.artifacts import compile_contract_source
+
+            compiled = compile_contract_source(
+                module_name=name, source=source, vm_profile=self.vm_profile
+            )
+            source, vm_ir_json = compiled["source"], compiled["vm_ir_json"]
+        if vm_ir_json is not None:
+            ir = json.loads(vm_ir_json)
+            if not isinstance(ir, dict) or ir.get("vm_profile") != self.vm_profile:
+                raise ValueError(f"contract IR must target {self.vm_profile}")
+        if self.vm_profile != XIAN_VM_V2_PROFILE and source is not None:
+            compile(source, name, "exec", optimize=0)
+        return source, vm_ir_json
+
     def set_contract(
         self,
         name,
@@ -350,16 +401,11 @@ class Driver:
         if self.has_contract(name) and not overwrite:
             return
 
+        source, vm_ir_json = self._prepare_contract_artifacts(name, source, vm_ir_json)
         if timestamp is None:
             timestamp = Datetime._from_datetime(datetime.now())
 
-        if source is None and vm_ir_json is None:
-            raise TypeError("set_contract requires at least one contract artifact.")
-
         if source is not None:
-            if not isinstance(source, str):
-                raise TypeError("Contract source must be a string.")
-            compile(source, name, "exec", optimize=0)
             self.set_var(
                 name,
                 SOURCE_KEY,

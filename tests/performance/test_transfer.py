@@ -40,7 +40,7 @@ TEST_SUBMISSION_KWARGS = {
 
 class TestSandbox(TestCase):
     def setUp(self):
-        self.d = Driver()
+        self.d = Driver(vm_profile="xian_vm_v1")
         self.d.flush_full()
 
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -59,7 +59,7 @@ class TestSandbox(TestCase):
         self.d.flush_full()
 
     def test_transfer_performance(self):
-        e = Executor()
+        e = Executor(driver=self.d)
 
         e.execute(**TEST_SUBMISSION_KWARGS,
                   kwargs=submission_kwargs_for_file(os.path.join(self.script_dir, "test_contracts", "erc20_clone.s.py")))

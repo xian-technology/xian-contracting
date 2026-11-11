@@ -4,7 +4,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from contracting.compilation.linter import LintingError
+from xian_compiler_core import CompilerError
 from contracting.storage.driver import Driver
 
 pytestmark = pytest.mark.optional_native
@@ -199,7 +199,7 @@ def test_noncallable_shared_aliases_and_cycles_remain_valid(tmp_path, meter):
 def test_orm_constructor_aliases_remain_linter_forbidden(tmp_path, orm_name):
     source = _export("probe", "factory=" + orm_name + "\nreturn 1")
     with Driver(storage_home=tmp_path) as driver:
-        with pytest.raises(LintingError, match="E014"):
+        with pytest.raises(CompilerError, match="E014"):
             driver.set_contract_from_source("con_forbidden_orm_alias", source, owner=None)
 
 

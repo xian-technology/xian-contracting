@@ -9,7 +9,8 @@ from contracting.local import ContractingClient
 
 class TestTokenHacks(TestCase):
     def setUp(self):
-        self.c = ContractingClient(signer="stu")
+        # This fixture installs the historical Python submission module directly.
+        self.c = ContractingClient(signer="stu", vm_profile="xian_vm_v1")
         self.c.raw_driver.flush_full()
 
         self.script_dir = os.path.dirname(os.path.abspath(__file__))

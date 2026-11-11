@@ -6,7 +6,6 @@ from contracting.compilation.attribute_guards import guard_attribute_targets
 from contracting.compilation.linter import Linter, LintingError
 from contracting.compilation.lowering import XianIrLowerer
 from contracting.compilation.vm import (
-    XIAN_VM_V1_PROFILE,
     XIAN_VM_V2_PROFILE,
     VmCompatibilityChecker,
     VmCompatibilityError,
@@ -89,11 +88,18 @@ class ContractingCompiler(ast.NodeTransformer):
         self.visited_names = set()  # store the method visits
         self.module_declarations = set()
 
-    def parse(self, source: str, lint=True, vm_profile: str | None = None):
-        if vm_profile == XIAN_VM_V2_PROFILE:
+    def parse(self, source: str, lint=True, vm_profile: str | None = XIAN_VM_V2_PROFILE):
+        if vm_profile in (None, XIAN_VM_V2_PROFILE):
             raise ValueError(
                 "Python AST cannot represent exact V2 literals; use normalize_source or lower_to_ir"
             )
+        return self._parse_host_ast(source, lint, vm_profile)
+
+    def parse_legacy_runtime(self, source: str, *, lint: bool = True):
+        """Transform CPython compatibility source that may predate native admission."""
+        return self._parse_host_ast(source, lint, vm_profile=None)
+
+    def _parse_host_ast(self, source: str, lint: bool, vm_profile: str | None):
         self.constructor_visited = False
         self.source = source
 
@@ -167,19 +173,19 @@ class ContractingCompiler(ast.NodeTransformer):
             location,
         )
 
-    def compile(self, source: str, lint=True, vm_profile: str | None = None):
+    def compile(self, source: str, lint=True, vm_profile: str | None = XIAN_VM_V2_PROFILE):
         tree = self.parse(source, lint=lint, vm_profile=vm_profile)
 
         compiled_code = compile(tree, "<compilation>", "exec", optimize=0)
 
         return compiled_code
 
-    def normalize_source(self, source: str, lint=True, vm_profile: str | None = None):
-        if vm_profile == XIAN_VM_V2_PROFILE:
+    def normalize_source(self, source: str, lint=True, vm_profile: str | None = XIAN_VM_V2_PROFILE):
+        if vm_profile in (None, XIAN_VM_V2_PROFILE):
             import xian_compiler_core
 
             return xian_compiler_core.normalize_source(
-                self.module_name, source, vm_profile=vm_profile, lint=lint
+                self.module_name, source, vm_profile=XIAN_VM_V2_PROFILE, lint=lint
             )
         tree = ast.parse(source)
 
@@ -193,27 +199,27 @@ class ContractingCompiler(ast.NodeTransformer):
         ast.fix_missing_locations(tree)
         return ast.unparse(tree)
 
-    def parse_to_code(self, source, lint=True, vm_profile: str | None = None):
-        if vm_profile == XIAN_VM_V2_PROFILE:
+    def parse_to_code(self, source, lint=True, vm_profile: str | None = XIAN_VM_V2_PROFILE):
+        if vm_profile in (None, XIAN_VM_V2_PROFILE):
             return self.normalize_source(source, lint=lint, vm_profile=vm_profile)
         tree = self.parse(source, lint=lint, vm_profile=vm_profile)
         return ast.unparse(tree)
 
-    def check_vm_compatibility(self, source: str, profile: str):
+    def check_vm_compatibility(self, source: str, profile: str = XIAN_VM_V2_PROFILE):
         return self.vm_checker.check(source, profile=profile)
 
     def lower_to_ir(
         self,
         source: str,
         lint=True,
-        vm_profile: str | None = XIAN_VM_V1_PROFILE,
+        vm_profile: str | None = XIAN_VM_V2_PROFILE,
     ):
-        if vm_profile == XIAN_VM_V2_PROFILE:
+        if vm_profile in (None, XIAN_VM_V2_PROFILE):
             import xian_compiler_core
 
             return json.loads(
                 xian_compiler_core.lower_source_to_ir_json(
-                    self.module_name, source, vm_profile=vm_profile, lint=lint
+                    self.module_name, source, vm_profile=XIAN_VM_V2_PROFILE, lint=lint
                 )
             )
         tree = ast.parse(source)
@@ -223,7 +229,7 @@ class ContractingCompiler(ast.NodeTransformer):
             if lint_alerts is not None:
                 raise LintingError(lint_alerts)
 
-        selected_profile = vm_profile or XIAN_VM_V1_PROFILE
+        selected_profile = vm_profile
         self.vm_checker.check_raise(source, profile=selected_profile)
 
         lowerer = XianIrLowerer(
@@ -236,7 +242,7 @@ class ContractingCompiler(ast.NodeTransformer):
         self,
         source: str,
         lint=True,
-        vm_profile: str | None = XIAN_VM_V1_PROFILE,
+        vm_profile: str | None = XIAN_VM_V2_PROFILE,
         *,
         indent: int | None = 2,
         sort_keys: bool = True,

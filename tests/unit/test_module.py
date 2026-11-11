@@ -20,7 +20,7 @@ from contracting.storage.driver import Driver
 
 class TestContractStorage(TestCase):
     def setUp(self):
-        self.d = Driver()
+        self.d = Driver(vm_profile="xian_vm_v1")
         self.d.flush_full()
 
     def tearDown(self):
@@ -52,7 +52,9 @@ class TestContractStorage(TestCase):
 
 class TestContractModuleLoader(TestCase):
     def setUp(self):
-        self.loader = ContractModuleLoader()
+        driver = Driver(vm_profile="xian_vm_v1")
+        self.addCleanup(driver.close)
+        self.loader = ContractModuleLoader(driver)
 
     def test_init(self):
         self.assertTrue(
@@ -149,7 +151,9 @@ print("ok")
             uninstall_contract_module_loader()
 
     def test_integration_and_importing(self):
-        loader = ContractModuleLoader()
+        driver = Driver(vm_profile="xian_vm_v1")
+        self.addCleanup(driver.close)
+        loader = ContractModuleLoader(driver)
         module_name = "testing_integration"
         sys.modules.pop(module_name, None)
         loader.driver.set_contract(module_name, source="a = 1234567890")
@@ -166,8 +170,8 @@ print("ok")
             tempfile.TemporaryDirectory() as storage_a,
             tempfile.TemporaryDirectory() as storage_b,
         ):
-            driver_a = Driver(storage_home=storage_a)
-            driver_b = Driver(storage_home=storage_b)
+            driver_a = Driver(storage_home=storage_a, vm_profile="xian_vm_v1")
+            driver_b = Driver(storage_home=storage_b, vm_profile="xian_vm_v1")
 
             driver_a.flush_full()
             driver_b.flush_full()
@@ -191,13 +195,11 @@ print("ok")
             self.assertTrue(context_b.run(resolve_contract, driver_b, "a = 222"))
 
 
-driver = Driver()
-
-
 class TestModuleLoadingIntegration(TestCase):
     def setUp(self):
-        install_contract_module_loader(driver=driver)
-        driver.flush_full()
+        self.driver = Driver(vm_profile="xian_vm_v1")
+        install_contract_module_loader(driver=self.driver)
+        self.driver.flush_full()
 
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         contracts = glob.glob(os.path.join(self.script_dir, "test_sys_contracts", "*.py"))
@@ -209,15 +211,15 @@ class TestModuleLoadingIntegration(TestCase):
             with open(contract) as f:
                 code = f.read()
 
-            driver.set_contract(name=name, source=code)
-            driver.commit()
+            self.driver.set_contract(name=name, source=code)
+            self.driver.commit()
 
     def tearDown(self):
         uninstall_contract_module_loader()
         for module_name in tuple(sys.modules):
             if module_name.startswith("module"):
                 sys.modules.pop(module_name, None)
-        driver.flush_full()
+        self.driver.flush_full()
 
     def test_get_code_string(self):
         ctx = types.ModuleType("ctx")

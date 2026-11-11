@@ -1,12 +1,9 @@
 import os
+from decimal import Decimal
 from unittest import TestCase
 
 from contracting.local import ContractingClient
 from contracting.storage.driver import Driver
-
-
-def build_submission_artifacts(name, source):
-    return source
 
 
 def too_many_writes():
@@ -96,15 +93,15 @@ class TestMiscContracts(TestCase):
         self.assertEqual(output, "else")
 
     def test_cant_modify_H(self):
-        with self.assertRaises(ReferenceError):
+        with self.assertRaisesRegex(RuntimeError, "subscript assignment is not supported"):
             self.foreign_thing.set_H(k="hello", v="not_there")
 
     def test_cant_add_H(self):
-        with self.assertRaises(ReferenceError):
+        with self.assertRaisesRegex(RuntimeError, "subscript assignment is not supported"):
             self.foreign_thing.set_H(k="asdf", v="123")
 
     def test_cant_set_V(self):
-        with self.assertRaises(ReferenceError):
+        with self.assertRaisesRegex(RuntimeError, "cannot set foreign variable"):
             self.foreign_thing.set_V(v=123)
 
     def test_V_returns(self):
@@ -270,21 +267,7 @@ class TestMiscContracts(TestCase):
 class TestPassHash(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
-        self.c.raw_driver.flush_full()
-
-        submission_path = os.path.join(
-            os.path.dirname(__file__), "test_contracts", "submission.s.py"
-        )
-
-        with open(submission_path) as f:
-            contract = f.read()
-
-        self.c.raw_driver.set_contract(
-            name="submission",
-            source=contract,
-        )
-
-        self.c.raw_driver.commit()
+        self.c.flush()
 
         submission = self.c.get_contract_proxy("submission")
 
@@ -348,10 +331,6 @@ def seed():
 def get_factory_caller():
     return factory_caller.get()
 """
-    child_source = build_submission_artifacts(
-        "con_something123",
-        child_source,
-    )
     return f"""
 import submission
 
@@ -376,10 +355,6 @@ def seed():
 def ready():
     return True
 """
-    child_source = build_submission_artifacts(
-        "con_bad_child",
-        child_source,
-    )
     return f"""
 import submission
 
@@ -409,21 +384,7 @@ def malicious_developer_rewrite():
 class TestDeveloperSubmission(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
-        self.c.raw_driver.flush_full()
-
-        submission_path = os.path.join(
-            os.path.dirname(__file__), "test_contracts", "submission.s.py"
-        )
-
-        with open(submission_path) as f:
-            contract = f.read()
-
-        self.c.raw_driver.set_contract(
-            name="submission",
-            source=contract,
-        )
-
-        self.c.raw_driver.commit()
+        self.c.flush()
 
     def test_submit_sets_developer(self):
         self.c.submit(some_test_contract, name="con_some_test_contract")
@@ -660,22 +621,8 @@ def con_float_thing():
 
 class TestFloatThing(TestCase):
     def setUp(self):
-        self.c = ContractingClient(signer="stu")
-        self.c.raw_driver.flush_full()
-
-        submission_path = os.path.join(
-            os.path.dirname(__file__), "test_contracts", "submission.s.py"
-        )
-
-        with open(submission_path) as f:
-            contract = f.read()
-
-        self.c.raw_driver.set_contract(
-            name="submission",
-            source=contract,
-        )
-
-        self.c.raw_driver.commit()
+        self.c = ContractingClient(signer="stu", vm_profile="xian_vm_v1")
+        self.c.flush()
 
     def test_can_add(self):
         self.c.submit(con_float_thing, name="con_float_thing")
@@ -851,21 +798,7 @@ def test_closure2():
 class TestHackThing(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
-        self.c.raw_driver.flush_full()
-
-        submission_path = os.path.join(
-            os.path.dirname(__file__), "test_contracts", "submission.s.py"
-        )
-
-        with open(submission_path) as f:
-            contract = f.read()
-
-        self.c.raw_driver.set_contract(
-            name="submission",
-            source=contract,
-        )
-
-        self.c.raw_driver.commit()
+        self.c.flush()
 
     def test_can_add(self):
         self.c.submit(a, name="con_a")
@@ -926,21 +859,7 @@ def con_test_fixed():
 class TestFixed(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu", driver=Driver())
-        self.c.raw_driver.flush_full()
-
-        submission_path = os.path.join(
-            os.path.dirname(__file__), "test_contracts", "submission.s.py"
-        )
-
-        with open(submission_path) as f:
-            contract = f.read()
-
-        self.c.raw_driver.set_contract(
-            name="submission",
-            source=contract,
-        )
-
-        self.c.raw_driver.commit()
+        self.c.flush()
 
     def test_can_multiply(self):
         self.c.submit(con_test_fixed)
@@ -950,7 +869,7 @@ class TestFixed(TestCase):
         f = self.c.get_contract_proxy("con_test_fixed")
 
         z = f.multiply()
-        self.assertEqual(z, 1.234 * 5.678)
+        self.assertEqual(z, Decimal("7.006652"))
 
 
 if __name__ == "__main__":
