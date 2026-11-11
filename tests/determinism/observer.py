@@ -168,7 +168,9 @@ def _deploy(driver, case, name):
     sources = list(case.get("dependencies", {}).items()) + [(name, case["source"])]
     try:
         for contract, source in sources:
-            artifact = build_contract_artifacts(module_name=contract, source=source)
+            artifact = build_contract_artifacts(
+                module_name=contract, source=source, vm_profile=driver.vm_profile
+            )
             driver.set_contract(
                 contract,
                 source=artifact["source"],
@@ -188,6 +190,7 @@ def _execute(driver, name, step):
     function = step.get("function", "probe")
     return execute_contract(
         driver=driver,
+        vm_profile=driver.vm_profile,
         contract_name=name,
         function_name=function,
         kwargs=step.get("kwargs", {}),
@@ -213,6 +216,12 @@ def _validate_expected(output, step, label):
             encode_exact(output.result) == encode_exact(step["expected_result"]),
             f"{label}: expected result differs from exact native result",
         )
+    if "expected_decimal" in step:
+        expected = ContractingDecimal(step["expected_decimal"])
+        _require(
+            encode_exact(output.result) == encode_exact(expected),
+            f"{label}: expected exact decimal {step['expected_decimal']}",
+        )
     if "expected_error" in step:
         _require(
             output.status_code != 0 and step["expected_error"] in str(output.result),
@@ -225,8 +234,9 @@ def _commit_success(driver, output, label):
     # Persistence intentionally canonicalizes supported wire types (for example
     # tuple values become lists). Compare against that documented codec boundary,
     # while the returned writes above retain their original exact representations.
+    profile = driver.vm_profile
     expected = [
-        [key, encode_exact(decode(encode(value)))]
+        [key, encode_exact(decode(encode(value, vm_profile=profile), vm_profile=profile))]
         for key, value in sorted(driver.items().items())
         if value is not None
     ]
@@ -284,7 +294,8 @@ def observe_case(case, home, *, reopen=False):
     """
     home = Path(home)
     name = "determinism_" + case["id"]
-    driver = Driver(storage_home=home)
+    profile = case.get("vm_profile", "xian_vm_v1")
+    driver = Driver(storage_home=home, vm_profile=profile)
     try:
         _require(not driver.keys_from_disk(), f"{case['id']}: expected fresh storage home")
         artifacts = _deploy(driver, case, name)
@@ -293,12 +304,12 @@ def observe_case(case, home, *, reopen=False):
         for index, step in enumerate(case.get("steps", [case])):
             if reopen:
                 driver.close()
-                driver = Driver(storage_home=home)
+                driver = Driver(storage_home=home, vm_profile=profile)
             executions.append(_observe_step(driver, name, step, f"{case['id']} step {index}"))
         _require(bool(executions), f"{case['id']}: expected at least one execution")
         final = _disk_state(driver)
         driver.close()
-        driver = Driver(storage_home=home)
+        driver = Driver(storage_home=home, vm_profile=profile)
         _require(_disk_state(driver) == final, f"{case['id']}: state changed on reopen")
         return {
             "id": case["id"],

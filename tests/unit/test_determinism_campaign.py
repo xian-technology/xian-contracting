@@ -197,13 +197,15 @@ def test_worker_records_actual_runtime_policy_and_reversed_case_order(tmp_path, 
 
     from tests.determinism import campaign, observer
 
-    cases = [{"id": "a"}, {"id": "b"}]
+    cases = [{"id": "a"}, {"id": "b", "vm_profile": "xian_vm_v2"}]
     workload, destination = tmp_path / "workload.json", tmp_path / "report.json"
     campaign.write_json(workload, cases)
     calls = []
     policy = {"execution_revision": "test-revision", "supported_gas_schedules": ["test-gas"]}
     monkeypatch.setitem(
-        sys.modules, "xian_vm_core", types.SimpleNamespace(runtime_info=lambda: policy)
+        sys.modules,
+        "xian_vm_core",
+        types.SimpleNamespace(runtime_info=lambda vm_profile: {**policy, "vm_profile": vm_profile}),
     )
     monkeypatch.setattr(campaign, "configure_host", lambda _: {})
 
@@ -214,7 +216,9 @@ def test_worker_records_actual_runtime_policy_and_reversed_case_order(tmp_path, 
     monkeypatch.setattr(observer, "observe_case", observe)
     campaign.run_worker(workload, destination, {**scenarios(1)[0], "reverse": True, "reopen": True})
     value = json.loads(destination.read_text())
-    assert value["execution_policy"] == policy
+    assert value["execution_policy"] == {
+        profile: {**policy, "vm_profile": profile} for profile in ("xian_vm_v1", "xian_vm_v2")
+    }
     assert calls == [("b", True), ("a", True)]
     assert list(value["observations"]) == ["a", "b"]
     assert value["corpus_sha256"] == campaign.corpus_digest(cases)
@@ -230,7 +234,9 @@ def test_worker_failure_preserves_exact_case_and_completed_count(tmp_path, monke
     cases = [{"id": "good"}, {"id": "bad", "source": "broken program"}]
     workload, destination = tmp_path / "workload.json", tmp_path / "report.json"
     campaign.write_json(workload, cases)
-    monkeypatch.setitem(sys.modules, "xian_vm_core", types.SimpleNamespace(runtime_info=lambda: {}))
+    monkeypatch.setitem(
+        sys.modules, "xian_vm_core", types.SimpleNamespace(runtime_info=lambda vm_profile: {})
+    )
     monkeypatch.setattr(campaign, "configure_host", lambda _: {})
 
     def observe(case, *_args, **_kwargs):

@@ -173,7 +173,10 @@ def run_worker(workload, destination, scenario):
         {
             "schema": 1,
             "corpus_sha256": corpus_digest(cases),
-            "execution_policy": runtime_info(),
+            "execution_policy": {
+                profile: runtime_info(vm_profile=profile)
+                for profile in sorted({case.get("vm_profile", "xian_vm_v1") for case in cases})
+            },
             "observations": dict(sorted(observations.items())),
             "host": {
                 **host,
@@ -223,10 +226,14 @@ def run_process(workload, output, scenario):
 def collect_cases(seed, generated):
     from tests.determinism.cases import generated_cases
     from tests.determinism.float_cases import float_cases
+    from tests.determinism.numeric_cases import numeric_cases
     from tests.surface.catalog import load_cases
 
     cases = sorted(
-        load_cases() + generated_cases(seed=seed, count=generated) + float_cases(),
+        load_cases()
+        + generated_cases(seed=seed, count=generated)
+        + float_cases()
+        + numeric_cases(),
         key=lambda case: case["id"],
     )
     if len({case["id"] for case in cases}) != len(cases):

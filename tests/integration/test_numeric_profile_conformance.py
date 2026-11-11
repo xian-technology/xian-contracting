@@ -3,48 +3,16 @@
 from decimal import Decimal
 
 import pytest
+from xian_runtime_types.decimal import ContractingDecimal
 
 from contracting.artifacts import build_contract_artifacts, validate_contract_artifacts
 from contracting.storage.driver import Driver
 from tests.compatibility.application_runner import context_for
-from xian_runtime_types.decimal import ContractingDecimal
+from tests.determinism.numeric_cases import FAILURES, VECTORS
 
 pytestmark = pytest.mark.optional_native
 PROFILE = "xian_vm_v2"
 MODULE = "con_numeric_vectors"
-
-# Expected values are independent of the compiler, VM and host decimal context.
-VECTORS = [
-    ("9007199254740993 / 1", "9007199254740993"),
-    ("1 / 3", "0.333333333333333333333333333333"),
-    ("-1 / 3", "-0.333333333333333333333333333333"),
-    ("1 / 10**31", "0"),
-    ("10**65 / 10**65", "1"),
-    ("0.123456789012345678901234567891", "0.123456789012345678901234567891"),
-    ("0.000000000000000000000000000001 * 0.5", "0"),
-    ("(10**65) * 0.0000000001", "1" + "0" * 55),
-    ("-7 // 3", -3),
-    ("-7 % 3", 2),
-    ("mul_div_floor(-5, 1, 2)", -3),
-    ("mul_div_ceil(-5, 1, 2)", -2),
-    ("mul_div_floor(2**500, 2**500, 2**500)", 2**500),
-    ("quantize(1.005, 2, 'half_even')", "1"),
-    ("quantize(-1.015, 2, 'half_even')", "-1.02"),
-    ("quantize(-1.001, 2, 'floor')", "-1.01"),
-    ("quantize(-1.001, 2, 'ceil')", "-1"),
-    ("quantize(-1.001, 2, 'toward_zero')", "-1"),
-    ("sqrt(2)", "1.414213562373095048801688724209"),
-    ("sqrt(10**100)", "1" + "0" * 50),
-]
-
-FAILURES = [
-    "1 / 0",
-    "10**61 / 1",
-    "2**512",
-    "sqrt(-1)",
-    "mul_div_floor(1, 2, 0)",
-    "quantize(0.1, 31, 'floor')",
-]
 
 
 @pytest.fixture(scope="module")
@@ -54,8 +22,7 @@ def contract(tmp_path_factory):
         source += f"@export\ndef vector_{index}():\n    return {expression}\n\n"
     for index, expression in enumerate(FAILURES):
         source += (
-            f"@export\ndef invalid_{index}():\n"
-            f"    scratch.set(1)\n    return {expression}\n\n"
+            f"@export\ndef invalid_{index}():\n    scratch.set(1)\n    return {expression}\n\n"
         )
     source += "@export\ndef typed(amount: decimal):\n    return amount\n"
     artifact = build_contract_artifacts(module_name=MODULE, source=source, vm_profile=PROFILE)

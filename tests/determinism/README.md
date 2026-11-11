@@ -4,7 +4,10 @@ This campaign checks whether the same admitted contract programs produce exactly
 the same observations across host environments and native architectures. It runs
 the complete allowed-surface corpus (currently 601 cases), plus reproducibly
 generated programs with explicit expected results and failures, and 32 fixed
-binary-float edge cases. Every case uses
+binary-float edge cases under V1. The same campaign includes all 26 V2 numeric
+conformance vectors, including signed division, wide intermediates, rounding,
+square root, overflow and rollback. Each profile is selected explicitly for
+artifact generation, execution, storage and reopen checks. Every case uses
 the native compiler/VM, metering, fresh storage and fixed contract context.
 
 **Determinism is not correctness or an exhaustive proof.** Identical outputs can
