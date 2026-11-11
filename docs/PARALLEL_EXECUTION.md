@@ -32,6 +32,12 @@ Primary types:
 setup, including when parallel execution is disabled. Archival V1 verification uses
 the low-level native VM bindings separately.
 
+Call `close()` on the batch executor when its work is complete. With `workers=1`,
+each executor owns a private worker driver and releases it on close. The worker is
+reused while the storage home and default metering configuration match; changing
+either closes the previous worker before creating its replacement. Callers retain
+ownership of the main executor's driver.
+
 ## Acceptance Model
 
 The main process:

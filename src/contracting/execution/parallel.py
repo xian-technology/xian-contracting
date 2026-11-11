@@ -15,6 +15,10 @@ if TYPE_CHECKING:
     from contracting.local.native_executor import NativeExecutor
 
 
+def _prefix_conflicts(prefixes, keys) -> bool:
+    return any(key.startswith(prefix) for prefix in prefixes for key in keys)
+
+
 @dataclass(frozen=True)
 class ExecutionRequest:
     sender: str
@@ -150,16 +154,16 @@ class _StageAccessSummary:
         if access.reads & self.additive_writes:
             return True
 
-        if self._prefix_conflicts(access.prefix_reads, self.writes):
+        if _prefix_conflicts(access.prefix_reads, self.writes):
             return True
 
-        if self._prefix_conflicts(access.prefix_reads, self.additive_writes):
+        if _prefix_conflicts(access.prefix_reads, self.additive_writes):
             return True
 
-        if self._prefix_conflicts(self.prefix_reads, access.writes):
+        if _prefix_conflicts(self.prefix_reads, access.writes):
             return True
 
-        if self._prefix_conflicts(self.prefix_reads, access.additive_writes):
+        if _prefix_conflicts(self.prefix_reads, access.additive_writes):
             return True
 
         if access.additive_writes & self.reads:
@@ -179,13 +183,6 @@ class _StageAccessSummary:
             writes=frozenset(self.writes),
             additive_writes=frozenset(self.additive_writes),
         )
-
-    @staticmethod
-    def _prefix_conflicts(
-        prefixes: set[str] | frozenset[str],
-        keys: set[str] | frozenset[str],
-    ) -> bool:
-        return any(key.startswith(prefix) for prefix in prefixes for key in keys)
 
 
 class ParallelExecutionPlanner:
@@ -220,13 +217,6 @@ class ParallelExecutionPlanner:
     ) -> bool:
         return _StageAccessSummary.from_accesses(stage).conflicts_with(access)
 
-    @staticmethod
-    def _prefix_conflicts(
-        prefixes: set[str] | frozenset[str],
-        keys: set[str] | frozenset[str],
-    ) -> bool:
-        return any(key.startswith(prefix) for prefix in prefixes for key in keys)
-
     def _make_stage(self, stage: list[ExecutionAccess]) -> ParallelStage:
         return _StageAccessSummary.from_accesses(stage).to_stage()
 
@@ -235,6 +225,7 @@ class ParallelExecutionPlanner:
 class _WorkerRuntime:
     driver: Driver
     executor: NativeExecutor
+    config: _WorkerConfig
 
 
 @dataclass(frozen=True)
@@ -253,12 +244,8 @@ class _SpeculativeTask:
 _WORKER_RUNTIMES: dict[_WorkerConfig, _WorkerRuntime] = {}
 
 
-def _get_worker_runtime(config: _WorkerConfig) -> _WorkerRuntime:
+def _create_worker_runtime(config: _WorkerConfig) -> _WorkerRuntime:
     from contracting.local.native_executor import NativeExecutor
-
-    worker_runtime = _WORKER_RUNTIMES.get(config)
-    if worker_runtime is not None:
-        return worker_runtime
 
     driver = Driver(
         storage_home=Path(config.storage_home),
@@ -266,13 +253,22 @@ def _get_worker_runtime(config: _WorkerConfig) -> _WorkerRuntime:
         vm_profile=XIAN_VM_V2_PROFILE,
     )
     executor = NativeExecutor(driver, metering=config.metering)
-    worker_runtime = _WorkerRuntime(driver=driver, executor=executor)
-    _WORKER_RUNTIMES[config] = worker_runtime
+    return _WorkerRuntime(driver=driver, executor=executor, config=config)
+
+
+def _get_worker_runtime(config: _WorkerConfig) -> _WorkerRuntime:
+    worker_runtime = _WORKER_RUNTIMES.get(config)
+    if worker_runtime is None:
+        worker_runtime = _create_worker_runtime(config)
+        _WORKER_RUNTIMES[config] = worker_runtime
     return worker_runtime
 
 
 def _speculative_execute_request(task: _SpeculativeTask) -> dict:
-    worker_runtime = _get_worker_runtime(task.config)
+    return _execute_worker_request(task, _get_worker_runtime(task.config))
+
+
+def _execute_worker_request(task: _SpeculativeTask, worker_runtime: _WorkerRuntime) -> dict:
     driver = worker_runtime.driver
     request = task.request
 
@@ -824,12 +820,8 @@ class SpeculativeExecutionController:
             if (
                 access.reads & committed_writes
                 or access.reads & committed_additive_writes
-                or SpeculativeExecutionController._prefix_conflicts(
-                    access.prefix_reads, committed_writes
-                )
-                or SpeculativeExecutionController._prefix_conflicts(
-                    access.prefix_reads, committed_additive_writes
-                )
+                or _prefix_conflicts(access.prefix_reads, committed_writes)
+                or _prefix_conflicts(access.prefix_reads, committed_additive_writes)
                 or access.writes & committed_writes
                 or access.writes & committed_additive_writes
                 or access.additive_writes & committed_writes
@@ -881,12 +873,10 @@ class SpeculativeExecutionController:
         if access.reads & committed_additive_writes:
             return True
 
-        if SpeculativeExecutionController._prefix_conflicts(access.prefix_reads, committed_writes):
+        if _prefix_conflicts(access.prefix_reads, committed_writes):
             return True
 
-        if SpeculativeExecutionController._prefix_conflicts(
-            access.prefix_reads, committed_additive_writes
-        ):
+        if _prefix_conflicts(access.prefix_reads, committed_additive_writes):
             return True
 
         if access.writes & committed_writes:
@@ -899,10 +889,6 @@ class SpeculativeExecutionController:
             return True
 
         return False
-
-    @staticmethod
-    def _prefix_conflicts(prefixes: frozenset[str], keys: set[str]) -> bool:
-        return any(key.startswith(prefix) for prefix in prefixes for key in keys)
 
 
 class ParallelBatchExecutor(SpeculativeExecutionController):
@@ -923,6 +909,7 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
         self.executor = executor
         self._mp_context = multiprocessing.get_context("spawn")
         self._executor: ProcessPoolExecutor | None = None
+        self._local_worker_runtime: _WorkerRuntime | None = None
         super().__init__(
             enabled=enabled,
             workers=workers,
@@ -934,10 +921,21 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
         )
 
     def close(self) -> None:
-        if self._executor is None:
-            return
-        self._executor.shutdown(wait=True, cancel_futures=False)
-        self._executor = None
+        if self._executor is not None:
+            self._executor.shutdown(wait=True, cancel_futures=False)
+            self._executor = None
+        self._close_local_worker()
+
+    def _close_local_worker(self) -> None:
+        if self._local_worker_runtime is not None:
+            self._local_worker_runtime.driver.close()
+            self._local_worker_runtime = None
+
+    def _get_local_worker_runtime(self, config: _WorkerConfig) -> _WorkerRuntime:
+        if self._local_worker_runtime is None or self._local_worker_runtime.config != config:
+            self._close_local_worker()
+            self._local_worker_runtime = _create_worker_runtime(config)
+        return self._local_worker_runtime
 
     def _get_base_pending_writes(self) -> dict[str, object]:
         return deepcopy(self.executor.driver.pending_writes)
@@ -980,7 +978,8 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
         ]
 
         if self.workers == 1:
-            return [_speculative_execute_request(task) for task in tasks]
+            runtime = self._get_local_worker_runtime(task_template)
+            return [_execute_worker_request(task, runtime) for task in tasks]
 
         return list(self._get_executor().map(_speculative_execute_request, tasks))
 

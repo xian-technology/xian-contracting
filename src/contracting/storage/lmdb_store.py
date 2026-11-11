@@ -135,29 +135,26 @@ class LMDBStore:
         if normalized_limit == 0:
             return [], False
 
-        keys: list[str] = []
-        has_more = False
-        start_bytes = after_key_bytes if after_key_bytes is not None else prefix_bytes
+        start_bytes = max(prefix_bytes, after_key_bytes or b"")
 
         with self._require_open().begin() as txn:
             cursor = txn.cursor()
-            if start_bytes:
-                if not cursor.set_range(start_bytes):
-                    return keys, False
-            elif not cursor.first():
-                return keys, False
+            if not cursor.set_range(start_bytes):
+                return [], False
+            return self._read_key_page(cursor, prefix_bytes, after_key_bytes, normalized_limit)
 
-            for key_bytes in cursor.iternext(values=False):
-                if prefix_bytes and not key_bytes.startswith(prefix_bytes):
-                    break
-                if after_key_bytes is not None and key_bytes <= after_key_bytes:
-                    continue
-                if len(keys) >= normalized_limit:
-                    has_more = True
-                    break
-                keys.append(key_bytes.decode("utf-8"))
-
-        return keys, has_more
+    @staticmethod
+    def _read_key_page(cursor, prefix_bytes, after_key_bytes, limit):
+        keys = []
+        for key_bytes in cursor.iternext(values=False):
+            if not key_bytes.startswith(prefix_bytes):
+                break
+            if after_key_bytes is not None and key_bytes <= after_key_bytes:
+                continue
+            if len(keys) >= limit:
+                return keys, True
+            keys.append(key_bytes.decode("utf-8"))
+        return keys, False
 
     def iter_items(self, prefix: str = ""):
         """Yield decoded entries in UTF-8 key order from one read snapshot."""

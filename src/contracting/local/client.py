@@ -195,8 +195,14 @@ class ContractingClient:
         self.signer = signer
         self.submission_filename = submission_filename
         self.environment = environment if environment is not None else {}
-        # Get submission contract from file
-        if submission_filename is not None:
+        try:
+            self._initialize_submission()
+        except BaseException:
+            self.close()
+            raise
+
+    def _initialize_submission(self):
+        if self.submission_filename is not None:
             source_code, vm_ir_json = self._load_submission_artifacts(self.submission_filename)
             self.raw_driver.set_contract(
                 name="submission",
@@ -204,8 +210,6 @@ class ContractingClient:
                 vm_ir_json=vm_ir_json,
             )
             self.raw_driver.commit()
-
-        # Get submission contract from state
         self.submission_contract = self.get_contract_proxy("submission")
 
     def close(self) -> None:
