@@ -1,6 +1,7 @@
 from xian_accounts.ed25519 import (
     Ed25519Account,
     generate_private_key,
+    is_canonical_hex,
     is_valid_ed25519_key,
     public_key_from_private_key,
     sign_message,
@@ -10,6 +11,7 @@ from xian_accounts.ed25519 import (
 __all__ = [
     "Ed25519Account",
     "generate_private_key",
+    "is_canonical_hex",
     "is_valid_ed25519_key",
     "public_key_from_private_key",
     "sign_message",

@@ -2,6 +2,7 @@ import pytest
 from xian_accounts import (
     Ed25519Account,
     generate_private_key,
+    is_canonical_hex,
     is_valid_ed25519_key,
     public_key_from_private_key,
     sign_message,
@@ -57,8 +58,42 @@ def test_key_validation_rejects_non_text_inputs(key):
 
 
 @pytest.mark.parametrize("key", ["abcdef01" * 8, "ABCDEF01" * 8, "AbCdEf01" * 8])
-def test_valid_key_casing_preserves_signing_and_verification(key):
-    assert is_valid_ed25519_key(key) is True
+def test_private_key_casing_preserves_signing_and_verification(key):
     account = Ed25519Account(key)
     signature = account.sign_message("case-preserving key")
     assert account.verify_message("case-preserving key", signature) is True
+    assert is_valid_ed25519_key(account.public_key) is True
+
+
+@pytest.mark.parametrize("key", ["ABCDEF01" * 8, "AbCdEf01" * 8, "abcdef01" * 7 + "abcdeF01"])
+def test_key_validation_requires_canonical_lowercase_hex(key):
+    assert is_valid_ed25519_key(key) is False
+
+
+def test_verification_rejects_non_canonical_public_key_and_signature_text() -> None:
+    account = Ed25519Account.generate()
+    signature = account.sign_message("xian")
+    spaced_key = " ".join(account.public_key[i : i + 2] for i in range(0, 64, 2))
+
+    assert verify_message(account.public_key.upper(), "xian", signature) is False
+    assert verify_message(spaced_key, "xian", signature) is False
+    assert verify_message(account.public_key, "xian", signature.upper()) is False
+    assert verify_message(account.public_key, "xian", signature + "\n") is False
+
+
+@pytest.mark.parametrize(
+    ("public_key", "message", "signature"),
+    [(None, "xian", "00" * 64), ("00" * 32, None, "00" * 64), ("00" * 32, "xian", 7)],
+)
+def test_verification_returns_false_for_non_text_inputs(public_key, message, signature):
+    assert verify_message(public_key, message, signature) is False
+
+
+def test_canonical_hex_is_exact_lowercase_ascii() -> None:
+    assert is_canonical_hex("0123456789abcdef", 16) is True
+    assert is_canonical_hex("0123456789ABCDEF", 16) is False
+    assert is_canonical_hex("0123456789abcdef\n", 16) is False
+    assert is_canonical_hex("0123456789abcde", 16) is False
+    assert is_canonical_hex("0123456789abcde\uff46", 16) is False
+    assert is_canonical_hex(b"0123456789abcdef", 16) is False
+

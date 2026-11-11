@@ -13,6 +13,11 @@ create_exception!(
     PyValueError
 );
 
+// Transaction-admission rule revision. Bump it whenever the set of admitted
+// transactions changes; nodes fence on it at startup.
+// Revision 2: sender and signature must be canonical lowercase hex.
+pub const ADMISSION_REVISION: &str = "xian-fastpath-admission-2";
+
 const PAYLOAD_MARKER: &str = "\"payload\":";
 const TX_METADATA_KEYS: [&str; 1] = ["signature"];
 const TX_PAYLOAD_KEYS: [&str; 7] = [
@@ -48,6 +53,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
         "NativeFastpathValidationError",
         py.get_type::<NativeFastpathValidationError>(),
     )?;
+    module.add("ADMISSION_REVISION", ADMISSION_REVISION)?;
     module.add_function(wrap_pyfunction!(extract_payload_string, module)?)?;
     module.add_function(wrap_pyfunction!(
         decode_and_validate_transaction_static,
@@ -190,8 +196,8 @@ fn validate_transaction_static_impl(tx_value: &Value, chain_id: &str) -> PyResul
         .ok_or_else(|| validation_error("Transaction has wrongly formatted dictionary"))?;
     let kwargs = expect_object(kwargs, "Transaction has wrongly formatted dictionary")?;
 
-    if !is_hex_of_len(sender, 64)
-        || !is_hex_of_len(signature, 128)
+    if !is_canonical_hex(sender, 64)
+        || !is_canonical_hex(signature, 128)
         || !is_identifier(contract)
         || !is_identifier(function)
         || !kwargs.keys().all(|key| is_identifier(key))
@@ -332,8 +338,13 @@ fn is_identifier(value: &str) -> bool {
     chars.all(|character| character.is_ascii_alphanumeric() || character == '_')
 }
 
-fn is_hex_of_len(value: &str, expected_len: usize) -> bool {
-    value.len() == expected_len && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+// Canonical hex is exactly `expected_len` characters from [0-9a-f]. Accounts are
+// keyed by the sender string, so accepting uppercase would alias one key.
+fn is_canonical_hex(value: &str, expected_len: usize) -> bool {
+    value.len() == expected_len
+        && value
+            .bytes()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 fn is_non_negative_integer(value: Option<&Value>) -> bool {
@@ -461,5 +472,28 @@ fn value_to_pyobject(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
             }
             Ok(py_dict.into_any().unbind())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_canonical_hex, ADMISSION_REVISION};
+
+    #[test]
+    fn admission_revision_identifies_canonical_hex_rules() {
+        assert_eq!(ADMISSION_REVISION, "xian-fastpath-admission-2");
+    }
+
+    #[test]
+    fn canonical_hex_accepts_only_exact_lowercase_digits() {
+        let lower = "0123456789abcdef".repeat(4);
+        assert!(is_canonical_hex(&lower, 64));
+        assert!(!is_canonical_hex(&lower.to_uppercase(), 64));
+        assert!(!is_canonical_hex(&format!("{}A", &lower[..63]), 64));
+        assert!(!is_canonical_hex(&lower[..63], 64));
+        assert!(!is_canonical_hex(&format!("{lower}0"), 64));
+        assert!(!is_canonical_hex(&format!("{} ", &lower[..63]), 64));
+        assert!(!is_canonical_hex(&format!("{}g", &lower[..63]), 64));
+        assert!(!is_canonical_hex(&format!("{}\u{ff41}", &lower[..61]), 64));
     }
 }

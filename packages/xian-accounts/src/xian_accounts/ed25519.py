@@ -6,20 +6,29 @@ from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
 
 _KEY_HEX_LENGTH = 64
+_SIGNATURE_HEX_LENGTH = 128
+_CANONICAL_HEX_DIGITS = frozenset("0123456789abcdef")
 
 
-def _is_hex_string(value: str, *, expected_length: int = _KEY_HEX_LENGTH) -> bool:
-    if not isinstance(value, str) or len(value) != expected_length:
-        return False
-    try:
-        decoded = bytes.fromhex(value)
-    except ValueError:
-        return False
-    return len(decoded) * 2 == expected_length
+def is_canonical_hex(value: object, length: int) -> bool:
+    """Canonical hex is exactly ``length`` characters from ``[0-9a-f]``.
+
+    Addresses are state keys, so one Ed25519 key must have one spelling.
+    """
+    return (
+        isinstance(value, str)
+        and len(value) == length
+        and all(char in _CANONICAL_HEX_DIGITS for char in value)
+    )
+
+
+def _is_private_key_hex(value: object) -> bool:
+    # A private key is never a state key, so its hex case is not significant.
+    return isinstance(value, str) and is_canonical_hex(value.lower(), _KEY_HEX_LENGTH)
 
 
 def is_valid_ed25519_key(key: str) -> bool:
-    return _is_hex_string(key)
+    return is_canonical_hex(key, _KEY_HEX_LENGTH)
 
 
 def generate_private_key() -> str:
@@ -38,9 +47,14 @@ def sign_message(private_key: str, message: str) -> str:
 
 
 def verify_message(public_key: str, message: str, signature: str) -> bool:
+    if not (
+        is_canonical_hex(public_key, _KEY_HEX_LENGTH)
+        and is_canonical_hex(signature, _SIGNATURE_HEX_LENGTH)
+        and isinstance(message, str)
+    ):
+        return False
     try:
-        verify_key = VerifyKey(bytes.fromhex(public_key))
-        verify_key.verify(
+        VerifyKey(bytes.fromhex(public_key)).verify(
             message.encode("utf-8"),
             bytes.fromhex(signature),
         )
@@ -51,7 +65,7 @@ def verify_message(public_key: str, message: str, signature: str) -> bool:
 
 class Ed25519Account:
     def __init__(self, private_key: str):
-        if not is_valid_ed25519_key(private_key):
+        if not _is_private_key_hex(private_key):
             raise ValueError("private_key must be a 32-byte hex string")
         self._private_key = private_key
 
