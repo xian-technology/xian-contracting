@@ -98,8 +98,9 @@ impl PythonBundleExecutor {
             validate_bundle_module(&module, module_name, vm_profile)?;
             modules.insert(module_name.clone(), module);
         }
+        let budget = budget.unwrap_or_else(|| crate::VmBudget::new(meter_config.chi_budget_raw));
         Ok(Self {
-            heap: crate::heap::VmHeap::default(),
+            heap: crate::heap::VmHeap::with_execution_stack(budget.execution_stack.clone()),
             host,
             modules,
             instances: HashMap::new(),
@@ -108,10 +109,7 @@ impl PythonBundleExecutor {
             initializing_modules: HashSet::new(),
             storage_overlay: HashMap::new(),
             events: Vec::new(),
-            meter: match budget {
-                Some(budget) => crate::VmMeter::with_budget(meter_config, budget),
-                None => crate::VmMeter::new(meter_config),
-            },
+            meter: crate::VmMeter::with_budget(meter_config, budget),
             contract_call_count: 0,
             vm_profile: vm_profile.to_owned(),
         })
@@ -1000,7 +998,11 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
             "builtin sets cannot cross the VM boundary; convert with set() first",
         )),
         VmValue::Set(values) | VmValue::FrozenSet(values) => {
-            let class = if matches!(value, VmValue::Set(_)) { "ContractingSet" } else { "ContractingFrozenSet" };
+            let class = if matches!(value, VmValue::Set(_)) {
+                "ContractingSet"
+            } else {
+                "ContractingFrozenSet"
+            };
             let wrapper = PyModule::import(py, "xian_runtime_types.collections")?.getattr(class)?;
             let list = PyList::empty(py);
             for item in values {
@@ -1266,7 +1268,7 @@ fn profile_policy(vm_profile: &str) -> Option<ProfilePolicy> {
         XIAN_VM_V1_PROFILE => Some(ProfilePolicy {
             bytecode: &["xvm-1"],
             gas: &["xvm-gas-2"],
-            revision: "xvm-execution-5",
+            revision: XIAN_VM_EXECUTION_REVISION,
         }),
         _ => None,
     }
@@ -1274,8 +1276,8 @@ fn profile_policy(vm_profile: &str) -> Option<ProfilePolicy> {
 
 #[pyfunction(signature=(vm_profile="xian_vm_v2"))]
 fn runtime_info_json(vm_profile: &str) -> PyResult<String> {
-    let policy = profile_policy(vm_profile)
-        .ok_or_else(|| PyValueError::new_err("unknown VM profile"))?;
+    let policy =
+        profile_policy(vm_profile).ok_or_else(|| PyValueError::new_err("unknown VM profile"))?;
     serde_json::to_string(&json!({
         "ir_version": XIAN_IR_V1,
         "vm_profile": vm_profile,

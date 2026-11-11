@@ -143,6 +143,7 @@ impl VmReference {
 struct HeapStorage {
     containers: RefCell<Vec<VmReference>>,
     usage: Rc<RefCell<Usage>>,
+    execution_stack: crate::execution_stack::ExecutionStack,
 }
 
 impl Drop for HeapStorage {
@@ -159,6 +160,27 @@ impl Drop for HeapStorage {
 pub(crate) struct VmHeap(Rc<HeapStorage>);
 
 impl VmHeap {
+    #[cfg(any(feature = "python-extension", test))]
+    pub(crate) fn with_execution_stack(
+        execution_stack: crate::execution_stack::ExecutionStack,
+    ) -> Self {
+        Self(Rc::new(HeapStorage {
+            execution_stack,
+            containers: RefCell::default(),
+            usage: Rc::default(),
+        }))
+    }
+
+    pub(crate) fn enter_execution_frame(
+        &self,
+    ) -> Result<crate::execution_stack::ExecutionFrame, VmExecutionError> {
+        self.0.execution_stack.enter()
+    }
+
+    pub(crate) fn execution_stack(&self) -> crate::execution_stack::ExecutionStack {
+        self.0.execution_stack.clone()
+    }
+
     pub(crate) fn capture(&self, value: VmValue) -> Result<VmValue, VmExecutionError> {
         self.capture_at(value, 0)
     }

@@ -25,7 +25,11 @@ Supported scope:
 
 ## Numeric profiles
 
-The chain selects a profile for artifact admission and execution. Every module in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports the V2 execution revision `xvm-execution-6`, bytecode version `xvm-2` and gas schedule `xvm-gas-3`. The native and Python bindings select V2 by default. To replay a V1 module, pass `vm_profile="xian_vm_v1"` to the driver and execution entry point. `runtime_info("xian_vm_v1")` reports the historical policy.
+The chain selects a profile for artifact admission and execution. Every module in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports execution revision `xvm-execution-7`, bytecode version `xvm-2` and gas schedule `xvm-gas-3`. The native and Python bindings select V2 by default. To execute a V1 module, pass `vm_profile="xian_vm_v1"` to the driver and execution entry point. V1 retains bytecode version `xvm-1` and gas schedule `xvm-gas-2`; both profiles use the resource bounds in execution revision `xvm-execution-7`. Replaying earlier execution semantics requires the corresponding pinned runtime.
+
+F-string output is limited to 128 KiB in UTF-8 bytes across the complete result, including literal text and every interpolated field. The VM checks each append before allocating the aggregate output.
+
+Each transaction permits at most 128 active interpreter frames. Function entry, recursive expression and block evaluation, comprehension generators, assignment traversal and lazy iterator advancement share this bound across contracts, module initialization and constructors. The bound also applies without chi metering. Exceeding it returns an execution error and rolls back transaction effects; frames unwind so later executions can proceed.
 
 V2 integers have a maximum magnitude of 512 bits. Fixed decimals have 30 fractional places and magnitude below `10**61`. Fractional literals carry exact decimal text. Numeric `/` returns a decimal, truncating toward zero at the smallest representable unit. Decimal multiplication uses the same rule. Integer `//` rounds down and `%` follows the divisor's sign. Integer exponentiation requires a nonnegative integer exponent. Boolean values are distinct from numbers.
 

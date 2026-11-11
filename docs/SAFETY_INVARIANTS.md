@@ -16,6 +16,13 @@ This file records the runtime properties that must hold before a
   entry and nested contract calls.
 - Only the executing submission contract may invoke deployment and metadata
   mutation syscalls; constructors do not inherit submission's authority.
+- Recursive execution is limited to 128 active interpreter frames across local
+  calls, expression/block evaluation, assignments, comprehensions, lazy iterators,
+  module initialization, cross-contract calls and constructors. Nested executors
+  share the transaction's counter even when metering is disabled; every exit
+  releases its frames.
+- Aggregate f-string output is bounded to 128 KiB in UTF-8 bytes before each
+  append, including literals and formatted fields.
 
 ## Signature Verification
 

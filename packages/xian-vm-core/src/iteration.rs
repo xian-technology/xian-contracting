@@ -100,6 +100,7 @@ pub struct VmIterator {
     kind: Kind,
     exhausted: bool,
     running: bool,
+    execution_stack: crate::execution_stack::ExecutionStack,
 }
 
 impl VmIterator {
@@ -198,6 +199,7 @@ fn store(kind: Kind, heap: &VmHeap) -> Result<VmValue> {
         kind,
         exhausted: false,
         running: false,
+        execution_stack: heap.execution_stack(),
     })))
 }
 
@@ -401,6 +403,7 @@ fn next_at(
     let VmValue::Iterator(mut state) = reference.value() else {
         return Err(VmExecutionError::new("invalid iterator"));
     };
+    let _frame = state.execution_stack.enter()?;
     if state.running {
         return Err(VmExecutionError::new("iterator is already executing"));
     }

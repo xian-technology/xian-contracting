@@ -8,6 +8,7 @@ impl VmInstance {
         scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
     ) -> Result<ControlFlow, VmExecutionError> {
+        let _frame = self.heap.enter_execution_frame()?;
         for statement in statements {
             let flow = self.execute_statement(statement, scope, host)?;
             if flow != ControlFlow::Next {
@@ -128,6 +129,7 @@ impl VmInstance {
         host: &mut dyn VmHost,
         module_scope: bool,
     ) -> Result<(), VmExecutionError> {
+        let _frame = self.heap.enter_execution_frame()?;
         let object = as_object(target, "target")?;
         match required_string(object, "node")? {
             "name" => {
@@ -167,6 +169,7 @@ impl VmInstance {
         host: &mut dyn VmHost,
         load_value: bool,
     ) -> Result<(ResolvedAssignmentTarget, Option<VmValue>), VmExecutionError> {
+        let _frame = self.heap.enter_execution_frame()?;
         let object = as_object(target, "target")?;
         match required_string(object, "node")? {
             "name" => {
@@ -247,6 +250,7 @@ impl VmInstance {
         module_scope: bool,
         host: &mut dyn VmHost,
     ) -> Result<(), VmExecutionError> {
+        let _frame = self.heap.enter_execution_frame()?;
         match target {
             ResolvedAssignmentTarget::Name(id) => {
                 if module_scope {

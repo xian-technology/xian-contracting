@@ -902,6 +902,7 @@ impl VmInstance {
         host: &mut dyn VmHost,
         heap: crate::heap::VmHeap,
     ) -> Result<Self, VmExecutionError> {
+        let _call = heap.enter_execution_frame()?;
         let _scope = numeric_v2::Scope::enter(&module.vm_profile);
         validate_module_ir(&module).map_err(|err| VmExecutionError::new(err.to_string()))?;
 
@@ -1402,6 +1403,7 @@ impl VmInstance {
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
+        let _call = self.heap.enter_execution_frame()?;
         let function = self
             .functions
             .get(name)

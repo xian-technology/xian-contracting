@@ -64,6 +64,7 @@ impl VmInstance {
         scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
+        let _frame = self.heap.enter_execution_frame()?;
         let value = self.eval_expression_value(expression, scope, host)?;
         self.heap.capture(value)
     }
@@ -123,17 +124,7 @@ impl VmInstance {
                     self.eval_expression(required_value(object, "orelse")?, scope, host)
                 }
             }
-            "f_string" => {
-                let mut buffer = String::new();
-                for value in required_array(object, "values")? {
-                    buffer.push_str(
-                        &self
-                            .eval_expression(value, scope, host)?
-                            .try_python_repr()?,
-                    );
-                }
-                Ok(VmValue::String(buffer))
-            }
+            "f_string" => self.eval_fstring(object, scope, host),
             "formatted_value" => self.eval_formatted_value(object, scope, host),
             other => Err(VmExecutionError::new(format!(
                 "unsupported expression node '{other}'"
@@ -177,6 +168,7 @@ impl VmInstance {
         results: &mut Vec<VmValue>,
         first_iterator: Option<VmValue>,
     ) -> Result<(), VmExecutionError> {
+        let _frame = self.heap.enter_execution_frame()?;
         let generator = as_object(
             generators
                 .get(index)
@@ -268,6 +260,7 @@ impl VmInstance {
         results: &mut Vec<(VmValue, VmValue)>,
         first_iterator: Option<VmValue>,
     ) -> Result<(), VmExecutionError> {
+        let _frame = self.heap.enter_execution_frame()?;
         let generator = as_object(
             generators
                 .get(index)
@@ -603,6 +596,27 @@ impl VmInstance {
         apply_binary_operator(operator, left, right)
     }
 
+    fn eval_fstring(
+        &mut self,
+        object: &Map<String, Value>,
+        scope: &mut HashMap<String, VmValue>,
+        host: &mut dyn VmHost,
+    ) -> Result<VmValue, VmExecutionError> {
+        let mut buffer = String::new();
+        for expression in required_array(object, "values")? {
+            let value = self
+                .eval_expression(expression, scope, host)?
+                .try_python_repr()?;
+            if value.len() > MAX_BINARY_ALLOCATION_BYTES.saturating_sub(buffer.len()) {
+                return Err(VmExecutionError::new(
+                    "formatted output exceeds allocation limit",
+                ));
+            }
+            buffer.push_str(&value);
+        }
+        Ok(VmValue::String(buffer))
+    }
+
     fn eval_formatted_value(
         &mut self,
         object: &Map<String, Value>,
@@ -630,5 +644,56 @@ impl VmInstance {
         Ok(VmValue::String(super::value_formatting::format_value(
             &value, &spec,
         )?))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn fstring(parts: &[String]) -> Result<VmValue, VmExecutionError> {
+        let module = ModuleIr {
+            ir_version: crate::XIAN_IR_V1.into(),
+            vm_profile: crate::XIAN_VM_V2_PROFILE.into(),
+            host_catalog_version: crate::XIAN_VM_HOST_CATALOG_V1.into(),
+            module_name: "con_fstring_bounds".into(),
+            source_hash: "0".repeat(64),
+            docstring: None,
+            imports: vec![],
+            global_declarations: vec![],
+            functions: vec![],
+            module_body: vec![],
+            host_dependencies: vec![],
+        };
+        let mut instance = VmInstance::new(module, VmExecutionContext::default())?;
+        let values: Vec<_> = parts
+            .iter()
+            .map(|part| json!({"node": "constant", "value_type": "str", "value": part}))
+            .collect();
+        instance.eval_expression(
+            &json!({"node": "f_string", "values": values}),
+            &mut HashMap::new(),
+            &mut NoopHost,
+        )
+    }
+
+    #[test]
+    fn fstring_aggregate_allocation_is_bounded_in_bytes() {
+        for (part, count) in [
+            ("a", MAX_BINARY_ALLOCATION_BYTES / 2),
+            ("é", MAX_BINARY_ALLOCATION_BYTES / 4),
+        ] {
+            let part = part.repeat(count);
+            assert_eq!(
+                fstring(&[part.clone(), part.clone()])
+                    .unwrap()
+                    .as_string()
+                    .unwrap(),
+                part.repeat(2)
+            );
+            let error = fstring(&[part.clone(), part, "x".into()]).unwrap_err();
+            assert!(error.to_string().contains("allocation limit"));
+        }
     }
 }

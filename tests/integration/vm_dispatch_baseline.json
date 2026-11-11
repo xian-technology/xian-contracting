@@ -2150,6 +2150,9 @@
       }
     }
   },
-  "execution_revision": "xvm-execution-5",
+  "safety_policy": {
+    "execution_7": "Shared deterministic execution-depth and aggregate f-string allocation bounds. Existing cases remain within these bounds; expected results, writes, events and metered costs are preserved."
+  },
+  "execution_revision": "xvm-execution-7",
   "gas_schedule": "xvm-gas-2"
 }

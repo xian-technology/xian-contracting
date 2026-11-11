@@ -55,12 +55,14 @@ struct ContractMeterFrame {
 pub(crate) struct VmBudget {
     raw_cost: Arc<AtomicU64>,
     limit: u64,
+    pub(crate) execution_stack: crate::execution_stack::ExecutionStack,
 }
 
 impl VmBudget {
     pub(crate) fn new(chi_budget_raw: u64) -> Self {
         Self {
             raw_cost: Arc::new(AtomicU64::new(0)),
+            execution_stack: crate::execution_stack::ExecutionStack::default(),
             limit: match chi_budget_raw {
                 0 => VM_MAX_RAW_CHI,
                 budget => budget.min(VM_MAX_RAW_CHI),
@@ -99,6 +101,7 @@ pub(crate) struct VmMeter {
 }
 
 impl VmMeter {
+    #[cfg(test)]
     pub(crate) fn new(config: VmMeterConfig) -> Self {
         let budget = VmBudget::new(config.chi_budget_raw);
         Self::with_budget(config, budget)
