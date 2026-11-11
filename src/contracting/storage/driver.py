@@ -154,14 +154,15 @@ class Driver:
         self.pending_writes.update({key: self._typed_value(value) for key, value in writes.items()})
 
     def find(self, key: str):
+        # Pending and cached values are live driver state; storage decodes fresh copies.
         value = self.pending_writes.get(key, _MISSING)
         if value is not _MISSING:
-            return value
+            return _copy_mutable_value(value)
 
         if not self.bypass_cache:
             value = self.cache.get(key, _MISSING)
             if value is not _MISSING:
-                return value
+                return _copy_mutable_value(value)
 
         return self._store.get(key)
 
