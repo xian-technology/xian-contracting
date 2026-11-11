@@ -32,7 +32,6 @@ From the repository root, without installing or rebuilding anything:
 ```sh
 python tests/compatibility/application_runner.py --engine native --check --output /tmp/applications.json
 python tests/compatibility/application_runner.py --engine native-metered --check
-python tests/compatibility/application_runner.py --engine python --check
 ```
 
 `--sequence dex_liquidity_swap` selects one workflow; unknown names fail. Each
@@ -41,8 +40,8 @@ metered native mode has a 100,000,000 raw-chi per-call ceiling. Historical gas
 prices are deliberately not compared. Existing optional-native CI/release
 selection automatically includes `test_vm_application_compatibility.py`.
 
-The standalone runner needs `application_runner.py`, `application_expectations.py`,
-`runner.py` and this directory. Its dependencies come from the installed runtime;
+The maintained native runner needs `application_runner.py`,
+`application_expectations.py`, `runner.py` and this directory. Its dependencies come from the installed runtime;
 it does not import pytest. This allows the same corpus to run on supported
 Apple Silicon macOS, Linux x86-64 and Linux ARM64 installations. A successful
 local run alone does not prove cross-platform consensus. Windows is unsupported.
@@ -59,7 +58,10 @@ python scripts/capture-application-baseline.py
 python scripts/capture-application-baseline.py --oracle-directory /path/to/pinned/checkout
 ```
 
-The capture script verifies the executed installed `contracting` and
+The capture script stages the exact archived observers from
+`../historical/` beside a byte-identical corpus copy. The maintained runner
+accepts only `native` and `native-metered`; historical Python is executed only by
+the pinned capture workflow. The capture script verifies the executed installed `contracting` and
 `xian_runtime_types` Python files, including absence of extra Python files,
 against the pinned Git objects; it also checks the source copies, dependency
 lock, interpreter version and import origins. The baseline records package,
@@ -100,7 +102,7 @@ two underlying policies**, not 110 independent bugs:
    path with integer square-root arithmetic. `sqrt(1000000)` is exactly 1000;
    initial DEX liquidity is therefore `999.99999999`. The historical general
    Decimal-power path undershot before quantization, yielding
-   `999.999999989999999999999999999999`. Current Python and Rust agree. Raw Decimal
+   `999.999999989999999999999999999999`. The native compatibility check requires this exact result. Raw Decimal
    general power remains a separate operation and is not exempted here.
 
 Every replacement checks that the original historical leaf still has exactly

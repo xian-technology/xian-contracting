@@ -871,7 +871,6 @@ class TestLogEvent(ORMTestCase):
     def setUp(self):
         super().setUp()
         self.base_state = rt.context._base_state.copy()
-        rt.context._reset()
         rt.context._base_state = {
             "this": "test_contract",
             "caller": "caller_1",
@@ -894,7 +893,6 @@ class TestLogEvent(ORMTestCase):
         )
 
     def tearDown(self):
-        rt.context._reset()
         rt.context._base_state = self.base_state
 
     def test_log_event_accepts_clean_constructor(self):

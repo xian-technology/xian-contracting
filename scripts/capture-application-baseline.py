@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import os
+import shutil
 import subprocess
 import tarfile
 import tempfile
@@ -12,6 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "tests" / "compatibility" / "applications"
+ARCHIVE = CORPUS.parent / "historical"
 REVISION = "3b82001f2d587bbfb51f3d9235a2a8dcd0078a9a"
 
 
@@ -59,9 +61,12 @@ def verify_oracle(directory):
         "import contracting,xian_runtime_types,sys,json; "
         "print(json.dumps([sys.version.split()[0],contracting.__file__,xian_runtime_types.__file__]))"
     )
-    version, *origins = json.loads(
-        subprocess.check_output([str(python), "-c", script], cwd=directory, text=True)
-    )
+    with tempfile.TemporaryDirectory(prefix="xian-oracle-verification-") as home:
+        env = dict(os.environ, HOME=home)
+        env.pop("PYTHONPATH", None)
+        version, *origins = json.loads(
+            subprocess.check_output([str(python), "-c", script], cwd=directory, env=env, text=True)
+        )
     if version != "3.12.10" or any(
         not Path(origin).is_relative_to(directory) for origin in origins
     ):
@@ -75,12 +80,29 @@ def verify_oracle(directory):
     return python, hashes
 
 
+def stage_observer(destination):
+    """Run the exact provenance-bound observer, separate from current runners."""
+    baseline = json.loads((CORPUS / "legacy_baseline.json").read_text())
+    manifest = json.loads((ARCHIVE / "manifest.json").read_text())
+    expected = dict(manifest["files_sha256"])
+    expected["application_runner.py"] = baseline["runner_sha256"]
+    expected["runner.py"] = baseline["typed_encoder_sha256"]
+    for name, sha256 in expected.items():
+        source = ARCHIVE / name
+        if digest(source) != sha256:
+            raise ValueError("Archived observer digest mismatch: " + name)
+        shutil.copyfile(source, destination / name)
+    shutil.copytree(CORPUS, destination / "applications")
+    return destination / "application_runner.py"
+
+
 def capture(directory):
     python, package_hashes = verify_oracle(directory)
-    runner = ROOT / "tests" / "compatibility" / "application_runner.py"
     with tempfile.TemporaryDirectory(prefix="xian-app-capture-") as temporary:
-        output = Path(temporary) / "observations.json"
-        env = dict(os.environ, HOME=temporary)
+        temporary = Path(temporary)
+        runner = stage_observer(temporary)
+        output = temporary / "observations.json"
+        env = dict(os.environ, HOME=str(temporary))
         env.pop("PYTHONPATH", None)
         subprocess.run(
             [str(python), str(runner), "--engine", "historical-python", "--output", str(output)],
@@ -98,8 +120,8 @@ def capture(directory):
         "dependency_lock_sha256": digest(directory / "uv.lock"),
         "executed_package_sha256": package_hashes,
         "files_sha256": {name: digest(CORPUS / name) for name in files},
-        "runner_sha256": digest(runner),
-        "typed_encoder_sha256": digest(runner.with_name("runner.py")),
+        "runner_sha256": digest(ARCHIVE / "application_runner.py"),
+        "typed_encoder_sha256": digest(ARCHIVE / "runner.py"),
         "observations": observations,
     }
 

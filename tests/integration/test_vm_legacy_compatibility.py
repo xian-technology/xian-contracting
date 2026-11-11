@@ -16,12 +16,11 @@ CASES = json.loads((FIXTURES / "cases.json").read_text())
 
 def test_baseline_provenance():
     assert BASELINE["revision"] == "3b82001f2d587bbfb51f3d9235a2a8dcd0078a9a"
-    for filename in ("cases", "runner"):
-        suffix = ".json" if filename == "cases" else ".py"
-        assert (
-            hashlib.sha256((FIXTURES / (filename + suffix)).read_bytes()).hexdigest()
-            == BASELINE[filename + "_sha256"]
-        )
+    for filename, path in (
+        ("cases", FIXTURES / "cases.json"),
+        ("runner", FIXTURES / "historical/runner.py"),
+    ):
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == BASELINE[filename + "_sha256"]
     assert set(BASELINE["observations"]) == {case["id"] for case in CASES}
 
 
@@ -33,39 +32,30 @@ def test_observations_preserve_type_keys_and_order():
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case["id"])
-@pytest.mark.parametrize(
-    "native",
-    [False, pytest.param(True, marks=pytest.mark.optional_native)],
-    ids=["python", "native"],
-)
-def test_historical_admission_and_execution(tmp_path, case, native):
+@pytest.mark.optional_native
+def test_historical_admission_and_execution(tmp_path, case):
     expected = BASELINE["observations"][case["id"]]
-    actual = run_case(case, tmp_path, native=native)
+    actual = run_case(case, tmp_path)
     assert actual["admission"] == expected["admission"], actual
-    if case["id"] == "iterator_range_lazy" and not native:
-        # The local Python harness retains its range-size guard. Native ranges
-        # are lazy and bounded at materialization and by execution metering.
-        assert actual["status_code"] == 1, actual
-        assert actual["writes"] == encode({})
-        assert actual["events"] == encode([])
-        assert "too large" in actual["diagnostic"], actual
-        return
     if case["id"] == "storage_snapshot":
         # Deliberate safety change since the historical release: storage values
-        # are snapshots, never writable aliases. Both current engines agree.
+        # are snapshots, never writable aliases.
         assert actual["status_code"] == 0, actual
         assert actual["result"] == encode([[1, 2], [1, 3], [1]])
         assert actual["writes"] == encode({"baseline_storage_snapshot.v": [1]})
         assert actual["events"] == encode([])
         return
-    if native and case["id"] == "quantum_storage":
+    if case["id"] == "quantum_storage":
         # Execution 5 makes protocol write-map order stable across processes.
         # Preserve the historical fixture and verify its exact original shape;
         # only these two top-level entries exchange order. Values stay exact.
-        assert expected["writes"] == ["dict", [
-            [["str", "baseline_quantum_storage.v"], ["ContractingDecimal", "2"]],
-            [["str", "baseline_quantum_storage.h:x"], ["ContractingDecimal", "2"]],
-        ]]
+        assert expected["writes"] == [
+            "dict",
+            [
+                [["str", "baseline_quantum_storage.v"], ["ContractingDecimal", "2"]],
+                [["str", "baseline_quantum_storage.h:x"], ["ContractingDecimal", "2"]],
+            ],
+        ]
         expected = {**expected, "writes": ["dict", list(reversed(expected["writes"][1]))]}
     assert comparable(actual) == comparable(expected), actual
 

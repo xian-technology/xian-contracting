@@ -2,7 +2,8 @@
 
 import pytest
 
-from tests.integration.test_vm_language_conformance import _run_native_case, _run_python_case
+from tests.integration.pre_retirement_oracle import recorded_python_observation
+from tests.integration.test_vm_language_conformance import _run_native_case
 from tests.integration.test_vm_raw_decimal import compare
 
 pytestmark = pytest.mark.optional_native
@@ -41,7 +42,7 @@ def test_nonportable_or_ambiguous_formats_are_rejected(tmp_path, text, format):
         "function_name": "probe",
         "kwargs": {},
     }
-    assert _run_python_case(case, tmp_path / "python")["status_code"] == 1
+    assert recorded_python_observation(case)["status_code"] == 1
     assert _run_native_case(case, tmp_path / "native")["status_code"] == 1
 
 
@@ -60,7 +61,7 @@ def test_duration_multiplication_overflow(tmp_path, left, right):
         "function_name": "probe",
         "kwargs": {},
     }
-    assert _run_python_case(case, tmp_path / "python")["status_code"] == 1
+    assert recorded_python_observation(case)["status_code"] == 1
     assert _run_native_case(case, tmp_path / "native")["status_code"] == 1
 
 
@@ -105,7 +106,7 @@ def test_conflicting_calendar_representations_are_rejected(tmp_path, text, forma
         "function_name": "probe",
         "kwargs": {},
     }
-    assert _run_python_case(case, tmp_path / "python")["status_code"] == 1
+    assert recorded_python_observation(case)["status_code"] == 1
     assert _run_native_case(case, tmp_path / "native")["status_code"] == 1
 
 
@@ -118,8 +119,9 @@ def test_conflicting_calendar_representations_are_rejected(tmp_path, text, forma
     ],
 )
 def test_strptime_precharges_work_before_parsing_and_rolls_back(tmp_path, call):
-    from contracting.storage.driver import Driver
     from xian_vm_core import execute_contract
+
+    from contracting.storage.driver import Driver
 
     source = (
         "v=Variable()\n@export\ndef probe(text:str,format:str):\n    parse=datetime.datetime.strptime\n    v.set(1)\n    return "
@@ -150,7 +152,6 @@ def test_strptime_unmetered_work_cap(tmp_path):
         "function_name": "probe",
         "kwargs": {},
     }
-    for backend, runner in [("python", _run_python_case), ("native", _run_native_case)]:
-        output = runner(case, tmp_path / backend)
+    for output in [recorded_python_observation(case), _run_native_case(case, tmp_path / "native")]:
         assert output["status_code"] == 1
         assert "datetime parse work limit exceeded" in str(output["result"])

@@ -1,6 +1,5 @@
-"""Authored mutation cannot change process-global Python helper objects."""
+"""Native contracts cannot mutate shared helpers or escape interface descriptors."""
 
-import ast
 import json
 import os
 import subprocess
@@ -8,134 +7,79 @@ import sys
 
 import pytest
 
-from contracting.compilation.compiler import ContractingCompiler, guard_legacy_orm_declarations
-from contracting.execution.sandbox import build_contract_builtins
-from contracting.stdlib.bridge.imports import Func, Var
-from contracting.stdlib.bridge.orm import V
+from contracting.local import ContractingClient
 
 
-@pytest.mark.parametrize("legacy", [False, True])
-@pytest.mark.parametrize(
-    "statement", ["target.marker = 7", "target.marker += 1", "del target.marker"]
-)
-def test_non_descriptor_targets_are_rejected(legacy, statement):
-    class Target:
-        marker = 3
+def test_descriptor_targets_keep_order_and_single_evaluation(tmp_path):
+    source = """def receiver(events: list, item: Any, label: str):
+    events.append(label)
+    return item
 
-    tree = (
-        ast.parse(statement)
-        if legacy
-        else ContractingCompiler().parse_legacy_runtime(statement, lint=False)
-    )
-    tree = guard_legacy_orm_declarations(tree, "con_guard")
-    namespace = {"target": Target, "__builtins__": build_contract_builtins(None)}
-    with pytest.raises(TypeError, match="interface descriptor"):
-        exec(compile(tree, "con_guard", "exec"), namespace)
-    assert Target.marker == 3
+def value(events: list, label: str, item: Any):
+    events.append(label)
+    return item
 
-
-@pytest.mark.parametrize("legacy", [False, True])
-def test_descriptor_targets_keep_python_order_and_single_evaluation(legacy):
-    source = """
-a = make('a')
-b = make('b')
-receiver(a, 'a').name = receiver(b, 'b').name = value('chain', 'x')
-receiver(a, 'aug').name += value('aug_rhs', 'y')
-(receiver(a, 'unpack_a').args, receiver(b, 'unpack_b').args) = value('unpack_rhs', (1, 2))
-receiver(a, 'ann').extra: int = value('ann_rhs', 3)
-del receiver(a, 'delete').extra, receiver(b, 'delete_b').args
-"""
+@export
+def probe():
     events = []
-
-    def receiver(value, label):
-        events.append(label)
-        return value
-
-    def value(label, result):
-        events.append(label)
-        return result
-
-    namespace = {
-        "make": Func,
-        "receiver": receiver,
-        "value": value,
-        "__builtins__": build_contract_builtins(None),
-    }
-    tree = (
-        ast.parse(source)
-        if legacy
-        else ContractingCompiler().parse_legacy_runtime(source, lint=False)
-    )
-    tree = guard_legacy_orm_declarations(tree, "con_guard")
-    before = ast.dump(tree)
-    tree = guard_legacy_orm_declarations(tree, "con_guard")
-    assert ast.dump(tree) == before
-    exec(compile(tree, "con_guard", "exec"), namespace)
-    assert events == [
-        "chain",
-        "a",
-        "b",
-        "aug",
-        "aug_rhs",
-        "unpack_rhs",
-        "unpack_a",
-        "unpack_b",
-        "ann_rhs",
-        "ann",
-        "delete",
-        "delete_b",
-    ]
-    assert namespace["a"].name == "xy"
-    assert namespace["b"].name == "x"
-    assert namespace["a"].args == 1
-    assert not hasattr(namespace["a"], "extra")
-    assert not hasattr(namespace["b"], "args")
+    a = importlib.Func('a')
+    b = importlib.Func('b')
+    receiver(events, a, 'a').name = receiver(events, b, 'b').name = value(events, 'chain', 'x')
+    receiver(events, a, 'aug').name += value(events, 'aug_rhs', 'y')
+    (receiver(events, a, 'unpack_a').args, receiver(events, b, 'unpack_b').args) = value(events, 'unpack_rhs', (1, 2))
+    return [events, a.name, b.name, a.args, b.args]
+"""
+    with ContractingClient(storage_home=tmp_path) as client:
+        client.submit(source, name="con_descriptors")
+        assert client.get_contract_proxy("con_descriptors").probe() == [
+            ["chain", "a", "b", "aug", "aug_rhs", "unpack_rhs", "unpack_a", "unpack_b"],
+            "xy",
+            "x",
+            1,
+            2,
+        ]
 
 
-def test_var_descriptor_fields_remain_mutable():
-    value = Var("balance", V)
-    tree = ContractingCompiler().parse_legacy_runtime(
-        "descriptor.name = 'renamed'\ndescriptor.type = cls", lint=False
-    )
-    namespace = {"descriptor": value, "cls": V, "__builtins__": build_contract_builtins(None)}
-    exec(compile(tree, "con_guard", "exec"), namespace)
-    assert value.name == "renamed"
-    assert value.type is V
+def test_var_descriptor_fields_remain_mutable(tmp_path):
+    source = """@export
+def probe():
+    descriptor = importlib.Var('balance', Variable)
+    descriptor.name = 'renamed'
+    descriptor.type = importlib.Var('ledger', Hash).type
+    return [descriptor.name, descriptor.type == importlib.Var('ledger', Hash).type]
+"""
+    with ContractingClient(storage_home=tmp_path) as client:
+        client.submit(source, name="con_descriptor")
+        assert client.get_contract_proxy("con_descriptor").probe() == ["renamed", True]
 
 
 PROCESS_PROBE = r"""
 import json, sys
 from pathlib import Path
-from contracting.execution.executor import Executor
+from contracting.local import ContractingClient
 from contracting.storage.contract import Contract
-from contracting.storage.driver import Driver
-from contracting.stdlib.bridge.orm import C
-from contracting.stdlib.bridge.imports import Func
-from xian_runtime_types.time import Datetime
+from contracting.storage.orm import Variable
 assignment, fail, constructor, storage = json.loads(sys.argv[1])
-original = (C.submit, Func.is_of)
+original = (Contract.set_owner, Variable.set)
 source = "@export\ndef hidden(value: Any = None):\n    return 731\n"
 source += ("@construct\ndef seed():\n" if constructor else "@export\ndef poison():\n")
 source += "    " + assignment + "\n"
 source += "    assert False, 'rollback'\n" if fail else "    return True\n"
-with Driver(storage_home=Path(storage), vm_profile="xian_vm_v1") as driver:
+with ContractingClient(storage_home=Path(storage), metering=False) as client:
+    before = client.raw_driver.items()
+    output = client.get_contract_proxy('submission').submit_contract(
+        name='con_poison', code=source, return_full_output=True)
+    if output['status_code'] == 0:
+        output = client.get_contract_proxy('con_poison').poison(return_full_output=True)
+    assert output['status_code'] == 1, output
+    assert output['writes'] == {}, output
+    assert output['events'] == [], output
+    assert original == (Contract.set_owner, Variable.set)
     if constructor:
-        try:
-            Contract(driver=driver).submit('con_poison', source)
-        except Exception as exc:
-            status, message = 1, str(exc)
-        else:
-            status, message = 0, 'accepted'
-    else:
-        driver.set_contract_from_source('con_poison', source, owner=None)
-        driver.set_contract_from_source('con_reader', '@export\ndef read():\n    return Contract().submit()\n', owner=None)
-        driver.commit()
-        executor = Executor(driver=driver, metering=False)
-        result = executor.execute(sender='alice', contract_name='con_poison', function_name='poison', kwargs={}, environment={'now':Datetime(2026,11,1)}, metering=False)
-        status, message = result['status_code'], str(result['result'])
-        reader = executor.execute(sender='alice', contract_name='con_reader', function_name='read', kwargs={}, environment={'now':Datetime(2026,11,1)}, metering=False)
-        assert reader['status_code'] == 1, reader
-    print(json.dumps({'status':status, 'message':message, 'unchanged':original == (C.submit, Func.is_of)}))
+        assert not client.raw_driver.has_contract('con_poison')
+        assert client.raw_driver.items() == before
+    print(json.dumps({'status': output['status_code'], 'message': str(output['result']),
+                      'unchanged': original == (Contract.set_owner, Variable.set)}))
 """
 
 
@@ -153,7 +97,6 @@ with Driver(storage_home=Path(storage), vm_profile="xian_vm_v1") as driver:
 def test_helper_poisoning_cannot_survive_transaction_or_constructor(
     tmp_path, assignment, fail, constructor
 ):
-    environment = dict(os.environ, HOME=str(tmp_path / "home"))
     result = subprocess.run(
         [
             sys.executable,
@@ -161,58 +104,42 @@ def test_helper_poisoning_cannot_survive_transaction_or_constructor(
             PROCESS_PROBE,
             json.dumps([assignment, fail, constructor, str(tmp_path / "state")]),
         ],
-        env=environment,
+        env=dict(os.environ, HOME=str(tmp_path / "home")),
         capture_output=True,
         text=True,
         check=True,
     )
     observation = json.loads(result.stdout)
     assert observation["status"] == 1, observation
-    assert "interface descriptor" in observation["message"], observation
     assert observation["unchanged"], observation
 
 
-def test_private_descriptor_attributes_and_subclasses_are_not_mutable():
-    class Subclass(Func):
-        pass
-
-    for value, name in [(Func("x"), "_hidden"), (Subclass("x"), "name")]:
-        source = f"descriptor.{name} = 1"
-        tree = ContractingCompiler().parse_legacy_runtime(source, lint=False)
-        with pytest.raises(TypeError):
-            exec(
-                compile(tree, "con_guard", "exec"),
-                {"descriptor": value, "__builtins__": build_contract_builtins(None)},
-            )
-
-
-def test_authored_source_cannot_name_the_private_guard():
-    from contracting.compilation.linter import LintingError
-
-    with pytest.raises(LintingError):
-        ContractingCompiler().parse_legacy_runtime(
-            "@export\ndef probe():\n    return __xian_attribute_target__(Contract, 'submit')\n",
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "descriptor._hidden = 1",
+        "Contract.marker = 7",
+        "Contract.marker += 1",
+        "del Contract.marker",
+    ],
+)
+def test_non_descriptor_and_private_attribute_targets_are_rejected(tmp_path, statement):
+    source = "@export\ndef probe():\n    descriptor = importlib.Func('x')\n"
+    source += f"    {statement}\n    return True\n"
+    with ContractingClient(storage_home=tmp_path) as client:
+        output = client.get_contract_proxy("submission").submit_contract(
+            name="con_attribute_guard", code=source, return_full_output=True
         )
+        if output["status_code"] == 0:
+            output = client.get_contract_proxy("con_attribute_guard").probe(return_full_output=True)
+        assert output["status_code"] == 1, output
+        assert output["writes"] == {}
+        assert output["events"] == []
 
 
-def test_call_receiver_is_checked_once_and_guard_is_idempotent():
-    class Target:
-        marker = 3
-
-    calls = []
-
-    def factory():
-        calls.append(True)
-        return Target
-
-    tree = ContractingCompiler().parse_legacy_runtime("factory().marker = 7", lint=False)
-    with pytest.raises(TypeError, match="interface descriptor"):
-        exec(
-            compile(tree, "con_guard", "exec"),
-            {"factory": factory, "__builtins__": build_contract_builtins(None)},
-        )
-    assert calls == [True]
-    assert Target.marker == 3
-    tree = ContractingCompiler().parse_legacy_runtime("target.marker = 7", lint=False)
-    before = ast.dump(tree)
-    assert ast.dump(guard_legacy_orm_declarations(tree, "con_guard")) == before
+def test_authored_source_cannot_name_private_guard(tmp_path):
+    source = "@export\ndef probe():\n    return __xian_attribute_target__(Contract, 'submit')\n"
+    with ContractingClient(storage_home=tmp_path) as client:
+        with pytest.raises(Exception, match="underscore|private"):
+            client.submit(source, name="con_private_guard")
+        assert not client.raw_driver.has_contract("con_private_guard")

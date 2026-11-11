@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import ast
 import decimal
 import json
-import logging
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
@@ -13,7 +11,6 @@ from xian_runtime_types.collections import ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal, canonical_fixed
 from xian_runtime_types.encoding import (
     decode_wire_numbers,
-    encode_kv,
     normalize_wire_numbers,
     validate_persistent_value,
 )
@@ -22,8 +19,6 @@ from xian_runtime_types.time import Datetime
 from contracting import constants
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.compilation.vm import DEFAULT_VM_PROFILE, SUPPORTED_VM_PROFILES, XIAN_VM_V2_PROFILE
-from contracting.execution.interface_subject import ensure_no_interface_subject
-from contracting.execution.runtime import _contract_execution_active, rt
 from contracting.names import assert_safe_contract_name
 from contracting.storage.lmdb_store import LMDBStore
 from contracting.storage.ordered import iter_overlay_items
@@ -31,14 +26,6 @@ from contracting.storage.ordered import iter_overlay_items
 INDEX_SEPARATOR = constants.INDEX_SEPARATOR
 HASH_DELIMITER = constants.DELIMITER
 _MISSING = object()
-logger = logging.getLogger(__name__)
-SOURCE_RUNTIME_FALLBACK_EXCEPTIONS = (
-    AttributeError,
-    SyntaxError,
-    TypeError,
-    ValueError,
-)
-
 SOURCE_KEY = "__source__"
 XIAN_VM_V1_IR_KEY = "__xian_ir_v1__"
 TYPE_KEY = "__type__"
@@ -54,6 +41,21 @@ def _copy_mutable_value(value):
     if isinstance(value, (list, dict, bytearray, ContractingSet)):
         return deepcopy(value)
     return value
+
+
+def _require_contract_artifact_inputs(source, vm_ir_json):
+    if source is None and vm_ir_json is None:
+        raise TypeError("set_contract requires at least one contract artifact.")
+    if source is not None and not isinstance(source, str):
+        raise TypeError("Contract source must be a string.")
+
+
+def _require_contract_ir_profile(vm_ir_json, profile):
+    if vm_ir_json is None:
+        return
+    ir = json.loads(vm_ir_json)
+    if not isinstance(ir, dict) or ir.get("vm_profile") != profile:
+        raise ValueError(f"contract IR must target {profile}")
 
 
 class Driver:
@@ -132,15 +134,7 @@ class Driver:
         key,
         value,
         is_txn_write: bool = False,
-        *,
-        enforce_write_cap: bool = True,
     ):
-        if _contract_execution_active.get():
-            ensure_no_interface_subject(value, "storage")
-        rt.deduct_write(
-            *encode_kv(key, value, vm_profile=self.vm_profile),
-            enforce_write_cap=enforce_write_cap,
-        )
         if self.pending_reads.get(key) is None:
             self.get(key)
         value = _copy_mutable_value(self._typed_value(value))
@@ -244,11 +238,10 @@ class Driver:
         value=None,
         mark=True,
         *,
-        enforce_write_cap: bool = True,
         is_txn_write: bool = False,
     ):
         key = self.make_key(contract, variable, arguments)
-        self.set(key, value, is_txn_write=is_txn_write, enforce_write_cap=enforce_write_cap)
+        self.set(key, value, is_txn_write=is_txn_write)
 
     def get_var(self, contract, variable, arguments=None, mark=True):
         key = self.make_key(contract, variable, arguments)
@@ -279,34 +272,6 @@ class Driver:
 
     def get_contract_initiator(self, name):
         return self.get_var(name, INITIATOR_KEY)
-
-    def get_local_contract_runtime(self, name):
-        source = self.get_contract_source(name)
-        if source is None:
-            return None
-        if self.vm_profile == XIAN_VM_V2_PROFILE:
-            raise ValueError("The native VM executes IR. Use get_contract_ir for V2 contracts.")
-        if "@__export" in source:
-            return source
-
-        compiler = ContractingCompiler(module_name=name)
-        try:
-            return ast.unparse(compiler.parse_legacy_runtime(source, lint=False))
-        except SOURCE_RUNTIME_FALLBACK_EXCEPTIONS as exc:
-            if "@export" in source or "@construct" in source:
-                logger.exception(
-                    "Failed to compile contract runtime for %s (%s).",
-                    name,
-                    type(exc).__name__,
-                )
-                raise
-            logger.warning(
-                "Falling back to source runtime for non-contract module %s after %s: %s",
-                name,
-                type(exc).__name__,
-                exc,
-            )
-            return source
 
     def has_contract(self, name):
         artifact_keys = (XIAN_VM_V1_IR_KEY, SOURCE_KEY)
@@ -363,10 +328,7 @@ class Driver:
         )
 
     def _prepare_contract_artifacts(self, name, source, vm_ir_json):
-        if source is None and vm_ir_json is None:
-            raise TypeError("set_contract requires at least one contract artifact.")
-        if source is not None and not isinstance(source, str):
-            raise TypeError("Contract source must be a string.")
+        _require_contract_artifact_inputs(source, vm_ir_json)
         if self.vm_profile == XIAN_VM_V2_PROFILE and source is not None and vm_ir_json is None:
             from contracting.artifacts import compile_contract_source
 
@@ -374,12 +336,7 @@ class Driver:
                 module_name=name, source=source, vm_profile=self.vm_profile
             )
             source, vm_ir_json = compiled["source"], compiled["vm_ir_json"]
-        if vm_ir_json is not None:
-            ir = json.loads(vm_ir_json)
-            if not isinstance(ir, dict) or ir.get("vm_profile") != self.vm_profile:
-                raise ValueError(f"contract IR must target {self.vm_profile}")
-        if self.vm_profile != XIAN_VM_V2_PROFILE and source is not None:
-            compile(source, name, "exec", optimize=0)
+        _require_contract_ir_profile(vm_ir_json, self.vm_profile)
         return source, vm_ir_json
 
     def set_contract(
@@ -410,7 +367,6 @@ class Driver:
                 name,
                 SOURCE_KEY,
                 value=source,
-                enforce_write_cap=False,
                 is_txn_write=is_txn_write,
             )
         if vm_ir_json is not None:
@@ -418,34 +374,26 @@ class Driver:
                 name,
                 XIAN_VM_V1_IR_KEY,
                 value=vm_ir_json,
-                enforce_write_cap=False,
                 is_txn_write=is_txn_write,
             )
-        self.set_var(
-            name, OWNER_KEY, value=owner, enforce_write_cap=False, is_txn_write=is_txn_write
-        )
-        self.set_var(
-            name, TIME_KEY, value=timestamp, enforce_write_cap=False, is_txn_write=is_txn_write
-        )
+        self.set_var(name, OWNER_KEY, value=owner, is_txn_write=is_txn_write)
+        self.set_var(name, TIME_KEY, value=timestamp, is_txn_write=is_txn_write)
         self.set_var(
             name,
             DEVELOPER_KEY,
             value=developer,
-            enforce_write_cap=False,
             is_txn_write=is_txn_write,
         )
         self.set_var(
             name,
             DEPLOYER_KEY,
             value=deployer,
-            enforce_write_cap=False,
             is_txn_write=is_txn_write,
         )
         self.set_var(
             name,
             INITIATOR_KEY,
             value=initiator,
-            enforce_write_cap=False,
             is_txn_write=is_txn_write,
         )
 

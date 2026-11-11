@@ -1,12 +1,11 @@
 # Parallel Execution
 
-`xian-contracting` now owns the reusable speculative parallel execution
-primitive for raw contract-call batches. Higher layers can use it without
-duplicating the runtime conflict model.
+`xian-contracting` owns the reusable speculative parallel execution primitive
+for native V2 contract-call batches. Higher layers can use it without duplicating
+the runtime conflict model.
 
-This is not unsafe in-process threading inside one contract runtime. Contract
-execution mutates process-global Python import hooks and module caches, so the
-safe model remains:
+Workers use separate native runtime and storage contexts. The acceptance model
+keeps execution ownership and commit order explicit:
 
 - one active in-process execution per Python process
 - speculative parallelism through separate worker processes
@@ -23,12 +22,15 @@ Primary types:
 - `ExecutionAccess`: deterministic read/write/prefix-read metadata
 - `ParallelExecutionPlanner`: conservative contiguous-stage planner
 - `SpeculativeExecutionController`: serial-equivalence acceptance controller
-- `ParallelBatchExecutor`: process-worker implementation for
-  `contracting.execution.Executor`
+- `ParallelBatchExecutor`: process-worker implementation for the native V2
+  executor
 - `ParallelExecutionStats`: accepted/speculated/fallback counters
 
 `ContractingClient.build_parallel_executor(...)` creates a
-`ParallelBatchExecutor` for local callers and tests.
+`ParallelBatchExecutor` for local callers and tests. Both require `xian_vm_v2`.
+`ParallelBatchExecutor` rejects an executor backed by a V1 driver before worker
+setup, including when parallel execution is disabled. Archival V1 verification uses
+the low-level native VM bindings separately.
 
 ## Acceptance Model
 

@@ -10,9 +10,12 @@ from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime, Timedelta
 
 from contracting.compilation.conformance import CONTRACT_LANGUAGE_MANIFEST
-from contracting.execution.interface_subject import InterfaceSubject
 
 DIRECTORY = Path(__file__).parent
+# Native subjects are opaque outside the VM. Their reviewed contract-visible
+# fields are enforced by interface_subjects.rs and the native boundary cases;
+# introspecting a Python stand-in would not inventory the native implementation.
+NATIVE_INTERFACE_SUBJECT_FIELDS = ("kind", "name", "args", "storage_type")
 
 
 def value_examples():
@@ -46,7 +49,6 @@ def value_examples():
         "timedelta": Timedelta(seconds=90),
         "None": None,
         "Exception": Exception("sample"),
-        "InterfaceSubject": InterfaceSubject("function", "sample", ("value",)),
     }
 
 
@@ -60,6 +62,8 @@ def public_members(value):
 
 def discover():
     manifest = CONTRACT_LANGUAGE_MANIFEST
+    value_members = {name: public_members(value) for name, value in value_examples().items()}
+    value_members["InterfaceSubject"] = dict.fromkeys(NATIVE_INTERFACE_SUBJECT_FIELDS, "attribute")
     return {
         "builtins": manifest["python_contracting"]["allowed_builtins"],
         "environment": {
@@ -68,7 +72,7 @@ def discover():
         },
         "host_bindings": manifest["xian_vm_v1"]["host_bindings"],
         "annotations": manifest["python_contracting"]["allowed_annotations"],
-        "value_members": {name: public_members(value) for name, value in value_examples().items()},
+        "value_members": value_members,
     }
 
 

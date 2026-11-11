@@ -4,6 +4,8 @@ import pytest
 
 from tests.compatibility.runner import encode, run_case
 
+pytestmark = pytest.mark.optional_native
+
 TARGET = """
 balance = Variable(default_value=7)
 ledger = Hash(default_value=0)
@@ -24,24 +26,21 @@ foreign_balance = ForeignVariable(foreign_contract='con_event_orm_target', forei
 foreign_ledger = ForeignHash(foreign_contract='con_event_orm_target', foreign_name='ledger')
 Changed = LogEvent(event='Changed', params={'value': indexed(int)})
 """
-ENGINES = [False, pytest.param(True, marks=pytest.mark.optional_native)]
 
 
-def execute(tmp_path, native, body):
+def execute(tmp_path, body):
     return run_case(
         {
             "id": "event_orm_methods",
             "dependencies": {"con_event_orm_target": TARGET},
             "source": DECLARATIONS
             + "\n@export\ndef probe():\n"
-            + "".join("    " + line + "\n" for line in body.splitlines()),
+            + "".join(("    " + line + "\n" for line in body.splitlines())),
         },
         tmp_path,
-        native=native,
     )
 
 
-@pytest.mark.parametrize("native", ENGINES)
 @pytest.mark.parametrize(
     "body",
     [
@@ -55,8 +54,8 @@ def execute(tmp_path, native, body):
         "cls = importlib.Var('e', LogEvent).type\nf = cls.write_event\nf(self=Changed, event_data={'value': 3})",
     ],
 )
-def test_event_public_call_shapes(tmp_path, native, body):
-    actual = execute(tmp_path, native, body + "\nreturn True")
+def test_event_public_call_shapes(tmp_path, body):
+    actual = execute(tmp_path, body + "\nreturn True")
     assert actual["status_code"] == 0, actual
     assert actual["result"] == encode(True)
     assert actual["events"] == encode(
@@ -73,7 +72,6 @@ def test_event_public_call_shapes(tmp_path, native, body):
     )
 
 
-@pytest.mark.parametrize("native", ENGINES)
 @pytest.mark.parametrize(
     "call",
     [
@@ -88,14 +86,13 @@ def test_event_public_call_shapes(tmp_path, native, body):
         "Changed.write_event({'value': 3, 'extra': 4})",
     ],
 )
-def test_event_arguments_validate_before_emitting(tmp_path, native, call):
-    actual = execute(tmp_path, native, call + "\nreturn True")
+def test_event_arguments_validate_before_emitting(tmp_path, call):
+    actual = execute(tmp_path, call + "\nreturn True")
     assert actual["status_code"] == 1, actual
     assert actual["events"] == encode([])
     assert actual["writes"] == encode({})
 
 
-@pytest.mark.parametrize("native", ENGINES)
 @pytest.mark.parametrize(
     ("body", "expected"),
     [
@@ -122,13 +119,12 @@ def test_event_arguments_validate_before_emitting(tmp_path, native, call):
         ),
     ],
 )
-def test_unbound_orm_calls_use_existing_storage_paths(tmp_path, native, body, expected):
-    actual = execute(tmp_path, native, body)
+def test_unbound_orm_calls_use_existing_storage_paths(tmp_path, body, expected):
+    actual = execute(tmp_path, body)
     assert actual["status_code"] == 0, actual
     assert actual["result"] == encode(expected)
 
 
-@pytest.mark.parametrize("native", ENGINES)
 @pytest.mark.parametrize(
     "body",
     [
@@ -143,14 +139,13 @@ def test_unbound_orm_calls_use_existing_storage_paths(tmp_path, native, body, ex
         "cls = importlib.Var('v', LogEvent).type\ncls.write_event(balance, {'value': 1})",
     ],
 )
-def test_unbound_orm_never_grants_wrong_receiver_authority(tmp_path, native, body):
-    actual = execute(tmp_path, native, "con_event_orm_target.seed()\n" + body + "\nreturn True")
+def test_unbound_orm_never_grants_wrong_receiver_authority(tmp_path, body):
+    actual = execute(tmp_path, "con_event_orm_target.seed()\n" + body + "\nreturn True")
     assert actual["status_code"] == 1, actual
     assert actual["writes"] == encode({})
     assert actual["events"] == encode([])
 
 
-@pytest.mark.parametrize("native", ENGINES)
 @pytest.mark.parametrize(
     ("schema", "value", "succeeds"),
     [
@@ -168,22 +163,19 @@ def test_unbound_orm_never_grants_wrong_receiver_authority(tmp_path, native, bod
         ("frozenset", "frozenset([1, 2])", True),
     ],
 )
-def test_event_value_type_and_utf8_limit(tmp_path, native, schema, value, succeeds):
+def test_event_value_type_and_utf8_limit(tmp_path, schema, value, succeeds):
     actual = run_case(
         {
             "id": "event_validation",
-            "source": f"Event = LogEvent(event='Validated', params={{'value': {schema}}})\n"
-            f"@export\ndef probe():\n    Event({{'value': {value}}})\n    return True\n",
+            "source": f"Event = LogEvent(event='Validated', params={{'value': {schema}}})\n@export\ndef probe():\n    Event({{'value': {value}}})\n    return True\n",
         },
         tmp_path,
-        native=native,
     )
     assert actual["status_code"] == (0 if succeeds else 1), actual
     if not succeeds:
         assert actual["events"] == encode([])
 
 
-@pytest.mark.parametrize("native", ENGINES)
 @pytest.mark.parametrize(
     "params",
     [
@@ -198,30 +190,24 @@ def test_event_value_type_and_utf8_limit(tmp_path, native, schema, value, succee
         "{1: int}",
     ],
 )
-def test_event_schema_validation(tmp_path, native, params):
+def test_event_schema_validation(tmp_path, params):
     actual = run_case(
         {
             "id": "event_schema",
-            "source": f"Event = LogEvent(event='Validated', params={params})\n"
-            "@export\ndef probe():\n    return True\n",
+            "source": f"Event = LogEvent(event='Validated', params={params})\n@export\ndef probe():\n    return True\n",
         },
         tmp_path,
-        native=native,
     )
     assert actual.get("status_code") == 1 or actual["admission"] == "rejected", actual
 
 
-@pytest.mark.parametrize("native", ENGINES)
-def test_emitted_mutable_value_is_a_snapshot(tmp_path, native):
+def test_emitted_mutable_value_is_a_snapshot(tmp_path):
     actual = run_case(
         {
             "id": "event_snapshot",
-            "source": "Event = LogEvent(event='Snapshot', params={'value': bytearray})\n"
-            "@export\ndef probe():\n    value = bytearray(b'a')\n"
-            "    Event({'value': value})\n    value[0] = 98\n    return True\n",
+            "source": "Event = LogEvent(event='Snapshot', params={'value': bytearray})\n@export\ndef probe():\n    value = bytearray(b'a')\n    Event({'value': value})\n    value[0] = 98\n    return True\n",
         },
         tmp_path,
-        native=native,
     )
     assert actual["status_code"] == 0, actual
     assert actual["events"] == encode(
@@ -238,28 +224,22 @@ def test_emitted_mutable_value_is_a_snapshot(tmp_path, native):
     )
 
 
-@pytest.mark.parametrize("native", ENGINES)
-def test_storage_handle_transfer_cannot_delegate_writes(tmp_path, native):
+def test_storage_handle_transfer_cannot_delegate_writes(tmp_path):
     actual = run_case(
         {
             "id": "orm_transfer",
             "dependencies": {
                 "con_orm_receiver": "@export\ndef mutate(storage: Any):\n    storage['key'] = 99\n"
             },
-            "source": "import con_orm_receiver\nledger = Hash(default_value=0)\n"
-            "Changed = LogEvent(event='Changed', params={'value': int})\n"
-            "@export\ndef probe():\n    ledger['pending'] = 1\n"
-            "    Changed({'value': 1})\n    con_orm_receiver.mutate(ledger)\n",
+            "source": "import con_orm_receiver\nledger = Hash(default_value=0)\nChanged = LogEvent(event='Changed', params={'value': int})\n@export\ndef probe():\n    ledger['pending'] = 1\n    Changed({'value': 1})\n    con_orm_receiver.mutate(ledger)\n",
         },
         tmp_path,
-        native=native,
     )
     assert actual["status_code"] == 1, actual
     assert actual["writes"] == encode({})
     assert actual["events"] == encode([])
 
 
-@pytest.mark.parametrize("native", ENGINES)
 @pytest.mark.parametrize(
     ("declarations", "mutation", "indexed"),
     [
@@ -275,7 +255,7 @@ def test_storage_handle_transfer_cannot_delegate_writes(tmp_path, native):
         ),
     ],
 )
-def test_event_schema_is_fixed_at_declaration(tmp_path, native, declarations, mutation, indexed):
+def test_event_schema_is_fixed_at_declaration(tmp_path, declarations, mutation, indexed):
     actual = run_case(
         {
             "id": "event_schema_snapshot",
@@ -285,7 +265,6 @@ def test_event_schema_is_fixed_at_declaration(tmp_path, native, declarations, mu
             + "\n    Event({'value': 7})\n    return True\n",
         },
         tmp_path,
-        native=native,
     )
     assert actual["status_code"] == 0, actual
     assert actual["events"] == encode(
@@ -302,7 +281,6 @@ def test_event_schema_is_fixed_at_declaration(tmp_path, native, declarations, mu
     )
 
 
-@pytest.mark.parametrize("native", ENGINES)
 @pytest.mark.parametrize(
     ("body", "expected"),
     [
@@ -313,29 +291,26 @@ def test_event_schema_is_fixed_at_declaration(tmp_path, native, declarations, mu
         ("value = []\nreturn indexed(value)['type'] is value", True),
     ],
 )
-def test_indexed_normalizes_one_tuple_without_replacing_members(tmp_path, native, body, expected):
+def test_indexed_normalizes_one_tuple_without_replacing_members(tmp_path, body, expected):
     actual = run_case(
         {
             "id": "indexed_values",
             "source": "@export\ndef probe():\n"
-            + "".join("    " + line + "\n" for line in body.splitlines()),
+            + "".join(("    " + line + "\n" for line in body.splitlines())),
         },
         tmp_path,
-        native=native,
     )
     assert actual["status_code"] == 0, actual
     assert actual["result"] == encode(expected)
 
 
-@pytest.mark.parametrize("native", ENGINES)
-def test_indexed_requires_at_least_one_positional_argument(tmp_path, native):
+def test_indexed_requires_at_least_one_positional_argument(tmp_path):
     actual = run_case(
         {
             "id": "indexed_empty",
             "source": "@export\ndef probe():\n    indexed()\n    return True\n",
         },
         tmp_path,
-        native=native,
     )
     assert actual["status_code"] == 1, actual
     assert actual["events"] == encode([])

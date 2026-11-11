@@ -5,7 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from tests.integration.test_vm_language_conformance import _run_native_case, _run_python_case
+from tests.integration.pre_retirement_oracle import recorded_python_observation
+from tests.integration.test_vm_language_conformance import _run_native_case
 
 pytestmark = pytest.mark.optional_native
 
@@ -28,7 +29,7 @@ def test_unicode_string_methods_match_python(tmp_path, expression):
         "function_name": "probe",
         "kwargs": {},
     }
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     assert expected["status_code"] == 0, expected
     assert _run_native_case(case, tmp_path / "native") == expected
 

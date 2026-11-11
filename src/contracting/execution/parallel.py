@@ -5,10 +5,14 @@ from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from contracting import constants
-from contracting.execution.executor import Executor
+from contracting.artifacts import XIAN_VM_V2_PROFILE
 from contracting.storage.driver import Driver
+
+if TYPE_CHECKING:
+    from contracting.local.native_executor import NativeExecutor
 
 
 @dataclass(frozen=True)
@@ -230,18 +234,13 @@ class ParallelExecutionPlanner:
 @dataclass
 class _WorkerRuntime:
     driver: Driver
-    executor: Executor
+    executor: NativeExecutor
 
 
 @dataclass(frozen=True)
 class _WorkerConfig:
     storage_home: str
     metering: bool
-    currency_contract: str
-    balances_hash: str
-    bypass_privates: bool
-    bypass_balance_amount: bool
-    vm_profile: str = "xian_vm_v2"
 
 
 @dataclass(frozen=True)
@@ -255,6 +254,8 @@ _WORKER_RUNTIMES: dict[_WorkerConfig, _WorkerRuntime] = {}
 
 
 def _get_worker_runtime(config: _WorkerConfig) -> _WorkerRuntime:
+    from contracting.local.native_executor import NativeExecutor
+
     worker_runtime = _WORKER_RUNTIMES.get(config)
     if worker_runtime is not None:
         return worker_runtime
@@ -262,21 +263,9 @@ def _get_worker_runtime(config: _WorkerConfig) -> _WorkerRuntime:
     driver = Driver(
         storage_home=Path(config.storage_home),
         bypass_cache=True,
-        vm_profile=config.vm_profile,
+        vm_profile=XIAN_VM_V2_PROFILE,
     )
-    if config.vm_profile == "xian_vm_v2":
-        from contracting.local.native_executor import NativeExecutor
-
-        executor = NativeExecutor(driver, metering=config.metering)
-    else:
-        executor = Executor(
-            driver=driver,
-            metering=config.metering,
-            currency_contract=config.currency_contract,
-            balances_hash=config.balances_hash,
-            bypass_privates=config.bypass_privates,
-            bypass_balance_amount=config.bypass_balance_amount,
-        )
+    executor = NativeExecutor(driver, metering=config.metering)
     worker_runtime = _WorkerRuntime(driver=driver, executor=executor)
     _WORKER_RUNTIMES[config] = worker_runtime
     return worker_runtime
@@ -920,7 +909,7 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
     def __init__(
         self,
         *,
-        executor: Executor,
+        executor: NativeExecutor,
         enabled: bool = True,
         workers: int = 0,
         min_batch_size: int = 8,
@@ -929,6 +918,8 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
         low_acceptance_min_wave_size: int | None = None,
         use_access_estimates: bool = False,
     ) -> None:
+        if executor.driver.vm_profile != XIAN_VM_V2_PROFILE:
+            raise ValueError("ParallelBatchExecutor only supports xian_vm_v2")
         self.executor = executor
         self._mp_context = multiprocessing.get_context("spawn")
         self._executor: ProcessPoolExecutor | None = None
@@ -978,11 +969,6 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
         task_template = _WorkerConfig(
             storage_home=str(self.executor.driver.storage_home),
             metering=self.executor.metering,
-            vm_profile=self.executor.driver.vm_profile,
-            currency_contract=getattr(self.executor, "currency_contract", "currency"),
-            balances_hash=getattr(self.executor, "balances_hash", "balances"),
-            bypass_privates=getattr(self.executor, "bypass_privates", False),
-            bypass_balance_amount=getattr(self.executor, "bypass_balance_amount", False),
         )
         tasks = [
             _SpeculativeTask(

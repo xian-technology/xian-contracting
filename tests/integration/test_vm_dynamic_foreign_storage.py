@@ -2,10 +2,10 @@
 
 import pytest
 
-from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 
 pytestmark = pytest.mark.optional_native
+
 
 DATA_SOURCE = """
 metadata = Hash()
@@ -35,13 +35,7 @@ def driver(tmp_path):
         yield driver
 
 
-@pytest.fixture
-def python_driver(tmp_path):
-    with _data_driver(tmp_path / "python", "xian_vm_v1") as driver:
-        yield driver
-
-
-def run(driver, body, *, native=True, meter=False, budget=10_000_000, kwargs=None):
+def run(driver, body, *, meter=False, budget=10000000, kwargs=None):
     source = "@export\ndef probe(contract: str):\n" + "\n".join(
         "    " + line for line in body.splitlines()
     )
@@ -49,25 +43,16 @@ def run(driver, body, *, native=True, meter=False, budget=10_000_000, kwargs=Non
     driver.commit()
     params = {"contract": "con_data", **(kwargs or {})}
     context = {"signer": "alice", "caller": "alice", "this": "con_probe", "owner": "alice"}
-    if native:
-        import xian_vm_core
+    import xian_vm_core
 
-        return xian_vm_core.execute_contract(
-            driver=driver,
-            contract_name="con_probe",
-            function_name="probe",
-            kwargs=params,
-            context=context,
-            meter=meter,
-            chi_budget_raw=budget,
-        )
-    return Executor(driver=driver, metering=False).execute(
-        sender="alice",
+    return xian_vm_core.execute_contract(
+        driver=driver,
         contract_name="con_probe",
         function_name="probe",
         kwargs=params,
-        environment=context,
-        metering=False,
+        context=context,
+        meter=meter,
+        chi_budget_raw=budget,
     )
 
 
@@ -105,14 +90,11 @@ def run(driver, body, *, native=True, meter=False, budget=10_000_000, kwargs=Non
         ),
     ],
 )
-def test_dynamic_reads_match_python(driver, python_driver, body, expected):
+def test_dynamic_reads_match_independent_expectations(driver, body, expected):
     native = run(driver, body)
     assert native.status_code == 0, native.result
     assert native.result == expected
     assert native.writes == {}
-    python = run(python_driver, body, native=False)
-    assert python["status_code"] == 0, python["result"]
-    assert python["result"] == expected
 
 
 def test_reference_aliases_in_containers(driver):
@@ -187,11 +169,14 @@ def test_read_charges_and_budget_are_enforced(driver):
 
 
 @pytest.mark.parametrize("operation", ["h['nested'].append(3)", "h['nested'][0] = 9"])
-def test_foreign_read_returns_a_mutable_detached_copy(driver, python_driver, operation):
-    body = "h = ForeignHash(foreign_contract=contract, foreign_name='metadata')\n" + operation + "\nreturn h['nested']"
-    expected = run(python_driver, body, native=False)
+def test_foreign_read_returns_a_mutable_detached_copy(driver, operation):
+    body = (
+        "h = ForeignHash(foreign_contract=contract, foreign_name='metadata')\n"
+        + operation
+        + "\nreturn h['nested']"
+    )
     actual = run(driver, body)
-    assert expected["status_code"] == actual.status_code == 0
-    assert expected["result"] == actual.result == [1, 2]
-    assert expected["writes"] == actual.writes == {}
+    assert actual.status_code == 0
+    assert actual.result == [1, 2]
+    assert actual.writes == {}
     assert driver.get_var("con_data", "metadata", ["nested"]) == [1, 2]

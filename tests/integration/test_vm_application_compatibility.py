@@ -21,7 +21,10 @@ def test_application_baseline_provenance():
         ("application_runner.py", "runner_sha256"),
         ("runner.py", "typed_encoder_sha256"),
     ]:
-        assert hashlib.sha256((FIXTURES.parent / name).read_bytes()).hexdigest() == BASELINE[key]
+        assert (
+            hashlib.sha256((FIXTURES.parent / "historical" / name).read_bytes()).hexdigest()
+            == BASELINE[key]
+        )
     assert set(BASELINE["observations"]) == {case["id"] for case in SEQUENCES}
     assert all(len(case["steps"]) <= 64 for case in SEQUENCES)
 
@@ -29,7 +32,6 @@ def test_application_baseline_provenance():
 @pytest.mark.parametrize(
     "engine",
     [
-        "python",
         pytest.param("native", marks=pytest.mark.optional_native),
         pytest.param("native-metered", marks=pytest.mark.optional_native),
     ],

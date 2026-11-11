@@ -4,9 +4,8 @@ from decimal import Decimal
 
 import pytest
 from xian_runtime_types.decimal import ContractingDecimal
-from contracting.local import ContractingClient
 
-pytestmark = pytest.mark.optional_native
+from contracting.local import ContractingClient
 
 
 def con_v2():
@@ -44,8 +43,9 @@ def test_exact_closure_deployment_and_failed_call_preserves_persisted_state(tmp_
 
 
 def test_parallel_local_simulation_applies_v2_in_each_worker(tmp_path):
-    from contracting.execution.parallel import ExecutionRequest
     from xian_runtime_types.time import Datetime
+
+    from contracting.execution.parallel import ExecutionRequest
 
     with ContractingClient(storage_home=tmp_path, vm_profile="xian_vm_v2") as client:
         client.submit(con_v2)
@@ -53,14 +53,19 @@ def test_parallel_local_simulation_applies_v2_in_each_worker(tmp_path):
         workers = client.build_parallel_executor(workers=2, min_batch_size=2)
         try:
             requests = [
-                ExecutionRequest(sender=sender, contract_name="con_v2", function_name="multiply",
-                                 kwargs={"amount": value, "denominator": 3},
-                                 environment={"now": Datetime(2026, 1, 1)})
+                ExecutionRequest(
+                    sender=sender,
+                    contract_name="con_v2",
+                    function_name="multiply",
+                    kwargs={"amount": value, "denominator": 3},
+                    environment={"now": Datetime(2026, 1, 1)},
+                )
                 for sender, value in [("alice", 1), ("bob", 2)]
             ]
             results, stats = workers.execute(requests=requests)
             assert [out["result"] for out in results] == [
-                Decimal("0." + "3" * 30), Decimal("0." + "6" * 30)
+                Decimal("0." + "3" * 30),
+                Decimal("0." + "6" * 30),
             ]
             assert stats.speculative_wave_count
         finally:
@@ -90,30 +95,32 @@ def unchecked(x: int):
 def test_default_rejects_historical_storage_before_bootstrap(tmp_path):
     from contracting.storage.driver import Driver
 
-    with ContractingClient(storage_home=tmp_path, vm_profile="xian_vm_v1") as old:
-        ir = old.get_contract_ir("submission")
-        old.raw_driver.set("con_old.amount", Decimal("1.25"))
-        old.raw_driver.commit()
+    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as historical:
+        historical.set_contract_from_source("submission", "@export\ndef old():\n    return 1")
+        ir = historical.get_contract_ir("submission")
+        historical.set("con_old.amount", Decimal("1.25"))
+        historical.commit()
     with pytest.raises(ValueError, match="uses 'xian_vm_v1'.*requested 'xian_vm_v2'"):
         ContractingClient(storage_home=tmp_path)
     with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
         assert driver.get_contract_ir("submission") == ir
         assert driver.get("con_old.amount") == Decimal("1.25")
 
+
 def test_default_driver_rejects_legacy_deployment_before_staging_writes(tmp_path):
     from contracting.artifacts import compile_contract_source
-    from contracting.storage.contract import Contract
 
     with ContractingClient(storage_home=tmp_path) as client:
         source = "@export\ndef ping():\n    return 1"
-        legacy = compile_contract_source(module_name="con_old", source=source, vm_profile="xian_vm_v1")
+        legacy = compile_contract_source(
+            module_name="con_old", source=source, vm_profile="xian_vm_v1"
+        )
         with pytest.raises(ValueError, match="IR must target xian_vm_v2"):
-            client.raw_driver.set_contract("con_old", source=source, vm_ir_json=legacy["vm_ir_json"])
-        with pytest.raises(ValueError, match="ContractingClient.submit"):
-            Contract(driver=client.raw_driver).submit("con_old", source)
+            client.raw_driver.set_contract(
+                "con_old", source=source, vm_ir_json=legacy["vm_ir_json"]
+            )
         assert not client.raw_driver.pending_writes
         assert not client.raw_driver.has_contract("con_old")
-
 
 
 def test_default_driver_rejects_unbootstrapped_legacy_artifacts(tmp_path):
@@ -137,4 +144,6 @@ def test_source_only_driver_install_uses_exact_v2_ir(tmp_path):
         driver.set_contract("con_amount", source=source)
         driver.commit()
     with ContractingClient(storage_home=tmp_path) as client:
-        assert client.get_contract_proxy("con_amount").amount() == Decimal("1.000000000000000000000000000001")
+        assert client.get_contract_proxy("con_amount").amount() == Decimal(
+            "1.000000000000000000000000000001"
+        )

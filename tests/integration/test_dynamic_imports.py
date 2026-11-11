@@ -10,12 +10,11 @@ from contracting.local import ContractingClient
 class TestDynamicImports(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
+        self.addCleanup(self.c.close)
         self.c.flush()
 
         # submit erc20 clone
-        stubucks_path = os.path.join(
-            os.path.dirname(__file__), "test_contracts", "stubucks.s.py"
-        )
+        stubucks_path = os.path.join(os.path.dirname(__file__), "test_contracts", "stubucks.s.py")
 
         with open(stubucks_path) as f:
             code = f.read()
@@ -77,12 +76,8 @@ class TestDynamicImports(TestCase):
         self.assertEqual(self.bastardcoin.balance_of(account="colin"), 555)
 
     def test_get_stubuck_balances(self):
-        stu = self.dynamic_importing.balance_for_token(
-            tok="con_stubucks", account="stu"
-        )
-        colin = self.dynamic_importing.balance_for_token(
-            tok="con_stubucks", account="colin"
-        )
+        stu = self.dynamic_importing.balance_for_token(tok="con_stubucks", account="stu")
+        colin = self.dynamic_importing.balance_for_token(tok="con_stubucks", account="colin")
 
         self.assertEqual(stu, 123)
         self.assertEqual(colin, 321)
@@ -103,27 +98,15 @@ class TestDynamicImports(TestCase):
         self.assertEqual(colin, 321)
 
     def test_exists_by_contract_name(self):
-        self.assertTrue(
-            self.dynamic_importing.contract_exists(tok="con_stubucks")
-        )
-        self.assertTrue(
-            self.dynamic_importing.contract_exists(tok="con_dynamic_importing")
-        )
+        self.assertTrue(self.dynamic_importing.contract_exists(tok="con_stubucks"))
+        self.assertTrue(self.dynamic_importing.contract_exists(tok="con_dynamic_importing"))
 
     def test_exists_by_module_object(self):
-        self.assertTrue(
-            self.dynamic_importing.contract_exists_module(tok="con_stubucks")
-        )
-        self.assertTrue(
-            self.dynamic_importing.contract_exists_module(
-                tok="con_dynamic_importing"
-            )
-        )
+        self.assertTrue(self.dynamic_importing.contract_exists_module(tok="con_stubucks"))
+        self.assertTrue(self.dynamic_importing.contract_exists_module(tok="con_dynamic_importing"))
 
     def test_exists_returns_false_for_missing_or_invalid_contract(self):
-        self.assertFalse(
-            self.dynamic_importing.contract_exists(tok="con_missing")
-        )
+        self.assertFalse(self.dynamic_importing.contract_exists(tok="con_missing"))
         self.assertFalse(self.dynamic_importing.contract_exists(tok="con-bad"))
         self.assertFalse(self.dynamic_importing.contract_exists(tok="hashlib"))
 
@@ -226,15 +209,11 @@ class TestDynamicImports(TestCase):
                 owner="poot",
             )
 
-        value = self.dynamic_importing.dynamic_owner_call(
-            tok="con_owner_for_dynamic"
-        )
+        value = self.dynamic_importing.dynamic_owner_call(tok="con_owner_for_dynamic")
         self.assertEqual(value, "con_dynamic_importing")
 
         with self.assertRaises(Exception):
-            self.dynamic_importing.dynamic_owner_call(
-                tok="con_owner_forbidden_dynamic"
-            )
+            self.dynamic_importing.dynamic_owner_call(tok="con_owner_forbidden_dynamic")
 
     def test_dynamic_call_preserves_ctx_semantics(self):
         result = self.dynamic_importing.dynamic_ctx_call(
@@ -278,82 +257,46 @@ class TestDynamicImports(TestCase):
         )
 
     def test_get_tejastokens_balances(self):
-        stu = self.dynamic_importing.balance_for_token(
-            tok="con_tejastokens", account="stu"
-        )
-        colin = self.dynamic_importing.balance_for_token(
-            tok="con_tejastokens", account="colin"
-        )
+        stu = self.dynamic_importing.balance_for_token(tok="con_tejastokens", account="stu")
+        colin = self.dynamic_importing.balance_for_token(tok="con_tejastokens", account="colin")
 
         self.assertEqual(stu, 321)
         self.assertEqual(colin, 123)
 
     def test_get_bastardcoin_balances(self):
-        stu = self.dynamic_importing.balance_for_token(
-            tok="con_bastardcoin", account="stu"
-        )
-        colin = self.dynamic_importing.balance_for_token(
-            tok="con_bastardcoin", account="colin"
-        )
+        stu = self.dynamic_importing.balance_for_token(tok="con_bastardcoin", account="stu")
+        colin = self.dynamic_importing.balance_for_token(tok="con_bastardcoin", account="colin")
 
         self.assertEqual(stu, 999)
         self.assertEqual(colin, 555)
 
     def test_is_erc20(self):
-        self.assertTrue(
-            self.dynamic_importing.is_erc20_compatible(tok="con_stubucks")
-        )
-        self.assertTrue(
-            self.dynamic_importing.is_erc20_compatible(tok="con_tejastokens")
-        )
-        self.assertFalse(
-            self.dynamic_importing.is_erc20_compatible(tok="con_bastardcoin")
-        )
+        self.assertTrue(self.dynamic_importing.is_erc20_compatible(tok="con_stubucks"))
+        self.assertTrue(self.dynamic_importing.is_erc20_compatible(tok="con_tejastokens"))
+        self.assertFalse(self.dynamic_importing.is_erc20_compatible(tok="con_bastardcoin"))
 
     def test_is_erc20_by_contract_name(self):
-        self.assertTrue(
-            self.dynamic_importing.is_erc20_compatible_name(
-                tok="con_stubucks"
-            )
-        )
-        self.assertTrue(
-            self.dynamic_importing.is_erc20_compatible_name(
-                tok="con_tejastokens"
-            )
-        )
-        self.assertFalse(
-            self.dynamic_importing.is_erc20_compatible_name(
-                tok="con_bastardcoin"
-            )
-        )
+        self.assertTrue(self.dynamic_importing.is_erc20_compatible_name(tok="con_stubucks"))
+        self.assertTrue(self.dynamic_importing.is_erc20_compatible_name(tok="con_tejastokens"))
+        self.assertFalse(self.dynamic_importing.is_erc20_compatible_name(tok="con_bastardcoin"))
 
     def test_get_balances_erc20_enforced_stubucks(self):
-        stu = self.dynamic_importing.only_erc20(
-            tok="con_stubucks", account="stu"
-        )
-        colin = self.dynamic_importing.only_erc20(
-            tok="con_stubucks", account="colin"
-        )
+        stu = self.dynamic_importing.only_erc20(tok="con_stubucks", account="stu")
+        colin = self.dynamic_importing.only_erc20(tok="con_stubucks", account="colin")
 
         self.assertEqual(stu, 123)
         self.assertEqual(colin, 321)
 
     def test_get_balances_erc20_enforced_tejastokens(self):
-        stu = self.dynamic_importing.only_erc20(
-            tok="con_tejastokens", account="stu"
-        )
-        colin = self.dynamic_importing.only_erc20(
-            tok="con_tejastokens", account="colin"
-        )
+        stu = self.dynamic_importing.only_erc20(tok="con_tejastokens", account="stu")
+        colin = self.dynamic_importing.only_erc20(tok="con_tejastokens", account="colin")
 
         self.assertEqual(stu, 321)
         self.assertEqual(colin, 123)
 
     def test_erc20_enforced_fails_for_bastardcoin(self):
         with self.assertRaises(AssertionError):
-            stu = self.dynamic_importing.only_erc20(
-                tok="con_bastardcoin", account="stu"
-            )
+            self.dynamic_importing.only_erc20(tok="con_bastardcoin", account="stu")
 
     def test_owner_of_returns_default(self):
         owner_stuff_path = os.path.join(
@@ -367,12 +310,8 @@ class TestDynamicImports(TestCase):
         owner_stuff = self.c.get_contract_proxy("con_owner_stuff")
 
         self.assertIsNone(owner_stuff.get_owner(s="con_stubucks", signer="poo"))
-        self.assertEqual(
-            owner_stuff.get_owner(s="con_owner_stuff", signer="poo"), "poo"
-        )
-        self.assertIsNone(
-            owner_stuff.get_owner_by_name(s="con_stubucks", signer="poo")
-        )
+        self.assertEqual(owner_stuff.get_owner(s="con_owner_stuff", signer="poo"), "poo")
+        self.assertIsNone(owner_stuff.get_owner_by_name(s="con_stubucks", signer="poo"))
         self.assertEqual(
             owner_stuff.get_owner_by_name(s="con_owner_stuff", signer="poo"),
             "poo",
@@ -417,12 +356,8 @@ class TestDynamicImports(TestCase):
         owner_stuff = self.c.get_contract_proxy("con_owner_stuff")
         ir_code = self.c.get_var("con_owner_stuff", "__xian_ir_v1__")
         source_code = self.c.get_var("con_owner_stuff", "__source__")
-        expected_ir_hash = hashlib.sha3_256(
-            ir_code.encode("utf-8")
-        ).hexdigest()
-        expected_source_hash = hashlib.sha3_256(
-            source_code.encode("utf-8")
-        ).hexdigest()
+        expected_ir_hash = hashlib.sha3_256(ir_code.encode("utf-8")).hexdigest()
+        expected_source_hash = hashlib.sha3_256(source_code.encode("utf-8")).hexdigest()
 
         self.assertEqual(
             owner_stuff.get_code_hash(
@@ -462,17 +397,22 @@ class TestDynamicImports(TestCase):
             expected_ir_hash,
         )
 
-    def test_legacy_python_code_hash_rejects_invalid_kind(self):
+    def test_code_hash_rejects_invalid_kind(self):
         source = """@export
 def inspect():
     return importlib.code_hash(ctx.this, kind="compiled")
 """
-        with TemporaryDirectory() as storage, ContractingClient(
-            signer="stu", storage_home=storage, vm_profile="xian_vm_v1"
-        ) as legacy:
-            legacy.submit(source, name="con_hash_kind")
-            with self.assertRaisesRegex(AssertionError, "Hash kind"):
-                legacy.get_contract_proxy("con_hash_kind").inspect()
+        with (
+            TemporaryDirectory() as storage,
+            ContractingClient(
+                signer="stu", storage_home=storage, vm_profile="xian_vm_v2"
+            ) as client,
+        ):
+            client.submit(source, name="con_hash_kind")
+            output = client.get_contract_proxy("con_hash_kind").inspect(return_full_output=True)
+            self.assertEqual(output["status_code"], 1)
+            self.assertIn("Hash kind", str(output["result"]))
+            self.assertEqual(output["writes"], {})
 
     def test_ctx_owner_works(self):
         owner_stuff_path = os.path.join(
@@ -542,5 +482,5 @@ def inspect():
 
         parent_test = self.c.get_contract_proxy("parent_test")
 
-        with self.assertRaises(Exception) as e:
+        with self.assertRaises(Exception):
             parent_test.get_val_from_child(s="child_test")

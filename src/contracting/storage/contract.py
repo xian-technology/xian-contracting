@@ -1,16 +1,8 @@
-import json
+"""Metadata helpers for native host calls and explicit storage tooling."""
 
 from contracting import constants
-from contracting.artifacts import compile_contract_source
-from contracting.compilation.compiler import ContractingCompiler
-from contracting.execution.runtime import contract_execution_scope, rt
-from contracting.execution.sandbox import build_contract_builtins
+from contracting.execution.runtime import rt
 from contracting.names import assert_safe_contract_name
-from contracting.runtime_features import (
-    RUNTIME_FEATURE_ZK,
-    module_ir_uses_runtime_feature,
-    runtime_feature_enabled,
-)
 from contracting.storage.driver import (
     DEPLOYER_KEY,
     DEVELOPER_KEY,
@@ -20,16 +12,11 @@ from contracting.storage.driver import (
     Driver,
 )
 
-XIAN_EXECUTION_MODE_ENV_KEY = "__xian_execution_mode__"
-
 
 class Contract:
-    def __init__(self, driver: Driver | None = None):
-        self._driver = driver or rt.env.get("__Driver") or Driver(vm_profile="xian_vm_v1")
-
     @staticmethod
     def _resolve_driver(driver: Driver | None = None) -> Driver:
-        return driver or rt.env.get("__Driver") or Driver(vm_profile="xian_vm_v1")
+        return driver or rt.env.get("__Driver") or Driver()
 
     @classmethod
     def _active_contract_name(cls) -> str | None:
@@ -52,172 +39,6 @@ class Contract:
         if active_contract != constants.SUBMISSION_CONTRACT_NAME:
             raise AssertionError("Contract metadata changes are restricted to submission.")
         return resolved_driver
-
-    @classmethod
-    def _submit_with_driver(
-        cls,
-        driver: Driver,
-        *,
-        name,
-        code,
-        owner=None,
-        constructor_args=None,
-        developer=None,
-        deployer=None,
-        initiator=None,
-    ):
-        with rt.execution_lock:
-            driver = cls._require_submission_metadata_context(driver=driver)
-            if driver.vm_profile != "xian_vm_v1":
-                raise ValueError("Use ContractingClient.submit for native V2 deployment.")
-            assert_safe_contract_name(name)
-
-            if driver.has_contract(name):
-                raise Exception("Contract already exists.")
-
-            if not isinstance(code, str) or code == "":
-                raise TypeError("Contract deployment requires non-empty source code.")
-            if rt.env.get(XIAN_EXECUTION_MODE_ENV_KEY) == "xian_vm_v1":
-                raise TypeError(
-                    "xian_vm_v1 contract deployment must execute through the "
-                    "native VM host, not the local harness path."
-                )
-
-            raw_source_bytes = len(code.encode("utf-8"))
-            assert raw_source_bytes <= constants.MAX_CONTRACT_SUBMISSION_BYTES, (
-                "Contract source exceeds the maximum allowed size."
-            )
-
-            compiled_artifacts = compile_contract_source(
-                module_name=name,
-                source=code,
-                lint=True,
-                vm_profile="xian_vm_v1",
-            )
-
-            source_obj = compiled_artifacts["source"]
-            vm_ir_json = compiled_artifacts["vm_ir_json"]
-            module_ir = json.loads(vm_ir_json)
-            if module_ir_uses_runtime_feature(
-                module_ir,
-                RUNTIME_FEATURE_ZK,
-            ) and not runtime_feature_enabled(
-                driver,
-                RUNTIME_FEATURE_ZK,
-                default_enabled=True,
-            ):
-                raise AssertionError(
-                    f"contract '{name}' uses zk host syscalls, "
-                    "but the chain zk runtime feature is disabled"
-                )
-            code_obj = ContractingCompiler(module_name=name).parse_to_code(
-                source_obj,
-                lint=False,
-                vm_profile="xian_vm_v1",
-            )
-
-            rt.deduct_execution_cost(
-                constants.DEPLOYMENT_BASE_COST
-                + (len(source_obj.encode("utf-8")) * constants.DEPLOYMENT_COST_PER_SOURCE_BYTE)
-            )
-
-            from contracting.stdlib import env
-
-            scope = env.gather()
-            scope.update({"__contract__": True})
-            scope.update(rt.env)
-            scope.update({"__Driver": driver})
-            scope["__builtins__"] = build_contract_builtins(__import__)
-
-            compiled = compile(code_obj, name, "exec", optimize=0)
-            rt.tracer.register_code(compiled)
-            current_state = rt.context._get_state()
-            deployment_owner = owner
-            deployment_developer = current_state["caller"] if developer is None else developer
-            deployment_deployer = current_state["caller"] if deployer is None else deployer
-            deployment_initiator = current_state["signer"] if initiator is None else initiator
-            deployment_state = {
-                "owner": deployment_owner,
-                "caller": deployment_deployer,
-                "signer": deployment_initiator,
-                "this": name,
-                "entry": current_state["entry"],
-                "submission_name": name,
-            }
-
-            previous_driver = rt.env.get("__Driver")
-            rt.env.update({"__Driver": driver})
-            try:
-                with rt.push_context_state(deployment_state), contract_execution_scope():
-                    exec(compiled, scope)
-
-                    if scope.get(constants.INIT_FUNC_NAME) is not None:
-                        if constructor_args is None:
-                            constructor_args = {}
-                        scope[constants.INIT_FUNC_NAME](**constructor_args)
-            finally:
-                if previous_driver is None:
-                    rt.env.pop("__Driver", None)
-                else:
-                    rt.env.update({"__Driver": previous_driver})
-
-            driver.set_contract(
-                name=name,
-                source=source_obj,
-                vm_ir_json=vm_ir_json,
-                owner=owner,
-                overwrite=False,
-                timestamp=scope.get("now"),
-                developer=deployment_developer,
-                deployer=deployment_deployer,
-                initiator=deployment_initiator,
-                is_txn_write=cls._active_contract_name() is not None,
-            )
-
-    def submit(
-        self,
-        name,
-        code,
-        owner=None,
-        constructor_args=None,
-        developer=None,
-        deployer=None,
-        initiator=None,
-    ):
-        self._submit_with_driver(
-            self._driver,
-            name=name,
-            code=code,
-            owner=owner,
-            constructor_args=constructor_args,
-            developer=developer,
-            deployer=deployer,
-            initiator=initiator,
-        )
-
-    @classmethod
-    def deploy(
-        cls,
-        *,
-        name,
-        code,
-        owner=None,
-        constructor_args=None,
-        developer=None,
-        deployer=None,
-        initiator=None,
-        driver: Driver | None = None,
-    ):
-        cls._submit_with_driver(
-            cls._resolve_driver(driver),
-            name=name,
-            code=code,
-            owner=owner,
-            constructor_args=constructor_args,
-            developer=developer,
-            deployer=deployer,
-            initiator=initiator,
-        )
 
     @classmethod
     def get_info(cls, name: str, *, driver: Driver | None = None) -> dict:

@@ -1,53 +1,26 @@
-from decimal import Decimal
-from unittest import TestCase
+"""Metered native conditional expressions preserve both branch results."""
 
-from contracting.execution import runtime
+from decimal import Decimal
+
 from contracting.local import ContractingClient
 
-TERNARY_CONTRACT = """
-@export
+TERNARY_CONTRACT = """@export
 def classify(limit: decimal) -> str:
     return 'YES' if limit > 0.1 else 'NO'
 """
 
 
-class TestIfExpSupport(TestCase):
-    def tearDown(self):
-        runtime.rt.clean_up()
-
-    def test_submitted_contract_ternary_executes_with_metering(self):
-        client = ContractingClient(signer="stu", metering=True)
-        client.executor.bypass_balance_amount = True
-        contract_name = "con_ifexp"
-
-        try:
-            client.flush()
-            client.submit(
-                TERNARY_CONTRACT,
-                name=contract_name,
-                metering=False,
-            )
-
-            true_output = client.executor.execute(
+def test_submitted_contract_ternary_executes_with_metering(tmp_path):
+    with ContractingClient(storage_home=tmp_path, signer="stu", metering=True) as client:
+        client.submit(TERNARY_CONTRACT, name="con_ifexp", metering=False)
+        for limit, expected in [(Decimal("0.2"), "YES"), (0, "NO")]:
+            output = client.executor.execute(
                 sender="stu",
-                contract_name=contract_name,
+                contract_name="con_ifexp",
                 function_name="classify",
-                kwargs={"limit": Decimal("0.2")},
+                kwargs={"limit": limit},
                 metering=True,
             )
-            false_output = client.executor.execute(
-                sender="stu",
-                contract_name=contract_name,
-                function_name="classify",
-                kwargs={"limit": 0},
-                metering=True,
-            )
-
-            self.assertEqual(true_output["status_code"], 0)
-            self.assertEqual(true_output["result"], "YES")
-            self.assertGreater(true_output["chi_used"], 0)
-            self.assertEqual(false_output["status_code"], 0)
-            self.assertEqual(false_output["result"], "NO")
-            self.assertGreater(false_output["chi_used"], 0)
-        finally:
-            client.flush()
+            assert output["status_code"] == 0
+            assert output["result"] == expected
+            assert output["chi_used"] > 0

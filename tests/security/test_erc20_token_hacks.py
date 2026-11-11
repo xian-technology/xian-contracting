@@ -1,268 +1,100 @@
-import os
-from unittest import TestCase
+"""Native failure and admission cannot leak token or contract state changes."""
 
-from xian_runtime_types.decimal import ContractingDecimal
+from pathlib import Path
 
-from contracting import constants
+import pytest
+
 from contracting.local import ContractingClient
 
+CONTRACTS = Path(__file__).parent / "contracts"
 
-class TestTokenHacks(TestCase):
-    def setUp(self):
-        # This fixture installs the historical Python submission module directly.
-        self.c = ContractingClient(signer="stu", vm_profile="xian_vm_v1")
-        self.c.raw_driver.flush_full()
 
-        self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        submission_path = os.path.join(
-            self.script_dir, "contracts", "submission.s.py"
+@pytest.fixture
+def client(tmp_path):
+    with ContractingClient(storage_home=tmp_path, signer="stu", metering=True) as client:
+        client.submit(
+            (CONTRACTS / "erc20_clone.s.py").read_text(), name="con_erc20", metering=False
         )
-        with open(submission_path) as f:
-            contract = f.read()
+        client.raw_driver.commit()
+        yield client
 
-        self.c.raw_driver.set_contract(name="submission", source=contract)
 
-        self.c.raw_driver.commit()
+@pytest.mark.parametrize(
+    "fixture",
+    [
+        "hack_tokens.s.py",
+        "builtin_hack_token.s.py",
+        "import_hash_from_contract.s.py",
+        "get_set_driver.py",
+        "get_set_driver_2.py",
+    ],
+)
+def test_authored_storage_attacks_cannot_mutate_token_or_partial_deployment(client, fixture):
+    before = client.raw_driver.items()
+    output = client.get_contract_proxy("submission").submit_contract(
+        name="con_token_attack",
+        code=(CONTRACTS / fixture).read_text(),
+        return_full_output=True,
+    )
+    assert output["status_code"] == 1, output
+    assert output["writes"] == {}
+    assert output["events"] == []
+    assert not client.raw_driver.has_contract("con_token_attack")
+    assert client.raw_driver.items() == before
 
-        self.c.executor.currency_contract = "con_erc20"
-        self.c.signer = "stu"
 
-        # submit erc20 clone
-        with open(
-            os.path.join(self.script_dir, "contracts", "erc20_clone.s.py")
-        ) as f:
-            code = f.read()
-            self.c.submit(code, name="con_erc20", metering=False)
+def test_budget_exhaustion_after_cross_contract_transfer_rolls_back_tokens(client):
+    token = client.get_contract_proxy("con_erc20")
+    token.approve(amount=10000, to="con_hack", metering=False)
+    client.submit(
+        (CONTRACTS / "double_spend_gas_attack.s.py").read_text(), name="con_hack", metering=False
+    )
+    client.raw_driver.commit()
+    before = client.raw_driver.items()
+    output = client.get_contract_proxy("con_hack").double_spend(
+        receiver="colin",
+        chi=200,
+        return_full_output=True,
+    )
+    assert output["status_code"] == 1, output
+    assert output["chi_used"] > 0
+    assert output["writes"] == {}
+    assert output["events"] == []
+    assert client.raw_driver.items() == before
 
-        self.c.executor.metering = True
 
-    def tearDown(self):
-        self.c.raw_driver.flush_full()
+def test_nested_infinite_loop_cannot_escape_the_transaction_budget(client):
+    client.submit(
+        (CONTRACTS / "infinate_loop.s.py").read_text(), name="con_infinate_loop", metering=False
+    )
+    client.submit(
+        (CONTRACTS / "call_infinate_loop.s.py").read_text(),
+        name="con_call_infinate_loop",
+        metering=False,
+    )
+    client.raw_driver.commit()
+    before = client.raw_driver.items()
+    output = client.get_contract_proxy("con_call_infinate_loop").call(
+        chi=200, return_full_output=True
+    )
+    assert output["status_code"] == 1, output
+    assert output["chi_used"] > 0
+    assert output["writes"] == {}
+    assert client.raw_driver.items() == before
 
-    def test_orm_rename_hack(self):
-        # Reject the attribute mutation before the constructor can write balances.
-        driver = self.c.raw_driver
-        balance_key = driver.make_key("con_erc20", "balances", ["stu"])
-        pre_hack_balance = driver.get(balance_key)
-        pre_hack_state = driver.items(prefix="con_erc20.")
 
-        with open(
-            os.path.join(self.script_dir, "contracts", "hack_tokens.s.py")
-        ) as f:
-            code = f.read()
-        output = self.c.get_contract_proxy("submission").submit_contract(
-            name="con_token_hack",
-            code=code,
-            signer="stu",
-            return_full_output=True,
-        )
-
-        self.assertEqual(output["status_code"], 1)
-        self.assertIsInstance(output["result"], TypeError)
-        self.assertIn("interface descriptor", str(output["result"]))
-        self.assertFalse(driver.has_contract("con_token_hack"))
-        self.assertEqual(driver.items(prefix="con_token_hack."), {})
-        self.assertEqual(output["events"], [])
-
-        # Failed execution still pays its measured fee; no other state changes.
-        post_hack_balance = driver.get(balance_key)
-        self.assertGreater(output["chi_used"], 0)
-        self.assertEqual(
-            pre_hack_balance - post_hack_balance,
-            ContractingDecimal(output["chi_used"]) / ContractingDecimal(constants.CHI_PER_T),
-        )
-        self.assertEqual(output["writes"], {balance_key: post_hack_balance})
-        pre_hack_state[balance_key] = post_hack_balance
-        self.assertEqual(driver.items(prefix="con_erc20."), pre_hack_state)
-
-    def test_orm_setattr_hack(self):
-        # This hack uses setattr instead of direct property access to do the same thing as above
-
-        pre_hack_balance = self.c.raw_driver.get_var(
-            "con_erc20", "balances", arguments=["stu"]
-        )
-
-        with self.assertRaises(Exception):
-            with open(
-                os.path.join(
-                    self.script_dir, "contracts", "builtin_hack_token.s.py"
-                )
-            ) as f:
-                code = f.read()
-                self.c.submit(code, name="token_hack")
-
-            post_hack_balance = self.c.raw_driver.get_var(
-                "con_erc20", "balances", arguments=["stu"]
-            )
-
-            # The balance *should not* change between these tests!
-            self.assertEqual(pre_hack_balance, post_hack_balance)
-
-    def test_double_spend_if_chi_run_out(self):
-        token = self.c.get_contract_proxy("con_erc20")
-
-        pre_hack_balance_stu = float(
-            str(self.c.get_var("con_erc20", "balances", arguments=["stu"]))
-        )
-        pre_hack_balance_colin = float(
-            str(self.c.get_var("con_erc20", "balances", arguments=["colin"]))
-        )
-
-        # Approve the "hack" contract to spend stu's tokens
-        tx_amount = 10000
-        token.approve(amount=tx_amount, to="con_hack", chi=200)
-        with open(
-            os.path.join(
-                self.script_dir, "contracts", "double_spend_gas_attack.s.py"
-            )
-        ) as f:
-            code = f.read()
-            self.c.submit(code, name="con_hack", metering=True)
-        # Test the double_spend contract
-        # - sends the amount of the "allowance" (set in token.approve as 'tx_amount')
-        # - calls transfer_from to send from 'stu' to 'colin' as 'con_hack'
-        con_hack = self.c.get_contract_proxy("con_hack")
-        self.c.raw_driver.commit()
-        with self.assertRaises(AssertionError):
-            con_hack.double_spend(receiver="colin", chi=200)
-
-        # Since the above call failed, the balance should be the same as before and NOT balance + tx_amount
-
-        post_hack_balance_stu = float(
-            str(self.c.get_var("con_erc20", "balances", arguments=["stu"]))
-        )
-        post_hack_balance_colin = float(
-            str(self.c.get_var("con_erc20", "balances", arguments=["colin"]))
-        )
-
-        # Stu's POST balance should be less than the pre balance (less the tx_amount) because chi were also deducted
-        self.assertLess(post_hack_balance_stu, pre_hack_balance_stu + tx_amount)
-
-        # Colin's balance will not change because the transaction failed and the state was not updated
-        # Assert greater because some of the balance is lost to chi
-        self.assertEqual(pre_hack_balance_colin, post_hack_balance_colin)
-    def test_chi_fails_when_calling_infinate_loop_from_another_contract(self):
-        with open(
-            os.path.join(self.script_dir, "contracts", "infinate_loop.s.py")
-        ) as f:
-            code = f.read()
-            self.c.submit(code, name="con_infinate_loop")
-
-        with open(
-            os.path.join(
-                self.script_dir, "contracts", "call_infinate_loop.s.py"
-            )
-        ) as f:
-            code = f.read()
-            self.c.submit(code, name="con_call_infinate_loop", metering=True)
-
-        loop = self.c.get_contract_proxy("con_call_infinate_loop")
-
-        with self.assertRaises(AssertionError):
-            loop.call()
-
-    def test_constructor_with_infinate_loop_fails(self):
-        with self.assertRaises(AssertionError):
-            with open(
-                os.path.join(
-                    self.script_dir,
-                    "contracts",
-                    "constructor_infinate_loop.s.py",
-                )
-            ) as f:
-                code = f.read()
-                self.c.submit(
-                    code,
-                    name="con_constructor_infinate_loop",
-                    metering=True,
-                )
-
-    def test_infinate_loop_of_writes_undos_everything(self):
-        with self.assertRaises(AssertionError):
-            with open(
-                os.path.join(self.script_dir, "contracts", "con_inf_writes.s.py")
-            ) as f:
-                code = f.read()
-                self.c.submit(code, name="con_inf_writes", metering=True)
-
-    def test_accessing_variable_on_another_contract(self):
-        pre_hack_balance_stu = self.c.raw_driver.get_var(
-            "con_erc20", "balances", arguments=["stu"]
-        )
-
-        try:
-            with open(
-                os.path.join(
-                    self.script_dir,
-                    "contracts",
-                    "import_hash_from_contract.s.py",
-                )
-            ) as f:
-                code = f.read()
-                self.c.submit(
-                    code,
-                    name="import_hash_from_contract",
-                    metering=False,
-                )
-        except Exception:
-            pass
-
-        post_hack_balance_stu = self.c.raw_driver.get_var(
-            "con_erc20", "balances", arguments=["stu"]
-        )
-
-        self.assertEqual(pre_hack_balance_stu, post_hack_balance_stu)
-
-    def test_get_set_driver(self):
-        # This hack uses setattr instead of direct property access to do the same thing as above
-
-        pre_hack_balance = self.c.raw_driver.get_var(
-            "con_erc20", "balances", arguments=["stu"]
-        )
-
-        try:
-            with open(
-                os.path.join(self.script_dir, "contracts", "get_set_driver.py")
-            ) as f:
-                code = f.read()
-                self.c.submit(code, name="token_hack", metering=False)
-        except Exception as err:
-            print(err)
-
-        post_hack_balance = self.c.raw_driver.get_var(
-            "con_erc20", "balances", arguments=["stu"]
-        )
-
-        print()
-        print(post_hack_balance)
-
-        # The balance *should not* change between these tests!
-        self.assertEqual(pre_hack_balance, post_hack_balance)
-
-    def test_get_set_driver_2(self):
-        # This hack uses setattr instead of direct property access to do the same thing as above
-
-        pre_hack_balance = self.c.raw_driver.get_var(
-            "con_erc20", "balances", arguments=["stu"]
-        )
-
-        try:
-            with open(
-                os.path.join(
-                    self.script_dir, "contracts", "get_set_driver_2.py"
-                )
-            ) as f:
-                code = f.read()
-                self.c.submit(code, name="token_hack", metering=False)
-        except Exception as err:
-            print(err)
-
-        post_hack_balance = self.c.raw_driver.get_var(
-            "con_erc20", "balances", arguments=["stu"]
-        )
-
-        print()
-        print(post_hack_balance)
-
-        # The balance *should not* change between these tests!
-        self.assertEqual(pre_hack_balance, post_hack_balance)
+@pytest.mark.parametrize("fixture", ["constructor_infinate_loop.s.py", "con_inf_writes.s.py"])
+def test_failed_constructor_rolls_back_all_writes_and_artifacts(client, fixture):
+    before = client.raw_driver.items()
+    output = client.get_contract_proxy("submission").submit_contract(
+        name="con_constructor_attack",
+        code=(CONTRACTS / fixture).read_text(),
+        chi=200,
+        return_full_output=True,
+    )
+    assert output["status_code"] == 1, output
+    assert output["chi_used"] > 0
+    assert output["writes"] == {}
+    assert output["events"] == []
+    assert not client.raw_driver.has_contract("con_constructor_attack")
+    assert client.raw_driver.items() == before

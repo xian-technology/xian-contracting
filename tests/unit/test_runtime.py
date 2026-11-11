@@ -1,189 +1,58 @@
+"""The shared native host owns context and environment, never a Python evaluator."""
+
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
-from unittest import TestCase
 
-from contracting import constants
-from contracting.execution import runtime
-from contracting.execution.runtime import Context
-from contracting.execution.tracer import ChiExceededError
+from contracting.execution.runtime import Context, Runtime
 
 
-class TestRuntimeLifecycle(TestCase):
-    def tearDown(self):
-        runtime.rt.tracer.stop()
-        runtime.rt.clean_up()
-
-    def test_set_up_starts_tracer_when_metering(self):
-        runtime.rt.set_up(stmps=1000, meter=True)
-        self.assertTrue(runtime.rt.tracer.is_started())
-
-    def test_set_up_does_not_start_tracer_without_metering(self):
-        runtime.rt.set_up(stmps=1000, meter=False)
-        self.assertFalse(runtime.rt.tracer.is_started())
-
-    def test_clean_up_stops_tracer(self):
-        runtime.rt.set_up(stmps=1000, meter=True)
-        runtime.rt.clean_up()
-        self.assertFalse(runtime.rt.tracer.is_started())
-
-    def test_clean_up_preserves_tracer_instance_for_warm_metadata(self):
-        runtime.rt.set_up(stmps=1000, meter=True)
-        tracer = runtime.rt.tracer
-        runtime.rt.clean_up()
-        runtime.rt.set_up(stmps=1000, meter=True)
-        self.assertIs(runtime.rt.tracer, tracer)
-
-    def test_runtime_state_is_isolated_per_thread(self):
-        barrier = Barrier(2)
-
-        def worker(tag):
-            runtime.rt.env = {"tag": tag}
-            runtime.rt.context = Context(
-                base_state={
-                    "caller": tag,
-                    "signer": tag,
-                    "this": f"con_{tag}",
-                    "owner": None,
-                    "entry": (f"con_{tag}", "run"),
-                    "submission_name": None,
-                }
-            )
-            barrier.wait()
-            return runtime.rt.env["tag"], runtime.rt.context.signer
-
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            result_a = executor.submit(worker, "alpha")
-            result_b = executor.submit(worker, "beta")
-
-        self.assertEqual(result_a.result(), ("alpha", "alpha"))
-        self.assertEqual(result_b.result(), ("beta", "beta"))
+def state(contract, caller):
+    return {
+        "this": contract,
+        "caller": caller,
+        "signer": "alice",
+        "owner": None,
+        "entry": ("con_entry", "run"),
+        "submission_name": None,
+    }
 
 
-class TestTracerMetering(TestCase):
-    def tearDown(self):
-        runtime.rt.tracer.stop()
-        runtime.rt.clean_up()
+def test_runtime_state_is_isolated_per_thread():
+    runtime = Runtime()
+    barrier = Barrier(2)
 
-    def test_tracer_works_with_registered_code(self):
-        runtime.rt.set_up(stmps=1_000_000, meter=True)
-        code = compile("x = max([i for i in range(2)])", "<test>", "exec")
-        runtime.rt.tracer.register_code(code)
-        exec(code)
-        runtime.rt.tracer.stop()
-        self.assertGreater(runtime.rt.tracer.get_chi_used(), 0)
+    def worker(tag):
+        runtime.env = {"tag": tag}
+        runtime.context = Context(state(f"con_{tag}", tag))
+        barrier.wait()
+        return dict(runtime.env), runtime.context.caller
 
-    def test_more_work_costs_more(self):
-        runtime.rt.set_up(stmps=1_000_000, meter=True)
-        code_big = compile("x = max([i for i in range(100)])", "<test>", "exec")
-        runtime.rt.tracer.register_code(code_big)
-        exec(code_big)
-        runtime.rt.tracer.stop()
-        used_big = runtime.rt.tracer.get_chi_used()
-        runtime.rt.clean_up()
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        alpha = executor.submit(worker, "alpha")
+        beta = executor.submit(worker, "beta")
 
-        runtime.rt.set_up(stmps=10_000_000, meter=True)
-        code_small = compile("x = 1", "<test>", "exec")
-        runtime.rt.tracer.register_code(code_small)
-        exec(code_small)
-        runtime.rt.tracer.stop()
-        used_small = runtime.rt.tracer.get_chi_used()
-
-        self.assertGreater(used_big, used_small)
-
-    def test_add_cost_directly(self):
-        runtime.rt.set_up(stmps=1000, meter=True)
-        runtime.rt.tracer.add_cost(900)
-        runtime.rt.tracer.stop()
-        self.assertEqual(runtime.rt.tracer.get_chi_used(), 900)
-
-    def test_python_line_metadata_survives_runtime_cleanup(self):
-        runtime.rt.set_up(stmps=1_000_000, meter=True)
-        code = compile("x = 1\ny = x + 1\n", "<test>", "exec")
-        runtime.rt.tracer.register_code(code)
-        exec(code)
-        runtime.rt.tracer.stop()
-        cached_costs = dict(runtime.rt.tracer._line_costs)
-        runtime.rt.clean_up()
-
-        runtime.rt.set_up(stmps=1_000_000, meter=True)
-        self.assertEqual(runtime.rt.tracer._line_costs, cached_costs)
+    assert alpha.result() == ({"tag": "alpha"}, "alpha")
+    assert beta.result() == ({"tag": "beta"}, "beta")
+    assert dict(runtime.env) == {}
+    assert runtime.context.this is None
 
 
-class TestWriteDeduction(TestCase):
-    def tearDown(self):
-        runtime.rt.tracer.stop()
-        runtime.rt.clean_up()
-
-    def test_deduct_write_adjusts_total_writes(self):
-        runtime.rt.set_up(stmps=100_000, meter=True)
-        runtime.rt.deduct_write("a", "bad")
-        self.assertEqual(runtime.rt.writes, 4)
-
-    def test_deduct_write_adds_chi_cost(self):
-        runtime.rt.set_up(stmps=100_000, meter=True)
-        cost_before = runtime.rt.tracer.get_chi_used()
-        runtime.rt.deduct_write("key", "val")
-        self.assertGreater(runtime.rt.tracer.get_chi_used(), cost_before)
-
-    def test_deduct_write_fails_if_too_many_writes(self):
-        runtime.rt.set_up(stmps=100_000_000, meter=True)
-        runtime.rt.deduct_write("a", "bad")
-        with self.assertRaises((AssertionError, ChiExceededError)):
-            runtime.rt.deduct_write("a", "b" * 128 * 1024)
-
-    def test_deduct_write_can_skip_write_cap_for_deployment_metadata(self):
-        runtime.rt.set_up(stmps=100_000_000, meter=True)
-        cost_before = runtime.rt.tracer.get_chi_used()
-        runtime.rt.deduct_write(
-            "contract.__xian_ir_v1__",
-            "x" * (128 * 1024),
-            enforce_write_cap=False,
-        )
-        self.assertEqual(runtime.rt.writes, 0)
-        self.assertGreater(runtime.rt.tracer.get_chi_used(), cost_before)
+def test_runtime_instances_do_not_share_environment_or_context():
+    alpha, beta = Runtime(), Runtime()
+    alpha.env["tag"] = "alpha"
+    alpha.context._base_state["this"] = "con_alpha"
+    assert dict(beta.env) == {}
+    assert beta.context.this is None
 
 
-class TestReadDeduction(TestCase):
-    def tearDown(self):
-        runtime.rt.tracer.stop()
-        runtime.rt.clean_up()
-
-    def test_deduct_read_adds_cost(self):
-        runtime.rt.set_up(stmps=100_000, meter=True)
-        cost_before = runtime.rt.tracer.get_chi_used()
-        runtime.rt.deduct_read("mykey", "myvalue")
-        self.assertGreater(runtime.rt.tracer.get_chi_used(), cost_before)
-
-
-class TestTransactionByteDeduction(TestCase):
-    def tearDown(self):
-        runtime.rt.tracer.stop()
-        runtime.rt.clean_up()
-
-    def test_deduct_transaction_bytes_adds_cost(self):
-        runtime.rt.set_up(stmps=100_000, meter=True)
-        cost_before = runtime.rt.tracer.get_chi_used()
-        runtime.rt.deduct_transaction_bytes(128)
-        self.assertEqual(
-            runtime.rt.tracer.get_chi_used() - cost_before,
-            128 * constants.TRANSACTION_BYTES_COST_PER_BYTE,
-        )
-
-
-class TestReturnValueDeduction(TestCase):
-    def tearDown(self):
-        runtime.rt.tracer.stop()
-        runtime.rt.clean_up()
-
-    def test_deduct_return_value_adds_cost(self):
-        runtime.rt.set_up(stmps=100_000, meter=True)
-        cost_before = runtime.rt.tracer.get_chi_used()
-        runtime.rt.deduct_return_value({"value": "ok"})
-        self.assertGreater(runtime.rt.tracer.get_chi_used(), cost_before)
-
-    def test_deduct_return_value_fails_if_too_large(self):
-        runtime.rt.set_up(stmps=10_000_000, meter=True)
-        with self.assertRaises(AssertionError):
-            runtime.rt.deduct_return_value(
-                "a" * (constants.MAX_RETURN_VALUE_SIZE + 1)
-            )
+def test_assigning_host_environment_copies_the_input_mapping():
+    runtime = Runtime()
+    original = {"chain_id": "local"}
+    runtime.env = original
+    original["chain_id"] = "changed"
+    assert runtime.env["chain_id"] == "local"
+    runtime.env["input_hash"] = "abc"
+    assert len(runtime.env) == 2
+    del runtime.env["input_hash"]
+    assert len(runtime.env) == 1
+    assert dict(runtime.env) == {"chain_id": "local"}

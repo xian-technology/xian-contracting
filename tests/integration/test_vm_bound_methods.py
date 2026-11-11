@@ -1,12 +1,12 @@
 """Retrieved public methods keep their receiver and bind arguments consistently."""
 
 import pytest
-
 from xian_compiler_core import CompilerError
-from contracting.execution.executor import Executor
+
 from contracting.storage.driver import Driver
 
 pytestmark = pytest.mark.optional_native
+
 
 CASES = [
     (
@@ -76,40 +76,30 @@ INVALID = [
 ]
 
 
-def execute_source(home, body, *, native=True):
+def execute_source(home, body):
     source = (
         "state = Variable()\ndef append_for(values):\n    return values.append\n@export\ndef probe():\n"
         + "".join("    " + line + "\n" for line in body.splitlines())
     )
-    with Driver(storage_home=home, vm_profile="xian_vm_v2" if native else "xian_vm_v1") as driver:
+    with Driver(storage_home=home, vm_profile="xian_vm_v2") as driver:
         driver.set_contract_from_source("con_bound", source, owner=None)
         driver.commit()
-        if native:
-            from xian_vm_core import execute_contract
+        from xian_vm_core import execute_contract
 
-            result = execute_contract(
-                driver=driver,
-                contract_name="con_bound",
-                function_name="probe",
-                kwargs={},
-                context={"caller": "alice", "signer": "alice", "this": "con_bound"},
-                meter=False,
-            )
-            return result.status_code, result.result, result.writes
-        result = Executor(driver=driver, metering=False).execute(
-            sender="alice",
+        result = execute_contract(
+            driver=driver,
             contract_name="con_bound",
             function_name="probe",
             kwargs={},
-            metering=False,
+            context={"caller": "alice", "signer": "alice", "this": "con_bound"},
+            meter=False,
         )
-        return result["status_code"], result["result"], result["writes"]
+        return result.status_code, result.result, result.writes
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
 @pytest.mark.parametrize(("case_id", "body", "expected"), CASES, ids=[case[0] for case in CASES])
-def test_bound_method_semantics(tmp_path, native, case_id, body, expected):
-    status, result, _ = execute_source(tmp_path, body, native=native)
+def test_bound_method_semantics(tmp_path, case_id, body, expected):
+    status, result, _ = execute_source(tmp_path, body)
     assert status == 0, result
     assert result == expected
 

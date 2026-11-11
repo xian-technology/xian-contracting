@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from tests.integration.test_vm_language_conformance import _run_native_case, _run_python_case
+from tests.integration.pre_retirement_oracle import recorded_python_observation
+from tests.integration.test_vm_language_conformance import _run_native_case
 
 pytestmark = pytest.mark.optional_native
 
@@ -17,7 +18,7 @@ def test_empty_builtin_defaults_match_python(tmp_path: Path, expression: str):
         "function_name": "probe",
         "kwargs": {},
     }
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     assert expected["status_code"] == 0
     assert (
         _run_native_case(
@@ -47,7 +48,7 @@ def test_slice_boundaries_match_python(tmp_path: Path, expression: str):
         "function_name": "probe",
         "kwargs": {},
     }
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     assert expected["status_code"] == 0
     assert _run_native_case(case, tmp_path / "native") == expected
 
@@ -70,7 +71,7 @@ def test_numeric_builtin_boundaries_match_python(tmp_path: Path, expression: str
         "function_name": "probe",
         "kwargs": {},
     }
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     assert expected["status_code"] == 0
     assert _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1") == expected
 
@@ -82,5 +83,5 @@ def test_float_bytes_reject_non_ascii_whitespace(tmp_path: Path):
         "function_name": "probe",
         "kwargs": {},
     }
-    assert _run_python_case(case, tmp_path / "python")["status_code"] == 1
+    assert recorded_python_observation(case)["status_code"] == 1
     assert _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1")["status_code"] == 1

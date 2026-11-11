@@ -421,6 +421,22 @@ class NativeVmHost:
             + (len(source.encode("utf-8")) * constants.DEPLOYMENT_COST_PER_SOURCE_BYTE)
         )
 
+    def _code_hash(self, contract_name, args, kwargs):
+        kind = kwargs.get("kind")
+        if kind is None and len(args) > 1:
+            kind = args[1]
+        if self.vm_profile == "xian_vm_v2":
+            kind = "runtime" if kind is None else kind
+            if kind not in ("runtime", "ir", "source"):
+                raise VmRuntimeExecutionError("Hash kind must be 'ir' or 'source'!")
+        else:
+            kind = kind or "runtime"
+        key = XIAN_VM_V1_IR_KEY if kind in {"runtime", "ir"} else SOURCE_KEY
+        contract_text = self._contract_var(contract_name, key)
+        if contract_text is None:
+            return None
+        return hashlib.sha3_256(contract_text.encode("utf-8")).hexdigest()
+
     def handle_syscall(self, syscall_id: str, args, kwargs):
         kwargs = dict(kwargs or {})
         if syscall_id == "contract.exists":
@@ -469,17 +485,7 @@ class NativeVmHost:
             )
             return None
         if syscall_id == "contract.code_hash":
-            kind = kwargs.get("kind")
-            if kind is None and len(args) > 1:
-                kind = args[1]
-            kind = kind or "runtime"
-            if kind in {"runtime", "ir"}:
-                contract_text = self._contract_var(args[0], XIAN_VM_V1_IR_KEY)
-            else:
-                contract_text = self._contract_var(args[0], SOURCE_KEY)
-            if contract_text is None:
-                return None
-            return hashlib.sha3_256(contract_text.encode("utf-8")).hexdigest()
+            return self._code_hash(args[0], args, kwargs)
         if syscall_id.startswith("random."):
             function_name = syscall_id.split(".", 1)[1]
             handler = _RANDOM_SYSCALLS.get(function_name)
@@ -494,6 +500,34 @@ class NativeVmHost:
             handler = getattr(zk_bridge, function_name)
             return handler(*args, **kwargs)
         raise VmRuntimeExecutionError(f"unsupported host syscall '{syscall_id}'")
+
+
+def _rejected_entry(error: Exception) -> NativeExecutionResult:
+    return NativeExecutionResult(
+        status_code=1,
+        result=error,
+        writes={},
+        events=[],
+        snapshots=[],
+        raw_cost=0,
+        chi_used=constants.TRANSACTION_BASE_CHI,
+        contract_costs={},
+    )
+
+
+def _external_entry_error(host, module_ir, contract_name, function_name, context):
+    if not host.caller_is_owner(contract_name, context.get("caller")):
+        return Exception("Caller is not the owner!")
+    if host.vm_profile != "xian_vm_v2":
+        return None
+    if any(
+        function["name"] == function_name and function["visibility"] == "export"
+        for function in module_ir["functions"]
+    ):
+        return None
+    return RuntimeError(
+        f"Function '{function_name}' is not exported by contract '{contract_name}'."
+    )
 
 
 def execute_contract(
@@ -528,17 +562,9 @@ def execute_contract(
         )
     # A contract with an owner may only be called by that owner, whether the
     # call comes from another contract or straight from a transaction.
-    if not host.caller_is_owner(contract_name, context.get("caller")):
-        return NativeExecutionResult(
-            status_code=1,
-            result=_coerce_native_error_result(1, 'Exception("Caller is not the owner!")'),
-            writes={},
-            events=[],
-            snapshots=[],
-            raw_cost=0,
-            chi_used=constants.TRANSACTION_BASE_CHI,
-            contract_costs={},
-        )
+    error = _external_entry_error(host, module_ir, contract_name, function_name, context)
+    if error is not None:
+        return _rejected_entry(error)
     bundle_payload = {contract_name: module_ir}
     previous_env = dict(rt.env)
     # Host syscalls must use only this execution's explicit inputs. Ambient

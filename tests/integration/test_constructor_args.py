@@ -3,12 +3,13 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 from contracting.local import ContractingClient
-from contracting.storage.contract import Contract
+from contracting.storage.driver import Driver
 
 
 class TestSenecaClientReplacesExecutor(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
+        self.addCleanup(self.c.close)
         self.c.flush()
 
         # submit erc20 clone
@@ -50,18 +51,17 @@ class TestSenecaClientReplacesExecutor(TestCase):
                 constructor_args={"a": 123},
             )
 
-    def test_direct_contract_submit_uses_provided_driver_for_constructor(self):
-        with TemporaryDirectory() as path, ContractingClient(
-            storage_home=path, vm_profile="xian_vm_v1"
-        ) as legacy:
-            Contract(driver=legacy.raw_driver).submit(
-                name="con_constructor_args_contract",
-                code=self.code,
-                constructor_args={"a": 123, "b": 321},
-            )
-            legacy.raw_driver.commit()
-            contract = legacy.get_contract_proxy("con_constructor_args_contract")
-            a, b = contract.get()
-
-        self.assertEqual(a, 123)
-        self.assertEqual(b, 321)
+    def test_native_deployment_uses_provided_driver_for_constructor(self):
+        with TemporaryDirectory() as path, Driver(storage_home=path) as driver:
+            with ContractingClient(driver=driver) as client:
+                client.submit(
+                    self.code,
+                    name="con_constructor_args_contract",
+                    constructor_args={"a": 123, "b": 321},
+                )
+                client.raw_driver.commit()
+                self.assertEqual(
+                    client.get_contract_proxy("con_constructor_args_contract").get(), (123, 321)
+                )
+                self.assertTrue(driver.has_contract("con_constructor_args_contract"))
+                self.assertFalse(self.c.raw_driver.has_contract("con_constructor_args_contract"))

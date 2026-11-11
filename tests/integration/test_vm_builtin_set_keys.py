@@ -2,10 +2,8 @@
 
 import pytest
 
-from tests.integration.test_vm_language_conformance import (
-    _run_native_case,
-    _run_python_case,
-)
+from tests.integration.pre_retirement_oracle import recorded_python_observation
+from tests.integration.test_vm_language_conformance import _run_native_case
 
 pytestmark = pytest.mark.optional_native
 
@@ -23,14 +21,14 @@ def _case(body, dependencies=()):
 
 def _compare(tmp_path, body, dependencies=(), *, vm_profile="xian_vm_v2"):
     case = _case(body, dependencies)
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     assert expected["status_code"] == 0, expected
     assert _run_native_case(case, tmp_path / "native", vm_profile=vm_profile) == expected
 
 
 def _reject(tmp_path, body):
     case = _case(body)
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     assert expected["status_code"] == 1, expected
     assert expected["result"]["exception"] == "TypeError", expected
     actual = _run_native_case(case, tmp_path / "native")

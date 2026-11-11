@@ -7,7 +7,7 @@ This file records the runtime properties that must hold before a
 
 - Failed execution must not persist writes, events, or partially mutated nested
   state.
-- Contract Python globals must not leak across transactions.
+- Contract module globals must not leak across transactions.
 - Prefix scans and collection helpers must not hand out live mutable references
   into stored state.
 - Submission metadata and validator-derived VM IR must stay deterministic for
@@ -37,8 +37,8 @@ This file records the runtime properties that must hold before a
 
 ## Metering
 
-- Metering must never under-charge relative to the native-instruction tracer
-  audit baseline.
+- Metering must follow the versioned native VM instruction and host-operation
+  cost schedule.
 - Transaction-byte and host-write costs must remain deterministic across
   validators.
 - Native helper paths may over-charge conservatively, but they must not
@@ -53,15 +53,21 @@ This file records the runtime properties that must hold before a
 
 - With no profile selected, a local compiler or test client must produce the same V2
   artifacts and contract results as explicit fresh-chain execution.
-- Explicit `xian_vm_v1` execution must match its Python conformance oracle for
-  result, writes, events, and failure mode across the curated matrix.
-- Stateful contract sequences must preserve the same committed state across the
-  oracle and VM checks, including rollback after deliberate post-write failure.
+- Public `ContractingClient` and `ParallelBatchExecutor` execution is V2-only;
+  explicit V1 profiles and injected V1 drivers fail before creating client state
+  or worker processes.
+- Low-level native `xian_vm_v1` historical verification must retain strict
+  comparisons of results, writes, events and failures with immutable,
+  provenance-checked Python observations.
+- Stateful contract sequences must agree with independent semantic models,
+  including committed state and rollback after deliberate post-write failure.
 - Native deployment must reject client-supplied IR artifacts and derive VM IR
   from submitted source before staging contract writes.
 
 ## Host Independence
 
+- Importing or executing native contracts must not load a Python contract
+  executor, install Python import hooks or activate a CPython line tracer.
 - Native host calls use only explicit execution context. A previous host value
   must never supply a missing transaction seed or block field.
 - The node forwards its transaction input hash into native random seeding.
@@ -83,7 +89,7 @@ Use `./scripts/validate-release.sh` before release. The gate covers:
 - Rust package checks for the zk package and VM core
 - zk Python tests
 - optional-native zk / VM conformance tests
-- stateful local-harness-vs-VM fuzz coverage
+- stateful model-based VM fuzz coverage
 
 The existing security tests in `tests/security/` and the VM conformance tests in
 `tests/integration/` are the enforcement surface for these invariants.

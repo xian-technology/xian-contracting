@@ -1,126 +1,157 @@
-from decimal import ROUND_DOWN, Decimal, localcontext
+"""Historical decimal formatting is exercised through the retained native V1 VM."""
 
 import pytest
 
-from contracting.execution.decimal_format_policy import format_decimal
+from contracting.storage.driver import Driver
+
+
+def execute_expression(tmp_path, expression):
+    from xian_vm_core import execute_contract
+
+    source = "state = Variable()\n@export\ndef probe():\n    state.set('pending')\n"
+    source += f"    return {expression}\n"
+    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
+        driver.set_contract_from_source("con_decimal_format", source, owner=None)
+        driver.commit()
+        output = execute_contract(
+            driver=driver,
+            contract_name="con_decimal_format",
+            function_name="probe",
+            kwargs={},
+            context={"caller": "alice", "signer": "alice", "this": "con_decimal_format"},
+            meter=False,
+            vm_profile="xian_vm_v1",
+        )
+        if output.status_code:
+            assert output.writes == {}
+            assert output.events == []
+            assert driver.get_var("con_decimal_format", "state") is None
+        return output
 
 
 @pytest.mark.parametrize(
-    "value,specification,expected",
+    "value, places, specification, expected",
     [
-        ("-0.001", "z.2f", "0.00"),
-        ("-0.001", "010,.2f", "-00,000.00"),
-        ("-0.001", "#>8.2f", "###-0.00"),
-        ("-0.001", "_>8.2f", "___-0.00"),
-        ("-0.001", "🦊>8.2f", "🦊🦊🦊-0.00"),
-        ("-0.001", "*>010.2f", "-000000.00"),
-        ("1234.50", "n", "1234.50"),
-        ("1.23456", ".3f", "1.234"),
-        ("-NaN42", "+010f", "    -NaN42"),
-        ("Infinity", "010%", " Infinity%"),
-        ("-0.00", "+z.2f", "+0.00"),
+        ("-0.001", 3, "z.2f", "0.00"),
+        ("-0.001", 3, "010,.2f", "-00,000.00"),
+        ("-0.001", 3, "#>8.2f", "###-0.00"),
+        ("-0.001", 3, "_>8.2f", "___-0.00"),
+        ("-0.001", 3, "🦊>8.2f", "🦊🦊🦊-0.00"),
+        ("-0.001", 3, "*>010.2f", "-000000.00"),
+        ("1234.50", 2, "n", "1234.50"),
+        ("1.23456", 5, ".3f", "1.234"),
+        ("-0.00", 2, "+z.2f", "+0.00"),
     ],
 )
-def test_native_decimal_format_policy(value, specification, expected):
-    with localcontext() as context:
-        context.rounding = ROUND_DOWN
-        assert format_decimal(Decimal(value), specification) == expected
+def test_native_decimal_format_policy(tmp_path, value, places, specification, expected):
+    output = execute_expression(
+        tmp_path, f"format(round(decimal({value!r}), {places}), {specification!r})"
+    )
+    assert output.status_code == 0, output.result
+    assert output.result == expected
+
+
+@pytest.mark.parametrize("value", ["-NaN42", "Infinity"])
+def test_native_profile_rejects_nonfinite_decimal_inputs(tmp_path, value):
+    output = execute_expression(tmp_path, f"round(decimal({value!r}), 0)")
+    assert output.status_code == 1
+    assert "invalid decimal literal" in str(output.result)
 
 
 @pytest.mark.parametrize("specification", ["#.0f", "z#.0f", "_.2f", ".2_f", ",n", ".f", "١f"])
-def test_invalid_native_decimal_grammar(specification):
-    with pytest.raises(ValueError, match="format specification"):
-        format_decimal(Decimal("-0.001"), specification)
+def test_invalid_native_decimal_grammar(tmp_path, specification):
+    output = execute_expression(tmp_path, f"format(round(decimal('-0.001'), 3), {specification!r})")
+    assert output.status_code == 1, output.result
 
 
-def test_limits_precede_decimal_padding():
-    assert len(format_decimal(Decimal("1"), "131072f")) == 131072
-    for specification in ["131073f", "🦊>32770f", ".131072f", "9" * 100 + "f"]:
-        with pytest.raises(ValueError):
-            format_decimal(Decimal("1"), specification)
+@pytest.mark.parametrize("specification", ["131073f", "🦊>32770f", ".131072f", "9" * 100 + "f"])
+def test_limits_precede_decimal_padding(tmp_path, specification):
+    output = execute_expression(tmp_path, f"format(round(decimal('1'), 0), {specification!r})")
+    assert output.status_code == 1, output.result
 
 
-@pytest.mark.parametrize("method", ["format", "format_map"])
-def test_guarded_string_aliases_and_class_identity(method):
-    from contracting.execution.format_policy import format_attribute
-
-    template = "{x:z.2f}"
-    first = format_attribute(template, method)
-    second = format_attribute(template, method)
-    assert first is not second
-    assert first == second
-    assert hash(first) == hash(second)
-    unbound = format_attribute(str, method)
-    assert unbound is format_attribute(str, method)
-    arguments = {"x": Decimal("-0.001")}
-    if method == "format":
-        assert first(**arguments) == unbound(template, **arguments) == "0.00"
-    else:
-        assert first(arguments) == unbound(template, arguments) == "0.00"
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "len(format(round(decimal('1'), 0), '131072f'))",
+        "len('{0}{0}'.format('a' * 65536))",
+        "len(format('x', '131072s'))",
+    ],
+)
+def test_exact_scalar_and_aggregate_allocation_limit(tmp_path, expression):
+    output = execute_expression(tmp_path, expression)
+    assert output.status_code == 0, output.result
+    assert output.result == 131072
 
 
-def test_nested_format_lookup_and_conversion():
-    from contracting.execution.format_policy import format_attribute
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "'{0}{0}'.format('a' * 65537)",
+        "format('x', '131073s')",
+    ],
+)
+def test_aggregate_and_scalar_excess_roll_back(tmp_path, expression):
+    output = execute_expression(tmp_path, expression)
+    assert output.status_code == 1, output.result
 
-    output = format_attribute("{x[0]:{width}.2f}|{x[0]!s}", "format")(
-        x=[Decimal("-0.001")], width=7
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "'{x:z.2f}'.format(x=round(decimal('-0.001'), 3))",
+        "str.format('{x:z.2f}', x=round(decimal('-0.001'), 3))",
+        "'{x:z.2f}'.format_map({'x': round(decimal('-0.001'), 3)})",
+        "str.format_map('{x:z.2f}', {'x': round(decimal('-0.001'), 3)})",
+    ],
+)
+def test_bound_and_unbound_template_routes_use_same_policy(tmp_path, expression):
+    output = execute_expression(tmp_path, expression)
+    assert output.status_code == 0, output.result
+    assert output.result == "0.00"
+
+
+def test_nested_format_lookup_and_conversion(tmp_path):
+    expression = "'{x[0]:{width}.2f}|{x[0]!s}'.format(x=[round(decimal('-0.001'), 3)], width=7)"
+    output = execute_expression(tmp_path, expression)
+    assert output.status_code == 0, output.result
+    assert output.result == "  -0.00|-0.001"
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "'{x.__class__}'.format(x=round(decimal('1'), 0))",
+        "str.format()",
+        "str.format(7)",
+        "'{x}'.format_map({}, {})",
+        "'{x}'.format_map(mapping={'x': 1})",
+        "'{} {0}'.format(1)",
+        "'{0}'.format_map({0: 1})",
+    ],
+)
+def test_format_arity_numbering_and_private_lookup_guards(tmp_path, expression):
+    output = execute_expression(tmp_path, expression)
+    assert output.status_code == 1, output.result
+
+
+@pytest.mark.parametrize(
+    "expression, expected",
+    [
+        ("f'{round(decimal(\"-0.001\"), 3)!s:>9}'", "   -0.001"),
+        ("f'{\"é\"!a}'", "'\\xe9'"),
+        ("f'{round(decimal(\"-0.001\"), 3):z.2f}'", "0.00"),
+    ],
+)
+def test_fstring_conversion_uses_string_formatting_after_conversion(tmp_path, expression, expected):
+    output = execute_expression(tmp_path, expression)
+    assert output.status_code == 0, output.result
+    assert output.result == expected
+
+
+@pytest.mark.parametrize("value, specification", [("1", "🦊>32769f"), ("-1", "🦊>32770f")])
+def test_utf8_padding_counts_body_and_sign_before_allocation(tmp_path, value, specification):
+    output = execute_expression(
+        tmp_path, f"format(round(decimal({value!r}), 0), {specification!r})"
     )
-    assert output == "  -0.00|-0.001"
-    with pytest.raises(AttributeError):
-        format_attribute("{x.__class__}", "format")(x=Decimal("1"))
-
-
-def test_format_allocation_and_map_lookup_count():
-    from contracting.execution.format_policy import format_attribute
-
-    seen = []
-
-    class Mapping:
-        def __getitem__(self, key):
-            seen.append(key)
-            return Decimal("-0.001")
-
-    assert format_attribute("{x:z.2f}", "format_map")(Mapping()) == "0.00"
-    assert seen == ["x"]
-    with pytest.raises(ValueError, match="allocation limit"):
-        format_attribute("{0}{0}", "format")("a" * 65537)
-
-
-def test_exact_aggregate_limit_and_scalar_limit():
-    from contracting.execution.format_policy import contract_format, format_attribute
-
-    assert len(format_attribute("{0}{0}", "format")("a" * 65536)) == 131072
-    assert len(contract_format("x", "131072s")) == 131072
-    with pytest.raises(ValueError, match="allocation limit"):
-        contract_format("x", "131073s")
-
-
-def test_callable_arity_and_numbering_guards():
-    from contracting.execution.format_policy import format_attribute
-
-    with pytest.raises(TypeError):
-        format_attribute(str, "format")()
-    with pytest.raises(TypeError):
-        format_attribute(str, "format")(7)
-    with pytest.raises(TypeError):
-        format_attribute("{x}", "format_map")({}, {})
-    with pytest.raises(TypeError):
-        format_attribute("{x}", "format_map")(mapping={"x": 1})
-    with pytest.raises(ValueError):
-        format_attribute("{} {0}", "format")(1)
-    with pytest.raises(ValueError):
-        format_attribute("{0}", "format_map")({0: 1})
-
-
-def test_fstring_conversion_uses_string_formatting_after_conversion():
-    from contracting.execution.format_policy import format_fstring
-
-    assert format_fstring(Decimal("-0.001"), ">9", ord("s")) == "   -0.001"
-    assert format_fstring("é", "", ord("a")) == "'\\xe9'"
-    assert format_fstring(Decimal("-0.001"), "z.2f") == "0.00"
-
-
-@pytest.mark.parametrize("value,specification", [("1", "🦊>32769f"), ("-1", "🦊>32770f")])
-def test_utf8_padding_counts_body_and_sign_before_allocation(value, specification):
-    with pytest.raises(ValueError, match="allocation limit"):
-        format_decimal(Decimal(value), specification)
+    assert output.status_code == 1, output.result

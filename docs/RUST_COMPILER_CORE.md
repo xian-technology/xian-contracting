@@ -62,8 +62,11 @@ Current behavior:
 - validates artifact shape, hashes, normalized source, and canonical compiler
   output for offline consumers
 
-The old Python compiler remains for the local Python execution harness and
-historical parity audits. It is not a public compiler or diagnostic authority.
+Public compiler APIs use the Rust compiler. The Python facade supports source
+normalization, diagnostics and IR/artifact tooling; it does not expose CPython
+AST or bytecode compilation through `parse`, `compile` or `parse_legacy_runtime`.
+Nonexecuting native V1 IR tooling remains for archival verification and migration.
+Public local clients execute only native V2.
 
 Validators compile submitted source with the Rust compiler binding and persist
 the canonical IR. Python and JavaScript SDKs submit cleartext source. The

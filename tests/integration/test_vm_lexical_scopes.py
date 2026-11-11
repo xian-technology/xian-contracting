@@ -2,8 +2,9 @@
 
 import pytest
 
-from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
+
+pytestmark = pytest.mark.optional_native
 
 
 def contract(body, prelude="value = 41", parameters=""):
@@ -377,42 +378,28 @@ def assert_failure_category(case_id, result):
         assert diagnostic == "argument evaluated first", diagnostic
 
 
-def execute_source(home, source, native):
-    with Driver(storage_home=home, vm_profile="xian_vm_v2" if native else "xian_vm_v1") as driver:
+def execute_source(home, source):
+    with Driver(storage_home=home, vm_profile="xian_vm_v2") as driver:
         driver.set_contract_from_source("con_scoping", source, owner=None)
         driver.commit()
-        if native:
-            from xian_vm_core import execute_contract
+        from xian_vm_core import execute_contract
 
-            result = execute_contract(
-                driver=driver,
-                contract_name="con_scoping",
-                function_name="probe",
-                kwargs={},
-                context={"caller": "alice", "signer": "alice", "this": "con_scoping"},
-                meter=False,
-            )
-            return result.status_code, result.result, result.writes
-        result = Executor(driver=driver, metering=False).execute(
-            sender="alice",
+        result = execute_contract(
+            driver=driver,
             contract_name="con_scoping",
             function_name="probe",
             kwargs={},
-            metering=False,
+            context={"caller": "alice", "signer": "alice", "this": "con_scoping"},
+            meter=False,
         )
-        return result["status_code"], result["result"], result["writes"]
+        return result.status_code, result.result, result.writes
 
 
-@pytest.mark.parametrize(
-    "native",
-    [False, pytest.param(True, marks=pytest.mark.optional_native)],
-    ids=["python", "native"],
-)
 @pytest.mark.parametrize(
     ("case_id", "source", "expected", "fails"), CASES, ids=[case[0] for case in CASES]
 )
-def test_lexical_scope(tmp_path, native, case_id, source, expected, fails):
-    status, result, writes = execute_source(tmp_path, source, native)
+def test_lexical_scope(tmp_path, case_id, source, expected, fails):
+    status, result, writes = execute_source(tmp_path, source)
     assert status == int(fails), result
     assert writes == {}
     if fails:

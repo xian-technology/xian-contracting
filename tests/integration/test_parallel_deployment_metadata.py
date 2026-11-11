@@ -3,8 +3,8 @@
 import pytest
 from xian_runtime_types.time import Datetime
 
-from contracting.execution.executor import Executor
 from contracting.execution.parallel import ExecutionRequest, ParallelBatchExecutor
+from contracting.local.native_executor import NativeExecutor
 from contracting.storage.driver import Driver
 
 CHILD = "@export\ndef read():\n    return 1\n"
@@ -23,7 +23,7 @@ def update(name: str, new_value: str, fail: bool = False):
 
 
 def run_batch(driver, function, kwargs):
-    executor = Executor(driver=driver, metering=False)
+    executor = NativeExecutor(driver=driver, metering=False)
     batch = ParallelBatchExecutor(executor=executor, workers=2, min_batch_size=2)
     try:
         return batch.execute(
@@ -47,7 +47,7 @@ def run_batch(driver, function, kwargs):
 @pytest.mark.parametrize("operation", ["deploy", "update"])
 @pytest.mark.parametrize("same_name", [False, True])
 def test_parallel_metadata_writes_commit_and_conflict(tmp_path, operation, same_name):
-    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
+    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v2") as driver:
         names = ["con_one", "con_one" if same_name else "con_two"]
         driver.set_contract_from_source("submission", SUBMISSION, owner=None)
         if operation == "update":
@@ -87,7 +87,7 @@ def test_parallel_metadata_writes_commit_and_conflict(tmp_path, operation, same_
 
 @pytest.mark.parametrize("operation", ["deploy", "update"])
 def test_failed_parallel_metadata_mutation_rolls_back(tmp_path, operation):
-    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
+    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v2") as driver:
         driver.set_contract_from_source("submission", SUBMISSION, owner=None)
         if operation == "update":
             for name in ("con_one", "con_two"):
@@ -121,8 +121,8 @@ def test_host_contract_setup_does_not_mark_transaction_writes(tmp_path):
 def test_trusted_host_deployment_and_metadata_setup_stay_unmarked(tmp_path):
     from contracting.storage.contract import Contract
 
-    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
-        Contract.deploy(name="con_host", code=CHILD, driver=driver)
+    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v2") as driver:
+        driver.set_contract_from_source("con_host", CHILD)
         Contract.set_owner("con_host", "host", driver=driver)
         Contract.set_developer("con_host", "host", driver=driver)
         assert driver.transaction_writes == {}

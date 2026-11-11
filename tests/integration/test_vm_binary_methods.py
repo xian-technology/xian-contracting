@@ -2,7 +2,7 @@
 
 import pytest
 
-from tests.compatibility.runner import comparable, run_case
+from tests.compatibility.runner import encode, run_case
 
 _CASES = [
     "b'abc'.decode()",
@@ -53,42 +53,116 @@ _CASES = [
 ]
 
 
+_EXPECTED = [
+    "abc",
+    3,
+    3,
+    3,
+    True,
+    True,
+    [b"a", b"b,c"],
+    [b"a,b", b"c"],
+    [b"a b "],
+    [b" a b"],
+    [b"a\r\n", b"b\r", b"c\n"],
+    (b"a", b"=", b"b=c"),
+    (b"a=b", b"=", b"c"),
+    b"x",
+    b"abxx",
+    b"xxab",
+    b"bc",
+    b"ab",
+    b".a..",
+    b"a..",
+    b"..a",
+    b"-001",
+    b"a   b",
+    b"AbC",
+    b"Hello World",
+    b"Hello",
+    b"abc",
+    b"ABC",
+    True,
+    True,
+    True,
+    True,
+    True,
+    True,
+    True,
+    True,
+    b"a-b",
+    b"-a-b",
+    b"ac",
+    b"xyc",
+    "4142:4344:45",
+    bytearray(b"AB"),
+    bytearray(b"axyc"),
+    [bytearray(b"a"), bytearray(b"b")],
+    (bytearray(b"a"), bytearray(b"b"), bytearray()),
+]
+
+
 @pytest.mark.optional_native
-@pytest.mark.parametrize("expression", _CASES)
-def test_binary_method_matches_python(tmp_path, expression):
-    # str checks bytes/bytearray and tuple/list result types as well as contents.
+@pytest.mark.parametrize("expression,expected", list(zip(_CASES, _EXPECTED, strict=True)))
+def test_binary_methods_match_explicit_values(tmp_path, expression, expected):
+    # Rendering observes bytes/bytearray and tuple/list types as well as contents.
     source = "@export\ndef probe():\n    return str(" + expression + ")\n"
-    case = {"id": "binary_method", "source": source}
-    python = run_case(case, tmp_path / "python")
-    native = run_case(case, tmp_path / "native", native=True)
-    assert python["admission"] == "accepted" and python["status_code"] == 0
-    assert comparable(native) == comparable(python)
+    actual = run_case({"id": "binary_method", "source": source}, tmp_path)
+    assert actual["admission"] == "accepted" and actual["status_code"] == 0
+    assert actual["result"] == encode(str(expected))
+    assert actual["writes"] == encode({}) and actual["events"] == encode([])
 
 
 @pytest.mark.optional_native
-@pytest.mark.parametrize("operation", ["insert(1, 99)", "remove(98)", "reverse()"])
-def test_bytearray_mutation_keeps_alias(tmp_path, operation):
+@pytest.mark.parametrize(
+    "operation,expected", [("insert(1, 99)", b"acb"), ("remove(98)", b"a"), ("reverse()", b"ba")]
+)
+def test_bytearray_mutation_keeps_alias(tmp_path, operation, expected):
     source = (
         "@export\ndef probe():\n    value=bytearray(b'ab')\n    alias=value\n"
         f"    result=value.{operation}\n    return [str(value),str(alias),result,alias is value]\n"
     )
-    case = {"id": "binary_alias", "source": source}
-    assert comparable(run_case(case, tmp_path / "native", native=True)) == comparable(
-        run_case(case, tmp_path / "python")
-    )
+    actual = run_case({"id": "binary_alias", "source": source}, tmp_path)
+    assert actual["status_code"] == 0, actual
+    rendered = str(bytearray(expected))
+    assert actual["result"] == encode([rendered, rendered, None, True])
+    assert actual["writes"] == encode({}) and actual["events"] == encode([])
+
+
+_DECODE_EXPECTED = {
+    "utf-8": {
+        "strict": None,
+        "ignore": "X",
+        "replace": "\ufffdX\ufffd",
+        "backslashreplace": "\\xe2\\x82X\\xff",
+    },
+    "ascii": {
+        "strict": None,
+        "ignore": "X",
+        "replace": "\ufffd\ufffdX\ufffd",
+        "backslashreplace": "\\xe2\\x82X\\xff",
+    },
+    "latin-1": {
+        error: "\u00e2\u0082X\u00ff"
+        for error in ("strict", "ignore", "replace", "backslashreplace")
+    },
+}
 
 
 @pytest.mark.optional_native
 @pytest.mark.parametrize("encoding", ["utf-8", "ascii", "latin-1"])
 @pytest.mark.parametrize("errors", ["strict", "ignore", "replace", "backslashreplace"])
-def test_binary_decode_error_policy_matches_python(tmp_path, encoding, errors):
+def test_binary_decode_matches_explicit_codec_policy(tmp_path, encoding, errors):
     source = (
         f"@export\ndef probe():\n    return b'\\xe2\\x82X\\xff'.decode({encoding!r},{errors!r})\n"
     )
-    case = {"id": "binary_decode", "source": source}
-    assert comparable(run_case(case, tmp_path / "native", native=True)) == comparable(
-        run_case(case, tmp_path / "python")
-    )
+    actual = run_case({"id": "binary_decode", "source": source}, tmp_path)
+    expected = _DECODE_EXPECTED[encoding][errors]
+    assert actual["admission"] == "accepted", actual
+    assert actual["status_code"] == (1 if expected is None else 0), actual
+    assert actual["writes"] == encode({}) and actual["events"] == encode([])
+    if expected is not None:
+        assert actual["result"] == encode(expected), actual
 
 
 @pytest.mark.optional_native
@@ -108,23 +182,31 @@ def test_binary_rejects_codecs_outside_deterministic_policy(tmp_path, expression
     assert "unsupported deterministic" in result["diagnostic"]
 
 
-def test_guarded_binary_factories_preserve_historical_class_surface():
-    from contracting.stdlib.builtins import safe_bytearray, safe_bytes
+@pytest.mark.optional_native
+def test_native_binary_factories_preserve_class_result_types(tmp_path):
+    source = """@export
+def probe():
+    return [bytes.maketrans(b'ab',b'xy'),bytearray.maketrans(b'ab',b'xy'),bytearray.fromhex('41 42')]
+"""
+    actual = run_case({"id": "binary_factories", "source": source}, tmp_path)
+    table = bytes.maketrans(b"ab", b"xy")
+    assert actual["status_code"] == 0, actual
+    assert actual["result"] == encode([table, table, bytearray(b"AB")])
 
-    assert safe_bytes.maketrans(b"ab", b"xy") == bytes.maketrans(b"ab", b"xy")
-    assert safe_bytearray.maketrans(b"ab", b"xy") == bytearray.maketrans(b"ab", b"xy")
-    value = safe_bytearray.fromhex("41 42")
-    assert type(value) is bytearray and value == b"AB"
 
-
-def test_guarded_binary_factories_bound_inputs():
+@pytest.mark.optional_native
+@pytest.mark.parametrize("constructor", ["bytes", "bytearray"])
+def test_native_binary_factories_bound_hex_output(tmp_path, constructor):
     from contracting.constants import MAX_BINARY_ALLOCATION_BYTES
-    from contracting.stdlib.builtins import safe_bytearray, safe_bytes
+    from tests.integration.test_vm_language_conformance import _run_native_case
 
-    with pytest.raises(AssertionError, match="allocation"):
-        safe_bytearray.fromhex("41" * (MAX_BINARY_ALLOCATION_BYTES + 1))
-    for factory in (safe_bytes.maketrans, safe_bytearray.maketrans):
-        with pytest.raises(AssertionError, match="allocation"):
-            factory(
-                b"a" * (MAX_BINARY_ALLOCATION_BYTES + 1), b"b" * (MAX_BINARY_ALLOCATION_BYTES + 1)
-            )
+    case = {
+        "id": "binary_factory_limit",
+        "function_name": "probe",
+        "source": f"@export\ndef probe(text: str):\n    return len({constructor}.fromhex(text))\n",
+        "kwargs": {"text": "41" * (MAX_BINARY_ALLOCATION_BYTES + 1)},
+    }
+    actual = _run_native_case(case, tmp_path)
+    assert actual["status_code"] == 1, actual
+    assert "allocation" in str(actual["result"]), actual
+    assert actual["writes"] == {} and actual["events"] == []

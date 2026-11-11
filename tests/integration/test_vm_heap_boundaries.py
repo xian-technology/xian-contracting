@@ -24,7 +24,6 @@ def test_cyclic_or_exponential_values_are_bounded(tmp_path, sink):
             + "\n",
         },
         tmp_path,
-        native=True,
     )
     assert output["admission"] == "accepted", output
     assert output["status_code"] == 1, output
@@ -38,11 +37,9 @@ def test_cycles_can_be_used_and_rendered_inside_execution(tmp_path, render):
     output = run_case(
         {
             "id": "cycle",
-            "source": "@export\ndef probe():\n    a = []\n    a.append(a)\n"
-            f"    return [a is a[0], a == a, {render}]\n",
+            "source": f"@export\ndef probe():\n    a = []\n    a.append(a)\n    return [a is a[0], a == a, {render}]\n",
         },
         tmp_path,
-        native=True,
     )
     assert output["status_code"] == 0, output
     assert output["result"] == encode([True, True, "[[...]]"])
@@ -55,7 +52,6 @@ def test_incremental_immutable_nesting_is_bounded(tmp_path):
             "source": "@export\ndef probe():\n    a = 0\n    for i in range(1000):\n        a = (a,)\n    return 1\n",
         },
         tmp_path,
-        native=True,
     )
     assert output["status_code"] == 1, output
     assert "depth limit" in output["diagnostic"]
@@ -72,7 +68,7 @@ def test_sort_callback_observes_empty_list_and_rejects_mutation(tmp_path, mutate
         "    VALUES.sort(key=key)\n"
         "    return VALUES\n"
     )
-    output = run_case({"id": "sort_callback", "source": source}, tmp_path, native=True)
+    output = run_case({"id": "sort_callback", "source": source}, tmp_path)
     assert output["admission"] == "accepted", output
     if mutate:
         assert output["status_code"] == 1, output
@@ -83,15 +79,13 @@ def test_sort_callback_observes_empty_list_and_rejects_mutation(tmp_path, mutate
         assert output["result"] == encode([3, 1, 2])
 
 
-@pytest.mark.parametrize("native", [False, True])
-def test_round_extreme_integer_digits_returns_zero_without_large_allocation(tmp_path, native):
+def test_round_extreme_integer_digits_returns_zero_without_large_allocation(tmp_path):
     output = run_case(
         {
             "id": "round_limit",
             "source": "@export\ndef probe():\n    return round(123, -(10**50))\n",
         },
         tmp_path,
-        native=native,
     )
     assert output["status_code"] == 0, output
     assert output["result"] == encode(0)

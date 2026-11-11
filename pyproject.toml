@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "xian-tech-contracting"
 version = "1.1.4"
-description = "Xian Network Python Contracting Engine"
+description = "Xian contract compilation, storage and native local execution tooling"
 readme = "README.md"
 license = "GPL-3.0-only"
 authors = [{ name = "Xian Network", email = "info@xian.org" }]
@@ -53,7 +53,6 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 contracting = [
-    "contracts/submission.s.py",
     "contracts/submission_source.s.py",
     "execution/public_callable_methods.json",
 ]

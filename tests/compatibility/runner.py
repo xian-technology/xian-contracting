@@ -1,12 +1,12 @@
-"""Runs unchanged under both the historical installation and today's runtime.
+"""Typed evidence and native V1 execution for current compatibility checks.
 
-Keep imports of Contracting inside run_case: snapshot encoding must not select
-the current runtime when this file is executed by the isolated legacy Python.
+Immutable historical Python observers live in historical/ and are used only by
+the pinned capture scripts, never as a fallback for current execution.
 """
 
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 
 def encode(value):
@@ -29,23 +29,20 @@ def encode(value):
     raise TypeError(f"Unrecorded baseline value type: {kind}")
 
 
-def run_case(case, storage_home, *, native=False, historical_install=False):
-    from contracting.execution.executor import Executor
+def run_case(case, storage_home, *, native=True):
+    """Observe current native V1 execution without a working-tree Python engine."""
+    if native is not True:
+        raise ValueError("Current compatibility observation requires native execution.")
     from contracting.storage.driver import Driver
+
+    with Driver(storage_home=storage_home, vm_profile="xian_vm_v1") as driver:
+        return observe_case(driver, case)
+
+
+def execution_context(name):
     from xian_runtime_types.time import Datetime
 
-    # The archived Python distribution predates VM profile selection.
-    options = {} if historical_install else {"vm_profile": "xian_vm_v1"}
-    driver = Driver(storage_home=storage_home, **options)
-    name = "baseline_" + case["id"]
-    try:
-        for dependency, source in case.get("dependencies", {}).items():
-            driver.set_contract_from_source(dependency, source, owner=None)
-        driver.set_contract_from_source(name, case["source"], owner="alice")
-    except Exception as exc:
-        return {"admission": "rejected", "diagnostic": type(exc).__name__}
-    driver.commit()
-    context = {
+    return {
         "signer": "alice",
         "caller": "alice",
         "this": name,
@@ -56,47 +53,39 @@ def run_case(case, storage_home, *, native=False, historical_install=False):
         "block_hash": "abcd1234",
         "chain_id": "xian-test",
     }
-    if native:
-        import xian_vm_core
 
-        result = xian_vm_core.execute_contract(
-            driver=driver,
-            vm_profile="xian_vm_v1",
-            contract_name=name,
-            function_name="probe",
-            kwargs={},
-            context=context,
-            meter=False,
-        )
-        output = {
-            key: getattr(result, key)
-            for key in (
-                "status_code",
-                "result",
-                "writes",
-                "events",
-            )
-        }
-    else:
-        output = Executor(driver=driver, metering=False).execute(
-            sender="alice",
-            contract_name=name,
-            function_name="probe",
-            kwargs={},
-            environment=context,
-            metering=False,
-        )
+
+def observe_case(driver, case):
+    import xian_vm_core
+
+    name = "baseline_" + case["id"]
+    try:
+        for dependency, source in case.get("dependencies", {}).items():
+            driver.set_contract_from_source(dependency, source, owner=None)
+        driver.set_contract_from_source(name, case["source"], owner="alice")
+    except Exception as exc:
+        return {"admission": "rejected", "diagnostic": type(exc).__name__}
+    driver.commit()
+    output = xian_vm_core.execute_contract(
+        driver=driver,
+        vm_profile="xian_vm_v1",
+        contract_name=name,
+        function_name="probe",
+        kwargs={},
+        context=execution_context(name),
+        meter=False,
+    )
     observation = {
         "admission": "accepted",
-        "status_code": output["status_code"],
-        "writes": encode(output["writes"]),
-        "events": encode(output["events"]),
+        "status_code": output.status_code,
+        "writes": encode(output.writes),
+        "events": encode(output.events),
     }
-    if output["status_code"] == 0:
-        observation["result"] = encode(output["result"])
+    if output.status_code == 0:
+        observation["result"] = encode(output.result)
     else:
-        observation["diagnostic"] = str(output["result"])
-        observation["exception_type"] = type(output["result"]).__name__
+        observation["diagnostic"] = str(output.result)
+        observation["exception_type"] = type(output.result).__name__
     return observation
 
 
@@ -110,8 +99,5 @@ if __name__ == "__main__":
 
     cases = json.loads(Path(sys.argv[1]).read_text())
     with tempfile.TemporaryDirectory() as directory:
-        results = {
-            case["id"]: run_case(case, Path(directory) / case["id"], historical_install=True)
-            for case in cases
-        }
+        results = {case["id"]: run_case(case, Path(directory) / case["id"]) for case in cases}
     Path(sys.argv[2]).write_text(json.dumps(results, indent=2) + "\n")

@@ -1,18 +1,33 @@
 """Collection method resource and rollback boundaries beyond the legacy corpus."""
 
 import pytest
-from contracting.storage.driver import Driver
-from contracting.stdlib.builtins import safe_bytes
+
 from contracting.constants import MAX_BINARY_ALLOCATION_BYTES
+from contracting.storage.driver import Driver
 
 
-def test_safe_fromhex_bounds_before_allocation():
-    assert (
-        safe_bytes.fromhex("ab " * MAX_BINARY_ALLOCATION_BYTES)
-        == b"\xab" * MAX_BINARY_ALLOCATION_BYTES
+@pytest.mark.optional_native
+@pytest.mark.parametrize(
+    "size,accepted", [(MAX_BINARY_ALLOCATION_BYTES, True), (MAX_BINARY_ALLOCATION_BYTES + 1, False)]
+)
+def test_native_fromhex_bounds_external_text_before_output_allocation(tmp_path, size, accepted):
+    from tests.integration.test_vm_language_conformance import _run_native_case
+
+    actual = _run_native_case(
+        {
+            "id": "fromhex_limit",
+            "function_name": "probe",
+            "source": "@export\ndef probe(text: str):\n    return len(bytes.fromhex(text))\n",
+            "kwargs": {"text": "ab " * size},
+        },
+        tmp_path,
     )
-    with pytest.raises(AssertionError, match="allocation"):
-        safe_bytes.fromhex("ab " * (MAX_BINARY_ALLOCATION_BYTES + 1))
+    assert actual["status_code"] == (0 if accepted else 1), actual
+    if accepted:
+        assert actual["result"] == MAX_BINARY_ALLOCATION_BYTES
+    else:
+        assert "allocation" in str(actual["result"]), actual
+    assert actual["writes"] == {} and actual["events"] == []
 
 
 @pytest.mark.optional_native

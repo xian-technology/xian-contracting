@@ -58,14 +58,13 @@ def exploit():
 class TestMiscContracts(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
+        self.addCleanup(self.c.close)
         self.c.flush()
 
         self.c.submit(too_many_writes, name="con_too_many_writes")
 
         # submit erc20 clone
-        thing_path = os.path.join(
-            os.path.dirname(__file__), "test_contracts", "thing.s.py"
-        )
+        thing_path = os.path.join(os.path.dirname(__file__), "test_contracts", "thing.s.py")
 
         with open(thing_path) as f:
             code = f.read()
@@ -267,14 +266,13 @@ class TestMiscContracts(TestCase):
 class TestPassHash(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
+        self.addCleanup(self.c.close)
         self.c.flush()
 
         submission = self.c.get_contract_proxy("submission")
 
         # submit erc20 clone
-        pass_hash_path = os.path.join(
-            os.path.dirname(__file__), "test_contracts", "pass_hash.s.py"
-        )
+        pass_hash_path = os.path.join(os.path.dirname(__file__), "test_contracts", "pass_hash.s.py")
 
         with open(pass_hash_path) as f:
             code = f.read()
@@ -384,6 +382,7 @@ def malicious_developer_rewrite():
 class TestDeveloperSubmission(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
+        self.addCleanup(self.c.close)
         self.c.flush()
 
     def test_submit_sets_developer(self):
@@ -402,9 +401,7 @@ class TestDeveloperSubmission(TestCase):
 
         submission = self.c.get_contract_proxy("submission")
 
-        submission.change_developer(
-            contract="con_some_test_contract", new_developer="not_stu"
-        )
+        submission.change_developer(contract="con_some_test_contract", new_developer="not_stu")
 
         dev = self.c.get_var("con_some_test_contract", "__developer__")
 
@@ -415,14 +412,10 @@ class TestDeveloperSubmission(TestCase):
 
         submission = self.c.get_contract_proxy("submission")
 
-        submission.change_developer(
-            contract="con_some_test_contract", new_developer="not_stu"
-        )
+        submission.change_developer(contract="con_some_test_contract", new_developer="not_stu")
 
         with self.assertRaises(AssertionError):
-            submission.change_developer(
-                contract="con_some_test_contract", new_developer="woohoo"
-            )
+            submission.change_developer(contract="con_some_test_contract", new_developer="woohoo")
 
     def test_change_owner_updates_runtime_owner(self):
         self.c.submit(
@@ -597,19 +590,15 @@ class TestDeveloperSubmission(TestCase):
         )
 
         self.assertEqual(output["status_code"], 1)
-        self.assertIsNone(self.c.raw_driver.get_local_contract_runtime("con_bad_child"))
-        self.assertIsNone(
-            self.c.raw_driver.get_contract_source("con_bad_child")
-        )
+        self.assertFalse(self.c.raw_driver.has_contract("con_bad_child"))
+        self.assertIsNone(self.c.raw_driver.get_contract_source("con_bad_child"))
         self.assertIsNone(self.c.get_var("con_bad_child", "__deployer__"))
         self.assertIsNone(self.c.get_var("con_bad_child", "__initiator__"))
 
 
 def con_float_thing():
     @export
-    def float_thing_fn(
-        currency_reserve: float, token_reserve: float, currency_amount: float
-    ):
+    def float_thing_fn(currency_reserve: decimal, token_reserve: decimal, currency_amount: decimal):
         k = currency_reserve * token_reserve
 
         new_currency_reserve = currency_reserve + currency_amount
@@ -621,18 +610,22 @@ def con_float_thing():
 
 class TestFloatThing(TestCase):
     def setUp(self):
-        self.c = ContractingClient(signer="stu", vm_profile="xian_vm_v1")
+        self.c = ContractingClient(signer="stu", vm_profile="xian_vm_v2")
+        self.addCleanup(self.c.close)
         self.c.flush()
 
     def test_can_add(self):
         self.c.submit(con_float_thing, name="con_float_thing")
 
         ft_con = self.c.get_contract_proxy("con_float_thing")
-        ft_con.float_thing_fn(
-            currency_reserve=50000.125,
-            token_reserve=52.45,
-            currency_amount=100.25,
+        from decimal import Decimal
+
+        result = ft_con.float_thing_fn(
+            currency_reserve=Decimal("50.125"),
+            token_reserve=Decimal("52.45"),
+            currency_amount=Decimal("50.125"),
         )
+        self.assertEqual(result, Decimal("26.225"))
 
 
 def a():
@@ -798,6 +791,7 @@ def test_closure2():
 class TestHackThing(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
+        self.addCleanup(self.c.close)
         self.c.flush()
 
     def test_can_add(self):
@@ -859,6 +853,7 @@ def con_test_fixed():
 class TestFixed(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu", driver=Driver())
+        self.addCleanup(self.c.close)
         self.c.flush()
 
     def test_can_multiply(self):

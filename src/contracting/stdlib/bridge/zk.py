@@ -57,40 +57,6 @@ PREPARED_VK_CACHE = LRUCache(maxsize=128)
 VERIFIED_PROOF_CACHE = LRUCache(maxsize=2048)
 
 
-def _hex_payload_bytes(value: str) -> int:
-    return (len(value) - 2) // 2
-
-
-def _payload_metering_cost(
-    vk_hex: str,
-    proof_hex: str,
-    public_inputs: list[str],
-) -> int:
-    payload_bytes = _hex_payload_bytes(vk_hex) + _hex_payload_bytes(proof_hex)
-    payload_bytes += sum(_hex_payload_bytes(value) for value in public_inputs)
-    return (
-        constants.ZK_VERIFY_GROTH16_BASE_COST
-        + (len(public_inputs) * constants.ZK_VERIFY_GROTH16_PER_PUBLIC_INPUT_COST)
-        + (payload_bytes * constants.ZK_VERIFY_GROTH16_PER_PAYLOAD_BYTE_COST)
-    )
-
-
-def _registry_metering_cost(
-    vk_id: str,
-    proof_hex: str,
-    public_inputs: list[str],
-) -> int:
-    payload_bytes = len(vk_id.encode("utf-8"))
-    payload_bytes += _hex_payload_bytes(proof_hex)
-    payload_bytes += sum(_hex_payload_bytes(value) for value in public_inputs)
-    return (
-        constants.ZK_VERIFY_GROTH16_REGISTRY_BASE_COST
-        + constants.ZK_VERIFY_GROTH16_REGISTRY_PREPARE_COST
-        + (len(public_inputs) * constants.ZK_VERIFY_GROTH16_REGISTRY_PER_PUBLIC_INPUT_COST)
-        + (payload_bytes * constants.ZK_VERIFY_GROTH16_REGISTRY_PER_PAYLOAD_BYTE_COST)
-    )
-
-
 def _validate_hex_payload(name: str, value: str, max_chars: int):
     assert isinstance(value, str), f"{name} must be a string!"
     assert value.startswith("0x"), f"{name} must be 0x-prefixed hex!"
@@ -120,20 +86,6 @@ def _validate_field_values(label: str, values, *, minimum: int, maximum: int):
     for index, value in enumerate(values):
         _validate_hex_payload(f"{label}[{index}]", value, 66)
         assert len(value) == 66, f"{label}[{index}] must be exactly 32 bytes!"
-
-
-def _shielded_tree_append_metering_cost(commitments: list[str]) -> int:
-    return constants.ZK_SHIELDED_TREE_APPEND_BASE_COST + (
-        len(commitments) * constants.ZK_SHIELDED_TREE_APPEND_PER_COMMITMENT_COST
-    )
-
-
-def _shielded_command_nullifier_digest_cost(
-    input_nullifiers: list[str],
-) -> int:
-    return constants.ZK_SHIELDED_COMMAND_NULLIFIER_DIGEST_BASE_COST + (
-        len(input_nullifiers) * constants.ZK_SHIELDED_COMMAND_NULLIFIER_DIGEST_PER_INPUT_COST
-    )
 
 
 def _validate_vk_id(vk_id: str):
@@ -270,8 +222,6 @@ def verify_groth16_bn254(vk_hex: str, proof_hex: str, public_inputs: list[str]):
     )
     _validate_public_inputs(public_inputs)
 
-    rt.deduct_execution_cost(_payload_metering_cost(vk_hex, proof_hex, public_inputs))
-
     bindings = _native_verifier_bindings()
     assert bindings is not None, (
         "Native zk verifier is not installed in this runtime. "
@@ -299,8 +249,6 @@ def verify_groth16(vk_id: str, proof_hex: str, public_inputs: list[str]):
         constants.MAX_ZK_PROOF_HEX_CHARS,
     )
     _validate_public_inputs(public_inputs)
-
-    rt.deduct_execution_cost(_registry_metering_cost(vk_id, proof_hex, public_inputs))
 
     bindings = _native_verifier_bindings()
     assert bindings is not None, (
@@ -447,8 +395,6 @@ def shielded_note_append_commitments(
         maximum=constants.MAX_ZK_PUBLIC_INPUTS,
     )
 
-    rt.deduct_execution_cost(_shielded_tree_append_metering_cost(commitments))
-
     bindings = _native_verifier_bindings()
     assert bindings is not None, (
         "Native zk bindings are not installed in this runtime. "
@@ -482,7 +428,6 @@ def shielded_command_nullifier_digest(input_nullifiers: list[str]):
         minimum=1,
         maximum=constants.MAX_ZK_PUBLIC_INPUTS,
     )
-    rt.deduct_execution_cost(_shielded_command_nullifier_digest_cost(input_nullifiers))
 
     bindings = _native_verifier_bindings()
     assert bindings is not None, (
@@ -530,7 +475,6 @@ def shielded_command_binding(
     assert isinstance(public_amount, int) and public_amount >= 0, (
         "public_amount must be a non-negative integer!"
     )
-    rt.deduct_execution_cost(constants.ZK_SHIELDED_COMMAND_BINDING_COST)
 
     bindings = _native_verifier_bindings()
     assert bindings is not None, (
@@ -568,7 +512,6 @@ def shielded_command_execution_tag(
         minimum=2,
         maximum=2,
     )
-    rt.deduct_execution_cost(constants.ZK_SHIELDED_COMMAND_EXECUTION_TAG_COST)
 
     bindings = _native_verifier_bindings()
     assert bindings is not None, (
@@ -597,7 +540,6 @@ def shielded_output_payload_hash(payload_hex: str):
         payload_hex,
         constants.MAX_ZK_PROOF_HEX_CHARS * 4,
     )
-    rt.deduct_execution_cost(_hex_payload_bytes(payload_hex))
 
     bindings = _native_verifier_bindings()
     assert bindings is not None, (

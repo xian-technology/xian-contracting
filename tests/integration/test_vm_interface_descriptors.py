@@ -2,10 +2,10 @@
 
 import pytest
 
-from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 
 pytestmark = pytest.mark.optional_native
+
 
 TARGET = """balance = Variable()
 ledger = Hash()
@@ -35,36 +35,27 @@ def hidden(value):
 """
 
 
-def execute(home, body, *, native=True, meter=False, prefix="", target=TARGET):
+def execute(home, body, *, meter=False, prefix="", target=TARGET):
     source = (
         prefix
         + "state = Variable()\n@export\ndef probe():\n"
         + "".join("    " + line + "\n" for line in body.splitlines())
     )
-    with Driver(storage_home=home, vm_profile="xian_vm_v2" if native else "xian_vm_v1") as driver:
+    with Driver(storage_home=home, vm_profile="xian_vm_v2") as driver:
         driver.set_contract_from_source("con_descriptor_target", target, owner=None)
         driver.set_contract_from_source("con_descriptor_probe", source, owner=None)
         driver.commit()
-        if native:
-            from xian_vm_core import execute_contract
+        from xian_vm_core import execute_contract
 
-            result = execute_contract(
-                driver=driver,
-                contract_name="con_descriptor_probe",
-                function_name="probe",
-                kwargs={},
-                context={"caller": "alice", "signer": "alice", "this": "con_descriptor_probe"},
-                meter=meter,
-            )
-            return result.status_code, result.result, result.writes
-        result = Executor(driver=driver, metering=False).execute(
-            sender="alice",
+        result = execute_contract(
+            driver=driver,
             contract_name="con_descriptor_probe",
             function_name="probe",
             kwargs={},
-            metering=False,
+            context={"caller": "alice", "signer": "alice", "this": "con_descriptor_probe"},
+            meter=meter,
         )
-        return result["status_code"], result["result"], result["writes"]
+        return result.status_code, result.result, result.writes
 
 
 NOMINAL = [
@@ -190,10 +181,9 @@ NOMINAL.extend(
 )
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
 @pytest.mark.parametrize(("case", "body", "expected"), NOMINAL, ids=[case[0] for case in NOMINAL])
-def test_descriptor_values(tmp_path, native, case, body, expected):
-    status, result, _ = execute(tmp_path, body, native=native)
+def test_descriptor_values(tmp_path, case, body, expected):
+    status, result, _ = execute(tmp_path, body)
     assert status == 0, (case, result)
     assert result == expected
 
@@ -227,15 +217,13 @@ def test_descriptor_boundaries_reject_and_roll_back(tmp_path, meter, body):
         "m = importlib.import_module('con_descriptor_target')\nreturn importlib.enforce_interface(m,[importlib.Func([])])",
     ],
 )
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
-def test_descriptor_invalid_inputs(tmp_path, body, native):
-    status, _, writes = execute(tmp_path, body, native=native)
+def test_descriptor_invalid_inputs(tmp_path, body):
+    status, _, writes = execute(tmp_path, body)
     assert status == 1
     assert writes == {}
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
-def test_descriptor_argument_metadata_and_single_attribute_receiver_evaluation(tmp_path, native):
+def test_descriptor_argument_metadata_and_single_attribute_receiver_evaluation(tmp_path):
     prefix = """seen = Variable(default_value=0)
 def choose(value):
     seen.set(seen.get()+1)
@@ -245,7 +233,7 @@ def target(x: int, y: int=1, *, z: int=2):
     return x+y+z
 """
     body = "f = importlib.Func('target',('x','y'))\nf.extra = 1\nf.values = [1]\nchoose(f).extra += 2\nchoose(f).values[0] += 4\nreturn [f.is_of(target),f.extra,f.values,seen.get()]"
-    status, result, _ = execute(tmp_path, body, native=native, prefix=prefix)
+    status, result, _ = execute(tmp_path, body, prefix=prefix)
     assert status == 0, result
     assert result == [True, 3, [5], 2]
 
@@ -260,27 +248,24 @@ def target(x: int, y: int=1, *, z: int=2):
         "return importlib.Var('x',Variable,t=Hash)",
     ],
 )
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
-def test_descriptor_constructor_binding(tmp_path, body, native):
-    status, _, writes = execute(tmp_path, body, native=native)
+def test_descriptor_constructor_binding(tmp_path, body):
+    status, _, writes = execute(tmp_path, body)
     assert status == 1
     assert writes == {}
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
-def test_builtin_interface_callback_can_inspect_inert_subject_truthiness(tmp_path, native):
+def test_builtin_interface_callback_can_inspect_inert_subject_truthiness(tmp_path):
     body = "state.set(1)\nm = importlib.import_module('con_descriptor_target')\nf = importlib.Func('noop')\nf.is_of = bool\nreturn importlib.enforce_interface(m,[f])"
-    status, result, writes = execute(tmp_path, body, native=native)
+    status, result, writes = execute(tmp_path, body)
     assert status == 0, result
     assert result is True
     assert writes == {"con_descriptor_probe.state": 1}
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
-def test_log_event_is_inert_descriptor_type_metadata(tmp_path, native):
+def test_log_event_is_inert_descriptor_type_metadata(tmp_path):
     prefix = "event = LogEvent('Event', {'value': int})\n"
     body = "v = importlib.Var('event', LogEvent)\nreturn [v.type is LogEvent,v.is_of(event)]"
-    status, result, _ = execute(tmp_path, body, native=native, prefix=prefix)
+    status, result, _ = execute(tmp_path, body, prefix=prefix)
     assert status == 0, result
     assert result == [True, True]
 
@@ -288,22 +273,18 @@ def test_log_event_is_inert_descriptor_type_metadata(tmp_path, native):
 @pytest.mark.parametrize(
     "declarations", ["constant = None", "constant = 7\nconstant = None", "constant = [] or None"]
 )
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
-def test_interface_observes_initialized_none_globals(tmp_path, declarations, native):
+def test_interface_observes_initialized_none_globals(tmp_path, declarations):
     target = declarations + "\n@export\ndef noop():\n    return 1\n"
     body = "m = importlib.import_module('con_descriptor_target')\nreturn importlib.enforce_interface(m,[importlib.Func('constant')])"
-    status, result, _ = execute(tmp_path, body, native=native, target=target)
+    status, result, _ = execute(tmp_path, body, target=target)
     assert status == 0, result
     assert result is False
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
-def test_interface_self_and_reentrant_caller_use_live_metadata(tmp_path, native):
+def test_interface_self_and_reentrant_caller_use_live_metadata(tmp_path):
     target = "@export\ndef inspect_caller():\n    return importlib.enforce_interface(importlib.import_module(ctx.caller),[importlib.Func('constant')])\n"
     body = "m = importlib.import_module('con_descriptor_target')\nreturn [importlib.enforce_interface(importlib.import_module(ctx.this),[importlib.Func('constant')]),m.inspect_caller()]"
-    status, result, _ = execute(
-        tmp_path, body, native=native, prefix="constant = None\n", target=target
-    )
+    status, result, _ = execute(tmp_path, body, prefix="constant = None\n", target=target)
     assert status == 0, result
     assert result == [False, False]
 

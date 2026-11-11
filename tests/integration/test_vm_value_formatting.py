@@ -4,6 +4,8 @@ import pytest
 
 from tests.compatibility.runner import encode, run_case
 
+pytestmark = pytest.mark.optional_native
+
 SUCCESS = [
     ("format('é猫', '*^7')", "**é猫***"),
     ("format('abcdef', '>8.3s')", "     abc"),
@@ -67,48 +69,42 @@ INVALID = [
 ]
 
 
-@pytest.mark.parametrize("native", [False, pytest.param(True, marks=pytest.mark.optional_native)])
 @pytest.mark.parametrize("expression,expected", SUCCESS)
-def test_value_formatting(tmp_path, native, expression, expected):
+def test_value_formatting(tmp_path, expression, expected):
     actual = run_case(
         {"id": "value_format", "source": f"@export\ndef probe():\n    return {expression}\n"},
         tmp_path,
-        native=native,
     )
     assert actual["admission"] == "accepted", actual
     assert actual["status_code"] == 0, actual
     assert actual["result"] == encode(expected), actual
 
 
-@pytest.mark.parametrize("native", [False, pytest.param(True, marks=pytest.mark.optional_native)])
 @pytest.mark.parametrize("expression", INVALID)
-def test_invalid_value_formatting(tmp_path, native, expression):
+def test_invalid_value_formatting(tmp_path, expression):
     actual = run_case(
         {
             "id": "invalid_value_format",
             "source": f"@export\ndef probe():\n    return {expression}\n",
         },
         tmp_path,
-        native=native,
     )
     assert actual["admission"] == "accepted", actual
     assert actual["status_code"] == 1, actual
     assert actual["writes"] == encode({})
 
 
-@pytest.mark.parametrize("native", [False, pytest.param(True, marks=pytest.mark.optional_native)])
-def test_format_preserves_recursive_root_identity(tmp_path, native):
+def test_format_preserves_recursive_root_identity(tmp_path):
     source = (
         "@export\ndef probe():\n    value=[]\n    value.append(value)\n    return format(value)\n"
     )
-    actual = run_case({"id": "format_cycle", "source": source}, tmp_path, native=native)
+    actual = run_case({"id": "format_cycle", "source": source}, tmp_path)
     assert actual["admission"] == "accepted", actual
     assert actual["status_code"] == 0, actual
     assert actual["result"] == encode("[[...]]")
 
 
-@pytest.mark.parametrize("native", [False, pytest.param(True, marks=pytest.mark.optional_native)])
-def test_fstring_evaluates_spec_before_conversion(tmp_path, native):
+def test_fstring_evaluates_spec_before_conversion(tmp_path):
     source = """values = [1]
 def specification():
     values.append(2)
@@ -117,7 +113,7 @@ def specification():
 def probe():
     return f'{values!s:{specification()}}'
 """
-    actual = run_case({"id": "format_evaluation_order", "source": source}, tmp_path, native=native)
+    actual = run_case({"id": "format_evaluation_order", "source": source}, tmp_path)
     assert actual["admission"] == "accepted", actual
     assert actual["status_code"] == 0, actual
     # Both engines follow the historical VM policy: evaluate the specification
@@ -125,7 +121,6 @@ def probe():
     assert actual["result"] == encode("[1, 2]")
 
 
-@pytest.mark.parametrize("native", [False, pytest.param(True, marks=pytest.mark.optional_native)])
 @pytest.mark.parametrize(
     ("expression", "expected"),
     [
@@ -137,14 +132,13 @@ def probe():
         ('ascii("don\\\'t")', '"don\'t"'),
     ],
 )
-def test_scalar_and_nested_representations(tmp_path, native, expression, expected):
+def test_scalar_and_nested_representations(tmp_path, expression, expected):
     actual = run_case(
         {
             "id": "value_representations",
             "source": f"@export\ndef probe():\n    return {expression}\n",
         },
         tmp_path,
-        native=native,
     )
     assert actual["admission"] == "accepted", actual
     assert actual["status_code"] == 0, actual

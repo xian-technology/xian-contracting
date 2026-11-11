@@ -1,4 +1,3 @@
-from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 from contracting.local import ContractingClient
@@ -107,16 +106,10 @@ def mutate_via_all():
 """
 
 
-HOST_BUILTINS_PROBE_CONTRACT = """
-@__export('con_builtin_probe')
-def can_reach_host_open():
-    return 'open' in __builtins__
-"""
-
-
 class TestRuntimeSecurity(TestCase):
     def setUp(self):
         self.client = ContractingClient(signer="stu")
+        self.addCleanup(self.client.close)
         self.client.flush()
         self.client.submit(ROOT_REENTRY_CONTRACT, name="con_reentry_root")
         self.client.submit(CHILD_REENTRY_CONTRACT, name="con_reentry_child")
@@ -196,19 +189,8 @@ class TestRuntimeSecurity(TestCase):
 
         self.assertEqual(contract.mutate_via_all(), {"count": 1})
 
-    def test_runtime_builtins_are_restricted_even_for_unlinted_source(self):
-        # This fixture injects transformed CPython source to check its host builtins.
-        with (
-            TemporaryDirectory() as home,
-            ContractingClient(signer="stu", storage_home=home, vm_profile="xian_vm_v1") as legacy,
-        ):
-            legacy.raw_driver.set_contract(
-                name="con_builtin_probe",
-                source=HOST_BUILTINS_PROBE_CONTRACT,
-                owner="stu",
-            )
-            legacy.raw_driver.commit()
-
-            contract = legacy.get_contract_proxy("con_builtin_probe")
-
-            self.assertFalse(contract.can_reach_host_open())
+    def test_native_contracts_cannot_access_host_builtins(self):
+        source = "@export\ndef probe():\n    return __builtins__\n"
+        with self.assertRaises(Exception):
+            self.client.submit(source, name="con_builtin_probe")
+        self.assertFalse(self.client.raw_driver.has_contract("con_builtin_probe"))

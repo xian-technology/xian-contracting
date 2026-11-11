@@ -4,6 +4,8 @@ import pytest
 
 from tests.compatibility.runner import encode, run_case
 
+pytestmark = pytest.mark.optional_native
+
 CASES = [
     ("'{name}:{value}'.format(name='item', value=7)", "item:7"),
     ("'{} {label} {}'.format('a', 'b', label='x')", "a x b"),
@@ -27,20 +29,17 @@ CASES = [
 ]
 
 
-@pytest.mark.parametrize("native", [False, pytest.param(True, marks=pytest.mark.optional_native)])
 @pytest.mark.parametrize(("expression", "expected"), CASES)
-def test_format_template_result(tmp_path, native, expression, expected):
+def test_format_template_result(tmp_path, expression, expected):
     actual = run_case(
         {"id": "format_template", "source": f"@export\ndef probe():\n    return {expression}\n"},
         tmp_path,
-        native=native,
     )
     assert actual["admission"] == "accepted", actual
     assert actual["status_code"] == 0, actual
     assert actual["result"] == encode(expected), actual
 
 
-@pytest.mark.parametrize("native", [False, pytest.param(True, marks=pytest.mark.optional_native)])
 @pytest.mark.parametrize(
     "expression",
     [
@@ -60,11 +59,10 @@ def test_format_template_result(tmp_path, native, expression, expected):
         "'x'.format_map(mapping={})",
     ],
 )
-def test_format_template_invalid(tmp_path, native, expression):
+def test_format_template_invalid(tmp_path, expression):
     actual = run_case(
         {"id": "format_invalid", "source": f"@export\ndef probe():\n    return {expression}\n"},
         tmp_path,
-        native=native,
     )
     assert actual["admission"] == "accepted", actual
     assert actual["status_code"] == 1, actual
@@ -79,38 +77,31 @@ def test_template_fields_cannot_bypass_private_attribute_policy(tmp_path, field)
             "source": f"@export\ndef probe():\n    return {field!r}.format(datetime.datetime(2026, 1, 1))\n",
         },
         tmp_path,
-        native=True,
     )
     assert actual["admission"] == "accepted", actual
     assert actual["status_code"] == 1, actual
 
 
-@pytest.mark.parametrize("native", [False, pytest.param(True, marks=pytest.mark.optional_native)])
-def test_format_map_reads_hash_through_storage_boundary(tmp_path, native):
+def test_format_map_reads_hash_through_storage_boundary(tmp_path):
     actual = run_case(
         {
             "id": "format_hash",
-            "source": "entries=Hash(default_value=0)\n@export\ndef probe():\n"
-            "    entries['n']=7\n    return '{n}:{missing}'.format_map(entries)\n",
+            "source": "entries=Hash(default_value=0)\n@export\ndef probe():\n    entries['n']=7\n    return '{n}:{missing}'.format_map(entries)\n",
         },
         tmp_path,
-        native=native,
     )
     assert actual["admission"] == "accepted", actual
     assert actual["status_code"] == 0, actual
     assert actual["result"] == encode("7:0"), actual
 
 
-@pytest.mark.parametrize("native", [False, pytest.param(True, marks=pytest.mark.optional_native)])
-def test_repeated_named_fields_use_exact_keyword_values(tmp_path, native):
+def test_repeated_named_fields_use_exact_keyword_values(tmp_path):
     actual = run_case(
         {
             "id": "format_keywords",
-            "source": "@export\ndef probe():\n    keywords={str(i): i for i in range(200)}\n"
-            "    keywords['target']='x'\n    return ('{target}'*200).format(**keywords)\n",
+            "source": "@export\ndef probe():\n    keywords={str(i): i for i in range(200)}\n    keywords['target']='x'\n    return ('{target}'*200).format(**keywords)\n",
         },
         tmp_path,
-        native=native,
     )
     assert actual["admission"] == "accepted", actual
     assert actual["status_code"] == 0, actual

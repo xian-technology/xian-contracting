@@ -1,4 +1,3 @@
-import os
 import tempfile
 from pathlib import Path
 from unittest import TestCase
@@ -17,34 +16,27 @@ class TestClient(TestCase):
         self.client = None
 
         self.driver = Driver()
-        
-        self.script_dir = os.path.dirname(os.path.abspath(__file__))
-
-        submission_file_path = os.path.join(self.script_dir, "contracts", "submission.s.py")
-        with open(submission_file_path) as f:
-            self.submission_contract_file = f.read()
+        self.addCleanup(self.driver.close)
 
     def tearDown(self):
         if self.client:
-            self.client.flush()
             self.client.close()
 
-    def test_set_submission_updates_legacy_runtime_file(self):
-        self.driver = Driver(vm_profile="xian_vm_v1")
+    def test_set_submission_updates_native_source_and_ir(self):
         self.client = ContractingClient(driver=self.driver)
-        self.client.flush()
+        original_source = self.client.get_contract_source("submission")
+        original_ir = self.client.get_contract_ir("submission")
+        replacement = Path.home() / "updated_submission.s.py"
+        replacement.write_text("@export\ndef version():\n    return 2\n")
 
-        submission_1_code = self.client.raw_driver.get_local_contract_runtime('submission')
-        
-        self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        submission_file_path = os.path.join(self.script_dir, "precompiled", "updated_submission.py")
-        
-        self.driver.flush_full()
-        self.client.set_submission_contract(filename=submission_file_path)
+        self.client.set_submission_contract(filename=replacement)
 
-        submission_2_code = self.client.raw_driver.get_local_contract_runtime('submission')
-
-        self.assertNotEqual(submission_1_code, submission_2_code)
+        self.assertNotEqual(original_source, self.client.get_contract_source("submission"))
+        self.assertNotEqual(original_ir, self.client.get_contract_ir("submission"))
+        self.assertEqual(self.client.submission_contract.version(), 2)
+        with Driver(storage_home=self.driver.storage_home, bypass_cache=True) as reopened:
+            with ContractingClient(submission_filename=None, driver=reopened) as reader:
+                self.assertEqual(reader.submission_contract.version(), 2)
 
     def test_default_submission_seeds_source_and_ir(self):
         self.client = ContractingClient(driver=self.driver)
@@ -180,9 +172,7 @@ class TestClient(TestCase):
 
     def test_closure_to_code_string_does_not_execute_source(self):
         self.client = ContractingClient(submission_filename=None, driver=self.driver)
-        sentinel = Path(tempfile.gettempdir()) / "xian_closure_source_probe"
-        if sentinel.exists():
-            sentinel.unlink()
+        sentinel = Path.home() / "xian_closure_source_probe"
 
         def con_source_probe():
             payload = f"; touch {sentinel}"
@@ -258,7 +248,6 @@ def ping():
         }
         executor = Mock()
         executor.execute.return_value = output
-        executor.production = False
 
         contract = AbstractContract(
             name="test_contract",
@@ -283,7 +272,6 @@ def ping():
         }
         executor = Mock()
         executor.execute.return_value = output
-        executor.production = False
 
         contract = AbstractContract(
             name="test_contract",
@@ -309,18 +297,75 @@ def test_default_client_runs_exact_native_arithmetic(tmp_path):
         assert client.get_contract_proxy("con_divide").divide() == Decimal("0." + "3" * 30)
 
 
-
-def test_cpython_executor_requires_explicit_legacy_selection(tmp_path):
+def test_native_client_lint_reports_and_raises_canonical_diagnostics(tmp_path):
     import pytest
-    from contracting.execution.executor import Executor
 
-    with pytest.raises(ValueError, match="ContractingClient"):
-        Executor()
+    with ContractingClient(storage_home=tmp_path, submission_filename=None) as client:
+        valid = "@export\ndef answer():\n    return 42\n"
+        assert client.lint(valid) is None
+        assert client.lint(valid, raise_errors=True) is None
+
+        rejected = '@export\ndef forbidden():\n    return open("file")\n'
+        diagnostics = client.lint(rejected)
+        assert diagnostics[0]["code"] == "xian.lint.E014"
+        assert "'open' is not allowed" in diagnostics[0]["message"]
+        with pytest.raises(ValueError, match="'open' is not allowed"):
+            client.lint(rejected, raise_errors=True)
+
+
+def test_native_client_compiles_and_lints_function_source(tmp_path):
     with ContractingClient(storage_home=tmp_path) as client:
-        with pytest.raises(ValueError, match="V1 driver"):
-            Executor(driver=client.raw_driver)
-    legacy = Executor(vm_profile="xian_vm_v1")
-    try:
-        assert legacy.driver.vm_profile == "xian_vm_v1"
-    finally:
-        legacy.driver.close()
+        def con_function_source():
+            @export
+            def answer():
+                return 42
+
+        assert client.lint(con_function_source) is None
+        source = client.compile(con_function_source)
+        assert "def answer():" in source
+        assert "return 42" in source
+        client.submit(source, name="con_function_source")
+        assert client.get_contract_proxy("con_function_source").answer() == 42
+
+
+def test_native_client_preserves_explicit_environment_and_adapter_defaults(tmp_path):
+    from xian_runtime_types.time import Datetime
+
+    environment = {"now": Datetime(2020, 1, 1)}
+    with ContractingClient(storage_home=tmp_path, environment=environment) as client:
+        client.submit("@export\ndef current_year():\n    return now.year\n", name="con_time")
+        contract = client.get_contract_proxy("con_time")
+        assert contract.current_year() == 2020
+        assert contract.current_year(environment={"now": Datetime(2024, 1, 1)}) == 2024
+        assert environment["now"].year == 2020
+
+        output = client.executor.execute(
+            sender="alice", contract_name="con_time", function_name="current_year", kwargs={}
+        )
+        assert output["status_code"] == 0, output["result"]
+        assert output["result"] == 1970
+
+
+def test_native_client_defaults_to_unmetered_calls_and_supports_explicit_metering(tmp_path):
+    from contracting import constants
+
+    with ContractingClient(storage_home=tmp_path) as client:
+        client.submit("@export\ndef answer():\n    return 42\n", name="con_meter")
+        contract = client.get_contract_proxy("con_meter")
+        unmetered = contract.answer(return_full_output=True)
+        metered = contract.answer(metering=True, return_full_output=True)
+        assert unmetered["result"] == metered["result"] == 42
+        assert unmetered["chi_used"] == constants.TRANSACTION_BASE_CHI
+        assert metered["chi_used"] > unmetered["chi_used"]
+
+
+def test_ordinary_call_name_argument_cannot_spoof_submission_context(tmp_path):
+    with ContractingClient(storage_home=tmp_path) as client:
+        client.submit(
+            "@export\ndef submission_context(name: str):\n    return ctx.submission_name\n",
+            name="con_context",
+        )
+        contract = client.get_contract_proxy("con_context")
+        assert contract.submission_context(
+            name="con_spoof", environment={"submission_name": "stale"}
+        ) is None

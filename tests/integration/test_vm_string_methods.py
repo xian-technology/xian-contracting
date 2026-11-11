@@ -2,7 +2,8 @@
 
 import pytest
 
-from tests.integration.test_vm_language_conformance import _run_native_case, _run_python_case
+from tests.integration.pre_retirement_oracle import recorded_python_observation
+from tests.integration.test_vm_language_conformance import _run_native_case
 
 pytestmark = pytest.mark.optional_native
 
@@ -45,7 +46,7 @@ def test_string_methods_match_python(tmp_path, expression):
         "function_name": "probe",
         "kwargs": {},
     }
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     assert expected["status_code"] == 0, expected
     assert _run_native_case(case, tmp_path / "native") == expected
 
@@ -84,7 +85,7 @@ def test_string_method_errors_match_python(tmp_path, expression):
         "function_name": "probe",
         "kwargs": {},
     }
-    assert _run_python_case(case, tmp_path / "python")["status_code"] != 0
+    assert recorded_python_observation(case)["status_code"] != 0
     assert _run_native_case(case, tmp_path / "native")["status_code"] != 0
 
 
@@ -95,7 +96,7 @@ def test_translation_uses_hash_defaults_and_metered_storage_reads(tmp_path):
         "function_name": "probe",
         "kwargs": {},
     }
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     assert expected["status_code"] == 0, expected
     assert expected["result"] == "X"
     assert _run_native_case(case, tmp_path / "native") == expected
@@ -120,7 +121,7 @@ def test_bound_string_methods_share_direct_semantics(tmp_path, body):
         "function_name": "probe",
         "kwargs": {},
     }
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     assert expected["status_code"] == 0, expected
     assert _run_native_case(case, tmp_path / "native") == expected
 
@@ -183,7 +184,7 @@ def test_large_custom_strip_membership_is_shared_by_all_variants(tmp_path):
         "function_name": "probe",
         "kwargs": {},
     }
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     assert expected["status_code"] == 0, expected
     assert expected["result"] == ["value", 10005, 10005]
     assert _run_native_case(case, tmp_path / "native") == expected

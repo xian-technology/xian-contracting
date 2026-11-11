@@ -2,10 +2,10 @@
 
 import pytest
 
-from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 
 pytestmark = pytest.mark.optional_native
+
 
 # Explicit catalog snapshot: adding an admitted function requires deliberate coverage.
 CALLABLE_BINDINGS = (
@@ -208,7 +208,7 @@ NOMINAL_CASES = [
 ]
 
 
-def execute_case(home, body, *, native, meter=False, prefix=""):
+def execute_case(home, body, *, meter=False, prefix=""):
     source = (
         prefix
         + "state = Variable()\n@export\ndef probe():\n"
@@ -229,48 +229,37 @@ def keyword(left: int, *, right: int):
 def variadic(left: int, *rest: int, **options: int):
     return left
 """
-    with Driver(storage_home=home, vm_profile="xian_vm_v2" if native else "xian_vm_v1") as driver:
+    with Driver(storage_home=home, vm_profile="xian_vm_v2") as driver:
         driver.set_contract_from_source("con_host_callable_target", target, owner=None)
         driver.set("con_host_callable_target.state", 7)
         driver.set("con_host_callable_target.ledger:ready", 9)
         driver.set_contract_from_source("con_host_callables", source, owner="alice")
         driver.commit()
-        if native:
-            from xian_vm_core import execute_contract
+        from xian_vm_core import execute_contract
 
-            result = execute_contract(
-                driver=driver,
-                contract_name="con_host_callables",
-                function_name="probe",
-                kwargs={},
-                context={"caller": "alice", "signer": "alice", "this": "con_host_callables"},
-                meter=meter,
-            )
-            return result.status_code, result.result, result.writes
-        result = Executor(driver=driver, metering=False).execute(
-            sender="alice",
+        result = execute_contract(
+            driver=driver,
             contract_name="con_host_callables",
             function_name="probe",
             kwargs={},
-            metering=False,
+            context={"caller": "alice", "signer": "alice", "this": "con_host_callables"},
+            meter=meter,
         )
-        return result["status_code"], result["result"], result["writes"]
+        return result.status_code, result.result, result.writes
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
 @pytest.mark.parametrize("binding", CALLABLE_BINDINGS)
-def test_admitted_host_callable_can_be_retrieved(tmp_path, native, binding):
-    status, result, _ = execute_case(tmp_path, f"f = {binding}\nreturn f is f", native=native)
+def test_admitted_host_callable_can_be_retrieved(tmp_path, binding):
+    status, result, _ = execute_case(tmp_path, f"f = {binding}\nreturn f is f")
     assert status == 0, result
     assert result is True
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
 @pytest.mark.parametrize(
     ("case_id", "body", "expected"), NOMINAL_CASES, ids=[case[0] for case in NOMINAL_CASES]
 )
-def test_host_callable_alias_semantics(tmp_path, native, case_id, body, expected):
-    status, result, _ = execute_case(tmp_path, body, native=native)
+def test_host_callable_alias_semantics(tmp_path, case_id, body, expected):
+    status, result, _ = execute_case(tmp_path, body)
     assert status == 0, result
     assert result == expected
 
@@ -291,7 +280,7 @@ def test_host_callable_alias_semantics(tmp_path, native, case_id, body, expected
 @pytest.mark.parametrize("operation", ["store", "return"])
 def test_host_callables_cannot_escape_execution(tmp_path, expression, operation, meter):
     body = f"state.set({expression})\nreturn 1" if operation == "store" else f"return {expression}"
-    status, result, writes = execute_case(tmp_path, body, native=True, meter=meter)
+    status, result, writes = execute_case(tmp_path, body, meter=meter)
     assert status == 1, result
     assert "cannot cross" in str(result), result
     assert writes == {}
@@ -329,7 +318,7 @@ def test_host_callable_snapshot_covers_catalog_with_reviewed_exclusions():
 @pytest.mark.parametrize("meter", [False, True])
 def test_ordinary_host_arguments_reject_callable_capabilities(tmp_path, value, meter):
     status, result, writes = execute_case(
-        tmp_path, f"state.set(9)\nrandom.seed({value})\nreturn 1", native=True, meter=meter
+        tmp_path, f"state.set(9)\nrandom.seed({value})\nreturn 1", meter=meter
     )
     assert status == 1, result
     assert "cannot cross" in str(result), result
@@ -386,7 +375,7 @@ def test_host_callback_budget_failure_rolls_back_prior_writes(tmp_path):
 @pytest.mark.parametrize("binding", CALLABLE_BINDINGS)
 def test_host_callable_unknown_keyword_is_controlled_and_rolls_back(tmp_path, binding):
     status, result, writes = execute_case(
-        tmp_path, f"state.set(9)\nf = {binding}\nf(unexpected_parameter=1)\nreturn 1", native=True
+        tmp_path, f"state.set(9)\nf = {binding}\nf(unexpected_parameter=1)\nreturn 1"
     )
     assert status == 1, result
     assert isinstance(result, str), result
@@ -401,22 +390,18 @@ def test_deploy_host_only_keywords_are_not_admitted(tmp_path, keyword):
     status, result, writes = execute_case(
         tmp_path,
         f"f = Contract.deploy\nf(name='con_child', code='ignored', {keyword}=None)\nreturn 1",
-        native=True,
     )
     assert status == 1, result
     assert "unexpected keyword" in str(result), result
     assert writes == {}
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
-def test_static_and_dynamic_import_function_identity(tmp_path, native):
+def test_static_and_dynamic_import_function_identity(tmp_path):
     body = """static = con_host_callable_target
 module = importlib.import_module("con_host_callable_target")
 other = importlib.import_module("con_host_callable_target")
 return [static is static, module is module, module is other, static is module, static.value is static.value, module.value is module.value, static.value == module.value]"""
-    status, result, _ = execute_case(
-        tmp_path, body, native=native, prefix="import con_host_callable_target\n"
-    )
+    status, result, _ = execute_case(tmp_path, body, prefix="import con_host_callable_target\n")
     assert status == 0, result
     assert result == [True, True, False, False, True, True, False]
 

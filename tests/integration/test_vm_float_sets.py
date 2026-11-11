@@ -2,7 +2,8 @@
 
 import pytest
 
-from tests.integration.test_vm_language_conformance import _run_native_case, _run_python_case
+from tests.integration.pre_retirement_oracle import recorded_python_observation
+from tests.integration.test_vm_language_conformance import _run_native_case
 
 pytestmark = pytest.mark.optional_native
 
@@ -16,8 +17,10 @@ def assert_float_set_result(tmp_path, body, expected):
         "function_name": "probe",
         "kwargs": {},
     }
-    for engine, run in [("python", _run_python_case), ("native", _run_native_case)]:
-        result = run(case, tmp_path / engine)
+    for engine, result in [
+        ("recorded-python", recorded_python_observation(case)),
+        ("native", _run_native_case(case, tmp_path / "native")),
+    ]:
         assert result["status_code"] == 0, result
         assert result["result"] == expected, (engine, result)
 

@@ -1,5 +1,5 @@
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from contracting import constants
 from contracting.stdlib.bridge import zk
@@ -91,9 +91,10 @@ class TestZkStdlib(TestCase):
                     ["0x" + "00" * 32],
                 )
 
-    def test_verify_deducts_metering_cost(self):
+    def test_verify_forwards_exact_payloads_to_native_helper(self):
+        verify = Mock(return_value=True)
         bindings = {
-            "verify_groth16_bn254": lambda *_args: True,
+            "verify_groth16_bn254": verify,
             "ZkEncodingError": FakeEncodingError,
             "ZkVerifierError": FakeVerifierError,
         }
@@ -101,33 +102,15 @@ class TestZkStdlib(TestCase):
         proof_hex = "0xabcd"
         public_inputs = ["0x" + "00" * 32, "0x" + "01" * 32]
 
-        expected = (
-            constants.ZK_VERIFY_GROTH16_BASE_COST
-            + (
-                len(public_inputs)
-                * constants.ZK_VERIFY_GROTH16_PER_PUBLIC_INPUT_COST
-            )
-            + (
-                (
-                    ((len(vk_hex) - 2) // 2)
-                    + ((len(proof_hex) - 2) // 2)
-                    + sum((len(v) - 2) // 2 for v in public_inputs)
-                )
-                * constants.ZK_VERIFY_GROTH16_PER_PAYLOAD_BYTE_COST
-            )
-        )
-
         with patch(
             "contracting.stdlib.bridge.zk._native_verifier_bindings",
             return_value=bindings,
-        ), patch(
-            "contracting.stdlib.bridge.zk.rt.deduct_execution_cost"
-        ) as deduct:
+        ):
             self.assertTrue(
                 zk.verify_groth16_bn254(vk_hex, proof_hex, public_inputs)
             )
 
-        deduct.assert_called_once_with(expected)
+        verify.assert_called_once_with(vk_hex, proof_hex, public_inputs)
 
     def test_verify_maps_native_encoding_errors_to_assertion(self):
         def _raise(*_args):
@@ -453,14 +436,12 @@ class TestZkStdlib(TestCase):
         self.assertEqual(len(verify_calls), 2)
 
     def test_shielded_note_append_commitments_uses_native_helper(self):
+        append = Mock(return_value=(
+            '{"root":"0x' + "11" * 32
+            + '","note_count":2,"filled_subtrees":["0x' + "22" * 32 + '"]}'
+        ))
         bindings = {
-            "shielded_note_append_tree_state_json": lambda *_args: (
-                '{"root":"0x'
-                + "11" * 32
-                + '","note_count":2,"filled_subtrees":["0x'
-                + "22" * 32
-                + '"]}'
-            ),
+            "shielded_note_append_tree_state_json": append,
             "ZkEncodingError": FakeEncodingError,
             "ZkVerifierError": FakeVerifierError,
         }
@@ -468,25 +449,21 @@ class TestZkStdlib(TestCase):
         with patch(
             "contracting.stdlib.bridge.zk._native_verifier_bindings",
             return_value=bindings,
-        ), patch(
-            "contracting.stdlib.bridge.zk.rt.deduct_execution_cost"
-        ) as deduct:
+        ):
             result = zk.shielded_note_append_commitments(
                 1,
                 ["0x" + "00" * 32],
                 ["0x" + "01" * 32],
             )
 
-        deduct.assert_called_once_with(
-            constants.ZK_SHIELDED_TREE_APPEND_BASE_COST
-            + constants.ZK_SHIELDED_TREE_APPEND_PER_COMMITMENT_COST
-        )
+        append.assert_called_once_with(1, ["0x" + "00" * 32], ["0x" + "01" * 32])
         self.assertEqual(result["note_count"], 2)
         self.assertEqual(result["root"], "0x" + "11" * 32)
 
     def test_shielded_command_nullifier_digest_uses_native_helper(self):
+        nullifier_digest = Mock(return_value="0x" + "33" * 32)
         bindings = {
-            "shielded_command_nullifier_digest": lambda values: "0x" + "33" * 32,
+            "shielded_command_nullifier_digest": nullifier_digest,
             "ZkEncodingError": FakeEncodingError,
             "ZkVerifierError": FakeVerifierError,
         }
@@ -494,23 +471,20 @@ class TestZkStdlib(TestCase):
         with patch(
             "contracting.stdlib.bridge.zk._native_verifier_bindings",
             return_value=bindings,
-        ), patch(
-            "contracting.stdlib.bridge.zk.rt.deduct_execution_cost"
-        ) as deduct:
+        ):
             digest = zk.shielded_command_nullifier_digest(
                 ["0x" + "01" * 32, "0x" + "02" * 32]
             )
 
-        deduct.assert_called_once_with(
-            constants.ZK_SHIELDED_COMMAND_NULLIFIER_DIGEST_BASE_COST
-            + (2 * constants.ZK_SHIELDED_COMMAND_NULLIFIER_DIGEST_PER_INPUT_COST)
-        )
+        nullifier_digest.assert_called_once_with(["0x" + "01" * 32, "0x" + "02" * 32])
         self.assertEqual(digest, "0x" + "33" * 32)
 
     def test_shielded_command_binding_and_execution_tag_use_native_helpers(self):
+        binding_helper = Mock(return_value="0x" + "44" * 32)
+        tag_helper = Mock(return_value="0x" + "55" * 32)
         bindings = {
-            "shielded_command_binding": lambda *_args: "0x" + "44" * 32,
-            "shielded_command_execution_tag": lambda *_args: "0x" + "55" * 32,
+            "shielded_command_binding": binding_helper,
+            "shielded_command_execution_tag": tag_helper,
             "ZkEncodingError": FakeEncodingError,
             "ZkVerifierError": FakeVerifierError,
         }
@@ -518,9 +492,7 @@ class TestZkStdlib(TestCase):
         with patch(
             "contracting.stdlib.bridge.zk._native_verifier_bindings",
             return_value=bindings,
-        ), patch(
-            "contracting.stdlib.bridge.zk.rt.deduct_execution_cost"
-        ) as deduct:
+        ):
             binding = zk.shielded_command_binding(
                 "0x" + "01" * 32,
                 "0x" + "02" * 32,
@@ -538,14 +510,17 @@ class TestZkStdlib(TestCase):
                 "0x" + "0a" * 32,
             )
 
-        deduct.assert_any_call(constants.ZK_SHIELDED_COMMAND_BINDING_COST)
-        deduct.assert_any_call(constants.ZK_SHIELDED_COMMAND_EXECUTION_TAG_COST)
+        binding_helper.assert_called_once_with(
+            *("0x" + f"{index:02x}" * 32 for index in range(1, 9)), 7, 0
+        )
+        tag_helper.assert_called_once_with("0x" + "09" * 32, "0x" + "0a" * 32)
         self.assertEqual(binding, "0x" + "44" * 32)
         self.assertEqual(tag, "0x" + "55" * 32)
 
     def test_shielded_output_payload_hash_uses_native_helper(self):
+        payload_hash = Mock(return_value="0x" + "66" * 32)
         bindings = {
-            "shielded_output_payload_hash": lambda payload: "0x" + "66" * 32,
+            "shielded_output_payload_hash": payload_hash,
             "ZkEncodingError": FakeEncodingError,
             "ZkVerifierError": FakeVerifierError,
         }
@@ -554,12 +529,10 @@ class TestZkStdlib(TestCase):
         with patch(
             "contracting.stdlib.bridge.zk._native_verifier_bindings",
             return_value=bindings,
-        ), patch(
-            "contracting.stdlib.bridge.zk.rt.deduct_execution_cost"
-        ) as deduct:
+        ):
             result = zk.shielded_output_payload_hash(payload)
 
-        deduct.assert_called_once_with((len(payload) - 2) // 2)
+        payload_hash.assert_called_once_with(payload)
         self.assertEqual(result, "0x" + "66" * 32)
 
     def test_shielded_output_payload_hashes_uses_native_helper(self):

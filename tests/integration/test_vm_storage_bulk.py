@@ -2,16 +2,20 @@
 
 import json
 from pathlib import Path
+
 import pytest
-from tests.integration.test_vm_language_conformance import _run_native_case, _run_python_case
+
+from tests.integration.pre_retirement_oracle import recorded_python_observation
+from tests.integration.test_vm_language_conformance import _run_native_case
 
 pytestmark = pytest.mark.optional_native
+
 CASES = json.loads(Path(__file__).with_name("storage_bulk_cases.json").read_text())
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case["id"])
 def test_bulk_storage_matches_current_orm(tmp_path, case):
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     if case["id"] not in {
         "hash_clone_reject_variable",
         "hash_clear_rollback",
@@ -50,17 +54,17 @@ def test_clear_prefix_and_default_value(tmp_path, expression):
         "function_name": "probe",
         "kwargs": {},
     }
-    assert _run_native_case(case, tmp_path / "native") == _run_python_case(
-        case, tmp_path / "python"
-    )
+    assert _run_native_case(case, tmp_path / "native") == recorded_python_observation(case)
 
 
 @pytest.mark.parametrize("operation", ["h.clear()", "g.clone_from(h)"])
 @pytest.mark.parametrize("count", [100, 2000])
 def test_bulk_scan_is_metered_and_rolls_back(tmp_path, operation, count):
-    from contracting.storage.driver import Driver
-    from xian_vm_core import execute_contract
     from unittest.mock import patch
+
+    from xian_vm_core import execute_contract
+
+    from contracting.storage.driver import Driver
 
     source = (
         "h=Hash()\ng=Hash()\nprogress=Variable()\n@export\ndef probe():\n    progress.set(1)\n    "
@@ -130,7 +134,7 @@ def probe():
         "kwargs": {},
         "dependencies": [{"name": "con_bulk_child", "source": child, "owner": None}],
     }
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     actual = _run_native_case(case, tmp_path / "native")
     if fail:
         assert actual["status_code"] == expected["status_code"] == 1
@@ -150,6 +154,6 @@ def test_foreign_variable_observes_nested_deletion(tmp_path):
         "kwargs": {},
         "dependencies": [{"name": "con_bulk_child", "source": child, "owner": None}],
     }
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     assert expected["result"] == [1, None]
     assert _run_native_case(case, tmp_path / "native") == expected

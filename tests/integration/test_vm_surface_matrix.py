@@ -5,17 +5,12 @@ import pytest
 from tests.compatibility.runner import encode, run_case
 from tests.surface.catalog import load_cases
 
+pytestmark = pytest.mark.optional_native
+
 
 @pytest.mark.parametrize("case", load_cases(), ids=lambda case: case["id"])
-@pytest.mark.parametrize(
-    "native",
-    [False, pytest.param(True, marks=pytest.mark.optional_native)],
-    ids=["python", "native"],
-)
-def test_runtime_surface_case(tmp_path, case, native):
-    if case.get("native_only") and not native:
-        pytest.skip(case["policy_reason"])
-    actual = run_case(case, tmp_path, native=native)
+def test_runtime_surface_case(tmp_path, case):
+    actual = run_case(case, tmp_path)
     assert actual["admission"] == "accepted", actual
     assert actual["status_code"] == int(case.get("expected_failure", False)), actual
     assert actual["writes"] == encode({}), actual

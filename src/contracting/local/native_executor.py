@@ -5,13 +5,25 @@ from copy import deepcopy
 from xian_runtime_types.time import Datetime
 
 from contracting import constants
-from contracting.execution.executor import _classify_execution_error
+from contracting.execution.errors import classify_execution_error
 from contracting.execution.runtime import rt
 
 
-class NativeExecutor:
-    production = False
+def _execution_context(*, sender, contract_name, function_name, kwargs, environment):
+    context = dict(environment or {})
+    if context.get("now") is None:
+        context["now"] = Datetime(1970, 1, 1)
+    context.update(
+        signer=sender,
+        caller=sender,
+        this=contract_name,
+        entry=(contract_name, function_name),
+        submission_name=kwargs.get("name") if contract_name == "submission" else None,
+    )
+    return context
 
+
+class NativeExecutor:
     def __init__(self, driver, *, metering):
         self.driver = driver
         self.metering = metering
@@ -34,15 +46,12 @@ class NativeExecutor:
         from xian_vm_core import NativeExecutionResult, execute_contract
 
         driver = self.driver if driver is None else driver
-        context = dict(environment or {})
-        if context.get("now") is None:
-            context["now"] = Datetime(1970, 1, 1)
-        context.update(
-            signer=sender,
-            caller=sender,
-            this=contract_name,
-            entry=(contract_name, function_name),
-            submission_name=kwargs.get("name") if contract_name == "submission" else None,
+        context = _execution_context(
+            sender=sender,
+            contract_name=contract_name,
+            function_name=function_name,
+            kwargs=kwargs,
+            environment=environment,
         )
         # The Python host bridge installs transaction context for the native VM.
         with rt.execution_lock:
@@ -92,5 +101,5 @@ class NativeExecutor:
                 "reads": deepcopy(driver.transaction_reads),
                 "prefix_reads": frozenset(driver.transaction_read_prefixes),
                 "contract_costs": result.contract_costs,
-                "error_class": _classify_execution_error(error),
+                "error_class": classify_execution_error(error),
             }

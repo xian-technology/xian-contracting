@@ -2,42 +2,15 @@
 
 ## Current Default
 
-The default chain, compiler and local test execution profile is `xian_vm_v2`.
+The chain and public local clients execute `xian_vm_v2`.
 
 `xian-contracting` remains usable as a standalone library outside the full
 blockchain stack. Compilation and artifact building require the canonical
-`xian-compiler-core` Rust package. The default client executes through the native VM.
-The Python execution harness remains available for explicit V1 compatibility tests.
-
-## V1 Python Harness Metering Backlog
-
-The local harness tracer is deterministic and useful for development-time
-checks, but it is no longer consensus policy. The Xian VM owns network
-execution and metering.
-
-Recent hardening already landed:
-
-- fixed Python 3.14 line metadata handling
-- kept per-code tracer metadata warm across executions
-- split event ceilings by execution surface
-- made the opcode default-cost set explicit and test-guarded
-- added workload tests for branch-heavy and loop-heavy tracer cases
-- forbade ternary expressions, semicolons, and one-line compound statements
-  in contract source
-
-Remaining useful harness hardening steps:
-
-- forbid lambdas
-- restrict or forbid complex comprehensions if they create poor line-cost
-  precision
-- reject lines whose compiled bytecode bucket exceeds a configured threshold
-- keep local harness metering changes versioned and explicit across supported
-  CPython minors
-- extend workload tests further with contracts designed to probe tracer blind
-  spots beyond the current branch-heavy coverage
-
-These changes are intended to reduce opportunities to game local-test metering
-without changing network execution, which is owned by the Xian VM.
+`xian-compiler-core` Rust package. `ContractingClient` and
+`ParallelBatchExecutor` execute through the native V2 VM and reject V1 drivers.
+Low-level native V1 tooling is reserved for historical verification and
+migration. Historical Python evidence comes from immutable observers run with
+pinned archived packages, rather than a maintained Python contract executor.
 
 ## Return Value Metering
 
@@ -100,9 +73,9 @@ Remaining useful work:
 
 ## Rollout Order
 
-1. Keep the local harness tracer as standalone test infrastructure.
-2. Keep tightening that harness with targeted language restrictions and
-   workload coverage.
-3. Keep the Xian VM as the only network execution target.
-4. Treat speculative parallel execution as a local optimization and expand it
-   only when serial-equivalence coverage and workload data justify it.
+1. Keep native V2 as the public local-client and network execution target.
+2. Preserve independent semantic models and immutable historical observations
+   while expanding native workload coverage.
+3. Keep native V1 tooling isolated to historical verification and migration.
+4. Expand speculative parallel execution only when serial-equivalence coverage
+   and workload data justify it.

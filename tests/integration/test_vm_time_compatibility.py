@@ -2,7 +2,8 @@
 
 import pytest
 
-from tests.integration.test_vm_language_conformance import _run_native_case, _run_python_case
+from tests.integration.pre_retirement_oracle import recorded_python_observation
+from tests.integration.test_vm_language_conformance import _run_native_case
 from tests.integration.test_vm_raw_decimal import compare
 
 pytestmark = pytest.mark.optional_native
@@ -61,7 +62,7 @@ def test_time_out_of_range_inputs_fail(tmp_path, expression):
         "function_name": "probe",
         "kwargs": {},
     }
-    assert _run_python_case(case, tmp_path / "python")["status_code"] == 1
+    assert recorded_python_observation(case)["status_code"] == 1
     assert _run_native_case(case, tmp_path / "native")["status_code"] == 1
 
 
@@ -92,7 +93,7 @@ def test_time_constructor_invalid_arguments(tmp_path, expression):
         "function_name": "probe",
         "kwargs": {},
     }
-    assert _run_python_case(case, tmp_path / "python")["status_code"] == 1
+    assert recorded_python_observation(case)["status_code"] == 1
     assert _run_native_case(case, tmp_path / "native")["status_code"] == 1
 
 
@@ -109,5 +110,5 @@ def test_strptime_method_is_not_classinfo(tmp_path):
         "function_name": "probe",
         "kwargs": {},
     }
-    assert _run_python_case(case, tmp_path / "python")["status_code"] == 1
+    assert recorded_python_observation(case)["status_code"] == 1
     assert _run_native_case(case, tmp_path / "native")["status_code"] == 1

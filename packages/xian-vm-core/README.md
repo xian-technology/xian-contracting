@@ -25,7 +25,22 @@ Supported scope:
 
 ## Numeric profiles
 
-The chain selects a profile for artifact admission and execution. Every module in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports execution revision `xvm-execution-7`, bytecode version `xvm-2` and gas schedule `xvm-gas-3`. The native and Python bindings select V2 by default. To execute a V1 module, pass `vm_profile="xian_vm_v1"` to the driver and execution entry point. V1 retains bytecode version `xvm-1` and gas schedule `xvm-gas-2`; both profiles use the resource bounds in execution revision `xvm-execution-7`. Replaying earlier execution semantics requires the corresponding pinned runtime.
+The chain selects a profile for artifact admission and execution. Every module
+in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports
+execution revision `xvm-execution-8`, bytecode version `xvm-2` and gas schedule
+`xvm-gas-3`. The native and Python host bindings select V2 by default. Public
+`ContractingClient` and `ParallelBatchExecutor` execution accepts only V2.
+
+Low-level native V1 supports historical verification and migration: select
+`vm_profile="xian_vm_v1"` explicitly on its driver and execution entrypoint.
+V1 retains execution revision `xvm-execution-7`, bytecode version `xvm-1` and
+gas schedule `xvm-gas-2`. Both profiles share the documented resource bounds;
+replaying earlier execution semantics requires the corresponding pinned runtime.
+
+V2 external entrypoints must be exported functions. Constructors execute only
+through trusted deployment. Code-hash inspection accepts only the `runtime`,
+`ir` and `source` selectors; other kinds fail. Archival V1 semantics remain
+separate from these V2 checks.
 
 F-string output is limited to 128 KiB in UTF-8 bytes across the complete result, including literal text and every interpolated field. The VM checks each append before allocating the aggregate output.
 
@@ -99,10 +114,10 @@ Subjects cannot be persisted, exposed as public results or passed between
 contracts. See the [surface coverage contract](../../tests/surface/README.md#metadata-only-interface-predicates)
 for the exact fields and complementary boundary tests.
 
-The crate includes curated conformance fixtures generated from the current local
-harness. Those fixtures are checked from Rust so the VM can match actual
-contract behavior on a controlled contract subset alongside hand-written
-executor tests.
+The crate includes curated historical Python observations with pinned
+provenance, plus independent semantic expectations and model-based tests. Rust
+checks preserve those expected results without executing a maintained Python
+contract engine or deriving oracle values from the VM under test.
 
 Metering covers both host-side data costs and VM execution:
 
@@ -134,9 +149,9 @@ Metering covers both host-side data costs and VM execution:
   metadata
 - the native deployment path validates the compiler-produced IR before staging
   writes or executing constructors
-- the Python deployment path and offline tooling keep canonical
-  source-to-runtime recompilation in the Python artifact validator; the native
-  path is Rust-native for bundle validation, not a Rust recompiler
+- source deployment and offline artifact tooling use the canonical Rust
+  compiler and validate source-to-IR identity; the host bridge does not compile
+  or execute contract source as Python bytecode
 - the five-node `make localnet-parallel-e2e` native-authority soak passes end to
   end, including shielded token flows and parallel prefix-scan access patterns
 
@@ -159,9 +174,9 @@ That parity corpus covers:
   `reflection_token.transfer(...)`, `profile_registry.create_channel(...)`,
   `turn_based_games.join_match(...)`, and `oracle.price_info(...)`
 
-The intent is to keep the Xian VM implementation Rust-first for performance,
-while still freezing semantics in the Python compiler frontend before runtime
-execution work starts.
+The Xian VM and canonical compiler are Rust-owned. Independent semantic models
+and pinned historical evidence define checks on observable execution behavior;
+host-language implementation details are not a language specification.
 
 The crate ships a small PyO3/maturin surface for integration work:
 
@@ -169,9 +184,9 @@ The crate ships a small PyO3/maturin surface for integration work:
 - `supports_execution_policy(...)`
 - `validate_module_ir(...)` / `validate_module_ir_json(...)`
 
-That surface is intentionally narrow. It is there so node-side code can probe
-the VM runtime honestly before transaction execution is wired through the Rust
-engine.
+Node-side code uses the capability surface to check exact runtime policy before
+executing transactions through the Rust engine. Python-facing execution also
+provides low-level native bindings for archival V1 tools.
 
 The largest remaining runtime work is metering drift on the heaviest authored
 flows and the host-operation split between delegated calls and Rust-owned

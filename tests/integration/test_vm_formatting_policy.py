@@ -4,7 +4,8 @@ import pytest
 
 from tests.compatibility.runner import encode, run_case
 
-ENGINES = [False, pytest.param(True, marks=pytest.mark.optional_native)]
+pytestmark = pytest.mark.optional_native
+
 ROUTES = {
     "builtin": "return format(value, spec)",
     "builtin_alias": "render = format\nreturn render(value, spec)",
@@ -23,7 +24,7 @@ ROUTES = {
 }
 
 
-def probe(tmp_path, native, body, prefix="", dependencies=None):
+def probe(tmp_path, body, prefix="", dependencies=None):
     source = (
         prefix
         + "\n@export\ndef probe():\n"
@@ -32,13 +33,11 @@ def probe(tmp_path, native, body, prefix="", dependencies=None):
     actual = run_case(
         {"id": "public_format_policy", "source": source, "dependencies": dependencies or {}},
         tmp_path,
-        native=native,
     )
     assert actual["admission"] == "accepted", actual
     return actual
 
 
-@pytest.mark.parametrize("native", ENGINES, ids=["python", "native"])
 @pytest.mark.parametrize("route", ROUTES)
 @pytest.mark.parametrize(
     "spec,expected",
@@ -57,7 +56,7 @@ def probe(tmp_path, native, body, prefix="", dependencies=None):
         "grouping_rejected",
     ],
 )
-def test_raw_decimal_policy_across_call_paths(tmp_path, native, route, spec, expected):
+def test_raw_decimal_policy_across_call_paths(tmp_path, route, spec, expected):
     body = (
         "value = round(decimal('-0.004'), 3)\n"
         f"spec = {spec!r}\n"
@@ -65,7 +64,7 @@ def test_raw_decimal_policy_across_call_paths(tmp_path, native, route, spec, exp
         "named = '{value:' + spec + '}'\n"
         "state.set('pending')\n" + ROUTES[route]
     )
-    actual = probe(tmp_path, native, body, "state = Variable()\n")
+    actual = probe(tmp_path, body, "state = Variable()\n")
     if expected is None:
         assert actual["status_code"] == 1, actual
         assert any(
@@ -82,21 +81,17 @@ def test_raw_decimal_policy_across_call_paths(tmp_path, native, route, spec, exp
         assert actual["result"] == encode(expected), actual
 
 
-@pytest.mark.parametrize("native", ENGINES, ids=["python", "native"])
-def test_nondecimal_numeric_flags_and_decimal_comma_grouping(tmp_path, native):
+def test_nondecimal_numeric_flags_and_decimal_comma_grouping(tmp_path):
     actual = probe(
         tmp_path,
-        native,
-        "return [format(65536, '#_x'), format(float('12345.25'), '_.2f'), "
-        "format(float('12'), '#.4g'), format(round(decimal('1234.5'), 1), ',.1f')]",
+        "return [format(65536, '#_x'), format(float('12345.25'), '_.2f'), format(float('12'), '#.4g'), format(round(decimal('1234.5'), 1), ',.1f')]",
     )
     assert actual["status_code"] == 0, actual
     assert actual["result"] == encode(["0x1_0000", "12_345.25", "12.00", "1,234.5"])
 
 
-@pytest.mark.parametrize("native", ENGINES, ids=["python", "native"])
 @pytest.mark.parametrize("conversion", ["s", "r", "a"])
-def test_fstring_specification_is_evaluated_once_before_conversion(tmp_path, native, conversion):
+def test_fstring_specification_is_evaluated_once_before_conversion(tmp_path, conversion):
     prefix = """values = ['é']
 trace = []
 def value():
@@ -109,7 +104,6 @@ def specification():
 """
     actual = probe(
         tmp_path,
-        native,
         f"result = f'{{value()!{conversion}:{{specification()}}}}'\nreturn [result, trace]",
         prefix,
     )
@@ -118,8 +112,7 @@ def specification():
     assert actual["result"] == encode([expected, ["value", "specification"]])
 
 
-@pytest.mark.parametrize("native", ENGINES, ids=["python", "native"])
-def test_nested_fstring_width_precision_evaluation_order(tmp_path, native):
+def test_nested_fstring_width_precision_evaluation_order(tmp_path):
     prefix = """trace = []
 def number():
     trace.append('number')
@@ -132,16 +125,12 @@ def precision():
     return 2
 """
     actual = probe(
-        tmp_path,
-        native,
-        "result = f'{number():0{width()}.{precision()}f}'\nreturn [result, trace]",
-        prefix,
+        tmp_path, "result = f'{number():0{width()}.{precision()}f}'\nreturn [result, trace]", prefix
     )
     assert actual["status_code"] == 0, actual
     assert actual["result"] == encode(["00002.12", ["number", "width", "precision"]])
 
 
-@pytest.mark.parametrize("native", ENGINES, ids=["python", "native"])
 @pytest.mark.parametrize(
     "expression",
     [
@@ -151,16 +140,13 @@ def precision():
         "len(f'{\"x\":131073s}')",
     ],
 )
-def test_formatting_allocation_guard_cannot_be_hidden_by_len(tmp_path, native, expression):
-    actual = probe(
-        tmp_path, native, f"state.set('pending')\nreturn {expression}", "state = Variable()\n"
-    )
+def test_formatting_allocation_guard_cannot_be_hidden_by_len(tmp_path, expression):
+    actual = probe(tmp_path, f"state.set('pending')\nreturn {expression}", "state = Variable()\n")
     assert actual["status_code"] == 1, actual
     assert actual["writes"] == encode({})
     assert actual["events"] == encode([])
 
 
-@pytest.mark.parametrize("native", ENGINES, ids=["python", "native"])
 @pytest.mark.parametrize(
     "expression",
     [
@@ -169,10 +155,9 @@ def test_formatting_allocation_guard_cannot_be_hidden_by_len(tmp_path, native, e
         "'{0._hidden}'.format(importlib.import_module('con_format_target'))",
     ],
 )
-def test_format_fields_do_not_open_private_attributes(tmp_path, native, expression):
+def test_format_fields_do_not_open_private_attributes(tmp_path, expression):
     actual = probe(
         tmp_path,
-        native,
         f"state.set('pending')\nreturn {expression}",
         "state = Variable()\n",
         {"con_format_target": "@export\ndef visible():\n    return 1\n"},
@@ -181,22 +166,20 @@ def test_format_fields_do_not_open_private_attributes(tmp_path, native, expressi
     assert actual["writes"] == encode({})
 
 
-@pytest.mark.parametrize("native", ENGINES, ids=["python", "native"])
-def test_private_decimal_implementation_is_not_an_import_surface(tmp_path, native):
+def test_private_decimal_implementation_is_not_an_import_surface(tmp_path):
     actual = run_case(
         {
             "id": "format_private_module",
             "source": "import _pydecimal\n@export\ndef probe():\n    return 1\n",
         },
         tmp_path,
-        native=native,
     )
     assert actual["admission"] == "rejected", actual
 
 
 @pytest.mark.parametrize("warm", [False, True], ids=["cold", "fallback_preloaded"])
 @pytest.mark.parametrize("spec", ["#.2f", "_.2f"])
-def test_python_decimal_rejection_does_not_depend_on_import_cache(tmp_path, warm, spec):
+def test_native_decimal_rejection_is_independent_of_host_import_cache(tmp_path, warm, spec):
     import json
     import os
     import subprocess
@@ -213,7 +196,7 @@ if sys.argv[1] == 'warm':
         pass
 from tests.compatibility.runner import run_case
 source = '@export\\ndef probe():\\n    return format(round(decimal("1.25"), 2), ' + repr(sys.argv[2]) + ')\\n'
-result = run_case({'id':'isolated_decimal_policy', 'source':source}, Path(sys.argv[3]))
+result = run_case({'id':'isolated_decimal_policy', 'source':source}, Path(sys.argv[3]), native=True)
 print(json.dumps(result))
 """
     completed = subprocess.run(
@@ -228,14 +211,13 @@ print(json.dumps(result))
     actual = json.loads(completed.stdout)
     assert actual["admission"] == "accepted", actual
     assert actual["status_code"] == 1, actual
-    assert "invalid or unsupported format specification" in actual["diagnostic"], actual
+    assert actual["diagnostic"] == "invalid decimal operation or range", actual
     assert actual["writes"] == encode({})
 
 
-@pytest.mark.parametrize("native", ENGINES, ids=["python", "native"])
 @pytest.mark.parametrize("route", ["render", "positional", "mapping"])
 @pytest.mark.parametrize("spec,expected", [("z.2f", "0.00"), ("#.2f", None), ("_.2f", None)])
-def test_imported_public_format_aliases_use_same_policy(tmp_path, native, route, spec, expected):
+def test_imported_public_format_aliases_use_same_policy(tmp_path, route, spec, expected):
     dependency = """render = format
 positional = str.format
 mapping = str.format_map
@@ -250,10 +232,8 @@ def anchor():
     }
     actual = probe(
         tmp_path,
-        native,
-        "module = importlib.import_module('con_format_aliases')\n"
-        "value = round(decimal('-0.004'), 3)\n"
-        f"spec = {spec!r}\nreturn " + calls[route],
+        f"module = importlib.import_module('con_format_aliases')\nvalue = round(decimal('-0.004'), 3)\nspec = {spec!r}\nreturn "
+        + calls[route],
         dependencies={"con_format_aliases": dependency},
     )
     if expected is None:
@@ -271,21 +251,16 @@ def anchor():
         assert actual["result"] == encode(expected)
 
 
-@pytest.mark.parametrize("native", ENGINES, ids=["python", "native"])
-def test_guarded_format_callable_identity_preserves_method_behavior(tmp_path, native):
+def test_guarded_format_callable_identity_preserves_method_behavior(tmp_path):
     actual = probe(
         tmp_path,
-        native,
-        "template = '{0}'\nheld = template.format\n"
-        "return [format is format, str.format is str.format, "
-        "str.format_map is str.format_map, template.format is template.format, "
-        "template.format == template.format, held is held]",
+        "template = '{0}'\nheld = template.format\nreturn [format is format, str.format is str.format, str.format_map is str.format_map, template.format is template.format, template.format == template.format, held is held]",
     )
     assert actual["status_code"] == 0, actual
     assert actual["result"] == encode([True, True, True, False, True, True])
 
 
-def execute_format_call(driver, function, native):
+def execute_format_call(driver, function):
     from xian_runtime_types.time import Datetime
 
     name = "con_format_rollback"
@@ -297,34 +272,21 @@ def execute_format_call(driver, function, native):
         entry=(name, function),
         now=Datetime(2026, 11, 3),
     )
-    if native:
-        from xian_vm_core import execute_contract
+    from xian_vm_core import execute_contract
 
-        result = execute_contract(
-            driver=driver,
-            contract_name=name,
-            function_name=function,
-            kwargs={},
-            context=context,
-            meter=False,
-            vm_profile=driver.vm_profile,
-        )
-        return result.status_code, result.result, result.writes, result.events
-    from contracting.execution.executor import Executor
-
-    result = Executor(driver=driver, metering=False).execute(
-        sender="alice",
+    result = execute_contract(
+        driver=driver,
         contract_name=name,
         function_name=function,
         kwargs={},
-        environment=context,
-        metering=False,
+        context=context,
+        meter=False,
+        vm_profile=driver.vm_profile,
     )
-    return result["status_code"], result["result"], result["writes"], result["events"]
+    return result.status_code, result.result, result.writes, result.events
 
 
-@pytest.mark.parametrize("native", ENGINES, ids=["python", "native"])
-def test_failed_format_rolls_back_event_and_state_then_followup_succeeds(tmp_path, native):
+def test_failed_format_rolls_back_event_and_state_then_followup_succeeds(tmp_path):
     from contracting.storage.driver import Driver
 
     source = """state = Variable()
@@ -343,11 +305,11 @@ def recover():
         driver.set_contract_from_source("con_format_rollback", source, owner=None)
         driver.set("con_format_rollback.state", 7)
         driver.commit()
-        status, diagnostic, writes, events = execute_format_call(driver, "fail", native)
+        status, diagnostic, writes, events = execute_format_call(driver, "fail")
         assert status == 1, diagnostic
         assert writes == {} and events == []
         assert driver.get("con_format_rollback.state") == 7
-        status, result, writes, events = execute_format_call(driver, "recover", native)
+        status, result, writes, events = execute_format_call(driver, "recover")
         assert status == 0, result
         assert result == [7, "0.00"]
         assert writes == {} and events == []

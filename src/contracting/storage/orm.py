@@ -2,11 +2,9 @@ from copy import deepcopy
 
 from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
-from xian_runtime_types.encoding import encode_kv
 
 from contracting import constants
-from contracting.execution.runtime import _contract_execution_active, rt
-from contracting.stdlib.builtins import safe_bytearray, safe_bytes, safe_int
+from contracting.execution.runtime import rt
 from contracting.storage.driver import Driver
 
 _MISSING = object()
@@ -21,22 +19,6 @@ EVENT_ALLOWED_TYPES = (
     ContractingFrozenSet,
     ContractingDecimal,
 )
-
-# Contracts see `int`, `bytes`, `bytearray` bound to allocation-guarded
-# subclasses (safe_int, safe_bytes, safe_bytearray). When a contract writes
-# a LogEvent schema with `"amount": int`, the captured type would be the
-# wrapper. Normalize back to the canonical builtin so the stored schema is
-# what the author wrote and external introspection sees `int`, not the
-# internal wrapper.
-_TYPE_CANONICALIZATION = {
-    safe_int: int,
-    safe_bytes: bytes,
-    safe_bytearray: bytearray,
-}
-
-
-def _canonicalize_event_type(t):
-    return _TYPE_CANONICALIZATION.get(t, t)
 
 
 def _copy_mutable(value):
@@ -60,8 +42,6 @@ def indexed(*types):
 def _require_receiver(value, family, *, write=False):
     if not isinstance(value, family):
         raise TypeError("ORM method received an incompatible receiver")
-    if _contract_execution_active.get() and value._owner != rt.context.this:
-        raise ReferenceError("Storage objects may only be used by their declaring contract")
     if write and isinstance(value, (ForeignVariable, ForeignHash)):
         raise ReferenceError("cannot write to foreign storage")
 
@@ -304,7 +284,6 @@ class Hash(Datum):
         self.clear()
 
         for source_key, value in source_items.items():
-            rt.deduct_read(*encode_kv(source_key, value, vm_profile=self._driver.vm_profile))
             suffix = source_key.removeprefix(source_prefix)
             self._driver.set(
                 f"{target_prefix}{suffix}",
@@ -413,7 +392,6 @@ class LogEvent(Datum):
         assert all(isinstance(t, type) for t in normalized_types), (
             f"Argument {arg_name} type spec must contain only types."
         )
-        normalized_types = tuple(_canonicalize_event_type(t) for t in normalized_types)
         assert all(issubclass(t, EVENT_ALLOWED_TYPES) for t in normalized_types), (
             "Each type in args must be str, int, float, decimal or bool."
         )
@@ -501,13 +479,6 @@ class LogEvent(Datum):
                 if not self._params[arg].get("idx", False)
             },
         }
-
-        for arg, value in event["data_indexed"].items():
-            encoded = encode_kv(arg, value, vm_profile=self._driver.vm_profile)
-            rt.deduct_write(*encoded)
-        for arg, value in event["data"].items():
-            encoded = encode_kv(arg, value, vm_profile=self._driver.vm_profile)
-            rt.deduct_write(*encoded)
 
         self._driver.set_event(event)
 

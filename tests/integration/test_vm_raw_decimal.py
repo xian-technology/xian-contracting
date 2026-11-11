@@ -4,7 +4,9 @@ import random
 from pathlib import Path
 
 import pytest
-from tests.integration.test_vm_language_conformance import _run_native_case, _run_python_case
+
+from tests.integration.pre_retirement_oracle import recorded_python_observation
+from tests.integration.test_vm_language_conformance import _run_native_case
 
 pytestmark = pytest.mark.optional_native
 
@@ -17,7 +19,7 @@ def compare(tmp_path: Path, body: str, *, vm_profile="xian_vm_v2"):
         "function_name": "probe",
         "kwargs": {},
     }
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     assert expected["status_code"] == 0, expected
     assert _run_native_case(case, tmp_path / "native", vm_profile=vm_profile) == expected
 
@@ -85,8 +87,9 @@ def test_raw_decimal_set_order_and_duplicates(tmp_path):
     ],
 )
 def test_raw_decimal_work_exhausts_budget_and_rolls_back(tmp_path, operation):
-    from contracting.storage.driver import Driver
     from xian_vm_core import execute_contract
+
+    from contracting.storage.driver import Driver
 
     with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
         source = (
@@ -135,7 +138,7 @@ def test_typed_variable_checks_before_storage_conversion(tmp_path, marker, value
         "function_name": "probe",
         "kwargs": {},
     }
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     actual = _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1")
     assert expected["status_code"] == int(not accepted)
     if accepted:

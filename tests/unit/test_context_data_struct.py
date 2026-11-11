@@ -1,147 +1,32 @@
+"""Shared host context exposes explicit metadata."""
+
 from unittest import TestCase
 
 from contracting.execution.runtime import Context
 
 
 class TestContext(TestCase):
-    def test_get_state(self):
-        c = Context(base_state={
-            'caller': 'stu',
-            'signer': 'stu',
-            'this': 'contract',
-            'owner': None
-        })
-
-        self.assertEqual(c._get_state(), c._base_state)
-
-    def test_get_state_after_added_state(self):
-        c = Context(base_state={
-            'caller': 'stu',
-            'signer': 'stu',
-            'this': 'contract',
-            'owner': None
-        })
-
-        new_state = {
-            'caller': 'stuart',
-            'signer': 'stuart',
-            'this': 'contracts',
-            'owner': 123
+    def setUp(self):
+        self.base = {
+            "caller": "caller",
+            "signer": "signer",
+            "this": "con_host",
+            "owner": "owner",
+            "entry": ("con_entry", "run"),
+            "submission_name": "con_child",
         }
+        self.context = Context(self.base)
 
-        c._add_state(new_state)
+    def test_get_state_returns_the_explicit_host_metadata(self):
+        self.assertEqual(self.context._get_state(), self.base)
 
-        self.assertEqual(c._get_state(), new_state)
+    def test_properties_read_all_host_metadata_fields(self):
+        for name, value in self.base.items():
+            with self.subTest(name=name):
+                self.assertEqual(getattr(self.context, name), value)
 
-    def test_pop_state_doesnt_fail_if_none_added(self):
-        c = Context(base_state={
-            'caller': 'stu',
-            'signer': 'stu',
-            'this': 'contract',
-            'owner': None
-        })
-
-        c._pop_state()
-
-        self.assertEqual(c._get_state(), c._base_state)
-
-    def test_pop_state_removes_last_state(self):
-        c = Context(base_state={
-            'caller': 'stu',
-            'signer': 'stu',
-            'this': 'contract',
-            'owner': None
-        })
-
-        new_state = {
-            'caller': 'stuart',
-            'signer': 'stuart',
-            'this': 'contracts',
-            'owner': 123
-        }
-
-        c._add_state(new_state)
-
-        self.assertEqual(c._get_state(), new_state)
-
-        c._pop_state()
-
-        self.assertEqual(c._get_state(), c._base_state)
-
-    def test_add_state_doesnt_work_if_this_is_same(self):
-        c = Context(base_state={
-            'caller': 'stu',
-            'signer': 'stu',
-            'this': 'contract',
-            'owner': None
-        })
-
-        new_state = {
-            'caller': 'stuart',
-            'signer': 'stuart',
-            'this': 'contract',
-            'owner': 123
-        }
-
-        c._add_state(new_state)
-
-        self.assertEqual(c._get_state(), c._base_state)
-
-    def test_properties_read(self):
-        c = Context(base_state={
-            'caller': 'stu',
-            'signer': 'stu',
-            'this': 'contract',
-            'owner': None
-        })
-
-        self.assertEqual(c._base_state['this'], c.this)
-        self.assertEqual(c._base_state['caller'], c.caller)
-        self.assertEqual(c._base_state['signer'], c.signer)
-        self.assertEqual(c._base_state['owner'], c.owner)
-
-    def test_properties_cant_be_written(self):
-        c = Context(base_state={
-            'caller': 'stu',
-            'signer': 'stu',
-            'this': 'contract',
-            'owner': None
-        })
-
-        with self.assertRaises(Exception):
-            c.this = 1
-
-        with self.assertRaises(Exception):
-            c.caller = 1
-
-        with self.assertRaises(Exception):
-            c.signer = 1
-
-        with self.assertRaises(Exception):
-            c.owner = 1
-
-    def test_add_state_raises_when_recursion_limit_is_exceeded(self):
-        c = Context(
-            base_state={
-                'caller': 'stu',
-                'signer': 'stu',
-                'this': 'contract',
-                'owner': None,
-            },
-            maxlen=1,
-        )
-
-        c._add_state({
-            'caller': 'stu',
-            'signer': 'stu',
-            'this': 'contract_a',
-            'owner': None,
-        })
-
-        with self.assertRaises(RecursionError):
-            c._add_state({
-                'caller': 'contract_a',
-                'signer': 'stu',
-                'this': 'contract_b',
-                'owner': None,
-            })
+    def test_context_properties_are_read_only(self):
+        for name in self.base:
+            with self.subTest(name=name):
+                with self.assertRaises(AttributeError):
+                    setattr(self.context, name, "replacement")

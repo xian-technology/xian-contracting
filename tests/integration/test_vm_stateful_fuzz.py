@@ -7,15 +7,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.time import Datetime
 
-from contracting.execution.executor import Executor
 from contracting.storage.driver import XIAN_VM_V1_IR_KEY, Driver
 
 pytestmark = pytest.mark.optional_native
+
 
 PARITY_FUZZ_SOURCE = """
 counter = Variable(default_value=0)
@@ -134,25 +134,14 @@ def _normalize(value: Any) -> Any:
     if isinstance(value, Datetime):
         return {"__datetime__": str(value)}
     if isinstance(value, dict):
-        return {
-            str(key): _normalize(item) for key, item in sorted(value.items())
-        }
+        return {str(key): _normalize(item) for key, item in sorted(value.items())}
     if isinstance(value, (list, tuple)):
         return [_normalize(item) for item in value]
     return value
 
 
 def _normalize_state(state: dict[str, Any]) -> dict[str, Any]:
-    normalized = {
-        key: _normalize(value) for key, value in sorted(state.items())
-    }
-    normalized.pop("submission.__submitted__", None)
-    for key in normalized:
-        if key.endswith("." + XIAN_VM_V1_IR_KEY):
-            artifact = json.loads(normalized[key])
-            del artifact["vm_profile"]
-            normalized[key] = artifact
-    return normalized
+    return {key: _normalize(value) for key, value in sorted(state.items())}
 
 
 def _deploy_probe(driver: Driver, contract_name: str) -> None:
@@ -168,38 +157,85 @@ def _deploy_probe(driver: Driver, contract_name: str) -> None:
     assert artifact["vm_profile"] == driver.vm_profile
 
 
-def _run_python_step(
-    driver: Driver,
-    *,
-    contract_name: str,
-    function_name: str,
-    kwargs: dict[str, Any],
-    block_num: int,
-) -> dict[str, Any]:
-    executor = Executor(driver=driver, metering=False)
-    output = executor.execute(
-        sender="alice",
-        contract_name=contract_name,
-        function_name=function_name,
-        kwargs=dict(kwargs),
-        environment=_execution_context(
-            contract_name,
-            function_name,
-            "alice",
-            block_num=block_num,
-        ),
-        metering=False,
-        chi=10_000,
-        auto_commit=False,
-    )
-    if output["status_code"] == 0:
-        driver.commit()
-    return {
-        "status_code": output["status_code"],
-        "result": _normalize(output["result"]),
-        "writes": _normalize(output["writes"]),
-        "events": _normalize(output["events"]),
-    }
+class ReferenceState:
+    """Independent state machine for the four authored operations above."""
+
+    def __init__(self, contract_name):
+        self.contract_name = contract_name
+        self.counter = 0
+        self.items = {}
+        self.claims = set()
+
+    @staticmethod
+    def failure(message):
+        return {
+            "status_code": 1,
+            "result": {"exception": "AssertionError", "args": [message]},
+            "writes": {},
+            "events": [],
+        }
+
+    def _success(self, kind, key, value, result, variable):
+        return {
+            "status_code": 0,
+            "result": result,
+            "writes": {
+                f"{self.contract_name}.{variable}:{key}": True if kind == "claim" else value,
+                f"{self.contract_name}.counter": self.counter,
+            },
+            "events": [
+                {
+                    "caller": "alice",
+                    "signer": "alice",
+                    "contract": self.contract_name,
+                    "event": "Probe",
+                    "data_indexed": {"kind": kind, "key": key},
+                    "data": {"counter": self.counter, "value": value},
+                }
+            ],
+        }
+
+    def put(self, key, value):
+        if not key:
+            return self.failure("key must be non-empty.")
+        if not -50 <= value <= 50:
+            return self.failure("value out of range.")
+        self.items[key] = value
+        self.counter += 1
+        result = {"counter": self.counter, "value": value}
+        return self._success("put", key, value, result, "items")
+
+    def add(self, key, delta):
+        value = self.items.get(key, 0) + delta
+        if not -100 <= value <= 100:
+            return self.failure("updated value out of range.")
+        self.items[key] = value
+        self.counter += 1
+        return self._success("add", key, value, value, "items")
+
+    def claim(self, slot, amount):
+        if not slot:
+            return self.failure("slot must be non-empty.")
+        if amount < 0:
+            return self.failure("amount must be non-negative.")
+        if slot in self.claims:
+            return self.failure("slot already claimed.")
+        self.claims.add(slot)
+        self.counter += amount
+        return self._success("claim", slot, amount, self.counter, "claims")
+
+    def fail_after_write(self, key, value):
+        return self.failure("forced failure")
+
+    def execute(self, operation):
+        # Explicit dispatch keeps the model independent of VM calls and storage.
+        methods = {
+            "put": self.put,
+            "add": self.add,
+            "claim": self.claim,
+            "fail_after_write": self.fail_after_write,
+        }
+        return methods[operation["function"]](**operation["kwargs"])
 
 
 def _run_native_step(
@@ -352,84 +388,60 @@ FUZZ_OPERATION = st.one_of(
 )
 
 
+@example(
+    operations=[
+        {"function": "put", "kwargs": {"key": "", "value": 0}},
+        {"function": "put", "kwargs": {"key": "alpha", "value": 51}},
+        {"function": "put", "kwargs": {"key": "alpha", "value": -51}},
+        {"function": "add", "kwargs": {"key": "alpha", "delta": 101}},
+        {"function": "claim", "kwargs": {"slot": "", "amount": 0}},
+        {"function": "claim", "kwargs": {"slot": "slot-a", "amount": -1}},
+        {"function": "put", "kwargs": {"key": "alpha", "value": 50}},
+        {"function": "add", "kwargs": {"key": "alpha", "delta": 51}},
+        {"function": "claim", "kwargs": {"slot": "slot-a", "amount": 0}},
+        {"function": "claim", "kwargs": {"slot": "slot-a", "amount": 1}},
+        {"function": "fail_after_write", "kwargs": {"key": "alpha", "value": 7}},
+        {"function": "add", "kwargs": {"key": "alpha", "delta": -100}},
+    ]
+)
 @settings(max_examples=24, deadline=None)
 @given(operations=st.lists(FUZZ_OPERATION, min_size=1, max_size=12))
-def test_python_and_native_vm_match_for_stateful_sequences(
-    operations: list[dict[str, Any]],
-):
+def test_native_vm_matches_independent_state_machine(operations: list[dict[str, Any]]):
     with tempfile.TemporaryDirectory(prefix="xian-vm-stateful-fuzz-") as tmpdir:
         contract_name = "con_vm_fuzz_probe"
-        python_driver = Driver(storage_home=Path(tmpdir) / "python", vm_profile="xian_vm_v1")
-        native_driver = Driver(storage_home=Path(tmpdir) / "native")
-        _deploy_probe(python_driver, contract_name)
-        _deploy_probe(native_driver, contract_name)
-
-        for block_num, operation in enumerate(operations, start=1):
-            before_python_state = _normalize_state(
-                python_driver.get_all_contract_state()
-            )
-            before_native_state = _normalize_state(
-                native_driver.get_all_contract_state()
-            )
-            assert before_python_state == before_native_state
-
-            python_output = _run_python_step(
-                python_driver,
-                contract_name=contract_name,
-                function_name=operation["function"],
-                kwargs=operation["kwargs"],
-                block_num=block_num,
-            )
-            native_output = _run_native_step(
-                native_driver,
-                contract_name=contract_name,
-                function_name=operation["function"],
-                kwargs=operation["kwargs"],
-                block_num=block_num,
-            )
-
-            assert native_output == python_output
-
-            after_python_state = _normalize_state(
-                python_driver.get_all_contract_state()
-            )
-            after_native_state = _normalize_state(
-                native_driver.get_all_contract_state()
-            )
-            assert after_native_state == after_python_state
-
-            if python_output["status_code"] != 0:
-                assert after_python_state == before_python_state
+        model = ReferenceState(contract_name)
+        with Driver(storage_home=Path(tmpdir) / "native") as driver:
+            _deploy_probe(driver, contract_name)
+            expected_state = _normalize_state(driver.get_all_contract_state())
+            for block_num, operation in enumerate(operations, start=1):
+                before_state = dict(expected_state)
+                expected = model.execute(operation)
+                actual = _run_native_step(
+                    driver,
+                    contract_name=contract_name,
+                    function_name=operation["function"],
+                    kwargs=operation["kwargs"],
+                    block_num=block_num,
+                )
+                assert actual == expected
+                expected_state.update(expected["writes"])
+                assert _normalize_state(driver.get_all_contract_state()) == expected_state
+                if expected["status_code"] != 0:
+                    assert expected_state == before_state
 
 
-def test_python_and_native_vm_roll_back_post_write_failures() -> None:
+def test_native_vm_rolls_back_post_write_failures() -> None:
     contract_name = "con_vm_fuzz_probe"
     with tempfile.TemporaryDirectory(prefix="xian-vm-stateful-failure-") as tmpdir:
-        python_driver = Driver(storage_home=Path(tmpdir) / "python", vm_profile="xian_vm_v1")
-        native_driver = Driver(storage_home=Path(tmpdir) / "native")
-        _deploy_probe(python_driver, contract_name)
-        _deploy_probe(native_driver, contract_name)
-        before_state = _normalize_state(python_driver.get_all_contract_state())
-
-        kwargs = {"key": "alpha", "value": 7}
-        python_output = _run_python_step(
-            python_driver,
-            contract_name=contract_name,
-            function_name="fail_after_write",
-            kwargs=kwargs,
-            block_num=1,
-        )
-        native_output = _run_native_step(
-            native_driver,
-            contract_name=contract_name,
-            function_name="fail_after_write",
-            kwargs=kwargs,
-            block_num=1,
-        )
-
-        assert python_output["status_code"] == 1
-        assert python_output["writes"] == {}
-        assert python_output["events"] == []
-        assert native_output == python_output
-        assert _normalize_state(python_driver.get_all_contract_state()) == before_state
-        assert _normalize_state(native_driver.get_all_contract_state()) == before_state
+        with Driver(storage_home=Path(tmpdir)) as driver:
+            _deploy_probe(driver, contract_name)
+            before_state = _normalize_state(driver.get_all_contract_state())
+            actual = _run_native_step(
+                driver,
+                contract_name=contract_name,
+                function_name="fail_after_write",
+                kwargs={"key": "alpha", "value": 7},
+                block_num=1,
+            )
+            assert actual == ReferenceState.failure("forced failure")
+            assert _normalize_state(driver.get_all_contract_state()) == before_state

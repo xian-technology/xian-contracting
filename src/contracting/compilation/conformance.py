@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ast
-from types import ModuleType
+from copy import deepcopy
 from typing import Any
 
 from xian_runtime_types.collections import ContractingFrozenSet
@@ -27,27 +27,13 @@ from contracting.compilation.whitelists import (
     ILLEGAL_AST_TYPES,
     ILLEGAL_BUILTINS,
 )
-from contracting.stdlib import env as stdlib_env
+from contracting.stdlib.manifest import PUBLIC_ENV_SURFACE
 
 CONTRACT_LANGUAGE_MANIFEST_VERSION = "xian_contract_language_v1"
 
 
 def _public_env_surface() -> dict[str, Any]:
-    surface: dict[str, Any] = {}
-    for name, value in stdlib_env.gather().items():
-        if name == "rt" or name.startswith("_"):
-            continue
-        if isinstance(value, ModuleType):
-            surface[name] = {
-                "kind": "module",
-                "exports": sorted(member for member in dir(value) if not member.startswith("_")),
-            }
-            continue
-        surface[name] = {
-            "kind": "value",
-            "type": type(value).__name__,
-        }
-    return dict(sorted(surface.items()))
+    return deepcopy(PUBLIC_ENV_SURFACE)
 
 
 def build_contract_language_manifest() -> dict[str, Any]:

@@ -2,20 +2,14 @@
 
 import pytest
 
-from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 
+pytestmark = pytest.mark.optional_native
 
-@pytest.mark.parametrize(
-    "native,meter",
-    [
-        (False, False),
-        pytest.param(True, False, marks=pytest.mark.optional_native),
-        pytest.param(True, True, marks=pytest.mark.optional_native),
-    ],
-)
+
+@pytest.mark.parametrize("meter", [False, True])
 @pytest.mark.parametrize("selection", ["check", "module.check"])
-def test_same_module_callback_preserves_local_export_context(tmp_path, native, meter, selection):
+def test_same_module_callback_preserves_local_export_context(tmp_path, meter, selection):
     source = """state = Variable()
 @export
 def check(subject: Any):
@@ -32,33 +26,21 @@ def probe():
     result = importlib.enforce_interface(module, [descriptor])
     return [result, state.get()]
 """.replace("CALLBACK", selection)
-    with Driver(
-        storage_home=tmp_path, vm_profile="xian_vm_v2" if native else "xian_vm_v1"
-    ) as driver:
+    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v2") as driver:
         driver.set_contract_from_source("con_self_subject", source, owner="alice")
         driver.commit()
-        if native:
-            from xian_vm_core import execute_contract
+        from xian_vm_core import execute_contract
 
-            output = execute_contract(
-                driver=driver,
-                contract_name="con_self_subject",
-                function_name="probe",
-                kwargs={},
-                context={"caller": "alice", "signer": "alice", "this": "con_self_subject"},
-                meter=meter,
-                chi_budget_raw=1_000_000,
-            )
-            status, result = output.status_code, output.result
-        else:
-            output = Executor(driver=driver, metering=False).execute(
-                sender="alice",
-                contract_name="con_self_subject",
-                function_name="probe",
-                kwargs={},
-                metering=False,
-            )
-            status, result = output["status_code"], output["result"]
+        output = execute_contract(
+            driver=driver,
+            contract_name="con_self_subject",
+            function_name="probe",
+            kwargs={},
+            context={"caller": "alice", "signer": "alice", "this": "con_self_subject"},
+            meter=meter,
+            chi_budget_raw=1_000_000,
+        )
+        status, result = output.status_code, output.result
         assert status == 0, result
         assert result == [
             True,

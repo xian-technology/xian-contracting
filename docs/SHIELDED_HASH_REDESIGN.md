@@ -2,7 +2,9 @@
 
 Status: **Implemented** — Poseidon-BN254 landed with the v4/v5 circuit ids
 (`shielded-*-v4`, `shielded-command-*-v5`); kept as the design record for the
-remediation.
+remediation. Tooling paths and remaining-work notes below describe that recorded
+implementation period. See [`scripts/README.md`](../scripts/README.md) for the
+archival status of Python fixture-generation tools.
 Author: Security audit (2026-06-06)
 Scope: replaces the unsound MiMC construction used by the shielded-note and
 shielded-command circuits, contracts, and tooling.

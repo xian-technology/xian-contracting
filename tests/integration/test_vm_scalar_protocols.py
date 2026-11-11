@@ -2,8 +2,9 @@
 
 import pytest
 
+from tests.integration.pre_retirement_oracle import recorded_python_observation
+from tests.integration.test_vm_language_conformance import _run_native_case
 from tests.integration.test_vm_raw_decimal import compare
-from tests.integration.test_vm_language_conformance import _run_python_case, _run_native_case
 
 pytestmark = pytest.mark.optional_native
 
@@ -103,11 +104,13 @@ def test_view_operations_and_popitem_preserve_aliases(tmp_path):
 def test_invalid_scalar_and_view_calls_fail(tmp_path, expression):
     case = {
         "id": "scalar_invalid",
-        "source": "v=Variable()\n@export\ndef probe():\n    v.set(1)\n    return " + expression + "\n",
+        "source": "v=Variable()\n@export\ndef probe():\n    v.set(1)\n    return "
+        + expression
+        + "\n",
         "function_name": "probe",
         "kwargs": {},
     }
-    expected = _run_python_case(case, tmp_path / "python")
+    expected = recorded_python_observation(case)
     actual = _run_native_case(
         case,
         tmp_path / "native",
@@ -130,16 +133,18 @@ def test_items_symmetric_difference_cancels_equal_unhashable_values(tmp_path):
     compare(tmp_path, "a={'x':[1],'a':2}\nb={'x':[1],'b':3}\nreturn sorted(a.items() ^ b.items())")
 
 
-@pytest.mark.parametrize("operation", ["left==right", "left.isdisjoint(right)", "left | right", "left & right"])
+@pytest.mark.parametrize(
+    "operation", ["left==right", "left.isdisjoint(right)", "left | right", "left & right"]
+)
 def test_view_payload_work_is_charged_before_comparing(tmp_path, operation):
-    from contracting.storage.driver import Driver
     from xian_vm_core import execute_contract
+
+    from contracting.storage.driver import Driver
 
     with Driver(storage_home=tmp_path) as driver:
         source = (
             "v=Variable()\n@export\ndef probe(entries: dict):\n    v.set(1)\n"
-            "    left=entries.keys()\n    right=entries.keys()\n    return "
-            + operation + "\n"
+            "    left=entries.keys()\n    right=entries.keys()\n    return " + operation + "\n"
         )
         driver.set_contract_from_source("con_view_work", source, owner=None)
         driver.commit()

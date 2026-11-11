@@ -1,8 +1,7 @@
 """Explicit execution drivers own the transaction's reads, writes and rollback."""
 
-from contracting.execution.executor import Executor
+from contracting.local.native_executor import NativeExecutor
 from contracting.storage.driver import Driver
-
 
 SOURCE = """value = Variable()
 @export
@@ -15,15 +14,15 @@ def write(fail: bool):
 
 def test_override_driver_rolls_back_its_own_pending_state(tmp_path):
     with (
-        Driver(storage_home=tmp_path / "primary", vm_profile="xian_vm_v1") as primary,
-        Driver(storage_home=tmp_path / "override", vm_profile="xian_vm_v1") as override,
+        Driver(storage_home=tmp_path / "primary", vm_profile="xian_vm_v2") as primary,
+        Driver(storage_home=tmp_path / "override", vm_profile="xian_vm_v2") as override,
     ):
         override.set_contract_from_source("con_probe", SOURCE)
         override.commit()
         primary.set("con_primary.value", 1)
         override.set("con_existing.value", 2)
 
-        output = Executor(driver=primary, metering=False).execute(
+        output = NativeExecutor(driver=primary, metering=False).execute(
             sender="alice",
             contract_name="con_probe",
             function_name="write",
@@ -40,8 +39,8 @@ def test_override_driver_rolls_back_its_own_pending_state(tmp_path):
 
 def test_override_driver_resets_its_own_transaction_tracking(tmp_path):
     with (
-        Driver(storage_home=tmp_path / "primary", vm_profile="xian_vm_v1") as primary,
-        Driver(storage_home=tmp_path / "override", vm_profile="xian_vm_v1") as override,
+        Driver(storage_home=tmp_path / "primary", vm_profile="xian_vm_v2") as primary,
+        Driver(storage_home=tmp_path / "override", vm_profile="xian_vm_v2") as override,
     ):
         override.set_contract_from_source("con_probe", SOURCE)
         override.commit()
@@ -50,7 +49,7 @@ def test_override_driver_resets_its_own_transaction_tracking(tmp_path):
         override.set_event({"event": "old"})
         primary.set("con_primary.value", 1, is_txn_write=True)
 
-        output = Executor(driver=primary, metering=False).execute(
+        output = NativeExecutor(driver=primary, metering=False).execute(
             sender="alice",
             contract_name="con_probe",
             function_name="write",

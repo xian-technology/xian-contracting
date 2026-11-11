@@ -15,13 +15,18 @@ Default validation:
 uv run pytest
 ```
 
-The default suite deselects `optional_native` tests because they require Rust
-extension packages. Focused native/zk/VM validation follows the commands in the
+The default suite deselects the larger `optional_native` corpus. Focused
+native/zk/VM validation and its additional packages follow the commands in the
 root [`README.md`](../README.md). Run targeted integration/security tests
 whenever a change touches execution semantics, import restrictions, metering, or
-storage encoding. The optional-native release gate includes the stateful
-local-harness-vs-VM fuzz coverage in
-`integration/test_vm_stateful_fuzz.py`.
+storage encoding. The optional-native release gate includes stateful model-based
+VM fuzz coverage in `integration/test_vm_stateful_fuzz.py`.
+
+Public-client tests use native V2 execution. Archival native V1 tests use
+low-level bindings and immutable, provenance-checked Python observations;
+maintained test runs do not execute contracts with a current Python engine.
+Pinned historical capture environments are documented separately in
+[`compatibility/README.md`](compatibility/README.md).
 
 ## State Isolation
 

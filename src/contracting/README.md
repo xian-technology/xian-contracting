@@ -11,8 +11,8 @@ harness, manages contract storage, and exposes the contract-side stdlib bridge.
 - `local/`: `ContractingClient` facade used by tests, tools, and local callers
 - `compilation/`: linter, compiler internals, conformance checks, and
   `xian_ir_v1` lowering
-- `execution/`: runtime context, executor, restricted imports, local tracing,
-  and speculative parallel batch primitives
+- `execution/`: shared native host context, execution errors, and speculative
+  parallel batch primitives
 - `storage/`: LMDB-backed driver, contract storage helpers, and ORM objects
 - `stdlib/`: deterministic builtins and bridge modules exposed to contracts
 - `contracts/`: built-in submission contract source and bundled assets
@@ -33,6 +33,10 @@ flowchart LR
 ```
 
 ## Notes
+
+Public local clients execute native V2 only. Low-level native V1 compilation,
+storage and execution serve historical verification and migration tooling;
+historical Python observers use pinned archived packages.
 
 This package is consensus-sensitive. Changes to compilation output, metering,
 storage encoding, import restrictions, event semantics, or stdlib behavior can

@@ -5,6 +5,7 @@ import pytest
 from tests.integration.test_vm_interface_descriptors import execute
 
 pytestmark = pytest.mark.optional_native
+
 TARGET = """store = Variable()
 storage_alias = store
 data = [1]
@@ -31,9 +32,8 @@ public_again = frame
 """
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
 @pytest.mark.parametrize("static", [False, True], ids=["dynamic", "static"])
-def test_safe_alias_invocation_identity_and_frames(tmp_path, native, static):
+def test_safe_alias_invocation_identity_and_frames(tmp_path, static):
     prefix = "import con_descriptor_target as module\n" if static else ""
     lookup = "" if static else "module=importlib.import_module('con_descriptor_target')\n"
     body = (
@@ -53,7 +53,7 @@ return [module.length(items), module.factory('00').hex(),
         module.info is other.info,
         importlib.has_export(module,'public_alias')]"""
     )
-    status, result, _ = execute(tmp_path, body, native=native, prefix=prefix, target=TARGET)
+    status, result, _ = execute(tmp_path, body, prefix=prefix, target=TARGET)
     assert status == 0, result
     assert result == [
         1,
@@ -78,10 +78,9 @@ return [module.length(items), module.factory('00').hex(),
     ]
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
 @pytest.mark.parametrize("alias", ["data", "storage_alias", "writer", "bound", "private_alias"])
 @pytest.mark.parametrize("static", [False, True], ids=["dynamic", "static"])
-def test_unsafe_public_alias_is_rejected_before_arguments(tmp_path, native, alias, static):
+def test_unsafe_public_alias_is_rejected_before_arguments(tmp_path, alias, static):
     prefix = "import con_descriptor_target as module\n" if static else ""
     lookup = "" if static else "module=importlib.import_module('con_descriptor_target')\n"
     body = (
@@ -89,7 +88,7 @@ def test_unsafe_public_alias_is_rejected_before_arguments(tmp_path, native, alia
         + f"""state.set('pending')
 return module.{alias}(1//0)"""
     )
-    status, result, writes = execute(tmp_path, body, native=native, prefix=prefix, target=TARGET)
+    status, result, writes = execute(tmp_path, body, prefix=prefix, target=TARGET)
     assert status == 1
     assert "module attribute is not an admitted public callable" in str(result)
     assert writes == {}

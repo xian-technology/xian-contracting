@@ -11,15 +11,13 @@ from xian_runtime_types.time import Datetime, Timedelta
 from contracting.compilation.conformance import (
     CONTRACT_LANGUAGE_CONFORMANCE_CASES,
 )
-from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
+from tests.integration.pre_retirement_oracle import recorded_python_observation
 
 pytestmark = pytest.mark.optional_native
 
 
-def _execution_context(
-    contract_name: str, function_name: str, owner: str
-) -> dict:
+def _execution_context(contract_name: str, function_name: str, owner: str) -> dict:
     now = Datetime(2026, 4, 13, 12, 0, 0)
     return {
         "signer": "alice",
@@ -56,9 +54,7 @@ def _normalize(value):
     if isinstance(value, ContractingFrozenSet):
         return {"__frozenset__": [_normalize(item) for item in value]}
     if isinstance(value, dict):
-        return {
-            str(key): _normalize(item) for key, item in sorted(value.items())
-        }
+        return {str(key): _normalize(item) for key, item in sorted(value.items())}
     if isinstance(value, (list, tuple)):
         return [_normalize(item) for item in value]
     return value
@@ -78,19 +74,14 @@ def _filter_case_writes(writes, case: dict):
         filtered = []
         for item in writes:
             if isinstance(item, dict) and "key" in item:
-                if any(
-                    str(item["key"]).endswith(suffix)
-                    for suffix in ignore_suffixes
-                ):
+                if any(str(item["key"]).endswith(suffix) for suffix in ignore_suffixes):
                     continue
             filtered.append(item)
         return filtered
     return writes
 
 
-def _deploy_case_contracts(
-    driver: Driver, case: dict, contract_name: str
-) -> None:
+def _deploy_case_contracts(driver: Driver, case: dict, contract_name: str) -> None:
     for dependency in case.get("dependencies", ()):
         driver.set_contract_from_source(
             dependency["name"],
@@ -105,30 +96,6 @@ def _deploy_case_contracts(
         overwrite=True,
     )
     driver.commit()
-
-
-def _run_python_case(case: dict, storage_home: Path) -> dict:
-    driver = Driver(storage_home=storage_home, vm_profile="xian_vm_v1")
-    contract_name = f"conformance_{case['id']}"
-    driver.flush_full()
-    _deploy_case_contracts(driver, case, contract_name)
-    executor = Executor(driver=driver, metering=False)
-    context = _execution_context(contract_name, case["function_name"], "alice")
-    output = executor.execute(
-        sender="alice",
-        contract_name=contract_name,
-        function_name=case["function_name"],
-        kwargs=dict(case["kwargs"]),
-        environment=context,
-        metering=False,
-        chi=10_000,
-    )
-    return {
-        "status_code": output["status_code"],
-        "result": _normalize(output["result"]),
-        "writes": _normalize(_filter_case_writes(output["writes"], case)),
-        "events": _normalize(output["events"]),
-    }
 
 
 def _run_native_case(case: dict, storage_home: Path, *, vm_profile=None) -> dict:
@@ -159,15 +126,10 @@ def _run_native_case(case: dict, storage_home: Path, *, vm_profile=None) -> dict
 
 @pytest.mark.parametrize(
     "case",
-    [
-        pytest.param(case, id=case["id"])
-        for case in CONTRACT_LANGUAGE_CONFORMANCE_CASES
-    ],
+    [pytest.param(case, id=case["id"]) for case in CONTRACT_LANGUAGE_CONFORMANCE_CASES],
 )
-def test_python_and_xian_vm_match_for_conformance_cases(
-    tmp_path: Path, case: dict
-):
-    python_output = _run_python_case(case, tmp_path / "python")
+def test_native_vm_matches_pre_retirement_conformance_observations(tmp_path: Path, case: dict):
+    python_output = recorded_python_observation(case)
     # These archived sources use float annotations, round or decimal exponentiation.
     legacy = {
         "subscripted_export_typecheck",
@@ -213,7 +175,7 @@ def label(limit: float) -> str:
         ),
     ],
 )
-def test_python_and_xian_vm_reject_decimal_edge_cases(
+def test_native_vm_rejects_archived_decimal_edge_cases(
     tmp_path: Path, function_name: str, expected_native_result: str
 ):
     case = {
@@ -223,7 +185,7 @@ def test_python_and_xian_vm_reject_decimal_edge_cases(
         "function_name": function_name,
         "kwargs": {},
     }
-    python_output = _run_python_case(case, tmp_path / "python")
+    python_output = recorded_python_observation(case)
     native_output = _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1")
 
     assert python_output["status_code"] == 1
@@ -246,7 +208,7 @@ def test_python_and_xian_vm_reject_decimal_edge_cases(
         ("label", {"limit": 1}),
     ],
 )
-def test_python_and_xian_vm_match_for_typecheck_rejections(
+def test_native_vm_matches_pre_retirement_typecheck_rejections(
     tmp_path: Path, function_name: str, kwargs: dict
 ):
     case = {
@@ -256,7 +218,7 @@ def test_python_and_xian_vm_match_for_typecheck_rejections(
         "function_name": function_name,
         "kwargs": kwargs,
     }
-    python_output = _run_python_case(case, tmp_path / "python")
+    python_output = recorded_python_observation(case)
     native_output = _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1")
 
     assert native_output == python_output

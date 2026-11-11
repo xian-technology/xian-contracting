@@ -1,74 +1,29 @@
-import os
-import secrets
-from unittest import TestCase
+"""Repeated native transactions preserve each recipient and the total supply."""
 
-from contracting.execution.executor import Executor
-from contracting.storage.driver import Driver
+from pathlib import Path
 
-
-def build_submission_artifacts(name, source):
-    return source
+from contracting.local import ContractingClient
 
 
-def submission_kwargs_for_file(f):
-    # Get the file name only by splitting off directories
-    split = f.split('/')
-    split = split[-1]
+def test_repeated_native_transfers_persist_without_losing_balances():
+    source = (Path(__file__).parent / "test_contracts/erc20_clone.s.py").read_text()
+    recipients = [f"recipient-{index}" for index in range(10_000)]
+    with ContractingClient(signer="stu") as client:
+        client.submit(source, name="con_erc20_clone")
+        token = client.get_contract_proxy("con_erc20_clone")
+        supply = token.total_supply()
+        initial_balance = token.balance_of(account="stu")
 
-    # Now split off the .s
-    split = split.split('.')
-    contract_name = split[0]
+        for recipient in recipients:
+            token.transfer(amount=1, to=recipient)
 
-    with open(f) as file:
-        contract_source = file.read()
+        assert token.balance_of(account="stu") == initial_balance - len(recipients)
+        assert token.total_supply() == supply
+        assert all(token.balance_of(account=recipient) == 1 for recipient in recipients)
+        client.raw_driver.commit()
 
-    return {
-        'name': f'con_{contract_name}',
-        'code': build_submission_artifacts(
-            f'con_{contract_name}',
-            contract_source,
-        ),
-    }
-
-
-TEST_SUBMISSION_KWARGS = {
-    'sender': 'stu',
-    'contract_name': 'submission',
-    'function_name': 'submit_contract'
-}
-
-
-class TestSandbox(TestCase):
-    def setUp(self):
-        self.d = Driver(vm_profile="xian_vm_v1")
-        self.d.flush_full()
-
-        self.script_dir = os.path.dirname(os.path.abspath(__file__))
-
-        submission_path = os.path.join(self.script_dir, "test_contracts", "submission.s.py")
-        with open(submission_path) as f:
-            contract = f.read()
-
-        self.d.set_contract(name='submission',
-                            source=contract)
-        self.d.commit()
-
-        self.recipients = [secrets.token_hex(16) for _ in range(10000)]
-
-    def tearDown(self):
-        self.d.flush_full()
-
-    def test_transfer_performance(self):
-        e = Executor(driver=self.d)
-
-        e.execute(**TEST_SUBMISSION_KWARGS,
-                  kwargs=submission_kwargs_for_file(os.path.join(self.script_dir, "test_contracts", "erc20_clone.s.py")))
-
-        for r in self.recipients:
-            e.execute(sender='stu',
-                      contract_name='con_erc20_clone',
-                      function_name='transfer',
-                      kwargs={
-                          'amount': 1,
-                          'to': r
-                      })
+    with ContractingClient(signer="stu") as reopened:
+        token = reopened.get_contract_proxy("con_erc20_clone")
+        assert token.balance_of(account="stu") == initial_balance - len(recipients)
+        assert token.balance_of(account=recipients[-1]) == 1
+        assert token.total_supply() == supply

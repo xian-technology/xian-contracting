@@ -13,7 +13,7 @@ Current deeper notes:
 
 Current themes:
 
-- keep hardening local harness metering policy for standalone tests
+- keep native VM metering and local-client behavior covered by standalone tests
 - keep parallel execution serial-equivalent while improving integration and
   workload coverage
 - keep VM conformance, metering calibration, and authored fixture coverage moving
@@ -32,18 +32,6 @@ Decide whether that restriction remains part of VM source admission before
 changing it. Historical acceptance alone is not evidence to bypass current
 capability or resource boundaries.
 
-## Python harness aggregate f-string allocation
-
-Runtime-only formatting guards bound individual f-string fields and cumulative
-`str.format` / `format_map` output. Python's surrounding `JoinedStr` still uses
-host string joining: two individually allowed 70,000-byte fields can produce a
-140,000-byte f-string, exceeding the native 131,072-byte aggregate cap.
-A bounded builder must preserve evaluation order and stop before evaluating
-later fields once an append exceeds the cap. A post-join length check does not
-prevent the allocation. Add paired failure/side-effect/rollback tests for nested
-specifications and aggregate growth before replacing this execution-only AST
-operation. Stored source, canonical artifacts and the native VM need no change.
-
 ## Binary-float operator compatibility
 
 Explicit binary-float values currently reject floor division, remainder and
@@ -54,9 +42,7 @@ subnormal and rounding-boundary cases plus historical and cross-platform evidenc
 NaN-payload constructor syntax is also rejected; canonical NaN values remain
 separately tested.
 
-The authoritative native VM uses pinned software binary-float power under
-execution5. The optional Python harness still delegates binary-float power to
-host Python/libm; it is not an exact cross-platform oracle for those values.
-Aligning that harness needs a shared portable math binding or a reviewed Python
-implementation, not a tolerance that hides divergent stored values. Native
-platform campaigns remain the release evidence for binary-float powers.
+Archival native V1 uses pinned software binary-float power. Historical Python
+observations are not a cross-platform oracle for those values; native platform
+campaigns remain the release evidence. V2 exposes bounded integers and exact
+fixed-point decimals rather than binary-float values.

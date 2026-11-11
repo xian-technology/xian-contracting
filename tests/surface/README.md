@@ -1,8 +1,11 @@
 # Contract surface coverage
 
-The Python/native comparison in this directory uses the explicit historical
-`xian_vm_v1` profile. Fresh contracts use `xian_vm_v2`; its numeric admission,
-wire values and arithmetic have separate compiler and native execution tests.
+The native compatibility matrix in this directory uses the explicit historical
+`xian_vm_v1` profile and checks reviewed explicit semantic expectations. The
+complementary fixed conformance suites retain immutable, provenance-checked
+Python observations. Neither requires a current Python contract engine. Public local clients and fresh contracts use
+`xian_vm_v2`; its numeric admission, wire values and arithmetic have separate
+compiler and native execution tests.
 
 This suite separates discovery, implementation and behavioral evidence. A name
 appearing in a test or an implementation match arm is not proof of correctness.
@@ -18,16 +21,16 @@ appearing in a test or an implementation match arm is not proof of correctness.
 - `value-cases.json` covers the implemented value-method/attribute surface and
   representative value protocols. The catalog also keeps missing native members
   visible; they are not counted as supported merely because Python exposes them.
-- `test_vm_surface_matrix.py` runs identical authored source in Python and the
-  native VM, independently checking explicit typed results, status, writes and
-  events. The observer distinguishes bool/int/float, list/tuple and Decimal
-  types. Its set encoding does not prove iteration order; dedicated float-set
-  tests return ordered observations from inside the contract.
+- `test_vm_surface_matrix.py` runs authored source through the native VM and
+  checks the JSON cases' explicit typed results, status, writes and events.
+  The observer distinguishes bool/int/float, list/tuple and Decimal types.
+  Its set encoding does not prove iteration order; dedicated float-set tests
+  return ordered observations from inside the contract.
 - Cases with `native_only` are explicit language-policy rejection checks, with a
-  required `policy_reason`. They are skipped in the current Python oracle, whose
-  broader API is not the consensus definition. The report counts these separately
-  from shared compatibility cases. Missing/deferred APIs and restrictions on an
-  implemented value protocol have different inventory dispositions.
+  required `policy_reason`. They are not required to match the historical
+  Python engine's broader API. The report counts these separately from shared
+  compatibility cases. Missing/deferred APIs and restrictions on an implemented
+  value protocol have different inventory dispositions.
 
 Run from the repository root:
 

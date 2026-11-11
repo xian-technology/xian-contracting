@@ -1,13 +1,9 @@
 from unittest import TestCase
 
 from contracting.compilation import parser
-from contracting.compilation.compiler import ContractingCompiler
 
 
 class TestParser(TestCase):
-    def setUp(self):
-        self.compiler = ContractingCompiler()
-
     def test_methods_for_contract_annotation_matrix(self):
         annotations = [
             "bool",
@@ -24,8 +20,7 @@ class TestParser(TestCase):
             "datetime.timedelta",
         ]
         args = ", ".join(
-            f"arg_{index}: {annotation}"
-            for index, annotation in enumerate(annotations)
+            f"arg_{index}: {annotation}" for index, annotation in enumerate(annotations)
         )
         code = f"""
 @export
@@ -49,156 +44,113 @@ def typed({args}):
         )
 
     def test_methods_for_contract_single_function(self):
-        code = '''
+        code = """
 @export
 def test_func(arg: str, arg2: int):
     return arg, arg2
-        '''
+        """
 
-        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
+        compiled = code
 
-        expected = [{
-            'name': 'test_func',
-            'arguments': [
-                {
-                    'name': 'arg',
-                    'type': 'str'
-                },
-                {
-                    'name': 'arg2',
-                    'type': 'int'
-                }
-            ]
-        }]
+        expected = [
+            {
+                "name": "test_func",
+                "arguments": [{"name": "arg", "type": "str"}, {"name": "arg2", "type": "int"}],
+            }
+        ]
 
         got = parser.methods_for_contract(compiled)
 
         self.assertListEqual(expected, got)
 
     def test_methods_for_contract_datetime(self):
-        code = '''
+        code = """
 @export
 def thing(arg: datetime.datetime, arg2: datetime.timedelta):
     return 123        
-'''
-        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
+"""
+        compiled = code
         got = parser.methods_for_contract(compiled)
 
         expected = [
             {
-                'name': 'thing',
-                'arguments': [
-                    {
-                        'name': 'arg',
-                        'type': 'datetime.datetime'
-                    },
-                    {
-                        'name': 'arg2',
-                        'type': 'datetime.timedelta'
-                    }
-                 ]
-             }
+                "name": "thing",
+                "arguments": [
+                    {"name": "arg", "type": "datetime.datetime"},
+                    {"name": "arg2", "type": "datetime.timedelta"},
+                ],
+            }
         ]
 
         self.assertEqual(expected, got)
 
     def test_methods_for_contract_subscript_annotations(self):
-        code = '''
+        code = """
 @export
 def route(amounts: list[float], path: list[int]):
     return amounts, path
-'''
+"""
         got = parser.methods_for_contract(code)
 
         expected = [
             {
-                'name': 'route',
-                'arguments': [
-                    {
-                        'name': 'amounts',
-                        'type': 'list[float]'
-                    },
-                    {
-                        'name': 'path',
-                        'type': 'list[int]'
-                    }
-                ]
+                "name": "route",
+                "arguments": [
+                    {"name": "amounts", "type": "list[float]"},
+                    {"name": "path", "type": "list[int]"},
+                ],
             }
         ]
 
         self.assertEqual(expected, got)
 
     def test_methods_for_contract_nested_subscript_annotations(self):
-        code = '''
+        code = """
 @export
 def route(routes: dict[str, list[int]], range_: tuple[int, ...]):
     return routes, range_
-'''
+"""
         got = parser.methods_for_contract(code)
 
         expected = [
             {
-                'name': 'route',
-                'arguments': [
-                    {
-                        'name': 'routes',
-                        'type': 'dict[str, list[int]]'
-                    },
-                    {
-                        'name': 'range_',
-                        'type': 'tuple[int, ...]'
-                    }
-                ]
+                "name": "route",
+                "arguments": [
+                    {"name": "routes", "type": "dict[str, list[int]]"},
+                    {"name": "range_", "type": "tuple[int, ...]"},
+                ],
             }
         ]
 
         self.assertEqual(expected, got)
 
     def test_methods_for_contract_ignores_complex_annotation_expressions(self):
-        code = '''
+        code = """
 @export
 def route(value: __import__('os').system('true')):
     return value
-'''
+"""
         got = parser.methods_for_contract(code)
 
-        expected = [
-            {
-                'name': 'route',
-                'arguments': [
-                    {
-                        'name': 'value'
-                    }
-                ]
-            }
-        ]
+        expected = [{"name": "route", "arguments": [{"name": "value"}]}]
 
         self.assertEqual(expected, got)
 
     def test_methods_for_contract_ignores_excessive_annotation_depth(self):
-        annotation = 'list[' * 20 + 'int' + ']' * 20
-        code = f'''
+        annotation = "list[" * 20 + "int" + "]" * 20
+        code = f"""
 @export
 def route(value: {annotation}):
     return value
-'''
+"""
         got = parser.methods_for_contract(code)
 
-        expected = [
-            {
-                'name': 'route',
-                'arguments': [
-                    {
-                        'name': 'value'
-                    }
-                ]
-            }
-        ]
+        expected = [{"name": "route", "arguments": [{"name": "value"}]}]
 
         self.assertEqual(expected, got)
 
-    def test_methods_for_contract_multiple_functions_and_privates(self):
-        code = '''
+    def test_methods_for_historical_source_omit_private_prefixes(self):
+        code = """
 @export
 def test_func(arg: str, arg2: int):
     return arg, arg2
@@ -207,46 +159,33 @@ def test_func(arg: str, arg2: int):
 def another_one(something: Any, something_else: dict):
     a = 123
     b = 456
-    return add(a, b)
+    return __add(a, b)
     
-def add(a, b):
+def __add(a, b):
     return a + b
-'''
-        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
+"""
+        compiled = code
 
-        expected = [{
-            'name': 'test_func',
-            'arguments': [
-                {
-                    'name': 'arg',
-                    'type': 'str'
-                },
-                {
-                    'name': 'arg2',
-                    'type': 'int'
-                }
-            ],
-        },
-        {
-            'name': 'another_one',
-            'arguments': [
-                {
-                    'name': 'something',
-                    'type': 'Any'
-                },
-                {
-                    'name': 'something_else',
-                    'type': 'dict'
-                }
-            ]
-        }]
+        expected = [
+            {
+                "name": "test_func",
+                "arguments": [{"name": "arg", "type": "str"}, {"name": "arg2", "type": "int"}],
+            },
+            {
+                "name": "another_one",
+                "arguments": [
+                    {"name": "something", "type": "Any"},
+                    {"name": "something_else", "type": "dict"},
+                ],
+            },
+        ]
 
         got = parser.methods_for_contract(compiled)
 
         self.assertListEqual(expected, got)
 
     def test_variables_for_contract_passes_election_house(self):
-        code = '''
+        code = """
 # Convenience
 I = importlib
 
@@ -290,21 +229,18 @@ def vote(policy: str, value: Any):
     p = I.import_module(policy)
 
     p.vote(vk=ctx.caller, obj=value)
-    '''
+    """
 
-        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
+        compiled = code
 
         got = parser.variables_for_contract(compiled)
 
-        expected = {
-            'variables': [],
-            'hashes': ['policies']
-        }
+        expected = {"variables": [], "hashes": ["policies"]}
 
         self.assertDictEqual(got, expected)
 
     def test_variables_for_contract_multiple_variables(self):
-        code = '''
+        code = """
 v1 = Variable()
 v2 = Variable()
 v3 = Variable()
@@ -312,21 +248,18 @@ v3 = Variable()
 @export
 def something():
    return 1
-        '''
+        """
 
-        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
+        compiled = code
 
         got = parser.variables_for_contract(compiled)
 
-        expected = {
-            'variables': ['v1', 'v2', 'v3'],
-            'hashes': []
-        }
+        expected = {"variables": ["v1", "v2", "v3"], "hashes": []}
 
         self.assertDictEqual(got, expected)
 
     def test_variables_for_contract_multiple_hashes(self):
-        code = '''
+        code = """
 h1 = Hash()
 h2 = Hash()
 h3 = Hash()
@@ -334,21 +267,18 @@ h3 = Hash()
 @export
 def something():
    return 1
-        '''
+        """
 
-        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
+        compiled = code
 
         got = parser.variables_for_contract(compiled)
 
-        expected = {
-            'variables': [],
-            'hashes': ['h1', 'h2', 'h3']
-        }
+        expected = {"variables": [], "hashes": ["h1", "h2", "h3"]}
 
         self.assertDictEqual(got, expected)
 
     def test_variables_mix(self):
-        code = '''
+        code = """
 v1 = Variable()
 v2 = Variable()
 v3 = Variable()
@@ -359,21 +289,18 @@ h3 = Hash()
 @export
 def something():
    return 1
-        '''
+        """
 
-        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
+        compiled = code
 
         got = parser.variables_for_contract(compiled)
 
-        expected = {
-            'variables': ['v1', 'v2', 'v3'],
-            'hashes': ['h1', 'h2', 'h3']
-        }
+        expected = {"variables": ["v1", "v2", "v3"], "hashes": ["h1", "h2", "h3"]}
 
         self.assertDictEqual(got, expected)
 
     def test_variables_for_contract_ignores_non_storage_calls(self):
-        code = '''
+        code = """
 metadata = I.Func('vote')
 settings['owner'] = Hash()
 storage = Hash()
@@ -381,19 +308,16 @@ storage = Hash()
 @export
 def something():
    return 1
-        '''
+        """
 
         got = parser.variables_for_contract(code)
 
-        expected = {
-            'variables': [],
-            'hashes': ['storage']
-        }
+        expected = {"variables": [], "hashes": ["storage"]}
 
         self.assertDictEqual(got, expected)
 
     def test_variables_remove_only_private_prefix(self):
-        code = '''
+        code = """
 __private = Variable()
 _public = Variable()
 __private_hash = Hash()
@@ -402,52 +326,10 @@ _public_hash = Hash()
 @export
 def something():
    return 1
-        '''
+        """
 
         got = parser.variables_for_contract(code)
 
-        expected = {
-            'variables': ['private', '_public'],
-            'hashes': ['private_hash', '_public_hash']
-        }
+        expected = {"variables": ["private", "_public"], "hashes": ["private_hash", "_public_hash"]}
 
         self.assertDictEqual(got, expected)
-
-    def test_float_literals_preserve_source_precision(self):
-        code = """
-@export
-def amount() -> float:
-    return 0.123456789012345678901234567890
-"""
-
-        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
-
-        self.assertIn(
-            "decimal('0.123456789012345678901234567890')",
-            compiled,
-        )
-
-    def test_float_default_literals_are_decimalized(self):
-        code = """
-@export
-def configure(rate: float = 0.1) -> float:
-    assert rate >= 0.0 and rate <= 1.0
-    return rate
-"""
-
-        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
-
-        self.assertIn("rate: float=decimal('0.1')", compiled)
-        self.assertIn("rate >= decimal('0.0')", compiled)
-        self.assertIn("rate <= decimal('1.0')", compiled)
-
-    def test_kwonly_float_default_literals_are_decimalized(self):
-        code = """
-@export
-def configure(*, rate: float = 0.1) -> float:
-    return rate
-"""
-
-        compiled = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
-
-        self.assertIn("*, rate: float=decimal('0.1')", compiled)

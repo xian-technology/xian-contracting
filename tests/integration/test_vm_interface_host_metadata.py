@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 from tests.integration.test_vm_interface_descriptors import execute
 
 pytestmark = pytest.mark.optional_native
+
 CASES = json.loads(
     (Path(__file__).parents[1] / "fixtures/interface_metadata_cases.json").read_text()
 )
@@ -24,48 +24,36 @@ def observe(value):
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case["id"])
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
-def test_reviewed_host_code_metadata(tmp_path, case, native):
+def test_reviewed_host_code_metadata(tmp_path, case):
     # Historical metadata for round() is retained for replay.
-    legacy = not native or case["id"] in ("metadata_086", "global_086")
+    legacy = case["id"] in ("metadata_086", "global_086")
     profile = "xian_vm_v1" if legacy else "xian_vm_v2"
     with Driver(storage_home=tmp_path, vm_profile=profile) as driver:
         for name, source in case.get("dependencies", {}).items():
             driver.set_contract_from_source(name, source, owner=None)
         driver.set_contract_from_source("con_metadata", case["source"], owner=None)
         driver.commit()
-        if native:
-            from xian_vm_core import execute_contract
+        from xian_vm_core import execute_contract
 
-            result = execute_contract(
-                driver=driver,
-                contract_name="con_metadata",
-                function_name="probe",
-                kwargs={},
-                context={"caller": "alice", "signer": "alice", "this": "con_metadata"},
-                meter=False,
-                vm_profile=driver.vm_profile,
-            )
-            status, value = result.status_code, result.result
-        else:
-            result = Executor(driver=driver, metering=False).execute(
-                sender="alice",
-                contract_name="con_metadata",
-                function_name="probe",
-                kwargs={},
-                metering=False,
-            )
-            status, value = result["status_code"], result["result"]
+        result = execute_contract(
+            driver=driver,
+            contract_name="con_metadata",
+            function_name="probe",
+            kwargs={},
+            context={"caller": "alice", "signer": "alice", "this": "con_metadata"},
+            meter=False,
+            vm_profile=driver.vm_profile,
+        )
+        status, value = result.status_code, result.result
         expected = case["expected_current"]
         assert status == expected["status_code"], value
         if status == 0:
             assert observe(value) == expected["result"]
-        elif native:
+        else:
             assert "Python code metadata" in str(value), value
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
-def test_unbound_descriptor_methods_keep_function_identity_and_keyword_binding(tmp_path, native):
+def test_unbound_descriptor_methods_keep_function_identity_and_keyword_binding(tmp_path):
     body = """f = importlib.Func('probe', ())
 check = importlib.Func.is_of
 v = importlib.Var('state', Variable)
@@ -74,7 +62,7 @@ return [check is importlib.Func.is_of,
         importlib.Var.is_of(v=v.type, self=v),
         importlib.Func('is_of', ('self','f')).is_of(check),
         importlib.Func('is_of', ('self','v')).is_of(importlib.Var.is_of)]"""
-    status, value, _ = execute(tmp_path, body, native=native)
+    status, value, _ = execute(tmp_path, body)
     assert status == 0, value
     assert value == [True, True, False, True, True]
 
@@ -97,8 +85,7 @@ def test_unbound_descriptor_invalid_signatures(tmp_path, call):
     assert writes == {}
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
-def test_wrapper_unbound_methods_bind_self_and_preserve_function_identity(tmp_path, native):
+def test_wrapper_unbound_methods_bind_self_and_preserve_function_identity(tmp_path):
     body = """values = set([1])
 add = set.add
 add(self=values, value=2)
@@ -109,7 +96,7 @@ return [sorted(values), sorted(combined), add is set.add,
         frozenset.union is frozenset.union,
         list.append is list.append, str.upper is str.upper,
         dict.fromkeys is dict.fromkeys]"""
-    status, value, _ = execute(tmp_path, body, native=native)
+    status, value, _ = execute(tmp_path, body)
     assert status == 0, value
     assert value == [[2], [3], True, True, True, True, False]
 
@@ -130,8 +117,7 @@ def test_wrapper_unbound_invalid_binding_rolls_back(tmp_path, call):
     assert writes == {}
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
-def test_wrapper_inherited_functions_and_overridden_copy(tmp_path, native):
+def test_wrapper_inherited_functions_and_overridden_copy(tmp_path):
     body = """mutable = set([1])
 frozen = frozenset([1])
 a = set.union(frozen, [2])
@@ -146,6 +132,6 @@ return [set.union is frozenset.union,
         isinstance(b,set), sorted(b),
         c is frozen, c == frozen, isinstance(c,frozenset),
         d is mutable, frozenset.copy(plain) is plain, len(keys)]"""
-    status, value, _ = execute(tmp_path, body, native=native)
+    status, value, _ = execute(tmp_path, body)
     assert status == 0, value
     assert value == [True, False, True, [1, 2], True, [1, 2], False, True, True, True, True, 1]

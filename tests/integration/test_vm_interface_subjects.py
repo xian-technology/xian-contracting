@@ -6,6 +6,7 @@ from tests.integration.test_vm_interface_descriptors import execute
 
 pytestmark = pytest.mark.optional_native
 
+
 CASES = [
     (
         "function",
@@ -36,15 +37,14 @@ CASES = [
 ]
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
 @pytest.mark.parametrize("name,prefix,descriptor,expected", CASES, ids=[case[0] for case in CASES])
-def test_custom_interface_subject(tmp_path, native, name, prefix, descriptor, expected):
+def test_custom_interface_subject(tmp_path, name, prefix, descriptor, expected):
     body = f"""module=importlib.import_module('con_descriptor_target')
 interface={descriptor}
 interface.is_of=check
 result=importlib.enforce_interface(module,[interface])
 return [result,state.get()]"""
-    status, result, _ = execute(tmp_path, body, native=native, prefix=prefix)
+    status, result, _ = execute(tmp_path, body, prefix=prefix)
     assert status == 0, result
 
     # Storage codecs may normalize tuple payloads; metadata is explicitly a tuple
@@ -55,7 +55,6 @@ return [result,state.get()]"""
     assert normalized(result) == normalized(expected)
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
 @pytest.mark.parametrize(
     "action",
     [
@@ -65,22 +64,21 @@ return [result,state.get()]"""
         'raise Exception("predicate failed")',
     ],
 )
-def test_subject_errors_rollback(tmp_path, native, action):
+def test_subject_errors_rollback(tmp_path, action):
     prefix = f'def check(subject):\n    state.set("pending")\n    {action}\n    return True\n'
     body = """module=importlib.import_module('con_descriptor_target')
 interface=importlib.Func('hidden',private=True)
 interface.is_of=check
 return importlib.enforce_interface(module,[interface])"""
-    status, result, writes = execute(tmp_path, body, native=native, prefix=prefix)
+    status, result, writes = execute(tmp_path, body, prefix=prefix)
     assert status == 1, result
     assert writes == {}
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
 @pytest.mark.parametrize(
     "action,expected", [("append", [True, 2]), ("remove", [True, 1]), ("replace", [False, 1])]
 )
-def test_interface_predicates_observe_live_descriptor_iteration(tmp_path, native, action, expected):
+def test_interface_predicates_observe_live_descriptor_iteration(tmp_path, action, expected):
     mutation = {
         "append": "if len(interfaces) == 1:\n        following=importlib.Func('noop')\n        following.is_of=check\n        interfaces.append(following)",
         "remove": "interfaces.pop()",
@@ -104,6 +102,6 @@ interfaces.append(first)
 {second}
 result=importlib.enforce_interface(importlib.import_module('con_descriptor_target'),interfaces)
 return [result,len(calls)]"""
-    status, result, _ = execute(tmp_path, body, native=native, prefix=prefix)
+    status, result, _ = execute(tmp_path, body, prefix=prefix)
     assert status == 0, result
     assert result == expected

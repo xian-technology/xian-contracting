@@ -6,7 +6,8 @@ use crate::{
     VmExecutionContext, VmExecutionError, VmExecutionStats, VmHost, VmInstance, VmMeterConfig,
     VmTimeDelta, VmValue, VM_GAS_CROSS_CONTRACT_CALL_BASE, VM_GAS_CROSS_CONTRACT_CALL_REPEAT,
     XIAN_IR_V1, XIAN_VM_EXECUTION_REVISION, XIAN_VM_HOST_CATALOG_V1, XIAN_VM_SET_CODEC,
-    XIAN_VM_SUPPORTED_BYTECODE_VERSIONS, XIAN_VM_SUPPORTED_GAS_SCHEDULES, XIAN_VM_V1_PROFILE,
+    XIAN_VM_SUPPORTED_BYTECODE_VERSIONS, XIAN_VM_SUPPORTED_GAS_SCHEDULES,
+    XIAN_VM_V1_EXECUTION_REVISION, XIAN_VM_V1_PROFILE,
 };
 use num_bigint::BigInt;
 use pyo3::create_exception;
@@ -1268,7 +1269,7 @@ fn profile_policy(vm_profile: &str) -> Option<ProfilePolicy> {
         XIAN_VM_V1_PROFILE => Some(ProfilePolicy {
             bytecode: &["xvm-1"],
             gas: &["xvm-gas-2"],
-            revision: XIAN_VM_EXECUTION_REVISION,
+            revision: XIAN_VM_V1_EXECUTION_REVISION,
         }),
         _ => None,
     }

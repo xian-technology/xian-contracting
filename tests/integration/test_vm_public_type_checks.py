@@ -2,10 +2,10 @@
 
 import pytest
 
-from contracting.execution.executor import Executor
 from contracting.storage.driver import Driver
 
 pytestmark = pytest.mark.optional_native
+
 
 CASES = [
     ('str(Exception("problem"))', "problem"),
@@ -74,62 +74,45 @@ INVALID = [
 ]
 
 
-def execute_expression(home, expression, native):
+def execute_expression(home, expression):
     source = (
         "v = Variable()\nh = Hash()\n"
         'fv = ForeignVariable(foreign_contract="con_type_checks", foreign_name="v")\n'
         'fh = ForeignHash(foreign_contract="con_type_checks", foreign_name="h")\n'
         f"@export\ndef probe():\n    return {expression}\n"
     )
-    with Driver(storage_home=home, vm_profile="xian_vm_v2" if native else "xian_vm_v1") as driver:
+    with Driver(storage_home=home, vm_profile="xian_vm_v2") as driver:
         driver.set_contract_from_source("con_type_checks", source, owner=None)
         driver.commit()
-        if native:
-            from xian_vm_core import execute_contract
+        from xian_vm_core import execute_contract
 
-            output = execute_contract(
-                driver=driver,
-                contract_name="con_type_checks",
-                function_name="probe",
-                kwargs={},
-                context={"caller": "alice", "signer": "alice", "this": "con_type_checks"},
-                meter=False,
-            )
-            return output.status_code, output.result
-        output = Executor(driver=driver, metering=False).execute(
-            sender="alice",
+        output = execute_contract(
+            driver=driver,
             contract_name="con_type_checks",
             function_name="probe",
             kwargs={},
-            metering=False,
+            context={"caller": "alice", "signer": "alice", "this": "con_type_checks"},
+            meter=False,
         )
-        return output["status_code"], output["result"]
+        return output.status_code, output.result
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
 @pytest.mark.parametrize(("expression", "expected"), CASES)
-def test_public_type_checks_and_exception_text(tmp_path, expression, expected, native):
-    status, result = execute_expression(tmp_path, expression, native)
+def test_public_type_checks_and_exception_text(tmp_path, expression, expected):
+    status, result = execute_expression(tmp_path, expression)
     assert status == 0, result
     assert type(result) is type(expected)
     assert result == expected
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
 @pytest.mark.parametrize("expression", INVALID)
-def test_public_type_checks_reject_invalid_descriptors(tmp_path, expression, native):
-    status, result = execute_expression(tmp_path, expression, native)
+def test_public_type_checks_reject_invalid_descriptors(tmp_path, expression):
+    status, result = execute_expression(tmp_path, expression)
     assert status == 1, result
 
 
-@pytest.mark.parametrize("native", [False, True], ids=["python", "native"])
-def test_bool_has_its_own_numeric_type_hierarchy(tmp_path, native):
-    status, result = execute_expression(tmp_path, "issubclass(bool, int)", native)
-    assert status == 0 and result is (not native)
-    status, result = execute_expression(
-        tmp_path / "nested", "issubclass(bool, (str, (int, abs)))", native
-    )
-    if native:
-        assert status == 1 and "classinfo" in str(result)
-    else:
-        assert status == 0 and result is True
+def test_bool_has_its_own_numeric_type_hierarchy(tmp_path):
+    status, result = execute_expression(tmp_path, "issubclass(bool, int)")
+    assert status == 0 and result is False
+    status, result = execute_expression(tmp_path / "nested", "issubclass(bool, (str, (int, abs)))")
+    assert status == 1 and "classinfo" in str(result)

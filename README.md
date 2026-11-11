@@ -46,9 +46,9 @@ contract_source = "@export\ndef half(amount: decimal):\n    return amount / 2"
 artifacts = build_contract_artifacts(module_name="con_math", source=contract_source)
 ```
 
-Run the same source under the native VM. The local harness compiles deployments
-and executes constructors, exported functions and cross-contract calls with
-the selected profile. Fractional Python inputs use `decimal.Decimal`.
+Run the same source under the native V2 VM. The local harness compiles
+deployments and executes constructors, exported functions and cross-contract
+calls. Fractional Python inputs use `decimal.Decimal`.
 
 ```python
 from decimal import Decimal
@@ -63,16 +63,20 @@ with TemporaryDirectory() as home:
 ```
 
 `submit` accepts source text or a Python function containing the contract
-definition. With the default settings the compiler, local client and storage
-use `xian_vm_v2`, the execution profile selected by the fresh-chain validator
-policy. Use `vm_profile="xian_vm_v1"` explicitly to reproduce a V1 fixture.
-A client constructed with a driver uses that driver’s selected profile. Keep
-local storage for the two profiles in separate directories.
+definition. `ContractingClient` and `ParallelBatchExecutor` support only
+`xian_vm_v2`, the execution profile selected by fresh-chain validators.
+`ContractingClient` rejects an explicit V1 profile or a supplied V1 driver with
+`ValueError`. `ParallelBatchExecutor` rejects an executor whose driver uses V1.
+Use a fresh V2 storage directory for local tests.
 
-Use `compile_contract_source` or `build_contract_artifacts` from
-`contracting.artifacts` to compile offline. The legacy methods
-`ContractingCompiler.parse` and `.compile` produce a CPython AST or Python
-bytecode and require explicit V1 selection.
+Local clients use the canonical compiler and do not accept a `compiler=`
+override. Use `compile_contract_source` or `build_contract_artifacts` from
+`contracting.artifacts` to compile offline. Native V1 compilation, encoding,
+storage and low-level VM bindings are reserved for historical verification and
+migration tools. They do not provide a supported V1 local client. The Python
+package does not execute contracts through CPython or expose a Python-bytecode
+compiler. See the [compatibility guide](tests/compatibility/README.md) for pinned
+historical observations and their capture procedure.
 
 ## Principles
 
@@ -104,7 +108,8 @@ bytecode and require explicit V1 selection.
   - `artifacts/` — public source compiler, artifact builder, and validator.
   - `compilation/` — parser, compiler, linter, and whitelist logic.
   - `compiler/` — public compiler import surface.
-  - `execution/` — runtime, executor, module loading, and tracing.
+  - `execution/` — shared native host context, execution errors, and speculative
+    parallel execution.
   - `local/` — high-level `ContractingClient` for local tests and tooling.
   - `storage/` — drivers, ORM helpers, encoder, and LMDB-backed state.
   - `contracts/` — package-local contract assets (e.g. the built-in submission
@@ -124,7 +129,7 @@ bytecode and require explicit V1 selection.
 - local harness execution, metering, and import restrictions
 - storage drivers and encoding
 - contract-side runtime helpers (`stdlib` bridge)
-- speculative parallel batch execution primitives
+- native V2 local clients and speculative parallel batch execution primitives
 - native zero-knowledge verifier building blocks
 - Xian VM IR generation, validation, native execution and compatibility fixtures
 
@@ -139,9 +144,9 @@ uv run ruff format --check .
 uv run pytest --cov=contracting --cov-report=term-missing --cov-report=xml
 ```
 
-The default `pytest` config deselects tests marked `optional_native`; those
-tests require heavier Rust extension packages beyond the required compiler
-core.
+The default `pytest` config deselects the larger corpus marked
+`optional_native`. The native/release path selects that corpus and installs
+additional packages needed by checks such as the optional zk integrations.
 
 Native / release CI path:
 

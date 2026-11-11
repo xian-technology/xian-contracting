@@ -13,7 +13,8 @@
 
 ## Project Layout
 - `src/contracting/compilation/`: parser, compiler, linter, and whitelist logic.
-- `src/contracting/execution/`: runtime, executor, module loading, and tracing.
+- `src/contracting/execution/`: native host context, execution errors, and
+  speculative parallel batch execution.
 - `src/contracting/storage/`: drivers, ORM helpers, encoder, and LMDB-backed state storage.
 - `src/contracting/contracts/`: package-local contract assets such as the
   built-in submission contract.
@@ -24,6 +25,9 @@
 - Preserve runtime behavior deliberately. If a fix changes execution semantics, add regression tests in the same change.
 - Avoid cross-repo orchestration changes here unless the ABCI or CLI layer requires a new importable primitive.
 - Keep built-in contracts and storage/runtime helpers aligned with the execution model. Do not treat this repo like a general utilities package.
+- Public local clients are V2-only. Preserve low-level native V1 compilation,
+  encoding and execution for historical verification and migration; do not add a
+  current CPython executor or a V1 public-client fallback.
 
 ## Validation
 - Preferred setup: `uv sync --group dev`

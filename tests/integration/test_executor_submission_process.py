@@ -1,133 +1,35 @@
 import os
 from unittest import TestCase
-from unittest.mock import patch
 
-from contracting.compilation.compiler import ContractingCompiler
-from contracting.execution.executor import Executor
-from contracting.storage.driver import Driver
+import pytest
 
-
-def build_submission_artifacts(name, source):
-    return source
+from contracting.local import ContractingClient
+from contracting.local.native_executor import NativeExecutor
+from tests.integration.contract_fixtures import SUBMIT_CONTRACT, submission_kwargs_for_file
 
 
-def submission_kwargs_for_file(f):
-    # Get the file name only by splitting off directories
-    split = f.split("/")
-    split = split[-1]
-
-    # Now split off the .s
-    split = split.split(".")
-    contract_name = split[0]
-
-    with open(f) as file:
-        contract_source = file.read()
-
-    return {
-        "name": f"con_{contract_name}",
-        "code": build_submission_artifacts(
-            f"con_{contract_name}",
-            contract_source,
-        ),
-    }
-
-
-TEST_SUBMISSION_KWARGS = {
-    "sender": "stu",
-    "contract_name": "submission",
-    "function_name": "submit_contract",
-}
-
-
-class TestExecutor(TestCase):
+class TestNativeExecutor(TestCase):
     def setUp(self):
-        self.d = Driver(vm_profile="xian_vm_v1")
-        self.d.flush_full()
-
-        submission_path = os.path.join(
-            os.path.dirname(__file__), "test_contracts", "submission.s.py"
-        )
-
-        with open(submission_path) as f:
-            contract = f.read()
-
-        self.d.set_contract(name="submission", source=contract)
-        self.d.commit()
-
-        self.compiler = ContractingCompiler()
-
-    def tearDown(self):
-        self.d.flush_full()
+        self.client = ContractingClient(signer="stu", metering=False)
+        self.addCleanup(self.client.close)
+        self.d = self.client.raw_driver
 
     def test_submission(self):
-        e = Executor(driver=self.d, metering=False)
+        from contracting.artifacts import compile_contract_source
 
-        code = """@export
-def d():
-    a = 1
-    return 1            
-"""
-
-        kwargs = {
-            "name": "con_stubucks",
-            "code": build_submission_artifacts(
-                "con_stubucks",
-                code,
-            ),
-        }
-
-        e.execute(**TEST_SUBMISSION_KWARGS, kwargs=kwargs, auto_commit=True)
-
-        self.compiler.module_name = "con_stubucks"
-        new_code = self.compiler.parse_to_code(code, vm_profile="xian_vm_v1")
-
-        self.assertEqual(self.d.get_local_contract_runtime("con_stubucks"), new_code)
-
-    def test_contract_runtime_compile_failure_is_not_silently_downgraded(self):
-        code = """@export
-def d():
-    return 1
-"""
-
-        self.d.set_contract(name="con_loud_failure", source=code)
-
-        with patch.object(
-            ContractingCompiler,
-            "parse_legacy_runtime",
-            side_effect=AttributeError("unsupported contract syntax"),
-        ):
-            with self.assertRaises(AttributeError):
-                self.d.get_local_contract_runtime("con_loud_failure")
-
-    def test_non_contract_runtime_compile_failure_falls_back_with_warning(self):
-        source = "HELPER = 1\n"
-
-        self.d.set_contract(name="con_helper_module", source=source)
-
-        with patch.object(
-            ContractingCompiler,
-            "parse_legacy_runtime",
-            side_effect=AttributeError("unsupported helper syntax"),
-        ):
-            with self.assertLogs("contracting.storage.driver", level="WARNING") as logs:
-                runtime = self.d.get_local_contract_runtime("con_helper_module")
-
-        self.assertEqual(runtime, source)
-        self.assertIn("AttributeError", "\n".join(logs.output))
-
-    def test_unexpected_non_contract_runtime_compile_failure_raises(self):
-        self.d.set_contract(name="con_helper_module", source="HELPER = 1\n")
-
-        with patch.object(
-            ContractingCompiler,
-            "parse_legacy_runtime",
-            side_effect=RuntimeError("compiler regression"),
-        ):
-            with self.assertRaises(RuntimeError):
-                self.d.get_local_contract_runtime("con_helper_module")
+        source = "@export\ndef d():\n    return 1\n"
+        output = self.client.executor.execute(
+            **SUBMIT_CONTRACT,
+            kwargs={"name": "con_stubucks", "code": source},
+            auto_commit=True,
+        )
+        self.assertEqual(output["status_code"], 0, output["result"])
+        expected = compile_contract_source(module_name="con_stubucks", source=source)
+        self.assertEqual(self.d.get_contract_source("con_stubucks"), expected["source"])
+        self.assertEqual(self.d.get_contract_ir("con_stubucks"), expected["vm_ir_json"])
 
     def test_submission_then_function_call(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         code = """@export
 def d():
@@ -136,13 +38,10 @@ def d():
 
         kwargs = {
             "name": "con_stubuckz",
-            "code": build_submission_artifacts(
-                "con_stubuckz",
-                code,
-            ),
+            "code": code,
         }
 
-        e.execute(**TEST_SUBMISSION_KWARGS, kwargs=kwargs)
+        e.execute(**SUBMIT_CONTRACT, kwargs=kwargs)
         output = e.execute(
             sender="stu",
             contract_name="con_stubuckz",
@@ -154,7 +53,7 @@ def d():
         self.assertEqual(output["status_code"], 0)
 
     def test_submission_rejects_unsafe_contract_name(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         code = """@export
 def ping():
@@ -168,13 +67,10 @@ def ping():
             "con_bad name",
         ):
             output = e.execute(
-                **TEST_SUBMISSION_KWARGS,
+                **SUBMIT_CONTRACT,
                 kwargs={
                     "name": bad_name,
-                    "code": build_submission_artifacts(
-                        bad_name,
-                        code,
-                    ),
+                    "code": code,
                 },
             )
 
@@ -183,10 +79,10 @@ def ping():
                 "lowercase ASCII letters, digits, and underscores",
                 str(output["result"]),
             )
-            self.assertIsNone(self.d.get_local_contract_runtime(bad_name))
+            self.assertIsNone(self.d.get_contract_source(bad_name))
 
     def test_submission_rejects_invalid_owner_type(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         code = """@export
 def ping():
@@ -194,22 +90,19 @@ def ping():
 """
 
         output = e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs={
                 "name": "con_valid_name",
-                "code": build_submission_artifacts(
-                    "con_valid_name",
-                    code,
-                ),
+                "code": code,
                 "owner": 7,
             },
         )
 
         self.assertEqual(output["status_code"], 1)
-        self.assertIsNone(self.d.get_local_contract_runtime("con_valid_name"))
+        self.assertIsNone(self.d.get_contract_source("con_valid_name"))
 
     def test_change_developer_rejects_empty_string(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         code = """@export
 def ping():
@@ -217,13 +110,10 @@ def ping():
 """
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs={
                 "name": "con_valid_name",
-                "code": build_submission_artifacts(
-                    "con_valid_name",
-                    code,
-                ),
+                "code": code,
             },
             auto_commit=True,
         )
@@ -268,7 +158,7 @@ def get_v():
         )
 
     def test_orm_variable_sets_in_contract(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         test_orm_variable_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -277,15 +167,15 @@ def get_v():
         )
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs=submission_kwargs_for_file(test_orm_variable_contract_path),
             auto_commit=True,
         )
 
         e.execute(
-            "stu",
-            "con_orm_variable_contract",
-            "set_v",
+            sender="stu",
+            contract_name="con_orm_variable_contract",
+            function_name="set_v",
             kwargs={"i": 1000},
             auto_commit=True,
         )
@@ -294,7 +184,7 @@ def get_v():
         self.assertEqual(i, 1000)
 
     def test_orm_variable_gets_in_contract(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         test_orm_variable_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -303,16 +193,21 @@ def get_v():
         )
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs=submission_kwargs_for_file(test_orm_variable_contract_path),
         )
 
-        res = e.execute("stu", "con_orm_variable_contract", "get_v", kwargs={})
+        res = e.execute(
+            sender="stu",
+            contract_name="con_orm_variable_contract",
+            function_name="get_v",
+            kwargs={},
+        )
 
         self.assertEqual(res["result"], None)
 
     def test_orm_variable_gets_and_sets_in_contract(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         test_orm_variable_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -321,26 +216,36 @@ def get_v():
         )
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs=submission_kwargs_for_file(test_orm_variable_contract_path),
         )
 
         e.execute(
-            "stu", "con_orm_variable_contract", "set_v", kwargs={"i": 1000}
+            sender="stu",
+            contract_name="con_orm_variable_contract",
+            function_name="set_v",
+            kwargs={"i": 1000},
         )
-        res = e.execute("stu", "con_orm_variable_contract", "get_v", kwargs={})
+        res = e.execute(
+            sender="stu",
+            contract_name="con_orm_variable_contract",
+            function_name="get_v",
+            kwargs={},
+        )
 
         self.assertEqual(res["result"], 1000)
 
     def test_orm_variable_collection_helpers_work_in_contract(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         code = """settings = Variable(default_value={})
 queue = Variable(default_value=[])
 
 @export
 def set_setting(key: str, value: int):
-    settings[key] = value
+    values = settings.get()
+    values[key] = value
+    settings.set(values)
 
 @export
 def get_settings():
@@ -352,7 +257,9 @@ def enqueue(value: int):
 
 @export
 def replace_first(value: int):
-    queue[0] = value
+    values = queue.get()
+    values[0] = value
+    queue.set(values)
 
 @export
 def get_queue():
@@ -360,51 +267,48 @@ def get_queue():
 """
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs={
                 "name": "con_variable_collections",
-                "code": build_submission_artifacts(
-                    "con_variable_collections",
-                    code,
-                ),
+                "code": code,
             },
         )
 
         e.execute(
-            "stu",
-            "con_variable_collections",
-            "set_setting",
+            sender="stu",
+            contract_name="con_variable_collections",
+            function_name="set_setting",
             kwargs={"key": "threshold", "value": 7},
         )
         e.execute(
-            "stu",
-            "con_variable_collections",
-            "enqueue",
+            sender="stu",
+            contract_name="con_variable_collections",
+            function_name="enqueue",
             kwargs={"value": 1},
         )
         e.execute(
-            "stu",
-            "con_variable_collections",
-            "enqueue",
+            sender="stu",
+            contract_name="con_variable_collections",
+            function_name="enqueue",
             kwargs={"value": 2},
         )
         e.execute(
-            "stu",
-            "con_variable_collections",
-            "replace_first",
+            sender="stu",
+            contract_name="con_variable_collections",
+            function_name="replace_first",
             kwargs={"value": 9},
         )
 
         settings = e.execute(
-            "stu",
-            "con_variable_collections",
-            "get_settings",
+            sender="stu",
+            contract_name="con_variable_collections",
+            function_name="get_settings",
             kwargs={},
         )
         queue = e.execute(
-            "stu",
-            "con_variable_collections",
-            "get_queue",
+            sender="stu",
+            contract_name="con_variable_collections",
+            function_name="get_queue",
             kwargs={},
         )
 
@@ -412,7 +316,7 @@ def get_queue():
         self.assertEqual(queue["result"], [9, 2])
 
     def test_orm_hash_sets_in_contract(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         test_orm_hash_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -421,22 +325,22 @@ def get_queue():
         )
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs=submission_kwargs_for_file(test_orm_hash_contract_path),
             auto_commit=True,
         )
 
         e.execute(
-            "stu",
-            "con_orm_hash_contract",
-            "set_h",
+            sender="stu",
+            contract_name="con_orm_hash_contract",
+            function_name="set_h",
             kwargs={"k": "key1", "v": 1234},
             auto_commit=True,
         )
         e.execute(
-            "stu",
-            "con_orm_hash_contract",
-            "set_h",
+            sender="stu",
+            contract_name="con_orm_hash_contract",
+            function_name="set_h",
             kwargs={"k": "another_key", "v": 9999},
             auto_commit=True,
         )
@@ -448,7 +352,7 @@ def get_queue():
         self.assertEqual(another_key, 9999)
 
     def test_orm_hash_gets_in_contract(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         test_orm_hash_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -457,18 +361,21 @@ def get_queue():
         )
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs=submission_kwargs_for_file(test_orm_hash_contract_path),
         )
 
         res = e.execute(
-            "stu", "con_orm_hash_contract", "get_h", kwargs={"k": "test"}
+            sender="stu",
+            contract_name="con_orm_hash_contract",
+            function_name="get_h",
+            kwargs={"k": "test"},
         )
 
         self.assertEqual(res["result"], None)
 
     def test_orm_hash_gets_and_sets_in_contract(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         test_orm_hash_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -477,35 +384,41 @@ def get_queue():
         )
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs=submission_kwargs_for_file(test_orm_hash_contract_path),
         )
 
         e.execute(
-            "stu",
-            "con_orm_hash_contract",
-            "set_h",
+            sender="stu",
+            contract_name="con_orm_hash_contract",
+            function_name="set_h",
             kwargs={"k": "key1", "v": 1234},
         )
         e.execute(
-            "stu",
-            "con_orm_hash_contract",
-            "set_h",
+            sender="stu",
+            contract_name="con_orm_hash_contract",
+            function_name="set_h",
             kwargs={"k": "another_key", "v": 9999},
         )
 
         key1 = e.execute(
-            "stu", "con_orm_hash_contract", "get_h", kwargs={"k": "key1"}
+            sender="stu",
+            contract_name="con_orm_hash_contract",
+            function_name="get_h",
+            kwargs={"k": "key1"},
         )
         another_key = e.execute(
-            "stu", "con_orm_hash_contract", "get_h", kwargs={"k": "another_key"}
+            sender="stu",
+            contract_name="con_orm_hash_contract",
+            function_name="get_h",
+            kwargs={"k": "another_key"},
         )
 
         self.assertEqual(key1["result"], 1234)
         self.assertEqual(another_key["result"], 9999)
 
     def test_orm_foreign_variable_sets_in_contract_doesnt_work(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         test_orm_variable_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -519,32 +432,41 @@ def get_queue():
         )
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs=submission_kwargs_for_file(test_orm_variable_contract_path),
         )
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
-            kwargs=submission_kwargs_for_file(
-                test_orm_foreign_key_contract_path
-            ),
+            **SUBMIT_CONTRACT,
+            kwargs=submission_kwargs_for_file(test_orm_foreign_key_contract_path),
         )
 
         e.execute(
-            "stu", "con_orm_variable_contract", "set_v", kwargs={"i": 1000}
+            sender="stu",
+            contract_name="con_orm_variable_contract",
+            function_name="set_v",
+            kwargs={"i": 1000},
         )
 
         # this should fail
         status = e.execute(
-            "stu", "con_orm_foreign_key_contract", "set_fv", kwargs={"i": 999}
+            sender="stu",
+            contract_name="con_orm_foreign_key_contract",
+            function_name="set_fv",
+            kwargs={"i": 999},
         )
 
         self.assertEqual(status["status_code"], 1)
 
-        i = e.execute("stu", "con_orm_variable_contract", "get_v", kwargs={})
+        i = e.execute(
+            sender="stu",
+            contract_name="con_orm_variable_contract",
+            function_name="get_v",
+            kwargs={},
+        )
         self.assertEqual(i["result"], 1000)
 
     def test_orm_foreign_variable_gets_in_contract(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         test_orm_variable_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -558,28 +480,32 @@ def get_queue():
         )
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs=submission_kwargs_for_file(test_orm_variable_contract_path),
         )
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
-            kwargs=submission_kwargs_for_file(
-                test_orm_foreign_key_contract_path
-            ),
+            **SUBMIT_CONTRACT,
+            kwargs=submission_kwargs_for_file(test_orm_foreign_key_contract_path),
         )
 
         e.execute(
-            "stu", "con_orm_variable_contract", "set_v", kwargs={"i": 424242}
+            sender="stu",
+            contract_name="con_orm_variable_contract",
+            function_name="set_v",
+            kwargs={"i": 424242},
         )
         # this should fail
         i = e.execute(
-            "stu", "con_orm_foreign_key_contract", "get_fv", kwargs={}
+            sender="stu",
+            contract_name="con_orm_foreign_key_contract",
+            function_name="get_fv",
+            kwargs={},
         )
 
         self.assertEqual(i["result"], 424242)
 
     def test_orm_foreign_hash_sets_in_contract_doesnt_work(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         test_orm_hash_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -593,44 +519,42 @@ def get_queue():
         )
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs=submission_kwargs_for_file(test_orm_hash_contract_path),
             auto_commit=True,
         )
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
-            kwargs=submission_kwargs_for_file(
-                test_orm_foreign_hash_contract_path
-            ),
+            **SUBMIT_CONTRACT,
+            kwargs=submission_kwargs_for_file(test_orm_foreign_hash_contract_path),
             auto_commit=True,
         )
 
         e.execute(
-            "stu",
-            "con_orm_hash_contract",
-            "set_h",
+            sender="stu",
+            contract_name="con_orm_hash_contract",
+            function_name="set_h",
             kwargs={"k": "key1", "v": 1234},
             auto_commit=True,
         )
         e.execute(
-            "stu",
-            "con_orm_hash_contract",
-            "set_h",
+            sender="stu",
+            contract_name="con_orm_hash_contract",
+            function_name="set_h",
             kwargs={"k": "another_key", "v": 9999},
             auto_commit=True,
         )
 
         status_1 = e.execute(
-            "stu",
-            "con_orm_foreign_hash_contract",
-            "set_fh",
+            sender="stu",
+            contract_name="con_orm_foreign_hash_contract",
+            function_name="set_fh",
             kwargs={"k": "key1", "v": 5555},
             auto_commit=True,
         )
         status_2 = e.execute(
-            "stu",
-            "con_orm_foreign_hash_contract",
-            "set_fh",
+            sender="stu",
+            contract_name="con_orm_foreign_hash_contract",
+            function_name="set_fh",
             kwargs={"k": "another_key", "v": 1000},
             auto_commit=True,
         )
@@ -644,7 +568,7 @@ def get_queue():
         self.assertEqual(status_2["status_code"], 1)
 
     def test_orm_foreign_hash_gets_and_sets_in_contract(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         test_orm_hash_contract_path = os.path.join(
             os.path.dirname(__file__),
@@ -658,40 +582,38 @@ def get_queue():
         )
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs=submission_kwargs_for_file(test_orm_hash_contract_path),
         )
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
-            kwargs=submission_kwargs_for_file(
-                test_orm_foreign_hash_contract_path
-            ),
+            **SUBMIT_CONTRACT,
+            kwargs=submission_kwargs_for_file(test_orm_foreign_hash_contract_path),
         )
 
         e.execute(
-            "stu",
-            "con_orm_hash_contract",
-            "set_h",
+            sender="stu",
+            contract_name="con_orm_hash_contract",
+            function_name="set_h",
             kwargs={"k": "key1", "v": 1234},
         )
         e.execute(
-            "stu",
-            "con_orm_hash_contract",
-            "set_h",
+            sender="stu",
+            contract_name="con_orm_hash_contract",
+            function_name="set_h",
             kwargs={"k": "another_key", "v": 9999},
         )
 
         key1 = e.execute(
-            "stu",
-            "con_orm_foreign_hash_contract",
-            "get_fh",
+            sender="stu",
+            contract_name="con_orm_foreign_hash_contract",
+            function_name="get_fh",
             kwargs={"k": "key1"},
         )
         another_key = e.execute(
-            "stu",
-            "con_orm_foreign_hash_contract",
-            "get_fh",
+            sender="stu",
+            contract_name="con_orm_foreign_hash_contract",
+            function_name="get_fh",
             kwargs={"k": "another_key"},
         )
 
@@ -699,7 +621,7 @@ def get_queue():
         self.assertEqual(another_key["result"], 9999)
 
     def test_orm_contract_not_accessible(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         test_orm_no_contract_access_path = os.path.join(
             os.path.dirname(__file__),
@@ -708,7 +630,7 @@ def get_queue():
         )
 
         output = e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs=submission_kwargs_for_file(test_orm_no_contract_access_path),
         )
         self.assertEqual(output["status_code"], 1)
@@ -718,7 +640,7 @@ def get_queue():
         )
 
     def test_construct_function_sets_properly(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         test_construct_function_works_path = os.path.join(
             os.path.dirname(__file__),
@@ -727,20 +649,21 @@ def get_queue():
         )
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
-            kwargs=submission_kwargs_for_file(
-                test_construct_function_works_path
-            ),
+            **SUBMIT_CONTRACT,
+            kwargs=submission_kwargs_for_file(test_construct_function_works_path),
         )
 
         output = e.execute(
-            "stu", "con_construct_function_works", "get", kwargs={}
+            sender="stu",
+            contract_name="con_construct_function_works",
+            function_name="get",
+            kwargs={},
         )
 
         self.assertEqual(output["result"], 42)
 
     def test_import_exported_function_works(self):
-        e = Executor(driver=self.d, metering=False)
+        e = NativeExecutor(driver=self.d, metering=False)
 
         import_this_path = os.path.join(
             os.path.dirname(__file__), "test_contracts", "import_this.s.py"
@@ -750,60 +673,62 @@ def get_queue():
         )
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs=submission_kwargs_for_file(import_this_path),
         )
 
         e.execute(
-            **TEST_SUBMISSION_KWARGS,
+            **SUBMIT_CONTRACT,
             kwargs=submission_kwargs_for_file(importing_that_path),
         )
 
-        output = e.execute("stu", "con_importing_that", "test", kwargs={})
+        output = e.execute(
+            sender="stu", contract_name="con_importing_that", function_name="test", kwargs={}
+        )
         self.assertEqual(output["result"], 12345 - 1000)
 
-    def test_arbitrary_environment_passing_works_via_executor(self):
-        e = Executor(driver=self.d, metering=False)
+    def test_explicit_transaction_context_is_available_to_the_native_vm(self):
+        from xian_runtime_types.time import Datetime
 
-        i_use_env_path = os.path.join(
-            os.path.dirname(__file__), "test_contracts", "i_use_env.s.py"
+        source = "@export\ndef inspect():\n    return [now, ctx.caller]\n"
+        self.client.submit(source, name="con_context")
+        now = Datetime(2026, 11, 11)
+        output = self.client.executor.execute(
+            sender="alice",
+            contract_name="con_context",
+            function_name="inspect",
+            kwargs={},
+            environment={"now": now},
         )
+        self.assertEqual(output["status_code"], 0, output["result"])
+        self.assertEqual(output["result"], [now, "alice"])
 
-        e.execute(
-            **TEST_SUBMISSION_KWARGS,
-            kwargs=submission_kwargs_for_file(i_use_env_path),
+    def test_arbitrary_environment_does_not_create_native_contract_globals(self):
+        source = "@export\ndef inspect():\n    return host_secret\n"
+        self.client.submit(source, name="con_context")
+        output = self.client.executor.execute(
+            sender="alice",
+            contract_name="con_context",
+            function_name="inspect",
+            kwargs={},
+            environment={"host_secret": 555},
         )
-
-        this_is_a_passed_in_variable = 555
-
-        env = {"this_is_a_passed_in_variable": this_is_a_passed_in_variable}
-
-        output = e.execute(
-            "stu", "con_i_use_env", "env_var", kwargs={}, environment=env
-        )
-
-        self.assertEqual(output["result"], this_is_a_passed_in_variable)
-
-    def test_arbitrary_environment_passing_fails_if_not_passed_correctly(self):
-        e = Executor(driver=self.d, metering=False)
-
-        i_use_env_path = os.path.join(
-            os.path.dirname(__file__), "test_contracts", "i_use_env.s.py"
-        )
-
-        e.execute(
-            **TEST_SUBMISSION_KWARGS,
-            kwargs=submission_kwargs_for_file(i_use_env_path),
-        )
-
-        this_is_a_passed_in_variable = 555
-
-        env = {
-            "this_is_another_passed_in_variable": this_is_a_passed_in_variable
-        }
-
-        output = e.execute(
-            "stu", "i_use_env", "env_var", kwargs={}, environment=env
-        )
-
         self.assertEqual(output["status_code"], 1)
+        self.assertIn("unknown name", str(output["result"]))
+        self.assertEqual(output["writes"], {})
+
+
+@pytest.mark.parametrize("initial, index", [([1, 2], 0), ({"old": 7}, "new")])
+def test_native_variable_subscript_assignment_fails_without_persisting_partial_writes(
+    tmp_path, initial, index
+):
+    source = "value = Variable()\n@export\ndef probe():\n"
+    source += f"    value.set({initial!r})\n    value[{index!r}] = 99\n    return value.get()\n"
+    with ContractingClient(storage_home=tmp_path) as client:
+        client.submit(source, name="con_storage_subscript")
+        output = client.get_contract_proxy("con_storage_subscript").probe(return_full_output=True)
+        assert output["status_code"] == 1
+        assert "subscript assignment is not supported" in str(output["result"])
+        assert output["writes"] == {}
+        assert output["events"] == []
+        assert client.raw_driver.get_var("con_storage_subscript", "value") is None

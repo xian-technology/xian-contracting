@@ -43,7 +43,8 @@ def test_decimal_exact_constructors_and_identity(tmp_path):
     ],
 )
 def test_decimal_method_invalid_signatures(tmp_path, call):
-    from tests.integration.test_vm_language_conformance import _run_native_case, _run_python_case
+    from tests.integration.pre_retirement_oracle import recorded_python_observation
+    from tests.integration.test_vm_language_conformance import _run_native_case
 
     case = {
         "id": "decimal_method_invalid",
@@ -51,13 +52,14 @@ def test_decimal_method_invalid_signatures(tmp_path, call):
         "function_name": "probe",
         "kwargs": {},
     }
-    assert _run_python_case(case, tmp_path / "python")["status_code"] == 1
+    assert recorded_python_observation(case)["status_code"] == 1
     assert _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1")["status_code"] == 1
 
 
 def test_modular_decimal_power_charges_all_operands_before_work(tmp_path):
-    from contracting.storage.driver import Driver
     from xian_vm_core import execute_contract
+
+    from contracting.storage.driver import Driver
 
     with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
         driver.set_contract_from_source(
@@ -83,7 +85,8 @@ def test_modular_decimal_power_charges_all_operands_before_work(tmp_path):
 
 @pytest.mark.parametrize("receiver", ["[0, 1, 2]", "round(decimal('2.50'),2).as_tuple()"])
 def test_sequence_index_rejects_excess_arguments(tmp_path, receiver):
-    from tests.integration.test_vm_language_conformance import _run_native_case, _run_python_case
+    from tests.integration.pre_retirement_oracle import recorded_python_observation
+    from tests.integration.test_vm_language_conformance import _run_native_case
 
     case = {
         "id": "sequence_index_arity",
@@ -91,7 +94,7 @@ def test_sequence_index_rejects_excess_arguments(tmp_path, receiver):
         "function_name": "probe",
         "kwargs": {},
     }
-    assert _run_python_case(case, tmp_path / "python")["status_code"] == 1
+    assert recorded_python_observation(case)["status_code"] == 1
     assert _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1")["status_code"] == 1
 
 

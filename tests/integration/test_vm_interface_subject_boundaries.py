@@ -4,7 +4,8 @@ import pytest
 
 from tests.compatibility.runner import encode, run_case
 
-ENGINES = [False, pytest.param(True, marks=pytest.mark.optional_native)]
+pytestmark = pytest.mark.optional_native
+
 TARGET = """balance = Variable(default_value=0)
 @export
 def transfer(amount: int, to: str):
@@ -41,7 +42,7 @@ def capture_metadata(value=payload):
 """
 
 
-def execute(tmp_path, native, *, callback, after="return True", descriptor=None):
+def execute(tmp_path, *, callback, after="return True", descriptor=None):
     descriptor = descriptor or "importlib.Func('transfer', ('amount', 'to'))"
     source = (
         PREFIX
@@ -58,13 +59,9 @@ def execute(tmp_path, native, *, callback, after="return True", descriptor=None)
         {
             "id": "subject_boundary",
             "source": source,
-            "dependencies": {
-                "con_subject_target": TARGET,
-                "con_subject_receiver": RECEIVER,
-            },
+            "dependencies": {"con_subject_target": TARGET, "con_subject_receiver": RECEIVER},
         },
         tmp_path,
-        native=native,
     )
 
 
@@ -75,7 +72,6 @@ def assert_rolled_back(actual):
     assert actual["events"] == encode([]), actual
 
 
-@pytest.mark.parametrize("native", ENGINES)
 @pytest.mark.parametrize(
     ("descriptor", "expected"),
     [
@@ -86,12 +82,9 @@ def assert_rolled_back(actual):
         ("importlib.Var('balance', Variable)", ["storage", "__balance", None, "Variable"]),
     ],
 )
-def test_subject_fields_are_plain_metadata_and_do_not_call_target(
-    tmp_path, native, descriptor, expected
-):
+def test_subject_fields_are_plain_metadata_and_do_not_call_target(tmp_path, descriptor, expected):
     actual = execute(
         tmp_path,
-        native,
         descriptor=descriptor,
         callback="retained.append([subject.kind, subject.name, subject.args, subject.storage_type])\nreturn True",
         after="return [matched, retained[0], con_subject_target.read(), con_subject_receiver.read()]",
@@ -101,7 +94,6 @@ def test_subject_fields_are_plain_metadata_and_do_not_call_target(
     assert actual["writes"] == encode({"baseline_subject_boundary.state": 1}), actual
 
 
-@pytest.mark.parametrize("native", ENGINES)
 @pytest.mark.parametrize(
     "mutation",
     [
@@ -113,12 +105,11 @@ def test_subject_fields_are_plain_metadata_and_do_not_call_target(
         "subject.name += 'suffix'",
     ],
 )
-def test_subject_attributes_are_readonly(tmp_path, native, mutation):
-    actual = execute(tmp_path, native, callback=mutation + "\nreturn True")
+def test_subject_attributes_are_readonly(tmp_path, mutation):
+    actual = execute(tmp_path, callback=mutation + "\nreturn True")
     assert_rolled_back(actual)
 
 
-@pytest.mark.parametrize("native", ENGINES)
 @pytest.mark.parametrize(
     "call",
     [
@@ -129,12 +120,11 @@ def test_subject_attributes_are_readonly(tmp_path, native, mutation):
         "subject.contract",
     ],
 )
-def test_subject_has_no_callable_or_storage_authority(tmp_path, native, call):
-    actual = execute(tmp_path, native, callback=call + "\nreturn True")
+def test_subject_has_no_callable_or_storage_authority(tmp_path, call):
+    actual = execute(tmp_path, callback=call + "\nreturn True")
     assert_rolled_back(actual)
 
 
-@pytest.mark.parametrize("native", ENGINES)
 @pytest.mark.parametrize(
     "capture",
     [
@@ -155,13 +145,12 @@ def test_subject_has_no_callable_or_storage_authority(tmp_path, native, call):
         "return con_subject_receiver.consume(retained[0])",
     ],
 )
-def test_nested_subjects_cannot_escape_execution(tmp_path, native, capture, escape):
-    actual = execute(tmp_path, native, callback=capture + "\nreturn True", after=escape)
+def test_nested_subjects_cannot_escape_execution(tmp_path, capture, escape):
+    actual = execute(tmp_path, callback=capture + "\nreturn True", after=escape)
     assert_rolled_back(actual)
 
 
-@pytest.mark.parametrize("native", ENGINES)
-def test_foreign_callback_cannot_receive_a_subject(tmp_path, native):
+def test_foreign_callback_cannot_receive_a_subject(tmp_path):
     # The callback itself crosses the boundary, rather than forwarding from inspect.
     source = (
         PREFIX
@@ -182,16 +171,13 @@ def probe():
             "dependencies": {"con_subject_target": TARGET, "con_subject_receiver": RECEIVER},
         },
         tmp_path,
-        native=native,
     )
     assert_rolled_back(actual)
 
 
-@pytest.mark.parametrize("native", ENGINES)
-def test_same_execution_default_capture_is_allowed(tmp_path, native):
+def test_same_execution_default_capture_is_allowed(tmp_path):
     actual = execute(
         tmp_path,
-        native,
         callback="payload.append(subject)\nretained.append(capture_metadata)\nreturn True",
         after="return [matched, retained[0](), con_subject_target.read()]",
     )
@@ -199,9 +185,8 @@ def test_same_execution_default_capture_is_allowed(tmp_path, native):
     assert actual["result"] == encode([True, ["function", "transfer", ("amount", "to")], 0])
 
 
-@pytest.mark.parametrize("native", ENGINES)
 @pytest.mark.parametrize("fail", [False, True])
-def test_callee_cannot_inject_subject_into_caller_mutable_input(tmp_path, native, fail):
+def test_callee_cannot_inject_subject_into_caller_mutable_input(tmp_path, fail):
     injector = """import con_subject_target
 state = Variable(default_value=0)
 inputs = []
@@ -242,11 +227,10 @@ def probe():
             },
         },
         tmp_path,
-        native=native,
     )
     assert_rolled_back(actual)
 
 
 def test_subject_type_factory_is_not_an_authored_surface(tmp_path):
-    actual = execute(tmp_path, False, callback="factory = type(subject)\nreturn True")
+    actual = execute(tmp_path, callback="factory = type(subject)\nreturn True")
     assert actual == {"admission": "rejected", "diagnostic": "LintingError"}

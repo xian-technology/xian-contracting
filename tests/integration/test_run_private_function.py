@@ -1,65 +1,35 @@
-import os
-from unittest import TestCase
+"""Native callers may invoke helpers only through an exported entrypoint."""
+
+from pathlib import Path
+
+import pytest
 
 from contracting.local import ContractingClient
 
 
-class TestRunPrivateFunction(TestCase):
-    def setUp(self):
-        self.client = ContractingClient(vm_profile="xian_vm_v1")
+@pytest.fixture
+def contract(tmp_path):
+    source = (Path(__file__).parent / "test_contracts/private_methods.s.py").read_text()
+    with ContractingClient(storage_home=tmp_path) as client:
+        client.submit(source, name="con_private_methods")
+        yield client.get_contract_proxy("con_private_methods")
 
-        private_methods_path = os.path.join(os.path.dirname(__file__), "test_contracts", "private_methods.s.py")
 
-        with open(private_methods_path) as f:
-            code = f.read()
+def test_exported_entrypoint_can_call_private_helper(contract):
+    assert contract.call_private() == "abc"
 
-        self.client.submit(code, name='private_methods')
-        self.private_methods = self.client.get_contract_proxy('private_methods')
 
-    def tearDown(self):
-        self.client.flush()
+@pytest.mark.parametrize("name", ["private", "__private", "missing_private"])
+def test_private_and_unknown_functions_are_not_entrypoints(contract, name):
+    output = contract.executor.execute(
+        sender="alice", contract_name="con_private_methods", function_name=name, kwargs={}
+    )
+    assert output["status_code"] == 1
+    assert output["writes"] == {}
 
-    def test_can_call_public_func(self):
-        self.assertEqual(self.private_methods.call_private(), 'abc')
 
-    def test_cannot_call_private_func(self):
-        with self.assertRaises(Exception):
-            self.private_methods.private()
-
-    def test_cannot_execute_private_func(self):
-        with self.assertRaises(AssertionError):
-            self.private_methods.executor.execute(
-                sender='sys',
-                contract_name='private_methods',
-                function_name='__private',
-                kwargs={}
-            )
-
-    def test_can_call_private_func_if_run_private_function_called(self):
-        self.assertEqual(self.private_methods.run_private_function('__private'), 'abc')
-
-    def test_can_call_private_func_if_run_private_function_called_and_no_prefix(self):
-        self.assertEqual(self.private_methods.run_private_function('private'), 'abc')
-
-    def test_can_call_private_but_then_not(self):
-        self.assertEqual(self.private_methods.run_private_function('private'), 'abc')
-
-        with self.assertRaises(AssertionError):
-            self.private_methods.executor.execute(
-                sender='sys',
-                contract_name='private_methods',
-                function_name='__private',
-                kwargs={}
-            )
-
-    def test_failed_run_private_function_restores_private_guard(self):
-        with self.assertRaises(Exception):
-            self.private_methods.run_private_function('missing_private')
-
-        with self.assertRaises(AssertionError):
-            self.private_methods.executor.execute(
-                sender='sys',
-                contract_name='private_methods',
-                function_name='__private',
-                kwargs={}
-            )
+def test_local_proxy_exposes_no_python_private_bypass(contract):
+    assert not hasattr(contract, "run_private_function")
+    assert not hasattr(contract, "private")
+    assert not hasattr(contract, "__private")
+    assert contract.call_private() == "abc"

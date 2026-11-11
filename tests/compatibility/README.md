@@ -9,19 +9,22 @@ Regenerate from the repository root:
 
 ```sh
 python scripts/capture-compatibility-baseline.py
+# Inspect a fresh candidate without replacing the checked-in snapshot:
+python scripts/capture-compatibility-baseline.py --output /tmp/language-baseline-candidate.json
 ```
 
 The script exports the pinned Git object into a temporary directory, installs
 its locked dependencies using `uv`, checks the imported package location and
-runs the shared observer with that environment's Python. It needs the Git
+runs the byte-pinned observer from `historical/` with that environment's Python. It needs the Git
 object and cached dependencies or network access. It never changes the working
 checkout or uses today's compiler to admit the historical source. Review
 snapshot changes; do not regenerate them from the current runtime. The snapshot
 records the revision, Python version, lock digest, corpus digest and observer
-digest. Temporary environments are removed when capture completes.
+digest. `historical/` retains the exact provenance-bound observers; the maintained
+`runner.py` executes native V1 only. Historical capture never uses the installed
+current package or the native observer to generate its oracle. Temporary environments are removed when capture completes.
 
-Run today's Python checks with the normal test suite. Run the native checks
-with the native extension installed:
+Run current compatibility checks with the native extension installed:
 
 ```sh
 uv run pytest -m optional_native tests/integration/test_vm_legacy_compatibility.py
@@ -51,10 +54,9 @@ input handling, including ASCII whitespace between complete byte pairs and UTF-8
 fallback on invalid hex. The corpus covers both aliases and keyword arguments.
 The explicit text/hex APIs remain preferable for newly authored messages.
 
-The current Python harness retains its oversized-range guard. Its bounded
-exception is asserted for the large-range probe; native ranges support lazy
-iteration and enforce allocation limits when materialized. This deliberate
-resource-policy difference is separate from language result comparisons.
+Native ranges support lazy iteration and enforce allocation limits when
+materialized. Resource-policy boundaries are separate from language result
+comparisons; current checks do not execute a Python fallback.
 
 This is an extensible baseline, not a full replacement certificate. It does not
 yet cover the complete historical grammar, constructors, all standard-library
@@ -67,7 +69,7 @@ iterator-consuming constructors.
 
 Storage isolation is an intentional historical difference: writes snapshot their
 inputs and reads return detached copies. The historical fixture records its old
-shared-storage result; current-engine assertions require isolated storage instead.
+shared-storage result; native assertions require isolated storage instead.
 Native-only boundary tests additionally require cyclic or oversized results and
 writes to fail with rollback, while in-memory cycles remain usable.
 
@@ -114,8 +116,7 @@ zeros retain the first inserted representation. All NaN signs and payloads share
 one final sort key, so distinct NaNs preserve their insertion order while a
 repeated object deduplicates. Tuple and frozen-set keys apply this recursively.
 This is an explicit deterministic policy, not historical Python set iteration
-order. `tests/integration/test_vm_float_sets.py` compares authored programs in
-both current engines; Rust tests include binary64 boundaries and seeded bit
+order. `tests/integration/test_vm_float_sets.py` checks authored native programs; Rust tests include binary64 boundaries and seeded bit
 patterns. Ordinary numeric equality remains independent of canonical sort keys.
 
 Resource limits are intentional: input text is at most 128 KiB, coefficient
@@ -159,7 +160,8 @@ workflow exemption. Historical gas prices and production submission metadata
 are outside this comparison.
 
 Use `scripts/capture-application-baseline.py` to regenerate only the application
-snapshot. It verifies the historical installed package bytes as well as source,
+snapshot. It stages archived observer bytes and the unchanged application corpus
+in temporary storage before invoking the pinned historical installation. It verifies the historical installed package bytes as well as source,
 lock and interpreter provenance. See the application guide for capture commands,
 the trusted bootstrap adapter, exact policy values and coverage limits.
 
@@ -171,3 +173,7 @@ contract-authored dictionaries retain their insertion order. The historical
 `quantum_storage` fixture records Variable-before-Hash writes. Its native
 comparison checks the exact historical shape and exchanges only those two
 top-level entries. The historical capture, values, result and events stay intact.
+
+See [the immutable observer archive](historical/README.md) for byte provenance and
+the retired Python parity-generator retrieval procedure. Current public local
+clients are V2-only; these native V1 checks use the low-level driver and VM APIs.

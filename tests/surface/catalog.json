@@ -2218,7 +2218,6 @@
         "tests/unit/test_zk_stdlib.py",
         "tests/unit/test_vm_compatibility.py",
         "tests/unit/test_conformance_manifest.py",
-        "tests/unit/test_access_context.py",
         "tests/security/test_runtime_security.py",
         "tests/security/test_erc20_token_hacks.py",
         "tests/integration/test_vm_storage_bulk.py",
@@ -2238,12 +2237,10 @@
         "tests/unit/test_new_driver.py",
         "tests/unit/test_stdlib_crypto.py",
         "tests/unit/test_driver_tombstones.py",
-        "tests/unit/test_module.py",
         "tests/unit/test_contract_runtime_guards.py",
         "tests/unit/test_zk_stdlib.py",
         "tests/unit/test_runtime.py",
         "tests/unit/test_compiler_fixtures.py",
-        "tests/unit/test_tracer.py",
         "tests/unit/test_native_vm_random_syscalls.py",
         "tests/unit/test_encode.py",
         "tests/unit/test_client.py",
@@ -2253,8 +2250,7 @@
         "tests/integration/test_chi_deduction.py",
         "tests/integration/test_ifexp_support.py",
         "tests/integration/test_vm_decimal_metering.py",
-        "tests/integration/test_vm_storage_bulk.py",
-        "tests/integration/test_memory_clean_up_after_execution.py"
+        "tests/integration/test_vm_storage_bulk.py"
       ]
     },
     {
@@ -2268,19 +2264,16 @@
         "tests/unit/test_new_driver.py",
         "tests/unit/test_context_data_struct.py",
         "tests/unit/test_driver_tombstones.py",
-        "tests/unit/test_module.py",
         "tests/unit/test_contract_runtime_guards.py",
         "tests/unit/test_authored_conformance.py",
         "tests/unit/test_zk_stdlib.py",
         "tests/unit/test_runtime.py",
         "tests/unit/test_compiler_fixtures.py",
-        "tests/unit/test_tracer.py",
         "tests/unit/test_artifacts.py",
         "tests/unit/test_native_vm_random_syscalls.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_compiler_binding_parity.py",
         "tests/unit/test_encode.py",
-        "tests/unit/test_access_context.py",
         "tests/unit/test_ordered_storage.py",
         "tests/unit/test_client.py"
       ]
@@ -2297,7 +2290,6 @@
         "tests/unit/test_new_driver.py",
         "tests/unit/test_stdlib_crypto.py",
         "tests/unit/test_ir_lowering.py",
-        "tests/unit/test_module.py",
         "tests/unit/test_contract_runtime_guards.py",
         "tests/unit/test_authored_conformance.py",
         "tests/unit/test_zk_stdlib.py",
@@ -2306,7 +2298,6 @@
         "tests/unit/test_linter.py",
         "tests/unit/test_artifacts.py",
         "tests/unit/test_native_vm_random_syscalls.py",
-        "tests/unit/test_imports_stdlib.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_compiler_binding_parity.py",
         "tests/unit/test_conformance_manifest.py",
@@ -2331,7 +2322,6 @@
       "existing_test_files": [
         "tests/unit/test_orm.py",
         "tests/unit/test_ir_lowering.py",
-        "tests/unit/test_tracer.py",
         "tests/unit/test_client_keys_prefix.py",
         "tests/unit/test_contracting_collections.py",
         "tests/integration/test_chi_deduction.py",
@@ -2377,9 +2367,7 @@
         "tests/unit/test_orm.py",
         "tests/unit/test_ir_lowering.py",
         "tests/unit/test_linter.py",
-        "tests/unit/test_tracer.py",
         "tests/unit/test_lmdb_store.py",
-        "tests/unit/test_access_context.py",
         "tests/integration/test_vm_builtin_edges.py"
       ]
     },
@@ -2434,7 +2422,6 @@
         "tests/unit/test_native_vm_random_syscalls.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_compiler_binding_parity.py",
-        "tests/unit/test_access_context.py",
         "tests/unit/test_stdlib_random.py",
         "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_export_typecheck.py",
@@ -2474,7 +2461,6 @@
         "tests/integration/test_chi_deduction.py",
         "tests/integration/test_ifexp_support.py",
         "tests/integration/test_pixel_game.py",
-        "tests/integration/test_senecaCompiler_integration.py",
         "tests/integration/test_export_typecheck.py",
         "tests/integration/test_vm_builtin_edges.py",
         "tests/integration/test_vm_decimal_methods.py",
@@ -2492,7 +2478,6 @@
       "existing_test_files": [
         "tests/unit/test_client.py",
         "tests/integration/test_vm_raw_decimal.py",
-        "tests/unit/test_format_guards.py",
         "tests/integration/test_vm_formatting_policy.py",
         "tests/integration/test_vm_value_formatting.py"
       ]
@@ -2542,7 +2527,6 @@
         "tests/unit/test_parallel_planner.py",
         "tests/unit/test_ir_lowering.py",
         "tests/unit/test_state_management.py",
-        "tests/unit/test_module.py",
         "tests/unit/test_decimal.py",
         "tests/unit/test_contract_runtime_guards.py",
         "tests/unit/test_authored_conformance.py",
@@ -2567,15 +2551,11 @@
         "tests/unit/test_vm_compatibility.py",
         "tests/unit/test_compiler.py",
         "tests/unit/test_linter.py",
-        "tests/unit/test_tracer.py",
-        "tests/unit/test_imports_stdlib.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_compiler_binding_parity.py",
-        "tests/unit/test_access_context.py",
         "tests/unit/test_client.py",
         "tests/integration/test_pixel_game.py",
         "tests/integration/test_complex_object_setting.py",
-        "tests/integration/test_senecaCompiler_integration.py",
         "tests/integration/test_export_typecheck.py",
         "tests/integration/test_vm_stateful_fuzz.py",
         "tests/integration/test_vm_builtin_edges.py"
@@ -2588,8 +2568,6 @@
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
         "tests/unit/test_ir_lowering.py",
-        "tests/unit/test_module.py",
-        "tests/unit/test_tracer.py",
         "tests/integration/test_vm_stateful_fuzz.py",
         "tests/integration/test_vm_language_conformance.py",
         "tests/integration/test_vm_legacy_compatibility.py"
@@ -2612,7 +2590,6 @@
         "tests/unit/test_zk_stdlib.py",
         "tests/unit/test_vm_compatibility.py",
         "tests/unit/test_linter.py",
-        "tests/unit/test_tracer.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_compiler_binding_parity.py",
         "tests/unit/test_conformance_manifest.py",
@@ -2622,7 +2599,6 @@
         "tests/integration/test_vm_storage_bulk.py",
         "tests/integration/test_pixel_game.py",
         "tests/integration/test_vm_heap_boundaries.py",
-        "tests/integration/test_senecaCompiler_integration.py",
         "tests/integration/test_vm_storage_scans.py",
         "tests/integration/test_export_typecheck.py",
         "tests/integration/test_vm_language_conformance.py",
@@ -2718,7 +2694,6 @@
         "tests/unit/test_contract_runtime_guards.py",
         "tests/unit/test_vm_compatibility.py",
         "tests/unit/test_runtime.py",
-        "tests/unit/test_tracer.py",
         "tests/unit/test_stdlib_random.py",
         "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_storage_bulk.py",
@@ -2812,12 +2787,10 @@
         "tests/unit/test_linter.py",
         "tests/unit/test_artifacts.py",
         "tests/unit/test_native_vm_random_syscalls.py",
-        "tests/unit/test_imports_stdlib.py",
         "tests/unit/test_datetime.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_compiler_binding_parity.py",
         "tests/unit/test_encode.py",
-        "tests/unit/test_access_context.py",
         "tests/unit/test_contracting_collections.py",
         "tests/security/test_runtime_security.py",
         "tests/security/test_erc20_token_hacks.py"
@@ -2843,7 +2816,6 @@
       "existing_test_files": [
         "tests/unit/test_parser.py",
         "tests/unit/test_parallel_planner.py",
-        "tests/unit/test_module.py",
         "tests/unit/test_zk_stdlib.py",
         "tests/unit/test_linter.py",
         "tests/integration/test_vm_stateful_fuzz.py",
@@ -2897,9 +2869,9 @@
         "tests/unit/test_ir_lowering.py",
         "tests/integration/test_vm_storage_bulk.py",
         "tests/integration/test_vm_dynamic_foreign_storage.py",
-        "tests/integration/test_senecaCompiler_integration.py",
         "tests/integration/test_vm_storage_scans.py",
-        "tests/integration/test_misc_contracts.py"
+        "tests/integration/test_misc_contracts.py",
+        "tests/integration/test_native_compiler_integration.py"
       ]
     },
     {
@@ -2912,7 +2884,7 @@
         "tests/unit/test_ir_lowering.py",
         "tests/integration/test_vm_storage_bulk.py",
         "tests/integration/test_vm_dynamic_foreign_storage.py",
-        "tests/integration/test_senecaCompiler_integration.py"
+        "tests/integration/test_native_compiler_integration.py"
       ]
     },
     {
@@ -2926,7 +2898,6 @@
         "tests/unit/test_ir_lowering.py",
         "tests/unit/test_vm_compatibility.py",
         "tests/unit/test_linter.py",
-        "tests/unit/test_imports_stdlib.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_conformance_manifest.py",
         "tests/security/test_runtime_security.py",
@@ -2935,11 +2906,11 @@
         "tests/integration/test_pixel_game.py",
         "tests/integration/test_complex_object_setting.py",
         "tests/integration/test_vm_dynamic_foreign_storage.py",
-        "tests/integration/test_senecaCompiler_integration.py",
         "tests/integration/test_vm_storage_scans.py",
         "tests/integration/test_vm_stateful_fuzz.py",
         "tests/integration/test_parallel_batch_executor.py",
-        "tests/integration/test_misc_contracts.py"
+        "tests/integration/test_misc_contracts.py",
+        "tests/integration/test_native_compiler_integration.py"
       ]
     },
     {
@@ -2951,8 +2922,8 @@
         "tests/unit/test_orm.py",
         "tests/unit/test_ir_lowering.py",
         "tests/security/test_runtime_security.py",
-        "tests/integration/test_senecaCompiler_integration.py",
-        "tests/integration/test_vm_stateful_fuzz.py"
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_native_compiler_integration.py"
       ]
     },
     {
@@ -2967,7 +2938,6 @@
         "tests/unit/test_authored_conformance.py",
         "tests/unit/test_compiler_fixtures.py",
         "tests/unit/test_linter.py",
-        "tests/unit/test_imports_stdlib.py",
         "tests/unit/test_conformance_manifest.py",
         "tests/unit/test_client.py",
         "tests/security/test_runtime_security.py",
@@ -2980,7 +2950,7 @@
         "tests/integration/test_vm_unpacking.py",
         "tests/integration/test_vm_collection_methods.py",
         "tests/integration/test_vm_transaction_budget.py",
-        "tests/integration/test_senecaCompiler_integration.py"
+        "tests/integration/test_native_compiler_integration.py"
       ]
     },
     {
@@ -3027,7 +2997,6 @@
       "existing_test_files": [
         "tests/unit/test_parser.py",
         "tests/unit/test_ir_lowering.py",
-        "tests/unit/test_module.py",
         "tests/unit/test_authored_conformance.py",
         "tests/unit/test_linter.py",
         "tests/integration/test_rich_ctx_calling.py",
@@ -3086,7 +3055,6 @@
       "implementation": "declared",
       "reason": "Guarded builtin override exported in the public environment; the same format calls cover both bindings.",
       "existing_test_files": [
-        "tests/unit/test_format_guards.py",
         "tests/integration/test_vm_formatting_policy.py",
         "tests/integration/test_vm_value_formatting.py"
       ],
@@ -3147,8 +3115,8 @@
       "existing_test_files": [
         "tests/unit/test_orm.py",
         "tests/unit/test_ir_lowering.py",
-        "tests/integration/test_senecaCompiler_integration.py",
-        "tests/integration/test_vm_stateful_fuzz.py"
+        "tests/integration/test_vm_stateful_fuzz.py",
+        "tests/integration/test_native_compiler_integration.py"
       ]
     },
     {
@@ -3165,18 +3133,15 @@
         "tests/unit/test_vm_compatibility.py",
         "tests/unit/test_compiler.py",
         "tests/unit/test_linter.py",
-        "tests/unit/test_tracer.py",
-        "tests/unit/test_imports_stdlib.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_compiler_binding_parity.py",
-        "tests/unit/test_access_context.py",
         "tests/unit/test_client.py",
         "tests/integration/test_pixel_game.py",
         "tests/integration/test_complex_object_setting.py",
-        "tests/integration/test_senecaCompiler_integration.py",
         "tests/integration/test_export_typecheck.py",
         "tests/integration/test_vm_stateful_fuzz.py",
-        "tests/integration/test_vm_builtin_edges.py"
+        "tests/integration/test_vm_builtin_edges.py",
+        "tests/integration/test_native_compiler_integration.py"
       ]
     },
     {
@@ -3221,7 +3186,6 @@
         "tests/unit/test_contract_runtime_guards.py",
         "tests/unit/test_vm_compatibility.py",
         "tests/unit/test_runtime.py",
-        "tests/unit/test_tracer.py",
         "tests/unit/test_stdlib_random.py",
         "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_storage_bulk.py",

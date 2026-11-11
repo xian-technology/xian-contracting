@@ -146,7 +146,8 @@ These are not needed for the initial reuse problem and make auditability worse.
 
 ## Suggested Implementation Shape
 
-Add a preprocessing phase before `ContractingCompiler.parse()`:
+Integrate preprocessing into the canonical Rust source compiler before ordinary
+linting and IR generation; it must not depend on a CPython AST/bytecode API:
 
 1. `resolve_extends(source) -> FlattenResult`
 2. `FlattenResult.source` becomes the input to the existing linter/compiler

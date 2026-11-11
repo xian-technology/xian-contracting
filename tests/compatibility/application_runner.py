@@ -1,4 +1,4 @@
-"""Installed-runtime application observer; also runs unchanged in pinned Python."""
+"""Run preserved application workflows through the archival native V1 profile."""
 
 import argparse
 import hashlib
@@ -9,14 +9,15 @@ from pathlib import Path
 try:
     from .application_expectations import expected_current
     from .runner import comparable, encode
-except ImportError:  # standalone historical/installed-runtime invocation
+except ImportError:  # standalone installed-runtime invocation
     from application_expectations import expected_current
     from runner import comparable, encode
 
 FIXTURES = Path(__file__).resolve().parent / "applications"
+NATIVE_ENGINES = ("native", "native-metered")
 DEPLOYER = """@export
 def deploy(name: str, code: str):
-    __Contract().submit(name=name, code=code)
+    Contract().submit(name=name, code=code)
 """
 # Runtime/compiler records are not application state. Keep this explicit: an
 # arbitrary application variable beginning '__' must not disappear from evidence.
@@ -89,33 +90,26 @@ def arguments(value):
     return value
 
 
+def require_native_engine(engine):
+    if engine not in NATIVE_ENGINES:
+        raise ValueError("Application observation requires native or native-metered execution.")
+
+
 def invoke(driver, step, engine):
-    context = context_for(step)
-    kwargs = arguments(step.get("kwargs", {}))
-    if engine in ("native", "native-metered"):
-        from xian_vm_core import execute_contract
+    require_native_engine(engine)
+    from xian_vm_core import execute_contract
 
-        result = execute_contract(
-            driver=driver,
-            vm_profile="xian_vm_v1",
-            contract_name=step["contract"],
-            function_name=step["function"],
-            kwargs=kwargs,
-            context=context,
-            meter=engine == "native-metered",
-            chi_budget_raw=100_000_000 if engine == "native-metered" else 0,
-        )
-        return {key: getattr(result, key) for key in ("status_code", "result", "writes", "events")}
-    from contracting.execution.executor import Executor
-
-    return Executor(driver=driver, metering=False).execute(
-        sender=context["signer"],
+    result = execute_contract(
+        driver=driver,
+        vm_profile="xian_vm_v1",
         contract_name=step["contract"],
         function_name=step["function"],
-        kwargs=kwargs,
-        environment=context,
-        metering=False,
+        kwargs=arguments(step.get("kwargs", {})),
+        context=context_for(step),
+        meter=engine == "native-metered",
+        chi_budget_raw=100_000_000 if engine == "native-metered" else 0,
     )
+    return {key: getattr(result, key) for key in ("status_code", "result", "writes", "events")}
 
 
 def validate_outcome(step, output):
@@ -162,33 +156,26 @@ def observe(driver, step, engine, names):
 
 
 def install_bootstrap(driver, engine):
-    from contracting.stdlib.env import gather
+    require_native_engine(engine)
+    from contracting.artifacts import build_contract_artifacts
 
-    deployer = DEPLOYER.replace("__Contract", "Contract") if "Contract" in gather() else DEPLOYER
-    if engine in ("native", "native-metered"):
-        from contracting.artifacts import build_contract_artifacts
-
-        artifact = build_contract_artifacts(
-            module_name="submission", source=deployer, lint=False, vm_profile="xian_vm_v1"
-        )
-        driver.set_contract(
-            "submission", source=artifact["source"], vm_ir_json=artifact["vm_ir_json"]
-        )
-    else:
-        driver.set_contract_from_source("submission", deployer, owner=None, lint=False)
+    artifact = build_contract_artifacts(
+        module_name="submission", source=DEPLOYER, lint=False, vm_profile="xian_vm_v1"
+    )
+    driver.set_contract("submission", source=artifact["source"], vm_ir_json=artifact["vm_ir_json"])
 
 
 def run_sequence(sequence, sources, home, engine):
+    require_native_engine(engine)
     from contracting.storage.driver import Driver
 
-    # Only the pre-VM oracle installation has no profile argument.
-    profile = {} if engine == "historical-python" else {"vm_profile": "xian_vm_v1"}
+    profile = {"vm_profile": "xian_vm_v1"}
     driver = Driver(storage_home=home, **profile)
     try:
         install_bootstrap(driver, engine)
         driver.commit()
     finally:
-        driver._store.close()
+        driver.close()
     names = [deployment["name"] for deployment in sequence["deployments"]]
     steps = [
         dict(
@@ -210,17 +197,18 @@ def run_sequence(sequence, sources, home, engine):
             previous = observation["state"]
             observations.append(observation)
         finally:
-            driver._store.close()
+            driver.close()
     driver = Driver(storage_home=home, **profile)
     try:
         if encode(data_state(driver, names)) != previous:
             raise AssertionError("Final persisted state differs after reopening storage")
     finally:
-        driver._store.close()
+        driver.close()
     return observations
 
 
 def run_all(engine, selected=None):
+    require_native_engine(engine)
     _, sources, sequences = fixtures()
     if selected is not None and selected not in {item["id"] for item in sequences}:
         raise ValueError("Unknown application sequence: " + selected)
@@ -240,9 +228,7 @@ def comparison(observations):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--engine", choices=["historical-python", "python", "native", "native-metered"], default="native"
-    )
+    parser.add_argument("--engine", choices=NATIVE_ENGINES, default="native")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--sequence")
