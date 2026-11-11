@@ -1,5 +1,6 @@
 import ast
 import inspect
+import json
 import os
 import textwrap
 from datetime import datetime
@@ -360,29 +361,23 @@ class ContractingClient:
     # Returns abstract contract which has partial methods mapped to each exported function.
     def get_contract_proxy(self, name):
         if self.vm_profile == XIAN_VM_V2_PROFILE:
-            contract = self.raw_driver.get_contract_source(name)
-        else:
-            contract = self.raw_driver.get_local_contract_runtime(name)
-
-        if contract is None:
-            return None
-
-        tree = ast.parse(contract)
-
-        function_defs = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
-        if self.vm_profile == XIAN_VM_V2_PROFILE:
-            function_defs = [
-                n
-                for n in function_defs
-                if any(isinstance(d, ast.Name) and d.id == "export" for d in n.decorator_list)
+            ir = self.raw_driver.get_contract_ir(name)
+            if ir is None:
+                return None
+            funcs = [
+                (function["name"], [param["name"] for param in function["parameters"]])
+                for function in json.loads(ir)["functions"]
+                if function["visibility"] == "export"
             ]
-
-        funcs = []
-        for definition in function_defs:
-            func_name = definition.name
-            kwargs = [arg.arg for arg in definition.args.args]
-
-            funcs.append((func_name, kwargs))
+        else:
+            source = self.raw_driver.get_local_contract_runtime(name)
+            if source is None:
+                return None
+            funcs = [
+                (node.name, [arg.arg for arg in node.args.args])
+                for node in ast.walk(ast.parse(source))
+                if isinstance(node, ast.FunctionDef)
+            ]
 
         return AbstractContract(
             name=name,

@@ -65,3 +65,23 @@ def test_parallel_local_simulation_applies_v2_in_each_worker(tmp_path):
             assert stats.speculative_wave_count
         finally:
             workers.close()
+
+
+def test_native_proxy_exposes_compiler_exports_with_explicit_typecheck(tmp_path):
+    source = """def helper(x: int):
+    return x + 1
+
+@export(typecheck=True)
+def checked(x: int):
+    return helper(x)
+
+@export(typecheck=False)
+def unchecked(x: int):
+    return helper(x)
+"""
+    with ContractingClient(storage_home=tmp_path, vm_profile="xian_vm_v2") as client:
+        client.submit(source, name="con_exported")
+        contract = client.get_contract_proxy("con_exported")
+        assert contract.checked(x=2) == 3
+        assert contract.unchecked(x=4) == 5
+        assert not hasattr(contract, "helper")
