@@ -17,6 +17,20 @@ classifiers = [
 ]
 dependencies = ["xian-tech-contracting>=1.1.4,<2"]
 
+[tool.uv]
+# Local path installs must rebuild when the native code or Python binding changes.
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "Cargo.lock" },
+    { file = "src/**/*.rs" },
+    { file = "python/**/*.py" },
+    { file = "../xian-numeric/Cargo.toml" },
+    { file = "../xian-numeric/src/**/*.rs" },
+    { file = "build.rs" },
+    { file = "vendor/mpdecimal/**/*" },
+]
+
 [tool.maturin]
 module-name = "xian_vm_core._native"
 python-source = "python"

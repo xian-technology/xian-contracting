@@ -15,6 +15,18 @@ classifiers = [
     "Programming Language :: Rust",
 ]
 
+[tool.uv]
+# Local path installs must rebuild when the native code or Python binding changes.
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "Cargo.lock" },
+    { file = "src/**/*.rs" },
+    { file = "python/**/*.py" },
+    { file = "../xian-numeric/Cargo.toml" },
+    { file = "../xian-numeric/src/**/*.rs" },
+]
+
 [tool.maturin]
 module-name = "xian_compiler_core._native"
 python-source = "python"
