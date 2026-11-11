@@ -4,7 +4,7 @@ use crate::XIAN_VM_V2_PROFILE;
 use crate::diagnostic::{CompilerDiagnostic, SourceRange};
 use crate::syntax::{
     SyntaxBinaryOperator, SyntaxConstant, SyntaxDictEntry, SyntaxExpression, SyntaxImportAlias,
-    SyntaxModule, SyntaxParameter, SyntaxStatement,
+    SyntaxKeyword, SyntaxModule, SyntaxParameter, SyntaxStatement,
 };
 
 const EXPORT_DECORATOR: &str = "export";
@@ -17,6 +17,8 @@ const ORM_CLASS_NAMES: &[&str] = &[
     "LogEvent",
 ];
 const AUTO_NAMED_ORM_CLASS_NAMES: &[&str] = &["Variable", "Hash", "LogEvent"];
+const FOREIGN_STORAGE_CLASS_NAMES: &[&str] = &["ForeignVariable", "ForeignHash"];
+const FOREIGN_STORAGE_KEYWORDS: &[&str] = &["foreign_contract", "foreign_name"];
 const ALLOWED_ANNOTATION_TYPES: &[&str] = &[
     "Any",
     "bool",
@@ -169,9 +171,13 @@ const DISALLOWED_STDLIB_IMPORTS: &[&str] = &[
 
 #[derive(Debug, Default)]
 pub struct SyntaxLinter {
+    // Set for xian_vm_v2, which also enables the V2-only admission rules.
     exact_numbers: bool,
     diagnostics: Vec<CompilerDiagnostic>,
     orm_names: HashSet<String>,
+    module_function_names: HashSet<String>,
+    // The ORM call that is the whole value of the module declaration being visited.
+    declaration_call: Option<*const SyntaxExpression>,
     export_args: Vec<(String, SourceRange)>,
     arg_annotations: Vec<(Option<String>, SourceRange)>,
     return_annotations: Vec<(Option<String>, SourceRange)>,
@@ -187,6 +193,14 @@ pub fn lint_syntax(module: &SyntaxModule) -> Vec<CompilerDiagnostic> {
 impl SyntaxLinter {
     pub fn lint(mut self, module: &SyntaxModule) -> Vec<CompilerDiagnostic> {
         self.exact_numbers = module.vm_profile == XIAN_VM_V2_PROFILE;
+        self.module_function_names = module
+            .body
+            .iter()
+            .filter_map(|statement| match statement {
+                SyntaxStatement::FunctionDef { name, .. } => Some(name.clone()),
+                _ => None,
+            })
+            .collect();
         self.visit_statements(&module.body, 0);
         self.run_final_checks();
         self.diagnostics
@@ -249,7 +263,11 @@ impl SyntaxLinter {
                 for target in targets {
                     self.visit_expression(target);
                 }
+                if function_depth == 0 && targets.len() == 1 && name_expr(&targets[0]).is_some() {
+                    self.declaration_call = Some(value as *const SyntaxExpression);
+                }
                 self.visit_expression(value);
+                self.declaration_call = None;
             }
             SyntaxStatement::AugAssign {
                 span,
@@ -488,21 +506,8 @@ impl SyntaxLinter {
                         return;
                     }
                 }
-                if AUTO_NAMED_ORM_CLASS_NAMES.contains(&orm_name) {
-                    if let SyntaxExpression::Call { keywords, .. } = value {
-                        for keyword in keywords {
-                            if matches!(keyword.arg.as_deref(), Some("contract" | "name")) {
-                                self.push(
-                                    "E011",
-                                    format!(
-                                        "Cannot pass '{}' to {orm_name}; it is set automatically",
-                                        keyword.arg.as_deref().unwrap_or("")
-                                    ),
-                                    &keyword.span,
-                                );
-                            }
-                        }
-                    }
+                if !self.exact_numbers {
+                    self.check_v1_declaration_keywords(orm_name, value);
                 }
                 if let Some(first_target) = targets.first() {
                     if let Some(name) = name_expr(first_target) {
@@ -519,6 +524,98 @@ impl SyntaxLinter {
                     "E014",
                     format!("'{name}' is not allowed in smart contracts"),
                     &span,
+                );
+            }
+        }
+    }
+
+    // Archival V1 admission keeps its original declaration rule.
+    fn check_v1_declaration_keywords(&mut self, orm_name: &str, value: &SyntaxExpression) {
+        let SyntaxExpression::Call { keywords, .. } = value else {
+            return;
+        };
+        if !AUTO_NAMED_ORM_CLASS_NAMES.contains(&orm_name) {
+            return;
+        }
+        for keyword in keywords {
+            if let Some(arg @ ("contract" | "name")) = keyword.arg.as_deref() {
+                self.push(
+                    "E011",
+                    format!("Cannot pass '{arg}' to {orm_name}; it is set automatically"),
+                    &keyword.span,
+                );
+            }
+        }
+    }
+
+    fn check_storage_call(
+        &mut self,
+        name: &str,
+        span: &SourceRange,
+        args: &[SyntaxExpression],
+        keywords: &[SyntaxKeyword],
+        is_declaration: bool,
+    ) {
+        let foreign = FOREIGN_STORAGE_CLASS_NAMES.contains(&name);
+        if !foreign && !is_declaration {
+            self.push(
+                "E022",
+                format!("{name} must be declared at module level as 'name = {name}(...)'"),
+                span,
+            );
+        }
+        for keyword in keywords {
+            self.check_storage_keyword(name, foreign, keyword);
+        }
+        // LogEvent takes its event name and params positionally; storage does not.
+        if name != "LogEvent" && !args.is_empty() {
+            self.push(
+                "E023",
+                format!("Invalid {name} arguments: use keyword arguments only"),
+                span,
+            );
+        }
+        if foreign {
+            self.check_foreign_storage_target(name, span, keywords);
+        }
+    }
+
+    fn check_storage_keyword(&mut self, name: &str, foreign: bool, keyword: &SyntaxKeyword) {
+        let message = match keyword.arg.as_deref() {
+            Some(arg @ ("contract" | "name")) if !foreign => {
+                self.push(
+                    "E011",
+                    format!("Cannot pass '{arg}' to {name}; it is set automatically"),
+                    &keyword.span,
+                );
+                return;
+            }
+            Some(arg @ ("contract" | "name")) => format!("'{arg}' is not accepted"),
+            None => "'**' unpacking is not allowed".to_string(),
+            Some(_) => return,
+        };
+        self.push(
+            "E023",
+            format!("Invalid {name} arguments: {message}"),
+            &keyword.span,
+        );
+    }
+
+    fn check_foreign_storage_target(
+        &mut self,
+        name: &str,
+        span: &SourceRange,
+        keywords: &[SyntaxKeyword],
+    ) {
+        for required in FOREIGN_STORAGE_KEYWORDS {
+            if !keywords
+                .iter()
+                .any(|keyword| keyword.arg.as_deref() == Some(*required))
+            {
+                self.push(
+                    "E023",
+                    format!("Invalid {name} arguments: '{required}' is required"),
+                    span,
                 );
             }
         }
@@ -612,6 +709,15 @@ impl SyntaxLinter {
                             format!("'{name}' is not allowed in smart contracts"),
                             span,
                         );
+                    }
+                    if self.exact_numbers
+                        && ORM_CLASS_NAMES.contains(&name)
+                        && !self.module_function_names.contains(name)
+                    {
+                        let is_declaration = self
+                            .declaration_call
+                            .is_some_and(|call| std::ptr::eq(call, expression));
+                        self.check_storage_call(name, span, args, keywords, is_declaration);
                     }
                 }
                 self.visit_expression(func);
@@ -976,6 +1082,56 @@ mod tests {
 
         assert!(diagnostics.contains(&"xian.lint.E011".to_string()));
         assert!(diagnostics.contains(&"xian.lint.E015".to_string()));
+    }
+
+    #[test]
+    fn lint_rejects_storage_declarations_that_cannot_run() {
+        for (source, code) in [
+            ("v = Variable(**{'name': 'x'})\n", "xian.lint.E023"),
+            ("h = Hash(**{'default_value': 0})\n", "xian.lint.E023"),
+            ("v = Variable('con_other', 'value')\n", "xian.lint.E023"),
+            ("args = ['con_other', 'balances']\nh = Hash(*args)\n", "xian.lint.E023"),
+            ("x = [Hash()]\n", "xian.lint.E022"),
+            ("Hash()\n", "xian.lint.E022"),
+            ("def g():\n    v = Variable()\n", "xian.lint.E022"),
+            ("def g():\n    e = LogEvent('E', {'a': {'type': str}})\n", "xian.lint.E022"),
+            ("f = ForeignHash(foreign_contract='con_other')\n", "xian.lint.E023"),
+            (
+                "f = ForeignHash(foreign_contract='con_other', foreign_name='h', name='x')\n",
+                "xian.lint.E023",
+            ),
+            (
+                "def g(t: str):\n    return ForeignHash(**{'foreign_contract': t, 'foreign_name': 'h'})\n",
+                "xian.lint.E023",
+            ),
+        ] {
+            let source = format!("{source}\n@export\ndef ping() -> int:\n    return 1\n");
+            let diagnostics = lint_source(&source);
+
+            assert!(diagnostics.contains(&code.to_string()), "{source}: {diagnostics:?}");
+        }
+    }
+
+    #[test]
+    fn lint_keeps_archival_v1_storage_rules() {
+        let unit = SourceUnit::with_profile(
+            "con_lint",
+            "x = [Hash()]\nh = Hash(**{'default_value': 0})\n\n@export\ndef ping() -> int:\n    return 1\n",
+            crate::XIAN_VM_V1_PROFILE,
+        )
+        .expect("source unit should build");
+        let syntax = parse_to_syntax(&unit).expect("syntax should build");
+
+        assert!(lint_syntax(&syntax).is_empty());
+    }
+
+    #[test]
+    fn lint_accepts_runnable_storage_declarations() {
+        let diagnostics = lint_source(
+            "v = Variable(default_value=0, t=int)\nh = Hash(default_value=0)\nE = LogEvent('E', {'a': {'type': str}})\nf = ForeignHash(foreign_contract='con_other', foreign_name='h')\n\ndef Hash2():\n    return 1\n\ndef Variable():\n    return 1\n\n@export\ndef ping(token: str) -> Any:\n    balances = ForeignHash(foreign_contract=token, foreign_name='balances')\n    owner = ForeignVariable(foreign_contract=token, foreign_name='owner')\n    return balances['a'], owner.get(), Variable()\n",
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]

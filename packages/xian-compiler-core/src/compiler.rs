@@ -1,8 +1,11 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::constants::{
-    COMPILER_FIXTURE_SCHEMA_V1, CONTRACT_ARTIFACT_FORMAT_V1, DEFAULT_VM_PROFILE, XIAN_VM_HOST_CATALOG_V1,
-    XIAN_VM_V1_PROFILE, XIAN_VM_V2_PROFILE,
+    COMPILER_FIXTURE_SCHEMA_V1, CONTRACT_ARTIFACT_FORMAT_V1, DEFAULT_VM_PROFILE,
+    XIAN_VM_HOST_CATALOG_V1, XIAN_VM_V1_ADMISSION_REVISION, XIAN_VM_V1_PROFILE,
+    XIAN_VM_V2_ADMISSION_REVISION, XIAN_VM_V2_PROFILE,
 };
 use crate::diagnostic::CompilerDiagnostic;
 use crate::ir::compile_contract_artifact;
@@ -34,6 +37,7 @@ pub struct CompilerVersion {
     pub vm_profile: String,
     pub supported_vm_profiles: Vec<String>,
     pub host_catalog_version: String,
+    pub admission_revisions: BTreeMap<String, String>,
     pub limits: CompilerLimits,
 }
 
@@ -57,6 +61,16 @@ pub fn compiler_version() -> CompilerVersion {
         vm_profile: DEFAULT_VM_PROFILE.to_owned(),
         supported_vm_profiles: vec![XIAN_VM_V1_PROFILE.into(), XIAN_VM_V2_PROFILE.into()],
         host_catalog_version: XIAN_VM_HOST_CATALOG_V1.to_string(),
+        admission_revisions: BTreeMap::from([
+            (
+                XIAN_VM_V1_PROFILE.to_owned(),
+                XIAN_VM_V1_ADMISSION_REVISION.to_owned(),
+            ),
+            (
+                XIAN_VM_V2_PROFILE.to_owned(),
+                XIAN_VM_V2_ADMISSION_REVISION.to_owned(),
+            ),
+        ]),
         limits: compiler_limits(),
     }
 }
@@ -106,6 +120,14 @@ mod tests {
         assert_eq!(version.vm_profile, "xian_vm_v2");
         assert_eq!(version.supported_vm_profiles, ["xian_vm_v1", "xian_vm_v2"]);
         assert_eq!(version.host_catalog_version, "xian_vm_v1_host_v1");
+        assert_eq!(
+            version.admission_revisions["xian_vm_v1"],
+            "xian-admission-1"
+        );
+        assert_eq!(
+            version.admission_revisions["xian_vm_v2"],
+            "xian-admission-2"
+        );
         assert_eq!(version.limits.max_source_bytes, 131_072);
         assert_eq!(version.limits.max_syntax_nodes, 50_000);
         assert_eq!(version.limits.max_syntax_depth, 64);

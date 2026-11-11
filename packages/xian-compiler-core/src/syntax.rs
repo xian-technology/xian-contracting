@@ -384,7 +384,7 @@ impl<'a> SyntaxBuilder<'a> {
                 let body = self.convert_statements(&node.body);
                 Some(SyntaxStatement::FunctionDef {
                     span: self.span(node.range),
-                    name: node.name.to_string(),
+                    name: self.identifier(&node.name, node.range),
                     decorators,
                     parameters,
                     returns,
@@ -442,8 +442,11 @@ impl<'a> SyntaxBuilder<'a> {
                     .iter()
                     .map(|alias| SyntaxImportAlias {
                         span: self.span(alias.range),
-                        name: alias.name.to_string(),
-                        alias: alias.asname.as_ref().map(ToString::to_string),
+                        name: self.identifier(&alias.name, alias.range),
+                        alias: alias
+                            .asname
+                            .as_ref()
+                            .map(|asname| self.identifier(asname, alias.range)),
                     })
                     .collect(),
             }),
@@ -527,7 +530,7 @@ impl<'a> SyntaxBuilder<'a> {
         match expression {
             ast::Expr::Name(node) => Some(SyntaxExpression::Name {
                 span: self.span(node.range),
-                id: node.id.to_string(),
+                id: self.identifier(&node.id, node.range),
                 context: convert_context(node.ctx),
             }),
             ast::Expr::Constant(node) => Some(SyntaxExpression::Constant {
@@ -575,7 +578,7 @@ impl<'a> SyntaxBuilder<'a> {
             ast::Expr::Attribute(node) => Some(SyntaxExpression::Attribute {
                 span: self.span(node.range),
                 value: Box::new(self.convert_expr(&node.value)?),
-                attr: node.attr.to_string(),
+                attr: self.identifier(&node.attr, node.range),
                 context: convert_context(node.ctx),
             }),
             ast::Expr::Subscript(node) => Some(SyntaxExpression::Subscript {
@@ -606,7 +609,10 @@ impl<'a> SyntaxBuilder<'a> {
                     .map(|keyword| {
                         Some(SyntaxKeyword {
                             span: self.span(keyword.range),
-                            arg: keyword.arg.as_ref().map(ToString::to_string),
+                            arg: keyword
+                                .arg
+                                .as_ref()
+                                .map(|arg| self.identifier(arg, keyword.range)),
                             value: self.convert_expr(&keyword.value)?,
                         })
                     })
@@ -847,7 +853,7 @@ impl<'a> SyntaxBuilder<'a> {
     ) -> Option<SyntaxParameter> {
         Some(SyntaxParameter {
             span: self.span(arg.range),
-            name: arg.arg.to_string(),
+            name: self.identifier(&arg.arg, arg.range),
             kind,
             annotation: self.convert_optional_expr(arg.annotation.as_deref())?,
             default: self.convert_optional_expr(default)?,
@@ -938,6 +944,22 @@ impl<'a> SyntaxBuilder<'a> {
                 "matrix multiplication is not supported",
             ),
         }
+    }
+
+    // CPython NFKC-normalizes identifiers and this parser does not, so two
+    // spellings of one Python name would bind different chain variables.
+    fn identifier(&mut self, identifier: &str, range: TextRange) -> String {
+        if !identifier.is_ascii()
+            && self.parsed.source_unit().vm_profile() == crate::XIAN_VM_V2_PROFILE
+        {
+            self.push_unsupported(
+                "identifier",
+                range,
+                "non_ascii",
+                &format!("identifier '{identifier}' must contain only ASCII characters"),
+            );
+        }
+        identifier.to_string()
     }
 
     fn unsupported_statement(
@@ -1245,5 +1267,47 @@ mod tests {
             diagnostics[0].range.as_ref().map(|range| range.start_line),
             Some(1)
         );
+    }
+
+    #[test]
+    fn parse_to_syntax_rejects_non_ascii_identifiers_in_every_position() {
+        for source in [
+            "def f():\n    \u{ff41}mount = 1\n",
+            "def \u{fb01}le():\n    pass\n",
+            "def f(\u{ff41}: int):\n    pass\n",
+            "def f():\n    return ctx.\u{1d41c}aller\n",
+            "def f():\n    return g(\u{ff4b}=1)\n",
+            "import con_y as \u{ff59}\n",
+            "import con_\u{ff59}\n",
+        ] {
+            let unit = SourceUnit::new("con_bad", source).expect("source unit should build");
+
+            let diagnostics = parse_to_syntax(&unit).expect_err("non-ASCII identifier");
+
+            assert_eq!(
+                diagnostics[0].code, "xian.syntax.unsupported_identifier.non_ascii",
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_to_syntax_keeps_archival_v1_identifiers() {
+        let unit = SourceUnit::with_profile(
+            "con_v1",
+            "def f():\n    \u{ff41}mount = 1\n",
+            crate::XIAN_VM_V1_PROFILE,
+        )
+        .expect("source unit should build");
+
+        assert!(parse_to_syntax(&unit).is_ok());
+    }
+
+    #[test]
+    fn parse_to_syntax_keeps_non_ascii_text_in_strings() {
+        let unit = SourceUnit::new("con_ok", "def f():\n    return '\u{ff41}'\n")
+            .expect("source unit should build");
+
+        assert!(parse_to_syntax(&unit).is_ok());
     }
 }

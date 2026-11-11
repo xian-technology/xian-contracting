@@ -615,7 +615,11 @@ fn format_dict(entries: &[SyntaxDictEntry]) -> String {
                 format_expression(key),
                 format_expression(&entry.value)
             ),
-            None => format!("**{}", format_expression(&entry.value)),
+            // Dictionary unpacking accepts only a bitwise-or operand.
+            None => format!(
+                "**{}",
+                format_expression_with_precedence(&entry.value, PRECEDENCE_BIT_OR)
+            ),
         })
         .collect::<Vec<_>>()
         .join(", ");
@@ -683,10 +687,15 @@ fn format_comprehensions(comprehensions: &[SyntaxComprehension]) -> String {
             output.push_str("for ");
             output.push_str(&format_assignment_target(&comprehension.target));
             output.push_str(" in ");
-            output.push_str(&format_expression(&comprehension.iter));
+            // Comprehension clauses accept only disjunctions; a conditional
+            // expression must keep its parentheses to re-parse.
+            output.push_str(&format_expression_with_precedence(
+                &comprehension.iter,
+                PRECEDENCE_OR,
+            ));
             for condition in &comprehension.ifs {
                 output.push_str(" if ");
-                output.push_str(&format_expression(condition));
+                output.push_str(&format_expression_with_precedence(condition, PRECEDENCE_OR));
             }
             output
         })
@@ -1040,6 +1049,22 @@ mod tests {
             normalize_syntax(&syntax),
             "@export(typecheck=False)\ndef select(value: int=1) -> int:\n    if value > 0:\n        return value\n    else:\n        return -value"
         );
+    }
+
+    #[test]
+    fn normalize_syntax_keeps_parentheses_required_by_restricted_operands() {
+        for source in [
+            "[x for x in (a if b else c)]",
+            "[x for x in a if (b if x else c)]",
+            "{**(a or b)}",
+            "{**(not a)}",
+        ] {
+            let contract =
+                format!("@export\ndef f(a: Any, b: Any, c: Any) -> Any:\n    return {source}\n");
+            let normalized = normalize_source("con_norm", &contract, &CompileOptions::default())
+                .expect("normalized source should re-parse");
+            assert!(normalized.contains(source), "{normalized}");
+        }
     }
 
     #[test]

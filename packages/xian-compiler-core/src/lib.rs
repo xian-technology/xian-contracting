@@ -24,7 +24,8 @@ pub use artifact::{
 pub use compiler::{compiler_version, diagnose_contract, CompileOptions, CompilerVersion};
 pub use constants::{
     COMPILER_FIXTURE_SCHEMA_V1, CONTRACT_ARTIFACT_FORMAT_V1, XIAN_IR_V1, XIAN_VM_HOST_CATALOG_V1,
-    XIAN_VM_V1_PROFILE, XIAN_VM_V2_PROFILE,
+    XIAN_VM_V1_ADMISSION_REVISION, XIAN_VM_V1_PROFILE, XIAN_VM_V2_ADMISSION_REVISION,
+    XIAN_VM_V2_PROFILE,
 };
 pub use diagnostic::{CompilerDiagnostic, DiagnosticSeverity, SourceRange};
 pub use error::ValidationError;
