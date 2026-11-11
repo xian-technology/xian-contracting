@@ -249,9 +249,11 @@ class Hash(Datum):
         return key
 
     def _prefix_for_args(self, args):
+        # Only a call without arguments selects the whole hash; an empty string
+        # is an ordinary first dimension.
         multi = self._validate_key(args)
         prefix = f"{self._key}{self._delimiter}"
-        if multi != "":
+        if args:
             prefix += f"{multi}{self._delimiter}"
 
         return prefix

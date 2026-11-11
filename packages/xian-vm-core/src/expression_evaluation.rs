@@ -8,11 +8,13 @@ impl VmInstance {
         index: &VmValue,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
-        let value = match value.snapshot() {
-            VmValue::MappingProxy(mapping) => *mapping,
-            _ => value,
-        };
-        if matches!(value.snapshot(), VmValue::Dict(_)) {
+        let value = value
+            .with_resolved(|resolved| match resolved {
+                VmValue::MappingProxy(mapping) => Some((**mapping).clone()),
+                _ => None,
+            })
+            .unwrap_or(value);
+        if resolves_to!(value, VmValue::Dict(_)) {
             crate::decimal_metering::comparison(host, &value, index, false)?;
         }
         let value = if let VmValue::StorageRef(reference) = &value {
@@ -77,6 +79,7 @@ impl VmInstance {
     ) -> Result<VmValue, VmExecutionError> {
         let object = as_object(expression, "expression")?;
         let node = required_string(object, "node")?;
+        crate::work_meter::flush(host)?;
         host.charge_execution_cost(vm_expression_gas_cost(node, object)?)?;
         match node {
             "name" => self.eval_name(object, scope),
@@ -434,7 +437,7 @@ impl VmInstance {
                 host.charge_execution_cost(view_cost)?;
             }
             let passed = if matches!(operator, "in" | "not_in")
-                && matches!(right.snapshot(), VmValue::Iterator(_))
+                && resolves_to!(right, VmValue::Iterator(_))
             {
                 let iterator = crate::iteration::iter(&right, &self.heap)?;
                 let mut found = false;
@@ -583,7 +586,7 @@ impl VmInstance {
             host.charge_execution_cost(union_cost)?;
         }
         support::set_kinds::charge_binary(operator, &left, &right, host)?;
-        if matches!(left.snapshot(), VmValue::Set(_) | VmValue::FrozenSet(_))
+        if resolves_to!(left, VmValue::Set(_) | VmValue::FrozenSet(_))
             && matches!(operator, "bitand" | "bitor" | "bitxor" | "sub")
         {
             crate::decimal_metering::normalization(host, &[left.clone(), right.clone()])?;

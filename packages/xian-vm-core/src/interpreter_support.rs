@@ -1265,7 +1265,7 @@ fn bind_time_keywords<const N: usize>(
 }
 
 fn datetime_component(value: &VmValue) -> Result<i64, VmExecutionError> {
-    if !matches!(value.snapshot(), VmValue::Int(_) | VmValue::Bool(_)) {
+    if !resolves_to!(value, VmValue::Int(_) | VmValue::Bool(_)) {
         return Err(VmExecutionError::new(
             "datetime components must be integers",
         ));
@@ -1348,8 +1348,23 @@ fn compare_values_at(
     if depth > 128 {
         return Err(VmExecutionError::new("comparison depth limit exceeded"));
     }
-    let left = &tuple_equivalent(left.snapshot());
-    let right = &tuple_equivalent(right.snapshot());
+    crate::work_meter::count(1)?;
+    if resolves_to!(left, VmValue::DecimalTuple(_)) || resolves_to!(right, VmValue::DecimalTuple(_))
+    {
+        let left = &tuple_equivalent(left.snapshot());
+        let right = &tuple_equivalent(right.snapshot());
+        return compare_resolved_values(left, right, depth);
+    }
+    left.with_resolved(|left| {
+        right.with_resolved(|right| compare_resolved_values(left, right, depth))
+    })
+}
+
+fn compare_resolved_values(
+    left: &VmValue,
+    right: &VmValue,
+    depth: usize,
+) -> Result<std::cmp::Ordering, VmExecutionError> {
     if numeric_v2::active() {
         if let Some(ordering) = numeric_v2::ordering(left, right) {
             return ordering;
@@ -1504,7 +1519,9 @@ fn nan_equality(left: &VmValue, right: &VmValue) -> Result<Option<bool>, VmExecu
 }
 
 fn operator_values_equal(left: &VmValue, right: &VmValue) -> Result<bool, VmExecutionError> {
-    if let Some(equal) = nan_equality(&left.snapshot(), &right.snapshot())? {
+    if let Some(equal) =
+        left.with_resolved(|left| right.with_resolved(|right| nan_equality(left, right)))?
+    {
         return Ok(equal);
     }
     vm_values_equal(left, right)
@@ -1542,17 +1559,40 @@ fn vm_values_equal_at(
             "maximum equality recursion depth exceeded",
         ));
     }
-    if let VmValue::MappingProxy(mapping) = left.snapshot() {
+    crate::work_meter::count(1)?;
+    if let Some(mapping) = mapping_proxy_target(left) {
         return vm_values_equal_at(&mapping, right, depth + 1);
     }
-    if let VmValue::MappingProxy(mapping) = right.snapshot() {
+    if let Some(mapping) = mapping_proxy_target(right) {
         return vm_values_equal_at(left, &mapping, depth + 1);
     }
     if let Some(result) = mapping_views::compare("eq", left, right) {
         return result;
     }
-    let left = &tuple_equivalent(left.snapshot());
-    let right = &tuple_equivalent(right.snapshot());
+    if resolves_to!(left, VmValue::DecimalTuple(_)) || resolves_to!(right, VmValue::DecimalTuple(_))
+    {
+        let left = &tuple_equivalent(left.snapshot());
+        let right = &tuple_equivalent(right.snapshot());
+        return resolved_values_equal(left, right, depth);
+    }
+    left.with_resolved(|left| {
+        right.with_resolved(|right| resolved_values_equal(left, right, depth))
+    })
+}
+
+fn mapping_proxy_target(value: &VmValue) -> Option<VmValue> {
+    value.with_resolved(|resolved| match resolved {
+        VmValue::MappingProxy(mapping) => Some((**mapping).clone()),
+        _ => None,
+    })
+}
+
+/// Equality of two resolved (non-reference) values; members may be references.
+fn resolved_values_equal(
+    left: &VmValue,
+    right: &VmValue,
+    depth: usize,
+) -> Result<bool, VmExecutionError> {
     if numeric_v2::active() && numeric_v2::bool_number_pair(left, right) {
         return Ok(false);
     }
@@ -1636,7 +1676,7 @@ pub(super) fn contains_value(
             ))),
         },
         VmValue::BuiltinSet(values) => {
-            if matches!(needle.snapshot(), VmValue::BuiltinSet(_)) {
+            if resolves_to!(needle, VmValue::BuiltinSet(_)) {
                 return Ok(false);
             }
             builtin_set_keys::ensure_hashable(needle)?;
@@ -1695,6 +1735,15 @@ pub(super) fn assign_subscript(
     value: VmValue,
 ) -> Result<VmValue, VmExecutionError> {
     if let VmValue::Reference(reference) = &container {
+        let list_length = reference.with_value(|resolved| match resolved {
+            VmValue::List(values) => Some(values.len()),
+            _ => None,
+        });
+        if let Some(length) = list_length {
+            let idx = normalize_sequence_index(index, length)?;
+            reference.set_list_item(idx, value);
+            return Ok(container);
+        }
         let updated = assign_subscript(reference.value(), index, value)?;
         reference.replace(updated)?;
         return Ok(container);
@@ -1721,10 +1770,26 @@ pub(super) fn assign_subscript(
     }
 }
 
+fn missing_key(
+    found: Result<Option<VmValue>, VmExecutionError>,
+    index: &VmValue,
+) -> Result<VmValue, VmExecutionError> {
+    found?.ok_or_else(|| VmExecutionError::new(format!("missing dict key {}", index.python_repr())))
+}
+
 pub(super) fn subscript_value(
     container: VmValue,
     index: &VmValue,
 ) -> Result<VmValue, VmExecutionError> {
+    if let Some(result) = container.with_resolved(|resolved| match resolved {
+        VmValue::List(values) | VmValue::Tuple(values) => {
+            Some(normalize_sequence_index(index, values.len()).map(|idx| values[idx].clone()))
+        }
+        VmValue::Dict(entries) => Some(missing_key(dict_get(entries, index), index)),
+        _ => None,
+    }) {
+        return result;
+    }
     let container = tuple_equivalent(container.snapshot());
     match container {
         VmValue::MappingProxy(mapping) => subscript_value(*mapping, index),
@@ -1739,13 +1804,11 @@ pub(super) fn subscript_value(
             let idx = normalize_sequence_index(index, values.len())?;
             Ok(values[idx].clone())
         }
-        VmValue::Dict(entries) => dict_get(&entries, index)?.ok_or_else(|| {
-            VmExecutionError::new(format!("missing dict key {}", index.python_repr()))
-        }),
+        VmValue::Dict(entries) => missing_key(dict_get(&entries, index), index),
         VmValue::String(value) => {
-            let chars = value.chars().map(|ch| ch.to_string()).collect::<Vec<_>>();
-            let idx = normalize_sequence_index(index, chars.len())?;
-            Ok(VmValue::String(chars[idx].clone()))
+            let idx = normalize_sequence_index(index, value.chars().count())?;
+            let character = value.chars().nth(idx).expect("index is within the string");
+            Ok(VmValue::String(character.to_string()))
         }
         VmValue::Bytes(value) | VmValue::ByteArray(value) => bytes_like_index_value(&value, index),
         other => Err(VmExecutionError::new(format!(
@@ -1880,7 +1943,7 @@ fn string_search_bounds(
 ) -> Result<(usize, usize), VmExecutionError> {
     let normalize =
         |value: Option<&VmValue>, default, maximum| -> Result<usize, VmExecutionError> {
-            let value = value.filter(|v| !matches!(v.snapshot(), VmValue::None));
+            let value = value.filter(|v| !resolves_to!(v, VmValue::None));
             let Some(value) = value else {
                 return Ok(default);
             };
@@ -2241,12 +2304,16 @@ pub(super) fn normalize_hash_key(value: &VmValue) -> Result<String, VmExecutionE
     Ok(normalized)
 }
 
-pub(super) fn normalize_hash_prefix(values: &[VmValue]) -> Result<String, VmExecutionError> {
-    normalize_hash_key(&VmValue::Tuple(values.to_vec()))
-}
-
-pub(super) fn prefix_matches_hash_entry(storage_key: &str, prefix: &str) -> bool {
-    prefix.is_empty() || storage_key.starts_with(&format!("{prefix}{STORAGE_DELIMITER}"))
+/// The key suffix selected by `Hash.all(*prefix)`/`clear(*prefix)`, including
+/// its trailing delimiter; empty selects the whole hash. In V2 only a call
+/// without arguments does that, so `""` is an ordinary first dimension.
+/// Archival V1 also treats a prefix that renders empty as the whole hash.
+pub(super) fn hash_scan_prefix(values: &[VmValue]) -> Result<String, VmExecutionError> {
+    let prefix = normalize_hash_key(&VmValue::Tuple(values.to_vec()))?;
+    if values.is_empty() || (prefix.is_empty() && !numeric_v2::active()) {
+        return Ok(String::new());
+    }
+    Ok(format!("{prefix}{STORAGE_DELIMITER}"))
 }
 
 pub(super) fn storage_key_part(value: &VmValue) -> Result<String, VmExecutionError> {

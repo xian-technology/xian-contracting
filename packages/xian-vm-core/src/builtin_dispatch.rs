@@ -20,17 +20,34 @@ impl VmInstance {
         }
         if args.len() == 1
             && kwargs.is_empty()
-            && matches!(
-                (name, args[0].snapshot()),
-                ("int", VmValue::Int(_))
-                    | ("str", VmValue::String(_))
-                    | ("float", VmValue::Float(_))
-                    | ("tuple", VmValue::Tuple(_))
-                    | ("bytes", VmValue::Bytes(_))
-                    | ("frozenset", VmValue::FrozenSet(_))
-            )
+            && args[0].with_resolved(|value| {
+                matches!(
+                    (name, value),
+                    ("int", VmValue::Int(_))
+                        | ("str", VmValue::String(_))
+                        | ("float", VmValue::Float(_))
+                        | ("tuple", VmValue::Tuple(_))
+                        | ("bytes", VmValue::Bytes(_))
+                        | ("frozenset", VmValue::FrozenSet(_))
+                )
+            })
         {
             return Ok(args[0].clone());
+        }
+        if name == "len" && args.len() == 1 && kwargs.is_empty() {
+            // Read a container's length without copying it.
+            let length = args[0].with_resolved(|value| match value {
+                VmValue::List(values)
+                | VmValue::Tuple(values)
+                | VmValue::Set(values)
+                | VmValue::BuiltinSet(values)
+                | VmValue::FrozenSet(values) => Some(values.len()),
+                VmValue::Dict(entries) => Some(entries.len()),
+                _ => None,
+            });
+            if let Some(length) = length {
+                return Ok(vm_int(length));
+            }
         }
         let shared_args = args.clone();
         let shared_kwargs = kwargs.clone();

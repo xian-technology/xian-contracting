@@ -768,6 +768,9 @@ pub(super) fn wrapper_receiver_compatible(value: &VmValue, method: &str) -> bool
 // Native descriptors on builtin classes bind the first positional argument at
 // invocation, unlike class/static factories that retain the class receiver.
 pub(super) fn unbound_class(receiver: &VmValue, method: &str) -> Option<&'static str> {
+    if !resolves_to!(receiver, VmValue::Builtin(_) | VmValue::TypeMarker(_)) {
+        return None;
+    }
     let value = receiver.snapshot();
     let (VmValue::Builtin(name) | VmValue::TypeMarker(name)) = value else {
         return None;

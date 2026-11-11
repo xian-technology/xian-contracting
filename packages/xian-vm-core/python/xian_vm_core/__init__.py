@@ -182,10 +182,10 @@ class NativeVmHost:
         return self._lookup_key(self._make_key(contract, binding, _hash_key_args(key)))
 
     def iter_hash_entries(self, contract: str, binding: str, prefix: str):
+        # The VM passes the selected key suffix with its trailing delimiter;
+        # an empty prefix selects the whole hash.
         base_key = self._make_key(contract, binding)
-        full_prefix = f"{base_key}{constants.DELIMITER}"
-        if prefix:
-            full_prefix = f"{full_prefix}{prefix}{constants.DELIMITER}"
+        full_prefix = f"{base_key}{constants.DELIMITER}{prefix}"
         suffix_offset = len(base_key) + len(constants.DELIMITER)
         for key, value in iter_overlay_items(
             self._pending_writes, self.driver.iter_items(full_prefix), full_prefix
@@ -327,7 +327,11 @@ class NativeVmHost:
         )
         self._add_raw_cost(int(raw.get("raw_cost", 0)))
         if int(raw["status_code"]) != 0:
-            raise VmRuntimeExecutionError(f"contract constructor failed: {raw['result']}")
+            error = VmRuntimeExecutionError(f"contract constructor failed: {raw['result']}")
+            if self.vm_profile == "xian_vm_v2" and raw.get("exception") is not None:
+                # The deploying execution reports the constructor's exception.
+                error.__xian_exception__ = tuple(raw["exception"])
+            raise error
         return {
             **_snapshots_to_writes(self.driver, raw["snapshots"]),
             **dict(raw.get("storage_writes") or {}),
@@ -593,6 +597,7 @@ def execute_contract(
         int(raw["status_code"]),
         raw["result"],
         vm_profile=vm_profile,
+        exception=raw.get("exception"),
     )
     status_code = int(raw["status_code"])
     writes = {
@@ -646,11 +651,15 @@ def _merge_contract_costs(left: dict[str, int], right: dict[str, int]) -> dict[s
 
 
 def _coerce_native_error_result(
-    status_code: int, result: Any, *, vm_profile: str = "xian_vm_v2"
+    status_code: int, result: Any, *, vm_profile: str = "xian_vm_v2", exception=None
 ) -> Any:
     if int(status_code) == 0 or not isinstance(result, str):
         return result
-    return _native_exception_from_repr(result, vm_profile=vm_profile) or result
+    if vm_profile == "xian_vm_v2":
+        # V2 never interprets failure text: only the VM's structured exception
+        # selects a type. Anything else remains an opaque message.
+        return _structured_native_exception(exception) or result
+    return _native_exception_from_repr(result) or result
 
 
 _NATIVE_EXCEPTION_TYPES: dict[str, type[BaseException]] = {
@@ -663,6 +672,14 @@ _NATIVE_EXCEPTION_TYPES: dict[str, type[BaseException]] = {
     "IndexError": IndexError,
 }
 _METADATA_AUTHORITY_ERROR = "Contract metadata changes are restricted to submission."
+
+
+def _structured_native_exception(exception) -> BaseException | None:
+    if exception is None:
+        return None
+    name, args = exception
+    exception_type = _NATIVE_EXCEPTION_TYPES.get(name)
+    return None if exception_type is None else exception_type(*args)
 
 
 def _literal_native_exception(exception_type, inner):
@@ -690,28 +707,23 @@ def _native_exception_at(result, start):
     return None
 
 
-def _native_exception_offsets(result, *, reverse):
-    if not reverse:
-        yield 0
-    position = len(result) if reverse else 0
+def _native_exception_offsets(result):
+    position = len(result)
     while True:
-        position = result.rfind(": ", 0, position) if reverse else result.find(": ", position)
+        position = result.rfind(": ", 0, position)
         if position < 0:
             break
         yield position + 2
-        if not reverse:
-            position += 2
-    if reverse:
-        yield 0
+    yield 0
 
 
-def _native_exception_from_repr(
-    result: str, *, vm_profile: str = "xian_vm_v2"
-) -> BaseException | None:
-    # V2 treats the first recognized exception's message as data. Archival V1
-    # keeps rightmost-prefix precedence. Both scan offsets without recursion or
-    # retaining successively shorter copies of an untrusted error message.
-    for start in _native_exception_offsets(result, reverse=vm_profile == "xian_vm_v1"):
+def _native_exception_from_repr(result: str) -> BaseException | None:
+    """Archival V1 classification: the rightmost recognized exception prefix.
+
+    Offsets are scanned without recursion or successively shorter copies of
+    the message.
+    """
+    for start in _native_exception_offsets(result):
         error = _native_exception_at(result, start)
         if error is not None:
             return error

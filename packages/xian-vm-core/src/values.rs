@@ -816,7 +816,7 @@ impl VmValue {
 
     pub(crate) fn truthy(&self) -> bool {
         match self {
-            Self::Reference(value) => value.value().truthy(),
+            Self::Reference(value) => value.with_value(|value| value.truthy()),
             Self::Iterator(_) => true,
             Self::View(view) => view.len() != 0,
             Self::Range(range) => !range.len().is_zero(),
@@ -863,7 +863,7 @@ impl VmValue {
 
     pub(crate) fn python_repr_atom(&self) -> String {
         match self {
-            Self::Reference(value) => value.value().python_repr(),
+            Self::Reference(value) => value.with_value(|value| value.python_repr()),
             Self::None => "None".to_owned(),
             Self::Bool(true) => "True".to_owned(),
             Self::Bool(false) => "False".to_owned(),
@@ -944,7 +944,7 @@ impl VmValue {
 
     pub(crate) fn as_i64(&self) -> Result<i64, VmExecutionError> {
         match self {
-            Self::Reference(value) => value.value().as_i64(),
+            Self::Reference(value) => value.with_value(|value| value.as_i64()),
             Self::Bool(_) | Self::Decimal(_) if crate::interpreter::numeric_v2::active() => {
                 Err(VmExecutionError::new("expected an integer"))
             }
@@ -960,7 +960,7 @@ impl VmValue {
 
     pub(crate) fn as_bigint(&self) -> Result<BigInt, VmExecutionError> {
         match self {
-            Self::Reference(value) => value.value().as_bigint(),
+            Self::Reference(value) => value.with_value(|value| value.as_bigint()),
             Self::Bool(_) | Self::Decimal(_) if crate::interpreter::numeric_v2::active() => {
                 Err(VmExecutionError::new("expected an integer"))
             }
@@ -980,7 +980,7 @@ impl VmValue {
 
     pub(crate) fn as_string(&self) -> Result<String, VmExecutionError> {
         match self {
-            Self::Reference(value) => value.value().as_string(),
+            Self::Reference(value) => value.with_value(|value| value.as_string()),
             Self::String(value) => Ok(value.clone()),
             _ => Err(VmExecutionError::new(format!(
                 "expected string value, got {}",
@@ -991,7 +991,7 @@ impl VmValue {
 
     pub(crate) fn as_contract_handle(&self) -> Result<VmContractHandle, VmExecutionError> {
         match self {
-            Self::Reference(value) => value.value().as_contract_handle(),
+            Self::Reference(value) => value.with_value(|value| value.as_contract_handle()),
             Self::ContractHandle(handle) => Ok(handle.clone()),
             _ => Err(VmExecutionError::new(format!(
                 "expected contract handle, got {}",
@@ -1002,7 +1002,7 @@ impl VmValue {
 
     pub(crate) fn type_name(&self) -> &'static str {
         match self {
-            Self::Reference(value) => value.value().type_name(),
+            Self::Reference(value) => value.with_value(Self::type_name),
             Self::None => "none",
             Self::Bool(_) => "bool",
             Self::Int(_) => "int",
@@ -1215,16 +1215,56 @@ impl Default for VmExecutionContext {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VmExecutionError {
     message: String,
+    exception: Option<Box<VmException>>,
 }
 
 impl VmExecutionError {
     pub fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
+            exception: None,
         }
+    }
+
+    /// A Python-style exception. The message is its representation; hosts
+    /// read the type and arguments from `exception()` instead of the text.
+    pub fn raised(name: impl Into<String>, args: Vec<VmValue>) -> Self {
+        let exception = VmException {
+            name: name.into(),
+            args,
+        };
+        Self {
+            message: exception.python_repr(),
+            exception: Some(Box::new(exception)),
+        }
+    }
+
+    /// An exception with one message argument whose text keeps an established
+    /// (archival V1) spelling. Hosts read the structured form instead.
+    pub(crate) fn described(
+        name: &str,
+        text: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            message: text.into(),
+            exception: Some(Box::new(VmException {
+                name: name.to_owned(),
+                args: vec![VmValue::String(message.into())],
+            })),
+        }
+    }
+
+    pub(crate) fn with_exception(mut self, exception: VmException) -> Self {
+        self.exception = Some(Box::new(exception));
+        self
+    }
+
+    pub fn exception(&self) -> Option<&VmException> {
+        self.exception.as_deref()
     }
 
     pub(crate) fn unsupported(message: impl Into<String>) -> Self {

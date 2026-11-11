@@ -27,8 +27,8 @@ Supported scope:
 
 The chain selects a profile for artifact admission and execution. Every module
 in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports
-execution revision `xvm-execution-9`, bytecode version `xvm-2` and gas schedule
-`xvm-gas-3`. The native and Python host bindings select V2 by default. Public
+execution revision `xvm-execution-10`, bytecode version `xvm-2` and gas schedule
+`xvm-gas-4`. The native and Python host bindings select V2 by default. Public
 `ContractingClient` and `ParallelBatchExecutor` execution accepts only V2.
 
 Low-level native V1 supports historical verification and migration: select
@@ -42,11 +42,25 @@ through trusted deployment. Code-hash inspection accepts only the `runtime`,
 `ir` and `source` selectors; other kinds fail. Archival V1 semantics remain
 separate from these V2 checks.
 
-V2 failure decoding preserves the first recognized exception type and treats
-its message as data, even when that message contains exception-like text.
-Descriptive host prefixes can precede the exception. Archival V1 retains its
-rightmost-prefix classification. Both profiles decode long error messages
-without recursive host calls.
+V2 failures carry their exception type and arguments as structured data from
+the VM, including exceptions raised by a constructor during deployment and
+builtin exceptions raised by host syscalls. The failure text is never parsed:
+contract data inside a message cannot select an exception type, and a failure
+without structured data remains an opaque message. Archival V1 retains its
+rightmost-prefix text classification without recursive host calls.
+
+V2 `Hash.all(*prefix)` and `Hash.clear(*prefix)` select the whole hash only
+when called without arguments; `""` is an ordinary first dimension. V2
+`crypto.key_is_valid` accepts exactly 64 lowercase hex characters.
+
+`xvm-gas-4` charges element work: every value comparison and dictionary key
+probe, and every member of a container that is copied or allocated, costs 8 raw
+chi (a copied text or binary payload counts one unit per 64 bytes), in addition
+to the operation's own gas. Pending element work is charged before the next expression or statement;
+one operation may perform at most 2^20 elements before it is charged, and
+exceeding that fails the transaction. CPU time per charged raw chi of container
+operations stays within a small constant factor of plain arithmetic
+(`tests/metering_bounds.rs`). Archival V1 keeps `xvm-gas-2`.
 
 F-string output is limited to 128 KiB in UTF-8 bytes across the complete result, including literal text and every interpolated field. The VM checks each append before allocating the aggregate output.
 

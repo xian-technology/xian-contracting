@@ -124,6 +124,7 @@ impl PythonBundleExecutor {
         kwargs: Vec<(String, VmValue)>,
         context: VmExecutionContext,
     ) -> PyExecutionResult {
+        let _work = crate::work_meter::Isolation::enter();
         let execution = (|| -> Result<VmValue, VmExecutionError> {
             self.meter.charge_transaction_bytes()?;
             self.meter
@@ -155,10 +156,12 @@ impl PythonBundleExecutor {
                     storage_writes: self.storage_overlay.clone(),
                     events: self.events.clone(),
                     stats,
+                    exception: None,
                 }
             }
             Err(error) => PyExecutionResult {
                 status_code: 1,
+                exception: error.exception().cloned(),
                 result: VmValue::String(error.to_string()),
                 snapshots: Vec::new(),
                 storage_writes: HashMap::new(),
@@ -209,7 +212,7 @@ impl PythonBundleExecutor {
                 response.extract::<Option<String>>()
             }
         })
-        .map_err(|error| VmExecutionError::new(error.to_string()))?;
+        .map_err(host_error)?;
         let Some(module_ir_json) = module_ir_json else {
             return Err(VmExecutionError::new(format!(
                 "native VM could not load module '{module_name}'"
@@ -303,15 +306,9 @@ impl PythonBundleExecutor {
             .functions
             .iter()
             .find(|candidate| candidate.name == function_name)
-            .ok_or_else(|| {
-                VmExecutionError::new(format!(
-                    "AssertionError(\"Exported function '{function_name}' does not exist on contract '{module_name}'!\")"
-                ))
-            })?;
+            .ok_or_else(|| missing_export(module_name, function_name))?;
         if function.visibility != "export" {
-            return Err(VmExecutionError::new(format!(
-                "AssertionError(\"Exported function '{function_name}' does not exist on contract '{module_name}'!\")"
-            )));
+            return Err(missing_export(module_name, function_name));
         }
         Ok(())
     }
@@ -395,7 +392,7 @@ impl VmHost for PythonBundleExecutor {
             let host = self.host.bind(py);
             let response = host
                 .call_method1("read_variable", (contract, binding))
-                .map_err(|error| VmExecutionError::new(error.to_string()))?;
+                .map_err(host_error)?;
             py_optional_to_vm(response)
         })
     }
@@ -417,11 +414,10 @@ impl VmHost for PythonBundleExecutor {
         }
         Python::attach(|py| -> Result<Option<VmValue>, VmExecutionError> {
             let host = self.host.bind(py);
-            let key_py =
-                vm_to_py(py, key).map_err(|error| VmExecutionError::new(error.to_string()))?;
+            let key_py = vm_to_py(py, key).map_err(host_error)?;
             let response = host
                 .call_method1("read_hash", (contract, binding, key_py))
-                .map_err(|error| VmExecutionError::new(error.to_string()))?;
+                .map_err(host_error)?;
             // Driver reads are authoritative, including missing/deleted keys.
             py_to_vm(response).map(Some)
         })
@@ -434,11 +430,7 @@ impl VmHost for PythonBundleExecutor {
         prefix: &str,
     ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
         let base_key = vm_variable_storage_key(contract, binding);
-        let full_prefix = if prefix.is_empty() {
-            format!("{base_key}:")
-        } else {
-            format!("{base_key}:{prefix}:")
-        };
+        let full_prefix = format!("{base_key}:{prefix}");
         let suffix_offset = base_key.len() + 1;
         let mut entries = Vec::new();
         let mut seen = HashSet::new();
@@ -455,7 +447,7 @@ impl VmHost for PythonBundleExecutor {
             let host = self.host.bind(py);
             let response = host
                 .call_method1("scan_hash_entries", (contract, binding, prefix))
-                .map_err(|error| VmExecutionError::new(error.to_string()))?;
+                .map_err(host_error)?;
             py_hash_entries_to_vm(response)
         })
         .map(|host_entries| {
@@ -475,11 +467,7 @@ impl VmHost for PythonBundleExecutor {
         prefix: &str,
     ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
         let base_key = vm_variable_storage_key(contract, binding);
-        let full_prefix = if prefix.is_empty() {
-            format!("{base_key}:")
-        } else {
-            format!("{base_key}:{prefix}:")
-        };
+        let full_prefix = format!("{base_key}:{prefix}");
         let suffix_offset = base_key.len() + 1;
         let mut overlay = self
             .storage_overlay
@@ -492,9 +480,7 @@ impl VmHost for PythonBundleExecutor {
         Python::attach(|py| {
             let host_owner = self.host.clone_ref(py);
             let host = host_owner.bind(py);
-            let streaming = host
-                .hasattr("iter_hash_entries")
-                .map_err(|e| VmExecutionError::new(e.to_string()))?;
+            let streaming = host.hasattr("iter_hash_entries").map_err(host_error)?;
             let response = host
                 .call_method1(
                     if streaming {
@@ -504,18 +490,14 @@ impl VmHost for PythonBundleExecutor {
                     },
                     (contract, binding, prefix),
                 )
-                .map_err(|e| VmExecutionError::new(e.to_string()))?;
+                .map_err(host_error)?;
             let mut remote: Box<dyn Iterator<Item = Result<(String, VmValue), VmExecutionError>>> =
                 if streaming {
                     Box::new(
                         response
                             .try_iter()
-                            .map_err(|e| VmExecutionError::new(e.to_string()))?
-                            .map(|item| {
-                                py_hash_entry_to_vm(
-                                    item.map_err(|e| VmExecutionError::new(e.to_string()))?,
-                                )
-                            }),
+                            .map_err(host_error)?
+                            .map(|item| py_hash_entry_to_vm(item.map_err(host_error)?)),
                     )
                 } else {
                     // Compatibility for trusted embedded hosts. The production host
@@ -571,13 +553,11 @@ impl VmHost for PythonBundleExecutor {
             let host = self.host.bind(py);
             let response = host
                 .call_method1("get_owner", (contract,))
-                .map_err(|error| VmExecutionError::new(error.to_string()))?;
+                .map_err(host_error)?;
             if response.is_none() {
                 Ok(None)
             } else {
-                response
-                    .extract::<Option<String>>()
-                    .map_err(|error| VmExecutionError::new(error.to_string()))
+                response.extract::<Option<String>>().map_err(host_error)
             }
         })
     }
@@ -617,8 +597,11 @@ impl VmHost for PythonBundleExecutor {
         let caller = call.caller_contract.clone().or_else(|| call.signer.clone());
         if let Some(owner) = owner.as_deref() {
             if caller.as_deref() != Some(owner) {
-                return Err(VmExecutionError::new(
-                    "Exception(\"Caller is not the owner!\")",
+                let message = "Caller is not the owner!";
+                return Err(VmExecutionError::described(
+                    "Exception",
+                    format!("Exception({message:?})"),
+                    message,
                 ));
             }
         }
@@ -663,32 +646,113 @@ impl VmHost for PythonBundleExecutor {
             let py_args = PyList::empty(py);
             for value in &args {
                 py_args
-                    .append(
-                        vm_to_py(py, value)
-                            .map_err(|error| VmExecutionError::new(error.to_string()))?,
-                    )
-                    .map_err(|error| VmExecutionError::new(error.to_string()))?;
+                    .append(vm_to_py(py, value).map_err(host_error)?)
+                    .map_err(host_error)?;
             }
             let py_kwargs = PyDict::new(py);
             for (key, value) in &kwargs {
                 py_kwargs
-                    .set_item(
-                        key,
-                        vm_to_py(py, value)
-                            .map_err(|error| VmExecutionError::new(error.to_string()))?,
-                    )
-                    .map_err(|error| VmExecutionError::new(error.to_string()))?;
+                    .set_item(key, vm_to_py(py, value).map_err(host_error)?)
+                    .map_err(host_error)?;
             }
             let response = host
                 .call_method1("handle_syscall", (syscall_id, py_args, py_kwargs))
-                .map_err(|error| VmExecutionError::new(error.to_string()))?;
+                .map_err(host_error)?;
             py_to_vm(response)
         })
     }
 }
 
+/// Python exception types whose host failures keep their category. Subclasses
+/// (such as `VmRuntimeExecutionError`) remain opaque runtime errors.
+fn builtin_exception_name(py: Python<'_>, error: &PyErr) -> Option<&'static str> {
+    use pyo3::exceptions::{
+        PyAssertionError, PyException, PyIndexError, PyKeyError, PyRuntimeError,
+    };
+    let kind = error.get_type(py);
+    [
+        (py.get_type::<PyAssertionError>(), "AssertionError"),
+        (py.get_type::<PyTypeError>(), "TypeError"),
+        (py.get_type::<PyValueError>(), "ValueError"),
+        (py.get_type::<PyRuntimeError>(), "RuntimeError"),
+        (py.get_type::<PyException>(), "Exception"),
+        (py.get_type::<PyKeyError>(), "KeyError"),
+        (py.get_type::<PyIndexError>(), "IndexError"),
+    ]
+    .into_iter()
+    .find_map(|(candidate, name)| kind.is(&candidate).then_some(name))
+}
+
+fn python_exception_args(arguments: Bound<'_, PyAny>) -> Option<Vec<VmValue>> {
+    let arguments = arguments.cast_into::<PyTuple>().ok()?;
+    arguments.iter().map(|item| py_to_vm(item).ok()).collect()
+}
+
+/// Convert a host failure, keeping its exception type and arguments. A failed
+/// nested execution carries its structured exception in `__xian_exception__`.
+fn host_error(error: PyErr) -> VmExecutionError {
+    let failure = VmExecutionError::new(error.to_string());
+    Python::attach(|py| {
+        let value = error.value(py);
+        if let Ok(carried) = value.getattr("__xian_exception__") {
+            if let Ok((name, arguments)) = carried.extract::<(String, Bound<'_, PyAny>)>() {
+                let arguments = arguments
+                    .cast_into::<PyList>()
+                    .ok()
+                    .and_then(|items| items.iter().map(|item| py_to_vm(item).ok()).collect());
+                if let Some(args) = arguments {
+                    return failure.with_exception(crate::VmException { name, args });
+                }
+            }
+            return failure;
+        }
+        let Some(name) = builtin_exception_name(py, &error) else {
+            return failure;
+        };
+        let args = value
+            .getattr("args")
+            .ok()
+            .and_then(python_exception_args)
+            .unwrap_or_else(|| vec![VmValue::String(value.to_string())]);
+        failure.with_exception(crate::VmException {
+            name: name.to_owned(),
+            args,
+        })
+    })
+}
+
+/// `(type name, [arguments])` for a structured failure. An argument that cannot
+/// cross the boundary as a value is passed as its representation.
+fn exception_to_py(py: Python<'_>, exception: Option<&crate::VmException>) -> PyResult<Py<PyAny>> {
+    let Some(exception) = exception else {
+        return Ok(py.None());
+    };
+    let args = PyList::empty(py);
+    for arg in &exception.args {
+        match vm_to_py(py, arg) {
+            Ok(value) => args.append(value)?,
+            Err(_) => args.append(arg.python_repr())?,
+        }
+    }
+    Ok((exception.name.as_str(), args)
+        .into_pyobject(py)?
+        .into_any()
+        .unbind())
+}
+
+fn missing_export(module_name: &str, function_name: &str) -> VmExecutionError {
+    let message =
+        format!("Exported function '{function_name}' does not exist on contract '{module_name}'!");
+    VmExecutionError::described(
+        "AssertionError",
+        format!("AssertionError({message:?})"),
+        message,
+    )
+}
+
 struct PyExecutionResult {
     status_code: i32,
+    exception: Option<crate::VmException>,
     result: VmValue,
     snapshots: Vec<crate::interpreter::VmModuleStorageSnapshot>,
     storage_writes: HashMap<String, VmValue>,
@@ -715,12 +779,10 @@ fn py_hash_entry_to_vm(item: Bound<'_, PyAny>) -> Result<(String, VmValue), VmEx
     }
     let key = pair
         .get_item(0)
-        .map_err(|e| VmExecutionError::new(e.to_string()))?
+        .map_err(host_error)?
         .extract::<String>()
-        .map_err(|e| VmExecutionError::new(e.to_string()))?;
-    let value = pair
-        .get_item(1)
-        .map_err(|e| VmExecutionError::new(e.to_string()))?;
+        .map_err(host_error)?;
+    let value = pair.get_item(1).map_err(host_error)?;
     Ok((key, py_to_vm(value)?))
 }
 
@@ -729,8 +791,8 @@ fn py_hash_entries_to_vm(
 ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
     value
         .try_iter()
-        .map_err(|e| VmExecutionError::new(e.to_string()))?
-        .map(|item| py_hash_entry_to_vm(item.map_err(|e| VmExecutionError::new(e.to_string()))?))
+        .map_err(host_error)?
+        .map(|item| py_hash_entry_to_vm(item.map_err(host_error)?))
         .collect()
 }
 
@@ -803,22 +865,16 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
             ("xian_runtime_types.collections", "ContractingSet") => {
                 let values = value
                     .try_iter()
-                    .map_err(|error| VmExecutionError::new(error.to_string()))?
-                    .map(|item| {
-                        item.map_err(|error| VmExecutionError::new(error.to_string()))
-                            .and_then(py_to_vm)
-                    })
+                    .map_err(host_error)?
+                    .map(|item| item.map_err(host_error).and_then(py_to_vm))
                     .collect::<Result<Vec<_>, _>>()?;
                 return Ok(VmValue::Set(values));
             }
             ("xian_runtime_types.collections", "ContractingFrozenSet") => {
                 let values = value
                     .try_iter()
-                    .map_err(|error| VmExecutionError::new(error.to_string()))?
-                    .map(|item| {
-                        item.map_err(|error| VmExecutionError::new(error.to_string()))
-                            .and_then(py_to_vm)
-                    })
+                    .map_err(host_error)?
+                    .map(|item| item.map_err(host_error).and_then(py_to_vm))
                     .collect::<Result<Vec<_>, _>>()?;
                 return Ok(VmValue::FrozenSet(values));
             }
@@ -826,18 +882,14 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
                 return Ok(VmValue::RawDecimal(crate::VmRawDecimal::parse(
                     value
                         .str()
-                        .map_err(|error| VmExecutionError::new(error.to_string()))?
+                        .map_err(host_error)?
                         .to_str()
-                        .map_err(|error| VmExecutionError::new(error.to_string()))?,
+                        .map_err(host_error)?,
                 )?));
             }
             ("xian_runtime_types.decimal", "ContractingDecimal") => {
-                let rendered = value
-                    .str()
-                    .map_err(|error| VmExecutionError::new(error.to_string()))?;
-                let text = rendered
-                    .to_str()
-                    .map_err(|error| VmExecutionError::new(error.to_string()))?;
+                let rendered = value.str().map_err(host_error)?;
+                let text = rendered.to_str().map_err(host_error)?;
                 return Ok(VmValue::Decimal(if numeric_v2::active() {
                     numeric_v2::exact_decimal(text)?
                 } else {
@@ -873,7 +925,7 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
             && value
                 .call_method0("bit_length")
                 .and_then(|n| n.extract::<u64>())
-                .map_err(|error| VmExecutionError::new(error.to_string()))?
+                .map_err(host_error)?
                 > xian_numeric::INTEGER_BITS
         {
             return Err(VmExecutionError::new(
@@ -882,9 +934,9 @@ fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
         }
         let rendered = value
             .str()
-            .map_err(|error| VmExecutionError::new(error.to_string()))?
+            .map_err(host_error)?
             .to_str()
-            .map_err(|error| VmExecutionError::new(error.to_string()))?
+            .map_err(host_error)?
             .to_owned();
         return Ok(VmValue::Int(
             BigInt::from_str(&rendered)
@@ -908,7 +960,7 @@ fn py_decimal_tuple_to_vm(value: &Bound<'_, PyAny>) -> Result<VmValue, VmExecuti
             value.getattr("exponent")?,
         ))
     })()
-    .map_err(|error| VmExecutionError::new(error.to_string()))?;
+    .map_err(host_error)?;
     let (sign, digits, exponent) = components;
     if sign > 1 {
         return Err(VmExecutionError::new("DecimalTuple sign must be 0 or 1"));
@@ -916,9 +968,7 @@ fn py_decimal_tuple_to_vm(value: &Bound<'_, PyAny>) -> Result<VmValue, VmExecuti
     let (finite, special) = if let Ok(number) = exponent.extract::<i32>() {
         (Some(number), None)
     } else {
-        let marker = exponent
-            .extract::<char>()
-            .map_err(|error| VmExecutionError::new(error.to_string()))?;
+        let marker = exponent.extract::<char>().map_err(host_error)?;
         (None, Some(marker))
     };
     Ok(VmValue::DecimalTuple(crate::VmDecimalTuple::from_parts(
@@ -1078,28 +1128,22 @@ fn python_type_name(value: &Bound<'_, PyAny>) -> String {
 fn extract_i64_attr(value: &Bound<'_, PyAny>, attr: &str) -> Result<i64, VmExecutionError> {
     value
         .getattr(attr)
-        .map_err(|error| VmExecutionError::new(error.to_string()))?
+        .map_err(host_error)?
         .extract::<i64>()
-        .map_err(|error| VmExecutionError::new(error.to_string()))
+        .map_err(host_error)
 }
 
 fn optional_string_item(
     dict: &Bound<'_, PyDict>,
     key: &str,
 ) -> Result<Option<String>, VmExecutionError> {
-    let Some(value) = dict
-        .get_item(key)
-        .map_err(|error| VmExecutionError::new(error.to_string()))?
-    else {
+    let Some(value) = dict.get_item(key).map_err(host_error)? else {
         return Ok(None);
     };
     if value.is_none() {
         return Ok(None);
     }
-    value
-        .extract::<String>()
-        .map(Some)
-        .map_err(|error| VmExecutionError::new(error.to_string()))
+    value.extract::<String>().map(Some).map_err(host_error)
 }
 
 fn context_from_py(context: &Bound<'_, PyAny>) -> Result<VmExecutionContext, VmExecutionError> {
@@ -1113,7 +1157,7 @@ fn context_from_py(context: &Bound<'_, PyAny>) -> Result<VmExecutionContext, VmE
     let submission_name = optional_string_item(dict, "submission_name")?;
     let entry = dict
         .get_item("entry")
-        .map_err(|error| VmExecutionError::new(error.to_string()))?
+        .map_err(host_error)?
         .map(|value| {
             if value.is_none() {
                 return Ok(None);
@@ -1127,39 +1171,39 @@ fn context_from_py(context: &Bound<'_, PyAny>) -> Result<VmExecutionContext, VmE
             Ok(Some((
                 tuple
                     .get_item(0)
-                    .map_err(|error| VmExecutionError::new(error.to_string()))?
+                    .map_err(host_error)?
                     .extract::<String>()
-                    .map_err(|error| VmExecutionError::new(error.to_string()))?,
+                    .map_err(host_error)?,
                 tuple
                     .get_item(1)
-                    .map_err(|error| VmExecutionError::new(error.to_string()))?
+                    .map_err(host_error)?
                     .extract::<String>()
-                    .map_err(|error| VmExecutionError::new(error.to_string()))?,
+                    .map_err(host_error)?,
             )))
         })
         .transpose()?
         .flatten();
     let now = dict
         .get_item("now")
-        .map_err(|error| VmExecutionError::new(error.to_string()))?
+        .map_err(host_error)?
         .map(py_to_vm)
         .transpose()?
         .unwrap_or(VmValue::None);
     let block_num = dict
         .get_item("block_num")
-        .map_err(|error| VmExecutionError::new(error.to_string()))?
+        .map_err(host_error)?
         .map(py_to_vm)
         .transpose()?
         .unwrap_or(VmValue::Int(BigInt::from(-1)));
     let block_hash = dict
         .get_item("block_hash")
-        .map_err(|error| VmExecutionError::new(error.to_string()))?
+        .map_err(host_error)?
         .map(py_to_vm)
         .transpose()?
         .unwrap_or(VmValue::None);
     let chain_id = dict
         .get_item("chain_id")
-        .map_err(|error| VmExecutionError::new(error.to_string()))?
+        .map_err(host_error)?
         .map(py_to_vm)
         .transpose()?
         .unwrap_or(VmValue::None);
@@ -1182,6 +1226,7 @@ fn execution_result_to_py(py: Python<'_>, result: PyExecutionResult) -> PyResult
     let payload = PyDict::new(py);
     payload.set_item("status_code", result.status_code)?;
     payload.set_item("result", vm_to_py(py, &result.result)?)?;
+    payload.set_item("exception", exception_to_py(py, result.exception.as_ref())?)?;
 
     let snapshots = PyList::empty(py);
     for snapshot in result.snapshots {

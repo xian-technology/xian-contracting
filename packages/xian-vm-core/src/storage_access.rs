@@ -88,7 +88,7 @@ impl VmInstance {
                 "cannot set foreign variable '{binding}'"
             )));
         }
-        if !matches!(value.snapshot(), VmValue::None) {
+        if !resolves_to!(value, VmValue::None) {
             if let Some(marker) = &state.value_type {
                 if !type_matches(&value, marker)
                     || matches!(marker, VmValue::TypeMarker(name) if name == "Any")
@@ -206,7 +206,7 @@ impl VmInstance {
         host: &mut dyn VmHost,
     ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
         let module_name = self.module.module_name.clone();
-        let prefix = normalize_hash_prefix(prefix_args)?;
+        let prefix = hash_scan_prefix(prefix_args)?;
         let (scan_contract, scan_binding, state_key) = {
             let state = self.hashes.get(binding).ok_or_else(|| {
                 VmExecutionError::new(format!("unknown hash binding '{binding}'"))
@@ -233,7 +233,7 @@ impl VmInstance {
         // Only snapshot-local/dirty values can supplement the host. Cached reads
         // must not resurrect a tombstone written by a nested contract call.
         for (key, value) in &state.entries {
-            if prefix_matches_hash_entry(key, &prefix)
+            if key.starts_with(&prefix)
                 && (state.snapshot_local || state.dirty_entries.contains(key))
                 && !ordered.contains_key(key)
                 && !matches!(value, VmValue::None)

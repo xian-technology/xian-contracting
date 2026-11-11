@@ -12,6 +12,9 @@ pub(crate) fn supports(value: &VmValue, method: &str) -> bool {
     if numeric_v2::active() && is_bool_receiver(value) {
         return false;
     }
+    if !is_scalar_receiver(value) {
+        return false;
+    }
     match value.snapshot() {
         VmValue::Range(_) => matches!(method, "count" | "index"),
         VmValue::Int(_) | VmValue::Bool(_) => matches!(
@@ -36,7 +39,24 @@ pub(crate) fn supports(value: &VmValue, method: &str) -> bool {
     }
 }
 
+/// Scalar methods and attributes apply only to these receivers. Checking
+/// first avoids copying a referenced container that cannot match.
+fn is_scalar_receiver(value: &VmValue) -> bool {
+    resolves_to!(
+        value,
+        VmValue::Range(_)
+            | VmValue::Int(_)
+            | VmValue::Bool(_)
+            | VmValue::Float(_)
+            | VmValue::Builtin(_)
+            | VmValue::TypeMarker(_)
+    )
+}
+
 pub(crate) fn attribute(value: &VmValue, name: &str) -> Option<Result<VmValue>> {
+    if !is_scalar_receiver(value) {
+        return None;
+    }
     if matches!(
         (value.snapshot(), name),
         (VmValue::Int(_), "real" | "numerator") | (VmValue::Float(_), "real")
@@ -109,8 +129,8 @@ pub(crate) fn call(value: &VmValue, method: &str, args: Vec<VmValue>) -> Result<
 }
 
 fn is_bool_receiver(value: &VmValue) -> bool {
-    matches!(value.snapshot(), VmValue::Bool(_))
-        || matches!(value.snapshot(), VmValue::Builtin(name) | VmValue::TypeMarker(name) if name == "bool")
+    resolves_to!(value, VmValue::Bool(_))
+        || resolves_to!(value, VmValue::Builtin(name) | VmValue::TypeMarker(name) if name == "bool")
 }
 
 fn integer_method(number: BigInt, method: &str, args: &[VmValue]) -> Result<VmValue> {
@@ -317,7 +337,7 @@ pub(crate) fn work_cost(value: &VmValue, method: &str, args: &[VmValue]) -> u64 
         0
     };
     let work = input.saturating_add(output);
-    if matches!(value.snapshot(), VmValue::Range(_)) {
+    if resolves_to!(value, VmValue::Range(_)) {
         work.saturating_mul(work).saturating_mul(32)
     } else {
         work.saturating_mul(32)

@@ -174,7 +174,7 @@ pub(crate) fn comparison(
     right: &VmValue,
     identity_shortcut: bool,
 ) -> Result<()> {
-    if identity_shortcut && left.identical(right) {
+    if v2_has_no_raw_decimals() || (identity_shortcut && left.identical(right)) {
         return Ok(());
     }
     let mut walker = Walker::default();
@@ -183,7 +183,17 @@ pub(crate) fn comparison(
     charge(host, left.pair(right))
 }
 
+/// V2 admits no raw Decimal or float values, so these profiles never charge
+/// there; their traversal would be unmetered work. V2 meters comparisons
+/// per element instead (`work_meter`).
+fn v2_has_no_raw_decimals() -> bool {
+    crate::interpreter::numeric_v2::active()
+}
+
 pub(crate) fn normalization(host: &mut dyn VmHost, values: &[VmValue]) -> Result<()> {
+    if v2_has_no_raw_decimals() {
+        return Ok(());
+    }
     let profile = Walker::default().values(values, 0)?;
     charge(host, profile.pair(profile))
 }
@@ -196,11 +206,17 @@ pub(crate) struct SetInputs {
 }
 impl SetInputs {
     pub(crate) fn new(receiver: &VmValue) -> Result<Self> {
+        if v2_has_no_raw_decimals() {
+            return Ok(Self::default());
+        }
         Ok(Self {
             previous: Walker::default().value(receiver, 0)?,
         })
     }
     pub(crate) fn collected(&mut self, host: &mut dyn VmHost, values: &[VmValue]) -> Result<()> {
+        if v2_has_no_raw_decimals() {
+            return Ok(());
+        }
         let next = Walker::default().values(values, 0)?;
         charge(
             host,

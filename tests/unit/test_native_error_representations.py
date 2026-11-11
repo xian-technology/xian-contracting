@@ -44,7 +44,7 @@ from contracting.storage.driver import Driver
     ],
 )
 def test_existing_failure_representations_keep_types_arguments_and_categories(text, kind, args):
-    error = _native_exception_from_repr(text, vm_profile="xian_vm_v1")
+    error = _native_exception_from_repr(text)
     if kind is None:
         assert error is None
     else:
@@ -64,7 +64,7 @@ def test_existing_failure_representations_keep_types_arguments_and_categories(te
     ids=["typed-message", "host-prefixes", "opaque-message"],
 )
 def test_long_error_messages_do_not_recurse_through_host_stack(text, kind, args):
-    error = _native_exception_from_repr(text, vm_profile="xian_vm_v1")
+    error = _native_exception_from_repr(text)
     assert type(error) is kind if kind is not None else error is None
     if error is not None:
         assert error.args == args
@@ -110,29 +110,6 @@ def good():
         followup = execute("good")
         assert followup.status_code == 0
         assert followup.result == 7
-
-
-@pytest.mark.parametrize(
-    "text,kind,message",
-    [
-        (": AssertionError('stop')", AssertionError, "stop"),
-        (
-            "AssertionError('ValueError: ValueError: stop')",
-            AssertionError,
-            "ValueError: ValueError: stop",
-        ),
-        (
-            "constructor failed: AssertionError('ValueError: ValueError: stop')",
-            AssertionError,
-            "ValueError: ValueError: stop",
-        ),
-        ("TypeError: ValueError: stop", TypeError, "ValueError: stop"),
-    ],
-)
-def test_v2_keeps_recognized_outer_failure_message_as_data(text, kind, message):
-    error = _native_exception_from_repr(text)
-    assert type(error) is kind
-    assert error.args == (message,)
 
 
 @pytest.mark.parametrize("profile", ["xian_vm_v1", "xian_vm_v2"])

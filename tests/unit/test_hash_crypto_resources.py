@@ -133,4 +133,6 @@ def test_key_predicate_matches_installed_native_for_strict_shape(tmp_path, value
 
     result = execute(tmp_path, "return crypto.key_is_valid(payload)", value, meter=False)
     assert result.status_code == 0, result.result
-    assert result.result is crypto.key_is_valid(value)
+    # V2 additionally requires the canonical lowercase spelling, so one key has
+    # exactly one account name; the archival shape check accepts either case.
+    assert result.result is (crypto.key_is_valid(value) and value == value.lower())

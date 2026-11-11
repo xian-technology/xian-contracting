@@ -121,7 +121,7 @@ fn rounding(value: VmValue) -> Result<Option<String>> {
 fn bind_parameter(bound: &mut Arguments, parameter: &str, value: VmValue) -> Result<()> {
     match parameter {
         "context" => {
-            if !matches!(value.snapshot(), VmValue::None) {
+            if !resolves_to!(value, VmValue::None) {
                 return Err(VmExecutionError::new("Decimal context must be None"));
             }
         }

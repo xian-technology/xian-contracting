@@ -55,7 +55,9 @@ impl VmReference {
     }
 
     pub(crate) fn value(&self) -> VmValue {
-        self.0.value.borrow().clone()
+        let value = self.0.value.borrow().clone();
+        crate::work_meter::note(crate::work_meter::copied(&value));
+        value
     }
 
     pub(crate) fn replace(&self, value: VmValue) -> Result<(), VmExecutionError> {
@@ -80,6 +82,16 @@ impl VmReference {
         Ok(())
     }
 
+    /// Replace one list element in place. The list keeps its length, so its
+    /// accounted bytes do not change.
+    pub(crate) fn set_list_item(&self, index: usize, item: VmValue) {
+        match &mut *self.0.value.borrow_mut() {
+            VmValue::List(items) => items[index] = item,
+            _ => unreachable!("list reference changed type"),
+        }
+        self.0.version.set(self.0.version.get().saturating_add(1));
+    }
+
     pub(crate) fn append_sequence(&self, item: VmValue) -> Result<(), VmExecutionError> {
         let mut value = self.0.value.borrow_mut();
         let (length, growth) = match &*value {
@@ -96,7 +108,7 @@ impl VmReference {
         match &mut *value {
             VmValue::List(items) => items.push(item),
             VmValue::ByteArray(bytes) => {
-                if !matches!(item.snapshot(), VmValue::Int(_) | VmValue::Bool(_)) {
+                if !resolves_to!(item, VmValue::Int(_) | VmValue::Bool(_)) {
                     return Err(VmExecutionError::new("byte requires an integer"));
                 }
                 let byte = u8::try_from(item.as_i64()?)
@@ -208,6 +220,7 @@ impl VmHeap {
         ) {
             return Ok(value);
         }
+        crate::work_meter::count(crate::work_meter::members(&value))?;
         let immutable_depth = immutable_depth(&value);
         if immutable_depth > MAX_VALUE_DEPTH {
             return Err(VmExecutionError::new(
@@ -374,6 +387,14 @@ impl VmValue {
         }
     }
 
+    /// Inspect the object this value resolves to without copying it.
+    pub(crate) fn with_resolved<T>(&self, read: impl FnOnce(&Self) -> T) -> T {
+        match self {
+            Self::Reference(reference) => reference.with_value(read),
+            other => read(other),
+        }
+    }
+
     /// Resolve one object without copying the objects held in its container.
     pub(crate) fn snapshot(&self) -> Self {
         match self {
@@ -421,22 +442,22 @@ fn detach(
             ));
         }
     }
-    if matches!(value.snapshot(), VmValue::BuiltinSet(_)) {
+    if resolves_to!(value, VmValue::BuiltinSet(_)) {
         return Err(VmExecutionError::new(
             "builtin sets cannot cross the VM boundary; convert with set() first",
         ));
     }
-    if matches!(value.snapshot(), VmValue::InterfaceDescriptor(_)) {
+    if resolves_to!(value, VmValue::InterfaceDescriptor(_)) {
         return Err(VmExecutionError::new(
             "interface descriptors cannot cross the VM boundary",
         ));
     }
-    if matches!(value.snapshot(), VmValue::BoundMethod(_)) {
+    if resolves_to!(value, VmValue::BoundMethod(_)) {
         return Err(VmExecutionError::new(
             "bound methods cannot cross the VM boundary",
         ));
     }
-    if matches!(value.snapshot(), VmValue::MappingProxy(_)) {
+    if resolves_to!(value, VmValue::MappingProxy(_)) {
         return Err(VmExecutionError::new(
             "mapping proxies cannot cross the VM boundary; copy them first",
         ));
@@ -448,8 +469,8 @@ fn detach(
             "{kind} cannot cross the VM boundary"
         )));
     }
-    if matches!(
-        value.snapshot(),
+    if resolves_to!(
+        value,
         VmValue::Iterator(_) | VmValue::Range(_) | VmValue::View(_)
     ) {
         return Err(VmExecutionError::new(

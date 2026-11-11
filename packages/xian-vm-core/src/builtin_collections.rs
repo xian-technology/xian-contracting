@@ -129,8 +129,8 @@ impl VmInstance {
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
         let mut total = sum_start(&args, kwargs)?;
-        if matches!(
-            total.snapshot(),
+        if resolves_to!(
+            total,
             VmValue::String(_) | VmValue::Bytes(_) | VmValue::ByteArray(_)
         ) {
             return Err(VmExecutionError::new("sum() cannot sum strings or bytes"));

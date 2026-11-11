@@ -3,11 +3,11 @@ use super::*;
 use crate::iteration::ViewMode;
 
 pub(super) fn is_set_view(value: &VmValue) -> bool {
-    matches!(value.snapshot(), VmValue::View(view) if !matches!(view.mode, ViewMode::Values))
+    resolves_to!(value, VmValue::View(view) if !matches!(view.mode, ViewMode::Values))
 }
 
 fn is_builtin_setlike(value: &VmValue) -> bool {
-    matches!(value.snapshot(), VmValue::BuiltinSet(_)) || is_set_view(value)
+    resolves_to!(value, VmValue::BuiltinSet(_)) || is_set_view(value)
 }
 
 pub(super) fn contains(
@@ -272,7 +272,7 @@ pub(super) fn union_work(operator: &str, left: &VmValue, right: &VmValue) -> u64
 }
 
 fn is_items_view(value: &VmValue) -> bool {
-    matches!(value.snapshot(), VmValue::View(view) if matches!(view.mode, ViewMode::Items))
+    resolves_to!(value, VmValue::View(view) if matches!(view.mode, ViewMode::Items))
 }
 
 // Comparison scans must account for payload length, not just item count. Borrow

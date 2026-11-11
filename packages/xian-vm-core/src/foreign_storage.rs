@@ -94,7 +94,7 @@ pub(super) fn call_method(
         }
         (true, "all") => {
             host.charge_execution_cost(VM_GAS_HASH_SCAN)?;
-            let prefix = normalize_hash_prefix(&args)?;
+            let prefix = hash_scan_prefix(&args)?;
             let entries =
                 host.scan_hash_entries_metered(&reference.contract, &reference.binding, &prefix)?;
             let mut values = Vec::new();

@@ -806,6 +806,9 @@ impl VmInstance {
         name: &str,
         host: &mut dyn VmHost,
     ) -> Option<Result<VmValue, VmExecutionError>> {
+        if !resolves_to!(value, VmValue::Builtin(_) | VmValue::ContractHandle(_)) {
+            return None;
+        }
         match value.snapshot() {
             VmValue::Builtin(module) if is_host_module(&module) => {
                 self.host_module_attribute(&module, name)

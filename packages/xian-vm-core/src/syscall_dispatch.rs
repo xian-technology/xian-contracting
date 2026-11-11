@@ -139,8 +139,11 @@ impl VmInstance {
                 if SUBMISSION_ONLY_SYSCALLS.contains(&other)
                     && self.context.this.as_deref() != Some(SUBMISSION_CONTRACT)
                 {
-                    return Err(VmExecutionError::new(
-                        "Contract metadata changes are restricted to submission.",
+                    let message = "Contract metadata changes are restricted to submission.";
+                    return Err(VmExecutionError::described(
+                        "AssertionError",
+                        message,
+                        message,
                     ));
                 }
                 if let Some(cost) = explicit_syscall_metering_cost(other, &args, &kwargs)? {

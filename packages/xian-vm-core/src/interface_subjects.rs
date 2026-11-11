@@ -38,6 +38,9 @@ fn parameter_tuple_work(value: &VmValue) -> u64 {
     })
 }
 pub(super) fn attribute(value: &VmValue, name: &str) -> Option<Result<VmValue, VmExecutionError>> {
+    if !resolves_to!(value, VmValue::InterfaceSubject(_)) {
+        return None;
+    }
     let VmValue::InterfaceSubject(subject) = value.snapshot() else {
         return None;
     };

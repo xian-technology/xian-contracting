@@ -18,7 +18,7 @@ pub(super) fn constructor(
     if args
         .iter()
         .chain(kwargs.iter().map(|(_, value)| value))
-        .any(|value| !matches!(value.snapshot(), VmValue::None))
+        .any(|value| !resolves_to!(value, VmValue::None))
     {
         return Err(VmExecutionError::new(
             "Contract() cannot receive a driver during contract execution",
@@ -28,11 +28,11 @@ pub(super) fn constructor(
 }
 
 pub(super) fn is_class(value: &VmValue) -> bool {
-    matches!(value.snapshot(), VmValue::Builtin(ref name) if name == "Contract")
+    resolves_to!(value, VmValue::Builtin(ref name) if name == "Contract")
 }
 
 pub(super) fn is_instance(value: &VmValue) -> bool {
-    matches!(value.snapshot(), VmValue::DeploymentHandle)
+    resolves_to!(value, VmValue::DeploymentHandle)
 }
 
 impl VmInstance {

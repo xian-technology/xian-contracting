@@ -70,7 +70,7 @@ impl VmInterfaceDescriptor {
 }
 
 pub(crate) fn is_storage_class(value: &VmValue) -> bool {
-    matches!(value.snapshot(), VmValue::TypeMarker(name) if matches!(name.as_str(), "Variable" | "Hash" | "ForeignVariable" | "ForeignHash" | "LogEvent"))
+    resolves_to!(value, VmValue::TypeMarker(name) if matches!(name.as_str(), "Variable" | "Hash" | "ForeignVariable" | "ForeignHash" | "LogEvent"))
 }
 
 fn prefixed_name(value: &VmValue) -> Result<VmValue, VmExecutionError> {
@@ -145,6 +145,9 @@ pub(super) fn attribute(
     receiver: &VmValue,
     name: &str,
 ) -> Option<Result<VmValue, VmExecutionError>> {
+    if !resolves_to!(receiver, VmValue::InterfaceDescriptor(_)) {
+        return None;
+    }
     let VmValue::InterfaceDescriptor(descriptor) = receiver.snapshot() else {
         return None;
     };
@@ -168,7 +171,7 @@ pub(super) fn write_attribute(
     name: &str,
     value: VmValue,
 ) -> Result<(), VmExecutionError> {
-    if matches!(receiver.snapshot(), VmValue::InterfaceSubject(_)) {
+    if resolves_to!(receiver, VmValue::InterfaceSubject(_)) {
         return Err(VmExecutionError::new("InterfaceSubject is read-only"));
     }
     if name.starts_with('_') {

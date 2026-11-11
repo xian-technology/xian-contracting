@@ -101,10 +101,9 @@ fn parameter(spec: &VmValue) -> Result<(VmValue, bool), VmExecutionError> {
     let VmValue::Dict(entries) = spec.snapshot() else {
         return Ok((spec.clone(), false));
     };
-    if entries
-        .iter()
-        .any(|(key, _)| !matches!(key.snapshot(), VmValue::String(name) if name == "type" || name == "idx"))
-    {
+    if entries.iter().any(
+        |(key, _)| !resolves_to!(key, VmValue::String(name) if name == "type" || name == "idx"),
+    ) {
         return Err(VmExecutionError::new("unsupported event schema key"));
     }
     let types = dict_get(&entries, &VmValue::String("type".into()))?
@@ -119,7 +118,7 @@ fn parameter(spec: &VmValue) -> Result<(VmValue, bool), VmExecutionError> {
 }
 
 fn valid_type(value: &VmValue) -> bool {
-    matches!(value.snapshot(), VmValue::Builtin(name) | VmValue::TypeMarker(name)
+    resolves_to!(value, VmValue::Builtin(name) | VmValue::TypeMarker(name)
         if matches!(name.as_str(), "str" | "int" | "float" | "bool" | "bytes" | "bytearray" | "set" | "frozenset" | "decimal"))
 }
 fn validate_types(types: &VmValue) -> Result<(), VmExecutionError> {

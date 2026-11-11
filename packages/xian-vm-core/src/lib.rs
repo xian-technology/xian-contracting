@@ -5,6 +5,14 @@ use serde_json::{Map, Value};
 use std::collections::HashSet;
 use std::fmt;
 
+/// `matches!` against the object a value resolves to, borrowing a referenced
+/// container instead of copying it as `snapshot()` does.
+macro_rules! resolves_to {
+    ($value:expr, $($pattern:tt)+) => {
+        $value.with_resolved(|resolved| matches!(resolved, $($pattern)+))
+    };
+}
+
 mod artifacts;
 mod execution_stack;
 pub use execution_stack::MAX_EXECUTION_DEPTH;
@@ -26,6 +34,7 @@ mod set_member_codec;
 pub use decimal_tuple::{VmDecimalExponent, VmDecimalTuple};
 mod storage_scan;
 mod values;
+mod work_meter;
 pub use raw_decimal::VmRawDecimal;
 
 pub const XIAN_IR_V1: &str = "xian_ir_v1";
@@ -33,8 +42,8 @@ pub const XIAN_VM_V2_PROFILE: &str = "xian_vm_v2";
 pub const XIAN_VM_V1_PROFILE: &str = "xian_vm_v1";
 pub const XIAN_VM_HOST_CATALOG_V1: &str = "xian_vm_v1_host_v1";
 pub const XIAN_VM_SUPPORTED_BYTECODE_VERSIONS: &[&str] = &["xvm-2"];
-pub const XIAN_VM_SUPPORTED_GAS_SCHEDULES: &[&str] = &["xvm-gas-3"];
-pub const XIAN_VM_EXECUTION_REVISION: &str = "xvm-execution-9";
+pub const XIAN_VM_SUPPORTED_GAS_SCHEDULES: &[&str] = &["xvm-gas-4"];
+pub const XIAN_VM_EXECUTION_REVISION: &str = "xvm-execution-10";
 pub const XIAN_VM_V1_EXECUTION_REVISION: &str = "xvm-execution-7";
 pub const XIAN_VM_SET_CODEC: &str = "xian-set-1";
 

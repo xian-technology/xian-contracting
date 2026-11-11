@@ -1,0 +1,1604 @@
+{
+ "ir": {
+  "docstring": null,
+  "functions": [
+   {
+    "body": [
+     {
+      "node": "assign",
+      "span": {
+       "col": 4,
+       "end_col": 14,
+       "end_line": 3,
+       "line": 3
+      },
+      "targets": [
+       {
+        "host_binding_id": null,
+        "id": "items",
+        "node": "name",
+        "span": {
+         "col": 4,
+         "end_col": 9,
+         "end_line": 3,
+         "line": 3
+        }
+       }
+      ],
+      "value": {
+       "elements": [],
+       "node": "list",
+       "span": {
+        "col": 12,
+        "end_col": 14,
+        "end_line": 3,
+        "line": 3
+       }
+      }
+     },
+     {
+      "body": [
+       {
+        "node": "expr",
+        "span": {
+         "col": 8,
+         "end_col": 23,
+         "end_line": 5,
+         "line": 5
+        },
+        "value": {
+         "args": [
+          {
+           "host_binding_id": null,
+           "id": "i",
+           "node": "name",
+           "span": {
+            "col": 21,
+            "end_col": 22,
+            "end_line": 5,
+            "line": 5
+           }
+          }
+         ],
+         "event_binding": null,
+         "func": {
+          "attr": "append",
+          "host_binding_id": null,
+          "node": "attribute",
+          "path": "items.append",
+          "span": {
+           "col": 8,
+           "end_col": 20,
+           "end_line": 5,
+           "line": 5
+          },
+          "value": {
+           "host_binding_id": null,
+           "id": "items",
+           "node": "name",
+           "span": {
+            "col": 8,
+            "end_col": 13,
+            "end_line": 5,
+            "line": 5
+           }
+          }
+         },
+         "keywords": [],
+         "node": "call",
+         "span": {
+          "col": 8,
+          "end_col": 23,
+          "end_line": 5,
+          "line": 5
+         },
+         "syscall_id": null
+        }
+       }
+      ],
+      "iter": {
+       "args": [
+        {
+         "host_binding_id": null,
+         "id": "n",
+         "node": "name",
+         "span": {
+          "col": 19,
+          "end_col": 20,
+          "end_line": 4,
+          "line": 4
+         }
+        }
+       ],
+       "event_binding": null,
+       "func": {
+        "host_binding_id": null,
+        "id": "range",
+        "node": "name",
+        "span": {
+         "col": 13,
+         "end_col": 18,
+         "end_line": 4,
+         "line": 4
+        }
+       },
+       "keywords": [],
+       "node": "call",
+       "span": {
+        "col": 13,
+        "end_col": 21,
+        "end_line": 4,
+        "line": 4
+       },
+       "syscall_id": null
+      },
+      "node": "for",
+      "orelse": [],
+      "span": {
+       "col": 4,
+       "end_col": 23,
+       "end_line": 5,
+       "line": 4
+      },
+      "target": {
+       "host_binding_id": null,
+       "id": "i",
+       "node": "name",
+       "span": {
+        "col": 8,
+        "end_col": 9,
+        "end_line": 4,
+        "line": 4
+       }
+      }
+     },
+     {
+      "node": "return",
+      "span": {
+       "col": 4,
+       "end_col": 44,
+       "end_line": 6,
+       "line": 6
+      },
+      "value": {
+       "elements": [
+        {
+         "args": [
+          {
+           "host_binding_id": null,
+           "id": "items",
+           "node": "name",
+           "span": {
+            "col": 16,
+            "end_col": 21,
+            "end_line": 6,
+            "line": 6
+           }
+          }
+         ],
+         "event_binding": null,
+         "func": {
+          "host_binding_id": null,
+          "id": "len",
+          "node": "name",
+          "span": {
+           "col": 12,
+           "end_col": 15,
+           "end_line": 6,
+           "line": 6
+          }
+         },
+         "keywords": [],
+         "node": "call",
+         "span": {
+          "col": 12,
+          "end_col": 22,
+          "end_line": 6,
+          "line": 6
+         },
+         "syscall_id": null
+        },
+        {
+         "node": "subscript",
+         "slice": {
+          "node": "constant",
+          "span": {
+           "col": 30,
+           "end_col": 31,
+           "end_line": 6,
+           "line": 6
+          },
+          "value": 0,
+          "value_type": "int"
+         },
+         "span": {
+          "col": 24,
+          "end_col": 32,
+          "end_line": 6,
+          "line": 6
+         },
+         "value": {
+          "host_binding_id": null,
+          "id": "items",
+          "node": "name",
+          "span": {
+           "col": 24,
+           "end_col": 29,
+           "end_line": 6,
+           "line": 6
+          }
+         }
+        },
+        {
+         "node": "subscript",
+         "slice": {
+          "node": "unary_op",
+          "operand": {
+           "node": "constant",
+           "span": {
+            "col": 41,
+            "end_col": 42,
+            "end_line": 6,
+            "line": 6
+           },
+           "value": 1,
+           "value_type": "int"
+          },
+          "operator": "neg",
+          "span": {
+           "col": 40,
+           "end_col": 42,
+           "end_line": 6,
+           "line": 6
+          }
+         },
+         "span": {
+          "col": 34,
+          "end_col": 43,
+          "end_line": 6,
+          "line": 6
+         },
+         "value": {
+          "host_binding_id": null,
+          "id": "items",
+          "node": "name",
+          "span": {
+           "col": 34,
+           "end_col": 39,
+           "end_line": 6,
+           "line": 6
+          }
+         }
+        }
+       ],
+       "node": "list",
+       "span": {
+        "col": 11,
+        "end_col": 44,
+        "end_line": 6,
+        "line": 6
+       }
+      }
+     }
+    ],
+    "decorator": {
+     "args": [],
+     "keywords": [],
+     "name": "export",
+     "node": "decorator",
+     "span": {
+      "col": 1,
+      "end_col": 7,
+      "end_line": 1,
+      "line": 1
+     }
+    },
+    "docstring": null,
+    "name": "appended",
+    "node": "function",
+    "parameters": [
+     {
+      "annotation": "int",
+      "default": null,
+      "kind": "positional_or_keyword",
+      "name": "n",
+      "span": {
+       "col": 13,
+       "end_col": 19,
+       "end_line": 2,
+       "line": 2
+      }
+     }
+    ],
+    "returns": null,
+    "span": {
+     "col": 0,
+     "end_col": 44,
+     "end_line": 6,
+     "line": 2
+    },
+    "visibility": "export"
+   },
+   {
+    "body": [
+     {
+      "node": "assign",
+      "span": {
+       "col": 4,
+       "end_col": 26,
+       "end_line": 10,
+       "line": 10
+      },
+      "targets": [
+       {
+        "host_binding_id": null,
+        "id": "items",
+        "node": "name",
+        "span": {
+         "col": 4,
+         "end_col": 9,
+         "end_line": 10,
+         "line": 10
+        }
+       }
+      ],
+      "value": {
+       "args": [
+        {
+         "args": [
+          {
+           "host_binding_id": null,
+           "id": "n",
+           "node": "name",
+           "span": {
+            "col": 23,
+            "end_col": 24,
+            "end_line": 10,
+            "line": 10
+           }
+          }
+         ],
+         "event_binding": null,
+         "func": {
+          "host_binding_id": null,
+          "id": "range",
+          "node": "name",
+          "span": {
+           "col": 17,
+           "end_col": 22,
+           "end_line": 10,
+           "line": 10
+          }
+         },
+         "keywords": [],
+         "node": "call",
+         "span": {
+          "col": 17,
+          "end_col": 25,
+          "end_line": 10,
+          "line": 10
+         },
+         "syscall_id": null
+        }
+       ],
+       "event_binding": null,
+       "func": {
+        "host_binding_id": null,
+        "id": "list",
+        "node": "name",
+        "span": {
+         "col": 12,
+         "end_col": 16,
+         "end_line": 10,
+         "line": 10
+        }
+       },
+       "keywords": [],
+       "node": "call",
+       "span": {
+        "col": 12,
+        "end_col": 26,
+        "end_line": 10,
+        "line": 10
+       },
+       "syscall_id": null
+      }
+     },
+     {
+      "node": "assign",
+      "span": {
+       "col": 4,
+       "end_col": 17,
+       "end_line": 11,
+       "line": 11
+      },
+      "targets": [
+       {
+        "host_binding_id": null,
+        "id": "alias",
+        "node": "name",
+        "span": {
+         "col": 4,
+         "end_col": 9,
+         "end_line": 11,
+         "line": 11
+        }
+       }
+      ],
+      "value": {
+       "host_binding_id": null,
+       "id": "items",
+       "node": "name",
+       "span": {
+        "col": 12,
+        "end_col": 17,
+        "end_line": 11,
+        "line": 11
+       }
+      }
+     },
+     {
+      "node": "assign",
+      "span": {
+       "col": 4,
+       "end_col": 13,
+       "end_line": 12,
+       "line": 12
+      },
+      "targets": [
+       {
+        "host_binding_id": null,
+        "id": "total",
+        "node": "name",
+        "span": {
+         "col": 4,
+         "end_col": 9,
+         "end_line": 12,
+         "line": 12
+        }
+       }
+      ],
+      "value": {
+       "node": "constant",
+       "span": {
+        "col": 12,
+        "end_col": 13,
+        "end_line": 12,
+        "line": 12
+       },
+       "value": 0,
+       "value_type": "int"
+      }
+     },
+     {
+      "body": [
+       {
+        "node": "assign",
+        "span": {
+         "col": 8,
+         "end_col": 31,
+         "end_line": 14,
+         "line": 14
+        },
+        "targets": [
+         {
+          "node": "subscript",
+          "slice": {
+           "host_binding_id": null,
+           "id": "i",
+           "node": "name",
+           "span": {
+            "col": 14,
+            "end_col": 15,
+            "end_line": 14,
+            "line": 14
+           }
+          },
+          "span": {
+           "col": 8,
+           "end_col": 16,
+           "end_line": 14,
+           "line": 14
+          },
+          "value": {
+           "host_binding_id": null,
+           "id": "items",
+           "node": "name",
+           "span": {
+            "col": 8,
+            "end_col": 13,
+            "end_line": 14,
+            "line": 14
+           }
+          }
+         }
+        ],
+        "value": {
+         "left": {
+          "node": "subscript",
+          "slice": {
+           "host_binding_id": null,
+           "id": "i",
+           "node": "name",
+           "span": {
+            "col": 25,
+            "end_col": 26,
+            "end_line": 14,
+            "line": 14
+           }
+          },
+          "span": {
+           "col": 19,
+           "end_col": 27,
+           "end_line": 14,
+           "line": 14
+          },
+          "value": {
+           "host_binding_id": null,
+           "id": "items",
+           "node": "name",
+           "span": {
+            "col": 19,
+            "end_col": 24,
+            "end_line": 14,
+            "line": 14
+           }
+          }
+         },
+         "node": "bin_op",
+         "operator": "mul",
+         "right": {
+          "node": "constant",
+          "span": {
+           "col": 30,
+           "end_col": 31,
+           "end_line": 14,
+           "line": 14
+          },
+          "value": 2,
+          "value_type": "int"
+         },
+         "span": {
+          "col": 19,
+          "end_col": 31,
+          "end_line": 14,
+          "line": 14
+         }
+        }
+       },
+       {
+        "node": "aug_assign",
+        "operator": "add",
+        "span": {
+         "col": 8,
+         "end_col": 25,
+         "end_line": 15,
+         "line": 15
+        },
+        "target": {
+         "host_binding_id": null,
+         "id": "total",
+         "node": "name",
+         "span": {
+          "col": 8,
+          "end_col": 13,
+          "end_line": 15,
+          "line": 15
+         }
+        },
+        "value": {
+         "node": "subscript",
+         "slice": {
+          "host_binding_id": null,
+          "id": "i",
+          "node": "name",
+          "span": {
+           "col": 23,
+           "end_col": 24,
+           "end_line": 15,
+           "line": 15
+          }
+         },
+         "span": {
+          "col": 17,
+          "end_col": 25,
+          "end_line": 15,
+          "line": 15
+         },
+         "value": {
+          "host_binding_id": null,
+          "id": "alias",
+          "node": "name",
+          "span": {
+           "col": 17,
+           "end_col": 22,
+           "end_line": 15,
+           "line": 15
+          }
+         }
+        }
+       }
+      ],
+      "iter": {
+       "args": [
+        {
+         "host_binding_id": null,
+         "id": "n",
+         "node": "name",
+         "span": {
+          "col": 19,
+          "end_col": 20,
+          "end_line": 13,
+          "line": 13
+         }
+        }
+       ],
+       "event_binding": null,
+       "func": {
+        "host_binding_id": null,
+        "id": "range",
+        "node": "name",
+        "span": {
+         "col": 13,
+         "end_col": 18,
+         "end_line": 13,
+         "line": 13
+        }
+       },
+       "keywords": [],
+       "node": "call",
+       "span": {
+        "col": 13,
+        "end_col": 21,
+        "end_line": 13,
+        "line": 13
+       },
+       "syscall_id": null
+      },
+      "node": "for",
+      "orelse": [],
+      "span": {
+       "col": 4,
+       "end_col": 25,
+       "end_line": 15,
+       "line": 13
+      },
+      "target": {
+       "host_binding_id": null,
+       "id": "i",
+       "node": "name",
+       "span": {
+        "col": 8,
+        "end_col": 9,
+        "end_line": 13,
+        "line": 13
+       }
+      }
+     },
+     {
+      "node": "assign",
+      "span": {
+       "col": 4,
+       "end_col": 22,
+       "end_line": 16,
+       "line": 16
+      },
+      "targets": [
+       {
+        "node": "subscript",
+        "slice": {
+         "node": "unary_op",
+         "operand": {
+          "node": "constant",
+          "span": {
+           "col": 11,
+           "end_col": 12,
+           "end_line": 16,
+           "line": 16
+          },
+          "value": 1,
+          "value_type": "int"
+         },
+         "operator": "neg",
+         "span": {
+          "col": 10,
+          "end_col": 12,
+          "end_line": 16,
+          "line": 16
+         }
+        },
+        "span": {
+         "col": 4,
+         "end_col": 13,
+         "end_line": 16,
+         "line": 16
+        },
+        "value": {
+         "host_binding_id": null,
+         "id": "items",
+         "node": "name",
+         "span": {
+          "col": 4,
+          "end_col": 9,
+          "end_line": 16,
+          "line": 16
+         }
+        }
+       }
+      ],
+      "value": {
+       "node": "constant",
+       "span": {
+        "col": 16,
+        "end_col": 22,
+        "end_line": 16,
+        "line": 16
+       },
+       "value": "last",
+       "value_type": "str"
+      }
+     },
+     {
+      "node": "return",
+      "span": {
+       "col": 4,
+       "end_col": 41,
+       "end_line": 17,
+       "line": 17
+      },
+      "value": {
+       "elements": [
+        {
+         "host_binding_id": null,
+         "id": "total",
+         "node": "name",
+         "span": {
+          "col": 12,
+          "end_col": 17,
+          "end_line": 17,
+          "line": 17
+         }
+        },
+        {
+         "node": "subscript",
+         "slice": {
+          "node": "unary_op",
+          "operand": {
+           "node": "constant",
+           "span": {
+            "col": 26,
+            "end_col": 27,
+            "end_line": 17,
+            "line": 17
+           },
+           "value": 1,
+           "value_type": "int"
+          },
+          "operator": "neg",
+          "span": {
+           "col": 25,
+           "end_col": 27,
+           "end_line": 17,
+           "line": 17
+          }
+         },
+         "span": {
+          "col": 19,
+          "end_col": 28,
+          "end_line": 17,
+          "line": 17
+         },
+         "value": {
+          "host_binding_id": null,
+          "id": "alias",
+          "node": "name",
+          "span": {
+           "col": 19,
+           "end_col": 24,
+           "end_line": 17,
+           "line": 17
+          }
+         }
+        },
+        {
+         "args": [
+          {
+           "host_binding_id": null,
+           "id": "items",
+           "node": "name",
+           "span": {
+            "col": 34,
+            "end_col": 39,
+            "end_line": 17,
+            "line": 17
+           }
+          }
+         ],
+         "event_binding": null,
+         "func": {
+          "host_binding_id": null,
+          "id": "len",
+          "node": "name",
+          "span": {
+           "col": 30,
+           "end_col": 33,
+           "end_line": 17,
+           "line": 17
+          }
+         },
+         "keywords": [],
+         "node": "call",
+         "span": {
+          "col": 30,
+          "end_col": 40,
+          "end_line": 17,
+          "line": 17
+         },
+         "syscall_id": null
+        }
+       ],
+       "node": "list",
+       "span": {
+        "col": 11,
+        "end_col": 41,
+        "end_line": 17,
+        "line": 17
+       }
+      }
+     }
+    ],
+    "decorator": {
+     "args": [],
+     "keywords": [],
+     "name": "export",
+     "node": "decorator",
+     "span": {
+      "col": 1,
+      "end_col": 7,
+      "end_line": 8,
+      "line": 8
+     }
+    },
+    "docstring": null,
+    "name": "indexed",
+    "node": "function",
+    "parameters": [
+     {
+      "annotation": "int",
+      "default": null,
+      "kind": "positional_or_keyword",
+      "name": "n",
+      "span": {
+       "col": 12,
+       "end_col": 18,
+       "end_line": 9,
+       "line": 9
+      }
+     }
+    ],
+    "returns": null,
+    "span": {
+     "col": 0,
+     "end_col": 41,
+     "end_line": 17,
+     "line": 9
+    },
+    "visibility": "export"
+   },
+   {
+    "body": [
+     {
+      "node": "assign",
+      "span": {
+       "col": 4,
+       "end_col": 18,
+       "end_line": 21,
+       "line": 21
+      },
+      "targets": [
+       {
+        "host_binding_id": null,
+        "id": "items",
+        "node": "name",
+        "span": {
+         "col": 4,
+         "end_col": 9,
+         "end_line": 21,
+         "line": 21
+        }
+       }
+      ],
+      "value": {
+       "elements": [
+        {
+         "node": "constant",
+         "span": {
+          "col": 13,
+          "end_col": 14,
+          "end_line": 21,
+          "line": 21
+         },
+         "value": 0,
+         "value_type": "int"
+        },
+        {
+         "node": "constant",
+         "span": {
+          "col": 16,
+          "end_col": 17,
+          "end_line": 21,
+          "line": 21
+         },
+         "value": 1,
+         "value_type": "int"
+        }
+       ],
+       "node": "list",
+       "span": {
+        "col": 12,
+        "end_col": 18,
+        "end_line": 21,
+        "line": 21
+       }
+      }
+     },
+     {
+      "node": "assign",
+      "span": {
+       "col": 4,
+       "end_col": 20,
+       "end_line": 22,
+       "line": 22
+      },
+      "targets": [
+       {
+        "node": "subscript",
+        "slice": {
+         "node": "constant",
+         "span": {
+          "col": 10,
+          "end_col": 11,
+          "end_line": 22,
+          "line": 22
+         },
+         "value": 0,
+         "value_type": "int"
+        },
+        "span": {
+         "col": 4,
+         "end_col": 12,
+         "end_line": 22,
+         "line": 22
+        },
+        "value": {
+         "host_binding_id": null,
+         "id": "items",
+         "node": "name",
+         "span": {
+          "col": 4,
+          "end_col": 9,
+          "end_line": 22,
+          "line": 22
+         }
+        }
+       }
+      ],
+      "value": {
+       "host_binding_id": null,
+       "id": "items",
+       "node": "name",
+       "span": {
+        "col": 15,
+        "end_col": 20,
+        "end_line": 22,
+        "line": 22
+       }
+      }
+     },
+     {
+      "node": "return",
+      "span": {
+       "col": 4,
+       "end_col": 48,
+       "end_line": 23,
+       "line": 23
+      },
+      "value": {
+       "elements": [
+        {
+         "comparators": [
+          {
+           "host_binding_id": null,
+           "id": "items",
+           "node": "name",
+           "span": {
+            "col": 24,
+            "end_col": 29,
+            "end_line": 23,
+            "line": 23
+           }
+          }
+         ],
+         "left": {
+          "node": "subscript",
+          "slice": {
+           "node": "constant",
+           "span": {
+            "col": 18,
+            "end_col": 19,
+            "end_line": 23,
+            "line": 23
+           },
+           "value": 0,
+           "value_type": "int"
+          },
+          "span": {
+           "col": 12,
+           "end_col": 20,
+           "end_line": 23,
+           "line": 23
+          },
+          "value": {
+           "host_binding_id": null,
+           "id": "items",
+           "node": "name",
+           "span": {
+            "col": 12,
+            "end_col": 17,
+            "end_line": 23,
+            "line": 23
+           }
+          }
+         },
+         "node": "compare",
+         "operators": [
+          "is"
+         ],
+         "span": {
+          "col": 12,
+          "end_col": 29,
+          "end_line": 23,
+          "line": 23
+         }
+        },
+        {
+         "args": [
+          {
+           "node": "subscript",
+           "slice": {
+            "node": "constant",
+            "span": {
+             "col": 44,
+             "end_col": 45,
+             "end_line": 23,
+             "line": 23
+            },
+            "value": 0,
+            "value_type": "int"
+           },
+           "span": {
+            "col": 35,
+            "end_col": 46,
+            "end_line": 23,
+            "line": 23
+           },
+           "value": {
+            "node": "subscript",
+            "slice": {
+             "node": "constant",
+             "span": {
+              "col": 41,
+              "end_col": 42,
+              "end_line": 23,
+              "line": 23
+             },
+             "value": 0,
+             "value_type": "int"
+            },
+            "span": {
+             "col": 35,
+             "end_col": 43,
+             "end_line": 23,
+             "line": 23
+            },
+            "value": {
+             "host_binding_id": null,
+             "id": "items",
+             "node": "name",
+             "span": {
+              "col": 35,
+              "end_col": 40,
+              "end_line": 23,
+              "line": 23
+             }
+            }
+           }
+          }
+         ],
+         "event_binding": null,
+         "func": {
+          "host_binding_id": null,
+          "id": "len",
+          "node": "name",
+          "span": {
+           "col": 31,
+           "end_col": 34,
+           "end_line": 23,
+           "line": 23
+          }
+         },
+         "keywords": [],
+         "node": "call",
+         "span": {
+          "col": 31,
+          "end_col": 47,
+          "end_line": 23,
+          "line": 23
+         },
+         "syscall_id": null
+        }
+       ],
+       "node": "list",
+       "span": {
+        "col": 11,
+        "end_col": 48,
+        "end_line": 23,
+        "line": 23
+       }
+      }
+     }
+    ],
+    "decorator": {
+     "args": [],
+     "keywords": [],
+     "name": "export",
+     "node": "decorator",
+     "span": {
+      "col": 1,
+      "end_col": 7,
+      "end_line": 19,
+      "line": 19
+     }
+    },
+    "docstring": null,
+    "name": "self_reference",
+    "node": "function",
+    "parameters": [],
+    "returns": null,
+    "span": {
+     "col": 0,
+     "end_col": 48,
+     "end_line": 23,
+     "line": 20
+    },
+    "visibility": "export"
+   },
+   {
+    "body": [
+     {
+      "node": "assign",
+      "span": {
+       "col": 4,
+       "end_col": 15,
+       "end_line": 27,
+       "line": 27
+      },
+      "targets": [
+       {
+        "host_binding_id": null,
+        "id": "items",
+        "node": "name",
+        "span": {
+         "col": 4,
+         "end_col": 9,
+         "end_line": 27,
+         "line": 27
+        }
+       }
+      ],
+      "value": {
+       "elements": [
+        {
+         "node": "constant",
+         "span": {
+          "col": 13,
+          "end_col": 14,
+          "end_line": 27,
+          "line": 27
+         },
+         "value": 1,
+         "value_type": "int"
+        }
+       ],
+       "node": "list",
+       "span": {
+        "col": 12,
+        "end_col": 15,
+        "end_line": 27,
+        "line": 27
+       }
+      }
+     },
+     {
+      "node": "assign",
+      "span": {
+       "col": 4,
+       "end_col": 16,
+       "end_line": 28,
+       "line": 28
+      },
+      "targets": [
+       {
+        "node": "subscript",
+        "slice": {
+         "node": "constant",
+         "span": {
+          "col": 10,
+          "end_col": 11,
+          "end_line": 28,
+          "line": 28
+         },
+         "value": 1,
+         "value_type": "int"
+        },
+        "span": {
+         "col": 4,
+         "end_col": 12,
+         "end_line": 28,
+         "line": 28
+        },
+        "value": {
+         "host_binding_id": null,
+         "id": "items",
+         "node": "name",
+         "span": {
+          "col": 4,
+          "end_col": 9,
+          "end_line": 28,
+          "line": 28
+         }
+        }
+       }
+      ],
+      "value": {
+       "node": "constant",
+       "span": {
+        "col": 15,
+        "end_col": 16,
+        "end_line": 28,
+        "line": 28
+       },
+       "value": 2,
+       "value_type": "int"
+      }
+     }
+    ],
+    "decorator": {
+     "args": [],
+     "keywords": [],
+     "name": "export",
+     "node": "decorator",
+     "span": {
+      "col": 1,
+      "end_col": 7,
+      "end_line": 25,
+      "line": 25
+     }
+    },
+    "docstring": null,
+    "name": "out_of_range",
+    "node": "function",
+    "parameters": [],
+    "returns": null,
+    "span": {
+     "col": 0,
+     "end_col": 16,
+     "end_line": 28,
+     "line": 26
+    },
+    "visibility": "export"
+   },
+   {
+    "body": [
+     {
+      "node": "assign",
+      "span": {
+       "col": 4,
+       "end_col": 26,
+       "end_line": 32,
+       "line": 32
+      },
+      "targets": [
+       {
+        "host_binding_id": null,
+        "id": "items",
+        "node": "name",
+        "span": {
+         "col": 4,
+         "end_col": 9,
+         "end_line": 32,
+         "line": 32
+        }
+       }
+      ],
+      "value": {
+       "args": [
+        {
+         "args": [
+          {
+           "host_binding_id": null,
+           "id": "n",
+           "node": "name",
+           "span": {
+            "col": 23,
+            "end_col": 24,
+            "end_line": 32,
+            "line": 32
+           }
+          }
+         ],
+         "event_binding": null,
+         "func": {
+          "host_binding_id": null,
+          "id": "range",
+          "node": "name",
+          "span": {
+           "col": 17,
+           "end_col": 22,
+           "end_line": 32,
+           "line": 32
+          }
+         },
+         "keywords": [],
+         "node": "call",
+         "span": {
+          "col": 17,
+          "end_col": 25,
+          "end_line": 32,
+          "line": 32
+         },
+         "syscall_id": null
+        }
+       ],
+       "event_binding": null,
+       "func": {
+        "host_binding_id": null,
+        "id": "list",
+        "node": "name",
+        "span": {
+         "col": 12,
+         "end_col": 16,
+         "end_line": 32,
+         "line": 32
+        }
+       },
+       "keywords": [],
+       "node": "call",
+       "span": {
+        "col": 12,
+        "end_col": 26,
+        "end_line": 32,
+        "line": 32
+       },
+       "syscall_id": null
+      }
+     },
+     {
+      "node": "assign",
+      "span": {
+       "col": 4,
+       "end_col": 13,
+       "end_line": 33,
+       "line": 33
+      },
+      "targets": [
+       {
+        "host_binding_id": null,
+        "id": "count",
+        "node": "name",
+        "span": {
+         "col": 4,
+         "end_col": 9,
+         "end_line": 33,
+         "line": 33
+        }
+       }
+      ],
+      "value": {
+       "node": "constant",
+       "span": {
+        "col": 12,
+        "end_col": 13,
+        "end_line": 33,
+        "line": 33
+       },
+       "value": 0,
+       "value_type": "int"
+      }
+     },
+     {
+      "body": [
+       {
+        "body": [
+         {
+          "node": "aug_assign",
+          "operator": "add",
+          "span": {
+           "col": 12,
+           "end_col": 22,
+           "end_line": 36,
+           "line": 36
+          },
+          "target": {
+           "host_binding_id": null,
+           "id": "count",
+           "node": "name",
+           "span": {
+            "col": 12,
+            "end_col": 17,
+            "end_line": 36,
+            "line": 36
+           }
+          },
+          "value": {
+           "node": "constant",
+           "span": {
+            "col": 21,
+            "end_col": 22,
+            "end_line": 36,
+            "line": 36
+           },
+           "value": 1,
+           "value_type": "int"
+          }
+         }
+        ],
+        "node": "if",
+        "orelse": [],
+        "span": {
+         "col": 8,
+         "end_col": 22,
+         "end_line": 36,
+         "line": 35
+        },
+        "test": {
+         "host_binding_id": null,
+         "id": "items",
+         "node": "name",
+         "span": {
+          "col": 11,
+          "end_col": 16,
+          "end_line": 35,
+          "line": 35
+         }
+        }
+       }
+      ],
+      "iter": {
+       "args": [
+        {
+         "host_binding_id": null,
+         "id": "n",
+         "node": "name",
+         "span": {
+          "col": 19,
+          "end_col": 20,
+          "end_line": 34,
+          "line": 34
+         }
+        }
+       ],
+       "event_binding": null,
+       "func": {
+        "host_binding_id": null,
+        "id": "range",
+        "node": "name",
+        "span": {
+         "col": 13,
+         "end_col": 18,
+         "end_line": 34,
+         "line": 34
+        }
+       },
+       "keywords": [],
+       "node": "call",
+       "span": {
+        "col": 13,
+        "end_col": 21,
+        "end_line": 34,
+        "line": 34
+       },
+       "syscall_id": null
+      },
+      "node": "for",
+      "orelse": [],
+      "span": {
+       "col": 4,
+       "end_col": 22,
+       "end_line": 36,
+       "line": 34
+      },
+      "target": {
+       "host_binding_id": null,
+       "id": "i",
+       "node": "name",
+       "span": {
+        "col": 8,
+        "end_col": 9,
+        "end_line": 34,
+        "line": 34
+       }
+      }
+     },
+     {
+      "node": "return",
+      "span": {
+       "col": 4,
+       "end_col": 16,
+       "end_line": 37,
+       "line": 37
+      },
+      "value": {
+       "host_binding_id": null,
+       "id": "count",
+       "node": "name",
+       "span": {
+        "col": 11,
+        "end_col": 16,
+        "end_line": 37,
+        "line": 37
+       }
+      }
+     }
+    ],
+    "decorator": {
+     "args": [],
+     "keywords": [],
+     "name": "export",
+     "node": "decorator",
+     "span": {
+      "col": 1,
+      "end_col": 7,
+      "end_line": 30,
+      "line": 30
+     }
+    },
+    "docstring": null,
+    "name": "method_dispatch",
+    "node": "function",
+    "parameters": [
+     {
+      "annotation": "int",
+      "default": null,
+      "kind": "positional_or_keyword",
+      "name": "n",
+      "span": {
+       "col": 20,
+       "end_col": 26,
+       "end_line": 31,
+       "line": 31
+      }
+     }
+    ],
+    "returns": null,
+    "span": {
+     "col": 0,
+     "end_col": 16,
+     "end_line": 37,
+     "line": 31
+    },
+    "visibility": "export"
+   }
+  ],
+  "global_declarations": [],
+  "host_catalog_version": "xian_vm_v1_host_v1",
+  "host_dependencies": [],
+  "imports": [],
+  "ir_version": "xian_ir_v1",
+  "module_body": [],
+  "module_name": "con_container_access",
+  "source_hash": "9ff392e4a75985a951cc96685c5ee7c6c43ca5a05375dfafab36d165f11790ef",
+  "vm_profile": "xian_vm_v2"
+ },
+ "source": "@export\ndef appended(n: int):\n    items = []\n    for i in range(n):\n        items.append(i)\n    return [len(items), items[0], items[-1]]\n\n@export\ndef indexed(n: int):\n    items = list(range(n))\n    alias = items\n    total = 0\n    for i in range(n):\n        items[i] = items[i] * 2\n        total += alias[i]\n    items[-1] = 'last'\n    return [total, alias[-1], len(items)]\n\n@export\ndef self_reference():\n    items = [0, 1]\n    items[0] = items\n    return [items[0] is items, len(items[0][0])]\n\n@export\ndef out_of_range():\n    items = [1]\n    items[1] = 2\n\n@export\ndef method_dispatch(n: int):\n    items = list(range(n))\n    count = 0\n    for i in range(n):\n        if items:\n            count += 1\n    return count\n"
+}

@@ -17,7 +17,7 @@ impl VmInstance {
             ));
         }
         if let Some(source) = args.first() {
-            let mapping = matches!(source.snapshot(), VmValue::Dict(_));
+            let mapping = resolves_to!(source, VmValue::Dict(_));
             let iterator = crate::iteration::iter(source, &self.heap)?;
             let mut count = 0;
             while let Some(item) = self.next_item(&iterator, host)? {

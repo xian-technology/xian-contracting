@@ -2,6 +2,9 @@
 use super::*;
 
 pub(super) fn class_method(receiver: &VmValue, method: &str) -> Option<&'static str> {
+    if !resolves_to!(receiver, VmValue::Builtin(_) | VmValue::TypeMarker(_)) {
+        return None;
+    }
     let snapshot = receiver.snapshot();
     let (VmValue::Builtin(name) | VmValue::TypeMarker(name)) = snapshot else {
         return None;

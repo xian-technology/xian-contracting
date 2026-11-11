@@ -42,12 +42,18 @@ impl VmInstance {
         if let Some(result) = crate::scalar_methods::attribute(&value, name) {
             return result;
         }
-        match value.snapshot() {
-            VmValue::Exception(exception) if name == "args" => Ok(VmValue::Tuple(exception.args)),
-            VmValue::View(view) if name == "mapping" => {
-                Ok(VmValue::MappingProxy(Box::new(view.source)))
+        let special = value.with_resolved(|resolved| match resolved {
+            VmValue::Exception(exception) if name == "args" => {
+                Some(VmValue::Tuple(exception.args.clone()))
             }
-            _ => native_attribute_value(&value, name),
+            VmValue::View(view) if name == "mapping" => {
+                Some(VmValue::MappingProxy(Box::new(view.source.clone())))
+            }
+            _ => None,
+        });
+        match special {
+            Some(special) => Ok(special),
+            None => native_attribute_value(&value, name),
         }
     }
     fn interface_attribute(
@@ -59,11 +65,16 @@ impl VmInstance {
             return Some(self.static_method(class, name));
         }
         if name == "is_of" {
-            if let Some(class) = interface_descriptors::descriptor_class(&value.snapshot()) {
-                return Some(self.static_method(class, name));
+            let class = value.with_resolved(|resolved| {
+                interface_descriptors::descriptor_class(resolved).map(str::to_owned)
+            });
+            if let Some(class) = class {
+                return Some(self.static_method(&class, name));
             }
         }
-        if let Some(class) = method_signatures::wrapper_class(&value.snapshot(), name) {
+        if let Some(class) =
+            value.with_resolved(|resolved| method_signatures::wrapper_class(resolved, name))
+        {
             return Some(self.static_method(class, name));
         }
         interface_subjects::attribute(value, name)
@@ -106,7 +117,7 @@ impl VmInstance {
 }
 
 fn method_receiver(value: VmValue, name: &str) -> VmValue {
-    if name == "strptime" && matches!(value.snapshot(), VmValue::DateTime(_)) {
+    if name == "strptime" && resolves_to!(value, VmValue::DateTime(_)) {
         return VmValue::TypeMarker("datetime.datetime".into());
     }
     normalized_class(&value, name)
@@ -118,42 +129,42 @@ fn normalized_class(value: &VmValue, method: &str) -> Option<&'static str> {
     match method {
         "from_bytes" => integer_class(value),
         "fromhex" => binary_or_float_class(value),
-        "fromkeys" if matches!(value.snapshot(), VmValue::Dict(_)) => Some("dict"),
+        "fromkeys" if resolves_to!(value, VmValue::Dict(_)) => Some("dict"),
         _ => None,
     }
 }
 fn integer_class(value: &VmValue) -> Option<&'static str> {
-    match value.snapshot() {
+    value.with_resolved(|resolved| match resolved {
         VmValue::Bool(_) => Some("bool"),
         VmValue::Int(_) => Some("builtins.int"),
         _ => None,
-    }
+    })
 }
 fn binary_or_float_class(value: &VmValue) -> Option<&'static str> {
-    match value.snapshot() {
+    value.with_resolved(|resolved| match resolved {
         VmValue::Bytes(_) => Some("builtins.bytes"),
         VmValue::ByteArray(_) => Some("builtins.bytearray"),
         VmValue::Float(_) => Some("float"),
         _ => None,
-    }
+    })
 }
 fn static_factory_class(value: &VmValue, method: &str) -> Option<String> {
-    match (value.snapshot(), method) {
+    value.with_resolved(|resolved| match (resolved, method) {
         (VmValue::String(_), "maketrans") => Some("str".into()),
         (VmValue::Bytes(_), "maketrans") => Some("builtins.bytes".into()),
         (VmValue::ByteArray(_), "maketrans") => Some("builtins.bytearray".into()),
         (VmValue::Builtin(name) | VmValue::TypeMarker(name), "maketrans")
             if matches!(name.as_str(), "str" | "bytes" | "bytearray") =>
         {
-            Some(name)
+            Some(name.clone())
         }
         (VmValue::Builtin(name) | VmValue::TypeMarker(name), "fromhex")
             if matches!(name.as_str(), "bytes" | "bytearray") =>
         {
-            Some(name)
+            Some(name.clone())
         }
         _ => None,
-    }
+    })
 }
 
 /// Guarded exported classes and builtin literal classes have distinct method

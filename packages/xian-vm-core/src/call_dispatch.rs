@@ -211,7 +211,7 @@ impl VmInstance {
                 return self.call_interface_class_method(class, args, kwargs, host);
             }
         }
-        if matches!(receiver.snapshot(), VmValue::InterfaceDescriptor(_)) {
+        if resolves_to!(receiver, VmValue::InterfaceDescriptor(_)) {
             return self.call_interface_method(&receiver, method, args, kwargs, host);
         }
         if deployment_handles::is_instance(&receiver)
@@ -219,12 +219,15 @@ impl VmInstance {
         {
             return self.call_deployment_method(&receiver, method, args, kwargs, host);
         }
-        if matches!(receiver.snapshot(),VmValue::Builtin(ref module) if module=="Contract") {
+        if resolves_to!(receiver,VmValue::Builtin(ref module) if module=="Contract") {
             let callable = VmHostCallable::named(&format!("Contract.{method}"))
                 .ok_or_else(|| VmExecutionError::new("unknown Contract method"))?;
             return self.call_host_callable(callable, args, kwargs, host);
         }
-        if let VmValue::ContractHandle(handle) = receiver.snapshot() {
+        if let Some(handle) = receiver.with_resolved(|resolved| match resolved {
+            VmValue::ContractHandle(handle) => Some(handle.clone()),
+            _ => None,
+        }) {
             return self.call_contract_export(handle, method, args, kwargs, host);
         }
         if let Some(class) = method_signatures::wrapper_class(&receiver, method) {
@@ -243,13 +246,22 @@ impl VmInstance {
             return self.call_receiver(instance, method, arguments.collect(), kwargs, host);
         }
         let (mut args, kwargs) = method_signatures::bind(&receiver, method, args, kwargs)?;
-        if let VmValue::EventRef(event) = receiver.snapshot() {
+        if let Some(event) = receiver.with_resolved(|resolved| match resolved {
+            VmValue::EventRef(event) => Some(event.clone()),
+            _ => None,
+        }) {
             return self.emit_declared_event(&event, args.remove(0), host);
         }
-        if let VmValue::MappingProxy(mapping) = receiver.snapshot() {
+        if let Some(mapping) = receiver.with_resolved(|resolved| match resolved {
+            VmValue::MappingProxy(mapping) => Some(mapping.clone()),
+            _ => None,
+        }) {
             return self.call_receiver(*mapping, method, args, kwargs, host);
         }
-        if let VmValue::String(template) = receiver.snapshot() {
+        if let Some(template) = receiver.with_resolved(|resolved| match resolved {
+            VmValue::String(template) => Some(template.clone()),
+            _ => None,
+        }) {
             if matches!(method, "format" | "format_map") {
                 return self.format_string(host, &template, args, kwargs, method == "format_map");
             }
@@ -281,16 +293,14 @@ impl VmInstance {
                 }
             }
         }
-        if matches!(receiver.snapshot(), VmValue::Builtin(ref name) if name == "str")
+        if resolves_to!(receiver, VmValue::Builtin(ref name) if name == "str")
             && method == "maketrans"
         {
             charge_method_work(host, support::string_methods::work_cost("", method, &args)?)?;
             return support::string_methods::call("", method, &args);
         }
-        if matches!(
-            receiver.snapshot(),
-            VmValue::Bytes(_) | VmValue::ByteArray(_)
-        ) || matches!(receiver.snapshot(), VmValue::Builtin(ref name) if matches!(name.as_str(), "bytes" | "bytearray"))
+        if resolves_to!(receiver, VmValue::Bytes(_) | VmValue::ByteArray(_))
+            || resolves_to!(receiver, VmValue::Builtin(ref name) if matches!(name.as_str(), "bytes" | "bytearray"))
         {
             charge_method_work(
                 host,
@@ -303,8 +313,8 @@ impl VmInstance {
                 crate::scalar_methods::work_cost(&receiver, method, &args),
             )?;
             if method == "from_bytes"
-                && !matches!(
-                    args[0].snapshot(),
+                && !resolves_to!(
+                    args[0],
                     VmValue::Bytes(_)
                         | VmValue::ByteArray(_)
                         | VmValue::List(_)
@@ -315,19 +325,19 @@ impl VmInstance {
             }
             return crate::scalar_methods::call(&receiver, method, args);
         }
-        if matches!(receiver.snapshot(), VmValue::RawDecimal(_)) {
+        if resolves_to!(receiver, VmValue::RawDecimal(_)) {
             host.charge_execution_cost(crate::decimal_methods::work_cost(
                 method, &receiver, &args, &kwargs,
             ))?;
             return crate::decimal_methods::call(receiver, method, args, kwargs);
         }
         if method == "strptime"
-            && (matches!(receiver.snapshot(), VmValue::DateTime(_))
-                || matches!(receiver.snapshot(), VmValue::TypeMarker(ref name) if name == "datetime.datetime"))
+            && (resolves_to!(receiver, VmValue::DateTime(_))
+                || resolves_to!(receiver, VmValue::TypeMarker(ref name) if name == "datetime.datetime"))
         {
             return time_datetime_strptime(args, kwargs, host);
         }
-        if method == "copy" && matches!(receiver.snapshot(), VmValue::FrozenSet(_)) {
+        if method == "copy" && resolves_to!(receiver, VmValue::FrozenSet(_)) {
             if !args.is_empty() || !kwargs.is_empty() {
                 return Err(VmExecutionError::new(
                     "frozenset.copy() expects no arguments",
@@ -343,8 +353,8 @@ impl VmInstance {
                 crate::decimal_metering::comparison(host, &receiver, needle, false)?;
             }
         }
-        let set_comparison = matches!(
-            receiver.snapshot(),
+        let set_comparison = resolves_to!(
+            receiver,
             VmValue::Set(_) | VmValue::FrozenSet(_) | VmValue::BuiltinSet(_)
         ) && matches!(
             method,
@@ -368,33 +378,33 @@ impl VmInstance {
             values.extend(args.iter().cloned());
             crate::decimal_metering::normalization(host, &values)?;
         }
-        if matches!(receiver.snapshot(), VmValue::BuiltinSet(_)) {
+        if resolves_to!(receiver, VmValue::BuiltinSet(_)) {
             return self.call_builtin_set_method(receiver, method, args, host);
         }
-        if method == "isdisjoint" && matches!(receiver.snapshot(), VmValue::View(_)) {
+        if method == "isdisjoint" && resolves_to!(receiver, VmValue::View(_)) {
             return self.view_isdisjoint(&receiver, &args[0], host);
         }
-        if method == "update" && matches!(receiver.snapshot(), VmValue::Dict(_)) {
+        if method == "update" && resolves_to!(receiver, VmValue::Dict(_)) {
             return self.update_dictionary(&receiver, args, kwargs, host);
         }
-        if method == "setdefault" && matches!(receiver.snapshot(), VmValue::Dict(_)) {
+        if method == "setdefault" && resolves_to!(receiver, VmValue::Dict(_)) {
             return collection_methods::setdefault(&receiver, args, kwargs, host);
         }
-        if method == "reverse" && matches!(receiver.snapshot(), VmValue::List(_)) {
+        if method == "reverse" && resolves_to!(receiver, VmValue::List(_)) {
             return collection_methods::reverse(&receiver, args, kwargs, host);
         }
         if method == "fromhex"
             && (matches!(&receiver, VmValue::Builtin(name) if name == "bytes")
-                || matches!(receiver.snapshot(), VmValue::Bytes(_)))
+                || resolves_to!(receiver, VmValue::Bytes(_)))
         {
             return collection_methods::fromhex(args, kwargs, host);
         }
-        if method == "sort" && matches!(receiver.snapshot(), VmValue::List(_)) {
+        if method == "sort" && resolves_to!(receiver, VmValue::List(_)) {
             return self.sort_list(receiver, args, kwargs, host);
         }
         if method == "fromkeys"
             && (matches!(&receiver, VmValue::Builtin(name) if name == "dict")
-                || matches!(receiver.snapshot(), VmValue::Dict(_)))
+                || resolves_to!(receiver, VmValue::Dict(_)))
         {
             if args.is_empty() || args.len() > 2 || !kwargs.is_empty() {
                 return Err(VmExecutionError::new(
@@ -415,8 +425,7 @@ impl VmInstance {
             }
             return Ok(VmValue::Dict(entries));
         }
-        if matches!(method, "keys" | "values" | "items")
-            && matches!(receiver.snapshot(), VmValue::Dict(_))
+        if matches!(method, "keys" | "values" | "items") && resolves_to!(receiver, VmValue::Dict(_))
         {
             if !args.is_empty() || !kwargs.is_empty() {
                 return Err(VmExecutionError::new(
@@ -474,11 +483,7 @@ impl VmInstance {
         };
         match call_native_method_collected(receiver.clone(), method, args, kwargs, &mut |source| {
             let values = self.collect_iterable(source, host)?;
-            if method == "join"
-                && matches!(
-                    receiver.snapshot(),
-                    VmValue::Bytes(_) | VmValue::ByteArray(_)
-                )
+            if method == "join" && resolves_to!(receiver, VmValue::Bytes(_) | VmValue::ByteArray(_))
             {
                 let content = values.iter().fold(0u64, |total, value| {
                     total.saturating_add(binary_length(value))

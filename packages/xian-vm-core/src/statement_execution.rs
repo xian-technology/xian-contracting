@@ -26,6 +26,7 @@ impl VmInstance {
     ) -> Result<ControlFlow, VmExecutionError> {
         let object = as_object(statement, "statement")?;
         let node = required_string(object, "node")?;
+        crate::work_meter::flush(host)?;
         host.charge_execution_cost(vm_statement_gas_cost(node, object)?)?;
         let trace_statements = vm_trace_enabled("XIAN_VM_TRACE_STATEMENTS");
         if trace_statements {
@@ -267,7 +268,7 @@ impl VmInstance {
                 if matches!(container, VmValue::ForeignStorageRef(_)) {
                     return Err(VmExecutionError::new("cannot write to foreign storage"));
                 }
-                if matches!(container.snapshot(), VmValue::Dict(_)) {
+                if resolves_to!(container, VmValue::Dict(_)) {
                     crate::decimal_metering::comparison(host, &container, &index, false)?;
                 }
                 if matches!(container, VmValue::Reference(_)) {
@@ -374,7 +375,7 @@ impl VmInstance {
         };
         let operand = self.eval_expression(required_value(object, "value")?, scope, host)?;
         let operator = required_string(object, "operator")?;
-        if operator == "bitor" && matches!(current.snapshot(), VmValue::MappingProxy(_)) {
+        if operator == "bitor" && resolves_to!(current, VmValue::MappingProxy(_)) {
             return Err(VmExecutionError::new(
                 "mappingproxy does not support in-place union",
             ));
@@ -391,7 +392,7 @@ impl VmInstance {
             && (mapping_views::is_set_view(&current) || mapping_views::is_set_view(&operand))
         {
             self.view_binary(operator, &current, &operand, host)?
-        } else if operator == "add" && matches!(current.snapshot(), VmValue::List(_)) {
+        } else if operator == "add" && resolves_to!(current, VmValue::List(_)) {
             self.extend_sequence(&current, &operand, host)?;
             current
         } else {
@@ -440,23 +441,15 @@ impl VmInstance {
     ) -> Result<ControlFlow, VmExecutionError> {
         let test = self.eval_expression(required_value(object, "test")?, scope, host)?;
         if !test.truthy() {
-            let error_repr = object
+            let message = object
                 .get("message")
                 .filter(|value| !value.is_null())
                 .map(|value| self.eval_expression(value, scope, host))
-                .transpose()?
-                .map(|message: VmValue| {
-                    let rendered = match message.snapshot() {
-                        VmValue::String(value) => {
-                            let escaped = value.replace('\\', "\\\\").replace('\'', "\\'");
-                            format!("'{escaped}'")
-                        }
-                        other => other.python_repr(),
-                    };
-                    format!("AssertionError({rendered})")
-                })
-                .unwrap_or_else(|| "AssertionError()".to_owned());
-            return Err(VmExecutionError::new(error_repr));
+                .transpose()?;
+            return Err(VmExecutionError::raised(
+                "AssertionError",
+                message.into_iter().collect(),
+            ));
         }
         Ok(ControlFlow::Next)
     }
@@ -472,27 +465,31 @@ impl VmInstance {
                 let _ = self.eval_expression(cause, scope, host)?;
             }
         }
-        let error_repr = match object.get("exception") {
-            None | Some(Value::Null) => "RuntimeError('No active exception to reraise')".to_owned(),
+        let message = |text: String| vec![VmValue::String(text)];
+        Err(match object.get("exception") {
+            None | Some(Value::Null) => VmExecutionError::raised(
+                "RuntimeError",
+                message("No active exception to reraise".to_owned()),
+            ),
             Some(exception) => match self.eval_expression(exception, scope, host)?.snapshot() {
-                VmValue::Exception(value) => value.python_repr(),
+                VmValue::Exception(value) => VmExecutionError::raised(value.name, value.args),
                 VmValue::Builtin(name)
                     if matches!(
                         name.as_str(),
                         "Exception" | "RuntimeError" | "ValueError" | "TypeError"
                     ) =>
                 {
-                    format!("{name}()")
+                    VmExecutionError::raised(name, Vec::new())
                 }
-                other => {
-                    return Err(VmExecutionError::new(format!(
-                        "TypeError('exceptions must derive from BaseException, got {}')",
+                other => VmExecutionError::raised(
+                    "TypeError",
+                    message(format!(
+                        "exceptions must derive from BaseException, got {}",
                         other.type_name()
-                    )))
-                }
+                    )),
+                ),
             },
-        };
-        Err(VmExecutionError::new(error_repr))
+        })
     }
     fn write_hash_value(
         &mut self,

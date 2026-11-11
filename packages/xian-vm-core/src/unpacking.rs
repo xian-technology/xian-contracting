@@ -86,5 +86,5 @@ pub(super) fn duplicate_keyword(function: Option<&str>, key: &str) -> VmExecutio
         .map(|name| format!("__{name}()"))
         .unwrap_or_else(|| "call".to_owned());
     let message = format!("{label} got multiple values for keyword argument '{key}'");
-    VmExecutionError::new(format!("TypeError({message:?})"))
+    VmExecutionError::described("TypeError", format!("TypeError({message:?})"), message)
 }

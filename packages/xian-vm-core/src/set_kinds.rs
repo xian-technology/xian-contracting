@@ -76,7 +76,7 @@ pub(in crate::interpreter) fn method(
 ) -> Result<NativeMethodResult, VmExecutionError> {
     if matches!(method, "remove" | "discard") {
         if let Some(needle) = args.first() {
-            if matches!(needle.snapshot(), VmValue::BuiltinSet(_)) {
+            if resolves_to!(needle, VmValue::BuiltinSet(_)) {
                 return if method == "discard" {
                     Ok(NativeMethodResult::Value(VmValue::None))
                 } else {

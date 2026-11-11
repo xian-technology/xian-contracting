@@ -79,7 +79,7 @@ fn index(value: Option<&VmValue>, length: usize, default: usize, past_end: bool)
     let Some(value) = value else {
         return Ok(default);
     };
-    if matches!(value.snapshot(), VmValue::None) {
+    if resolves_to!(value, VmValue::None) {
         return Ok(default);
     }
     let number = integer(value)?;
@@ -368,7 +368,7 @@ fn strip(value: &[u8], method: &str, args: &[VmValue]) -> Result<Vec<u8>> {
     arity(args, 0, 1)?;
     let custom = args
         .first()
-        .filter(|v| !matches!(v.snapshot(), VmValue::None))
+        .filter(|v| !resolves_to!(v, VmValue::None))
         .map(bytes)
         .transpose()?;
     let mut removable = [false; 256];
@@ -414,7 +414,7 @@ fn split(value: &[u8], reverse: bool, args: &[VmValue]) -> Result<Vec<Vec<u8>>> 
     arity(args, 0, 2)?;
     let separator = args
         .first()
-        .filter(|v| !matches!(v.snapshot(), VmValue::None))
+        .filter(|v| !resolves_to!(v, VmValue::None))
         .map(bytes)
         .transpose()?;
     if separator.as_ref().is_some_and(Vec::is_empty) {
@@ -652,7 +652,7 @@ fn maketrans(args: &[VmValue]) -> Result<Vec<u8>> {
 }
 fn translate(value: &[u8], args: &[VmValue]) -> Result<Vec<u8>> {
     arity(args, 1, 2)?;
-    let table = if matches!(args[0].snapshot(), VmValue::None) {
+    let table = if resolves_to!(args[0], VmValue::None) {
         None
     } else {
         Some(bytes(&args[0])?)
@@ -863,8 +863,8 @@ pub(in crate::interpreter) fn work_cost(receiver: &VmValue, method: &str, args: 
 fn has_legacy_work_charge(receiver: &VmValue, method: &str, args: &[VmValue]) -> bool {
     matches!(method, "append" | "extend" | "pop" | "clear" | "copy")
         || (method == "fromhex"
-            && (matches!(receiver.snapshot(), VmValue::Bytes(_))
-                || matches!(receiver.snapshot(), VmValue::Builtin(ref name) if name == "bytes")))
+            && (resolves_to!(receiver, VmValue::Bytes(_))
+                || resolves_to!(receiver, VmValue::Builtin(ref name) if name == "bytes")))
         || (method == "hex" && args.is_empty())
 }
 

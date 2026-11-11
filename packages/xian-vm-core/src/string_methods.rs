@@ -282,7 +282,7 @@ pub(in crate::interpreter) fn strip(value: &str, method: &str, args: &[VmValue])
     }
     let chars = args
         .first()
-        .filter(|value| !matches!(value.snapshot(), VmValue::None))
+        .filter(|value| !resolves_to!(value, VmValue::None))
         .map(VmValue::as_string)
         .transpose()?
         .map(|text| text.chars().collect::<std::collections::BTreeSet<_>>());
@@ -334,7 +334,7 @@ fn partition(value: &str, method: &str, argument: &VmValue) -> Result<VmValue> {
 fn rsplit(value: &str, args: &[VmValue]) -> Result<Vec<String>> {
     let separator = args
         .first()
-        .filter(|value| !matches!(value.snapshot(), VmValue::None))
+        .filter(|value| !resolves_to!(value, VmValue::None))
         .map(VmValue::as_string)
         .transpose()?;
     let limit = args.get(1).map(index_size).transpose()?.unwrap_or(-1);

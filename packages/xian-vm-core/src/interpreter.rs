@@ -405,7 +405,7 @@ fn typecheck_error(label: &str, annotation: &TypeAnnotation, value: &VmValue) ->
         annotation_label(annotation),
         value_typecheck_name(value)
     );
-    VmExecutionError::new(format!("TypeError({message:?})"))
+    VmExecutionError::described("TypeError", format!("TypeError({message:?})"), message)
 }
 
 fn annotation_label(annotation: &TypeAnnotation) -> String {
@@ -1211,6 +1211,7 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
         let _scope = numeric_v2::Scope::enter(&self.module.vm_profile);
+        let _work = crate::work_meter::Isolation::enter();
         self.call_function_shared(host, name, args, kwargs)?
             .external_value()
     }
@@ -1242,7 +1243,14 @@ impl VmInstance {
         } else {
             false
         };
-        let result = self.call_named_function(host, name, args, kwargs);
+        let result = match self.call_named_function(host, name, args, kwargs) {
+            Ok(value) => crate::work_meter::flush(host).map(|()| value),
+            Err(error) => {
+                // Keep the failure; its measured work is still charged.
+                let _ = crate::work_meter::flush(host);
+                Err(error)
+            }
+        };
         if injected_entry {
             self.context.entry = previous_entry;
         }
@@ -1505,7 +1513,9 @@ impl VmInstance {
         kwargs: Vec<(String, VmValue)>,
         _host: &mut dyn VmHost,
     ) -> Result<HashMap<String, VmValue>, VmExecutionError> {
-        let type_error = |message: String| VmExecutionError::new(format!("TypeError({message:?})"));
+        let type_error = |message: String| {
+            VmExecutionError::described("TypeError", format!("TypeError({message:?})"), message)
+        };
         let mut remaining_args = args;
         let mut remaining_kwargs = Vec::new();
         for (key, value) in kwargs {
