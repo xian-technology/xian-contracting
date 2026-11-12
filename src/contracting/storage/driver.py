@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import decimal
+import functools
 import json
+import operator
+from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
@@ -43,6 +46,59 @@ def _copy_mutable_value(value):
     return value
 
 
+class _PendingStateUndo:
+    """First-touch undo records for one ``Driver.discarding_changes`` scope.
+
+    Inside a scope the pending containers only gain or change entries, so the
+    previous value of each touched entry, the new read prefixes and the event
+    count restore them exactly, in their original order. The cost follows what
+    the scope touched, not the size of the block's pending state.
+    """
+
+    __slots__ = ("_containers", "_previous", "_new_prefixes", "_event_count")
+
+    def __init__(self, driver):
+        self._containers = driver._pending_containers()
+        self._previous = {}
+        self._new_prefixes = []
+        self._event_count = len(driver.log_events)
+
+    def remember(self, container: dict, key) -> None:
+        previous = self._previous.get(id(container))
+        if previous is None:
+            previous = self._previous[id(container)] = (container, {})
+        if key not in previous[1]:
+            previous[1][key] = container.get(key, _MISSING)
+
+    def remember_prefix(self, prefixes: set, prefix: str) -> None:
+        if prefix not in prefixes:
+            self._new_prefixes.append(prefix)
+
+    def revert(self, driver) -> None:
+        if any(map(operator.is_not, driver._pending_containers(), self._containers)):
+            raise RuntimeError("pending state containers were replaced inside a discarding scope")
+        for container, previous in self._previous.values():
+            for key, value in previous.items():
+                if value is _MISSING:
+                    del container[key]
+                else:
+                    container[key] = value
+        driver.transaction_read_prefixes.difference_update(self._new_prefixes)
+        del driver.log_events[self._event_count :]
+
+
+def _outside_discarding_scope(method):
+    """Bulk changes cannot be undone entry by entry, so a scope forbids them."""
+
+    @functools.wraps(method)
+    def guarded(self, *args, **kwargs):
+        if self._undo is not None:
+            raise RuntimeError(f"Driver.{method.__name__} cannot run inside a discarding scope")
+        return method(self, *args, **kwargs)
+
+    return guarded
+
+
 def _require_contract_artifact_inputs(source, vm_ir_json):
     if source is None and vm_ir_json is None:
         raise TypeError("set_contract requires at least one contract artifact.")
@@ -77,6 +133,7 @@ class Driver:
         self.transaction_writes = {}
         self.log_events = []
         self.track_transaction_reads = True
+        self._undo: _PendingStateUndo | None = None
         self.cache = TTLCache(maxsize=1000, ttl=6 * 3600)
         self.bypass_cache = bypass_cache
         self.storage_home = (
@@ -124,10 +181,49 @@ class Driver:
         value = self.find(key)
         if save:
             if self.pending_reads.get(key) is None:
-                self.pending_reads[key] = value
+                self._put(self.pending_reads, key, value)
             if self.track_transaction_reads and self.transaction_reads.get(key) is None:
-                self.transaction_reads[key] = value
+                self._put(self.transaction_reads, key, value)
         return value
+
+    def _put(self, container: dict, key, value) -> None:
+        if self._undo is not None:
+            self._undo.remember(container, key)
+        container[key] = value
+
+    def _track_prefix(self, prefix: str) -> None:
+        if not self.track_transaction_reads:
+            return
+        if self._undo is not None:
+            self._undo.remember_prefix(self.transaction_read_prefixes, prefix)
+        self.transaction_read_prefixes.add(prefix)
+
+    def _pending_containers(self) -> tuple:
+        return (
+            self.pending_writes,
+            self.pending_reads,
+            self.transaction_reads,
+            self.transaction_writes,
+            self.transaction_read_prefixes,
+            self.log_events,
+        )
+
+    @contextmanager
+    def discarding_changes(self):
+        """Undo every pending-state change made inside the ``with`` block.
+
+        Leaves the pending containers exactly as ``snapshot_state`` followed
+        by ``restore_state`` would, without copying them. Disk is not part of
+        the pending state; bulk operations are rejected inside the block.
+        """
+        if self._undo is not None:
+            raise RuntimeError("a discarding scope is already open on this driver")
+        undo = self._undo = _PendingStateUndo(self)
+        try:
+            yield
+        finally:
+            self._undo = None
+            undo.revert(self)
 
     def set(
         self,
@@ -138,9 +234,9 @@ class Driver:
         if self.pending_reads.get(key) is None:
             self.get(key)
         value = _copy_mutable_value(self._typed_value(value))
-        self.pending_writes[key] = value
+        self._put(self.pending_writes, key, value)
         if is_txn_write:
-            self.transaction_writes[key] = value
+            self._put(self.transaction_writes, key, value)
 
     def _typed_value(self, value):
         if self.vm_profile == XIAN_VM_V2_PROFILE:
@@ -151,7 +247,9 @@ class Driver:
         return value
 
     def apply_writes(self, writes: dict[str, object]) -> None:
-        self.pending_writes.update({key: self._typed_value(value) for key, value in writes.items()})
+        typed = {key: self._typed_value(value) for key, value in writes.items()}
+        for key, value in typed.items():
+            self._put(self.pending_writes, key, value)
 
     def find(self, key: str):
         # Pending and cached values are live driver state; storage decodes fresh copies.
@@ -167,8 +265,7 @@ class Driver:
         return self._store.get(key)
 
     def keys_from_disk(self, prefix: str | None = None, length: int = 0):
-        if self.track_transaction_reads:
-            self.transaction_read_prefixes.add(prefix or "")
+        self._track_prefix(prefix or "")
         keys = self._store.keys(prefix or "")
         if length > 0:
             return keys[:length]
@@ -181,8 +278,7 @@ class Driver:
         limit: int = 100,
         after_key: str | None = None,
     ) -> tuple[list[str], bool]:
-        if self.track_transaction_reads:
-            self.transaction_read_prefixes.add(prefix)
+        self._track_prefix(prefix)
         return self._store.scan_keys(
             prefix,
             limit=limit,
@@ -190,8 +286,7 @@ class Driver:
         )
 
     def iter_from_disk(self, prefix: str = "", length: int = 0):
-        if self.track_transaction_reads:
-            self.transaction_read_prefixes.add(prefix)
+        self._track_prefix(prefix)
         keys = self._store.keys(prefix)
         if length > 0:
             return keys[:length]
@@ -202,8 +297,7 @@ class Driver:
 
     def iter_items(self, prefix: str = ""):
         """Read a canonical merged view without copying the complete disk range."""
-        if self.track_transaction_reads:
-            self.transaction_read_prefixes.add(prefix)
+        self._track_prefix(prefix)
         cached = iter_overlay_items(self.cache, self._store.iter_items(prefix), prefix)
         for key, value in iter_overlay_items(self.pending_writes, cached, prefix):
             yield key, _copy_mutable_value(value)
@@ -398,6 +492,7 @@ class Driver:
             is_txn_write=is_txn_write,
         )
 
+    @_outside_discarding_scope
     def delete_contract(self, name):
         prefix = f"{name}{INDEX_SEPARATOR}"
         for key in self.keys(prefix):
@@ -416,6 +511,7 @@ class Driver:
     def delete_key_from_disk(self, key):
         self._store.delete(key)
 
+    @_outside_discarding_scope
     def flush_cache(self):
         self.pending_writes.clear()
         self.pending_reads.clear()
@@ -435,6 +531,7 @@ class Driver:
     def set_event(self, event):
         self.log_events.append(event)
 
+    @_outside_discarding_scope
     def flush_full(self):
         self.flush_disk()
         self.flush_cache()
@@ -442,6 +539,7 @@ class Driver:
     def delete(self, key):
         self.set(key, None)
 
+    @_outside_discarding_scope
     def rollback(self, nanos=None):
         if nanos is None:
             self.cache.clear()
@@ -486,6 +584,7 @@ class Driver:
             "log_events": deepcopy(self.log_events),
         }
 
+    @_outside_discarding_scope
     def restore_state(self, snapshot: dict | None) -> None:
         """Restore state captured by ``snapshot_state``; ``None`` is a no-op.
 
@@ -502,6 +601,7 @@ class Driver:
         self.transaction_writes = deepcopy(snapshot["transaction_writes"])
         self.log_events = deepcopy(snapshot["log_events"])
 
+    @_outside_discarding_scope
     def detach_pending_state(self) -> dict:
         """Move the pending per-block state off the driver without copying.
 
@@ -527,6 +627,7 @@ class Driver:
         self.log_events = []
         return detached
 
+    @_outside_discarding_scope
     def attach_pending_state(self, detached: dict) -> None:
         """Re-attach pending state previously moved off by ``detach_pending_state``.
 
@@ -540,6 +641,7 @@ class Driver:
         self.transaction_writes = detached["transaction_writes"]
         self.log_events = detached["log_events"]
 
+    @_outside_discarding_scope
     def commit(self):
         if self.pending_writes:
             self._store.batch_set(self.pending_writes)
@@ -552,6 +654,7 @@ class Driver:
         self.transaction_writes.clear()
         self.log_events.clear()
 
+    @_outside_discarding_scope
     def hard_apply(self, nanos):
         deltas = {}
         for key, value in self.pending_writes.items():
@@ -595,19 +698,23 @@ class Driver:
                 run_state[key] = value
         return run_state
 
+    @_outside_discarding_scope
     def clear_transaction_writes(self):
         self.transaction_writes.clear()
 
+    @_outside_discarding_scope
     def clear_transaction_reads(self):
         self.transaction_reads.clear()
         self.transaction_read_prefixes.clear()
 
+    @_outside_discarding_scope
     def set_transaction_read_tracking(self, enabled: bool) -> None:
         self.track_transaction_reads = enabled
         if not enabled:
             self.transaction_reads.clear()
             self.transaction_read_prefixes.clear()
 
+    @_outside_discarding_scope
     def clear_events(self):
         self.log_events.clear()
 
