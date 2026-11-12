@@ -198,10 +198,16 @@ class ContractingDecimal:
         return self._d >= self._get_other(other)
 
     def __str__(self):
-        return self._d.to_eng_string()
+        # Same text as a V2 contract's str(decimal): plain fixed point, no exponent,
+        # no trailing fractional zeros.
+        return canonical_fixed(self)
 
-    def __repr__(self):
-        return self._d.to_eng_string()
+    __repr__ = __str__
+
+    def __format__(self, spec):
+        # Same as V2 format(decimal, spec): apply the spec to the plain value.
+        text = str(self)
+        return format(Decimal(text), spec) if spec else text
 
     def __neg__(self):
         return self._from_scaled(-self._scaled)

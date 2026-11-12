@@ -281,21 +281,48 @@ class TestDecimal(TestCase):
         with self.assertRaises(InvalidOperation):
             ContractingDecimal("9") ** ContractingDecimal("0.3")
 
-    def test_contracting_decimal_strings_match_vm_repr_cases(self):
+    def test_contracting_decimal_text_is_plain_fixed_point_like_the_v2_vm(self):
         cases = [
-            ("1000", "1E+3"),
-            ("50000000", "50E+6"),
-            ("1234000", "1.234E+6"),
-            ("1234500", "1.2345E+6"),
+            ("1000", "1000"),
+            ("10000", "10000"),
+            ("50000000", "50000000"),
+            ("1234000", "1234000"),
+            ("1234500", "1234500"),
             ("0.0001", "0.0001"),
-            ("0.0000001", "100E-9"),
+            ("0.0000001", "0.0000001"),
             ("1234.5", "1234.5"),
             ("12345", "12345"),
+            ("0.10", "0.1"),
+            ("-1000", "-1000"),
+            ("1e-30", "0.000000000000000000000000000001"),
+            ("0", "0"),
+            ("-0", "0"),
         ]
         for literal, expected in cases:
             with self.subTest(literal=literal):
-                self.assertEqual(str(ContractingDecimal(literal)), expected)
+                value = ContractingDecimal(literal)
+                self.assertEqual(str(value), expected)
+                self.assertEqual(repr(value), expected)
+                self.assertEqual(f"{value}", expected)
+                self.assertEqual(str([value]), f"[{expected}]")
 
+    def test_contracting_decimal_format_specs_apply_to_the_plain_value(self):
+        cases = [
+            ("1000", ".4f", "1000.0000"),
+            ("1000", ",", "1,000"),
+            ("1234.5", ">10", "    1234.5"),
+            ("1234.5", ",.2f", "1,234.50"),
+            ("0.1", "%", "10%"),
+            ("1000", "e", "1.000e+3"),
+            ("-0.5", "+.3f", "-0.500"),
+        ]
+        for literal, spec, expected in cases:
+            with self.subTest(literal=literal, spec=spec):
+                self.assertEqual(format(ContractingDecimal(literal), spec), expected)
+
+    def test_contracting_decimal_rejects_integer_format_types(self):
+        with self.assertRaises(ValueError):
+            format(ContractingDecimal("1"), "d")
 
 if "__main__" == __name__:
     unittest.main()

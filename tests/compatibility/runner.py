@@ -14,19 +14,32 @@ def encode(value):
     kind = type(value).__name__
     if value is None or type(value) in (bool, int, str):
         return [kind, value]
-    if type(value) is float:
-        return [kind, value.hex()]
-    if isinstance(value, (bytes, bytearray)):
-        return [kind, value.hex()]
     if isinstance(value, dict):
         return [kind, [[encode(k), encode(v)] for k, v in value.items()]]
     if isinstance(value, (list, tuple)):
         return [kind, [encode(item) for item in value]]
     if kind in ("set", "frozenset", "ContractingSet", "ContractingFrozenSet"):
         return [kind, sorted((encode(item) for item in value), key=repr)]
-    if kind in ("ContractingDecimal", "Decimal", "Datetime", "Timedelta"):
-        return [kind, str(value)]
+    return [kind, scalar_text(value, kind)]
+
+
+def scalar_text(value, kind):
+    if type(value) is float or isinstance(value, (bytes, bytearray)):
+        return value.hex()
+    if kind == "ContractingDecimal":
+        return historical_decimal_text(value)
+    if kind in ("Decimal", "Datetime", "Timedelta"):
+        return str(value)
     raise TypeError(f"Unrecorded baseline value type: {kind}")
+
+
+def historical_decimal_text(value):
+    """The spelling the pinned observers recorded: historical str() was engineering text."""
+    from decimal import Decimal
+
+    from xian_runtime_types.decimal import CONTEXT
+
+    return Decimal(str(value)).normalize(CONTEXT).to_eng_string()
 
 
 def run_case(case, storage_home, *, native=True):
