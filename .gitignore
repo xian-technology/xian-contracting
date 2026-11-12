@@ -24,3 +24,6 @@ logs
 Cargo.lock
 target/
 graphify-out/
+
+# ub-mode quality-tool output (crapper, dryer, mutator)
+.metrics/
