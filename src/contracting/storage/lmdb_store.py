@@ -8,10 +8,15 @@ from pathlib import Path
 import lmdb
 from xian_runtime_types.encoding import decode, encode
 
+from contracting.storage.content_cache import ContentKeyedCache
 from contracting.storage.lmdb_environment import (
     DEFAULT_ENVIRONMENT_POOL,
     LMDBEnvironmentOptions,
 )
+
+# Stored texts at least this large (contract IR, source) are decoded once per
+# stored content: decoding them costs far more than reading them.
+REUSED_TEXT_MIN_BYTES = 4096
 
 DEFAULT_MAP_SIZE = int(
     os.environ.get(
@@ -36,6 +41,8 @@ class LMDBStore:
         )
         self._env = self._lease.env
         self._db = self._env.open_db()
+        # Texts are immutable, so readers can share one decoded copy.
+        self._texts = ContentKeyedCache(max_entries=256)
 
     def _require_open(self):
         if self._env is None or self._db is None or self._lease is None:
@@ -77,11 +84,22 @@ class LMDBStore:
                 self._grow_map()
 
     def get(self, key: str):
+        encoded_key = key.encode("utf-8")
         with self._require_open().begin() as txn:
-            value = txn.get(key.encode("utf-8"))
+            value = txn.get(encoded_key)
         if value is None:
             return None
-        return decode(value, vm_profile=self.vm_profile)
+        if len(value) < REUSED_TEXT_MIN_BYTES:
+            return decode(value, vm_profile=self.vm_profile)
+        return self._decode_text(encoded_key, value)
+
+    def _decode_text(self, encoded_key: bytes, value: bytes):
+        decoded = self._texts.get(encoded_key, value)
+        if decoded is None:
+            decoded = decode(value, vm_profile=self.vm_profile)
+            if isinstance(decoded, str):
+                self._texts.put(encoded_key, value, decoded)
+        return decoded
 
     def batch_set(self, writes: dict[str, object]):
         if not writes:
