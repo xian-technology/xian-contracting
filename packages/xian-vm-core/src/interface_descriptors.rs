@@ -1014,7 +1014,7 @@ mod tests {
             .is_err());
     }
     fn metadata_module() -> ModuleIr {
-        let mut module = instance().module;
+        let mut module = (*instance().module).clone();
         let function = FunctionIr {
             node: "function".into(),
             span: crate::Span {
@@ -1060,7 +1060,7 @@ mod tests {
         );
         vm.globals.insert("event".into(), datum_value("LogEvent"));
         vm.globals.insert("constant".into(), vm_int(7));
-        vm.module = module;
+        vm.module = std::sync::Arc::new(module);
         vm
     }
     fn interface_matches(items: &[VmValue], _module: &ModuleIr) -> Result<bool, VmExecutionError> {
@@ -1199,7 +1199,7 @@ mod tests {
         ) -> Result<VmInterfaceMember, VmExecutionError> {
             assert_eq!(contract, "con_remote");
             let mut vm = metadata_instance();
-            vm.module = self.module.clone();
+            vm.module = std::sync::Arc::new(self.module.clone());
             let member = vm
                 .interface_members()?
                 .remove(name)
@@ -1646,12 +1646,14 @@ mod tests {
         vm.globals
             .insert("plain".into(), VmValue::List(vec![VmValue::None; 10_000]));
         assert_eq!(vm.interface_metadata_work(), 195);
-        vm.module
+        std::sync::Arc::make_mut(&mut vm.module)
             .global_declarations
             .push(serde_json::json!({"name":"ledger"}));
         assert_eq!(vm.interface_metadata_work(), 216);
         // The raw IR accessor also accounts for nameless metadata entries.
-        vm.module.global_declarations.push(serde_json::json!({}));
+        std::sync::Arc::make_mut(&mut vm.module)
+            .global_declarations
+            .push(serde_json::json!({}));
         assert_eq!(vm.interface_metadata_work(), 292);
         let mut host = MetadataHost {
             module: metadata_module(),

@@ -18,6 +18,7 @@ from contracting.runtime_features import (
 )
 from contracting.stdlib.bridge import random as random_bridge
 from contracting.stdlib.bridge import zk as zk_bridge
+from contracting.storage.content_cache import ContentKeyedCache
 from contracting.storage.driver import (
     DEPLOYER_KEY,
     DEVELOPER_KEY,
@@ -63,6 +64,33 @@ class NativeExecutionResult:
     contract_costs: dict[str, int]
 
 
+@dataclass(frozen=True, slots=True)
+class _ModuleSummary:
+    """What the host checks about a module, read once from its IR."""
+
+    vm_profile: Any
+    uses_zk: bool
+    exports: frozenset
+    construct_name: str | None
+
+    @classmethod
+    def of(cls, module_ir: dict[str, Any]) -> "_ModuleSummary":
+        return cls(
+            vm_profile=module_ir.get("vm_profile"),
+            uses_zk=module_ir_uses_runtime_feature(module_ir, RUNTIME_FEATURE_ZK),
+            exports=frozenset(
+                function.get("name")
+                for function in module_ir.get("functions", [])
+                if function.get("visibility") == "export"
+            ),
+            construct_name=_construct_function_name(module_ir),
+        )
+
+
+# Summaries by contract name, reused while the contract's IR text is identical.
+_MODULE_SUMMARIES = ContentKeyedCache()
+
+
 def runtime_info(vm_profile: str = "xian_vm_v2") -> dict:
     return json.loads(runtime_info_json(vm_profile))
 
@@ -92,7 +120,7 @@ class NativeVmHost:
         self.driver = driver
         self.vm_profile = vm_profile
         self._ir_cache: dict[str, str] = {}
-        self._parsed_ir_cache: dict[str, dict[str, Any]] = {}
+        self._module_summaries: dict[str, _ModuleSummary] = {}
         self._entry_contract = entry_contract
         self._meter_enabled = meter_enabled
         self._budget = _TransactionBudget(max(int(chi_budget_raw), 0), vm_profile)
@@ -224,30 +252,28 @@ class NativeVmHost:
         self._ir_cache[module_name] = payload
         return payload
 
-    def load_module_ir(self, module_name: str) -> dict[str, Any] | None:
-        cached = self._parsed_ir_cache.get(module_name)
+    def module_summary(self, module_name: str) -> _ModuleSummary | None:
+        cached = self._module_summaries.get(module_name)
         if cached is not None:
             self._reject_disabled_runtime_features(module_name, cached)
             return cached
         module_ir_json = self.load_module_ir_json(module_name)
         if not module_ir_json:
             return None
-        module_ir = json.loads(module_ir_json)
-        if module_ir.get("vm_profile") != self.vm_profile:
+        summary = _MODULE_SUMMARIES.get(module_name, module_ir_json)
+        if summary is None:
+            summary = _ModuleSummary.of(json.loads(module_ir_json))
+            _MODULE_SUMMARIES.put(module_name, module_ir_json, summary)
+        if summary.vm_profile != self.vm_profile:
             raise VmRuntimeExecutionError(
                 f"contract {module_name!r} does not target {self.vm_profile}"
             )
-        self._reject_disabled_runtime_features(module_name, module_ir)
-        self._parsed_ir_cache[module_name] = module_ir
-        return module_ir
+        self._reject_disabled_runtime_features(module_name, summary)
+        self._module_summaries[module_name] = summary
+        return summary
 
-    def _reject_disabled_runtime_features(
-        self, module_name: str, module_ir: dict[str, Any]
-    ) -> None:
-        if module_ir_uses_runtime_feature(
-            module_ir,
-            RUNTIME_FEATURE_ZK,
-        ) and not runtime_feature_enabled(
+    def _reject_disabled_runtime_features(self, module_name: str, summary: _ModuleSummary) -> None:
+        if summary.uses_zk and not runtime_feature_enabled(
             self.driver,
             RUNTIME_FEATURE_ZK,
             default_enabled=True,
@@ -268,13 +294,8 @@ class NativeVmHost:
         return False
 
     def _contract_has_export(self, contract: str, export_name: str) -> bool:
-        module_ir = self.load_module_ir(contract)
-        if not module_ir:
-            return False
-        for function in module_ir.get("functions", []):
-            if function.get("name") == export_name and function.get("visibility") == "export":
-                return True
-        return False
+        summary = self.module_summary(contract)
+        return summary is not None and export_name in summary.exports
 
     def _stage_contract_metadata_write(self, contract: str, variable: str, value: Any) -> None:
         key = self._make_key(contract, variable)
@@ -301,13 +322,14 @@ class NativeVmHost:
 
         module_ir = json.loads(vm_ir_json)
         validate_module_ir(module_ir)
-        self._reject_disabled_runtime_features(name, module_ir)
+        summary = _ModuleSummary.of(module_ir)
+        self._reject_disabled_runtime_features(name, summary)
 
-        return source, vm_ir_json, module_ir
+        return source, vm_ir_json, summary
 
-    def _execute_constructor(self, name, module_ir, construct_name, context, constructor_args):
+    def _execute_constructor(self, name, vm_ir_json, construct_name, context, constructor_args):
         raw = execute_bundle(
-            json.dumps({name: module_ir}, separators=(",", ":"), sort_keys=True),
+            {name: vm_ir_json},
             name,
             construct_name,
             [],
@@ -337,18 +359,18 @@ class NativeVmHost:
             **dict(raw.get("storage_writes") or {}),
         }, list(raw["events"])
 
-    def _run_constructor(self, name, module_ir, vm_ir_json, context, constructor_args):
+    def _run_constructor(self, name, summary, vm_ir_json, context, constructor_args):
         caches = [
             (self._ir_cache, self._ir_cache.get(name)),
-            (self._parsed_ir_cache, self._parsed_ir_cache.get(name)),
+            (self._module_summaries, self._module_summaries.get(name)),
         ]
         self._ir_cache[name] = vm_ir_json
-        self._parsed_ir_cache[name] = module_ir
+        self._module_summaries[name] = summary
         try:
-            construct_name = _construct_function_name(module_ir)
+            construct_name = summary.construct_name
             if construct_name is not None:
                 return self._execute_constructor(
-                    name, module_ir, construct_name, context, constructor_args
+                    name, vm_ir_json, construct_name, context, constructor_args
                 )
             return {}, []
         except Exception:
@@ -370,7 +392,7 @@ class NativeVmHost:
         deployer: str | None,
         initiator: str | None,
     ) -> None:
-        source, vm_ir_json, module_ir = self._deployment_artifacts(name, code)
+        source, vm_ir_json, summary = self._deployment_artifacts(name, code)
         deployment_developer = self._context.get("caller") if developer is None else developer
         deployment_deployer = self._context.get("caller") if deployer is None else deployer
         deployment_initiator = self._context.get("signer") if initiator is None else initiator
@@ -393,7 +415,7 @@ class NativeVmHost:
         }
         constructor_writes, constructor_events = self._run_constructor(
             name,
-            module_ir,
+            summary,
             vm_ir_json,
             constructor_context,
             constructor_args,
@@ -519,15 +541,12 @@ def _rejected_entry(error: Exception) -> NativeExecutionResult:
     )
 
 
-def _external_entry_error(host, module_ir, contract_name, function_name, context):
+def _external_entry_error(host, summary, contract_name, function_name, context):
     if not host.caller_is_owner(contract_name, context.get("caller")):
         return Exception("Caller is not the owner!")
     if host.vm_profile != "xian_vm_v2":
         return None
-    if any(
-        function["name"] == function_name and function["visibility"] == "export"
-        for function in module_ir["functions"]
-    ):
+    if function_name in summary.exports:
         return None
     return RuntimeError(
         f"Function '{function_name}' is not exported by contract '{contract_name}'."
@@ -558,18 +577,18 @@ def execute_contract(
     )
     coerced_args = _coerce_external_call_args(args or [], vm_profile)
     coerced_kwargs = _coerce_external_call_kwargs(kwargs or {}, vm_profile)
-    module_ir = host.load_module_ir(contract_name)
-    if module_ir is None:
+    summary = host.module_summary(contract_name)
+    if summary is None:
         raise VmRuntimeExecutionError(
             f"{vm_profile} requires persisted __xian_ir_v1__ for contract "
             f"'{contract_name}'; stored source is inspection-only"
         )
     # A contract with an owner may only be called by that owner, whether the
     # call comes from another contract or straight from a transaction.
-    error = _external_entry_error(host, module_ir, contract_name, function_name, context)
+    error = _external_entry_error(host, summary, contract_name, function_name, context)
     if error is not None:
         return _rejected_entry(error)
-    bundle_payload = {contract_name: module_ir}
+    bundle = {contract_name: host.load_module_ir_json(contract_name)}
     previous_env = dict(rt.env)
     # Host syscalls must use only this execution's explicit inputs. Ambient
     # state is restored afterward, never inherited into consensus execution.
@@ -577,7 +596,7 @@ def execute_contract(
     random_bridge.clear_random_state()
     try:
         raw = execute_bundle(
-            json.dumps(bundle_payload, separators=(",", ":"), sort_keys=True),
+            bundle,
             contract_name,
             function_name,
             coerced_args,

@@ -1,5 +1,6 @@
 use crate::interpreter::numeric_v2;
 use crate::interpreter::{vm_hash_storage_key, vm_variable_storage_key};
+use crate::module_cache::shared_module;
 use crate::XIAN_VM_V2_PROFILE;
 use crate::{
     parse_module_ir, VmContractCall, VmContractTarget, VmDateTime, VmDecimal, VmEvent,
@@ -14,7 +15,7 @@ use pyo3::create_exception;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyByteArray, PyBytes, PyDict, PyList, PyModule, PyTuple};
-use serde_json::{json, Value as JsonValue};
+use serde_json::json;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::str::FromStr;
 
@@ -51,7 +52,7 @@ impl PyTransactionBudget {
 struct PythonBundleExecutor {
     heap: crate::heap::VmHeap,
     host: Py<PyAny>,
-    modules: HashMap<String, crate::ModuleIr>,
+    modules: HashMap<String, crate::ValidatedModuleIr>,
     instances: HashMap<String, VmInstance>,
     interface_members: HashMap<String, BTreeMap<String, crate::VmInterfaceMember>>,
     public_callables: HashMap<String, BTreeMap<String, crate::VmPublicCallable>>,
@@ -77,28 +78,30 @@ fn validate_bundle_module(
     Ok(())
 }
 
+fn load_bundle_module(
+    name: &str,
+    module_ir_json: &str,
+    profile: &str,
+) -> Result<crate::ValidatedModuleIr, VmExecutionError> {
+    let module = shared_module(name, module_ir_json)
+        .map_err(|error| VmExecutionError::new(error.to_string()))?;
+    validate_bundle_module(&module, name, profile)?;
+    Ok(module)
+}
+
 impl PythonBundleExecutor {
+    /// `bundle` maps module names to their IR JSON text, checked in name order.
     fn new(
         host: Py<PyAny>,
-        bundle_ir_json: &str,
+        bundle: BTreeMap<String, String>,
         meter_config: VmMeterConfig,
         budget: Option<crate::VmBudget>,
         vm_profile: &str,
     ) -> Result<Self, VmExecutionError> {
-        let parsed: JsonValue = serde_json::from_str(bundle_ir_json)
-            .map_err(|error| VmExecutionError::new(error.to_string()))?;
-        let object = parsed
-            .as_object()
-            .ok_or_else(|| VmExecutionError::new("bundle_ir_json must be a JSON object"))?;
         let mut modules = HashMap::new();
-        for (module_name, module_value) in object {
-            let module = parse_module_ir(
-                &serde_json::to_string(module_value)
-                    .map_err(|error| VmExecutionError::new(error.to_string()))?,
-            )
-            .map_err(|error| VmExecutionError::new(error.to_string()))?;
-            validate_bundle_module(&module, module_name, vm_profile)?;
-            modules.insert(module_name.clone(), module);
+        for (module_name, module_ir_json) in bundle {
+            let module = load_bundle_module(&module_name, &module_ir_json, vm_profile)?;
+            modules.insert(module_name, module);
         }
         let budget =
             budget.unwrap_or_else(|| crate::VmBudget::new(meter_config.chi_budget_raw, vm_profile));
@@ -220,9 +223,7 @@ impl PythonBundleExecutor {
                 "native VM could not load module '{module_name}'"
             )));
         };
-        let module = parse_module_ir(&module_ir_json)
-            .map_err(|error| VmExecutionError::new(error.to_string()))?;
-        validate_bundle_module(&module, module_name, &self.vm_profile)?;
+        let module = load_bundle_module(module_name, &module_ir_json, &self.vm_profile)?;
         self.modules.insert(module_name.to_owned(), module);
         Ok(())
     }
@@ -256,7 +257,7 @@ impl PythonBundleExecutor {
             instance_context.owner = self.load_owner(module_name)?;
         }
         let heap = self.heap.clone();
-        let instance = VmInstance::new_with_heap(module, instance_context, self, heap)?;
+        let instance = VmInstance::new_with_heap(&module, instance_context, self, heap)?;
         self.meter
             .charge_execution_cost(instance.interface_metadata_work())?;
         let interface_members = instance.interface_members()?;
@@ -1381,7 +1382,7 @@ fn validate_deployment_artifacts_json(
 }
 
 #[pyfunction(signature=(
-    bundle_ir_json,
+    bundle,
     entry_module,
     function_name,
     args,
@@ -1397,7 +1398,7 @@ fn validate_deployment_artifacts_json(
 ))]
 fn execute_bundle(
     py: Python<'_>,
-    bundle_ir_json: &str,
+    bundle: BTreeMap<String, String>,
     entry_module: &str,
     function_name: &str,
     args: Py<PyAny>,
@@ -1439,7 +1440,7 @@ fn execute_bundle(
         .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?;
     let mut executor = PythonBundleExecutor::new(
         host,
-        bundle_ir_json,
+        bundle,
         VmMeterConfig {
             enabled: meter,
             chi_budget_raw,

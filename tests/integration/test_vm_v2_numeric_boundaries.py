@@ -1,6 +1,5 @@
 """Numeric admission applies to host responses, callbacks and both sides of a bundle call."""
 
-import json
 from decimal import Decimal
 
 import pytest
@@ -39,7 +38,7 @@ def call(source, *, host=None, kwargs=None, meter=True, budget=100_000_000, prof
     from xian_vm_core import execute_bundle
 
     return execute_bundle(
-        json.dumps({NAME: json.loads(compile_ir(source, profile))}),
+        {NAME: compile_ir(source, profile)},
         NAME,
         "probe",
         [],

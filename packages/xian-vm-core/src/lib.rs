@@ -29,6 +29,8 @@ mod decimal_methods;
 mod decimal_tuple;
 mod interpreter;
 mod metering;
+#[cfg(any(feature = "python-extension", test))]
+mod module_cache;
 mod raw_decimal;
 mod set_member_codec;
 pub use decimal_tuple::{VmDecimalExponent, VmDecimalTuple};
@@ -145,6 +147,34 @@ impl fmt::Display for IrValidationError {
 }
 
 impl std::error::Error for IrValidationError {}
+
+/// Module IR that passed [`validate_module_ir`]. Instances run only these, and
+/// share one immutable copy instead of cloning the IR per execution.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ValidatedModuleIr(std::sync::Arc<ModuleIr>);
+
+impl ValidatedModuleIr {
+    pub fn new(module: ModuleIr) -> Result<Self, IrValidationError> {
+        validate_module_ir(&module)?;
+        Ok(Self(std::sync::Arc::new(module)))
+    }
+
+    pub fn parse(input: &str) -> Result<Self, IrValidationError> {
+        parse_module_ir(input).map(|module| Self(std::sync::Arc::new(module)))
+    }
+
+    pub(crate) fn shared(&self) -> std::sync::Arc<ModuleIr> {
+        std::sync::Arc::clone(&self.0)
+    }
+}
+
+impl std::ops::Deref for ValidatedModuleIr {
+    type Target = ModuleIr;
+
+    fn deref(&self) -> &ModuleIr {
+        &self.0
+    }
+}
 
 pub fn parse_module_ir(input: &str) -> Result<ModuleIr, IrValidationError> {
     let module: ModuleIr =

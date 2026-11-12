@@ -1,7 +1,5 @@
 """Host-side ContractingDecimal text matches what a V2 contract sees for the same value."""
 
-import json
-
 import pytest
 from xian_runtime_types.decimal import ContractingDecimal
 
@@ -49,7 +47,7 @@ def vm_rows():
 
     ir = build_contract_artifacts(module_name=NAME, source=SOURCE, vm_profile=PROFILE)["vm_ir_json"]
     output = execute_bundle(
-        json.dumps({NAME: json.loads(ir)}),
+        {NAME: ir},
         NAME,
         "probe",
         [],

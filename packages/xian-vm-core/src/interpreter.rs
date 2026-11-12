@@ -1,4 +1,4 @@
-use crate::{validate_module_ir, FunctionIr, ModuleIr};
+use crate::{FunctionIr, ModuleIr};
 use num_bigint::{BigInt, Sign};
 use num_traits::{Num, Signed, ToPrimitive, Zero};
 use serde_json::{Map, Value};
@@ -882,7 +882,7 @@ enum ResolvedAssignmentTarget {
 
 pub struct VmInstance {
     heap: crate::heap::VmHeap,
-    module: ModuleIr,
+    module: std::sync::Arc<ModuleIr>,
     functions: HashMap<String, FunctionIr>,
     function_defaults: HashMap<(String, String), VmValue>,
     function_locals: HashMap<String, HashSet<String>>,
@@ -906,18 +906,20 @@ impl VmInstance {
         context: VmExecutionContext,
         host: &mut dyn VmHost,
     ) -> Result<Self, VmExecutionError> {
-        Self::new_with_heap(module, context, host, crate::heap::VmHeap::default())
+        let module = crate::ValidatedModuleIr::new(module)
+            .map_err(|err| VmExecutionError::new(err.to_string()))?;
+        Self::new_with_heap(&module, context, host, crate::heap::VmHeap::default())
     }
 
     pub(crate) fn new_with_heap(
-        module: ModuleIr,
+        module: &crate::ValidatedModuleIr,
         context: VmExecutionContext,
         host: &mut dyn VmHost,
         heap: crate::heap::VmHeap,
     ) -> Result<Self, VmExecutionError> {
         let _call = heap.enter_execution_frame()?;
         let _scope = numeric_v2::Scope::enter(&module.vm_profile);
-        validate_module_ir(&module).map_err(|err| VmExecutionError::new(err.to_string()))?;
+        let module = module.shared();
 
         let imports = module
             .imports
