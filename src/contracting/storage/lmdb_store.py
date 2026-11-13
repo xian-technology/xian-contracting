@@ -48,6 +48,11 @@ class LMDBStore:
             raise RuntimeError("LMDBStore is closed")
         return self._env
 
+    @property
+    def environment(self):
+        """The open LMDB environment (the VM reads committed state from it)."""
+        return self._require_open()
+
     def close(self):
         if self._env is not None:
             self._lease.close()

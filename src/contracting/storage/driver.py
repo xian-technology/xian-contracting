@@ -182,11 +182,32 @@ class Driver:
     def get(self, key: str, save: bool = True):
         value = self.find(key)
         if save:
-            if self.pending_reads.get(key) is None:
-                self._put(self.pending_reads, key, value)
-            if self.track_transaction_reads and self.transaction_reads.get(key) is None:
-                self._put(self.transaction_reads, key, value)
+            self._record_read(key, value)
         return value
+
+    def _record_read(self, key: str, value) -> None:
+        if self.pending_reads.get(key) is None:
+            self._put(self.pending_reads, key, value)
+        if self.track_transaction_reads and self.transaction_reads.get(key) is None:
+            self._put(self.transaction_reads, key, value)
+
+    def committed_storage(self):
+        """The committed state the VM may read without this driver, or None.
+
+        Returns the LMDB environment and the pending-write containers that
+        shadow it; the VM asks the driver for every key they hold and reports
+        the other reads back through ``record_committed_reads``. The read cache
+        is not listed: consensus already requires it to agree with committed
+        state, since a restarted node starts with an empty one.
+        """
+        if self.vm_profile != XIAN_VM_V2_PROFILE:
+            return None
+        return self._store.environment, (self.pending_writes,)
+
+    def record_committed_reads(self, reads) -> None:
+        """Book ``(key, value)`` reads the VM served from committed state."""
+        for key, value in reads:
+            self._record_read(key, value)
 
     def _put(self, container: dict, key, value) -> None:
         if self._undo is not None:

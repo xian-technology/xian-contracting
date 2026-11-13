@@ -29,6 +29,12 @@ pub(crate) struct PyLmdbEnvironment {
     env: LmdbEnv,
 }
 
+impl PyLmdbEnvironment {
+    pub(crate) fn env(&self) -> &LmdbEnv {
+        &self.env
+    }
+}
+
 #[pymethods]
 impl PyLmdbEnvironment {
     #[new]

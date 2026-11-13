@@ -1,4 +1,6 @@
 use crate::interpreter::numeric_v2;
+#[path = "committed_reads.rs"]
+mod committed_reads;
 use crate::interpreter::{vm_hash_storage_key, vm_variable_storage_key};
 use crate::module_cache::shared_module;
 use crate::XIAN_VM_V2_PROFILE;
@@ -65,6 +67,8 @@ struct PythonBundleExecutor {
     meter: crate::VmMeter,
     contract_call_count: u64,
     vm_profile: String,
+    /// Committed V2 state read in Rust, when the host offers it.
+    committed: Option<committed_reads::CommittedState>,
 }
 
 fn validate_bundle_module(
@@ -122,6 +126,7 @@ impl PythonBundleExecutor {
             meter: crate::VmMeter::with_budget(meter_config, budget),
             contract_call_count: 0,
             vm_profile: vm_profile.to_owned(),
+            committed: None,
         })
     }
 
@@ -395,6 +400,12 @@ impl VmHost for PythonBundleExecutor {
                 return Ok(Some(value));
             }
         }
+        if let Some(committed) = self.committed.as_mut() {
+            if let Some(value) = committed.read(&storage_key)? {
+                // The host reports a stored null as a missing variable.
+                return Ok(value.filter(|value| !matches!(value, VmValue::None)));
+            }
+        }
         Python::attach(|py| -> Result<Option<VmValue>, VmExecutionError> {
             let host = self.host.bind(py);
             let response = host
@@ -417,6 +428,12 @@ impl VmHost for PythonBundleExecutor {
         if let Some(instance) = self.instances.get(contract) {
             if let Some(value) = instance.peek_hash_entry(binding, key)? {
                 return Ok(Some(value));
+            }
+        }
+        if let Some(committed) = self.committed.as_mut() {
+            if let Some(value) = committed.read(&storage_key)? {
+                // Driver reads are authoritative, including missing keys.
+                return Ok(Some(value.unwrap_or(VmValue::None)));
             }
         }
         Python::attach(|py| -> Result<Option<VmValue>, VmExecutionError> {
@@ -1467,6 +1484,12 @@ fn execute_bundle(
     }
     let context = context_from_py(context)
         .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?;
+    let committed = if vm_profile == XIAN_VM_V2_PROFILE {
+        committed_reads::CommittedState::from_host(host.bind(py))?
+    } else {
+        None
+    };
+    let host_ref = host.clone_ref(py);
     let mut executor = PythonBundleExecutor::new(
         host,
         bundle,
@@ -1479,8 +1502,12 @@ fn execute_bundle(
         vm_profile,
     )
     .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?;
+    executor.committed = committed;
     let result =
         executor.execute_entry(entry_module, function_name, args, converted_kwargs, context);
+    if let Some(committed) = executor.committed.take() {
+        committed.finish(py, host_ref.bind(py))?;
+    }
     execution_result_to_py(py, result)
 }
 
