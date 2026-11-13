@@ -1829,21 +1829,18 @@ pub(super) fn subscript_value(
     }) {
         return result;
     }
+    // Lists, tuples and dicts were answered above; a tuple here can only be
+    // a DecimalTuple's tuple form.
     let container = tuple_equivalent(container.snapshot());
     match container {
         VmValue::MappingProxy(mapping) => subscript_value(*mapping, index),
         VmValue::Range(range) => range
             .get(&index.as_bigint()?)
             .ok_or_else(|| VmExecutionError::new("range index out of bounds")),
-        VmValue::List(values) => {
-            let idx = normalize_sequence_index(index, values.len())?;
-            Ok(values[idx].clone())
-        }
         VmValue::Tuple(values) => {
             let idx = normalize_sequence_index(index, values.len())?;
             Ok(values[idx].clone())
         }
-        VmValue::Dict(entries) => missing_key(dict_get(&entries, index), index),
         VmValue::String(value) => {
             crate::work_meter::count(crate::work_meter::searched(value.len()))?;
             let idx = normalize_sequence_index(index, value.chars().count())?;

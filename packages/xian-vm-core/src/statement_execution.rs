@@ -465,30 +465,14 @@ impl VmInstance {
                 let _ = self.eval_expression(cause, scope, host)?;
             }
         }
-        let message = |text: String| vec![VmValue::String(text)];
         Err(match object.get("exception") {
             None | Some(Value::Null) => VmExecutionError::raised(
                 "RuntimeError",
-                message("No active exception to reraise".to_owned()),
+                vec![VmValue::String("No active exception to reraise".to_owned())],
             ),
-            Some(exception) => match self.eval_expression(exception, scope, host)?.snapshot() {
-                VmValue::Exception(value) => VmExecutionError::raised(value.name, value.args),
-                VmValue::Builtin(name)
-                    if matches!(
-                        name.as_str(),
-                        "Exception" | "RuntimeError" | "ValueError" | "TypeError"
-                    ) =>
-                {
-                    VmExecutionError::raised(name, Vec::new())
-                }
-                other => VmExecutionError::raised(
-                    "TypeError",
-                    message(format!(
-                        "exceptions must derive from BaseException, got {}",
-                        other.type_name()
-                    )),
-                ),
-            },
+            Some(exception) => {
+                raised_error(self.eval_expression(exception, scope, host)?.snapshot())
+            }
         })
     }
     fn write_hash_value(
@@ -502,5 +486,27 @@ impl VmInstance {
         let storage_key = hash_storage_key(&self.module.module_name, binding, key)?;
         host.record_storage_write(&storage_key, &value.detached()?)?;
         host.charge_storage_write(&storage_key, &value.detached()?)
+    }
+}
+
+/// The error a `raise <value>` statement produces.
+fn raised_error(value: VmValue) -> VmExecutionError {
+    match value {
+        VmValue::Exception(value) => VmExecutionError::raised(value.name, value.args),
+        VmValue::Builtin(name)
+            if matches!(
+                name.as_str(),
+                "Exception" | "RuntimeError" | "ValueError" | "TypeError"
+            ) =>
+        {
+            VmExecutionError::raised(name, Vec::new())
+        }
+        other => VmExecutionError::raised(
+            "TypeError",
+            vec![VmValue::String(format!(
+                "exceptions must derive from BaseException, got {}",
+                other.type_name()
+            ))],
+        ),
     }
 }
