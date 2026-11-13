@@ -11,12 +11,14 @@
 //! any of its effects reach the overlay; the node then runs it through the
 //! Python path, in block order. That covers contract submission, contracts
 //! using zk host syscalls, host syscalls other than the contract metadata
-//! reads, hash scans, preparation and entry rejections, and any value the
-//! Python checks could refuse. A storage fault stops with `Stop::Fault`.
+//! reads (random, deploy, metadata changes), preparation and entry
+//! rejections, and any value the Python checks could refuse. Hash scans read
+//! the overlay and LMDB here. A storage fault stops with `Stop::Fault`.
 use crate::block_state::lock;
 use crate::bundle_executor::{
     validate_bundle_module, BundleExecutor, ExecutionOutcome, HostServices,
 };
+use crate::interpreter::vm_variable_storage_key;
 use crate::lmdb_env::storage_key_error;
 use crate::metering::VM_TRANSACTION_BASE_CHI as TRANSACTION_BASE_CHI;
 use crate::module_cache::shared_module;
@@ -30,6 +32,7 @@ use crate::{
 };
 use num_bigint::BigInt;
 use num_traits::Zero;
+use sha3::{Digest, Sha3_256};
 use std::cell::{OnceCell, RefCell};
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
@@ -38,6 +41,41 @@ use std::sync::Arc;
 const IR_KEY: &str = "__xian_ir_v1__";
 const SOURCE_KEY: &str = "__source__";
 const OWNER_KEY: &str = "__owner__";
+/// `contract.info`'s fields after the name, and the variables they read.
+const CONTRACT_INFO: [(&str, &str); 5] = [
+    ("owner", OWNER_KEY),
+    ("developer", "__developer__"),
+    ("deployer", "__deployer__"),
+    ("initiator", "__initiator__"),
+    ("submitted", "__submitted__"),
+];
+/// A contract metadata read served here: the syscall, its fewest and most
+/// arguments, and the read of the named contract (the VM binds every
+/// argument positionally).
+type MetadataRead = (
+    &'static str,
+    usize,
+    usize,
+    fn(&mut BlockHost<'_>, &str, &[VmValue]) -> Result<VmValue, VmExecutionError>,
+);
+const METADATA_READS: [MetadataRead; 5] = [
+    ("contract.exists", 1, 1, |host, contract, _| {
+        Ok(VmValue::Bool(host.contract_exists(contract)?))
+    }),
+    ("contract.has_export", 2, 2, |host, contract, args| {
+        let export = host.string_arg(args, 1)?;
+        Ok(VmValue::Bool(host.contract_has_export(contract, &export)?))
+    }),
+    ("contract.owner_of", 1, 1, |host, contract, _| {
+        host.metadata(contract, OWNER_KEY)
+    }),
+    ("contract.info", 1, 1, |host, contract, _| {
+        host.contract_info(contract)
+    }),
+    ("contract.code_hash", 1, 2, |host, contract, args| {
+        host.code_hash(contract, args.get(1))
+    }),
+];
 const INSUFFICIENT_BALANCE: &str = "Sender does not have enough chi for the submitted budget.";
 
 /// The chain fee policy of the block (`xian.fee_policy.TxFeePolicy`).
@@ -178,9 +216,9 @@ impl BlockHost<'_> {
     }
 
     fn string_arg(&mut self, args: &[VmValue], index: usize) -> Result<String, VmExecutionError> {
-        match args.get(index) {
-            Some(VmValue::String(value)) => Ok(value.clone()),
-            _ => self.back("syscall argument is not a string"),
+        match args.get(index).and_then(host_text) {
+            Some(value) => Ok(value.to_owned()),
+            None => self.back("syscall argument is not a string"),
         }
     }
 
@@ -205,6 +243,44 @@ impl BlockHost<'_> {
             Ok(module) => Ok(exports(&module, export)),
             Err(Stop::Handback(reason)) => self.back(reason),
             Err(stop) => Err(self.halt(stop)),
+        }
+    }
+
+    /// A contract metadata variable (`NativeVmHost._contract_var`).
+    fn metadata(&mut self, contract: &str, variable: &str) -> Result<VmValue, VmExecutionError> {
+        Ok(self
+            .get(&format!("{contract}.{variable}"))?
+            .unwrap_or(VmValue::None))
+    }
+
+    /// `contract.info`: the name and the deployment metadata.
+    fn contract_info(&mut self, contract: &str) -> Result<VmValue, VmExecutionError> {
+        let mut info = vec![(text("name"), text(contract))];
+        for (field, variable) in CONTRACT_INFO {
+            let value = self.metadata(contract, variable)?;
+            info.push((text(field), value));
+        }
+        Ok(VmValue::Dict(info))
+    }
+
+    /// `NativeVmHost._code_hash`: the SHA3-256 hex digest of the contract's
+    /// IR (kind "runtime", the default, or "ir") or source ("source"); `None`
+    /// when it has none.
+    fn code_hash(
+        &mut self,
+        contract: &str,
+        kind: Option<&VmValue>,
+    ) -> Result<VmValue, VmExecutionError> {
+        let variable = code_variable(kind)?;
+        if variable == IR_KEY {
+            if let Ir::Text(module) = self.ir(contract)? {
+                return Ok(code_digest(&module.text));
+            }
+        }
+        match self.metadata(contract, variable)? {
+            VmValue::None => Ok(VmValue::None),
+            VmValue::String(code) => Ok(code_digest(&code)),
+            _ => self.back("contract code is not a string"),
         }
     }
 }
@@ -251,21 +327,41 @@ impl HostServices for BlockHost<'_> {
 
     fn scan_hash_entries(
         &mut self,
-        _contract: &str,
-        _binding: &str,
-        _prefix: &str,
+        contract: &str,
+        binding: &str,
+        prefix: &str,
     ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
-        self.back("hash scan")
+        let mut entries = Vec::new();
+        self.visit_hash_entries(contract, binding, prefix, &mut |suffix, value| {
+            entries.push((suffix, value));
+            Ok(())
+        })?;
+        Ok(entries)
     }
 
+    /// `NativeVmHost.iter_hash_entries`: the hash's entries under `prefix`
+    /// (its key suffix with the trailing delimiter), as `(suffix, value)`.
     fn visit_hash_entries(
         &mut self,
-        _contract: &str,
-        _binding: &str,
-        _prefix: &str,
-        _visit: &mut dyn FnMut(String, VmValue) -> Result<(), VmExecutionError>,
+        contract: &str,
+        binding: &str,
+        prefix: &str,
+        visit: &mut dyn FnMut(String, VmValue) -> Result<(), VmExecutionError>,
     ) -> Result<(), VmExecutionError> {
-        self.back("hash scan")
+        let base_key = vm_variable_storage_key(contract, binding);
+        let full_prefix = format!("{base_key}:{prefix}");
+        let suffix_offset = base_key.len() + 1;
+        let mut refused = None;
+        let mut forward = |key: String, value| match visit(key[suffix_offset..].to_owned(), value) {
+            Ok(()) => true,
+            Err(error) => {
+                refused = Some(error);
+                false
+            }
+        };
+        let scanned = self.view.visit_prefix(&full_prefix, &mut forward);
+        scanned.map_err(|error| self.halt(fault(error)))?;
+        refused.map_or(Ok(()), Err)
     }
 
     fn owner(&mut self, contract: &str) -> Result<Option<String>, VmExecutionError> {
@@ -280,25 +376,17 @@ impl HostServices for BlockHost<'_> {
         &mut self,
         syscall_id: &str,
         args: Vec<VmValue>,
-        _kwargs: Vec<(String, VmValue)>,
+        kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
-        match syscall_id {
-            "contract.exists" if args.len() == 1 => {
+        let read = METADATA_READS.iter().find(|(id, fewest, most, _)| {
+            *id == syscall_id && (*fewest..=*most).contains(&args.len())
+        });
+        match (read, kwargs.is_empty()) {
+            (Some((_, _, _, read)), true) => {
                 let contract = self.string_arg(&args, 0)?;
-                Ok(VmValue::Bool(self.contract_exists(&contract)?))
+                read(self, &contract, &args)
             }
-            "contract.has_export" if args.len() == 2 => {
-                let contract = self.string_arg(&args, 0)?;
-                let export = self.string_arg(&args, 1)?;
-                Ok(VmValue::Bool(self.contract_has_export(&contract, &export)?))
-            }
-            "contract.owner_of" if args.len() == 1 => {
-                let contract = self.string_arg(&args, 0)?;
-                Ok(self
-                    .get(&format!("{contract}.{OWNER_KEY}"))?
-                    .unwrap_or(VmValue::None))
-            }
-            other => self.back(format!("host syscall {other}")),
+            _ => self.back(format!("host syscall {syscall_id}")),
         }
     }
 }
@@ -319,6 +407,37 @@ fn runnable(name: &str, cached: &CachedModule) -> Settled<ValidatedModuleIr> {
         return handback("module uses zk host syscalls");
     }
     Ok(module)
+}
+
+/// The contract variable `code_hash` hashes for `kind`: the IR for
+/// "runtime" (the default) and "ir", the source for "source".
+fn code_variable(kind: Option<&VmValue>) -> Result<&'static str, VmExecutionError> {
+    match kind.map(|kind| (kind, host_text(kind))) {
+        None | Some((VmValue::None, _)) | Some((_, Some("runtime" | "ir"))) => Ok(IR_KEY),
+        Some((_, Some("source"))) => Ok(SOURCE_KEY),
+        // The Python host's VmRuntimeExecutionError, as `host_error` reports it.
+        Some(_) => Err(VmExecutionError::new(
+            "VmRuntimeExecutionError: Hash kind must be 'ir' or 'source'!",
+        )),
+    }
+}
+
+fn code_digest(code: &str) -> VmValue {
+    text(&hex::encode(Sha3_256::digest(code.as_bytes())))
+}
+
+/// The string the Python host receives for `value` (`vm_to_py`): a string
+/// or a contract module handle's name.
+fn host_text(value: &VmValue) -> Option<&str> {
+    match value {
+        VmValue::String(text) => Some(text),
+        VmValue::ContractHandle(handle) => Some(&handle.module),
+        _ => None,
+    }
+}
+
+fn text(value: &str) -> VmValue {
+    VmValue::String(value.to_owned())
 }
 
 fn exports(module: &ValidatedModuleIr, function: &str) -> bool {
@@ -748,7 +867,6 @@ fn receipt_encodable(value: &VmValue) -> bool {
 
 /// An event as the Python path's event dictionary.
 pub(crate) fn event_value(event: &VmEvent) -> VmValue {
-    let text = |value: &str| VmValue::String(value.to_owned());
     let pairs = |pairs: &[(String, VmValue)]| {
         VmValue::Dict(
             pairs

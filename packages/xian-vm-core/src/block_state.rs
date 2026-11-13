@@ -12,11 +12,11 @@
 //! when it closes, at a cost that follows what the scope touched.
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;
-#[cfg(feature = "python-extension")]
+#[cfg(any(feature = "python-extension", test))]
 use std::sync::{Mutex, MutexGuard};
 
 /// The state behind its lock; a panic while it was held is a broken node.
-#[cfg(feature = "python-extension")]
+#[cfg(any(feature = "python-extension", test))]
 pub(crate) fn lock(state: &Mutex<BlockState>) -> MutexGuard<'_, BlockState> {
     state.lock().expect("block state lock poisoned")
 }
