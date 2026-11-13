@@ -64,29 +64,52 @@ fn prepared(
     })
 }
 
+/// `items` converted one by one into a Python list.
+fn list_to_py<T>(
+    py: Python<'_>,
+    items: &[T],
+    convert: impl Fn(&T) -> PyResult<Py<PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    let list = PyList::empty(py);
+    for item in items {
+        list.append(convert(item)?)?;
+    }
+    Ok(list.into_any().unbind())
+}
+
 fn outcome_to_py(py: Python<'_>, outcome: &TxOutcome) -> PyResult<Py<PyAny>> {
-    let writes = PyList::empty(py);
-    for (key, value) in &outcome.writes {
-        writes.append((key, vm_to_py(py, value)?))?;
-    }
-    let events = PyList::empty(py);
-    for event in &outcome.events {
-        events.append(event_to_py(py, event)?)?;
-    }
-    let rewards = match &outcome.rewards {
-        Some(rewards) => rewards_to_py(py, rewards)?,
-        None => py.None(),
-    };
+    let writes = list_to_py(py, &outcome.writes, |(key, value)| {
+        Ok((key, vm_to_py(py, value)?)
+            .into_pyobject(py)?
+            .into_any()
+            .unbind())
+    })?;
+    let events = list_to_py(py, &outcome.events, |event| {
+        Ok(event_to_py(py, event)?.into_any().unbind())
+    })?;
     let fields: Vec<Py<PyAny>> = vec![
         outcome.status.into_pyobject(py)?.into_any().unbind(),
         vm_to_py(py, &outcome.result)?,
         exception_to_py(py, outcome.exception.as_ref())?,
-        writes.into_any().unbind(),
-        events.into_any().unbind(),
+        writes,
+        events,
         bigint_to_py(py, &outcome.chi_used)?,
-        rewards,
+        optional_to_py(py, outcome.rewards.as_ref(), |rewards| {
+            rewards_to_py(py, rewards)
+        })?,
+        optional_to_py(py, outcome.chi_rate.as_ref(), |rate| bigint_to_py(py, rate))?,
+        outcome.output_writes.into_pyobject(py)?.into_any().unbind(),
     ];
     Ok(pyo3::types::PyTuple::new(py, fields)?.into_any().unbind())
+}
+
+/// `value` converted, or `None`.
+fn optional_to_py<T>(
+    py: Python<'_>,
+    value: Option<&T>,
+    convert: impl Fn(&T) -> PyResult<Py<PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    value.map_or_else(|| Ok(py.None()), convert)
 }
 
 #[pymethods]
@@ -144,9 +167,10 @@ impl PyBlockExecutor {
     /// Execute and stage the transactions from `start` with the GIL
     /// released, until the end or the first one the Python path must run.
     /// Returns `(outcomes, stop)`: one `(status, result, exception, writes,
-    /// events, chi_used, rewards)` per executed transaction, and `(index,
-    /// reason)` of the transaction left to Python (`None` at the end). A storage
-    /// fault raises `LmdbStorageError`.
+    /// events, chi_used, rewards, chi_rate, output_writes)` per executed
+    /// transaction (the last two feed the per-transaction log records), and
+    /// `(index, reason)` of the transaction left to Python (`None` at the
+    /// end). A storage fault raises `LmdbStorageError`.
     fn run(
         &self,
         py: Python<'_>,

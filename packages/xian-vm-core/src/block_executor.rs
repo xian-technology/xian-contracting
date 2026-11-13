@@ -112,6 +112,12 @@ pub(crate) struct TxOutcome {
     pub(crate) chi_used: BigInt,
     /// `None` when rewards were not computed.
     pub(crate) rewards: Option<TxRewards>,
+    /// The chi rate the fee was priced at (`None`: no fees charged).
+    pub(crate) chi_rate: Option<BigInt>,
+    /// How many writes `execute_vm_transaction` reports for the transaction:
+    /// a success's writes and fee refund before reward deltas; none for a
+    /// failure, whose fee is metered after it.
+    pub(crate) output_writes: usize,
 }
 
 fn fault(error: String) -> Stop {
@@ -733,17 +739,12 @@ impl BlockExecutor {
         rate: Option<&BigInt>,
         balance_key: &str,
     ) -> Settled<TxOutcome> {
-        let mut writes = if execution.status == 0 {
-            self.validated(&execution)?;
-            execution.writes.clone()
+        let mut writes = self.settled_writes(&execution, rate, balance_key)?;
+        let output_writes = if execution.status == 0 {
+            writes.len()
         } else {
-            BTreeMap::new()
+            0
         };
-        if let Some(rate) = rate {
-            if let Some(balance) = self.charged_balance(&execution, rate, balance_key)? {
-                writes.insert(balance_key.to_owned(), balance);
-            }
-        }
         let rewards = if execution.status == 0 && self.policy.distribute_fee_rewards {
             Some(tx_reward_outputs(
                 &mut ViewRewardState(&self.view),
@@ -767,7 +768,31 @@ impl BlockExecutor {
             events: execution.events,
             chi_used: execution.chi_used,
             rewards,
+            chi_rate: rate.cloned(),
+            output_writes,
         })
+    }
+
+    /// A success's writes with its refunded fee, or a failure's metered fee
+    /// alone (no fee when none is charged).
+    fn settled_writes(
+        &self,
+        execution: &Execution,
+        rate: Option<&BigInt>,
+        balance_key: &str,
+    ) -> Settled<BTreeMap<String, VmValue>> {
+        let mut writes = if execution.status == 0 {
+            self.validated(execution)?;
+            execution.writes.clone()
+        } else {
+            BTreeMap::new()
+        };
+        if let Some(rate) = rate {
+            if let Some(balance) = self.charged_balance(execution, rate, balance_key)? {
+                writes.insert(balance_key.to_owned(), balance);
+            }
+        }
+        Ok(writes)
     }
 
     /// The sender's balance after the fee: refunded against the reservation
