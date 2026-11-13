@@ -70,6 +70,13 @@ def probe(name: str, family: str, setup: str, op: str, reps: int, scalable=True)
     return Probe(name, family, statements(setup), statements(op), reps, scalable)
 
 
+DICT_SIZES = (10, 1000, 10000)
+
+
+def dict_setup(size: int) -> str:
+    return f"d = {{str(j): j for j in range({size})}}; k = str({size - 1}); m = {size}"
+
+
 LONG = "s = 'a' * 100000; t = 'a' * 99999 + 'b'"
 BYTES = LONG + "; b = s.encode()"
 LONG_LIST = "base = 'a' * 20000; l = [base + str(j % 10) for j in range(50)]"
@@ -174,9 +181,25 @@ PROBES: tuple[Probe, ...] = (
     probe("hash_all_prefix", "storage_scan", "", "x = len(seeded.all('k1'))", 5),
     probe("hash_clear", "storage_scan", "", "scratch.clear()", 5),
     probe("hash_clone_from", "storage_scan", "", "scratch.clone_from(seeded)", 1, False),
-    # Container work priced by revision 10, kept from regressing. Setups stay
-    # small: an in-memory dictionary build is quadratic, and a slow setup
-    # makes the zero-repetition run noisy.
+    # (e) in-memory dictionaries at 10, 1,000 and 10,000 keys: one indexed
+    # operation costs the same at any size; removing the first key moves
+    # every later entry; a build grows with its keys.
+    *(
+        probe(f"dict_{name}_{size}", "dict", dict_setup(size), op, reps)
+        for size in DICT_SIZES
+        for name, op, reps in (
+            ("hit", "x = d[k]", 1000),
+            ("get", "x = d.get(k)", 1000),
+            ("miss", "x = 'zz' in d", 1000),
+            ("set", "d[k] = rep", 1000),
+            ("setdefault", "x = d.setdefault(k, 0)", 1000),
+            ("pop_last", "v = d.pop(k); d[k] = v", 1000),
+            ("pop_first", "f = str(rep % m); v = d.pop(f); d[f] = v", 100),
+            ("build", f"e = {{str(j): j for j in range({size})}}", max(1, 1000 // size)),
+            ("iterate", "for key in d:; pass", max(1, 1000 // size)),
+        )
+    ),
+    # Container work priced by revision 10, kept from regressing.
     probe("list_eq", "container", "l = list(range(20000)); m = list(l)", "x = l == m", 10),
     probe("list_in", "container", "l = list(range(20000))", "x = -1 in l", 10),
     probe("list_index", "container", "l = list(range(20000))", "x = l.index(19999)", 10),

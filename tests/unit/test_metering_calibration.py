@@ -43,7 +43,7 @@ def test_probe_names_are_unique_and_every_family_has_baselines():
     names = [probe.name for probe in calibration.PROBES]
     assert len(names) == len(set(names))
     families = {probe.family for probe in calibration.PROBES}
-    assert {"baseline", "boundary", "string", "compare", "storage_scan"} <= families
+    assert {"baseline", "boundary", "string", "compare", "storage_scan", "dict"} <= families
 
 
 def test_only_non_baseline_probes_above_the_ratio_fail():
@@ -114,3 +114,14 @@ def test_json_report_lists_every_measured_probe(capsys):
     assert set(report["probes"]) == baselines | {"str_lower"}
     assert report["probes"]["str_lower"]["family"] == "string"
     assert "UNDER-PRICED str_lower" in output.err
+
+
+def test_dict_probes_cover_each_size_with_a_dictionary_of_that_size():
+    probes = [probe for probe in calibration.PROBES if probe.family == "dict"]
+    sizes = {probe.name.rsplit("_", 1)[1] for probe in probes}
+    assert sizes == {str(size) for size in calibration.DICT_SIZES} == {"10", "1000", "10000"}
+    assert calibration.statements(calibration.dict_setup(1000)) == (
+        "d = {str(j): j for j in range(1000)}",
+        "k = str(999)",
+        "m = 1000",
+    )
