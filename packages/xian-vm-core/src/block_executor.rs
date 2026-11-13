@@ -2,7 +2,7 @@
 //!
 //! This is the node's per-transaction path (`xian.processor.TxProcessor.
 //! process_tx` with `xian.execution_engine.execute_vm_transaction` and
-//! `xian_vm_core.execute_contract`) for metered transactions whose contract
+//! `xian_vm_core.execute_contract`) for chain and system transactions whose contract
 //! needs nothing from Python: fee reservation, contract preparation, VM
 //! execution, the failure charge, refund or failure metering, fee rewards
 //! and staging the writes. Every outcome is byte-identical to that path.
@@ -40,6 +40,10 @@ const INSUFFICIENT_BALANCE: &str = "Sender does not have enough chi for the subm
 /// The chain fee policy of the block (`xian.fee_policy.TxFeePolicy`).
 #[derive(Clone, Debug)]
 pub(crate) struct BlockPolicy {
+    /// Chain policies meter execution; system transactions (epoch
+    /// rebalance, evidence penalties) run unmetered: the VM meter is off and
+    /// a failure is not charged.
+    pub(crate) meter_execution: bool,
     pub(crate) charge_fees: bool,
     pub(crate) distribute_fee_rewards: bool,
     /// Keys contract effects may not write (the execution policy).
@@ -178,33 +182,49 @@ impl BlockExecutor {
         if tx.contract == "submission" {
             return handback("contract submission");
         }
-        let rate = if self.policy.charge_fees {
-            Some(chain_chi_rate(
-                self.view.get("chi_cost.S:value").map_err(fault)?,
-            )?)
-        } else {
-            None
-        };
+        let rate = self.chi_rate()?;
         let balance_key = format!("currency.balances:{}", tx.sender);
         if let Some(error) = storage_key_error(&balance_key) {
             return handback(error);
         }
+        let execution =
+            self.discarding(|| self.execute_in_scope(tx, rate.as_ref(), &balance_key))?;
+        let execution = self.charge_failure(execution, tx);
+        self.settle(tx, execution, rate.as_ref(), &balance_key)
+    }
+
+    /// The chain's chi rate when the policy charges fees.
+    fn chi_rate(&self) -> Settled<Option<BigInt>> {
+        if !self.policy.charge_fees {
+            return Ok(None);
+        }
+        Ok(Some(chain_chi_rate(self.get("chi_cost.S:value")?)?))
+    }
+
+    /// `run` inside the overlay's discarding scope: what it stages (the
+    /// reservation) is undone before settlement.
+    fn discarding<T>(&self, run: impl FnOnce() -> Settled<T>) -> Settled<T> {
         lock(self.view.overlay())
             .begin_discarding()
             .map_err(|error| fault(error.to_string()))?;
-        let execution = self.execute_in_scope(tx, rate.as_ref(), &balance_key);
+        let result = run();
         lock(self.view.overlay())
             .discard()
             .map_err(|error| fault(error.to_string()))?;
-        let mut execution = execution?;
-        if execution.status != 0 {
+        result
+    }
+
+    /// `_charge_failure`: a failed metered transaction is charged at least
+    /// the base chi and at most its budget; unmetered execution is not.
+    fn charge_failure(&self, mut execution: Execution, tx: &PreparedTx) -> Execution {
+        if execution.status != 0 && self.policy.meter_execution {
             execution.chi_used = settlement::failed_transaction_chi(
                 &execution.chi_used,
                 &tx.chi_budget,
                 TRANSACTION_BASE_CHI,
             );
         }
-        self.settle(tx, execution, rate.as_ref(), &balance_key)
+        execution
     }
 
     /// Reservation, preparation and VM execution, inside the discarding scope.
@@ -331,7 +351,7 @@ impl BlockExecutor {
             .map_err(|error| Stop::Handback(error.to_string()))?;
         let bundle = HashMap::from([(tx.contract.clone(), entry)]);
         let config = VmMeterConfig {
-            enabled: true,
+            enabled: self.policy.meter_execution,
             chi_budget_raw: budget_raw,
             transaction_size_bytes: tx.size_bytes,
         };

@@ -115,16 +115,18 @@ fn optional_to_py<T>(
 #[pymethods]
 impl PyBlockExecutor {
     #[new]
-    #[pyo3(signature = (environment, overlay, *, charge_fees, distribute_fee_rewards, protected_keys))]
+    #[pyo3(signature = (environment, overlay, *, meter_execution, charge_fees, distribute_fee_rewards, protected_keys))]
     fn new(
         environment: PyRef<'_, PyLmdbEnvironment>,
         overlay: PyRef<'_, PyBlockState>,
+        meter_execution: bool,
         charge_fees: bool,
         distribute_fee_rewards: bool,
         protected_keys: Vec<String>,
     ) -> Self {
         let view = StateView::new(environment.env().clone(), overlay.shared());
         let policy = BlockPolicy {
+            meter_execution,
             charge_fees,
             distribute_fee_rewards,
             protected_keys,
@@ -135,7 +137,7 @@ impl PyBlockExecutor {
         }
     }
 
-    /// Add a metered transaction: `kwargs` and `context` as the Python path
+    /// Add a transaction: `kwargs` and `context` as the Python path
     /// hands them to the VM (`context` without the owner). `None` kwargs (or
     /// inputs that do not convert) leave the transaction to Python.
     #[allow(clippy::too_many_arguments)]
