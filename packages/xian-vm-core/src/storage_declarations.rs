@@ -8,7 +8,8 @@ impl VmInstance {
         keywords: &[Value],
         host: &mut dyn VmHost,
     ) -> Result<HashMap<String, VmValue>, VmExecutionError> {
-        let mut scope = self.globals.clone();
+        // Like other module expressions, names resolve through the globals.
+        let mut scope = HashMap::new();
         let args = self.eval_call_arguments(args, &mut scope, host)?;
         let kwargs = self.eval_call_keywords(keywords, &mut scope, host, None)?;
         // The Python compiler supplies contract/name keywords to declarations.

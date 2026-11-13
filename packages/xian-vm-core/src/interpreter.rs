@@ -1021,6 +1021,17 @@ impl VmInstance {
         Ok(())
     }
 
+    /// Evaluate an expression of the module itself (a declaration or default).
+    /// Its names resolve through the module's globals; it binds none of its
+    /// own, so no scope copy is needed.
+    pub(super) fn eval_module_expression(
+        &mut self,
+        expression: &Value,
+        host: &mut dyn VmHost,
+    ) -> Result<VmValue, VmExecutionError> {
+        self.eval_expression(expression, &mut HashMap::new(), host)
+    }
+
     fn define_function(
         &mut self,
         function: function_table::DefinedFunction,
@@ -1028,7 +1039,7 @@ impl VmInstance {
     ) -> Result<(), VmExecutionError> {
         for parameter in &function.parameters {
             if let Some(expression) = &parameter.default {
-                let value = self.eval_expression(expression, &mut self.globals.clone(), host)?;
+                let value = self.eval_module_expression(expression, host)?;
                 self.function_defaults
                     .insert((function.name.clone(), parameter.name.clone()), value);
             }
@@ -1332,11 +1343,8 @@ impl VmInstance {
             "event_decl" => {
                 let binding = required_string(object, "name")?.to_owned();
                 let event_name = required_string(object, "event_name")?.to_owned();
-                let params = self.eval_expression(
-                    required_value(object, "params")?,
-                    &mut self.globals.clone(),
-                    host,
-                )?;
+                let params =
+                    self.eval_module_expression(required_value(object, "params")?, host)?;
                 host.charge_execution_cost(event_methods::work_cost(&params, None))?;
                 let params = event_methods::declaration_schema(&event_name, &params)?;
                 self.globals.insert(
@@ -1351,11 +1359,7 @@ impl VmInstance {
             }
             "binding_decl" => {
                 let binding = required_string(object, "name")?.to_owned();
-                let value = self.eval_expression(
-                    required_value(object, "value")?,
-                    &mut self.globals.clone(),
-                    host,
-                )?;
+                let value = self.eval_module_expression(required_value(object, "value")?, host)?;
                 self.globals.insert(binding, value);
                 Ok(())
             }
