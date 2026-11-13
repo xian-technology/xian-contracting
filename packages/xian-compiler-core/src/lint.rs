@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 
-use crate::XIAN_VM_V2_PROFILE;
 use crate::diagnostic::{CompilerDiagnostic, SourceRange};
 use crate::syntax::{
     SyntaxBinaryOperator, SyntaxConstant, SyntaxDictEntry, SyntaxExpression, SyntaxImportAlias,
     SyntaxKeyword, SyntaxModule, SyntaxParameter, SyntaxStatement,
 };
+use crate::XIAN_VM_V2_PROFILE;
 
 const EXPORT_DECORATOR: &str = "export";
 const CONSTRUCT_DECORATOR: &str = "construct";
@@ -636,7 +636,11 @@ impl SyntaxLinter {
         match expression {
             SyntaxExpression::Name { span, id, .. } => {
                 if self.exact_numbers && matches!(id.as_str(), "float" | "round") {
-                    self.push("E014", format!("'{id}' is unavailable in {XIAN_VM_V2_PROFILE}"), span);
+                    self.push(
+                        "E014",
+                        format!("'{id}' is unavailable in {XIAN_VM_V2_PROFILE}"),
+                        span,
+                    );
                 }
                 self.check_name(id, span);
             }
@@ -807,7 +811,11 @@ impl SyntaxLinter {
             }
         }
 
-        let numeric_type = if self.exact_numbers { "decimal" } else { "float" };
+        let numeric_type = if self.exact_numbers {
+            "decimal"
+        } else {
+            "float"
+        };
         let allowed = allowed_annotations_message(numeric_type);
         let arg_annotations = self.arg_annotations.clone();
         for (annotation, span) in arg_annotations {
@@ -932,9 +940,10 @@ fn compact_constant(constant: &SyntaxConstant) -> String {
                 "False".to_string()
             }
         }
-        SyntaxConstant::Decimal(value) | SyntaxConstant::Int(value) | SyntaxConstant::Str(value) | SyntaxConstant::Bytes(value) => {
-            value.clone()
-        }
+        SyntaxConstant::Decimal(value)
+        | SyntaxConstant::Int(value)
+        | SyntaxConstant::Str(value)
+        | SyntaxConstant::Bytes(value) => value.clone(),
         SyntaxConstant::Float(value) => value.to_string(),
         SyntaxConstant::Tuple(values) => values
             .iter()
@@ -946,9 +955,9 @@ fn compact_constant(constant: &SyntaxConstant) -> String {
 
 fn annotation_allowed(annotation: &str, numeric_type: &str) -> bool {
     if numeric_type == "decimal"
-        && annotation.split(['[', ']', ',']).any(|name| {
-            matches!(name.trim(), "float" | "Decimal" | "decimal.Decimal")
-        })
+        && annotation
+            .split(['[', ']', ','])
+            .any(|name| matches!(name.trim(), "float" | "Decimal" | "decimal.Decimal"))
     {
         return false;
     }
@@ -1123,6 +1132,44 @@ mod tests {
         let syntax = parse_to_syntax(&unit).expect("syntax should build");
 
         assert!(lint_syntax(&syntax).is_empty());
+    }
+
+    fn lint_v1_source(source: &str) -> Vec<String> {
+        let source = format!("{source}\n@export\ndef ping() -> int:\n    return 1\n");
+        let unit = SourceUnit::with_profile("con_lint", &source, crate::XIAN_VM_V1_PROFILE)
+            .expect("source unit should build");
+        let syntax = parse_to_syntax(&unit).expect("syntax should build");
+        lint_syntax(&syntax)
+            .into_iter()
+            .map(|diagnostic| diagnostic.code)
+            .collect()
+    }
+
+    #[test]
+    fn lint_keeps_archival_v1_declaration_keywords() {
+        for source in [
+            "h = Hash(contract='con_other')\n",
+            "v = Variable(name='other')\n",
+            "e = LogEvent('E', {'a': {'type': str}}, name='other')\n",
+        ] {
+            assert_eq!(lint_v1_source(source), vec!["xian.lint.E011"], "{source}");
+        }
+        // Foreign storage names its target; V1 never set those automatically.
+        assert!(lint_v1_source(
+            "f = ForeignHash(foreign_contract='con_other', foreign_name='h', contract='x')\n"
+        )
+        .is_empty());
+        assert!(lint_v1_source("h = Hash(default_value=0)\n").is_empty());
+    }
+
+    #[test]
+    fn lint_rejects_tuple_unpacking_of_storage_in_every_profile() {
+        let source = "a, b = Hash()\n";
+        assert!(lint_v1_source(source).contains(&"xian.lint.E012".to_string()));
+        let v2 = lint_source(&format!(
+            "{source}\n@export\ndef ping() -> int:\n    return 1\n"
+        ));
+        assert!(v2.contains(&"xian.lint.E012".to_string()), "{v2:?}");
     }
 
     #[test]
