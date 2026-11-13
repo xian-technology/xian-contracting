@@ -16,7 +16,11 @@ building and publishing the compiler packages.
 ## Maintainer Prerequisites
 
 - Rust 1.98 or newer (each crate's `rust-version`) with the
-  `wasm32-unknown-unknown` target installed.
+  `wasm32-unknown-unknown` target installed. CI and release builds pin the
+  exact toolchain of the xian-stack node image (currently 1.100.0); when the
+  image moves, update every `rust-toolchain` pin in `.github/workflows/`
+  together (`tests/unit/test_rust_toolchain_pin.py` and the xian-meta
+  `check_rust_toolchain_parity.py` check enforce this).
 - `wasm-pack` on `PATH`.
 - `uv` for Python release validation.
 - `npm` authenticated for the `@xian-tech` organization.
