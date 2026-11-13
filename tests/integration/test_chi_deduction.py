@@ -72,7 +72,7 @@ def test_pending_native_writes_are_applied_before_explicit_commit(client):
         auto_commit=False,
     )
     assert output["status_code"] == 0, output
-    assert client.raw_driver.pending_writes == {"con_metering.value": 11}
+    assert client.raw_driver.pending_items() == [("con_metering.value", 11)]
     client.raw_driver.commit()
     assert client.raw_driver.get_var("con_metering", "value") == 11
 

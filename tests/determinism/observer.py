@@ -110,7 +110,7 @@ def _disk_state(driver):
 
 
 def _pending_state(driver):
-    return encode_exact([driver.pending_writes, driver.log_events])
+    return encode_exact([driver.pending_items(), driver.log_events])
 
 
 def _visible_state(driver):

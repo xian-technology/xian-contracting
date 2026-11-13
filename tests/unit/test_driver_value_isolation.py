@@ -24,7 +24,7 @@ def test_pending_values_returned_by_get_are_isolated(tmp_path):
 def test_applied_values_returned_by_get_are_isolated(tmp_path):
     with Driver(storage_home=tmp_path) as driver:
         driver.set("con_a.items", ["kept"])
-        driver.hard_apply("1")
+        driver.commit()
 
         _mutate(driver.get("con_a.items"))
 

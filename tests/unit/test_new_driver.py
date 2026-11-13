@@ -8,7 +8,7 @@ class TestDriver(unittest.TestCase):
 
     def setUp(self):
         # Setup a fresh instance of Driver and ensure a clean storage environment
-        self.driver = Driver(bypass_cache=False)
+        self.driver = Driver()
         self.driver.flush_full()
 
     def tearDown(self):
@@ -31,8 +31,8 @@ class TestDriver(unittest.TestCase):
         retrieved_value = self.driver.find(key)
         self.assertEqual(retrieved_value, value)
 
-    def test_find_respects_pending_writes_when_cache_is_bypassed(self):
-        driver = Driver(bypass_cache=True)
+    def test_find_respects_pending_writes(self):
+        driver = Driver()
         driver.flush_full()
         try:
             driver.set("pending_key", "pending_value")
@@ -47,8 +47,7 @@ class TestDriver(unittest.TestCase):
         value = self.driver.get_var("currency", "balances", ["alice"], mark=False)
 
         self.assertEqual(value, 42)
-        self.assertFalse(self.driver.pending_reads)
-        self.assertFalse(self.driver.transaction_reads)
+        self.assertEqual(self.driver.transaction_access(), (frozenset(), frozenset()))
 
     def test_get_var_marks_reads_by_default(self):
         self.driver.set_var("currency", "balances", ["alice"], 42)
@@ -57,8 +56,7 @@ class TestDriver(unittest.TestCase):
         value = self.driver.get_var("currency", "balances", ["alice"])
 
         self.assertEqual(value, 42)
-        self.assertIn("currency.balances:alice", self.driver.pending_reads)
-        self.assertIn("currency.balances:alice", self.driver.transaction_reads)
+        self.assertIn("currency.balances:alice", self.driver.transaction_access()[0])
 
     def test_keys_from_disk(self):
         key1 = 'test_key1'
@@ -134,7 +132,7 @@ class TestDriver(unittest.TestCase):
         value = 'test_value'
         self.driver.set(key, value)
         self.driver.flush_cache()
-        self.assertFalse(self.driver.pending_writes)
+        self.assertFalse(self.driver.pending_items())
 
     def test_flush_disk(self):
         key = 'test_key'
@@ -152,13 +150,12 @@ class TestDriver(unittest.TestCase):
         retrieved_value = self.driver.get(key)
         self.assertEqual(retrieved_value, value)
 
-    def test_hard_apply_skips_store_write_transaction_when_empty(self):
-        self.driver._store.batch_set = Mock()
+    def test_commit_skips_store_write_transaction_when_empty(self):
+        self.driver._store.commit_overlay = Mock()
 
-        self.driver.hard_apply("1")
+        self.driver.commit()
 
-        self.driver._store.batch_set.assert_not_called()
-        self.assertFalse(self.driver.pending_deltas)
+        self.driver._store.commit_overlay.assert_not_called()
 
     def test_get_all_contract_state(self):
         key = 'contract.key'
@@ -194,84 +191,86 @@ class TestDriver(unittest.TestCase):
     def _populate_pending_state(self):
         self.driver.set('con_thing.balances:alice', 10, is_txn_write=True)
         self.driver.get('con_thing.balances:bob')
-        self.driver.transaction_read_prefixes.add('con_thing.')
+        self.driver.keys_from_disk('con_thing.')
         self.driver.set_event({'event': 'Transfer'})
-        self.driver.pending_deltas['100'] = {
-            'writes': {'con_thing.balances:alice': (None, 10)},
-            'reads': {'con_thing.balances:alice': None},
+
+    def _pending(self):
+        return {
+            'writes': self.driver.pending_items(),
+            'access': self.driver.transaction_access(),
+            'transaction_writes': dict(self.driver.transaction_writes),
+            'log_events': list(self.driver.log_events),
         }
 
     def test_snapshot_state_restores_exact_state(self):
         self._populate_pending_state()
+        expected = self._pending()
         snapshot = self.driver.snapshot_state()
 
         self.driver.set('con_other.thing', 'junk')
         self.driver.log_events.append({'event': 'Junk'})
-        self.driver.pending_deltas.clear()
-        self.driver.transaction_read_prefixes.add('con_other.')
+        self.driver.keys_from_disk('con_other.')
         self.driver.restore_state(snapshot)
 
-        self.assertEqual(self.driver.pending_writes['con_thing.balances:alice'], 10)
-        self.assertNotIn('con_other.thing', self.driver.pending_writes)
-        self.assertEqual(self.driver.transaction_writes, {'con_thing.balances:alice': 10})
-        self.assertIn('con_thing.balances:bob', self.driver.pending_reads)
-        self.assertEqual(self.driver.transaction_read_prefixes, {'con_thing.'})
-        self.assertEqual(self.driver.log_events, [{'event': 'Transfer'}])
-        self.assertIn('100', self.driver.pending_deltas)
+        self.assertEqual(self._pending(), expected)
+        self.assertEqual(
+            expected['access'],
+            (
+                frozenset({'con_thing.balances:alice', 'con_thing.balances:bob'}),
+                frozenset({'con_thing.'}),
+            ),
+        )
 
     def test_snapshot_state_supports_repeated_restores(self):
         self._populate_pending_state()
+        expected = self._pending()
         snapshot = self.driver.snapshot_state()
 
         self.driver.restore_state(snapshot)
         self.driver.log_events.append({'event': 'Junk'})
-        self.driver.pending_writes['con_other.thing'] = 'junk'
+        self.driver.set('con_other.thing', 'junk')
         self.driver.restore_state(snapshot)
 
-        self.assertEqual(self.driver.log_events, [{'event': 'Transfer'}])
-        self.assertNotIn('con_other.thing', self.driver.pending_writes)
+        self.assertEqual(self._pending(), expected)
 
     def test_restore_state_none_is_noop(self):
         self._populate_pending_state()
+        expected = self._pending()
         self.driver.restore_state(None)
-        self.assertEqual(self.driver.pending_writes['con_thing.balances:alice'], 10)
+        self.assertEqual(self._pending(), expected)
 
-    def test_detach_pending_state_moves_containers_without_copying(self):
+    def test_detach_pending_state_leaves_an_empty_driver(self):
         self._populate_pending_state()
-        original_writes = self.driver.pending_writes
 
-        detached = self.driver.detach_pending_state()
+        self.driver.detach_pending_state()
 
-        self.assertIs(detached['pending_writes'], original_writes)
-        self.assertEqual(self.driver.pending_writes, {})
-        self.assertEqual(self.driver.pending_reads, {})
-        self.assertEqual(self.driver.transaction_reads, {})
-        self.assertEqual(self.driver.transaction_read_prefixes, set())
-        self.assertEqual(self.driver.transaction_writes, {})
-        self.assertEqual(self.driver.log_events, [])
-        # The hard_apply/rollback journal must survive a detach.
-        self.assertIn('100', self.driver.pending_deltas)
-        self.assertNotIn('pending_deltas', detached)
+        self.assertEqual(
+            self._pending(),
+            {
+                'writes': [],
+                'access': (frozenset(), frozenset()),
+                'transaction_writes': {},
+                'log_events': [],
+            },
+        )
 
     def test_attach_pending_state_discards_interim_mutations(self):
         self._populate_pending_state()
+        expected = self._pending()
         detached = self.driver.detach_pending_state()
 
         self.driver.set('con_interim.thing', 'junk')
         self.driver.log_events.append({'event': 'Interim'})
         self.driver.attach_pending_state(detached)
 
-        self.assertEqual(self.driver.pending_writes['con_thing.balances:alice'], 10)
-        self.assertNotIn('con_interim.thing', self.driver.pending_writes)
-        self.assertEqual(self.driver.log_events, [{'event': 'Transfer'}])
-        self.assertEqual(self.driver.transaction_read_prefixes, {'con_thing.'})
+        self.assertEqual(self._pending(), expected)
 
-    def test_detach_attach_round_trip_preserves_hard_apply(self):
+    def test_detach_attach_round_trip_preserves_commit(self):
         self.driver.set('con_thing.balances:alice', 25)
 
         detached = self.driver.detach_pending_state()
         self.driver.attach_pending_state(detached)
-        self.driver.hard_apply('200')
+        self.driver.commit()
 
-        self.assertEqual(self.driver.get('con_thing.balances:alice'), 25)
-        self.assertEqual(self.driver.pending_deltas, {})
+        self.assertEqual(self.driver.value_from_disk('con_thing.balances:alice'), 25)
+        self.assertEqual(self.driver.pending_items(), [])

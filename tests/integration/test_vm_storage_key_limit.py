@@ -122,7 +122,7 @@ def test_archival_v1_execution_is_unchanged_but_the_key_is_never_staged(driver, 
     assert over_long
     with pytest.raises(ValueError, match=LIMIT_ERROR.replace("(", r"\(").replace(")", r"\)")):
         driver.apply_writes(result.writes)
-    assert not any(key.startswith(f"{CONTRACT}.") for key in driver.pending_writes)
+    assert not any(key.startswith(f"{CONTRACT}.") for key, _ in driver.pending_items())
     driver.commit()
 
 
@@ -182,7 +182,7 @@ def test_the_driver_refuses_to_stage_an_over_long_key(tmp_path, profile):
             driver.set(over_long, 1)
         with pytest.raises(ValueError, match="Max is 511"):
             driver.apply_writes({"a.ok": 1, over_long: 1})
-        assert driver.pending_writes == {}
+        assert driver.pending_items() == []
         driver.set("k" * 511, 1)
         driver.commit()
         assert driver.get("k" * 511) == 1

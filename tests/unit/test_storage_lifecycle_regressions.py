@@ -143,7 +143,7 @@ def test_explicit_profile_mismatch_preserves_borrowed_driver_state(tmp_path):
         with pytest.raises(ValueError, match="client and storage driver profiles must match"):
             ContractingClient(driver=driver, vm_profile="xian_vm_v2")
         assert driver.get("con_state.value") == 12
-        assert driver.pending_writes == {"con_state.value": 12}
+        assert driver.pending_items() == [("con_state.value", 12)]
 
 
 def test_parallel_close_releases_storage_while_failed_results_are_retained(tmp_path):

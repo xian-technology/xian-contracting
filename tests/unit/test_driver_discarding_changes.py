@@ -7,32 +7,24 @@ restore the same state ``snapshot_state``/``restore_state`` would have.
 """
 
 import random
-from copy import deepcopy
-
 import pytest
 
 from contracting.storage.driver import Driver
 
-CONTAINERS = (
-    "pending_writes",
-    "pending_reads",
-    "transaction_reads",
-    "transaction_writes",
-)
-
-
 def pending_state(driver):
     """Everything restore_state restores, with dict order and value identity."""
-    state = {name: list(getattr(driver, name).items()) for name in CONTAINERS}
-    state["transaction_read_prefixes"] = set(driver.transaction_read_prefixes)
-    state["log_events"] = list(driver.log_events)
-    state["pending_deltas"] = deepcopy(driver.pending_deltas)
-    return state
+    return {
+        "pending_writes": driver.pending_items(),
+        "access": driver.transaction_access(),
+        "tracking": driver.track_transaction_reads,
+        "transaction_writes": list(driver.transaction_writes.items()),
+        "log_events": list(driver.log_events),
+    }
 
 
 @pytest.fixture
 def driver():
-    driver = Driver(bypass_cache=False)
+    driver = Driver()
     driver.flush_full()
     driver.set("con_thing.balances:carol", 5)
     driver.commit()
@@ -41,7 +33,6 @@ def driver():
     driver.get("con_thing.balances:bob")
     driver.keys_from_disk("con_thing.")
     driver.set_event({"event": "Transfer"})
-    driver.pending_deltas["100"] = {"writes": {}, "reads": {}}
     yield driver
     driver.flush_full()
     driver.close()
@@ -72,14 +63,15 @@ def test_leaving_the_scope_restores_the_exact_pending_state(driver):
 
 
 def test_restored_entries_keep_their_original_values_and_order(driver):
-    items_before = driver.pending_writes["con_thing.items:alice"]
-    order_before = list(driver.pending_writes)
+    items_before = driver.transaction_writes["con_thing.items:alice"]
+    order_before = list(driver.transaction_writes)
 
     with driver.discarding_changes():
         touch_everything(driver)
 
-    assert driver.pending_writes["con_thing.items:alice"] is items_before
-    assert list(driver.pending_writes) == order_before
+    assert driver.transaction_writes["con_thing.items:alice"] is items_before
+    assert list(driver.transaction_writes) == order_before
+    assert dict(driver.pending_items())["con_thing.items:alice"] == [1, 2]
 
 
 def test_the_scope_is_undone_when_execution_raises(driver):
@@ -100,7 +92,7 @@ def test_changes_after_the_scope_are_kept(driver):
     driver.set("con_thing.balances:alice", 12)
     driver.set_event({"event": "Kept"})
 
-    assert driver.pending_writes["con_thing.balances:alice"] == 12
+    assert dict(driver.pending_items())["con_thing.balances:alice"] == 12
     assert driver.log_events[-1] == {"event": "Kept"}
 
 
@@ -108,7 +100,7 @@ def test_reads_inside_the_scope_see_the_scope_writes(driver):
     with driver.discarding_changes():
         driver.set("con_thing.balances:alice", 42)
         assert driver.get("con_thing.balances:alice") == 42
-        assert driver.transaction_reads["con_thing.balances:bob"] is None
+        assert "con_thing.balances:bob" in driver.transaction_access()[0]
 
     assert driver.get("con_thing.balances:alice") == 10
 
@@ -124,9 +116,7 @@ def test_scopes_do_not_nest(driver):
     "operation",
     [
         lambda d: d.commit(),
-        lambda d: d.hard_apply("200"),
         lambda d: d.rollback(),
-        lambda d: d.rollback("100"),
         lambda d: d.flush_cache(),
         lambda d: d.flush_full(),
         lambda d: d.clear_transaction_writes(),
@@ -152,7 +142,7 @@ def test_bulk_operations_cannot_run_inside_a_scope(driver, operation):
 def test_replacing_a_container_inside_a_scope_is_rejected(driver):
     with pytest.raises(RuntimeError, match="replaced"):
         with driver.discarding_changes():
-            driver.pending_writes = {}
+            driver.transaction_writes = {}
 
 
 def _random_operation(rng, driver):

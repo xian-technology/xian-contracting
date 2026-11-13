@@ -33,8 +33,7 @@ def test_scan_order_is_identical_across_executors_caches_and_overlays(tmp_path: 
             driver.set_var("con_scan", "values", [key], value)
         driver.commit()
         for index in range(24):
-            driver.cache.clear()
-            # Different cache insertion histories must not change list order.
+            # Different read histories must not change list order.
             for key in ["z", "a"] if index % 2 else ["a", "z"]:
                 driver.get_var("con_scan", "values", [key])
             output = execute(driver)

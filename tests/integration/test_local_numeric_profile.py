@@ -119,7 +119,7 @@ def test_default_driver_rejects_legacy_deployment_before_staging_writes(tmp_path
             client.raw_driver.set_contract(
                 "con_old", source=source, vm_ir_json=legacy["vm_ir_json"]
             )
-        assert not client.raw_driver.pending_writes
+        assert not client.raw_driver.pending_items()
         assert not client.raw_driver.has_contract("con_old")
 
 

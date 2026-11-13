@@ -211,17 +211,14 @@ class NativeVmHost:
         self._record_raw_cost(written * constants.WRITE_COST_PER_BYTE)
 
     def committed_storage(self):
-        """Committed state the VM reads in Rust: the LMDB environment and the
-        pending writes (staged here or in the block) it must still ask for."""
+        """State the VM reads in Rust: the LMDB environment, the driver's block
+        overlay, and the writes staged here, which the VM must still ask for."""
         committed = getattr(self.driver, "committed_storage", None)
         storage = committed() if committed is not None else None
         if storage is None or self.vm_profile != "xian_vm_v2":
             return None
-        environment, pending = storage
-        return environment, (self._pending_writes, *pending)
-
-    def record_committed_reads(self, reads) -> None:
-        self.driver.record_committed_reads(reads)
+        environment, overlay = storage
+        return environment, overlay, self._pending_writes
 
     def read_variable(self, contract: str, binding: str):
         return self._lookup_key(self._make_key(contract, binding))

@@ -63,7 +63,7 @@ class ExecutionAccess:
             index=index,
             sender=request.sender,
             nonce=request.nonce,
-            reads=frozenset(output.get("reads", {}).keys()),
+            reads=frozenset(output.get("reads", ())),
             prefix_reads=frozenset(output.get("prefix_reads", ())),
             writes=frozenset(output.get("writes", {}).keys()),
             additive_writes=frozenset(),
@@ -249,7 +249,6 @@ def _create_worker_runtime(config: _WorkerConfig) -> _WorkerRuntime:
 
     driver = Driver(
         storage_home=Path(config.storage_home),
-        bypass_cache=True,
         vm_profile=XIAN_VM_V2_PROFILE,
     )
     executor = NativeExecutor(driver, metering=config.metering)
@@ -938,7 +937,7 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
         return self._local_worker_runtime
 
     def _get_base_pending_writes(self) -> dict[str, object]:
-        return deepcopy(self.executor.driver.pending_writes)
+        return dict(self.executor.driver.pending_items())
 
     def _commit_accepted_results(self) -> None:
         self.executor.driver.commit()
@@ -1014,7 +1013,6 @@ class ParallelBatchExecutor(SpeculativeExecutionController):
     def _apply_speculative_output(self, output: dict) -> None:  # type: ignore[override]
         driver = self.executor.driver
         driver.apply_writes(output.get("writes", {}))
-        driver.transaction_reads = deepcopy(output.get("reads", {}))
-        driver.transaction_read_prefixes = set(output.get("prefix_reads", ()))
+        driver.adopt_transaction_access(output.get("reads", ()), output.get("prefix_reads", ()))
         driver.transaction_writes = deepcopy(output.get("writes", {}))
         driver.log_events = deepcopy(output.get("events", []))

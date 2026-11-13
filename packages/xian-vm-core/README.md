@@ -120,13 +120,20 @@ The node's state lives in one LMDB environment per directory, opened through
 `contracting.storage` uses it for every read and write; the py-lmdb package is
 only used by contracting's tests that prove file and lock compatibility.
 
-Under V2 the VM reads committed contract state itself: a `Variable` or `Hash`
-key without a pending write is read from LMDB and decoded in Rust
-(`src/stored_value.rs`), giving the same value Python's `decode` gives. Keys with
-a pending write in the block or staged by the host are still read through the
-host. Reads served in Rust are booked in the driver's read sets once per
-execution. A stored value the reader rejects is a host fault
-(`LmdbStorageError`), never a transaction outcome.
+The block's pending writes live in `xian_vm_core.BlockState` (`src/block_state.rs`),
+owned by the contracting `Driver`: a key-ordered map from key to the stored value
+bytes LMDB will hold (or a pending deletion), the current transaction's tracked
+reads, and one discarding scope that undoes a transaction's changes. A commit
+writes the bytes unchanged in one LMDB transaction and clears the overlay only
+when the write succeeded.
+
+Under V2 the VM reads contract state itself: a `Variable` or `Hash` key is read
+from the block overlay, else from LMDB, and decoded in Rust
+(`src/stored_value.rs`), giving the same value Python's `decode` gives. Only keys
+the host staged itself during the execution are still read through the host.
+Reads served in Rust are tracked in the overlay like Python reads. A stored
+value the reader rejects is a host fault (`LmdbStorageError`), never a
+transaction outcome.
 
 ## V1 execution coverage
 

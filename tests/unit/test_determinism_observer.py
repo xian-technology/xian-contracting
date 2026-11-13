@@ -180,8 +180,8 @@ def test_successful_commit_that_drops_writes_is_rejected(tmp_path, monkeypatch):
     commit = Driver.commit
 
     def losing_commit(driver):
-        if "determinism_commit.value" in driver.pending_writes:
-            driver.pending_writes.clear()
+        if "determinism_commit.value" in dict(driver.pending_items()):
+            driver.rollback()
         commit(driver)
 
     monkeypatch.setattr(Driver, "commit", losing_commit)
@@ -273,27 +273,6 @@ def test_large_integer_result_validation_avoids_ambient_digit_limit(tmp_path, mo
         json.dumps(observed, allow_nan=False)
     finally:
         sys.set_int_max_str_digits(previous)
-
-
-@pytest.mark.optional_native
-def test_failed_execution_cannot_leak_cache_state_into_followup(tmp_path, monkeypatch):
-    from tests.determinism import observer
-
-    execute = observer._execute
-
-    def leaking(driver, name, step):
-        output = execute(driver, name, step)
-        driver.cache[name + ".value"] = 99
-        return output
-
-    monkeypatch.setattr(observer, "_execute", leaking)
-    case = {
-        "id": "cache_leak",
-        "source": "value = Variable()\n@export\ndef probe():\n    assert False\n",
-        "expected_failure": True,
-    }
-    with pytest.raises(AssertionError, match="visible state"):
-        observe_case(case, tmp_path)
 
 
 def test_exact_time_and_range_values_preserve_boundaries():

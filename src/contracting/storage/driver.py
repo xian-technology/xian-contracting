@@ -3,21 +3,20 @@ from __future__ import annotations
 import decimal
 import functools
 import json
-import operator
 from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
-from cachetools import TTLCache
-from xian_runtime_types.collections import ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal, canonical_fixed
 from xian_runtime_types.encoding import (
     decode_wire_numbers,
+    encode,
     normalize_wire_numbers,
     validate_persistent_value,
 )
 from xian_runtime_types.time import Datetime
+from xian_vm_core import BlockState
 
 from contracting import constants
 from contracting.compilation.compiler import ContractingCompiler
@@ -43,50 +42,35 @@ HASH_DELIMITER = constants.DELIMITER
 _MISSING = object()
 
 
-def _copy_mutable_value(value):
-    if isinstance(value, (list, dict, bytearray, ContractingSet)):
-        return deepcopy(value)
-    return value
-
-
 class _PendingStateUndo:
-    """First-touch undo records for one ``Driver.discarding_changes`` scope.
+    """First-touch undo records of the Python-side containers for one
+    ``Driver.discarding_changes`` scope; the block overlay undoes itself.
 
-    Inside a scope the pending containers only gain or change entries, so the
-    previous value of each touched entry, the new read prefixes and the event
-    count restore them exactly, in their original order. The cost follows what
-    the scope touched, not the size of the block's pending state.
+    Inside a scope the containers only gain or change entries, so the previous
+    value of each touched entry and the event count restore them exactly, in
+    their original order.
     """
 
-    __slots__ = ("_containers", "_previous", "_new_prefixes", "_event_count")
+    __slots__ = ("_pending", "_writes", "_previous", "_event_count")
 
     def __init__(self, driver):
-        self._containers = driver._pending_containers()
+        self._pending = driver._pending
+        self._writes = driver.transaction_writes
         self._previous = {}
-        self._new_prefixes = []
         self._event_count = len(driver.log_events)
 
-    def remember(self, container: dict, key) -> None:
-        previous = self._previous.get(id(container))
-        if previous is None:
-            previous = self._previous[id(container)] = (container, {})
-        if key not in previous[1]:
-            previous[1][key] = container.get(key, _MISSING)
-
-    def remember_prefix(self, prefixes: set, prefix: str) -> None:
-        if prefix not in prefixes:
-            self._new_prefixes.append(prefix)
+    def remember(self, key) -> None:
+        if key not in self._previous:
+            self._previous[key] = self._writes.get(key, _MISSING)
 
     def revert(self, driver) -> None:
-        if any(map(operator.is_not, driver._pending_containers(), self._containers)):
+        if driver._pending is not self._pending or driver.transaction_writes is not self._writes:
             raise RuntimeError("pending state containers were replaced inside a discarding scope")
-        for container, previous in self._previous.values():
-            for key, value in previous.items():
-                if value is _MISSING:
-                    del container[key]
-                else:
-                    container[key] = value
-        driver.transaction_read_prefixes.difference_update(self._new_prefixes)
+        for key, value in self._previous.items():
+            if value is _MISSING:
+                del self._writes[key]
+            else:
+                self._writes[key] = value
         del driver.log_events[self._event_count :]
 
 
@@ -120,7 +104,6 @@ def _require_contract_ir_profile(vm_ir_json, profile):
 class Driver:
     def __init__(
         self,
-        bypass_cache: bool = False,
         storage_home: Path | None = None,
         *,
         vm_profile: str = DEFAULT_VM_PROFILE,
@@ -128,17 +111,13 @@ class Driver:
         if vm_profile not in SUPPORTED_VM_PROFILES:
             raise ValueError(f"unsupported vm_profile {vm_profile!r}")
         self.vm_profile = vm_profile
-        self.pending_deltas = {}
-        self.pending_writes = {}
-        self.pending_reads = {}
-        self.transaction_reads = {}
-        self.transaction_read_prefixes = set()
+        # The block overlay: pending writes as stored values, plus the access
+        # tracking of the current transaction.
+        self._pending = BlockState()
+        self._pending.set_tracking(True)
         self.transaction_writes = {}
         self.log_events = []
-        self.track_transaction_reads = True
         self._undo: _PendingStateUndo | None = None
-        self.cache = TTLCache(maxsize=1000, ttl=6 * 3600)
-        self.bypass_cache = bypass_cache
         self.storage_home = (
             Path(storage_home) if storage_home is not None else constants.STORAGE_HOME
         )
@@ -183,70 +162,72 @@ class Driver:
     def get(self, key: str, save: bool = True):
         value = self.find(key)
         if save:
-            self._record_read(key, value)
+            self._pending.record_read(key)
         return value
 
-    def _record_read(self, key: str, value) -> None:
-        if self.pending_reads.get(key) is None:
-            self._put(self.pending_reads, key, value)
-        if self.track_transaction_reads and self.transaction_reads.get(key) is None:
-            self._put(self.transaction_reads, key, value)
-
     def committed_storage(self):
-        """The committed state the VM may read without this driver, or None.
+        """The state the VM may read without this driver, or None.
 
-        Returns the LMDB environment and the pending-write containers that
-        shadow it; the VM asks the driver for every key they hold and reports
-        the other reads back through ``record_committed_reads``. The read cache
-        is not listed: consensus already requires it to agree with committed
-        state, since a restarted node starts with an empty one.
+        Returns the LMDB environment and the block overlay; the VM reads both
+        in Rust and books its reads in the overlay's access tracking.
         """
         if self.vm_profile != XIAN_VM_V2_PROFILE:
             return None
-        return self._store.environment, (self.pending_writes,)
+        return self._store.environment, self._pending
 
-    def record_committed_reads(self, reads) -> None:
-        """Book ``(key, value)`` reads the VM served from committed state."""
-        for key, value in reads:
-            self._record_read(key, value)
+    @property
+    def track_transaction_reads(self) -> bool:
+        return self._pending.tracking
 
-    def _put(self, container: dict, key, value) -> None:
-        if self._undo is not None:
-            self._undo.remember(container, key)
-        container[key] = value
+    def transaction_access(self) -> tuple[frozenset[str], frozenset[str]]:
+        """``(read keys, read prefixes)`` of the current transaction."""
+        return self._pending.access()
 
-    def _track_prefix(self, prefix: str) -> None:
-        if not self.track_transaction_reads:
-            return
-        if self._undo is not None:
-            self._undo.remember_prefix(self.transaction_read_prefixes, prefix)
-        self.transaction_read_prefixes.add(prefix)
+    @_outside_discarding_scope
+    def adopt_transaction_access(self, reads, prefixes) -> None:
+        """Take over the access a transaction executed elsewhere recorded."""
+        self._pending.clear_access()
+        for key in reads:
+            self._pending.record_read(key)
+        for prefix in prefixes:
+            self._pending.record_prefix(prefix)
 
-    def _pending_containers(self) -> tuple:
-        return (
-            self.pending_writes,
-            self.pending_reads,
-            self.transaction_reads,
-            self.transaction_writes,
-            self.transaction_read_prefixes,
-            self.log_events,
-        )
+    def pending_items(self) -> list[tuple[str, object]]:
+        """The block's pending writes in key order; a deletion reads as None."""
+        return [(key, self._decode(key, raw)) for key, raw in self._pending.items()]
+
+    def _decode(self, key: str, raw: bytes | None):
+        return None if raw is None else self._store.decode(key, raw)
+
+    def _stored(self, value) -> bytes | None:
+        """The stored bytes of `value` (validated); None stages a deletion.
+
+        V2 encoding validates and normalizes the value in the same pass, and
+        decoding those bytes gives the typed value ``_typed_value`` would.
+        """
+        if value is None:
+            return None
+        if self.vm_profile != XIAN_VM_V2_PROFILE:
+            value = self._typed_value(value)
+        return encode(value, vm_profile=self.vm_profile).encode("utf-8")
 
     @contextmanager
     def discarding_changes(self):
         """Undo every pending-state change made inside the ``with`` block.
 
-        Leaves the pending containers exactly as ``snapshot_state`` followed
-        by ``restore_state`` would, without copying them. Disk is not part of
-        the pending state; bulk operations are rejected inside the block.
+        Leaves the pending state exactly as ``snapshot_state`` followed by
+        ``restore_state`` would, without copying it. Disk is not part of the
+        pending state; bulk operations are rejected inside the block.
         """
         if self._undo is not None:
             raise RuntimeError("a discarding scope is already open on this driver")
+        self._pending.begin_discarding()
         undo = self._undo = _PendingStateUndo(self)
         try:
             yield
         finally:
             self._undo = None
+            self._pending.discard()
             undo.revert(self)
 
     def set(
@@ -256,12 +237,14 @@ class Driver:
         is_txn_write: bool = False,
     ):
         validate_storage_key(key)
-        if self.pending_reads.get(key) is None:
-            self.get(key)
-        value = _copy_mutable_value(self._typed_value(value))
-        self._put(self.pending_writes, key, value)
+        # A write is booked as a read of its key, so access tracking stays
+        # conservative for blind writes.
+        self._pending.record_read(key)
+        self._pending.write(key, self._stored(value))
         if is_txn_write:
-            self._put(self.transaction_writes, key, value)
+            if self._undo is not None:
+                self._undo.remember(key)
+            self.transaction_writes[key] = self._typed_value(value)
 
     def _typed_value(self, value):
         if self.vm_profile == XIAN_VM_V2_PROFILE:
@@ -275,22 +258,19 @@ class Driver:
         # Stage all or nothing: every key and value is checked first.
         for key in writes:
             validate_storage_key(key)
-        typed = {key: self._typed_value(value) for key, value in writes.items()}
-        for key, value in typed.items():
-            self._put(self.pending_writes, key, value)
+        encoded = [(key, self._stored(value)) for key, value in writes.items()]
+        for key, raw in encoded:
+            self._pending.write(key, raw)
 
     def find(self, key: str):
-        # Pending and cached values are live driver state; storage decodes fresh copies.
-        value = self.pending_writes.get(key, _MISSING)
-        if value is not _MISSING:
-            return _copy_mutable_value(value)
-
-        if not self.bypass_cache:
-            value = self.cache.get(key, _MISSING)
-            if value is not _MISSING:
-                return _copy_mutable_value(value)
-
+        # Every value is decoded fresh, so callers never share a live value.
+        held, raw = self._pending.lookup(key)
+        if held:
+            return self._decode(key, raw)
         return self._store.get(key)
+
+    def _track_prefix(self, prefix: str) -> None:
+        self._pending.record_prefix(prefix)
 
     def keys_from_disk(self, prefix: str | None = None, length: int = 0):
         self._track_prefix(prefix or "")
@@ -326,9 +306,8 @@ class Driver:
     def iter_items(self, prefix: str = ""):
         """Read a canonical merged view without copying the complete disk range."""
         self._track_prefix(prefix)
-        cached = iter_overlay_items(self.cache, self._store.iter_items(prefix), prefix)
-        for key, value in iter_overlay_items(self.pending_writes, cached, prefix):
-            yield key, _copy_mutable_value(value)
+        overlay = {key: self._decode(key, raw) for key, raw in self._pending.items(prefix)}
+        yield from iter_overlay_items(overlay, self._store.iter_items(prefix), prefix)
 
     def items(self, prefix: str = ""):
         return dict(self.iter_items(prefix))
@@ -523,9 +502,7 @@ class Driver:
     @_outside_discarding_scope
     def delete_contract(self, name):
         prefix = f"{name}{INDEX_SEPARATOR}"
-        for key in self.keys(prefix):
-            self.cache.pop(key, None)
-            self.pending_writes.pop(key, None)
+        self._pending.forget_prefix(prefix)
         self._store.delete_prefix(prefix)
 
     def get_contract_files(self):
@@ -541,14 +518,10 @@ class Driver:
 
     @_outside_discarding_scope
     def flush_cache(self):
-        self.pending_writes.clear()
-        self.pending_reads.clear()
-        self.pending_deltas.clear()
-        self.transaction_reads.clear()
-        self.transaction_read_prefixes.clear()
+        """Discard the pending block state (disk is untouched)."""
+        self._pending.clear()
         self.transaction_writes.clear()
         self.log_events.clear()
-        self.cache.clear()
 
     def flush_disk(self):
         self._store.flush()
@@ -568,64 +541,41 @@ class Driver:
         self.set(key, None)
 
     @_outside_discarding_scope
-    def rollback(self, nanos=None):
-        if nanos is None:
-            self.cache.clear()
-            self.pending_reads.clear()
-            self.pending_writes.clear()
-            self.pending_deltas.clear()
-            self.transaction_reads.clear()
-            self.transaction_read_prefixes.clear()
-            self.transaction_writes.clear()
-            self.log_events.clear()
-            return
-
-        to_delete = []
-        for delta_nanos, deltas in sorted(
-            self.pending_deltas.items(),
-            reverse=True,
-        ):
-            if delta_nanos < nanos:
-                break
-            to_delete.append(delta_nanos)
-            for key, delta in deltas["writes"].items():
-                self.cache[key] = delta[0]
-
-        for delta_nanos in to_delete:
-            self.pending_deltas.pop(delta_nanos, None)
+    def rollback(self):
+        """Discard the pending block state; same as ``flush_cache``."""
+        self.flush_cache()
 
     def snapshot_state(self) -> dict:
-        """Deep-copy the in-flight execution state for later ``restore_state``.
+        """Capture the pending state as plain data for later ``restore_state``.
 
-        Includes ``pending_deltas`` so the driver can be returned to the exact
-        captured point even if ``hard_apply`` or ``rollback`` ran in between.
         Safe for simulation/replay flows that keep mutating the driver after
-        taking the snapshot; the snapshot can be restored more than once.
+        taking the snapshot; the snapshot can be restored more than once and
+        sent to another process.
         """
+        reads, prefixes = self._pending.access()
         return {
-            "pending_deltas": deepcopy(self.pending_deltas),
-            "pending_writes": deepcopy(self.pending_writes),
-            "pending_reads": deepcopy(self.pending_reads),
-            "transaction_reads": deepcopy(self.transaction_reads),
-            "transaction_read_prefixes": deepcopy(self.transaction_read_prefixes),
+            "pending_writes": self._pending.items(),
+            "tracking": self._pending.tracking,
+            "transaction_reads": sorted(reads),
+            "transaction_read_prefixes": sorted(prefixes),
             "transaction_writes": deepcopy(self.transaction_writes),
             "log_events": deepcopy(self.log_events),
         }
 
     @_outside_discarding_scope
     def restore_state(self, snapshot: dict | None) -> None:
-        """Restore state captured by ``snapshot_state``; ``None`` is a no-op.
-
-        Deep-copies out of the snapshot so the same snapshot stays valid for
-        repeated restores.
-        """
+        """Restore state captured by ``snapshot_state``; ``None`` is a no-op."""
         if not snapshot:
             return
-        self.pending_deltas = deepcopy(snapshot["pending_deltas"])
-        self.pending_writes = deepcopy(snapshot["pending_writes"])
-        self.pending_reads = deepcopy(snapshot["pending_reads"])
-        self.transaction_reads = deepcopy(snapshot["transaction_reads"])
-        self.transaction_read_prefixes = deepcopy(snapshot["transaction_read_prefixes"])
+        pending = BlockState()
+        for key, raw in snapshot["pending_writes"]:
+            pending.write(key, raw)
+        pending.set_tracking(snapshot["tracking"])
+        for key in snapshot["transaction_reads"]:
+            pending.record_read(key)
+        for prefix in snapshot["transaction_read_prefixes"]:
+            pending.record_prefix(prefix)
+        self._pending = pending
         self.transaction_writes = deepcopy(snapshot["transaction_writes"])
         self.log_events = deepcopy(snapshot["log_events"])
 
@@ -633,24 +583,17 @@ class Driver:
     def detach_pending_state(self) -> dict:
         """Move the pending per-block state off the driver without copying.
 
-        Returns the live containers and leaves the driver with fresh empty
-        ones, so the cost is constant regardless of how much the block wrote.
-        ``pending_deltas`` deliberately stays on the driver: it is the journal
-        ``hard_apply`` and ``rollback`` consume at commit time and must
-        survive the window between detaching and re-attaching.
+        Returns the live state and leaves the driver with a fresh empty one,
+        so the cost is constant regardless of how much the block wrote.
         """
         detached = {
-            "pending_writes": self.pending_writes,
-            "pending_reads": self.pending_reads,
-            "transaction_reads": self.transaction_reads,
-            "transaction_read_prefixes": self.transaction_read_prefixes,
+            "pending": self._pending,
             "transaction_writes": self.transaction_writes,
             "log_events": self.log_events,
         }
-        self.pending_writes = {}
-        self.pending_reads = {}
-        self.transaction_reads = {}
-        self.transaction_read_prefixes = set()
+        tracking = self._pending.tracking
+        self._pending = BlockState()
+        self._pending.set_tracking(tracking)
         self.transaction_writes = {}
         self.log_events = []
         return detached
@@ -660,55 +603,24 @@ class Driver:
         """Re-attach pending state previously moved off by ``detach_pending_state``.
 
         Anything accumulated on the driver since the detach is discarded in
-        favor of the detached containers.
+        favor of the detached state; read tracking stays as currently set.
         """
-        self.pending_writes = detached["pending_writes"]
-        self.pending_reads = detached["pending_reads"]
-        self.transaction_reads = detached["transaction_reads"]
-        self.transaction_read_prefixes = detached["transaction_read_prefixes"]
+        tracking = self._pending.tracking
+        self._pending = detached["pending"]
+        self._pending.set_tracking(tracking)
         self.transaction_writes = detached["transaction_writes"]
         self.log_events = detached["log_events"]
 
     @_outside_discarding_scope
     def commit(self):
-        if self.pending_writes:
-            self._store.batch_set(self.pending_writes)
+        """Write the pending block state to disk in one transaction.
 
-        self.cache.clear()
-        self.pending_writes.clear()
-        self.pending_reads.clear()
-        self.transaction_reads.clear()
-        self.transaction_read_prefixes.clear()
-        self.transaction_writes.clear()
-        self.log_events.clear()
-
-    @_outside_discarding_scope
-    def hard_apply(self, nanos):
-        deltas = {}
-        for key, value in self.pending_writes.items():
-            current = self.pending_reads.get(key)
-            deltas[key] = (current, value)
-            self.cache[key] = value
-
-        self.pending_deltas[nanos] = {
-            "writes": deltas,
-            "reads": self.pending_reads,
-        }
-
-        self.pending_reads = {}
-        self.pending_writes.clear()
-
-        to_delete = []
-        for delta_nanos, deltas in sorted(self.pending_deltas.items()):
-            writes = {key: delta[1] for key, delta in deltas["writes"].items()}
-            if writes:
-                self._store.batch_set(writes)
-            to_delete.append(delta_nanos)
-            if delta_nanos == nanos:
-                break
-
-        for delta_nanos in to_delete:
-            self.pending_deltas.pop(delta_nanos, None)
+        The pending state is cleared only after the write succeeded; a failed
+        commit leaves it in place, so the same block can be committed again.
+        """
+        if len(self._pending):
+            self._store.commit_overlay(self._pending)
+        self.flush_cache()
 
     def get_all_contract_state(self):
         contract_state = {}
@@ -732,15 +644,11 @@ class Driver:
 
     @_outside_discarding_scope
     def clear_transaction_reads(self):
-        self.transaction_reads.clear()
-        self.transaction_read_prefixes.clear()
+        self._pending.clear_access()
 
     @_outside_discarding_scope
     def set_transaction_read_tracking(self, enabled: bool) -> None:
-        self.track_transaction_reads = enabled
-        if not enabled:
-            self.transaction_reads.clear()
-            self.transaction_read_prefixes.clear()
+        self._pending.set_tracking(enabled)
 
     @_outside_discarding_scope
     def clear_events(self):

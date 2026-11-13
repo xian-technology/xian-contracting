@@ -33,8 +33,8 @@ def test_override_driver_rolls_back_its_own_pending_state(tmp_path):
         assert output["status_code"] == 1
         assert isinstance(output["result"], AssertionError)
         assert output["writes"] == {}
-        assert override.pending_writes == {"con_existing.value": 2}
-        assert primary.pending_writes == {"con_primary.value": 1}
+        assert override.pending_items() == [("con_existing.value", 2)]
+        assert primary.pending_items() == [("con_primary.value", 1)]
 
 
 def test_override_driver_resets_its_own_transaction_tracking(tmp_path):

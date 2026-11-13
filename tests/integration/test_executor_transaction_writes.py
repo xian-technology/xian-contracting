@@ -32,7 +32,7 @@ class TestTransactionWrites(TestCase):
             chi=1000,
             sender="bill",
         )
-        self.assertEqual(res3["writes"], self.c.executor.driver.pending_writes)
+        self.assertEqual(res3["writes"], dict(self.c.executor.driver.pending_items()))
         res2 = self.c.executor.execute(
             contract_name="currency",
             function_name="transfer",
@@ -41,7 +41,7 @@ class TestTransactionWrites(TestCase):
             sender="bill",
         )
         
-        self.assertEqual(res2["writes"], self.c.executor.driver.pending_writes)
+        self.assertEqual(res2["writes"], dict(self.c.executor.driver.pending_items()))
         # This operation will raise an exception, so will not make any writes.
         res3 = self.c.executor.execute(
             contract_name="currency",

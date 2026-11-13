@@ -1,7 +1,5 @@
 """Local transaction adapter for the canonical native VM."""
 
-from copy import deepcopy
-
 from xian_runtime_types.time import Datetime
 
 from contracting import constants
@@ -81,6 +79,7 @@ class NativeExecutor:
                     chi_used=0,
                     contract_costs={},
                 )
+            reads, prefix_reads = driver.transaction_access()
             error = None
             if result.status_code:
                 error = (
@@ -98,8 +97,8 @@ class NativeExecutor:
                 "writes": result.writes,
                 "chi_used": result.chi_used,
                 "events": result.events,
-                "reads": deepcopy(driver.transaction_reads),
-                "prefix_reads": frozenset(driver.transaction_read_prefixes),
+                "reads": reads,
+                "prefix_reads": prefix_reads,
                 "contract_costs": result.contract_costs,
                 "error_class": classify_execution_error(error),
             }

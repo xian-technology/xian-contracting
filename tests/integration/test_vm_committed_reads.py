@@ -1,10 +1,9 @@
-"""The VM reads committed V2 state from LMDB in Rust; Python serves pending keys.
+"""The VM reads V2 state in Rust: the block overlay, then LMDB.
 
-Contract variable and hash reads of committed state no longer call the Python
-host. Keys with a pending write (in the block or staged by the host) still do.
-Either way the driver's read bookkeeping (``pending_reads``,
-``transaction_reads``) ends up as a Python read would leave it, and a stored
-value the reader rejects is a host fault, never a transaction outcome.
+Contract variable and hash reads of pending or committed state do not call the
+Python host (only keys the host staged itself during the execution do). The
+reads are tracked as the transaction's access exactly as Python reads are, and
+a stored value the reader rejects is a host fault, never a transaction outcome.
 """
 
 import pytest
@@ -89,34 +88,34 @@ def test_committed_reads_do_not_call_the_python_host(driver, host_reads):
     assert host_reads == []
 
 
-def test_pending_writes_are_still_read_through_python(driver, host_reads):
+def test_pending_writes_are_read_in_rust_too(driver, host_reads):
     driver.set("con_reader.balances:alice", ContractingDecimal("7"))
+    driver.delete("con_reader.total")
 
     result = _run(driver)
 
-    assert result.result[0] == ContractingDecimal("7")
-    assert host_reads == [("read_hash", "balances")]
+    assert result.result == [ContractingDecimal("7"), 0, None]
+    assert host_reads == []
 
 
-def test_committed_reads_leave_the_python_read_bookkeeping(driver):
+def test_vm_reads_are_tracked_as_transaction_access(driver):
+    driver.set_transaction_read_tracking(True)
     _run(driver)
 
-    expected = {
-        "con_reader.balances:alice": ContractingDecimal("12.5"),
-        "con_reader.balances:nobody": None,
-        "con_reader.total": {"n": [1, 2], "when": Datetime(2025, 5, 6)},
-    }
-    for container in (driver.pending_reads, driver.transaction_reads):
-        assert {key: container[key] for key in expected} == expected
+    reads, _ = driver.transaction_access()
+    assert {
+        "con_reader.balances:alice",
+        "con_reader.balances:nobody",
+        "con_reader.total",
+    } <= reads
 
 
-def test_reads_recorded_inside_a_discarding_scope_are_undone(driver):
+def test_reads_tracked_inside_a_discarding_scope_are_undone(driver):
     with driver.discarding_changes():
         _run(driver)
-        assert "con_reader.total" in driver.transaction_reads
+        assert "con_reader.total" in driver.transaction_access()[0]
 
-    assert "con_reader.total" not in driver.transaction_reads
-    assert "con_reader.total" not in driver.pending_reads
+    assert "con_reader.total" not in driver.transaction_access()[0]
 
 
 def test_a_corrupt_stored_value_is_a_host_fault(driver):

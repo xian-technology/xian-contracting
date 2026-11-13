@@ -1489,7 +1489,6 @@ fn execute_bundle(
     } else {
         None
     };
-    let host_ref = host.clone_ref(py);
     let mut executor = PythonBundleExecutor::new(
         host,
         bundle,
@@ -1506,7 +1505,7 @@ fn execute_bundle(
     let result =
         executor.execute_entry(entry_module, function_name, args, converted_kwargs, context);
     if let Some(committed) = executor.committed.take() {
-        committed.finish(py, host_ref.bind(py))?;
+        committed.finish()?;
     }
     execution_result_to_py(py, result)
 }

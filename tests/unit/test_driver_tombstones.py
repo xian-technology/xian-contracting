@@ -6,7 +6,7 @@ from contracting.storage.driver import Driver
 class TestDriverTombstones(unittest.TestCase):
 
     def setUp(self):
-        self.driver = Driver(bypass_cache=False)
+        self.driver = Driver()
         self.driver.flush_full()
 
     def tearDown(self):

@@ -34,7 +34,7 @@ class TestClient(TestCase):
         self.assertNotEqual(original_source, self.client.get_contract_source("submission"))
         self.assertNotEqual(original_ir, self.client.get_contract_ir("submission"))
         self.assertEqual(self.client.submission_contract.version(), 2)
-        with Driver(storage_home=self.driver.storage_home, bypass_cache=True) as reopened:
+        with Driver(storage_home=self.driver.storage_home) as reopened:
             with ContractingClient(submission_filename=None, driver=reopened) as reader:
                 self.assertEqual(reader.submission_contract.version(), 2)
 

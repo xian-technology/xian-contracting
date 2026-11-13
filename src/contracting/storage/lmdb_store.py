@@ -87,15 +87,14 @@ class LMDBStore:
                 self._grow_map()
 
     def get(self, key: str):
-        encoded_key = key.encode("utf-8")
-        value = self._require_open().get(encoded_key)
-        if value is None:
-            return None
+        value = self._require_open().get(key.encode("utf-8"))
+        return None if value is None else self.decode(key, value)
+
+    def decode(self, key: str, value: bytes):
+        """Decode the stored value of `key`; large texts once per content."""
         if len(value) < REUSED_TEXT_MIN_BYTES:
             return decode(value, vm_profile=self.vm_profile)
-        return self._decode_text(encoded_key, value)
-
-    def _decode_text(self, encoded_key: bytes, value: bytes):
+        encoded_key = key.encode("utf-8")
         decoded = self._texts.get(encoded_key, value)
         if decoded is None:
             decoded = decode(value, vm_profile=self.vm_profile)
@@ -116,6 +115,10 @@ class LMDBStore:
             for key, value in writes.items()
         ]
         self._run_write(lambda env: env.write(changes))
+
+    def commit_overlay(self, pending):
+        """Write a block overlay (``xian_vm_core.BlockState``) atomically."""
+        self._run_write(pending.commit_into)
 
     def keys(self, prefix: str = ""):
         return [key.decode("utf-8") for key in self._require_open().keys(prefix.encode("utf-8"))]
