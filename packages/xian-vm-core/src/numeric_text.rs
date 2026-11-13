@@ -83,6 +83,8 @@ fn validate_base(base: u32) -> Result<(), VmExecutionError> {
 
 fn parse_int(text: &str, base: u32) -> Result<VmValue, VmExecutionError> {
     ensure_int_input_size(text)?;
+    // Digits are normalized and converted one character at a time.
+    crate::work_meter::count(crate::work_meter::characters(text.len()))?;
     validate_base(base)?;
     let normalized = decimal_digits::normalize(text);
     let text = normalized.trim();

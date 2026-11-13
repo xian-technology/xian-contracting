@@ -1,7 +1,7 @@
 //! Element access on a referenced list must not copy the whole list.
 //!
 //! The fixture is compiled from its embedded `source` by the canonical compiler.
-//! Results are fixed and costs follow the `xvm-gas-4` schedule (including
+//! Results are fixed and costs follow the `xvm-gas-5` schedule (including
 //! element work). The time bound only separates linear from quadratic work:
 //! the implementation that copied the list on every access needed minutes.
 use serde_json::Value;
@@ -51,7 +51,7 @@ const N: i64 = 50_000;
 fn appends_keep_linear_time_and_fixed_cost() {
     let (result, cost) = bounded("appended", N);
     assert_eq!(result, VmValue::List(vec![int(N), int(0), int(N - 1)]));
-    assert_eq!(cost, 262_811_176);
+    assert_eq!(cost, 262_811_224);
 }
 
 #[test]
@@ -65,14 +65,14 @@ fn indexed_reads_and_writes_keep_linear_time_and_alias_semantics() {
             int(N)
         ])
     );
-    assert_eq!(cost, 61_222_792);
+    assert_eq!(cost, 62_022_840);
 }
 
 #[test]
 fn truthiness_of_a_large_list_keeps_linear_time() {
     let (result, cost) = bounded("method_dispatch", N);
     assert_eq!(result, int(N));
-    assert_eq!(cost, 27_615_672);
+    assert_eq!(cost, 28_415_672);
 }
 
 #[test]

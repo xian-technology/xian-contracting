@@ -13,10 +13,37 @@ const VM_TRANSACTION_BYTES_COST_PER_BYTE: u64 = 1;
 const VM_RETURN_VALUE_COST_PER_BYTE: u64 = 1;
 const VM_TRANSACTION_BASE_CHI: u64 = 5;
 const VM_TRANSACTION_BASE_CHI_RAW: u64 = VM_TRANSACTION_BASE_CHI * 1_000;
-const VM_MAX_RAW_CHI: u64 = 50_000_000_000;
+/// Absolute chi ceiling of one V2 transaction (`xvm-execution-11`). Node fee
+/// policies cap transactions at or below it; execution never exceeds it.
+pub const XIAN_VM_MAX_TRANSACTION_CHI: u64 = 1_000_000;
+/// Archival V1 keeps the ceiling it executed with.
+pub const XIAN_VM_V1_MAX_TRANSACTION_CHI: u64 = 50_000_000;
+
+/// Chi ceiling of one transaction executed under `vm_profile`.
+pub fn max_transaction_chi(vm_profile: &str) -> u64 {
+    if vm_profile == crate::XIAN_VM_V1_PROFILE {
+        XIAN_VM_V1_MAX_TRANSACTION_CHI
+    } else {
+        XIAN_VM_MAX_TRANSACTION_CHI
+    }
+}
 const VM_WRITE_MAX_BYTES: usize = 1024 * 128;
 
+/// Raw chi for each entry a whole-hash scan (`all`, `clear`, `clone_from`)
+/// visits, on top of the per-byte read charge (`xvm-gas-5`). Scanning one
+/// entry takes about as much host work as two keyed storage reads.
+const VM_GAS_HASH_SCAN_ENTRY: u64 = 2_560;
+
 pub(crate) const VM_GAS_CROSS_CONTRACT_CALL_BASE: u64 = 10_000;
+
+/// Fixed raw chi of one scanned hash entry; archival V1 charges bytes only.
+pub(crate) fn hash_scan_entry_cost() -> u64 {
+    if crate::interpreter::numeric_v2::active() {
+        VM_GAS_HASH_SCAN_ENTRY
+    } else {
+        0
+    }
+}
 pub(crate) const VM_GAS_CROSS_CONTRACT_CALL_REPEAT: u64 = 0;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,13 +86,15 @@ pub(crate) struct VmBudget {
 }
 
 impl VmBudget {
-    pub(crate) fn new(chi_budget_raw: u64) -> Self {
+    /// A zero budget means the profile's ceiling; larger budgets are capped.
+    pub(crate) fn new(chi_budget_raw: u64, vm_profile: &str) -> Self {
+        let ceiling = max_transaction_chi(vm_profile) * 1_000;
         Self {
             raw_cost: Arc::new(AtomicU64::new(0)),
             execution_stack: crate::execution_stack::ExecutionStack::default(),
             limit: match chi_budget_raw {
-                0 => VM_MAX_RAW_CHI,
-                budget => budget.min(VM_MAX_RAW_CHI),
+                0 => ceiling,
+                budget => budget.min(ceiling),
             },
         }
     }
@@ -103,7 +132,7 @@ pub(crate) struct VmMeter {
 impl VmMeter {
     #[cfg(test)]
     pub(crate) fn new(config: VmMeterConfig) -> Self {
-        let budget = VmBudget::new(config.chi_budget_raw);
+        let budget = VmBudget::new(config.chi_budget_raw, crate::XIAN_VM_V2_PROFILE);
         Self::with_budget(config, budget)
     }
 
@@ -142,6 +171,18 @@ impl VmMeter {
         let encoded = encode_vm_value(value)?;
         let read = key.len() + encoded.len();
         self.charge((read as u64) * VM_READ_COST_PER_BYTE)
+    }
+
+    pub(crate) fn charge_scan_entry(
+        &mut self,
+        key: &str,
+        value: &VmValue,
+    ) -> Result<(), VmExecutionError> {
+        self.charge_read(key, value)?;
+        if self.enabled {
+            self.charge(hash_scan_entry_cost())?;
+        }
+        Ok(())
     }
 
     pub(crate) fn charge_write(
@@ -414,8 +455,7 @@ fn python_timedelta_parts(raw_seconds: i64) -> (i64, i64) {
 mod tests {
     use super::{
         VmBudget, VmMeter, VmMeterConfig, VM_GAS_CROSS_CONTRACT_CALL_BASE,
-        VM_GAS_CROSS_CONTRACT_CALL_REPEAT, VM_MAX_RAW_CHI, VM_TRANSACTION_BASE_CHI,
-        VM_TRANSACTION_BASE_CHI_RAW,
+        VM_GAS_CROSS_CONTRACT_CALL_REPEAT, VM_TRANSACTION_BASE_CHI, VM_TRANSACTION_BASE_CHI_RAW,
     };
 
     #[test]
@@ -471,25 +511,46 @@ mod tests {
     }
 
     #[test]
-    fn zero_and_oversized_budgets_enforce_the_vm_maximum() {
-        for supplied in [0, VM_MAX_RAW_CHI * 2] {
-            let mut meter = VmMeter::new(VmMeterConfig {
-                enabled: true,
-                chi_budget_raw: supplied,
-                transaction_size_bytes: 0,
-            });
-            assert!(meter.charge(VM_MAX_RAW_CHI).is_ok());
-            assert!(meter.charge(1).is_err());
-            assert_eq!(
-                meter.execution_stats(Default::default()).chi_used,
-                VM_MAX_RAW_CHI / 1000
-            );
+    fn zero_and_oversized_budgets_enforce_the_profile_ceiling() {
+        for (profile, ceiling) in [
+            (crate::XIAN_VM_V2_PROFILE, 1_000_000),
+            (crate::XIAN_VM_V1_PROFILE, 50_000_000),
+        ] {
+            assert_eq!(super::max_transaction_chi(profile), ceiling);
+            for supplied in [0, ceiling * 2_000] {
+                let budget = VmBudget::new(supplied, profile);
+                assert_eq!(budget.limit(), ceiling * 1_000);
+                assert!(budget.charge(ceiling * 1_000).is_ok());
+                assert!(budget.charge(1).is_err());
+            }
         }
     }
 
     #[test]
+    fn scanned_entries_pay_a_fixed_v2_cost_on_top_of_their_bytes() {
+        let cost = |profile| {
+            let _scope = crate::interpreter::numeric_v2::Scope::enter(profile);
+            let mut meter = VmMeter::new(VmMeterConfig {
+                enabled: true,
+                chi_budget_raw: 0,
+                transaction_size_bytes: 0,
+            });
+            meter
+                .charge_scan_entry("con.h:k", &crate::VmValue::Int(1.into()))
+                .unwrap();
+            meter.raw_cost
+        };
+        let bytes = cost(crate::XIAN_VM_V1_PROFILE);
+        assert!(bytes > 0);
+        assert_eq!(
+            cost(crate::XIAN_VM_V2_PROFILE),
+            bytes + super::VM_GAS_HASH_SCAN_ENTRY
+        );
+    }
+
+    #[test]
     fn nested_meters_and_host_costs_share_one_budget() {
-        let budget = VmBudget::new(25_000);
+        let budget = VmBudget::new(25_000, crate::XIAN_VM_V2_PROFILE);
         let config = VmMeterConfig {
             enabled: true,
             chi_budget_raw: 25_000,
@@ -507,7 +568,7 @@ mod tests {
 
     #[test]
     fn budget_overflow_is_rejected() {
-        let budget = VmBudget::new(0);
+        let budget = VmBudget::new(0, crate::XIAN_VM_V2_PROFILE);
         assert!(budget.charge(u64::MAX).is_err());
         assert_eq!(
             budget.charge(1).unwrap_err().to_string(),

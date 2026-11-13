@@ -99,6 +99,40 @@ pub(in crate::interpreter) fn work_cost(
         .saturating_mul(32)
         .max(32))
 }
+/// Element work of the historical string methods that `work_cost` leaves at
+/// zero (`xvm-gas-5`). Each scans its receiver and text arguments: case
+/// mapping, class predicates and whitespace splitting per character, the
+/// others as a byte search or copy. `join` and `replace` also count their
+/// output where they build it.
+pub(in crate::interpreter) fn scan_units(value: &str, method: &str, args: &[VmValue]) -> u64 {
+    let text = args
+        .iter()
+        .map(text_argument_bytes)
+        .fold(value.len(), usize::saturating_add);
+    let default_separator = args
+        .first()
+        .is_none_or(|separator| matches!(separator.snapshot(), VmValue::None));
+    match method {
+        "upper" | "lower" | "isalpha" | "isdigit" | "islower" | "isalnum" => {
+            crate::work_meter::characters(text)
+        }
+        "split" if default_separator => crate::work_meter::characters(text),
+        "strip" if !default_separator => 0,
+        "isascii" | "startswith" | "endswith" | "find" | "count" | "strip" | "replace"
+        | "split" => crate::work_meter::searched(text),
+        _ => 0,
+    }
+}
+fn text_argument_bytes(value: &VmValue) -> usize {
+    match value.snapshot() {
+        VmValue::String(text) => text.len(),
+        VmValue::Tuple(items) => items
+            .iter()
+            .map(text_argument_bytes)
+            .fold(0, usize::saturating_add),
+        _ => 0,
+    }
+}
 fn expansion_work(value: &str, method: &str, args: &[VmValue]) -> Result<u64> {
     let input = value.len() as u64;
     let expansion = match method {
@@ -622,5 +656,21 @@ mod tests {
         assert!(work_cost("\t", "expandtabs", &[vm_int(10000)]).unwrap() >= 320000);
         let table = VmValue::Dict(vec![(vm_int(97), text(&"x".repeat(10000)))]);
         assert!(work_cost("a", "translate", &[table]).unwrap() >= 320000);
+    }
+
+    #[test]
+    fn historical_methods_scan_receiver_and_text_arguments() {
+        let long = "a".repeat(800);
+        assert_eq!(scan_units(&long, "lower", &[]), 400);
+        assert_eq!(scan_units(&long, "split", &[]), 400);
+        assert_eq!(scan_units(&long, "split", &[VmValue::None]), 400);
+        assert_eq!(scan_units(&long, "split", &[text(",")]), 100);
+        assert_eq!(scan_units(&long, "find", &[text(&long)]), 200);
+        let prefixes = VmValue::Tuple(vec![text(&long), text(&long)]);
+        assert_eq!(scan_units(&long, "startswith", &[prefixes]), 300);
+        assert_eq!(scan_units(&long, "strip", &[]), 100);
+        // Custom strip characters and expanding methods keep their own charge.
+        assert_eq!(scan_units(&long, "strip", &[text("a")]), 0);
+        assert_eq!(scan_units(&long, "center", &[vm_int(900)]), 0);
     }
 }

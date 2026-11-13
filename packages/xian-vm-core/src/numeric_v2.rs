@@ -80,7 +80,10 @@ pub(crate) fn exact_decimal(text: &str) -> Result<VmDecimal, VmExecutionError> {
 
 pub(super) fn new_decimal(v: &VmValue) -> Result<VmValue, VmExecutionError> {
     let value = match v {
-        VmValue::String(s) => exact_decimal(s)?,
+        VmValue::String(s) => {
+            crate::work_meter::count(crate::work_meter::searched(s.len()))?;
+            exact_decimal(s)?
+        }
         VmValue::Decimal(d) => d.clone(),
         VmValue::Int(_) => VmDecimal::from_scaled(scaled(v)?)?,
         _ => {

@@ -95,7 +95,7 @@ class NativeVmHost:
         self._parsed_ir_cache: dict[str, dict[str, Any]] = {}
         self._entry_contract = entry_contract
         self._meter_enabled = meter_enabled
-        self._budget = _TransactionBudget(max(int(chi_budget_raw), 0))
+        self._budget = _TransactionBudget(max(int(chi_budget_raw), 0), vm_profile)
         self._context = dict(context or {})
         self._pending_writes: dict[str, Any] = {}
         self._pending_events: list[dict[str, Any]] = []

@@ -78,7 +78,7 @@ def assert_rejected(result):
 
 
 @pytest.mark.parametrize(
-    "profile,revision", [("xian_vm_v1", "xvm-execution-7"), ("xian_vm_v2", "xvm-execution-10")]
+    "profile,revision", [("xian_vm_v1", "xvm-execution-7"), ("xian_vm_v2", "xvm-execution-11")]
 )
 def test_execution_revision_is_profile_specific(profile, revision):
     assert runtime_info(profile)["execution_revision"] == revision

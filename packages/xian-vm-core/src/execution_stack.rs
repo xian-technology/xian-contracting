@@ -109,7 +109,7 @@ mod tests {
 
     #[test]
     fn constructor_heaps_share_the_transaction_stack() {
-        let budget = crate::VmBudget::new(0);
+        let budget = crate::VmBudget::new(0, crate::XIAN_VM_V2_PROFILE);
         let caller = crate::heap::VmHeap::with_execution_stack(budget.execution_stack.clone());
         let constructor = crate::heap::VmHeap::with_execution_stack(budget.clone().execution_stack);
         let mut frames = Vec::new();

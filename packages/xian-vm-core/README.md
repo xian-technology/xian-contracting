@@ -27,8 +27,8 @@ Supported scope:
 
 The chain selects a profile for artifact admission and execution. Every module
 in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports
-execution revision `xvm-execution-10`, bytecode version `xvm-2` and gas schedule
-`xvm-gas-4`. The native and Python host bindings select V2 by default. Public
+execution revision `xvm-execution-11`, bytecode version `xvm-2` and gas schedule
+`xvm-gas-5`. The native and Python host bindings select V2 by default. Public
 `ContractingClient` and `ParallelBatchExecutor` execution accepts only V2.
 
 Low-level native V1 supports historical verification and migration: select
@@ -53,14 +53,27 @@ V2 `Hash.all(*prefix)` and `Hash.clear(*prefix)` select the whole hash only
 when called without arguments; `""` is an ordinary first dimension. V2
 `crypto.key_is_valid` accepts exactly 64 lowercase hex characters.
 
-`xvm-gas-4` charges element work: every value comparison and dictionary key
-probe, and every member of a container that is copied or allocated, costs 8 raw
-chi (a copied text or binary payload counts one unit per 64 bytes), in addition
-to the operation's own gas. Pending element work is charged before the next expression or statement;
-one operation may perform at most 2^20 elements before it is charged, and
-exceeding that fails the transaction. CPU time per charged raw chi of container
-operations stays within a small constant factor of plain arithmetic
-(`tests/metering_bounds.rs`). Archival V1 keeps `xvm-gas-2`.
+`xvm-gas-5` charges element work: every value comparison (including identical
+members) and dictionary key probe, every member of a container that is copied
+or allocated, and every node of a value passed across a contract boundary costs
+one unit of 24 raw chi, in addition to the operation's own gas. Text and binary
+payloads count by size: one unit per 64 bytes copied, per 128 bytes compared
+(`==`, `<`, sorting), per 8 bytes searched or copied by a string operation
+(`find`, `count`, `in`, `replace`, `split(sep)`, `join`, slicing, indexing,
+`decimal(text)`), and per 2 bytes of per-character work (`upper`, `lower`,
+`isalpha`, `isdigit`, `islower`, `isalnum`, `split()`, `int(text)`). Each entry a
+whole-hash scan (`Hash.all`, `clear`, `clone_from`) visits costs 2,560 raw chi
+on top of its read bytes. Pending element work is charged before the next
+expression or statement; one operation may perform at most 2^20 units before it
+is charged, and exceeding that fails the transaction. CPU time per charged chi
+of every operation family stays within a small constant factor of plain
+interpreter work (`tests/metering_bounds.rs`, `scripts/metering_calibration.py`).
+Archival V1 keeps `xvm-gas-2`.
+
+One V2 transaction may use at most 1,000,000 chi (`max_tx_chi` in
+`runtime_info()`); a larger or zero budget is capped there. Node fee policies set
+their per-transaction caps at or below this ceiling. Archival V1 keeps its
+historical 50,000,000-chi ceiling.
 
 F-string output is limited to 128 KiB in UTF-8 bytes across the complete result, including literal text and every interpolated field. The VM checks each append before allocating the aggregate output.
 

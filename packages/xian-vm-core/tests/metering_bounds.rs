@@ -2,7 +2,7 @@
 //!
 //! Each probe repeats one container operation whose work grows with the
 //! container (comparison, membership, search, copy, dictionary access,
-//! rendering). `xvm-gas-4` charges that element work, so the time per raw chi
+//! rendering). `xvm-gas-5` charges that element work, so the time per raw chi
 //! unit of every probe stays close to the time per unit of an arithmetic loop.
 //! Before element work was charged these ratios ranged from hundreds to tens of
 //! thousands. The fixture is compiled from its embedded `source`.

@@ -238,7 +238,7 @@ impl VmInstance {
                 && !ordered.contains_key(key)
                 && !matches!(value, VmValue::None)
             {
-                charge_storage_read(
+                crate::interpreter::charge_scan_entry(
                     host,
                     &hash_storage_key_from_normalized(&scan_contract, &scan_binding, key),
                     value,

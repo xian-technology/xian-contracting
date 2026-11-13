@@ -49,6 +49,20 @@ pub(super) fn bytes_like_data(value: &VmValue) -> Option<&[u8]> {
     }
 }
 
+/// Element work of comparing two text or binary payloads byte by byte.
+fn payload_comparison_units(left: &VmValue, right: &VmValue) -> u64 {
+    let payload = |value: &VmValue| match value {
+        VmValue::String(text) => Some((text.len(), true)),
+        other => bytes_like_data(other).map(|bytes| (bytes.len(), false)),
+    };
+    match (payload(left), payload(right)) {
+        (Some((left, left_text)), Some((right, right_text))) if left_text == right_text => {
+            crate::work_meter::compared(left, right)
+        }
+        _ => 0,
+    }
+}
+
 pub(super) fn byte_from_value(value: &VmValue) -> Result<u8, VmExecutionError> {
     let value = &value.snapshot();
     let bigint = match value {
@@ -1370,6 +1384,7 @@ fn compare_resolved_values(
             return ordering;
         }
     }
+    crate::work_meter::count(payload_comparison_units(left, right))?;
     match (left, right) {
         (VmValue::List(left), VmValue::List(right))
         | (VmValue::Tuple(left), VmValue::Tuple(right)) => {
@@ -1546,6 +1561,9 @@ fn vm_values_equal_at(
     right: &VmValue,
     depth: usize,
 ) -> Result<bool, VmExecutionError> {
+    // An identity match is still a visited element (`xvm-gas-5`): comparing
+    // a list with its copy checks every shared member.
+    crate::work_meter::count(1)?;
     if left.identical(right) {
         return Ok(true);
     }
@@ -1559,7 +1577,6 @@ fn vm_values_equal_at(
             "maximum equality recursion depth exceeded",
         ));
     }
-    crate::work_meter::count(1)?;
     if let Some(mapping) = mapping_proxy_target(left) {
         return vm_values_equal_at(&mapping, right, depth + 1);
     }
@@ -1602,6 +1619,7 @@ fn resolved_values_equal(
     if let Some(ordering) = compare_numeric_values(left, right)? {
         return Ok(ordering == std::cmp::Ordering::Equal);
     }
+    crate::work_meter::count(payload_comparison_units(left, right))?;
 
     match (left, right) {
         (VmValue::ContractHandle(_), _) | (_, VmValue::ContractHandle(_)) => Ok(false),
@@ -1645,6 +1663,33 @@ fn resolved_values_equal(
     }
 }
 
+fn text_contains(value: &str, needle: &VmValue) -> Result<bool, VmExecutionError> {
+    match &needle.snapshot() {
+        VmValue::String(needle) => {
+            crate::work_meter::count(crate::work_meter::searched(value.len() + needle.len()))?;
+            Ok(value.contains(needle))
+        }
+        _ => Err(VmExecutionError::new(
+            "string membership requires a string needle",
+        )),
+    }
+}
+
+fn bytes_contains(value: &[u8], needle: &VmValue) -> Result<bool, VmExecutionError> {
+    match &needle.snapshot() {
+        VmValue::Int(_) | VmValue::Bool(_) => Ok(value.contains(&byte_from_value(needle)?)),
+        VmValue::Bytes(needle) | VmValue::ByteArray(needle) => {
+            crate::work_meter::count(crate::work_meter::searched(value.len() + needle.len()))?;
+            // Linear-time search; a window scan is quadratic in the needle.
+            Ok(memchr::memmem::find(value, needle).is_some())
+        }
+        other => Err(VmExecutionError::new(format!(
+            "a bytes-like object is required, not '{}'",
+            other.type_name()
+        ))),
+    }
+}
+
 pub(super) fn contains_value(
     container: &VmValue,
     needle: &VmValue,
@@ -1656,25 +1701,8 @@ pub(super) fn contains_value(
         }
         VmValue::MappingProxy(mapping) => contains_value(mapping, needle),
         VmValue::View(view) => mapping_views::contains(view, needle),
-        VmValue::String(value) => match &needle.snapshot() {
-            VmValue::String(needle) => Ok(value.contains(needle)),
-            _ => Err(VmExecutionError::new(
-                "string membership requires a string needle",
-            )),
-        },
-        VmValue::Bytes(value) | VmValue::ByteArray(value) => match &needle.snapshot() {
-            VmValue::Int(_) | VmValue::Bool(_) => Ok(value.contains(&byte_from_value(needle)?)),
-            VmValue::Bytes(needle) | VmValue::ByteArray(needle) => {
-                if needle.is_empty() {
-                    return Ok(true);
-                }
-                Ok(value.windows(needle.len()).any(|window| window == needle))
-            }
-            other => Err(VmExecutionError::new(format!(
-                "a bytes-like object is required, not '{}'",
-                other.type_name()
-            ))),
-        },
+        VmValue::String(value) => text_contains(value, needle),
+        VmValue::Bytes(value) | VmValue::ByteArray(value) => bytes_contains(value, needle),
         VmValue::BuiltinSet(values) => {
             if resolves_to!(needle, VmValue::BuiltinSet(_)) {
                 return Ok(false);
@@ -1806,6 +1834,7 @@ pub(super) fn subscript_value(
         }
         VmValue::Dict(entries) => missing_key(dict_get(&entries, index), index),
         VmValue::String(value) => {
+            crate::work_meter::count(crate::work_meter::searched(value.len()))?;
             let idx = normalize_sequence_index(index, value.chars().count())?;
             let character = value.chars().nth(idx).expect("index is within the string");
             Ok(VmValue::String(character.to_string()))
@@ -1839,15 +1868,7 @@ pub(super) fn subscript_slice_value(
                 .map(|index| values[index].clone())
                 .collect(),
         )),
-        VmValue::String(value) => {
-            let chars = value.chars().map(|ch| ch.to_string()).collect::<Vec<_>>();
-            Ok(VmValue::String(
-                slice_positions(chars.len(), lower, upper, step)?
-                    .into_iter()
-                    .map(|index| chars[index].clone())
-                    .collect::<String>(),
-            ))
-        }
+        VmValue::String(value) => slice_text(&value, lower, upper, step).map(VmValue::String),
         VmValue::Bytes(value) => slice_bytes_like(value, lower, upper, step, false),
         VmValue::ByteArray(value) => slice_bytes_like(value, lower, upper, step, true),
         other => Err(VmExecutionError::new(format!(
@@ -2001,18 +2022,42 @@ pub(super) fn slice_positions(
     upper: Option<BigInt>,
     step: Option<BigInt>,
 ) -> Result<Vec<usize>, VmExecutionError> {
-    let (mut index, stop, step) =
+    let (start, stop, step) =
         crate::iteration::slice_indices(&BigInt::from(length), lower, upper, step)?;
-    let mut positions = Vec::new();
-    while if step.is_positive() {
-        index < stop
+    // Normalized bounds lie in [-1, length]. A step wider than the sequence
+    // selects at most the first position, so saturating it is exact.
+    let bound = |value: BigInt| value.to_i64().expect("slice bounds are normalized");
+    let (mut index, stop) = (bound(start), bound(stop));
+    let step = step.to_i64().unwrap_or(if step.is_positive() {
+        i64::MAX
     } else {
-        index > stop
-    } {
-        positions.push(bigint_to_usize(&index, "slice position")?);
-        index += &step;
+        i64::MIN
+    });
+    let mut positions = Vec::new();
+    while (step > 0 && index < stop) || (step < 0 && index > stop) {
+        positions.push(index as usize);
+        let Some(next) = index.checked_add(step) else {
+            break;
+        };
+        index = next;
     }
     Ok(positions)
+}
+
+/// Slice text by character positions without allocating one string per
+/// character.
+fn slice_text(
+    value: &str,
+    lower: Option<BigInt>,
+    upper: Option<BigInt>,
+    step: Option<BigInt>,
+) -> Result<String, VmExecutionError> {
+    crate::work_meter::count(crate::work_meter::searched(value.len()))?;
+    let characters = value.chars().collect::<Vec<_>>();
+    Ok(slice_positions(characters.len(), lower, upper, step)?
+        .into_iter()
+        .map(|position| characters[position])
+        .collect())
 }
 
 pub(super) fn substring_by_char_bounds(value: &str, start: usize, end: usize) -> String {
@@ -2727,6 +2772,60 @@ mod slice_boundary_tests {
             vec![2]
         );
         assert!(slice_positions(3, None, None, Some(0.into())).is_err());
+        let huge = BigInt::from(10).pow(40);
+        assert_eq!(
+            slice_positions(3, None, None, Some(huge.clone())).unwrap(),
+            vec![0]
+        );
+        assert_eq!(
+            slice_positions(3, None, None, Some(-huge)).unwrap(),
+            vec![2]
+        );
+    }
+
+    #[test]
+    fn text_slices_select_characters_not_bytes() {
+        let text = |lower: Option<i64>, upper: Option<i64>, step: Option<i64>| {
+            slice_text(
+                "aé😀b",
+                lower.map(Into::into),
+                upper.map(Into::into),
+                step.map(Into::into),
+            )
+            .unwrap()
+        };
+        assert_eq!(text(Some(1), None, None), "é😀b");
+        assert_eq!(text(None, Some(-1), None), "aé😀");
+        assert_eq!(text(None, None, Some(-1)), "b😀éa");
+        assert_eq!(text(None, None, Some(2)), "a😀");
+        assert_eq!(text(Some(3), Some(1), None), "");
+        assert_eq!(text(Some(-2), None, Some(-2)), "😀a");
+    }
+
+    #[test]
+    fn payload_comparisons_count_the_shorter_text_or_binary_payload() {
+        let text = |length| VmValue::String("a".repeat(length));
+        let bytes = |length| VmValue::Bytes(vec![0; length]);
+        assert_eq!(payload_comparison_units(&text(1280), &text(256)), 2);
+        assert_eq!(
+            payload_comparison_units(&bytes(1280), &VmValue::ByteArray(vec![0; 1280])),
+            10
+        );
+        assert_eq!(payload_comparison_units(&text(1280), &bytes(1280)), 0);
+        assert_eq!(payload_comparison_units(&text(1280), &vm_int(1)), 0);
+    }
+
+    #[test]
+    fn membership_searches_text_and_bytes_linearly() {
+        let haystack = VmValue::Bytes([vec![b'a'; 4096], b"ab".to_vec()].concat());
+        assert!(contains_value(&haystack, &VmValue::Bytes(b"aab".to_vec())).unwrap());
+        assert!(contains_value(&haystack, &VmValue::Bytes(vec![])).unwrap());
+        assert!(!contains_value(&haystack, &VmValue::Bytes(b"ba".to_vec())).unwrap());
+        assert!(contains_value(&haystack, &vm_int(98)).unwrap());
+        assert!(contains_value(&haystack, &VmValue::String("a".into())).is_err());
+        let text = VmValue::String("xyz".into());
+        assert!(contains_value(&text, &VmValue::String("yz".into())).unwrap());
+        assert!(contains_value(&text, &vm_int(1)).is_err());
     }
 }
 

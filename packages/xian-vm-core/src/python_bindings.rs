@@ -29,9 +29,10 @@ struct PyTransactionBudget {
 #[pymethods]
 impl PyTransactionBudget {
     #[new]
-    fn new(chi_budget_raw: u64) -> Self {
+    #[pyo3(signature = (chi_budget_raw, vm_profile = XIAN_VM_V2_PROFILE))]
+    fn new(chi_budget_raw: u64, vm_profile: &str) -> Self {
         Self {
-            budget: crate::VmBudget::new(chi_budget_raw),
+            budget: crate::VmBudget::new(chi_budget_raw, vm_profile),
         }
     }
 
@@ -99,7 +100,8 @@ impl PythonBundleExecutor {
             validate_bundle_module(&module, module_name, vm_profile)?;
             modules.insert(module_name.clone(), module);
         }
-        let budget = budget.unwrap_or_else(|| crate::VmBudget::new(meter_config.chi_budget_raw));
+        let budget =
+            budget.unwrap_or_else(|| crate::VmBudget::new(meter_config.chi_budget_raw, vm_profile));
         Ok(Self {
             heap: crate::heap::VmHeap::with_execution_stack(budget.execution_stack.clone()),
             host,
@@ -511,7 +513,7 @@ impl VmHost for PythonBundleExecutor {
             let mut previous: Option<String> = None;
             let mut retain = |suffix: String, value: VmValue| -> Result<(), VmExecutionError> {
                 let key = format!("{base_key}:{suffix}");
-                self.meter.charge_read(&key, &value)?;
+                self.meter.charge_scan_entry(&key, &value)?;
                 budget.observe(&key, &value)?;
                 entries.push((suffix, value));
                 Ok(())
@@ -1331,6 +1333,7 @@ fn runtime_info_json(vm_profile: &str) -> PyResult<String> {
         "supported_bytecode_versions": policy.bytecode,
         "supported_gas_schedules": policy.gas,
         "execution_revision": policy.revision,
+        "max_tx_chi": crate::max_transaction_chi(vm_profile),
         "set_codec": XIAN_VM_SET_CODEC,
     }))
     .map_err(|error| PyValueError::new_err(error.to_string()))

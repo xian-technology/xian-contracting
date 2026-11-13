@@ -615,6 +615,19 @@ fn typecheck_dict_key_repr(key: &VmValue) -> String {
     }
 }
 
+/// Charge one entry of a whole-hash scan: its bytes and, in V2, a fixed cost.
+pub(crate) fn charge_scan_entry(
+    host: &mut (impl VmHost + ?Sized),
+    key: &str,
+    value: &VmValue,
+) -> Result<(), VmExecutionError> {
+    host.charge_storage_read(key, value)?;
+    match crate::metering::hash_scan_entry_cost() {
+        0 => Ok(()),
+        cost => host.charge_execution_cost(cost),
+    }
+}
+
 pub trait VmHost {
     fn charge_execution_cost(&mut self, _cost: u64) -> Result<(), VmExecutionError> {
         Ok(())
@@ -695,7 +708,7 @@ pub trait VmHost {
         let mut budget = crate::storage_scan::ScanBudget::default();
         for (suffix, value) in &entries {
             let key = hash_storage_key_from_normalized(contract, binding, suffix);
-            self.charge_storage_read(&key, value)?;
+            charge_scan_entry(self, &key, value)?;
             budget.observe(&key, value)?;
         }
         Ok(entries)

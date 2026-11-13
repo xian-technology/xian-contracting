@@ -1,6 +1,6 @@
 //! Element work inside one VM operation: value comparisons, container scans
 //! and element copies. Such work grows with container size while the
-//! operation's own gas is constant, so V2 (`xvm-gas-4`) charges each unit.
+//! operation's own gas is constant, so V2 (`xvm-gas-4` and later) charges each unit.
 //!
 //! Primitive helpers count units without a host. The interpreter charges
 //! pending units before its next expression or statement and when a call
@@ -10,8 +10,10 @@
 use crate::{interpreter::numeric_v2, VmExecutionError, VmHost};
 use std::cell::Cell;
 
-/// Raw chi per unit of element work.
-pub(crate) const VM_GAS_ELEMENT_WORK: u64 = 8;
+/// Raw chi per unit of element work. `xvm-gas-5` raised it from 8: copying or
+/// allocating a member (a cloned integer, a split piece, a converted argument)
+/// took 100-250 ns, while plain interpreter work runs at about 1 ns per raw chi.
+pub(crate) const VM_GAS_ELEMENT_WORK: u64 = 24;
 /// Units one operation may perform before the interpreter charges them.
 pub(crate) const MAX_PENDING_WORK: u64 = 1 << 20;
 
@@ -63,6 +65,31 @@ pub(crate) fn copied(value: &crate::VmValue) -> u64 {
         VmValue::Bytes(bytes) | VmValue::ByteArray(bytes) => (bytes.len() / 64) as u64,
         other => members(other),
     }
+}
+
+/// Bytes of text covered by one unit of per-character work: case mapping,
+/// character-class predicates and whitespace splitting look up every
+/// character in the Unicode tables.
+const CHARACTER_BYTES_PER_UNIT: usize = 2;
+/// Bytes covered by one unit of a byte-level search or copy (`find`, `in`,
+/// `replace`, `split(sep)`, slicing).
+const SEARCH_BYTES_PER_UNIT: usize = 8;
+/// Bytes covered by one unit of a byte-wise comparison (`==`, `<`, sorting).
+const COMPARE_BYTES_PER_UNIT: usize = 128;
+
+/// Units for per-character work over `bytes` of text.
+pub(crate) fn characters(bytes: usize) -> u64 {
+    (bytes / CHARACTER_BYTES_PER_UNIT) as u64
+}
+
+/// Units for searching or copying `bytes` of text or binary data.
+pub(crate) fn searched(bytes: usize) -> u64 {
+    (bytes / SEARCH_BYTES_PER_UNIT) as u64
+}
+
+/// Units for comparing two payloads; a comparison stops at the shorter one.
+pub(crate) fn compared(left: usize, right: usize) -> u64 {
+    (left.min(right) / COMPARE_BYTES_PER_UNIT) as u64
 }
 
 /// Charge pending units to `host`.
@@ -125,6 +152,13 @@ mod tests {
         let _isolated = Isolation::enter();
         count(MAX_PENDING_WORK).unwrap();
         assert!(count(1).is_err());
+    }
+
+    #[test]
+    fn text_work_is_counted_per_payload_size() {
+        assert_eq!((characters(1), characters(4)), (0, 2));
+        assert_eq!((searched(7), searched(800)), (0, 100));
+        assert_eq!((compared(1280, 256), compared(127, 4096)), (2, 0));
     }
 
     #[test]

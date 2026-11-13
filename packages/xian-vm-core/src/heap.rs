@@ -624,8 +624,9 @@ fn execution_local_capability(value: &VmValue) -> Option<&'static str> {
 pub(crate) fn validate_contract_values<'a>(
     values: impl Iterator<Item = &'a VmValue>,
 ) -> Result<(), VmExecutionError> {
-    validate_boundary_values(values, "contract boundaries")
+    validate_boundary_values(values, CONTRACT_BOUNDARY)
 }
+const CONTRACT_BOUNDARY: &str = "contract boundaries";
 pub(crate) fn validate_external_values<'a>(
     values: impl Iterator<Item = &'a VmValue>,
 ) -> Result<(), VmExecutionError> {
@@ -636,7 +637,7 @@ fn validate_boundary_values<'a>(
     boundary: &'static str,
 ) -> Result<(), VmExecutionError> {
     let mut visitor = ContractValueVisitor {
-        seen: HashSet::new(),
+        seen: HashSet::default(),
         nodes: 0,
         boundary,
     };
@@ -645,9 +646,29 @@ fn validate_boundary_values<'a>(
     }
     Ok(())
 }
+/// Hashes object addresses with one multiplication. Address sets only answer
+/// membership, so their hasher cannot change any result.
+#[derive(Default)]
+pub(crate) struct AddressHasher(u64);
+
+/// Set of visited heap objects, keyed by address.
+pub(crate) type AddressSet = HashSet<usize, std::hash::BuildHasherDefault<AddressHasher>>;
+
+impl std::hash::Hasher for AddressHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+    fn write(&mut self, _bytes: &[u8]) {
+        unreachable!("only object addresses are hashed")
+    }
+    fn write_usize(&mut self, address: usize) {
+        self.0 = (address as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    }
+}
+
 struct ContractValueVisitor {
     boundary: &'static str,
-    seen: HashSet<usize>,
+    seen: AddressSet,
     nodes: usize,
 }
 impl ContractValueVisitor {
@@ -657,6 +678,10 @@ impl ContractValueVisitor {
             return Err(VmExecutionError::new(
                 "shared contract value traversal limit exceeded",
             ));
+        }
+        // Every node a shared call inspects is element work (`xvm-gas-5`).
+        if self.boundary == CONTRACT_BOUNDARY {
+            crate::work_meter::count(1)?;
         }
         if let VmValue::Reference(reference) = value {
             if !self.seen.insert(reference.id()) {
@@ -675,7 +700,7 @@ impl ContractValueVisitor {
         }
         match value {
             VmValue::InterfaceDescriptor(descriptor) => {
-                if self.boundary != "contract boundaries" {
+                if self.boundary != CONTRACT_BOUNDARY {
                     return Err(VmExecutionError::new(
                         "interface descriptors cannot cross the VM boundary",
                     ));
@@ -724,6 +749,43 @@ impl ContractValueVisitor {
 #[cfg(test)]
 mod contract_boundary_tests {
     use super::*;
+    use crate::interpreter::numeric_v2;
+
+    #[derive(Default)]
+    struct Host(u64);
+    impl crate::VmHost for Host {
+        fn charge_execution_cost(&mut self, cost: u64) -> Result<(), VmExecutionError> {
+            self.0 += cost;
+            Ok(())
+        }
+    }
+
+    fn boundary_cost(profile: &str, value: &VmValue) -> u64 {
+        let _scope = numeric_v2::Scope::enter(profile);
+        let _work = crate::work_meter::Isolation::enter();
+        validate_contract_values(std::iter::once(value)).unwrap();
+        validate_external_values(std::iter::once(value)).unwrap();
+        let mut host = Host::default();
+        crate::work_meter::flush(&mut host).unwrap();
+        host.0
+    }
+
+    #[test]
+    fn v2_charges_every_contract_boundary_node_once() {
+        let heap = VmHeap::default();
+        let shared = heap
+            .capture(VmValue::List(vec![
+                VmValue::Int(1.into()),
+                VmValue::Int(2.into()),
+            ]))
+            .unwrap();
+        let value = VmValue::List(vec![shared.clone(), shared, VmValue::None]);
+        // Root, three items and the shared list's two members once; external
+        // validation is not element work.
+        let unit = crate::work_meter::VM_GAS_ELEMENT_WORK;
+        assert_eq!(boundary_cost(crate::XIAN_VM_V2_PROFILE, &value), 6 * unit);
+        assert_eq!(boundary_cost(crate::XIAN_VM_V1_PROFILE, &value), 0);
+    }
 
     fn bound_storage_get() -> VmValue {
         VmValue::BoundMethod(Box::new(crate::VmBoundMethod {

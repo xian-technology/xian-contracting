@@ -42,8 +42,8 @@ pub const XIAN_VM_V2_PROFILE: &str = "xian_vm_v2";
 pub const XIAN_VM_V1_PROFILE: &str = "xian_vm_v1";
 pub const XIAN_VM_HOST_CATALOG_V1: &str = "xian_vm_v1_host_v1";
 pub const XIAN_VM_SUPPORTED_BYTECODE_VERSIONS: &[&str] = &["xvm-2"];
-pub const XIAN_VM_SUPPORTED_GAS_SCHEDULES: &[&str] = &["xvm-gas-4"];
-pub const XIAN_VM_EXECUTION_REVISION: &str = "xvm-execution-10";
+pub const XIAN_VM_SUPPORTED_GAS_SCHEDULES: &[&str] = &["xvm-gas-5"];
+pub const XIAN_VM_EXECUTION_REVISION: &str = "xvm-execution-11";
 pub const XIAN_VM_V1_EXECUTION_REVISION: &str = "xvm-execution-7";
 pub const XIAN_VM_SET_CODEC: &str = "xian-set-1";
 

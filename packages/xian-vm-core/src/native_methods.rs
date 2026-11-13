@@ -191,115 +191,109 @@ fn call_string_method(
     args: Vec<VmValue>,
     collect: &mut dyn FnMut(&VmValue) -> Result<Vec<VmValue>, VmExecutionError>,
 ) -> Result<NativeMethodResult, VmExecutionError> {
+    crate::work_meter::count(string_methods::scan_units(&value, method, &args))?;
+    string_method_value(&value, method, &args, collect).map(NativeMethodResult::Value)
+}
+
+fn string_method_value(
+    value: &str,
+    method: &str,
+    args: &[VmValue],
+    collect: &mut dyn FnMut(&VmValue) -> Result<Vec<VmValue>, VmExecutionError>,
+) -> Result<VmValue, VmExecutionError> {
     match method {
-        "encode" => Ok(NativeMethodResult::Value(binary_methods::encode(
-            &value, &args,
-        )?)),
-        "upper" => match args.as_slice() {
-            [] => Ok(NativeMethodResult::Value(VmValue::String(
-                unicode_strings::upper(&value),
-            ))),
-            _ => Err(VmExecutionError::new("str.upper() expects no arguments")),
-        },
-        "lower" => match args.as_slice() {
-            [] => Ok(NativeMethodResult::Value(VmValue::String(
-                unicode_strings::lower(&value),
-            ))),
-            _ => Err(VmExecutionError::new("str.lower() expects no arguments")),
-        },
-        "isascii" => match args.as_slice() {
-            [] => Ok(NativeMethodResult::Value(VmValue::Bool(value.is_ascii()))),
-            _ => Err(VmExecutionError::new("str.isascii() expects no arguments")),
-        },
-        "isalpha" | "isdigit" | "islower" | "isalnum" => match args.as_slice() {
-            [] => Ok(NativeMethodResult::Value(VmValue::Bool(
-                unicode_strings::predicate(method, &value),
-            ))),
-            _ => Err(VmExecutionError::new(format!(
-                "str.{method}() expects no arguments"
-            ))),
-        },
-        "startswith" | "endswith" | "find" | "count" => Ok(NativeMethodResult::Value(
-            search_string(&value, method, &args)?,
-        )),
-        "strip" => Ok(NativeMethodResult::Value(VmValue::String(
-            string_methods::strip(&value, method, &args)?,
-        ))),
-        "replace" => match args.as_slice() {
-            [old, new] => Ok(NativeMethodResult::Value(VmValue::String(
-                value.replace(&old.as_string()?, &new.as_string()?),
-            ))),
-            [old, new, count] => {
-                let count = string_methods::index_size(count)?;
-                let replaced = if count < 0 {
-                    value.replace(&old.as_string()?, &new.as_string()?)
-                } else {
-                    value.replacen(&old.as_string()?, &new.as_string()?, count as usize)
-                };
-                Ok(NativeMethodResult::Value(VmValue::String(replaced)))
+        "encode" => binary_methods::encode(value, args),
+        "upper" | "lower" | "isascii" | "isalpha" | "isdigit" | "islower" | "isalnum" => {
+            if !args.is_empty() {
+                return Err(VmExecutionError::new(format!(
+                    "str.{method}() expects no arguments"
+                )));
             }
-            _ => Err(VmExecutionError::new(
+            Ok(case_or_class(value, method))
+        }
+        "startswith" | "endswith" | "find" | "count" => search_string(value, method, args),
+        "strip" => string_methods::strip(value, method, args).map(VmValue::String),
+        "replace" => replace_text(value, args).map(VmValue::String),
+        "join" => join_text(value, args, collect).map(VmValue::String),
+        "split" => split_text(value, args),
+        other => string_methods::call(value, other, args),
+    }
+}
+
+fn case_or_class(value: &str, method: &str) -> VmValue {
+    match method {
+        "upper" => VmValue::String(unicode_strings::upper(value)),
+        "lower" => VmValue::String(unicode_strings::lower(value)),
+        "isascii" => VmValue::Bool(value.is_ascii()),
+        _ => VmValue::Bool(unicode_strings::predicate(method, value)),
+    }
+}
+
+fn replace_text(value: &str, args: &[VmValue]) -> Result<String, VmExecutionError> {
+    let count = match args {
+        [_, _] => None,
+        [_, _, count] => Some(string_methods::index_size(count)?),
+        _ => {
+            return Err(VmExecutionError::new(
                 "str.replace() expects two or three arguments",
-            )),
-        },
-        "join" => match args.as_slice() {
-            [items] => {
-                let rendered = collect(items)?
-                    .into_iter()
-                    .map(|item| item.as_string())
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(NativeMethodResult::Value(VmValue::String(
-                    rendered.join(&value),
-                )))
-            }
-            _ => Err(VmExecutionError::new("str.join() expects one argument")),
-        },
-        "split" => match args.as_slice() {
-            [] => Ok(NativeMethodResult::Value(VmValue::List(
-                split_string(value.as_str(), None, None)?
-                    .into_iter()
-                    .map(VmValue::String)
-                    .collect(),
-            ))),
-            [separator] => {
-                let separator = if matches!(separator, VmValue::None) {
-                    None
-                } else {
-                    Some(separator.as_string()?)
-                };
-                Ok(NativeMethodResult::Value(VmValue::List(
-                    split_string(value.as_str(), separator.as_deref(), None)?
-                        .into_iter()
-                        .map(VmValue::String)
-                        .collect(),
-                )))
-            }
-            [separator, maxsplit] => {
-                let separator = if matches!(separator, VmValue::None) {
-                    None
-                } else {
-                    Some(separator.as_string()?)
-                };
-                let maxsplit = string_methods::index_size(maxsplit)?;
-                let limit = if maxsplit < 0 {
-                    None
-                } else {
-                    Some(maxsplit as usize)
-                };
-                Ok(NativeMethodResult::Value(VmValue::List(
-                    split_string(value.as_str(), separator.as_deref(), limit)?
-                        .into_iter()
-                        .map(VmValue::String)
-                        .collect(),
-                )))
-            }
-            _ => Err(VmExecutionError::new(
+            ))
+        }
+    };
+    let (old, new) = (args[0].as_string()?, args[1].as_string()?);
+    let replaced = match count.and_then(|count| usize::try_from(count).ok()) {
+        Some(count) => value.replacen(&old, &new, count),
+        None => value.replace(&old, &new),
+    };
+    crate::work_meter::count(crate::work_meter::searched(replaced.len()))?;
+    Ok(replaced)
+}
+
+fn join_text(
+    separator: &str,
+    args: &[VmValue],
+    collect: &mut dyn FnMut(&VmValue) -> Result<Vec<VmValue>, VmExecutionError>,
+) -> Result<String, VmExecutionError> {
+    let [items] = args else {
+        return Err(VmExecutionError::new("str.join() expects one argument"));
+    };
+    let rendered = collect(items)?
+        .into_iter()
+        .map(|item| item.as_string())
+        .collect::<Result<Vec<_>, _>>()?;
+    let joined = rendered.iter().map(String::len).sum::<usize>()
+        + separator
+            .len()
+            .saturating_mul(rendered.len().saturating_sub(1));
+    crate::work_meter::count(crate::work_meter::searched(joined))?;
+    Ok(rendered.join(separator))
+}
+
+fn split_text(value: &str, args: &[VmValue]) -> Result<VmValue, VmExecutionError> {
+    let (separator, limit) = match args {
+        [] => (None, None),
+        [separator] => (split_separator(separator)?, None),
+        [separator, maxsplit] => (
+            split_separator(separator)?,
+            usize::try_from(string_methods::index_size(maxsplit)?).ok(),
+        ),
+        _ => {
+            return Err(VmExecutionError::new(
                 "str.split() expects between zero and two arguments",
-            )),
-        },
-        other => Ok(NativeMethodResult::Value(string_methods::call(
-            &value, other, &args,
-        )?)),
+            ))
+        }
+    };
+    Ok(VmValue::List(
+        split_string(value, separator.as_deref(), limit)?
+            .into_iter()
+            .map(VmValue::String)
+            .collect(),
+    ))
+}
+
+fn split_separator(separator: &VmValue) -> Result<Option<String>, VmExecutionError> {
+    match separator {
+        VmValue::None => Ok(None),
+        separator => separator.as_string().map(Some),
     }
 }
 
@@ -653,5 +647,87 @@ fn call_dict_method(
             "unsupported dict method '{}()'",
             other
         ))),
+    }
+}
+
+#[cfg(test)]
+mod string_method_tests {
+    use super::*;
+
+    fn text(value: &str) -> VmValue {
+        VmValue::String(value.into())
+    }
+
+    fn call(receiver: &str, method: &str, args: Vec<VmValue>) -> Result<VmValue, String> {
+        let mut collect = |value: &VmValue| match value.snapshot() {
+            VmValue::List(items) => Ok(items),
+            _ => Err(VmExecutionError::new("not iterable")),
+        };
+        match call_native_method_collected(text(receiver), method, args, vec![], &mut collect) {
+            Ok(NativeMethodResult::Value(value)) => Ok(value),
+            Ok(NativeMethodResult::Mutated { .. }) => Err("unexpected mutation".into()),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
+    #[test]
+    fn replace_honours_counts_and_reports_arity() {
+        let ab = || vec![text("a"), text("b")];
+        assert_eq!(call("aaa", "replace", ab()), Ok(text("bbb")));
+        assert_eq!(
+            call("aaa", "replace", [ab(), vec![vm_int(2)]].concat()),
+            Ok(text("bba"))
+        );
+        assert_eq!(
+            call("aaa", "replace", [ab(), vec![vm_int(0)]].concat()),
+            Ok(text("aaa"))
+        );
+        assert_eq!(
+            call("aaa", "replace", [ab(), vec![vm_int(-1)]].concat()),
+            Ok(text("bbb"))
+        );
+        assert!(call("aaa", "replace", vec![text("a")])
+            .unwrap_err()
+            .contains("two or three arguments"));
+        // The count is validated before the replaced text.
+        let error = call("a", "replace", vec![vm_int(1), text("b"), text("x")]).unwrap_err();
+        assert!(error.contains("integer"), "{error}");
+    }
+
+    #[test]
+    fn split_and_join_keep_python_results() {
+        let list = |items: &[&str]| VmValue::List(items.iter().map(|item| text(item)).collect());
+        assert_eq!(call(" a  b ", "split", vec![]), Ok(list(&["a", "b"])));
+        assert_eq!(
+            call("a,b,c", "split", vec![text(",")]),
+            Ok(list(&["a", "b", "c"]))
+        );
+        assert_eq!(
+            call("a b c", "split", vec![VmValue::None, vm_int(1)]),
+            Ok(list(&["a", "b c"]))
+        );
+        assert_eq!(
+            call("a,b,c", "split", vec![text(","), vm_int(-1)]),
+            Ok(list(&["a", "b", "c"]))
+        );
+        assert!(call("a", "split", vec![text(","), vm_int(1), vm_int(2)])
+            .unwrap_err()
+            .contains("between zero and two"));
+        assert_eq!(call("-", "join", vec![list(&["x", "y"])]), Ok(text("x-y")));
+        assert!(call("-", "join", vec![])
+            .unwrap_err()
+            .contains("one argument"));
+    }
+
+    #[test]
+    fn case_and_class_methods_take_no_arguments() {
+        assert_eq!(call("aB", "upper", vec![]), Ok(text("AB")));
+        assert_eq!(call("aB", "lower", vec![]), Ok(text("ab")));
+        assert_eq!(call("aé", "isascii", vec![]), Ok(VmValue::Bool(false)));
+        assert_eq!(call("ab", "isalpha", vec![]), Ok(VmValue::Bool(true)));
+        assert_eq!(
+            call("ab", "isalnum", vec![text("x")]),
+            Err("str.isalnum() expects no arguments".into())
+        );
     }
 }

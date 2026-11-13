@@ -1,11 +1,9 @@
 //! Bounded Python-style rendering, including shared and recursive containers.
 use crate::{VmExecutionError, VmValue};
-use std::collections::HashSet;
-
 #[derive(Default)]
 struct Renderer {
     output: String,
-    active: HashSet<usize>,
+    active: crate::heap::AddressSet,
     nodes: usize,
 }
 
