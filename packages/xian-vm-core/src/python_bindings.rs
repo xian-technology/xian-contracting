@@ -1530,5 +1530,6 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(_stored_value_debug, module)?)?;
     module.add_function(wrap_pyfunction!(_vm_value_debug, module)?)?;
     crate::lmdb_python::register(py, module)?;
+    crate::block_state_python::register(module)?;
     Ok(())
 }

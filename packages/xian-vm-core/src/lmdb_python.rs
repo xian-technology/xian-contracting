@@ -14,7 +14,7 @@ use std::path::PathBuf;
 create_exception!(xian_vm_core, LmdbStorageError, PyException);
 create_exception!(xian_vm_core, LmdbMapFullError, LmdbStorageError);
 
-fn to_py(error: LmdbError) -> PyErr {
+pub(crate) fn lmdb_error_to_py(error: LmdbError) -> PyErr {
     match error {
         LmdbError::MapFull => LmdbMapFullError::new_err(error.to_string()),
         other => LmdbStorageError::new_err(other.to_string()),
@@ -68,7 +68,7 @@ impl PyLmdbEnvironment {
         };
         LmdbEnv::open(&path, options)
             .map(|env| Self { env })
-            .map_err(to_py)
+            .map_err(lmdb_error_to_py)
     }
 
     fn close(&self) {
@@ -81,22 +81,22 @@ impl PyLmdbEnvironment {
     }
 
     fn map_size(&self) -> PyResult<usize> {
-        self.env.map_size().map_err(to_py)
+        self.env.map_size().map_err(lmdb_error_to_py)
     }
 
     fn set_map_size(&self, map_size: usize) -> PyResult<()> {
-        self.env.set_map_size(map_size).map_err(to_py)
+        self.env.set_map_size(map_size).map_err(lmdb_error_to_py)
     }
 
     fn entries(&self) -> PyResult<usize> {
-        self.env.read(|txn| txn.entries()).map_err(to_py)
+        self.env.read(|txn| txn.entries()).map_err(lmdb_error_to_py)
     }
 
     fn get(&self, py: Python<'_>, key: &[u8]) -> PyResult<Option<Py<PyBytes>>> {
         let value = self
             .env
             .read(|txn| Ok(txn.get(key)?.map(<[u8]>::to_vec)))
-            .map_err(to_py)?;
+            .map_err(lmdb_error_to_py)?;
         Ok(value.map(|value| bytes(py, &value)))
     }
 
@@ -109,14 +109,14 @@ impl PyLmdbEnvironment {
         let (value, entries) = self
             .env
             .read(|txn| Ok((txn.get(key)?.map(<[u8]>::to_vec), txn.entries()?)))
-            .map_err(to_py)?;
+            .map_err(lmdb_error_to_py)?;
         Ok((value.map(|value| bytes(py, &value)), entries))
     }
 
     fn exists(&self, key: &[u8]) -> PyResult<bool> {
         self.env
             .read(|txn| Ok(txn.get(key)?.is_some()))
-            .map_err(to_py)
+            .map_err(lmdb_error_to_py)
     }
 
     /// Apply puts (`value` bytes) and deletes (`value` None) in one transaction.
@@ -131,7 +131,7 @@ impl PyLmdbEnvironment {
                 }
                 Ok(())
             })
-            .map_err(to_py)
+            .map_err(lmdb_error_to_py)
     }
 
     /// Apply `changes` only to an empty database, in the same transaction that
@@ -149,7 +149,7 @@ impl PyLmdbEnvironment {
                 written = true;
                 Ok(())
             })
-            .map_err(to_py)?;
+            .map_err(lmdb_error_to_py)?;
         Ok(written)
     }
 
@@ -166,12 +166,12 @@ impl PyLmdbEnvironment {
                 })?;
                 doomed.iter().try_for_each(|key| txn.delete(key))
             })
-            .map_err(to_py)
+            .map_err(lmdb_error_to_py)
     }
 
     /// Remove every entry (the database itself stays).
     fn clear(&self) -> PyResult<()> {
-        self.env.write(|txn| txn.clear()).map_err(to_py)
+        self.env.write(|txn| txn.clear()).map_err(lmdb_error_to_py)
     }
 
     fn keys(&self, py: Python<'_>, prefix: &[u8]) -> PyResult<Vec<Py<PyBytes>>> {
@@ -186,7 +186,7 @@ impl PyLmdbEnvironment {
                     Ok(inside)
                 })
             })
-            .map_err(to_py)?;
+            .map_err(lmdb_error_to_py)?;
         Ok(keys.iter().map(|key| bytes(py, key)).collect())
     }
 
@@ -202,7 +202,7 @@ impl PyLmdbEnvironment {
                     Ok(inside)
                 })
             })
-            .map_err(to_py)?;
+            .map_err(lmdb_error_to_py)?;
         Ok(items
             .iter()
             .map(|(key, value)| (bytes(py, key), bytes(py, value)))
@@ -238,7 +238,7 @@ impl PyLmdbEnvironment {
                     Ok(true)
                 })
             })
-            .map_err(to_py)?;
+            .map_err(lmdb_error_to_py)?;
         Ok((keys.iter().map(|key| bytes(py, key)).collect(), more))
     }
 
@@ -258,13 +258,13 @@ impl PyLmdbEnvironment {
                     Ok(true)
                 })
             })
-            .map_err(to_py)?;
+            .map_err(lmdb_error_to_py)?;
         Ok(found.map(|key| bytes(py, &key)))
     }
 
     /// Entries under `prefix` in key order, read lazily from one snapshot.
     fn iter_items(&self, prefix: &[u8]) -> PyResult<PyLmdbItems> {
-        let cursor = self.env.cursor_from(prefix).map_err(to_py)?;
+        let cursor = self.env.cursor_from(prefix).map_err(lmdb_error_to_py)?;
         Ok(PyLmdbItems {
             cursor: std::sync::Mutex::new(Some(cursor)),
             prefix: prefix.to_vec(),
@@ -293,7 +293,7 @@ impl PyLmdbItems {
         let Some(cursor) = slot.as_mut() else {
             return Ok(None);
         };
-        match cursor.next_entry().map_err(to_py)? {
+        match cursor.next_entry().map_err(lmdb_error_to_py)? {
             Some((key, value)) if key.starts_with(&self.prefix) => {
                 Ok(Some((bytes(py, &key), bytes(py, &value))))
             }

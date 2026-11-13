@@ -32,6 +32,7 @@ from contracting.storage.ordered import iter_overlay_items
 
 from ._native import (
     MAX_STORAGE_KEY_BYTES,
+    BlockState,
     LmdbEnvironment,
     LmdbItems,
     LmdbMapFullError,
@@ -809,6 +810,7 @@ def _construct_function_name(module_ir: dict[str, Any]) -> str | None:
 
 __all__ = [
     "MAX_STORAGE_KEY_BYTES",
+    "BlockState",
     "LmdbEnvironment",
     "LmdbItems",
     "LmdbMapFullError",

@@ -24,6 +24,8 @@ pub use iteration::{VmDictView, VmIterator, VmRange};
 mod rendering;
 mod scalar_methods;
 pub use heap::VmReference;
+#[cfg(any(feature = "python-extension", test))]
+mod block_state;
 mod decimal_backend;
 mod decimal_metering;
 mod decimal_methods;
@@ -58,6 +60,8 @@ pub use interpreter::*;
 pub use metering::*;
 pub use values::*;
 
+#[cfg(feature = "python-extension")]
+mod block_state_python;
 #[cfg(feature = "python-extension")]
 mod lmdb_python;
 #[cfg(feature = "python-extension")]
