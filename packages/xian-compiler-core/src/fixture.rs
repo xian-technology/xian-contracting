@@ -2,9 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::artifact::{validate_contract_artifact, ContractArtifact};
-use crate::constants::{
-    COMPILER_FIXTURE_SCHEMA_V1, CONTRACT_ARTIFACT_FORMAT_V1, validate_profile,
-};
+use crate::constants::{validate_profile, COMPILER_FIXTURE_SCHEMA_V1, CONTRACT_ARTIFACT_FORMAT_V1};
 use crate::diagnostic::{CompilerDiagnostic, DiagnosticSeverity};
 use crate::error::{ensure_eq, ensure_non_empty, ValidationError};
 
@@ -83,7 +81,11 @@ impl CompilerFixture {
         let artifact = self.artifact.as_ref().ok_or_else(|| {
             ValidationError::field("artifact", "accepted fixture requires artifact")
         })?;
-        ensure_eq("artifact.vm_profile", &artifact.vm_profile, &self.vm_profile)?;
+        ensure_eq(
+            "artifact.vm_profile",
+            &artifact.vm_profile,
+            &self.vm_profile,
+        )?;
         ensure_eq("artifact.source", &artifact.source, normalized_source)?;
 
         let expected_vm_ir = self

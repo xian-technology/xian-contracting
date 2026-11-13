@@ -5,7 +5,7 @@ use serde_json::{json, Number, Value};
 
 use crate::artifact::{build_contract_artifact, ContractArtifact};
 use crate::compiler::CompileOptions;
-use crate::constants::{XIAN_IR_V1, XIAN_VM_HOST_CATALOG_V1, validate_profile};
+use crate::constants::{validate_profile, XIAN_IR_V1, XIAN_VM_HOST_CATALOG_V1};
 use crate::diagnostic::{CompilerDiagnostic, SourceRange};
 use crate::frontend::parse_source;
 use crate::limits::{validate_ir_json_limits, MAX_CONTRACT_HANDLE_INFERENCE_PASSES};

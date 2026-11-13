@@ -16,6 +16,9 @@ pub const XIAN_VM_V2_ADMISSION_REVISION: &str = "xian-admission-2";
 pub(crate) fn validate_profile(profile: &str) -> Result<(), crate::ValidationError> {
     match profile {
         XIAN_VM_V1_PROFILE | XIAN_VM_V2_PROFILE => Ok(()),
-        _ => Err(crate::ValidationError::field("vm_profile", format!("unsupported profile '{profile}'"))),
+        _ => Err(crate::ValidationError::field(
+            "vm_profile",
+            format!("unsupported profile '{profile}'"),
+        )),
     }
 }

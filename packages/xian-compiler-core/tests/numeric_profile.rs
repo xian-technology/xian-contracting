@@ -49,7 +49,11 @@ fn v2_rejects_unrepresentable_numbers_and_retired_numeric_apis() {
 
 #[test]
 fn quoted_nested_float_and_raw_decimal_annotations_are_rejected() {
-    for annotation in ["list['float']", "'dict[str,float]'", "list['decimal.Decimal']"] {
+    for annotation in [
+        "list['float']",
+        "'dict[str,float]'",
+        "list['decimal.Decimal']",
+    ] {
         let source = format!("@export\ndef probe(x: {annotation}):\n    return x");
         assert!(compile_contract_artifact("con_numeric", &source, &options()).is_err());
     }
@@ -103,12 +107,16 @@ fn integer_limit_and_artifact_profile_are_enforced() {
 
 #[test]
 fn omitted_compiler_options_preserve_numeric_source_digits() {
-    let fixture: Value = serde_json::from_str(include_str!("fixtures/con_numeric_v2.json")).unwrap();
+    let fixture: Value =
+        serde_json::from_str(include_str!("fixtures/con_numeric_v2.json")).unwrap();
     let source = fixture["input_source"].as_str().unwrap();
     let module = fixture["module_name"].as_str().unwrap();
     let unit = xian_compiler_core::SourceUnit::new(module, source).unwrap();
     assert_eq!(unit.vm_profile(), "xian_vm_v2");
-    for options in [CompileOptions::default(), serde_json::from_str("{}").unwrap()] {
+    for options in [
+        CompileOptions::default(),
+        serde_json::from_str("{}").unwrap(),
+    ] {
         let result = compile_contract_artifact(module, source, &options).unwrap();
         assert_eq!(serde_json::to_value(result).unwrap(), fixture["artifact"]);
     }

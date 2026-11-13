@@ -12,7 +12,10 @@ use crate::source::SourceUnit;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SyntaxModule {
-    #[serde(default = "legacy_syntax_profile", skip_serializing_if = "is_legacy_syntax_profile")]
+    #[serde(
+        default = "legacy_syntax_profile",
+        skip_serializing_if = "is_legacy_syntax_profile"
+    )]
     pub vm_profile: String,
     pub module_name: String,
     pub source_sha256: String,
@@ -892,7 +895,9 @@ impl<'a> SyntaxBuilder<'a> {
             Constant::Float(_) if exact => {
                 // RustPython rounds the AST payload to f64. Its UTF-8 range
                 // still identifies all original numeric digits, including in interpolations.
-                let source = self.parsed.source()
+                let source = self
+                    .parsed
+                    .source()
                     .get(range.start().to_usize()..range.end().to_usize())
                     .unwrap_or("");
                 match xian_numeric::canonical_decimal(&source.replace('_', "")) {
@@ -1035,7 +1040,8 @@ fn ambiguous_format_literal(part: &ast::Expr) -> bool {
     let ast::Expr::Constant(ast::ExprConstant {
         value: Constant::Str(text),
         ..
-    }) = part else {
+    }) = part
+    else {
         return false;
     };
     text.contains(|ch: char| ch.is_control() || matches!(ch, '\\' | '{' | '}' | '\'' | '"'))
