@@ -23,21 +23,23 @@ from contracting import constants
 from contracting.compilation.compiler import ContractingCompiler
 from contracting.compilation.vm import DEFAULT_VM_PROFILE, SUPPORTED_VM_PROFILES, XIAN_VM_V2_PROFILE
 from contracting.names import assert_safe_contract_name
+from contracting.storage.keys import (  # noqa: F401 - re-exported storage key names
+    AUTHOR_KEY,
+    DEPLOYER_KEY,
+    DEVELOPER_KEY,
+    INITIATOR_KEY,
+    OWNER_KEY,
+    SOURCE_KEY,
+    TIME_KEY,
+    TYPE_KEY,
+    XIAN_VM_V1_IR_KEY,
+)
 from contracting.storage.lmdb_store import LMDBStore
 from contracting.storage.ordered import iter_overlay_items
 
 INDEX_SEPARATOR = constants.INDEX_SEPARATOR
 HASH_DELIMITER = constants.DELIMITER
 _MISSING = object()
-SOURCE_KEY = "__source__"
-XIAN_VM_V1_IR_KEY = "__xian_ir_v1__"
-TYPE_KEY = "__type__"
-AUTHOR_KEY = "__author__"
-OWNER_KEY = "__owner__"
-TIME_KEY = "__submitted__"
-DEVELOPER_KEY = "__developer__"
-DEPLOYER_KEY = "__deployer__"
-INITIATOR_KEY = "__initiator__"
 
 
 def _copy_mutable_value(value):

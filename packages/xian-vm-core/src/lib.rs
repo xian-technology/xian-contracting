@@ -29,6 +29,7 @@ mod decimal_metering;
 mod decimal_methods;
 mod decimal_tuple;
 mod interpreter;
+pub mod lmdb_env;
 mod metering;
 #[cfg(any(feature = "python-extension", test))]
 mod module_cache;
@@ -55,6 +56,8 @@ pub use interpreter::*;
 pub use metering::*;
 pub use values::*;
 
+#[cfg(feature = "python-extension")]
+mod lmdb_python;
 #[cfg(feature = "python-extension")]
 mod python_bindings;
 

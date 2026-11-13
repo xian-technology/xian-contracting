@@ -5,13 +5,13 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import lmdb
 from xian_runtime_types.encoding import decode, encode
 
 from contracting.storage.content_cache import ContentKeyedCache
 from contracting.storage.lmdb_environment import (
     DEFAULT_ENVIRONMENT_POOL,
     LMDBEnvironmentOptions,
+    LMDBMapFullError,
 )
 
 # Stored texts at least this large (contract IR, source) are decoded once per
@@ -40,12 +40,11 @@ class LMDBStore:
             LMDBEnvironmentOptions(map_size=map_size),
         )
         self._env = self._lease.env
-        self._db = self._env.open_db()
         # Texts are immutable, so readers can share one decoded copy.
         self._texts = ContentKeyedCache(max_entries=256)
 
     def _require_open(self):
-        if self._env is None or self._db is None or self._lease is None:
+        if self._env is None or self._lease is None:
             raise RuntimeError("LMDBStore is closed")
         return self._env
 
@@ -53,7 +52,6 @@ class LMDBStore:
         if self._env is not None:
             self._lease.close()
             self._env = None
-            self._db = None
             self._lease = None
 
     def __enter__(self):
@@ -74,19 +72,18 @@ class LMDBStore:
         self._require_open()
         self._lease.resize(self._map_size)
 
-    def _run_write_transaction(self, operation):
+    def _run_write(self, operation):
+        """Run one atomic write, growing the map until it fits."""
         while True:
             try:
-                with self._require_open().begin(write=True) as txn:
-                    operation(txn)
+                operation(self._require_open())
                 return
-            except lmdb.MapFullError:
+            except LMDBMapFullError:
                 self._grow_map()
 
     def get(self, key: str):
         encoded_key = key.encode("utf-8")
-        with self._require_open().begin() as txn:
-            value = txn.get(encoded_key)
+        value = self._require_open().get(encoded_key)
         if value is None:
             return None
         if len(value) < REUSED_TEXT_MIN_BYTES:
@@ -104,41 +101,25 @@ class LMDBStore:
     def batch_set(self, writes: dict[str, object]):
         if not writes:
             return
-
-        def operation(txn):
-            for key, value in writes.items():
-                encoded_key = key.encode("utf-8")
-                if value is None:
-                    txn.delete(encoded_key)
-                else:
-                    txn.put(encoded_key, encode(value, vm_profile=self.vm_profile).encode("utf-8"))
-
-        self._run_write_transaction(operation)
+        changes = [
+            (
+                key.encode("utf-8"),
+                None
+                if value is None
+                else encode(value, vm_profile=self.vm_profile).encode("utf-8"),
+            )
+            for key, value in writes.items()
+        ]
+        self._run_write(lambda env: env.write(changes))
 
     def keys(self, prefix: str = ""):
-        prefix_bytes = prefix.encode("utf-8")
-        keys = []
-        with self._require_open().begin() as txn:
-            cursor = txn.cursor()
-            if prefix_bytes:
-                if not cursor.set_range(prefix_bytes):
-                    return keys
-            elif not cursor.first():
-                return keys
-
-            for key_bytes in cursor.iternext(values=False):
-                if prefix_bytes and not key_bytes.startswith(prefix_bytes):
-                    break
-                keys.append(key_bytes.decode("utf-8"))
-        return keys
+        return [key.decode("utf-8") for key in self._require_open().keys(prefix.encode("utf-8"))]
 
     def first_key_with_suffix(self, suffixes: tuple[str, ...]) -> str | None:
-        encoded_suffixes = tuple(suffix.encode("utf-8") for suffix in suffixes)
-        with self._require_open().begin() as txn:
-            for key in txn.cursor().iternext(values=False):
-                if key.endswith(encoded_suffixes):
-                    return key.decode("utf-8")
-        return None
+        key = self._require_open().first_key_with_suffix(
+            [suffix.encode("utf-8") for suffix in suffixes]
+        )
+        return None if key is None else key.decode("utf-8")
 
     def scan_keys(
         self,
@@ -154,78 +135,34 @@ class LMDBStore:
             return [], False
 
         start_bytes = max(prefix_bytes, after_key_bytes or b"")
-
-        with self._require_open().begin() as txn:
-            cursor = txn.cursor()
-            if not cursor.set_range(start_bytes):
-                return [], False
-            return self._read_key_page(cursor, prefix_bytes, after_key_bytes, normalized_limit)
-
-    @staticmethod
-    def _read_key_page(cursor, prefix_bytes, after_key_bytes, limit):
-        keys = []
-        for key_bytes in cursor.iternext(values=False):
-            if not key_bytes.startswith(prefix_bytes):
-                break
-            if after_key_bytes is not None and key_bytes <= after_key_bytes:
-                continue
-            if len(keys) >= limit:
-                return keys, True
-            keys.append(key_bytes.decode("utf-8"))
-        return keys, False
+        keys, more = self._require_open().key_page(
+            prefix_bytes, start_bytes, after_key_bytes, normalized_limit
+        )
+        return [key.decode("utf-8") for key in keys], more
 
     def iter_items(self, prefix: str = ""):
         """Yield decoded entries in UTF-8 key order from one read snapshot."""
-        prefix_bytes = prefix.encode("utf-8")
-        with self._require_open().begin() as txn:
-            cursor = txn.cursor()
-            if not cursor.set_range(prefix_bytes):
-                return
-            for key_bytes, value_bytes in cursor:
-                if not key_bytes.startswith(prefix_bytes):
-                    break
+        entries = self._require_open().iter_items(prefix.encode("utf-8"))
+        try:
+            for key_bytes, value_bytes in entries:
                 yield key_bytes.decode("utf-8"), decode(value_bytes, vm_profile=self.vm_profile)
+        finally:
+            entries.close()
 
     def items(self, prefix: str = ""):
-        prefix_bytes = prefix.encode("utf-8")
-        items = {}
-        with self._require_open().begin() as txn:
-            cursor = txn.cursor()
-            if prefix_bytes:
-                if not cursor.set_range(prefix_bytes):
-                    return items
-            elif not cursor.first():
-                return items
-
-            for key_bytes, value_bytes in cursor:
-                if prefix_bytes and not key_bytes.startswith(prefix_bytes):
-                    break
-                items[key_bytes.decode("utf-8")] = decode(value_bytes, vm_profile=self.vm_profile)
-        return items
+        return {
+            key_bytes.decode("utf-8"): decode(value_bytes, vm_profile=self.vm_profile)
+            for key_bytes, value_bytes in self._require_open().items(prefix.encode("utf-8"))
+        }
 
     def delete(self, key: str):
-        self._run_write_transaction(lambda txn: txn.delete(key.encode("utf-8")))
+        self._run_write(lambda env: env.write([(key.encode("utf-8"), None)]))
 
     def delete_prefix(self, prefix: str):
-        prefix_bytes = prefix.encode("utf-8")
-
-        def operation(txn):
-            cursor = txn.cursor()
-            if not cursor.set_range(prefix_bytes):
-                return
-            to_delete = []
-            for key_bytes in cursor.iternext(values=False):
-                if not key_bytes.startswith(prefix_bytes):
-                    break
-                to_delete.append(key_bytes)
-            for key_bytes in to_delete:
-                txn.delete(key_bytes)
-
-        self._run_write_transaction(operation)
+        self._run_write(lambda env: env.delete_prefix(prefix.encode("utf-8")))
 
     def flush(self):
-        self._run_write_transaction(lambda txn: txn.drop(self._db, delete=False))
+        self._run_write(lambda env: env.clear())
 
     def exists(self, key: str) -> bool:
-        with self._require_open().begin() as txn:
-            return txn.get(key.encode("utf-8")) is not None
+        return self._require_open().exists(key.encode("utf-8"))

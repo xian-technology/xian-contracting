@@ -19,7 +19,7 @@ from contracting.runtime_features import (
 from contracting.stdlib.bridge import random as random_bridge
 from contracting.stdlib.bridge import zk as zk_bridge
 from contracting.storage.content_cache import ContentKeyedCache
-from contracting.storage.driver import (
+from contracting.storage.keys import (
     DEPLOYER_KEY,
     DEVELOPER_KEY,
     INITIATOR_KEY,
@@ -31,6 +31,10 @@ from contracting.storage.driver import (
 from contracting.storage.ordered import iter_overlay_items
 
 from ._native import (
+    LmdbEnvironment,
+    LmdbItems,
+    LmdbMapFullError,
+    LmdbStorageError,
     VmIrValidationError,
     VmRuntimeExecutionError,
     _TransactionBudget,
@@ -789,6 +793,10 @@ def _construct_function_name(module_ir: dict[str, Any]) -> str | None:
 
 
 __all__ = [
+    "LmdbEnvironment",
+    "LmdbItems",
+    "LmdbMapFullError",
+    "LmdbStorageError",
     "NativeExecutionResult",
     "NativeVmHost",
     "VmIrValidationError",

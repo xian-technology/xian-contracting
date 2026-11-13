@@ -6,7 +6,6 @@ from cachetools import LRUCache
 
 from contracting import constants
 from contracting.execution.runtime import rt
-from contracting.storage.driver import Driver
 
 
 @lru_cache(maxsize=1)
@@ -95,7 +94,13 @@ def _validate_vk_id(vk_id: str):
 
 
 def _driver():
-    return rt.env.get("__Driver") or Driver()
+    driver = rt.env.get("__Driver")
+    if driver is not None:
+        return driver
+    # The storage engine loads the native VM module, which loads this bridge.
+    from contracting.storage.driver import Driver
+
+    return Driver()
 
 
 def _registry_field(vk_id: str, field: str):

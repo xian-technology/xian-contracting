@@ -1481,5 +1481,6 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
         module
     )?)?;
     module.add_function(wrap_pyfunction!(execute_bundle, module)?)?;
+    crate::lmdb_python::register(py, module)?;
     Ok(())
 }

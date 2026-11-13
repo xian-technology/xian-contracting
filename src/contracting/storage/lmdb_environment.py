@@ -1,12 +1,26 @@
-"""Process-local LMDB environment pooling."""
+"""Process-local LMDB environment pooling.
+
+Environments are xian_vm_core's Rust-owned LMDB (the pinned release that wrote
+existing state), so the VM and this storage layer share one environment per
+state directory.
+"""
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
 from threading import Lock
 
-import lmdb
+from xian_vm_core import LmdbEnvironment, LmdbMapFullError, LmdbStorageError
+
+# Storage failures (a host fault, never a transaction outcome) and their
+# map-full subclass, which callers handle by growing the map.
+LMDBError = LmdbStorageError
+LMDBMapFullError = LmdbMapFullError
+# Map size of a short-lived environment opened outside the pool.
+STANDALONE_MAP_SIZE = 10 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -30,7 +44,7 @@ class LMDBEnvironmentOptions:
 
 @dataclass
 class _EnvironmentEntry:
-    env: lmdb.Environment
+    env: LmdbEnvironment
     ref_count: int
     path_signature: tuple[int, int]
     options: LMDBEnvironmentOptions
@@ -43,7 +57,7 @@ class LMDBEnvironmentLease:
         self,
         pool: LMDBEnvironmentPool,
         key: Path,
-        env: lmdb.Environment,
+        env: LmdbEnvironment,
     ) -> None:
         self._pool = pool
         self._key = key
@@ -97,9 +111,9 @@ class LMDBEnvironmentPool:
                 self._entries.pop(key, None)
                 self._close_environment(existing.env)
 
-            env = lmdb.open(
+            env = LmdbEnvironment(
                 str(key),
-                map_size=options.map_size,
+                options.map_size,
                 max_dbs=options.max_dbs,
                 readahead=options.readahead,
                 writemap=options.writemap,
@@ -126,12 +140,11 @@ class LMDBEnvironmentPool:
             entry.ref_count += 1
             lease = LMDBEnvironmentLease(self, storage_path, entry.env)
         try:
-            with lease.env.begin() as transaction:
-                return transaction.get(key), transaction.stat()["entries"]
+            return lease.env.get_with_entries(key)
         finally:
             lease.close()
 
-    def release(self, key: Path, env: lmdb.Environment) -> None:
+    def release(self, key: Path, env: LmdbEnvironment) -> None:
         with self._lock:
             existing = self._entries.get(key)
             if existing is None or existing.env is not env:
@@ -148,13 +161,13 @@ class LMDBEnvironmentPool:
     def resize(
         self,
         key: Path,
-        env: lmdb.Environment,
+        env: LmdbEnvironment,
         map_size: int,
     ) -> None:
         with self._lock:
             existing = self._entries.get(key)
             if existing is None or existing.env is not env:
-                env.set_mapsize(map_size)
+                env.set_map_size(map_size)
                 return
             self._resize_entry(existing, map_size)
 
@@ -180,10 +193,10 @@ class LMDBEnvironmentPool:
         raise ValueError(f"LMDB environment already open with incompatible options for {path}")
 
     @staticmethod
-    def _close_environment(env: lmdb.Environment) -> None:
+    def _close_environment(env: LmdbEnvironment) -> None:
         try:
             env.close()
-        except lmdb.Error:
+        except LMDBError:
             pass
 
     @staticmethod
@@ -191,9 +204,9 @@ class LMDBEnvironmentPool:
         entry: _EnvironmentEntry,
         requested_map_size: int,
     ) -> None:
-        current_map_size = entry.env.info()["map_size"]
+        current_map_size = entry.env.map_size()
         if requested_map_size > current_map_size:
-            entry.env.set_mapsize(requested_map_size)
+            entry.env.set_map_size(requested_map_size)
         if requested_map_size > entry.options.map_size:
             entry.options = replace(
                 entry.options,
@@ -202,3 +215,18 @@ class LMDBEnvironmentPool:
 
 
 DEFAULT_ENVIRONMENT_POOL = LMDBEnvironmentPool()
+
+
+@contextmanager
+def standalone_environment(
+    path: str | Path, *, readonly: bool = False, lock: bool = True
+) -> Iterator[LmdbEnvironment]:
+    """Open an existing state directory outside the pool, closed on exit.
+
+    For startup checks that run before (or instead of) the pooled storage.
+    """
+    env = LmdbEnvironment(str(path), STANDALONE_MAP_SIZE, readonly=readonly, lock=lock)
+    try:
+        yield env
+    finally:
+        env.close()

@@ -77,9 +77,9 @@ def test_profile_driver_persists_canonical_numbers_and_rejects_bad_batches(tmp_p
         with pytest.raises(TypeError):
             driver.apply_writes({"ledger.good": 1, "ledger.bad": [0.25]})
         assert driver.find("ledger.good") is None
-        with driver._store._env.begin() as txn:
-            assert txn.get(b"ledger.balance") == b'{"__fixed__":"0.00000000000000000000000000001"}'
-            assert txn.get(b"ledger.large") == b'{"__big_int__":"9007199254740992"}'
+        env = driver._store._env
+        assert env.get(b"ledger.balance") == b'{"__fixed__":"0.00000000000000000000000000001"}'
+        assert env.get(b"ledger.large") == b'{"__big_int__":"9007199254740992"}'
     with Driver(storage_home=tmp_path, vm_profile=PROFILE) as driver:
         assert driver.get("ledger.balance") == Decimal("1e-29")
 
