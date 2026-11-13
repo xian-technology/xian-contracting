@@ -1,7 +1,9 @@
 """V2 writes at LMDB's 511-byte storage key limit.
 
 A key of exactly 511 bytes is committed and reopened in every scenario; one
-byte more fails the transaction at the write.
+byte more fails the transaction at the write. A variable key reaches 511 bytes
+only with the longest admitted binding (446 bytes) under a 64-byte contract
+name; admission rejects a longer binding, so there is no failing variable case.
 """
 
 LIMIT = 511
@@ -18,6 +20,8 @@ def _hash_write(suffix_bytes, shape):
 
 
 def _case(name, key_bytes, shape):
+    if shape == "variable":  # pad the contract name to the 64-byte maximum
+        name = f"{name}_" + "x" * (64 - len(f"{PREFIX}storage_key_v2_{name}_"))
     contract = f"{PREFIX}storage_key_v2_{name}"
     if shape == "variable":
         binding = "v" * (key_bytes - len(contract) - 1)  # contract.binding
@@ -41,5 +45,4 @@ def storage_key_cases():
         _case("utf8_over", LIMIT + 1, "utf8"),
         _case("multi_over", LIMIT + 1, "multi"),
         _case("variable_largest", LIMIT, "variable"),
-        _case("variable_over", LIMIT + 1, "variable"),
     ]

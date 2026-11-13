@@ -126,7 +126,7 @@ mod tests {
         );
         assert_eq!(
             version.admission_revisions["xian_vm_v2"],
-            "xian-admission-2"
+            "xian-admission-3"
         );
         assert_eq!(version.limits.max_source_bytes, 131_072);
         assert_eq!(version.limits.max_syntax_nodes, 50_000);

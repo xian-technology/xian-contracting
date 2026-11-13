@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use crate::constants::{MAX_CONTRACT_NAME_BYTES, MAX_STORAGE_KEY_BYTES};
 use crate::diagnostic::{CompilerDiagnostic, SourceRange};
 use crate::syntax::{
     SyntaxBinaryOperator, SyntaxConstant, SyntaxDictEntry, SyntaxExpression, SyntaxImportAlias,
@@ -511,6 +512,9 @@ impl SyntaxLinter {
                 }
                 if let Some(first_target) = targets.first() {
                     if let Some(name) = name_expr(first_target) {
+                        if self.exact_numbers && AUTO_NAMED_ORM_CLASS_NAMES.contains(&orm_name) {
+                            self.check_storage_key_room(orm_name, name, &span);
+                        }
                         self.orm_names.insert(name.to_string());
                     }
                 }
@@ -580,6 +584,24 @@ impl SyntaxLinter {
         }
     }
 
+    // The shortest key a declaration can use is `contract.binding`, plus ':'
+    // and an empty hash key for a hash; it must fit under the longest name.
+    fn check_storage_key_room(&mut self, kind: &str, binding: &str, span: &SourceRange) {
+        let separators = if kind.ends_with("Hash") { 2 } else { 1 };
+        let max_binding = MAX_STORAGE_KEY_BYTES - MAX_CONTRACT_NAME_BYTES - separators;
+        if binding.len() > max_binding {
+            self.push(
+                "E024",
+                format!(
+                    "{kind} name is too long ({} bytes): its storage key could exceed \
+                     {MAX_STORAGE_KEY_BYTES} bytes. Max is {max_binding}.",
+                    binding.len()
+                ),
+                span,
+            );
+        }
+    }
+
     fn check_storage_keyword(&mut self, name: &str, foreign: bool, keyword: &SyntaxKeyword) {
         let message = match keyword.arg.as_deref() {
             Some(arg @ ("contract" | "name")) if !foreign => {
@@ -607,6 +629,18 @@ impl SyntaxLinter {
         span: &SourceRange,
         keywords: &[SyntaxKeyword],
     ) {
+        for keyword in keywords {
+            if let (
+                Some("foreign_name"),
+                SyntaxExpression::Constant {
+                    value: SyntaxConstant::Str(foreign_name),
+                    ..
+                },
+            ) = (keyword.arg.as_deref(), &keyword.value)
+            {
+                self.check_storage_key_room(name, foreign_name, &keyword.span);
+            }
+        }
         for required in FOREIGN_STORAGE_KEYWORDS {
             if !keywords
                 .iter()
@@ -1170,6 +1204,51 @@ mod tests {
             "{source}\n@export\ndef ping() -> int:\n    return 1\n"
         ));
         assert!(v2.contains(&"xian.lint.E012".to_string()), "{v2:?}");
+    }
+
+    #[test]
+    fn lint_rejects_storage_whose_key_cannot_fit_whatever_the_contract_name() {
+        // A 64-byte contract name, '.', the binding and, for a hash, ':' must
+        // fit LMDB's 511-byte storage key, so a variable binding may have 446
+        // bytes and a hash binding 445.
+        let fits = |code: &str| {
+            let diagnostics = lint_source(&format!(
+                "{code}\n@export\ndef ping(token: str) -> Any:\n    return 1\n"
+            ));
+            let too_long = diagnostics.contains(&"xian.lint.E024".to_string());
+            assert!(
+                diagnostics.iter().all(|code| code == "xian.lint.E024"),
+                "{diagnostics:?}"
+            );
+            !too_long
+        };
+        let name = |len: usize| "n".repeat(len);
+        assert!(fits(&format!("{} = Variable()", name(446))));
+        assert!(!fits(&format!("{} = Variable()", name(447))));
+        assert!(fits(&format!("{} = Hash()", name(445))));
+        assert!(!fits(&format!("{} = Hash()", name(446))));
+        let foreign = |kind: &str, len: usize| {
+            format!(
+                "f = {kind}(foreign_contract='con_other', foreign_name='{}')",
+                name(len)
+            )
+        };
+        assert!(fits(&foreign("ForeignVariable", 446)));
+        assert!(!fits(&foreign("ForeignVariable", 447)));
+        assert!(fits(&foreign("ForeignHash", 445)));
+        assert!(!fits(&foreign("ForeignHash", 446)));
+        // Text counts by its UTF-8 bytes.
+        assert!(!fits(&format!(
+            "f = ForeignHash(foreign_contract='con_other', foreign_name='{}')",
+            "\u{e9}".repeat(223)
+        )));
+        // A function-local foreign target is checked the same way.
+        assert!(!fits(&format!(
+            "def g(t: str):\n    return ForeignVariable(foreign_contract=t, foreign_name='{}')",
+            name(447)
+        )));
+        // Archival V1 admission is unchanged.
+        assert!(lint_v1_source(&format!("{} = Hash()\n", name(600))).is_empty());
     }
 
     #[test]

@@ -94,7 +94,11 @@ fits but whose whole key is longer finds nothing. Before this revision such a
 write succeeded during execution and only LMDB refused it when the block
 committed. Archival V1 keeps its 1,024-character hash key bound and its
 execution results; the storage driver refuses to stage a longer key in every
-profile. Gas is unchanged (`xvm-gas-6`).
+profile. Gas is unchanged (`xvm-gas-6`). V2 contract admission (`xian-admission-3`,
+compiler-core `xian.lint.E024`) rejects a storage declaration whose
+`contract.name` key (plus `:` for a hash) could exceed the limit under the
+longest, 64-byte contract name: variable names may have 446 bytes and hash
+names 445, so only hash entry keys can exceed it at runtime.
 
 One V2 transaction may use at most 1,000,000 chi (`max_tx_chi` in
 `runtime_info()`); a larger or zero budget is capped there. Node fee policies set
