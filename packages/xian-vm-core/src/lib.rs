@@ -46,6 +46,9 @@ pub use decimal_tuple::{VmDecimalExponent, VmDecimalTuple};
 mod python_decimal;
 #[cfg(any(feature = "python-extension", test))]
 mod settlement;
+pub mod state_root;
+#[cfg(any(feature = "python-extension", test))]
+mod state_root_storage;
 #[cfg(any(feature = "python-extension", test))]
 mod state_view;
 mod storage_scan;
@@ -80,6 +83,8 @@ mod block_state_python;
 mod lmdb_python;
 #[cfg(feature = "python-extension")]
 mod python_bindings;
+#[cfg(feature = "python-extension")]
+mod state_root_python;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Span {

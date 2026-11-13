@@ -1064,5 +1064,6 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     crate::block_state_python::register(module)?;
     settlement_python::register(module)?;
     block_executor_python::register(module)?;
+    crate::state_root_python::register(module)?;
     Ok(())
 }
