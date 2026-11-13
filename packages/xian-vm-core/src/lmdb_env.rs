@@ -19,6 +19,11 @@ mod ffi {
     pub enum MDB_txn {}
     pub enum MDB_cursor {}
     pub type MDB_dbi = c_uint;
+    /// `mode_t`: 16 bits on macOS and the BSDs, 32 bits on Linux.
+    #[cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))]
+    pub type mdb_mode_t = u16;
+    #[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "freebsd")))]
+    pub type mdb_mode_t = u32;
 
     #[repr(C)]
     pub struct MDB_val {
@@ -68,7 +73,7 @@ mod ffi {
             env: *mut MDB_env,
             path: *const c_char,
             flags: c_uint,
-            mode: u16,
+            mode: mdb_mode_t,
         ) -> c_int;
         pub fn mdb_env_close(env: *mut MDB_env);
         pub fn mdb_env_set_mapsize(env: *mut MDB_env, size: usize) -> c_int;
