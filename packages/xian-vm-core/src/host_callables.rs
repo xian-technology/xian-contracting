@@ -880,6 +880,7 @@ impl VmInstance {
             block_num: self.context.block_num.clone(),
             block_hash: self.context.block_hash.clone(),
             chain_id: self.context.chain_id.clone(),
+            input_hash: self.context.input_hash.clone(),
         })
     }
 }

@@ -26,6 +26,7 @@ fn host<'a>(fixture: &Fixture, modules: &'a Modules) -> BlockHost<'a> {
         fixture.view.clone(),
         modules,
         HostCharges::new(budget(10_000_000), true, "submission"),
+        &VmExecutionContext::default(),
     )
 }
 
@@ -169,6 +170,7 @@ fn a_metadata_change_past_the_budget_fails_as_the_python_host_reports_it() {
         fixture.view.clone(),
         &modules,
         HostCharges::new(shared.clone(), true, "con_entry"),
+        &VmExecutionContext::default(),
     );
     let refused = metadata::change(
         &mut host,
@@ -194,6 +196,7 @@ fn unmetered_metadata_changes_are_free() {
         fixture.view.clone(),
         &modules,
         HostCharges::new(budget(1), false, "submission"),
+        &VmExecutionContext::default(),
     );
     change(&mut host, "contract.set_owner", &[text("con_x"), int(5)]);
     assert_eq!(host.get("con_x.__owner__").unwrap(), Some(int(5)));

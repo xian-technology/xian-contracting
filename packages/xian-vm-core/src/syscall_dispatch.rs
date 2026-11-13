@@ -70,6 +70,7 @@ impl VmInstance {
                     block_num: self.context.block_num.clone(),
                     block_hash: self.context.block_hash.clone(),
                     chain_id: self.context.chain_id.clone(),
+                    input_hash: self.context.input_hash.clone(),
                 })
             }
             _ => self.dispatch_host_syscall(syscall_id, shared_args, shared_kwargs, host),
@@ -264,6 +265,7 @@ impl VmInstance {
             block_num: self.context.block_num.clone(),
             block_hash: self.context.block_hash.clone(),
             chain_id: self.context.chain_id.clone(),
+            input_hash: self.context.input_hash.clone(),
         })
     }
 

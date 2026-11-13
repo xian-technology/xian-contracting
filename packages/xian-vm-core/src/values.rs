@@ -1172,6 +1172,8 @@ pub struct VmContractCall {
     pub block_num: VmValue,
     pub block_hash: VmValue,
     pub chain_id: VmValue,
+    /// The transaction's `__input_hash` (its random seed input).
+    pub input_hash: VmValue,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1196,6 +1198,8 @@ pub struct VmExecutionContext {
     pub block_num: VmValue,
     pub block_hash: VmValue,
     pub chain_id: VmValue,
+    /// The transaction's `__input_hash` (its random seed input).
+    pub input_hash: VmValue,
 }
 
 impl Default for VmExecutionContext {
@@ -1211,6 +1215,7 @@ impl Default for VmExecutionContext {
             block_num: vm_int(-1),
             block_hash: VmValue::None,
             chain_id: VmValue::None,
+            input_hash: VmValue::None,
         }
     }
 }

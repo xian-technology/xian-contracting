@@ -4,6 +4,8 @@ use crate::interpreter::numeric_v2;
 mod block_executor_python;
 #[path = "committed_reads.rs"]
 mod committed_reads;
+#[path = "random_python.rs"]
+mod random_python;
 #[path = "settlement_python.rs"]
 mod settlement_python;
 use crate::XIAN_VM_V2_PROFILE;
@@ -742,6 +744,12 @@ fn context_from_py(context: &Bound<'_, PyAny>) -> Result<VmExecutionContext, VmE
         .map(py_to_vm)
         .transpose()?
         .unwrap_or(VmValue::None);
+    let input_hash = dict
+        .get_item("__input_hash")
+        .map_err(host_error)?
+        .map(py_to_vm)
+        .transpose()?
+        .unwrap_or(VmValue::None);
 
     Ok(VmExecutionContext {
         this,
@@ -754,6 +762,7 @@ fn context_from_py(context: &Bound<'_, PyAny>) -> Result<VmExecutionContext, VmE
         block_num,
         block_hash,
         chain_id,
+        input_hash,
     })
 }
 
@@ -1064,6 +1073,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     crate::block_state_python::register(module)?;
     settlement_python::register(module)?;
     block_executor_python::register(module)?;
+    random_python::register(module)?;
     crate::state_root_python::register(module)?;
     Ok(())
 }

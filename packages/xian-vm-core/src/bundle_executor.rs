@@ -603,6 +603,7 @@ impl<H: HostServices> VmHost for BundleExecutor<H> {
             block_num: call.block_num.clone(),
             block_hash: call.block_hash.clone(),
             chain_id: call.chain_id.clone(),
+            input_hash: call.input_hash.clone(),
         };
         let result = self.execute_call(
             &target_module,

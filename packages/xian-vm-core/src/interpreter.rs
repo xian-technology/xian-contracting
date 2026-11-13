@@ -2832,6 +2832,7 @@ mod tests {
             block_num: VmValue::None,
             block_hash: VmValue::None,
             chain_id: VmValue::None,
+            input_hash: VmValue::None,
         };
         let mut bad = ReturningHost(VmValue::List(vec![VmValue::Builtin("int".into())]));
         assert!(bad

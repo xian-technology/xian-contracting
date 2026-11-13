@@ -267,6 +267,7 @@ impl VmHost for ParityHarness {
                 block_num: call.block_num,
                 block_hash: call.block_hash,
                 chain_id: call.chain_id,
+                input_hash: call.input_hash,
             },
         )
     }
@@ -807,6 +808,7 @@ fn json_to_context(value: &Map<String, Value>) -> VmExecutionContext {
         block_num: json_to_vm_value(value.get("block_num").unwrap_or(&Value::Null)),
         block_hash: json_to_vm_value(value.get("block_hash").unwrap_or(&Value::Null)),
         chain_id: json_to_vm_value(value.get("chain_id").unwrap_or(&Value::Null)),
+        input_hash: json_to_vm_value(value.get("input_hash").unwrap_or(&Value::Null)),
     }
 }
 

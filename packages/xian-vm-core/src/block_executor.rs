@@ -11,9 +11,10 @@
 //! any of its effects reach the overlay; the node then runs it through the
 //! Python path, in block order. That covers contract submission
 //! (`submission.submit_contract`), contracts using zk host syscalls, host
-//! syscalls other than the contract metadata reads and changes (random,
-//! deploy), preparation and entry rejections, and any value the Python
-//! checks could refuse. The VM's host
+//! syscalls other than the contract metadata reads and changes and random
+//! (deploy), the random calls `block_host::random` leaves to Python,
+//! preparation and entry rejections, and any value the Python checks could
+//! refuse. The VM's host
 //! (`block_host`) reads the overlay and LMDB, hash scans included. A storage
 //! fault stops with `Stop::Fault`.
 use crate::block_host::modules::{exports, runnable};
@@ -353,7 +354,7 @@ impl BlockExecutor {
         let budget = VmBudget::new(budget_raw, XIAN_VM_V2_PROFILE);
         let limit = budget.limit();
         let charges = HostCharges::new(budget.clone(), self.policy.meter_execution, &tx.contract);
-        let host = BlockHost::new(self.view.clone(), &self.modules, charges);
+        let host = BlockHost::new(self.view.clone(), &self.modules, charges, &context);
         validate_bundle_module(&entry, &tx.contract, XIAN_VM_V2_PROFILE)
             .map_err(|error| Stop::Handback(error.to_string()))?;
         let bundle = HashMap::from([(tx.contract.clone(), entry)]);

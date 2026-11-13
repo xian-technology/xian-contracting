@@ -4,7 +4,8 @@
 //! Python path (`Stop::Handback`); a storage failure halts (`Stop::Fault`).
 //!
 //! By concern: `modules` holds the contracts' IR as the node prepares it,
-//! `metadata` the contract metadata reads and changes, `writes` what one
+//! `metadata` the contract metadata reads and changes, `random` the random
+//! syscalls and their per-transaction state, `writes` what one
 //! transaction's host syscalls stage, `charges` what they cost. Every other
 //! host syscall is still handed back.
 #![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
@@ -12,6 +13,7 @@
 mod charges;
 mod metadata;
 pub(crate) mod modules;
+pub(crate) mod random;
 mod writes;
 
 pub(crate) use charges::HostCharges;
@@ -20,7 +22,8 @@ pub(crate) use writes::HostWrites;
 
 use crate::settlement::Stop;
 use crate::state_view::StateView;
-use crate::{VmExecutionError, VmValue};
+use crate::{VmExecutionContext, VmExecutionError, VmValue};
+use random::TxRandom;
 use std::convert::Infallible;
 
 pub(crate) const IR_KEY: &str = "__xian_ir_v1__";
@@ -51,16 +54,24 @@ pub(crate) struct BlockHost<'a> {
     modules: &'a Modules,
     writes: HostWrites,
     charges: HostCharges,
+    random: TxRandom,
     stop: Option<Stop>,
 }
 
 impl<'a> BlockHost<'a> {
-    pub(crate) fn new(view: StateView, modules: &'a Modules, charges: HostCharges) -> Self {
+    /// The host of the transaction whose entry call runs in `context`.
+    pub(crate) fn new(
+        view: StateView,
+        modules: &'a Modules,
+        charges: HostCharges,
+        context: &VmExecutionContext,
+    ) -> Self {
         Self {
             view,
             modules,
             writes: HostWrites::default(),
             charges,
+            random: TxRandom::new(context),
             stop: None,
         }
     }
@@ -141,6 +152,7 @@ impl<'a> BlockHost<'a> {
 
 #[cfg(feature = "python-extension")]
 mod services {
+    use super::random::{self, Refusal};
     use super::{metadata, BlockHost, Ir, OWNER_KEY};
     use crate::bundle_executor::{validate_bundle_module, HostServices};
     use crate::interpreter::vm_variable_storage_key;
@@ -240,10 +252,15 @@ mod services {
             args: Vec<VmValue>,
             kwargs: Vec<(String, VmValue)>,
         ) -> Result<VmValue, VmExecutionError> {
-            match metadata::read(self, syscall_id, &args, &kwargs)
+            if let Some(result) = metadata::read(self, syscall_id, &args, &kwargs)
                 .or_else(|| metadata::change(self, syscall_id, &args, &kwargs))
             {
-                Some(result) => result,
+                return result;
+            }
+            match random::call(&mut self.random, syscall_id, &args, &kwargs) {
+                Some(Ok(value)) => Ok(value),
+                Some(Err(Refusal::Raised(error))) => Err(error),
+                Some(Err(Refusal::Handback(reason))) => self.back(reason),
                 None => self.back(format!("host syscall {syscall_id}")),
             }
         }
