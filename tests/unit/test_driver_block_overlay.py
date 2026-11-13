@@ -10,6 +10,7 @@ import pickle
 import pytest
 from xian_runtime_types.collections import ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
+from xian_runtime_types.encoding import encode
 from xian_runtime_types.time import Datetime, Timedelta
 
 from contracting.storage.driver import Driver
@@ -57,6 +58,27 @@ def test_pending_items_are_in_key_order_with_deletions_as_none(driver):
     driver.delete("con_a.x")
 
     assert driver.pending_items() == [("con_a.x", None), ("con_a.y", 2), ("con_b.x", 1)]
+
+
+def test_pending_stored_items_are_the_bytes_the_commit_writes(driver):
+    # The state root hashes these bytes before Commit; LMDB must end up with
+    # exactly them.
+    for key, value in VALUES.items():
+        driver.set(key, value)
+    driver.delete("con_a.gone")
+    pending = driver.pending_stored_items()
+    assert [key for key, _ in pending] == sorted([*VALUES, "con_a.gone"])
+    assert dict(pending)["con_a.gone"] is None
+    assert {key: raw for key, raw in pending if raw is not None} == {
+        key: encode(value).encode() for key, value in VALUES.items()
+    }
+
+    driver.commit()
+
+    environment = driver.committed_storage()[0]
+    for key, raw in pending:
+        assert environment.get(key.encode()) == raw
+    assert driver.pending_stored_items() == []
 
 
 def test_a_failed_commit_keeps_the_block_for_a_retry(driver, monkeypatch):

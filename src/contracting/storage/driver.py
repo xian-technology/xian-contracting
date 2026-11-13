@@ -185,7 +185,12 @@ class Driver:
 
     def pending_items(self) -> list[tuple[str, object]]:
         """The block's pending writes in key order; a deletion reads as None."""
-        return [(key, self._decode(key, raw)) for key, raw in self._pending.items()]
+        return [(key, self._decode(key, raw)) for key, raw in self.pending_stored_items()]
+
+    def pending_stored_items(self) -> list[tuple[str, bytes | None]]:
+        """The block's pending writes in key order as the bytes Commit stores;
+        a deletion is None."""
+        return list(self._pending.items())
 
     def _decode(self, key: str, raw: bytes | None):
         return None if raw is None else self._store.decode(key, raw)
