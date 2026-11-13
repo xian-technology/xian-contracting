@@ -2,6 +2,9 @@
 name = "xian-fastpath-core"
 version = "0.1.0"
 edition = "2021"
+# Rust 1.98 ships the LLVM fix for rust-lang/rust#157750: older toolchains strip
+# macOS libraries with a misaligned string table that macOS 27 refuses to load.
+rust-version = "1.98"
 license = "MIT"
 description = "Rust fast paths for Xian transaction validation"
 

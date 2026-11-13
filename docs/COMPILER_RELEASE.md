@@ -15,7 +15,8 @@ building and publishing the compiler packages.
 
 ## Maintainer Prerequisites
 
-- Rust toolchain with the `wasm32-unknown-unknown` target installed.
+- Rust 1.98 or newer (each crate's `rust-version`) with the
+  `wasm32-unknown-unknown` target installed.
 - `wasm-pack` on `PATH`.
 - `uv` for Python release validation.
 - `npm` authenticated for the `@xian-tech` organization.
