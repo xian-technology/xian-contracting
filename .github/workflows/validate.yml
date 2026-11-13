@@ -129,3 +129,11 @@ jobs:
 
       - name: Run all optional native extension tests
         run: uv run --no-sync python -m pytest -q -m optional_native
+
+      # Every operation family must cost about as much CPU time per chi as
+      # plain interpreter work. Fixed families measure 0.2-3x the baseline
+      # median while the under-priced families of revision 10 measured
+      # 30-400x; 8x leaves room for shared-runner noise and still fails on
+      # any family priced an order of magnitude too low.
+      - name: Check metering calibration
+        run: uv run --no-sync python scripts/metering_calibration.py --max-ratio 8
