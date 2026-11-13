@@ -5,7 +5,7 @@
 //! digits; division truncates toward zero; 91 digits at most). Anything the
 //! Python code would raise on, or an input this port does not cover, stops
 //! with `Stop::Handback` so the Python path decides it.
-use crate::python_decimal::DecimalSignal;
+use crate::python_decimal::{DecimalSignal, PyDecimal};
 use crate::{VmDecimal, VmValue};
 use num_bigint::BigInt;
 use num_traits::{Signed, Zero};
@@ -144,23 +144,48 @@ pub(crate) fn refund(
     balance.plus(&unused)
 }
 
-/// The balance `vm_metering_writes` writes for a failed transaction:
-/// `max(balance - chi_used / rate, 0)`, which is the integer 0 when the
-/// difference is negative; `None` (no write) when nothing was used.
-pub(crate) fn metered_balance(
+/// What a failed transaction pays for its fee.
+#[derive(Clone, Debug)]
+pub(crate) struct FailureCharge {
+    /// The sender's balance after the fee.
+    pub(crate) balance: VmValue,
+    /// The chi whose fee was paid, as `decimal.Decimal`.
+    pub(crate) paid_chi: PyDecimal,
+}
+
+/// `vm_failure_charge`: the fee is `chi_used / rate`; a balance that cannot
+/// cover it is taken whole (the integer 0 remains) and pays its own worth
+/// in chi. `None` (no write) when nothing was used.
+pub(crate) fn failure_charge(
     balance: &Balance,
     chi_used: &BigInt,
     rate: &BigInt,
-) -> Settled<Option<VmValue>> {
+) -> Settled<Option<FailureCharge>> {
     if !chi_used.is_positive() {
         return Ok(None);
     }
     let remaining = balance.minus(&chi_to_tokens(chi_used, rate)?)?;
     Ok(Some(if remaining.scaled.is_negative() {
-        VmValue::Int(BigInt::zero())
+        FailureCharge {
+            balance: VmValue::Int(BigInt::zero()),
+            paid_chi: whole_balance_chi(balance, rate)?,
+        }
     } else {
-        VmValue::Decimal(remaining)
+        FailureCharge {
+            balance: VmValue::Decimal(remaining),
+            paid_chi: PyDecimal::int(chi_used.clone()),
+        }
     }))
+}
+
+/// `max(balance, 0) * rate`: a whole balance priced in chi (an integer
+/// balance stays an integer).
+fn whole_balance_chi(balance: &Balance, rate: &BigInt) -> Settled<PyDecimal> {
+    Ok(match balance {
+        _ if !balance.scaled().is_positive() => PyDecimal::int(0),
+        Balance::Int(value) => PyDecimal::int(value * rate),
+        Balance::Fixed(value) => PyDecimal::fixed(&checked(value.mul(&fixed_int(rate)?))?),
+    })
 }
 
 /// `failed_transaction_chi`: chi charged for a failed metered transaction,
@@ -217,21 +242,44 @@ mod tests {
         assert_eq!(refunded.to_string(), "-0.65");
     }
 
+    fn charge(balance: Balance, chi_used: i64) -> Option<(VmValue, String)> {
+        failure_charge(&balance, &BigInt::from(chi_used), &BigInt::from(20))
+            .unwrap()
+            .map(|charge| (charge.balance, charge.paid_chi.to_string()))
+    }
+
     #[test]
     fn metering_floors_at_integer_zero() {
-        let rate = BigInt::from(20);
+        let int = |value: i64| Balance::Int(BigInt::from(value));
+        assert_eq!(charge(int(1), 40).unwrap().0, VmValue::Int(BigInt::zero()));
         assert_eq!(
-            metered_balance(&Balance::Int(BigInt::from(1)), &BigInt::from(40), &rate).unwrap(),
-            Some(VmValue::Int(BigInt::zero()))
+            charge(int(2), 40).unwrap().0,
+            VmValue::Decimal(VmDecimal::zero())
+        );
+        assert_eq!(charge(int(2), 0), None);
+    }
+
+    #[test]
+    fn a_failure_pays_its_chi_or_its_whole_balance_in_chi() {
+        let int = |value: i64| Balance::Int(BigInt::from(value));
+        // Covered (exactly, too): the fee of chi_used is paid.
+        assert_eq!(charge(int(3), 40).unwrap().1, "40");
+        assert_eq!(charge(int(2), 40).unwrap().1, "40");
+        // Not covered: the whole balance, priced in chi at the rate.
+        assert_eq!(charge(int(1), 40).unwrap().1, "20");
+        assert_eq!(
+            charge(Balance::Fixed(fixed("0.0003")), 5).unwrap().1,
+            "0.006"
         );
         assert_eq!(
-            metered_balance(&Balance::Int(BigInt::from(2)), &BigInt::from(40), &rate).unwrap(),
-            Some(VmValue::Decimal(VmDecimal::zero()))
+            charge(Balance::Fixed(fixed("0.123456789012345678901234567891")), 5)
+                .unwrap()
+                .1,
+            "2.46913578024691357802469135782"
         );
-        assert_eq!(
-            metered_balance(&Balance::Int(BigInt::from(2)), &BigInt::zero(), &rate).unwrap(),
-            None
-        );
+        // Nothing to take.
+        assert_eq!(charge(int(0), 40).unwrap().1, "0");
+        assert_eq!(charge(Balance::Fixed(fixed("-1")), 40).unwrap().1, "0");
     }
 
     #[test]

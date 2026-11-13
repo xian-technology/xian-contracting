@@ -369,24 +369,20 @@ impl Rewards<'_> {
     }
 
     /// `find_developer_and_reward`: developer credits, records and the share
-    /// redirected to validators.
+    /// redirected to validators (all of it without `pay_developers`).
     fn developers(
         &mut self,
         total: &PyDecimal,
         contract: &str,
         ratio: &PyDecimal,
         contract_costs: &[(String, BigInt)],
+        pay_developers: bool,
     ) -> Settled<(Credits, Vec<RewardRecord>, PyDecimal)> {
         let developer_total = total.mul(ratio)?;
-        let mut weights = Vec::new();
-        for (source, weight) in contract_costs {
-            if weight.is_positive() {
-                weights.push((source.clone(), PyDecimal::int(weight.clone())));
-            }
+        if !pay_developers {
+            return Ok((Credits::new(), Vec::new(), developer_total));
         }
-        if weights.is_empty() {
-            weights.push((contract.to_owned(), PyDecimal::int(1)));
-        }
+        let weights = developer_weights(contract, contract_costs);
         let total_weight = sum(&weights)?;
         let shares = split(
             &developer_total,
@@ -395,6 +391,16 @@ impl Rewards<'_> {
             &total_weight,
             PyDecimal::int(0),
         )?;
+        self.developer_shares(&weights, shares)
+    }
+
+    /// Each contract's developer share credited to its developer, or
+    /// redirected to validators when it has none (or the system one).
+    fn developer_shares(
+        &mut self,
+        weights: &[(String, PyDecimal)],
+        shares: Vec<PyDecimal>,
+    ) -> Settled<(Credits, Vec<RewardRecord>, PyDecimal)> {
         let mut credits = Credits::new();
         let mut records = Vec::new();
         let mut redirected = PyDecimal::int(0);
@@ -417,6 +423,23 @@ impl Rewards<'_> {
         }
         Ok((credits, records, redirected))
     }
+}
+
+/// `_developer_weights`: the contracts with a positive execution cost, in
+/// name order, else the entry contract.
+fn developer_weights(
+    contract: &str,
+    contract_costs: &[(String, BigInt)],
+) -> Vec<(String, PyDecimal)> {
+    let weights: Vec<_> = contract_costs
+        .iter()
+        .filter(|(_, weight)| weight.is_positive())
+        .map(|(source, weight)| (source.clone(), PyDecimal::int(weight.clone())))
+        .collect();
+    if weights.is_empty() {
+        return vec![(contract.to_owned(), PyDecimal::int(1))];
+    }
+    weights
 }
 
 /// The chain chi rate as `chain_chi_rate` reads it; anything but a positive
@@ -494,6 +517,42 @@ impl Payout {
         Ok(())
     }
 
+    fn pay_records(&mut self, records: Vec<RewardRecord>) -> Settled<()> {
+        for record in records {
+            self.pay_record(record)?;
+        }
+        Ok(())
+    }
+
+    /// The foundation's share, when it has one.
+    fn pay_foundation(&mut self, owner: String, reward: VmDecimal) -> Settled<()> {
+        if reward.is_zero() {
+            return Ok(());
+        }
+        self.pay_record(RewardRecord {
+            kind: RewardKind::Foundation,
+            recipient_key: owner,
+            source_contract: None,
+            validator_key: None,
+            delegator_key: None,
+            value: reward,
+        })
+    }
+
+    /// The developer credits by developer; their records are priced one by
+    /// one, after the per-developer sums.
+    fn pay_developers(&mut self, credits: &Credits, records: Vec<RewardRecord>) -> Settled<()> {
+        for (developer, reward) in credits {
+            let amount = self.tokens(reward)?;
+            self.pay(RewardKind::Developer, developer, &amount)?;
+        }
+        for record in records {
+            let value = self.tokens(&record.value)?;
+            self.records.push(RewardRecord { value, ..record });
+        }
+        Ok(())
+    }
+
     fn finish(self) -> TxRewards {
         if self.buckets.iter().all(|(_, credits)| credits.is_empty()) {
             return TxRewards::none(self.records);
@@ -506,66 +565,80 @@ impl Payout {
     }
 }
 
-/// `build_tx_reward_outputs` for `total_chi` chi used by a transaction to
-/// `contract`; `contract_costs` in name order.
+/// `build_tx_reward_outputs` for the fee of `total` chi paid by a
+/// transaction to `contract`; `contract_costs` in name order. Without
+/// `pay_developers` (a failed call) the developer share goes to validators.
 pub(crate) fn tx_reward_outputs(
     state: &mut dyn RewardState,
-    total_chi: &BigInt,
+    total: &PyDecimal,
     contract: &str,
     contract_costs: &[(String, BigInt)],
+    pay_developers: bool,
 ) -> Settled<TxRewards> {
     let mut rewards = Rewards { state };
-    let Some(split) = reward_split(rewards.var("rewards", "S", &["value"])?)? else {
+    let Some((split, rate, foundation_owner)) = reward_terms(&mut rewards, total)? else {
         return Ok(TxRewards::none(Vec::new()));
     };
-    if !total_chi.is_positive() {
-        return Ok(TxRewards::none(Vec::new()));
+    let [validator_ratio, foundation_ratio, developer_ratio] = paid_ratios(&split)?;
+    let foundation_reward = foundation_share(&foundation_ratio, total)?;
+    let (developer_credits, developer_records, redirected) = rewards.developers(
+        total,
+        contract,
+        &developer_ratio,
+        contract_costs,
+        pay_developers,
+    )?;
+    let validator_records = rewards.validator_set(total, &validator_ratio, &redirected)?;
+
+    let mut payout = Payout::new(rate);
+    payout.pay_foundation(foundation_owner, foundation_reward)?;
+    payout.pay_records(validator_records)?;
+    payout.pay_developers(&developer_credits, developer_records)?;
+    Ok(payout.finish())
+}
+
+/// The validator, foundation and developer ratios of the split. The burn
+/// share is never paid: it is the part no one is credited.
+fn paid_ratios(split: &[VmValue]) -> Settled<[PyDecimal; 3]> {
+    Ok([
+        as_decimal(&split[0])?,
+        as_decimal(&split[2])?,
+        as_decimal(&split[3])?,
+    ])
+}
+
+/// `calculate_participant_reward(foundation_ratio, 1, total)`: Python turns
+/// a failure into a zero reward; the port leaves that to Python.
+fn foundation_share(ratio: &PyDecimal, total: &PyDecimal) -> Settled<VmDecimal> {
+    Ok(ratio
+        .div(&PyDecimal::int(1))?
+        .mul(total)?
+        .round(8)?
+        .to_fixed()?)
+}
+
+/// The reward split, the chain chi rate and the foundation owner, as
+/// `_build_tx_reward_outputs` reads them; `None` when no reward is paid.
+fn reward_terms(
+    rewards: &mut Rewards<'_>,
+    total: &PyDecimal,
+) -> Settled<Option<(Vec<VmValue>, BigInt, String)>> {
+    let Some(split) = reward_split(rewards.var("rewards", "S", &["value"])?)? else {
+        return Ok(None);
+    };
+    if total.sign()? != Ordering::Greater {
+        return Ok(None);
     }
     let rate = chain_chi_rate(rewards.var("chi_cost", "S", &["value"])?)?;
     // Python logs an incomplete configuration; it keeps that report.
     let Some(foundation_owner) = present(rewards.var("foundation", "owner", &[])?) else {
         return handback("reward configuration is incomplete");
     };
-    let foundation_owner = string(foundation_owner, "foundation owner")?;
-    let [validator_ratio, _burn, foundation_ratio, developer_ratio] =
-        [0, 1, 2, 3].map(|index| as_decimal(&split[index]));
-    let total = PyDecimal::int(total_chi.clone());
-
-    // calculate_participant_reward(foundation_ratio, 1, total): Python turns a
-    // failure into a zero reward; the port leaves that to Python.
-    let foundation_reward = foundation_ratio?
-        .div(&PyDecimal::int(1))?
-        .mul(&total)?
-        .round(8)?
-        .to_fixed()?;
-    let (developer_credits, developer_records, redirected) =
-        rewards.developers(&total, contract, &developer_ratio?, contract_costs)?;
-    let validator_records = rewards.validator_set(&total, &validator_ratio?, &redirected)?;
-
-    let mut payout = Payout::new(rate);
-    if !foundation_reward.is_zero() {
-        payout.pay_record(RewardRecord {
-            kind: RewardKind::Foundation,
-            recipient_key: foundation_owner,
-            source_contract: None,
-            validator_key: None,
-            delegator_key: None,
-            value: foundation_reward,
-        })?;
-    }
-    for record in validator_records {
-        payout.pay_record(record)?;
-    }
-    for (developer, reward) in &developer_credits {
-        let amount = payout.tokens(reward)?;
-        payout.pay(RewardKind::Developer, developer, &amount)?;
-    }
-    // Developer records are priced one by one, after the per-developer sums.
-    for record in developer_records {
-        let value = payout.tokens(&record.value)?;
-        payout.records.push(RewardRecord { value, ..record });
-    }
-    Ok(payout.finish())
+    Ok(Some((
+        split,
+        rate,
+        string(foundation_owner, "foundation owner")?,
+    )))
 }
 
 #[cfg(test)]
@@ -661,10 +734,12 @@ mod tests {
         BigInt::from(value.as_i64().unwrap())
     }
 
-    #[test]
-    fn rewards_match_the_python_corpus() {
+    /// The reward cases under `key`: a success pays developers and its
+    /// chi used is an integer; a failure pays no developer, and its paid
+    /// chi is wire-encoded (a decimal when it paid its whole balance).
+    fn assert_reward_corpus(key: &str, pay_developers: bool) {
         let corpus = corpus();
-        let cases = corpus["rewards"].as_array().unwrap();
+        let cases = corpus[key].as_array().unwrap();
         assert_eq!(cases.len(), 160);
         for (index, case) in cases.iter().enumerate() {
             let mut state: HashMap<String, VmValue> = case["state"]
@@ -679,19 +754,34 @@ mod tests {
                 .iter()
                 .map(|pair| (pair[0].as_str().unwrap().to_owned(), int(&pair[1])))
                 .collect();
+            let total = match &case["total_chi"] {
+                Value::String(text) => as_decimal(&decode(text)).unwrap(),
+                number => PyDecimal::int(int(number)),
+            };
             let rewards = tx_reward_outputs(
                 &mut state,
-                &int(&case["total_chi"]),
+                &total,
                 case["contract"].as_str().unwrap(),
                 &costs,
+                pay_developers,
             )
             .unwrap();
             assert_eq!(
                 wire(&outputs(&rewards)),
                 case["expected"].as_str().unwrap(),
-                "case {index}"
+                "{key} case {index}"
             );
         }
+    }
+
+    #[test]
+    fn rewards_match_the_python_corpus() {
+        assert_reward_corpus("rewards", true);
+    }
+
+    #[test]
+    fn failed_transaction_rewards_match_the_python_corpus() {
+        assert_reward_corpus("failed_rewards", false);
     }
 
     fn fee_outcome(case: &Value) -> Result<VmValue, Stop> {
@@ -716,12 +806,15 @@ mod tests {
                 )
             }
         };
-        let metered = settlement::metered_balance(&start, &chi_used, &rate)?
-            .unwrap_or_else(|| text("unchanged"));
+        let (metered, paid) = match settlement::failure_charge(&start, &chi_used, &rate)? {
+            None => (text("unchanged"), text("0")),
+            Some(charge) => (charge.balance, text(&charge.paid_chi.to_string())),
+        };
         Ok(dict(vec![
             ("reserved", reserved),
             ("refunded", refunded),
             ("metered", metered),
+            ("paid", paid),
         ]))
     }
 

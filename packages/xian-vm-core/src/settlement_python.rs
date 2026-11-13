@@ -4,6 +4,7 @@
 use super::{py_to_vm, vm_to_py};
 use crate::block_state_python::PyBlockState;
 use crate::lmdb_python::{LmdbStorageError, PyLmdbEnvironment};
+use crate::python_decimal::PyDecimal;
 use crate::settlement::{self, Balance, Settled, Stop};
 use crate::state_view::StateView;
 use crate::tx_rewards::{tx_reward_outputs, RewardRecord, RewardState, TxRewards};
@@ -23,6 +24,19 @@ fn int_arg(value: Bound<'_, PyAny>) -> PyResult<BigInt> {
         VmValue::Int(value) => Ok(value),
         other => Err(PyValueError::new_err(format!(
             "expected an int, got {}",
+            other.type_name()
+        ))),
+    }
+}
+
+/// The chi whose fee is paid out: an int, or a `ContractingDecimal` (a
+/// failed transaction that paid its whole balance).
+fn chi_arg(value: Bound<'_, PyAny>) -> PyResult<PyDecimal> {
+    match to_vm(value)? {
+        VmValue::Int(value) => Ok(PyDecimal::int(value)),
+        VmValue::Decimal(value) => Ok(PyDecimal::fixed(&value)),
+        other => Err(PyValueError::new_err(format!(
+            "expected an int or a decimal, got {}",
             other.type_name()
         ))),
     }
@@ -117,7 +131,7 @@ impl RewardState for ViewState {
 /// The fee rewards of a transaction over the node's state (block overlay,
 /// then LMDB), or `None` when the Python code must compute them.
 #[pyfunction]
-#[pyo3(signature = (environment, overlay, total_chi, contract, contract_costs=None))]
+#[pyo3(signature = (environment, overlay, total_chi, contract, contract_costs=None, *, pay_developers=true))]
 pub(super) fn tx_rewards(
     py: Python<'_>,
     environment: PyRef<'_, PyLmdbEnvironment>,
@@ -125,11 +139,13 @@ pub(super) fn tx_rewards(
     total_chi: Bound<'_, PyAny>,
     contract: &str,
     contract_costs: Option<Bound<'_, PyDict>>,
+    pay_developers: bool,
 ) -> PyResult<Py<PyAny>> {
-    let total_chi = int_arg(total_chi)?;
+    let total_chi = chi_arg(total_chi)?;
     let costs = self::contract_costs(contract_costs)?;
     let mut state = ViewState(StateView::new(environment.env().clone(), overlay.shared()));
-    let outcome = py.detach(|| tx_reward_outputs(&mut state, &total_chi, contract, &costs));
+    let outcome =
+        py.detach(|| tx_reward_outputs(&mut state, &total_chi, contract, &costs, pay_developers));
     settled_to_py(py, outcome, |py, outputs| rewards_to_py(py, &outputs))
 }
 
@@ -143,21 +159,28 @@ impl RewardState for MapState {
 
 /// `tx_rewards` over a `{key: value}` state, for differential tests.
 #[pyfunction]
-#[pyo3(signature = (state, total_chi, contract, contract_costs=None))]
+#[pyo3(signature = (state, total_chi, contract, contract_costs=None, *, pay_developers=true))]
 pub(super) fn _tx_rewards_debug(
     py: Python<'_>,
     state: Bound<'_, PyDict>,
     total_chi: Bound<'_, PyAny>,
     contract: &str,
     contract_costs: Option<Bound<'_, PyDict>>,
+    pay_developers: bool,
 ) -> PyResult<Py<PyAny>> {
     let mut values = HashMap::new();
     for (key, value) in state.iter() {
         values.insert(key.extract::<String>()?, to_vm(value)?);
     }
-    let total_chi = int_arg(total_chi)?;
+    let total_chi = chi_arg(total_chi)?;
     let costs = self::contract_costs(contract_costs)?;
-    let outcome = tx_reward_outputs(&mut MapState(values), &total_chi, contract, &costs);
+    let outcome = tx_reward_outputs(
+        &mut MapState(values),
+        &total_chi,
+        contract,
+        &costs,
+        pay_developers,
+    );
     settled_to_py(py, outcome, |py, outputs| rewards_to_py(py, &outputs))
 }
 
@@ -229,8 +252,8 @@ pub(super) fn _fee_refund_debug(
     settled_to_py(py, outcome, |py, value| fixed_to_py(py, &value))
 }
 
-/// `vm_metering_writes`' balance, for differential tests: `("write", value)`,
-/// `("unchanged",)`, or `None` for a hand-back.
+/// `vm_failure_charge`, for differential tests: `("write", balance, paid
+/// chi as decimal text)`, `("unchanged",)`, or `None` for a hand-back.
 #[pyfunction]
 pub(super) fn _fee_metered_debug(
     py: Python<'_>,
@@ -241,14 +264,20 @@ pub(super) fn _fee_metered_debug(
     let balance = to_vm(balance)?;
     let (chi_used, rate) = (int_arg(chi_used)?, int_arg(rate)?);
     let outcome = Balance::of(Some(&balance))
-        .and_then(|balance| settlement::metered_balance(&balance, &chi_used, &rate));
-    settled_to_py(py, outcome, |py, value| match value {
+        .and_then(|balance| settlement::failure_charge(&balance, &chi_used, &rate));
+    settled_to_py(py, outcome, |py, charge| match charge {
         None => tuple_to_py(py, vec!["unchanged".into_pyobject(py)?.into_any().unbind()]),
-        Some(value) => tuple_to_py(
+        Some(charge) => tuple_to_py(
             py,
             vec![
                 "write".into_pyobject(py)?.into_any().unbind(),
-                vm_to_py(py, &value)?,
+                vm_to_py(py, &charge.balance)?,
+                charge
+                    .paid_chi
+                    .to_string()
+                    .into_pyobject(py)?
+                    .into_any()
+                    .unbind(),
             ],
         ),
     })

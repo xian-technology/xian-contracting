@@ -22,6 +22,7 @@ use crate::interpreter::vm_variable_storage_key;
 use crate::lmdb_env::storage_key_error;
 use crate::metering::VM_TRANSACTION_BASE_CHI as TRANSACTION_BASE_CHI;
 use crate::module_cache::shared_module;
+use crate::python_decimal::PyDecimal;
 use crate::settlement::{self, handback, Balance, Reservation, Settled, Stop};
 use crate::state_view::StateView;
 use crate::stored_value_encoder::encode_stored_value;
@@ -739,18 +740,20 @@ impl BlockExecutor {
         rate: Option<&BigInt>,
         balance_key: &str,
     ) -> Settled<TxOutcome> {
-        let mut writes = self.settled_writes(&execution, rate, balance_key)?;
+        let (mut writes, paid_chi) = self.settled_writes(&execution, rate, balance_key)?;
         let output_writes = if execution.status == 0 {
             writes.len()
         } else {
             0
         };
-        let rewards = if execution.status == 0 && self.policy.distribute_fee_rewards {
+        let rewards = if self.policy.distribute_fee_rewards {
+            // A failed call earns no developer reward.
             Some(tx_reward_outputs(
                 &mut ViewRewardState(&self.view),
-                &execution.chi_used,
+                &paid_chi,
                 &tx.contract,
                 &execution.contract_costs,
+                execution.status == 0,
             )?)
         } else {
             None
@@ -773,41 +776,59 @@ impl BlockExecutor {
         })
     }
 
-    /// A success's writes with its refunded fee, or a failure's metered fee
-    /// alone (no fee when none is charged).
+    /// `determine_writes_from_output`: a success's writes with its refunded
+    /// fee and its chi used, or a failure's fee charge alone (nothing when
+    /// no fee is charged) and the chi it paid.
     fn settled_writes(
         &self,
         execution: &Execution,
         rate: Option<&BigInt>,
         balance_key: &str,
-    ) -> Settled<BTreeMap<String, VmValue>> {
-        let mut writes = if execution.status == 0 {
-            self.validated(execution)?;
-            execution.writes.clone()
-        } else {
-            BTreeMap::new()
-        };
-        if let Some(rate) = rate {
-            if let Some(balance) = self.charged_balance(execution, rate, balance_key)? {
-                writes.insert(balance_key.to_owned(), balance);
-            }
+    ) -> Settled<(BTreeMap<String, VmValue>, PyDecimal)> {
+        if execution.status == 0 {
+            return self.success_writes(execution, rate, balance_key);
         }
-        Ok(writes)
+        let charge = match rate {
+            None => None,
+            Some(rate) => {
+                // Metered from the balance before the transaction.
+                let balance = Balance::of(self.get(balance_key)?.as_ref())?;
+                settlement::failure_charge(&balance, &execution.chi_used, rate)?
+            }
+        };
+        Ok(match charge {
+            None => (BTreeMap::new(), PyDecimal::int(0)),
+            Some(charge) => (
+                BTreeMap::from([(balance_key.to_owned(), charge.balance)]),
+                charge.paid_chi,
+            ),
+        })
     }
 
-    /// The sender's balance after the fee: refunded against the reservation
-    /// after a success, metered from the balance before the transaction
-    /// after a failure (`None`: no write).
-    fn charged_balance(
+    /// A success's writes with its refunded fee, and its chi used.
+    fn success_writes(
+        &self,
+        execution: &Execution,
+        rate: Option<&BigInt>,
+        balance_key: &str,
+    ) -> Settled<(BTreeMap<String, VmValue>, PyDecimal)> {
+        self.validated(execution)?;
+        let mut writes = execution.writes.clone();
+        if let Some(rate) = rate {
+            let balance = self.refunded_balance(execution, rate, balance_key)?;
+            writes.insert(balance_key.to_owned(), balance);
+        }
+        Ok((writes, PyDecimal::int(execution.chi_used.clone())))
+    }
+
+    /// The sender's balance after a success: refunded against the
+    /// reservation.
+    fn refunded_balance(
         &self,
         execution: &Execution,
         rate: &BigInt,
         balance_key: &str,
-    ) -> Settled<Option<VmValue>> {
-        if execution.status != 0 {
-            let balance = Balance::of(self.get(balance_key)?.as_ref())?;
-            return settlement::metered_balance(&balance, &execution.chi_used, rate);
-        }
+    ) -> Settled<VmValue> {
         let reservation = execution
             .reservation
             .as_ref()
@@ -817,7 +838,7 @@ impl BlockExecutor {
             None => Balance::Fixed(reservation.spendable.clone()),
         };
         let refunded = settlement::refund(reservation, &after, &execution.chi_used, rate)?;
-        Ok(Some(VmValue::Decimal(refunded)))
+        Ok(VmValue::Decimal(refunded))
     }
 
     /// `materialize_writes`: each reward delta added to the written or

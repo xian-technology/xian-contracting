@@ -21,6 +21,13 @@ type Result<T> = std::result::Result<T, DecimalSignal>;
 const FIXED_SCALE: i64 = 30;
 const FIXED_MAX_ADJUSTED: i64 = 61;
 
+/// `str(Decimal)`.
+impl std::fmt::Display for PyDecimal {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
 impl PyDecimal {
     /// `Decimal(n)`: exact.
     pub(crate) fn int(value: impl Into<BigInt>) -> Self {
