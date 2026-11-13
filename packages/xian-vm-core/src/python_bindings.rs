@@ -58,6 +58,9 @@ struct PythonBundleExecutor {
     public_callables: HashMap<String, BTreeMap<String, crate::VmPublicCallable>>,
     initializing_modules: HashSet<String>,
     storage_overlay: HashMap<String, VmValue>,
+    /// Owners read from the host since its last syscall: only a syscall can
+    /// change an owner during an execution.
+    owners: HashMap<String, Option<String>>,
     events: Vec<VmEvent>,
     meter: crate::VmMeter,
     contract_call_count: u64,
@@ -114,6 +117,7 @@ impl PythonBundleExecutor {
             public_callables: HashMap::new(),
             initializing_modules: HashSet::new(),
             storage_overlay: HashMap::new(),
+            owners: HashMap::new(),
             events: Vec::new(),
             meter: crate::VmMeter::with_budget(meter_config, budget),
             contract_call_count: 0,
@@ -552,7 +556,10 @@ impl VmHost for PythonBundleExecutor {
     }
 
     fn load_owner(&mut self, contract: &str) -> Result<Option<String>, VmExecutionError> {
-        Python::attach(|py| -> Result<Option<String>, VmExecutionError> {
+        if let Some(owner) = self.owners.get(contract) {
+            return Ok(owner.clone());
+        }
+        let owner = Python::attach(|py| -> Result<Option<String>, VmExecutionError> {
             let host = self.host.bind(py);
             let response = host
                 .call_method1("get_owner", (contract,))
@@ -562,7 +569,9 @@ impl VmHost for PythonBundleExecutor {
             } else {
                 response.extract::<Option<String>>().map_err(host_error)
             }
-        })
+        })?;
+        self.owners.insert(contract.to_owned(), owner.clone());
+        Ok(owner)
     }
 
     fn validate_contract_export(
@@ -644,6 +653,7 @@ impl VmHost for PythonBundleExecutor {
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
+        self.owners.clear();
         Python::attach(|py| -> Result<VmValue, VmExecutionError> {
             let host = self.host.bind(py);
             let py_args = PyList::empty(py);
