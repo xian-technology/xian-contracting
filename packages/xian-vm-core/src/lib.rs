@@ -151,21 +151,50 @@ impl std::error::Error for IrValidationError {}
 
 /// Module IR that passed [`validate_module_ir`]. Instances run only these, and
 /// share one immutable copy instead of cloning the IR per execution.
+/// The facts each function's IR determines are derived here, once.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ValidatedModuleIr(std::sync::Arc<ModuleIr>);
+pub struct ValidatedModuleIr {
+    module: std::sync::Arc<ModuleIr>,
+    facts: std::sync::Arc<[interpreter::function_table::FunctionFacts]>,
+}
 
 impl ValidatedModuleIr {
     pub fn new(module: ModuleIr) -> Result<Self, IrValidationError> {
         validate_module_ir(&module)?;
-        Ok(Self(std::sync::Arc::new(module)))
+        Ok(Self::validated(module))
     }
 
     pub fn parse(input: &str) -> Result<Self, IrValidationError> {
-        parse_module_ir(input).map(|module| Self(std::sync::Arc::new(module)))
+        parse_module_ir(input).map(Self::validated)
+    }
+
+    /// Test fixtures run hand-built IR that need not pass validation.
+    #[cfg(test)]
+    pub(crate) fn unchecked(module: ModuleIr) -> Self {
+        Self::validated(module)
+    }
+
+    fn validated(module: ModuleIr) -> Self {
+        let facts = module
+            .functions
+            .iter()
+            .map(interpreter::function_table::FunctionFacts::of)
+            .collect();
+        Self {
+            module: std::sync::Arc::new(module),
+            facts,
+        }
     }
 
     pub(crate) fn shared(&self) -> std::sync::Arc<ModuleIr> {
-        std::sync::Arc::clone(&self.0)
+        std::sync::Arc::clone(&self.module)
+    }
+
+    pub(crate) fn function_facts(
+        &self,
+        index: usize,
+    ) -> &interpreter::function_table::FunctionFacts {
+        &self.facts[index]
     }
 }
 
@@ -173,7 +202,7 @@ impl std::ops::Deref for ValidatedModuleIr {
     type Target = ModuleIr;
 
     fn deref(&self) -> &ModuleIr {
-        &self.0
+        &self.module
     }
 }
 

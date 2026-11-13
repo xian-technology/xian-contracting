@@ -125,14 +125,14 @@ impl VmInstance {
         &self,
         scope: &HashMap<String, VmValue>,
         targets: HashSet<String>,
-    ) -> (HashMap<String, VmValue>, HashSet<String>) {
+    ) -> (HashMap<String, VmValue>, function_table::LexicalBindings) {
         let mut nested = scope.clone();
-        let mut bindings = self.lexical_bindings.clone();
+        let mut bindings = (*self.lexical_bindings).clone();
         for name in targets {
             nested.remove(&name);
             bindings.insert(name);
         }
-        (nested, bindings)
+        (nested, std::sync::Arc::new(bindings))
     }
 
     pub(super) fn prepare_comprehension(
@@ -140,7 +140,14 @@ impl VmInstance {
         generators: &[Value],
         scope: &HashMap<String, VmValue>,
         host: &mut dyn VmHost,
-    ) -> Result<(HashMap<String, VmValue>, HashSet<String>, VmValue), VmExecutionError> {
+    ) -> Result<
+        (
+            HashMap<String, VmValue>,
+            function_table::LexicalBindings,
+            VmValue,
+        ),
+        VmExecutionError,
+    > {
         let first = generators
             .first()
             .ok_or_else(|| VmExecutionError::new("missing comprehension generator"))?;
@@ -223,7 +230,7 @@ mod tests {
         let mut instance = VmInstance::new(module, VmExecutionContext::default()).unwrap();
         for function in functions {
             instance
-                .define_function(function, &mut NoopHost {})
+                .define_function(function.into(), &mut NoopHost {})
                 .unwrap();
         }
         instance
@@ -317,7 +324,7 @@ mod tests {
         );
         let comp = json!({"node":"list_comp", "element":name("x"), "generators":[{"target":name("x"),"iter":{"node":"list","elements":[integer(1)]},"ifs":[name("value")]},{"target":name("value"),"iter":{"node":"list","elements":[integer(2)]},"ifs":[]}]});
         vm.define_function(
-            function("bad", vec![assign("value", integer(1)), returned(comp)]),
+            function("bad", vec![assign("value", integer(1)), returned(comp)]).into(),
             &mut NoopHost {},
         )
         .unwrap();
@@ -399,7 +406,7 @@ mod tests {
         );
         let mutate = json!({"node":"storage_mutate","binding":"h","key":invalid_argument(),"value":integer(2),"operator":"add"});
         vm.define_function(
-            function("bad", vec![mutate, assign("h", dictionary)]),
+            function("bad", vec![mutate, assign("h", dictionary)]).into(),
             &mut NoopHost {},
         )
         .unwrap();

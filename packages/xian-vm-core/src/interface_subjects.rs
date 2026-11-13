@@ -315,14 +315,15 @@ mod tests {
             returns: None,
             body: vec![],
         };
-        vm.define_function(function.clone(), &mut Budget::default())
+        vm.define_function(function.clone().into(), &mut Budget::default())
             .unwrap();
         vm.define_function(
             FunctionIr {
                 name: "hidden".into(),
                 visibility: "private".into(),
                 ..function
-            },
+            }
+            .into(),
             &mut Budget::default(),
         )
         .unwrap();

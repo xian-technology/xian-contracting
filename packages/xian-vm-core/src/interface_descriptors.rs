@@ -347,7 +347,7 @@ impl VmInstance {
             VmValue::FunctionRef(name) => self
                 .functions
                 .get(name)
-                .map(function_member)
+                .map(|function| function_member(function))
                 .ok_or_else(|| VmExecutionError::new("unknown interface function")),
             VmValue::BoundMethod(bound) => Ok(bound_member(bound)),
             VmValue::StorageRef(storage) => {
@@ -976,7 +976,8 @@ mod tests {
             returns: None,
             body: vec![],
         };
-        vm.define_function(function, &mut NoopHost {}).unwrap();
+        vm.define_function(function.into(), &mut NoopHost {})
+            .unwrap();
         let tuple = func(empty_tuple());
         let list = func(VmValue::List(vec![]));
         assert_eq!(
@@ -1048,7 +1049,7 @@ mod tests {
         let mut vm = instance();
         let module = metadata_module();
         for function in &module.functions {
-            vm.define_function(function.clone(), &mut NoopHost {})
+            vm.define_function(function.clone().into(), &mut NoopHost {})
                 .unwrap();
         }
         vm.globals.insert(
@@ -1628,7 +1629,7 @@ mod tests {
                 span: function.span.clone(),
             })
             .collect();
-        vm.functions.insert("probe".into(), function);
+        vm.functions.insert("probe".into(), function.into());
         assert_eq!(vm.interface_metadata_work(), 24);
         vm.globals
             .insert("a".into(), VmValue::FunctionRef("probe".into()));

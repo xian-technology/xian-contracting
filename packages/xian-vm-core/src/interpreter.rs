@@ -79,6 +79,8 @@ pub use module_aliases::VmPublicCallable;
 mod attributes;
 #[path = "event_methods.rs"]
 mod event_methods;
+#[path = "function_table.rs"]
+pub(crate) mod function_table;
 #[path = "lexical_scopes.rs"]
 mod lexical_scopes;
 #[path = "orm_methods.rs"]
@@ -250,7 +252,7 @@ fn ir_node_complexity(value: &Value) -> u64 {
     }
 }
 
-fn function_entry_gas_cost(function: &FunctionIr) -> u64 {
+pub(crate) fn function_entry_gas_cost(function: &FunctionIr) -> u64 {
     let mut complexity = 0;
     for parameter in &function.parameters {
         if let Some(default) = &parameter.default {
@@ -883,10 +885,10 @@ enum ResolvedAssignmentTarget {
 pub struct VmInstance {
     heap: crate::heap::VmHeap,
     module: std::sync::Arc<ModuleIr>,
-    functions: HashMap<String, FunctionIr>,
+    functions: HashMap<String, function_table::DefinedFunction>,
     function_defaults: HashMap<(String, String), VmValue>,
-    function_locals: HashMap<String, HashSet<String>>,
-    lexical_bindings: HashSet<String>,
+    function_locals: HashMap<String, function_table::LexicalBindings>,
+    lexical_bindings: function_table::LexicalBindings,
     imports: HashMap<String, String>,
     contract_exports: HashMap<(usize, String), VmValue>,
     static_methods: HashMap<String, VmValue>,
@@ -919,6 +921,9 @@ impl VmInstance {
     ) -> Result<Self, VmExecutionError> {
         let _call = heap.enter_execution_frame()?;
         let _scope = numeric_v2::Scope::enter(&module.vm_profile);
+        let functions = (0..module.functions.len())
+            .map(|index| function_table::DefinedFunction::new(module, index))
+            .collect::<Vec<_>>();
         let module = module.shared();
 
         let imports = module
@@ -941,7 +946,7 @@ impl VmInstance {
             functions: HashMap::new(),
             function_defaults: HashMap::new(),
             function_locals: HashMap::new(),
-            lexical_bindings: HashSet::new(),
+            lexical_bindings: function_table::LexicalBindings::default(),
             imports,
             contract_exports: HashMap::new(),
             static_methods: HashMap::new(),
@@ -967,19 +972,21 @@ impl VmInstance {
             );
         }
 
-        instance.initialize_module(host)?;
+        instance.initialize_module(functions, host)?;
 
         Ok(instance)
     }
 
-    fn initialize_module(&mut self, host: &mut dyn VmHost) -> Result<(), VmExecutionError> {
+    fn initialize_module(
+        &mut self,
+        functions: Vec<function_table::DefinedFunction>,
+        host: &mut dyn VmHost,
+    ) -> Result<(), VmExecutionError> {
         // IR groups declarations by kind. Recover source order for eager
         // defaults and module statements, retaining each default's identity.
+        let module = std::sync::Arc::clone(&self.module);
         let mut steps = Vec::new();
-        for (kind, values) in [
-            (0, &self.module.global_declarations),
-            (2, &self.module.module_body),
-        ] {
+        for (kind, values) in [(0, &module.global_declarations), (2, &module.module_body)] {
             for (index, value) in values.iter().enumerate() {
                 let span = as_object(
                     required_value(as_object(value, "module statement")?, "span")?,
@@ -990,21 +997,19 @@ impl VmInstance {
                 steps.push((line, col, kind, index));
             }
         }
-        for (index, function) in self.module.functions.iter().enumerate() {
+        for (index, function) in functions.iter().enumerate() {
             steps.push((function.span.line, function.span.col, 1, index));
         }
         steps.sort();
         for (_, _, kind, index) in steps {
             match kind {
-                0 => self.apply_global_declaration(
-                    &self.module.global_declarations[index].clone(),
-                    host,
-                )?,
-                1 => self.define_function(self.module.functions[index].clone(), host)?,
+                0 => self.apply_global_declaration(&module.global_declarations[index], host)?,
+                1 => self.define_function(functions[index].clone(), host)?,
                 _ => {
-                    let statement = self.module.module_body[index].clone();
                     let mut scope = self.globals.clone();
-                    if self.execute_statement(&statement, &mut scope, host)? != ControlFlow::Next {
+                    if self.execute_statement(&module.module_body[index], &mut scope, host)?
+                        != ControlFlow::Next
+                    {
                         return Err(VmExecutionError::new(
                             "module body cannot return or break execution",
                         ));
@@ -1018,7 +1023,7 @@ impl VmInstance {
 
     fn define_function(
         &mut self,
-        function: FunctionIr,
+        function: function_table::DefinedFunction,
         host: &mut dyn VmHost,
     ) -> Result<(), VmExecutionError> {
         for parameter in &function.parameters {
@@ -1028,10 +1033,8 @@ impl VmInstance {
                     .insert((function.name.clone(), parameter.name.clone()), value);
             }
         }
-        self.function_locals.insert(
-            function.name.clone(),
-            lexical_scopes::function_bindings(&function)?,
-        );
+        self.function_locals
+            .insert(function.name.clone(), function.locals()?);
         self.functions.insert(function.name.clone(), function);
         Ok(())
     }
@@ -1432,7 +1435,7 @@ impl VmInstance {
             .get(name)
             .cloned()
             .ok_or_else(|| VmExecutionError::new(format!("unknown function '{name}'")))?;
-        host.charge_execution_cost(function_entry_gas_cost(&function))?;
+        host.charge_execution_cost(function.entry_cost())?;
         let mut scope = self.bind_function_arguments(&function, args, kwargs, host)?;
         let public_v2 =
             numeric_v2::active() && matches!(function.visibility.as_str(), "export" | "construct");
@@ -1457,7 +1460,7 @@ impl VmInstance {
         }
         let previous = std::mem::replace(
             &mut self.lexical_bindings,
-            self.function_locals[name].clone(),
+            std::sync::Arc::clone(&self.function_locals[name]),
         );
         let execution = self.execute_block(&function.body, &mut scope, host);
         self.lexical_bindings = previous;
