@@ -1,7 +1,7 @@
 """The Rust-owned LMDB environment reads and writes py-lmdb's files unchanged.
 
 Existing node state was written by py-lmdb (LMDB 0.9.36). The storage layer
-now opens the same files through xian_vm_core's pinned LMDB 0.9.36 without a
+now opens the same files through xian_vm_core's pinned LMDB 0.9.37 without a
 migration, and py-lmdb must still read whatever it writes.
 """
 

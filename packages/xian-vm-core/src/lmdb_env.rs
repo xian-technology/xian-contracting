@@ -675,6 +675,21 @@ mod tests {
     }
 
     #[test]
+    fn the_vendored_engine_is_lmdb_0_9_37() {
+        extern "C" {
+            fn mdb_version(
+                major: *mut c_int,
+                minor: *mut c_int,
+                patch: *mut c_int,
+            ) -> *const c_char;
+        }
+        let (mut major, mut minor, mut patch) = (0, 0, 0);
+        // SAFETY: mdb_version only writes the three integers.
+        unsafe { mdb_version(&mut major, &mut minor, &mut patch) };
+        assert_eq!((major, minor, patch), (0, 9, 37));
+    }
+
+    #[test]
     fn writes_commit_atomically_and_read_back_in_key_order() {
         let dir = temp_dir("order");
         let env = LmdbEnv::open(&dir, options()).unwrap();

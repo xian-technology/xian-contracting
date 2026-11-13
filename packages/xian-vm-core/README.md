@@ -116,7 +116,7 @@ V2 integers have a maximum magnitude of 512 bits. Fixed decimals have 30 fractio
 ## Node storage
 
 The node's state lives in one LMDB environment per directory, opened through
-`xian_vm_core.LmdbEnvironment` (LMDB 0.9.36 vendored under `vendor/lmdb`).
+`xian_vm_core.LmdbEnvironment` (LMDB 0.9.37 vendored under `vendor/lmdb`).
 `contracting.storage` uses it for every read and write; the py-lmdb package is
 only used by contracting's tests that prove file and lock compatibility.
 
