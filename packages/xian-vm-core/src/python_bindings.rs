@@ -1383,6 +1383,27 @@ fn _stored_value_debug(data: &[u8]) -> PyResult<String> {
         .map_err(|error| PyValueError::new_err(error.to_string()))
 }
 
+/// Parity hook: the stored-value bytes Rust writes for the `VmValue` a Python
+/// value becomes at the V2 VM boundary. Raises `ValueError` when refused.
+#[pyfunction]
+fn _stored_value_encode_debug(py: Python<'_>, value: Bound<'_, PyAny>) -> PyResult<Py<PyBytes>> {
+    let _scope = numeric_v2::Scope::enter(XIAN_VM_V2_PROFILE);
+    py_to_vm(value)
+        .and_then(|value| crate::stored_value_encoder::encode_stored_value(&value))
+        .map(|bytes| PyBytes::new(py, &bytes).unbind())
+        .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+/// Parity hook: stored-value bytes decoded and written again in Rust.
+#[pyfunction]
+fn _stored_value_reencode_debug(py: Python<'_>, data: &[u8]) -> PyResult<Py<PyBytes>> {
+    let _scope = numeric_v2::Scope::enter(XIAN_VM_V2_PROFILE);
+    crate::stored_value::decode_stored_value(data)
+        .and_then(|value| crate::stored_value_encoder::encode_stored_value(&value))
+        .map(|bytes| PyBytes::new(py, &bytes).unbind())
+        .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
 /// Parity hook: the `VmValue` a Python value becomes at the V2 VM boundary,
 /// rendered with `Debug`. Raises `ValueError` for a value it rejects.
 #[pyfunction]
@@ -1528,6 +1549,8 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(execute_bundle, module)?)?;
     module.add_function(wrap_pyfunction!(_stored_value_debug, module)?)?;
     module.add_function(wrap_pyfunction!(_vm_value_debug, module)?)?;
+    module.add_function(wrap_pyfunction!(_stored_value_encode_debug, module)?)?;
+    module.add_function(wrap_pyfunction!(_stored_value_reencode_debug, module)?)?;
     crate::lmdb_python::register(py, module)?;
     crate::block_state_python::register(module)?;
     Ok(())

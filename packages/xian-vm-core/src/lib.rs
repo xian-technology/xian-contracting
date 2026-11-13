@@ -41,6 +41,8 @@ pub use decimal_tuple::{VmDecimalExponent, VmDecimalTuple};
 mod storage_scan;
 #[cfg(any(feature = "python-extension", test))]
 mod stored_value;
+#[cfg(any(feature = "python-extension", test))]
+mod stored_value_encoder;
 mod values;
 mod work_meter;
 pub use raw_decimal::VmRawDecimal;
