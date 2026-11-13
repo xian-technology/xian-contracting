@@ -46,7 +46,7 @@ pub use decimal_tuple::{VmDecimalExponent, VmDecimalTuple};
 mod python_decimal;
 #[cfg(any(feature = "python-extension", test))]
 mod settlement;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(feature = "python-extension")]
 mod state_view;
 mod storage_scan;
 #[cfg(any(feature = "python-extension", test))]

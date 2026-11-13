@@ -11,9 +11,12 @@
 //! opens at most one discarding scope: every change made inside it is undone
 //! when it closes, at a cost that follows what the scope touched.
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::Arc;
+#[cfg(feature = "python-extension")]
+use std::sync::{Mutex, MutexGuard};
 
 /// The state behind its lock; a panic while it was held is a broken node.
+#[cfg(feature = "python-extension")]
 pub(crate) fn lock(state: &Mutex<BlockState>) -> MutexGuard<'_, BlockState> {
     state.lock().expect("block state lock poisoned")
 }
