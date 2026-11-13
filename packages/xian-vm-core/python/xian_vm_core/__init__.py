@@ -32,6 +32,7 @@ from contracting.storage.ordered import iter_overlay_items
 
 from ._native import (
     MAX_STORAGE_KEY_BYTES,
+    BlockExecutor,
     BlockState,
     LmdbEnvironment,
     LmdbItems,
@@ -351,7 +352,7 @@ class NativeVmHost:
             name,
             construct_name,
             [],
-            _coerce_external_call_kwargs(dict(constructor_args or {}), self.vm_profile),
+            coerce_call_kwargs(dict(constructor_args or {}), self.vm_profile),
             context,
             self,
             meter=self._meter_enabled,
@@ -594,7 +595,7 @@ def execute_contract(
         context=context,
     )
     coerced_args = _coerce_external_call_args(args or [], vm_profile)
-    coerced_kwargs = _coerce_external_call_kwargs(kwargs or {}, vm_profile)
+    coerced_kwargs = coerce_call_kwargs(kwargs or {}, vm_profile)
     summary = host.module_summary(contract_name)
     if summary is None:
         raise VmRuntimeExecutionError(
@@ -630,7 +631,7 @@ def execute_contract(
     finally:
         random_bridge.clear_random_state()
         rt.env = previous_env
-    result = _coerce_native_error_result(
+    result = native_error_result(
         int(raw["status_code"]),
         raw["result"],
         vm_profile=vm_profile,
@@ -671,7 +672,8 @@ def _coerce_external_call_args(args: list[Any], vm_profile) -> list[Any]:
     return [ContractingDecimal(str(value)) if isinstance(value, float) else value for value in args]
 
 
-def _coerce_external_call_kwargs(kwargs: dict[str, Any], vm_profile) -> dict[str, Any]:
+def coerce_call_kwargs(kwargs: dict[str, Any], vm_profile="xian_vm_v2") -> dict[str, Any]:
+    """Keyword arguments of an external call, as the VM receives them."""
     if vm_profile == "xian_vm_v2":
         return decode_wire_numbers(normalize_wire_numbers(kwargs))
     return {
@@ -687,9 +689,11 @@ def _merge_contract_costs(left: dict[str, int], right: dict[str, int]) -> dict[s
     return dict(sorted(merged.items()))
 
 
-def _coerce_native_error_result(
+def native_error_result(
     status_code: int, result: Any, *, vm_profile: str = "xian_vm_v2", exception=None
 ) -> Any:
+    """The receipt result of a native execution: the structured exception of
+    a failure when there is one, else the value or failure text."""
     if int(status_code) == 0 or not isinstance(result, str):
         return result
     if vm_profile == "xian_vm_v2":
@@ -808,6 +812,7 @@ def _construct_function_name(module_ir: dict[str, Any]) -> str | None:
 
 __all__ = [
     "MAX_STORAGE_KEY_BYTES",
+    "BlockExecutor",
     "BlockState",
     "LmdbEnvironment",
     "LmdbItems",
@@ -817,8 +822,10 @@ __all__ = [
     "NativeVmHost",
     "VmIrValidationError",
     "VmRuntimeExecutionError",
+    "coerce_call_kwargs",
     "execute_bundle",
     "execute_contract",
+    "native_error_result",
     "runtime_info",
     "runtime_info_json",
     "supports_execution_policy",

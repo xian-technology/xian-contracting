@@ -11,7 +11,7 @@ const VM_READ_COST_PER_BYTE: u64 = 2;
 const VM_WRITE_COST_PER_BYTE: u64 = 25;
 const VM_TRANSACTION_BYTES_COST_PER_BYTE: u64 = 1;
 const VM_RETURN_VALUE_COST_PER_BYTE: u64 = 1;
-const VM_TRANSACTION_BASE_CHI: u64 = 5;
+pub(crate) const VM_TRANSACTION_BASE_CHI: u64 = 5;
 const VM_TRANSACTION_BASE_CHI_RAW: u64 = VM_TRANSACTION_BASE_CHI * 1_000;
 /// Absolute chi ceiling of one V2 transaction (`xvm-execution-11`). Node fee
 /// policies cap transactions at or below it; execution never exceeds it.

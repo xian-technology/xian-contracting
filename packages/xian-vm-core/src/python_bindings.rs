@@ -1,5 +1,7 @@
 use crate::bundle_executor::{BundleExecutor, ExecutionOutcome, HostServices};
 use crate::interpreter::numeric_v2;
+#[path = "block_executor_python.rs"]
+mod block_executor_python;
 #[path = "committed_reads.rs"]
 mod committed_reads;
 #[path = "settlement_python.rs"]
@@ -1061,5 +1063,6 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     crate::lmdb_python::register(py, module)?;
     crate::block_state_python::register(module)?;
     settlement_python::register(module)?;
+    block_executor_python::register(module)?;
     Ok(())
 }

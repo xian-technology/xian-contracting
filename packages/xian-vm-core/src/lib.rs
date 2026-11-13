@@ -24,6 +24,8 @@ pub use iteration::{VmDictView, VmIterator, VmRange};
 mod rendering;
 mod scalar_methods;
 pub use heap::VmReference;
+#[cfg(feature = "python-extension")]
+mod block_executor;
 #[cfg(any(feature = "python-extension", test))]
 mod block_state;
 #[cfg(feature = "python-extension")]

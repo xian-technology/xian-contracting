@@ -21,6 +21,11 @@ impl StateView {
         &self.overlay
     }
 
+    /// Book `key` as read, for a value served from a cache.
+    pub(crate) fn record_read(&self, key: &str) {
+        lock(&self.overlay).record_read(key);
+    }
+
     /// The value at `key` as `Driver.get` returns it: `None` when it is
     /// missing or pending deletion. `track` books the key as read in the
     /// overlay's access tracking. A read or decode failure is a host fault,

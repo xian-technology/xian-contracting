@@ -1,7 +1,7 @@
 """Native failures remain bounded and follow their profile's error categories."""
 
 import pytest
-from xian_vm_core import _coerce_native_error_result, _native_exception_from_repr, execute_contract
+from xian_vm_core import native_error_result, _native_exception_from_repr, execute_contract
 
 from contracting.execution.errors import classify_execution_error
 from contracting.storage.driver import Driver
@@ -120,4 +120,4 @@ def good():
 def test_failure_coercion_preserves_success_values_and_existing_exception_objects(
     profile, status, value
 ):
-    assert _coerce_native_error_result(status, value, vm_profile=profile) is value
+    assert native_error_result(status, value, vm_profile=profile) is value

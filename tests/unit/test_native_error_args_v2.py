@@ -7,7 +7,7 @@ text classification (see test_native_error_representations).
 """
 
 import pytest
-from xian_vm_core import _coerce_native_error_result, execute_contract
+from xian_vm_core import native_error_result, execute_contract
 
 from contracting.execution.errors import classify_execution_error
 from contracting.local import ContractingClient
@@ -144,7 +144,7 @@ def test_constructor_failure_reports_the_constructor_exception():
 
 def test_unstructured_v2_failures_remain_text():
     text = "constructor failed: AssertionError('ValueError: stop')"
-    assert _coerce_native_error_result(1, text, vm_profile="xian_vm_v2") == text
+    assert native_error_result(1, text, vm_profile="xian_vm_v2") == text
 
 
 @pytest.mark.parametrize(
@@ -156,7 +156,7 @@ def test_unstructured_v2_failures_remain_text():
     ],
 )
 def test_structured_failure_selects_only_known_types(exception, kind, args):
-    result = _coerce_native_error_result(1, "text", vm_profile="xian_vm_v2", exception=exception)
+    result = native_error_result(1, "text", vm_profile="xian_vm_v2", exception=exception)
     if kind is None:
         assert result == "text"
     else:
