@@ -44,8 +44,10 @@ This file records the runtime properties that must hold before a
 - Native helper paths may over-charge conservatively, but they must not
   under-meter.
 - Entry execution, host costs, and serial or nested constructors share one
-  transaction budget. Zero and oversized metered budgets remain capped at
-  50,000,000,000 raw chi.
+  transaction budget. Zero and oversized metered budgets are capped at the
+  profile's ceiling: 1,000,000 chi (1,000,000,000 raw) for V2, reported as
+  `runtime_info()["max_tx_chi"]`, and the historical 50,000,000 chi
+  (50,000,000,000 raw) for archival V1.
 - Failure rolls back state, not the cost of work already performed. Failed
   constructor costs remain in the transaction's charge and attribution.
 

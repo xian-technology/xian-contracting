@@ -39,7 +39,11 @@ and integer members, including inside tuples and nested frozen sets.
 
 For off-chain contract arguments, construct Python `int` and `decimal.Decimal`
 values from integers or strings and pass them through the current codecs.
-`ContractingDecimal` and the wrapper collection classes also implement legacy
+`str()` and `repr()` of a `ContractingDecimal` give the same plain fixed-point
+text as `canonical_fixed` and the V2 VM's `str(decimal)`: no exponent, no
+trailing fractional zeros, `0` for zero (`1000`, not `1E+3`). Format specs such
+as `f"{amount:.4f}"` apply to that plain value as V2 `format(decimal, spec)`
+does. `ContractingDecimal` and the wrapper collection classes also implement legacy
 CPython operations for archival replay. The native VM executes V2 contract
 arithmetic and determines the types returned to the client.
 

@@ -169,9 +169,10 @@ Metering covers both host-side data costs and VM execution:
 
 - one transaction budget is shared by the entry executor, host operations, and
   every serial or nested constructor; starting a constructor never resets it
-- metered execution uses the supplied raw-chi budget capped at 50,000,000,000;
-  a zero budget uses that cap, while explicitly unmetered execution remains
-  available for trusted local tooling
+- metered execution uses the supplied budget capped at the profile's ceiling
+  (1,000,000 chi for V2, 50,000,000 chi for archival V1); a zero budget uses
+  that cap, while explicitly unmetered execution remains available for trusted
+  local tooling
 - failed execution discards writes and events but retains measured work and
   contract cost attribution, including failed constructors
 - storage reads, writes, transaction bytes, and return-value bytes are charged
