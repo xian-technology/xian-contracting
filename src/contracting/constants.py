@@ -60,7 +60,10 @@ CHI_PER_T = 20
 BLOCK_NUM_DEFAULT = -1
 FILENAME_LEN_MAX = 255
 
-DEFAULT_CHI = 1000000
+# Default budget of a local call. Node fee policies cap a transaction at
+# 200,000 chi or less; the largest measured real deployment (a 37 KB contract)
+# uses about 17,500 chi and a token transfer about 250 chi.
+DEFAULT_CHI = 100_000
 TRANSACTION_BASE_CHI = 5
 
 STORAGE_HOME = Path().home().joinpath(".cometbft/xian")
