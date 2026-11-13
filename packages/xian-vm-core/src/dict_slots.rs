@@ -44,7 +44,7 @@ impl DictSlots {
         result
     }
 
-    fn append(&mut self, key: &VmValue) {
+    pub fn append(&mut self, key: &VmValue) {
         let generalize = self.unicode_only && !is_string(key);
         if self.end >= self.table_size * 2 / 3 || generalize {
             self.compact();

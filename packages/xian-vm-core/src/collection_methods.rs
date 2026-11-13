@@ -56,6 +56,10 @@ fn dictionary_insert(
     value: VmValue,
     host: &mut dyn VmHost,
 ) -> Result<()> {
+    if let Some(dict) = indexed_dict(receiver) {
+        host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
+        return dict_object_set(dict, key, value, MAX_SEQUENCE_LENGTH);
+    }
     let VmValue::Dict(mut entries) = receiver.snapshot() else {
         unreachable!()
     };
@@ -90,11 +94,83 @@ pub(super) fn setdefault(
             "dict.setdefault() expects one or two positional arguments",
         ));
     }
+    if let Some(dict) = indexed_dict(receiver) {
+        return indexed_setdefault(receiver, dict, args, host);
+    }
     let VmValue::Dict(entries) = receiver.snapshot() else {
         unreachable!()
     };
     host.charge_execution_cost(entries.len() as u64)?;
     if let Some(value) = dict_get(&entries, &args[0])? {
+        return Ok(value);
+    }
+    let value = args.get(1).cloned().unwrap_or(VmValue::None);
+    dictionary_insert(receiver, args[0].clone(), value.clone(), host)?;
+    Ok(value)
+}
+
+/// `get`, `pop` and `popitem` of a V2 dictionary, in place through its index.
+pub(super) fn indexed_dict_method(
+    dict: &crate::VmReference,
+    method: &str,
+    args: Vec<VmValue>,
+    kwargs: Vec<(String, VmValue)>,
+) -> Result<VmValue> {
+    if !kwargs.is_empty() {
+        return Err(VmExecutionError::new(format!(
+            "native method '{method}()' does not accept keyword arguments"
+        )));
+    }
+    match method {
+        "get" => indexed_get(dict, &args),
+        "pop" => indexed_pop(dict, &args),
+        _ => indexed_popitem(dict, &args),
+    }
+}
+
+fn indexed_get(dict: &crate::VmReference, args: &[VmValue]) -> Result<VmValue> {
+    let (key, default) = key_and_default(args, "get")?;
+    Ok(dict_object_get(dict, key)?.unwrap_or(default))
+}
+
+fn indexed_pop(dict: &crate::VmReference, args: &[VmValue]) -> Result<VmValue> {
+    let (key, default) = key_and_default(args, "pop")?;
+    match dict_object_pop(dict, key)? {
+        Some(value) => Ok(value),
+        None if args.len() == 2 => Ok(default),
+        None => Err(VmExecutionError::new(format!(
+            "missing dict key {}",
+            key.python_repr()
+        ))),
+    }
+}
+
+fn key_and_default<'a>(args: &'a [VmValue], method: &str) -> Result<(&'a VmValue, VmValue)> {
+    match args {
+        [key] => Ok((key, VmValue::None)),
+        [key, default] => Ok((key, default.clone())),
+        _ => Err(VmExecutionError::new(format!(
+            "dict.{method}() expects one or two arguments"
+        ))),
+    }
+}
+
+fn indexed_popitem(dict: &crate::VmReference, args: &[VmValue]) -> Result<VmValue> {
+    if !args.is_empty() {
+        return Err(VmExecutionError::new("dict.popitem() expects no arguments"));
+    }
+    let (key, value) = dict_object_pop_last(dict)?
+        .ok_or_else(|| VmExecutionError::new("popitem(): dictionary is empty"))?;
+    Ok(VmValue::Tuple(vec![key, value]))
+}
+
+fn indexed_setdefault(
+    receiver: &VmValue,
+    dict: &crate::VmReference,
+    args: Vec<VmValue>,
+    host: &mut dyn VmHost,
+) -> Result<VmValue> {
+    if let Some(value) = dict_object_get(dict, &args[0])? {
         return Ok(value);
     }
     let value = args.get(1).cloned().unwrap_or(VmValue::None);

@@ -20,6 +20,9 @@ struct Usage {
 struct Object {
     value: RefCell<VmValue>,
     dict_slots: RefCell<Option<crate::dict_slots::DictSlots>>,
+    /// V2 lookup index of a dictionary; `None` until an indexed operation
+    /// builds it, and again after the dictionary is replaced wholesale.
+    dict_index: RefCell<Option<crate::dict_index::DictIndex>>,
     bytes: Cell<usize>,
     immutable_depth: usize,
     version: Cell<u64>,
@@ -77,6 +80,7 @@ impl VmReference {
         self.0.bytes.set(bytes);
         drop(usage);
         *self.0.dict_slots.borrow_mut() = slots;
+        *self.0.dict_index.borrow_mut() = None;
         *self.0.value.borrow_mut() = value;
         self.0.version.set(self.0.version.get().saturating_add(1));
         Ok(())
@@ -85,11 +89,24 @@ impl VmReference {
     /// Replace one list element in place. The list keeps its length, so its
     /// accounted bytes do not change.
     pub(crate) fn set_list_item(&self, index: usize, item: VmValue) {
-        match &mut *self.0.value.borrow_mut() {
+        self.change(|value| match value {
             VmValue::List(items) => items[index] = item,
             _ => unreachable!("list reference changed type"),
-        }
+        })
+    }
+
+    /// Change the object in place and record a new version.
+    fn change<T>(&self, change: impl FnOnce(&mut VmValue) -> T) -> T {
+        let result = change(&mut self.0.value.borrow_mut());
         self.0.version.set(self.0.version.get().saturating_add(1));
+        result
+    }
+
+    fn change_dict<T>(&self, change: impl FnOnce(&mut Vec<(VmValue, VmValue)>) -> T) -> T {
+        self.change(|value| match value {
+            VmValue::Dict(entries) => change(entries),
+            _ => unreachable!("dictionary reference changed type"),
+        })
     }
 
     pub(crate) fn append_sequence(&self, item: VmValue) -> Result<(), VmExecutionError> {
@@ -121,6 +138,61 @@ impl VmReference {
         usage.bytes += growth;
         self.0.bytes.set(self.0.bytes.get() + growth);
         Ok(())
+    }
+
+    /// Read a dictionary's entries together with its lookup index.
+    pub(crate) fn with_dict_index<T>(
+        &self,
+        read: impl FnOnce(&[(VmValue, VmValue)], &mut Option<crate::dict_index::DictIndex>) -> T,
+    ) -> T {
+        match &*self.0.value.borrow() {
+            VmValue::Dict(entries) => read(entries, &mut self.0.dict_index.borrow_mut()),
+            _ => unreachable!("dictionary reference changed type"),
+        }
+    }
+
+    /// Replace the value of the dictionary entry at `position` in place.
+    pub(crate) fn set_dict_value(&self, position: usize, item: VmValue) {
+        self.change_dict(|entries| entries[position].1 = item)
+    }
+
+    /// Append a dictionary entry whose key hashes to `hash`, in place.
+    pub(crate) fn push_dict_entry(
+        &self,
+        key: VmValue,
+        item: VmValue,
+        hash: Option<u64>,
+    ) -> Result<(), VmExecutionError> {
+        let growth = dict_entry_bytes();
+        let mut usage = self.0.usage.borrow_mut();
+        if usage.bytes + growth > MAX_HEAP_BYTES {
+            return Err(VmExecutionError::new("VM heap byte limit exceeded"));
+        }
+        crate::dict_index::DictIndex::pushed(&mut self.0.dict_index.borrow_mut(), hash)?;
+        if let Some(slots) = self.0.dict_slots.borrow_mut().as_mut() {
+            slots.append(&key);
+        }
+        self.change_dict(|entries| entries.push((key, item)));
+        usage.bytes += growth;
+        self.0.bytes.set(self.0.bytes.get() + growth);
+        Ok(())
+    }
+
+    /// Remove the dictionary entry at `position`, whose key hashes to `hash`.
+    pub(crate) fn remove_dict_entry(
+        &self,
+        position: usize,
+        hash: Option<u64>,
+    ) -> (VmValue, VmValue) {
+        crate::dict_index::DictIndex::removed(&mut self.0.dict_index.borrow_mut(), position, hash);
+        if let Some(slots) = self.0.dict_slots.borrow_mut().as_mut() {
+            slots.positions.remove(position);
+        }
+        let entry = self.change_dict(|entries| entries.remove(position));
+        let shrink = dict_entry_bytes();
+        self.0.usage.borrow_mut().bytes -= shrink;
+        self.0.bytes.set(self.0.bytes.get() - shrink);
+        entry
     }
 
     pub(crate) fn dictionary_slots<T>(
@@ -252,6 +324,7 @@ impl VmHeap {
         };
         let object = VmReference(Rc::new(Object {
             dict_slots: RefCell::new(dict_slots),
+            dict_index: RefCell::default(),
             value: RefCell::new(value),
             bytes: Cell::new(bytes),
             immutable_depth,
@@ -303,9 +376,7 @@ fn shallow_bytes(value: &VmValue) -> usize {
         | VmValue::Set(v)
         | VmValue::BuiltinSet(v)
         | VmValue::FrozenSet(v) => v.len() * std::mem::size_of::<VmValue>(),
-        VmValue::Dict(v) => {
-            v.len() * (std::mem::size_of::<(VmValue, VmValue)>() + std::mem::size_of::<usize>())
-        }
+        VmValue::Dict(v) => v.len() * dict_entry_bytes(),
         VmValue::DecimalTuple(v) => v.allocation_bytes(),
         VmValue::ContractHandle(v) => v.module.len() + v.origin.len(),
         VmValue::String(v) => v.len(),
@@ -324,6 +395,17 @@ fn shallow_bytes(value: &VmValue) -> usize {
         VmValue::InterfaceSubject(subject) => subject.allocation_bytes(),
         _ => 0,
     }
+}
+
+/// Accounted bytes of one dictionary entry: the key/value pair, its
+/// insertion slot and, in V2, its share of the lookup index.
+fn dict_entry_bytes() -> usize {
+    let index = if crate::interpreter::numeric_v2::active() {
+        crate::dict_index::INDEX_BYTES_PER_ENTRY
+    } else {
+        0
+    };
+    std::mem::size_of::<(VmValue, VmValue)>() + std::mem::size_of::<usize>() + index
 }
 
 fn map_children(
@@ -510,6 +592,53 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("heap allocation"));
+    }
+
+    #[test]
+    fn in_place_dictionary_entries_keep_heap_accounting() {
+        let _scope = crate::interpreter::numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
+        let heap = VmHeap::default();
+        let VmValue::Reference(dict) = heap.capture(VmValue::Dict(vec![])).unwrap() else {
+            unreachable!()
+        };
+        let accounted = || (dict.0.bytes.get(), heap.0.usage.borrow().bytes);
+        let expected = || dict.with_value(shallow_bytes);
+        let (_, before) = accounted();
+        for key in 0..3 {
+            dict.push_dict_entry(crate::vm_int(key), VmValue::None, Some(key as u64))
+                .unwrap();
+        }
+        assert_eq!(
+            accounted(),
+            (
+                expected(),
+                before - shallow_bytes(&VmValue::Dict(vec![])) + expected()
+            )
+        );
+        assert_eq!(
+            expected(),
+            shallow_bytes(&VmValue::Dict(vec![])) + 3 * dict_entry_bytes()
+        );
+        let removed = dict.remove_dict_entry(1, Some(1));
+        assert_eq!(removed, (crate::vm_int(1), VmValue::None));
+        assert_eq!(accounted().0, expected());
+        assert_eq!(
+            dict.dictionary_slots(|slots| slots.positions.clone()),
+            vec![0, 2]
+        );
+        // V2 entries also pay for their share of the index.
+        assert_eq!(
+            dict_entry_bytes(),
+            std::mem::size_of::<(VmValue, VmValue)>()
+                + std::mem::size_of::<usize>()
+                + crate::dict_index::INDEX_BYTES_PER_ENTRY
+        );
+        // A full heap refuses the entry without changing the dictionary.
+        heap.0.usage.borrow_mut().bytes = MAX_HEAP_BYTES;
+        assert!(dict
+            .push_dict_entry(crate::vm_int(9), VmValue::None, Some(9))
+            .is_err());
+        assert_eq!(dict.with_value(crate::work_meter::members), 2);
     }
 
     #[test]

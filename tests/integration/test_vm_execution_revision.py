@@ -13,15 +13,15 @@ def test_native_execution_policy_defaults_to_v2_and_allows_explicit_replay():
     info = runtime_info()
     assert info == runtime_info("xian_vm_v2") == json.loads(runtime_info_json())
     assert info["vm_profile"] == "xian_vm_v2"
-    assert info["execution_revision"] == "xvm-execution-11"
+    assert info["execution_revision"] == "xvm-execution-12"
     assert info["set_codec"] == "xian-set-1"
     assert info["supported_bytecode_versions"] == ["xvm-2"]
-    assert info["supported_gas_schedules"] == ["xvm-gas-5"]
+    assert info["supported_gas_schedules"] == ["xvm-gas-6"]
     assert info["max_tx_chi"] == 1_000_000
-    assert supports_execution_policy("xvm-2", "xvm-gas-5")
-    assert not supports_execution_policy("xvm-2", "xvm-gas-4")
+    assert supports_execution_policy("xvm-2", "xvm-gas-6")
+    assert not supports_execution_policy("xvm-2", "xvm-gas-5")
     assert not supports_execution_policy("xvm-1", "xvm-gas-2")
-    assert not supports_execution_policy("unknown", "xvm-gas-5")
+    assert not supports_execution_policy("unknown", "xvm-gas-6")
     assert runtime_info("xian_vm_v1")["execution_revision"] == "xvm-execution-7"
     assert runtime_info("xian_vm_v1")["max_tx_chi"] == 50_000_000
     assert supports_execution_policy("xvm-1", "xvm-gas-2", "xian_vm_v1")

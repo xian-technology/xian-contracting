@@ -880,16 +880,17 @@ pub(super) fn apply_binary_operator(
             (left, right) => Ok(VmValue::Int(left.as_bigint()? & right.as_bigint()?)),
         },
         "bitor" => match (left, right) {
-            (VmValue::Dict(mut entries), VmValue::Dict(other)) => {
+            (VmValue::Dict(entries), VmValue::Dict(other)) => {
+                let mut union = DictBuilder::from_entries(entries);
                 for (key, value) in other {
-                    if entries.len() >= MAX_SEQUENCE_LENGTH && dict_get(&entries, &key)?.is_none() {
+                    if union.entries().len() >= MAX_SEQUENCE_LENGTH && !union.contains(&key)? {
                         return Err(VmExecutionError::new(
                             "dictionary union exceeds allocation limit",
                         ));
                     }
-                    dict_set(&mut entries, key, value)?;
+                    union.set(key, value)?;
                 }
-                Ok(VmValue::Dict(entries))
+                Ok(VmValue::Dict(union.into_entries()))
             }
             (VmValue::Bool(left), VmValue::Bool(right)) => Ok(VmValue::Bool(left | right)),
             (VmValue::Set(values), right) if set_like_values(&right).is_some() => {
@@ -1694,6 +1695,9 @@ pub(super) fn contains_value(
     container: &VmValue,
     needle: &VmValue,
 ) -> Result<bool, VmExecutionError> {
+    if let Some(dict) = indexed_dict(container) {
+        return Ok(dict_object_get(dict, needle)?.is_some());
+    }
     let container = &tuple_equivalent(container.snapshot());
     match container {
         VmValue::Range(range) => {
@@ -1772,6 +1776,10 @@ pub(super) fn assign_subscript(
             reference.set_list_item(idx, value);
             return Ok(container);
         }
+        if let Some(dict) = indexed_dict(&container) {
+            dict_object_set(dict, index.clone(), value, usize::MAX)?;
+            return Ok(container);
+        }
         let updated = assign_subscript(reference.value(), index, value)?;
         reference.replace(updated)?;
         return Ok(container);
@@ -1809,6 +1817,9 @@ pub(super) fn subscript_value(
     container: VmValue,
     index: &VmValue,
 ) -> Result<VmValue, VmExecutionError> {
+    if let Some(dict) = indexed_dict(&container) {
+        return missing_key(dict_object_get(dict, index), index);
+    }
     if let Some(result) = container.with_resolved(|resolved| match resolved {
         VmValue::List(values) | VmValue::Tuple(values) => {
             Some(normalize_sequence_index(index, values.len()).map(|idx| values[idx].clone()))

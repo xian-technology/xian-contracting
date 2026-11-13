@@ -183,6 +183,18 @@ pub(crate) fn comparison(
     charge(host, left.pair(right))
 }
 
+/// Charge comparing a new dictionary key with the `entries` built so far.
+pub(crate) fn entry_comparison(
+    host: &mut dyn VmHost,
+    entries: &[(VmValue, VmValue)],
+    key: &VmValue,
+) -> Result<()> {
+    if v2_has_no_raw_decimals() {
+        return Ok(());
+    }
+    comparison(host, &VmValue::Dict(entries.to_vec()), key, false)
+}
+
 /// V2 admits no raw Decimal or float values, so these profiles never charge
 /// there; their traversal would be unmetered work. V2 meters comparisons
 /// per element instead (`work_meter`).

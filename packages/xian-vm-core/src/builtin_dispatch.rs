@@ -618,14 +618,14 @@ impl VmInstance {
                 "dict() accepts at most one positional argument",
             ));
         }
-        let mut entries = Vec::new();
+        let mut entries = DictBuilder::default();
         if let Some(initial) = shared_args.first() {
             let initial = match initial.snapshot() {
                 VmValue::MappingProxy(mapping) => *mapping,
                 _ => initial.clone(),
             };
             if let VmValue::Dict(existing) = initial.snapshot() {
-                entries = existing;
+                entries = DictBuilder::from_entries(existing);
             } else {
                 let iterator = crate::iteration::iter(&initial, &self.heap)?;
                 while let Some(item) = self.next_item(&iterator, host)? {
@@ -633,26 +633,20 @@ impl VmInstance {
                     if pair.len() != 2 {
                         return Err(VmExecutionError::new("dict() expected key/value pairs"));
                     }
-                    crate::decimal_metering::comparison(
-                        host,
-                        &VmValue::Dict(entries.clone()),
-                        &pair[0],
-                        false,
-                    )?;
-                    dict_set(&mut entries, pair[0].clone(), pair[1].clone())?;
+                    crate::decimal_metering::entry_comparison(host, entries.entries(), &pair[0])?;
+                    entries.set(pair[0].clone(), pair[1].clone())?;
                 }
             }
         }
         for (key, value) in shared_kwargs {
-            crate::decimal_metering::comparison(
+            crate::decimal_metering::entry_comparison(
                 host,
-                &VmValue::Dict(entries.clone()),
+                entries.entries(),
                 &VmValue::String(key.clone()),
-                false,
             )?;
-            dict_set(&mut entries, VmValue::String(key), value)?;
+            entries.set(VmValue::String(key), value)?;
         }
-        Ok(VmValue::Dict(entries))
+        Ok(VmValue::Dict(entries.into_entries()))
     }
 
     fn builtin_list(

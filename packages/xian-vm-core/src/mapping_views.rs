@@ -14,6 +14,9 @@ pub(super) fn contains(
     view: &crate::VmDictView,
     needle: &VmValue,
 ) -> Result<bool, VmExecutionError> {
+    if let (ViewMode::Keys, Some(dict)) = (&view.mode, indexed_dict(&view.source)) {
+        return Ok(dict_object_get(dict, needle)?.is_some());
+    }
     let VmValue::Dict(entries) = view.source.snapshot() else {
         return Err(VmExecutionError::new("invalid dictionary view source"));
     };
@@ -61,6 +64,16 @@ fn set_values(value: &VmValue) -> Option<Vec<VmValue>> {
         }
         _ => None,
     }
+}
+
+/// V2 `in` on a keys view finds the key through the dictionary's index and
+/// meters that lookup itself, so it pays no view comparison work.
+pub(super) fn indexed_membership(operator: &str, container: &VmValue) -> bool {
+    matches!(operator, "in" | "not_in")
+        && container.with_resolved(|value| {
+            matches!(value, VmValue::View(view)
+                if matches!(view.mode, ViewMode::Keys) && indexed_dict(&view.source).is_some())
+        })
 }
 
 pub(super) fn comparison_work(left: &VmValue, right: &VmValue) -> u64 {

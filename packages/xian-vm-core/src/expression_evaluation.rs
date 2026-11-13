@@ -233,7 +233,7 @@ impl VmInstance {
         let key = required_value(object, "key")?;
         let value = required_value(object, "value")?;
         let generators = required_array(object, "generators")?;
-        let mut results = Vec::new();
+        let mut results = DictBuilder::default();
         let (mut nested, bindings, iterator) =
             self.prepare_comprehension(generators, scope, host)?;
         let previous = std::mem::replace(&mut self.lexical_bindings, bindings);
@@ -249,7 +249,7 @@ impl VmInstance {
         );
         self.lexical_bindings = previous;
         result?;
-        Ok(VmValue::Dict(results))
+        Ok(VmValue::Dict(results.into_entries()))
     }
 
     pub(super) fn eval_dict_comprehension_generator(
@@ -260,7 +260,7 @@ impl VmInstance {
         value: &Value,
         scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
-        results: &mut Vec<(VmValue, VmValue)>,
+        results: &mut DictBuilder,
         first_iterator: Option<VmValue>,
     ) -> Result<(), VmExecutionError> {
         let _frame = self.heap.enter_execution_frame()?;
@@ -296,13 +296,8 @@ impl VmInstance {
             if index + 1 == generators.len() {
                 let dict_key = self.eval_expression(key, scope, host)?;
                 let dict_value = self.eval_expression(value, scope, host)?;
-                crate::decimal_metering::comparison(
-                    host,
-                    &VmValue::Dict(results.clone()),
-                    &dict_key,
-                    false,
-                )?;
-                dict_set(results, dict_key, dict_value)?;
+                crate::decimal_metering::entry_comparison(host, results.entries(), &dict_key)?;
+                results.set(dict_key, dict_value)?;
             } else {
                 self.eval_dict_comprehension_generator(
                     generators,
@@ -432,7 +427,11 @@ impl VmInstance {
         for (operator, comparator) in operators.iter().zip(comparators.iter()) {
             let right = self.eval_expression(comparator, scope, host)?;
             let operator = required_string_value(operator)?;
-            let view_cost = mapping_views::comparison_work(&left, &right);
+            let view_cost = if mapping_views::indexed_membership(operator, &right) {
+                0
+            } else {
+                mapping_views::comparison_work(&left, &right)
+            };
             if view_cost > 0 {
                 host.charge_execution_cost(view_cost)?;
             }
@@ -514,7 +513,7 @@ impl VmInstance {
         scope: &mut HashMap<String, VmValue>,
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
-        let mut entries = Vec::new();
+        let mut entries = DictBuilder::default();
         for entry in required_array(object, "entries")? {
             let entry_object = as_object(entry, "dict entry")?;
             if let Some(unpack) = entry_object.get("unpack") {
@@ -525,29 +524,19 @@ impl VmInstance {
                     ));
                 };
                 for (key, value) in unpacked_entries {
-                    crate::decimal_metering::comparison(
-                        host,
-                        &VmValue::Dict(entries.clone()),
-                        &key,
-                        false,
-                    )?;
-                    dict_set(&mut entries, key, value)?;
+                    crate::decimal_metering::entry_comparison(host, entries.entries(), &key)?;
+                    entries.set(key, value)?;
                 }
             } else {
                 let key =
                     self.eval_expression(required_value(entry_object, "key")?, scope, host)?;
                 let value =
                     self.eval_expression(required_value(entry_object, "value")?, scope, host)?;
-                crate::decimal_metering::comparison(
-                    host,
-                    &VmValue::Dict(entries.clone()),
-                    &key,
-                    false,
-                )?;
-                dict_set(&mut entries, key, value)?;
+                crate::decimal_metering::entry_comparison(host, entries.entries(), &key)?;
+                entries.set(key, value)?;
             }
         }
-        Ok(VmValue::Dict(entries))
+        Ok(VmValue::Dict(entries.into_entries()))
     }
 
     fn eval_subscript(

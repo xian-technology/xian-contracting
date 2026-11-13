@@ -27,8 +27,8 @@ Supported scope:
 
 The chain selects a profile for artifact admission and execution. Every module
 in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports
-execution revision `xvm-execution-11`, bytecode version `xvm-2` and gas schedule
-`xvm-gas-5`. The native and Python host bindings select V2 by default. Public
+execution revision `xvm-execution-12`, bytecode version `xvm-2` and gas schedule
+`xvm-gas-6`. The native and Python host bindings select V2 by default. Public
 `ContractingClient` and `ParallelBatchExecutor` execution accepts only V2.
 
 Low-level native V1 supports historical verification and migration: select
@@ -68,6 +68,19 @@ expression or statement; one operation may perform at most 2^20 units before it
 is charged, and exceeding that fails the transaction. CPU time per charged chi
 of every operation family stays within a small constant factor of plain
 interpreter work (`tests/metering_bounds.rs`, `scripts/metering_calibration.py`).
+
+`xvm-gas-6` (`xvm-execution-12`) gives V2 dictionaries a hash index. A lookup,
+membership test, `get`, insert, overwrite, `setdefault`, `update` entry, `pop` or
+`popitem` hashes the key (one unit per key node and per 8 payload bytes),
+compares the key only with entries of the same hash (one unit each, as before)
+and changes the dictionary in place, so its cost no longer grows with the
+dictionary. Removing an entry also costs one unit per 16 later entries it moves
+up. Dictionary displays, comprehensions, `dict()`, `fromkeys()` and `|` build
+through the same index. Insertion order, the retained first key, iteration and
+the errors are unchanged. Equal keys hash equally under V2 equality: integers
+by value (`True` and `1` are different V2 keys), text and bytes by payload,
+tuples by their items and frozensets by their size. Archival V1 keeps the linear
+scan.
 Archival V1 keeps `xvm-gas-2`.
 
 One V2 transaction may use at most 1,000,000 chi (`max_tx_chi` in

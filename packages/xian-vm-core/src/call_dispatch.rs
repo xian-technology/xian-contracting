@@ -390,6 +390,11 @@ impl VmInstance {
         if method == "setdefault" && resolves_to!(receiver, VmValue::Dict(_)) {
             return collection_methods::setdefault(&receiver, args, kwargs, host);
         }
+        if let Some(dict) = indexed_dict(&receiver) {
+            if matches!(method, "get" | "pop" | "popitem") {
+                return collection_methods::indexed_dict_method(dict, method, args, kwargs);
+            }
+        }
         if method == "reverse" && resolves_to!(receiver, VmValue::List(_)) {
             return collection_methods::reverse(&receiver, args, kwargs, host);
         }
@@ -413,17 +418,12 @@ impl VmInstance {
             }
             let default = args.get(1).cloned().unwrap_or(VmValue::None);
             let iterator = crate::iteration::iter(&args[0], &self.heap)?;
-            let mut entries = Vec::new();
+            let mut entries = DictBuilder::default();
             while let Some(key) = self.next_item(&iterator, host)? {
-                crate::decimal_metering::comparison(
-                    host,
-                    &VmValue::Dict(entries.clone()),
-                    &key,
-                    false,
-                )?;
-                dict_set(&mut entries, key, default.clone())?;
+                crate::decimal_metering::entry_comparison(host, entries.entries(), &key)?;
+                entries.set(key, default.clone())?;
             }
-            return Ok(VmValue::Dict(entries));
+            return Ok(VmValue::Dict(entries.into_entries()));
         }
         if matches!(method, "keys" | "values" | "items") && resolves_to!(receiver, VmValue::Dict(_))
         {
