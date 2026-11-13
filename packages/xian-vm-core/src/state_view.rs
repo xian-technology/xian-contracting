@@ -51,11 +51,7 @@ impl StateView {
         prefix: &str,
         visit: &mut dyn FnMut(String, VmValue) -> bool,
     ) -> Result<(), String> {
-        let mut merge = Merge {
-            pending: self.pending_under(prefix)?.into_iter().peekable(),
-            visit,
-            stopped: false,
-        };
+        let mut merge = OverlayMerge::new(self.pending_under(prefix)?, visit);
         self.env
             .read(|txn| {
                 txn.scan_from(prefix.as_bytes(), |key, stored| {
@@ -64,7 +60,11 @@ impl StateView {
                     }
                     let key = std::str::from_utf8(key)
                         .map_err(|error| LmdbError::Other(format!("stored key: {error}")))?;
-                    merge.stored(key, stored)
+                    merge.stored(key, || {
+                        decode_stored_value(stored).map_err(|error| {
+                            LmdbError::Other(format!("corrupt stored value at {key:?}: {error}"))
+                        })
+                    })
                 })
             })
             .map_err(|error| format!("scanning {prefix:?}: {error}"))?;
@@ -89,15 +89,28 @@ impl StateView {
 }
 
 /// A scan's pending entries merged into the stored entries it reaches, as
-/// `contracting.storage.ordered.iter_overlay_items` merges them; live entries
-/// go to the visitor until it asks to stop.
-struct Merge<'v> {
+/// `contracting.storage.ordered.iter_overlay_items` merges them: a pending
+/// entry replaces the stored one with its key, a pending deletion (`None`)
+/// hides it, and live entries go to the visitor until it asks to stop.
+pub(crate) struct OverlayMerge<'v> {
     pending: Peekable<IntoIter<(String, Option<VmValue>)>>,
     visit: &'v mut dyn FnMut(String, VmValue) -> bool,
     stopped: bool,
 }
 
-impl Merge<'_> {
+impl<'v> OverlayMerge<'v> {
+    /// `pending` in key order.
+    pub(crate) fn new(
+        pending: Vec<(String, Option<VmValue>)>,
+        visit: &'v mut dyn FnMut(String, VmValue) -> bool,
+    ) -> Self {
+        Self {
+            pending: pending.into_iter().peekable(),
+            visit,
+            stopped: false,
+        }
+    }
+
     fn entry(&mut self, key: String, value: Option<VmValue>) {
         if let (false, Some(value)) = (self.stopped, value) {
             self.stopped = !(self.visit)(key, value);
@@ -105,28 +118,32 @@ impl Merge<'_> {
     }
 
     /// The stored entry at `key`, after the pending entries ordered before
-    /// it; a pending entry with the same key replaces it. False once the
+    /// it; its value is read only when the visitor gets it. False once the
     /// visitor stopped.
-    fn stored(&mut self, key: &str, stored: &[u8]) -> Result<bool, LmdbError> {
+    pub(crate) fn stored<K, E>(
+        &mut self,
+        key: K,
+        value: impl FnOnce() -> Result<VmValue, E>,
+    ) -> Result<bool, E>
+    where
+        K: AsRef<str> + Into<String>,
+    {
         let mut replaced = false;
-        while let Some((pending_key, value)) = self
+        while let Some((pending_key, pending)) = self
             .pending
-            .next_if(|(pending_key, _)| pending_key.as_str() <= key)
+            .next_if(|(pending_key, _)| pending_key.as_str() <= key.as_ref())
         {
-            replaced = pending_key == key;
-            self.entry(pending_key, value);
+            replaced = pending_key == key.as_ref();
+            self.entry(pending_key, pending);
         }
         if !replaced && !self.stopped {
-            let value = decode_stored_value(stored).map_err(|error| {
-                LmdbError::Other(format!("corrupt stored value at {key:?}: {error}"))
-            })?;
-            self.entry(key.to_owned(), Some(value));
+            self.entry(key.into(), Some(value()?));
         }
         Ok(!self.stopped)
     }
 
     /// The pending entries after the last stored one.
-    fn finish(mut self) {
+    pub(crate) fn finish(mut self) {
         while let Some((key, value)) = self.pending.next() {
             self.entry(key, value);
         }
@@ -134,7 +151,7 @@ impl Merge<'_> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::lmdb_env::OpenOptions;
     use crate::stored_value_encoder::encode_stored_value;
@@ -143,19 +160,23 @@ mod tests {
         VmValue::String(value.to_owned())
     }
 
-    fn encoded(value: &str) -> Arc<[u8]> {
+    pub(crate) fn encoded(value: &str) -> Arc<[u8]> {
         Arc::from(encode_stored_value(&text(value)).unwrap())
     }
 
     /// A state view over a fresh LMDB environment holding `stored` and an
     /// overlay holding `pending` (`None`: a pending deletion).
-    struct Fixture {
-        view: StateView,
+    pub(crate) struct Fixture {
+        pub(crate) view: StateView,
         dir: std::path::PathBuf,
     }
 
     impl Fixture {
-        fn new(name: &str, stored: &[(&str, &[u8])], pending: &[(&str, Option<&str>)]) -> Self {
+        pub(crate) fn new(
+            name: &str,
+            stored: &[(&str, &[u8])],
+            pending: &[(&str, Option<&str>)],
+        ) -> Self {
             let dir =
                 std::env::temp_dir().join(format!("xian-state-view-{name}-{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&dir);

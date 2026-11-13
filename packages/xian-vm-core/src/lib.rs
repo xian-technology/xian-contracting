@@ -27,6 +27,8 @@ pub use heap::VmReference;
 #[cfg(feature = "python-extension")]
 mod block_executor;
 #[cfg(any(feature = "python-extension", test))]
+mod block_host;
+#[cfg(any(feature = "python-extension", test))]
 mod block_state;
 #[cfg(feature = "python-extension")]
 mod bundle_executor;

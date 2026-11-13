@@ -12,71 +12,29 @@
 //! Python path, in block order. That covers contract submission, contracts
 //! using zk host syscalls, host syscalls other than the contract metadata
 //! reads (random, deploy, metadata changes), preparation and entry
-//! rejections, and any value the Python checks could refuse. Hash scans read
-//! the overlay and LMDB here. A storage fault stops with `Stop::Fault`.
+//! rejections, and any value the Python checks could refuse. The VM's host
+//! (`block_host`) reads the overlay and LMDB, hash scans included. A storage
+//! fault stops with `Stop::Fault`.
+use crate::block_host::modules::{exports, runnable};
+use crate::block_host::{fault, text, BlockHost, HostWrites, Ir, Modules, OWNER_KEY};
 use crate::block_state::lock;
-use crate::bundle_executor::{
-    validate_bundle_module, BundleExecutor, ExecutionOutcome, HostServices,
-};
-use crate::interpreter::vm_variable_storage_key;
+use crate::bundle_executor::{validate_bundle_module, BundleExecutor, ExecutionOutcome};
 use crate::lmdb_env::storage_key_error;
 use crate::metering::VM_TRANSACTION_BASE_CHI as TRANSACTION_BASE_CHI;
-use crate::module_cache::shared_module;
 use crate::python_decimal::PyDecimal;
 use crate::settlement::{self, handback, Balance, Reservation, Settled, Stop};
 use crate::state_view::StateView;
 use crate::stored_value_encoder::encode_stored_value;
 use crate::tx_rewards::{chain_chi_rate, tx_reward_outputs, RewardState, TxRewards};
 use crate::{
-    ValidatedModuleIr, VmBudget, VmEvent, VmException, VmExecutionContext, VmExecutionError,
-    VmMeterConfig, VmValue, XIAN_VM_V2_PROFILE,
+    ValidatedModuleIr, VmBudget, VmEvent, VmException, VmExecutionContext, VmMeterConfig, VmValue,
+    XIAN_VM_V2_PROFILE,
 };
 use num_bigint::BigInt;
 use num_traits::Zero;
-use sha3::{Digest, Sha3_256};
-use std::cell::{OnceCell, RefCell};
 use std::collections::{BTreeMap, HashMap};
-use std::rc::Rc;
 use std::sync::Arc;
 
-const IR_KEY: &str = "__xian_ir_v1__";
-const SOURCE_KEY: &str = "__source__";
-const OWNER_KEY: &str = "__owner__";
-/// `contract.info`'s fields after the name, and the variables they read.
-const CONTRACT_INFO: [(&str, &str); 5] = [
-    ("owner", OWNER_KEY),
-    ("developer", "__developer__"),
-    ("deployer", "__deployer__"),
-    ("initiator", "__initiator__"),
-    ("submitted", "__submitted__"),
-];
-/// A contract metadata read served here: the syscall, its fewest and most
-/// arguments, and the read of the named contract (the VM binds every
-/// argument positionally).
-type MetadataRead = (
-    &'static str,
-    usize,
-    usize,
-    fn(&mut BlockHost<'_>, &str, &[VmValue]) -> Result<VmValue, VmExecutionError>,
-);
-const METADATA_READS: [MetadataRead; 5] = [
-    ("contract.exists", 1, 1, |host, contract, _| {
-        Ok(VmValue::Bool(host.contract_exists(contract)?))
-    }),
-    ("contract.has_export", 2, 2, |host, contract, args| {
-        let export = host.string_arg(args, 1)?;
-        Ok(VmValue::Bool(host.contract_has_export(contract, &export)?))
-    }),
-    ("contract.owner_of", 1, 1, |host, contract, _| {
-        host.metadata(contract, OWNER_KEY)
-    }),
-    ("contract.info", 1, 1, |host, contract, _| {
-        host.contract_info(contract)
-    }),
-    ("contract.code_hash", 1, 2, |host, contract, args| {
-        host.code_hash(contract, args.get(1))
-    }),
-];
 const INSUFFICIENT_BALANCE: &str = "Sender does not have enough chi for the submitted budget.";
 
 /// The chain fee policy of the block (`xian.fee_policy.TxFeePolicy`).
@@ -119,338 +77,6 @@ pub(crate) struct TxOutcome {
     /// a success's writes and fee refund before reward deltas; none for a
     /// failure, whose fee is metered after it.
     pub(crate) output_writes: usize,
-}
-
-fn fault(error: String) -> Stop {
-    Stop::Fault(error)
-}
-
-/// What a contract's IR key holds.
-#[derive(Clone)]
-enum Ir {
-    /// Missing (or null).
-    Absent,
-    /// A value that is not a non-empty string: no runnable module.
-    Other,
-    Text(Rc<CachedModule>),
-}
-
-/// A contract's IR text and, once needed, its validated module.
-struct CachedModule {
-    text: String,
-    validated: OnceCell<Result<ValidatedModuleIr, String>>,
-}
-
-impl CachedModule {
-    fn validated(&self, name: &str) -> Result<ValidatedModuleIr, String> {
-        self.validated
-            .get_or_init(|| shared_module(name, &self.text).map_err(|error| error.to_string()))
-            .clone()
-    }
-}
-
-/// The IR of the contracts one run read, by contract name, so a large IR is
-/// decoded and validated once per run. Only a write to an IR key changes
-/// it: the run's own staging forgets such keys, and every run starts empty
-/// (the Python path writes between runs).
-#[derive(Default)]
-pub(crate) struct Modules(RefCell<HashMap<String, Ir>>);
-
-impl Modules {
-    pub(crate) fn clear(&self) {
-        self.0.borrow_mut().clear();
-    }
-
-    fn forget(&self, key: &str) {
-        if let Some(name) = key.strip_suffix(&format!(".{IR_KEY}")) {
-            self.0.borrow_mut().remove(name);
-        }
-    }
-
-    /// The IR of `name`, read as `Driver.get` reads it.
-    fn ir(&self, view: &StateView, name: &str) -> Result<Ir, String> {
-        if let Some(ir) = self.0.borrow().get(name) {
-            return Ok(ir.clone());
-        }
-        let key = format!("{name}.{IR_KEY}");
-        let ir = match view.get(&key)? {
-            None | Some(VmValue::None) => Ir::Absent,
-            Some(VmValue::String(text)) if !text.is_empty() => Ir::Text(Rc::new(CachedModule {
-                text,
-                validated: OnceCell::new(),
-            })),
-            Some(_) => Ir::Other,
-        };
-        self.0.borrow_mut().insert(name.to_owned(), ir.clone());
-        Ok(ir)
-    }
-}
-
-/// The VM host of a block transaction: state from the overlay and LMDB; a
-/// request it cannot serve marks the transaction for the Python path.
-struct BlockHost<'a> {
-    view: StateView,
-    modules: &'a Modules,
-    stop: Option<Stop>,
-}
-
-impl BlockHost<'_> {
-    fn ir(&mut self, name: &str) -> Result<Ir, VmExecutionError> {
-        self.modules
-            .ir(&self.view, name)
-            .map_err(|error| self.halt(fault(error)))
-    }
-
-    fn halt(&mut self, stop: Stop) -> VmExecutionError {
-        let message = match &stop {
-            Stop::Handback(reason) => format!("handed back to the Python path: {reason}"),
-            Stop::Fault(reason) => format!("host fault: {reason}"),
-        };
-        self.stop.get_or_insert(stop);
-        VmExecutionError::new(message)
-    }
-
-    fn get(&mut self, key: &str) -> Result<Option<VmValue>, VmExecutionError> {
-        match self.view.get(key) {
-            Ok(value) => Ok(value.filter(|value| !matches!(value, VmValue::None))),
-            Err(error) => Err(self.halt(fault(error))),
-        }
-    }
-
-    fn back<T>(&mut self, reason: impl Into<String>) -> Result<T, VmExecutionError> {
-        Err(self.halt(Stop::Handback(reason.into())))
-    }
-
-    fn string_arg(&mut self, args: &[VmValue], index: usize) -> Result<String, VmExecutionError> {
-        match args.get(index).and_then(host_text) {
-            Some(value) => Ok(value.to_owned()),
-            None => self.back("syscall argument is not a string"),
-        }
-    }
-
-    /// `NativeVmHost._contract_exists`.
-    fn contract_exists(&mut self, contract: &str) -> Result<bool, VmExecutionError> {
-        if !matches!(self.ir(contract)?, Ir::Absent) {
-            return Ok(true);
-        }
-        Ok(self.get(&format!("{contract}.{SOURCE_KEY}"))?.is_some())
-    }
-
-    /// `NativeVmHost._contract_has_export`.
-    fn contract_has_export(
-        &mut self,
-        contract: &str,
-        export: &str,
-    ) -> Result<bool, VmExecutionError> {
-        let Ir::Text(module) = self.ir(contract)? else {
-            return Ok(false);
-        };
-        match runnable(contract, &module) {
-            Ok(module) => Ok(exports(&module, export)),
-            Err(Stop::Handback(reason)) => self.back(reason),
-            Err(stop) => Err(self.halt(stop)),
-        }
-    }
-
-    /// A contract metadata variable (`NativeVmHost._contract_var`).
-    fn metadata(&mut self, contract: &str, variable: &str) -> Result<VmValue, VmExecutionError> {
-        Ok(self
-            .get(&format!("{contract}.{variable}"))?
-            .unwrap_or(VmValue::None))
-    }
-
-    /// `contract.info`: the name and the deployment metadata.
-    fn contract_info(&mut self, contract: &str) -> Result<VmValue, VmExecutionError> {
-        let mut info = vec![(text("name"), text(contract))];
-        for (field, variable) in CONTRACT_INFO {
-            let value = self.metadata(contract, variable)?;
-            info.push((text(field), value));
-        }
-        Ok(VmValue::Dict(info))
-    }
-
-    /// `NativeVmHost._code_hash`: the SHA3-256 hex digest of the contract's
-    /// IR (kind "runtime", the default, or "ir") or source ("source"); `None`
-    /// when it has none.
-    fn code_hash(
-        &mut self,
-        contract: &str,
-        kind: Option<&VmValue>,
-    ) -> Result<VmValue, VmExecutionError> {
-        let variable = code_variable(kind)?;
-        if variable == IR_KEY {
-            if let Ir::Text(module) = self.ir(contract)? {
-                return Ok(code_digest(&module.text));
-            }
-        }
-        match self.metadata(contract, variable)? {
-            VmValue::None => Ok(VmValue::None),
-            VmValue::String(code) => Ok(code_digest(&code)),
-            _ => self.back("contract code is not a string"),
-        }
-    }
-}
-
-impl HostServices for BlockHost<'_> {
-    fn module_ir_json(&mut self, module: &str) -> Result<Option<String>, VmExecutionError> {
-        match self.ir(module)? {
-            Ir::Text(cached) => Ok(Some(cached.text.clone())),
-            _ => Ok(None),
-        }
-    }
-
-    fn module(
-        &mut self,
-        module: &str,
-        profile: &str,
-    ) -> Result<Option<ValidatedModuleIr>, VmExecutionError> {
-        let Ir::Text(cached) = self.ir(module)? else {
-            return Ok(None);
-        };
-        let validated = cached.validated(module).map_err(VmExecutionError::new)?;
-        validate_bundle_module(&validated, module, profile)?;
-        Ok(Some(validated))
-    }
-
-    fn read_variable(
-        &mut self,
-        _contract: &str,
-        _binding: &str,
-        storage_key: &str,
-    ) -> Result<Option<VmValue>, VmExecutionError> {
-        self.get(storage_key)
-    }
-
-    fn read_hash(
-        &mut self,
-        _contract: &str,
-        _binding: &str,
-        _key: &VmValue,
-        storage_key: &str,
-    ) -> Result<VmValue, VmExecutionError> {
-        Ok(self.get(storage_key)?.unwrap_or(VmValue::None))
-    }
-
-    fn scan_hash_entries(
-        &mut self,
-        contract: &str,
-        binding: &str,
-        prefix: &str,
-    ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
-        let mut entries = Vec::new();
-        self.visit_hash_entries(contract, binding, prefix, &mut |suffix, value| {
-            entries.push((suffix, value));
-            Ok(())
-        })?;
-        Ok(entries)
-    }
-
-    /// `NativeVmHost.iter_hash_entries`: the hash's entries under `prefix`
-    /// (its key suffix with the trailing delimiter), as `(suffix, value)`.
-    fn visit_hash_entries(
-        &mut self,
-        contract: &str,
-        binding: &str,
-        prefix: &str,
-        visit: &mut dyn FnMut(String, VmValue) -> Result<(), VmExecutionError>,
-    ) -> Result<(), VmExecutionError> {
-        let base_key = vm_variable_storage_key(contract, binding);
-        let full_prefix = format!("{base_key}:{prefix}");
-        let suffix_offset = base_key.len() + 1;
-        let mut refused = None;
-        let mut forward = |key: String, value| match visit(key[suffix_offset..].to_owned(), value) {
-            Ok(()) => true,
-            Err(error) => {
-                refused = Some(error);
-                false
-            }
-        };
-        let scanned = self.view.visit_prefix(&full_prefix, &mut forward);
-        scanned.map_err(|error| self.halt(fault(error)))?;
-        refused.map_or(Ok(()), Err)
-    }
-
-    fn owner(&mut self, contract: &str) -> Result<Option<String>, VmExecutionError> {
-        match self.get(&format!("{contract}.{OWNER_KEY}"))? {
-            None => Ok(None),
-            Some(VmValue::String(owner)) => Ok(Some(owner)),
-            Some(_) => self.back("contract owner is not a string"),
-        }
-    }
-
-    fn syscall(
-        &mut self,
-        syscall_id: &str,
-        args: Vec<VmValue>,
-        kwargs: Vec<(String, VmValue)>,
-    ) -> Result<VmValue, VmExecutionError> {
-        let read = METADATA_READS.iter().find(|(id, fewest, most, _)| {
-            *id == syscall_id && (*fewest..=*most).contains(&args.len())
-        });
-        match (read, kwargs.is_empty()) {
-            (Some((_, _, _, read)), true) => {
-                let contract = self.string_arg(&args, 0)?;
-                read(self, &contract, &args)
-            }
-            _ => self.back(format!("host syscall {syscall_id}")),
-        }
-    }
-}
-
-/// The module `name` as the node prepares it; a module the Python path
-/// would refuse or that uses zk host syscalls is left to Python.
-fn runnable(name: &str, cached: &CachedModule) -> Settled<ValidatedModuleIr> {
-    let module = cached.validated(name).map_err(Stop::Handback)?;
-    if module.vm_profile != XIAN_VM_V2_PROFILE {
-        return handback("module does not target xian_vm_v2");
-    }
-    let uses_zk = module.host_dependencies.iter().any(|dependency| {
-        dependency.category == "zk"
-            || dependency.id.starts_with("zk.")
-            || dependency.binding.starts_with("zk.")
-    });
-    if uses_zk {
-        return handback("module uses zk host syscalls");
-    }
-    Ok(module)
-}
-
-/// The contract variable `code_hash` hashes for `kind`: the IR for
-/// "runtime" (the default) and "ir", the source for "source".
-fn code_variable(kind: Option<&VmValue>) -> Result<&'static str, VmExecutionError> {
-    match kind.map(|kind| (kind, host_text(kind))) {
-        None | Some((VmValue::None, _)) | Some((_, Some("runtime" | "ir"))) => Ok(IR_KEY),
-        Some((_, Some("source"))) => Ok(SOURCE_KEY),
-        // The Python host's VmRuntimeExecutionError, as `host_error` reports it.
-        Some(_) => Err(VmExecutionError::new(
-            "VmRuntimeExecutionError: Hash kind must be 'ir' or 'source'!",
-        )),
-    }
-}
-
-fn code_digest(code: &str) -> VmValue {
-    text(&hex::encode(Sha3_256::digest(code.as_bytes())))
-}
-
-/// The string the Python host receives for `value` (`vm_to_py`): a string
-/// or a contract module handle's name.
-fn host_text(value: &VmValue) -> Option<&str> {
-    match value {
-        VmValue::String(text) => Some(text),
-        VmValue::ContractHandle(handle) => Some(&handle.module),
-        _ => None,
-    }
-}
-
-fn text(value: &str) -> VmValue {
-    VmValue::String(value.to_owned())
-}
-
-fn exports(module: &ValidatedModuleIr, function: &str) -> bool {
-    module
-        .functions
-        .iter()
-        .any(|candidate| candidate.visibility == "export" && candidate.name == function)
 }
 
 struct ViewRewardState<'a>(&'a StateView);
@@ -597,8 +223,8 @@ impl BlockExecutor {
         };
         let entry = self.prepare(&tx.contract)?;
         let context = self.entry_context(tx, &entry)?;
-        let outcome = self.run_vm(tx, entry, context)?;
-        Ok(execution_of(outcome, reservation))
+        let (outcome, host_writes) = self.run_vm(tx, entry, context)?;
+        Ok(execution_of(outcome, host_writes, reservation))
     }
 
     /// `_reserve_vm_fee_budget`: the budget reserved from the sender's
@@ -697,14 +323,10 @@ impl BlockExecutor {
         tx: &PreparedTx,
         entry: ValidatedModuleIr,
         context: VmExecutionContext,
-    ) -> Settled<ExecutionOutcome> {
+    ) -> Settled<(ExecutionOutcome, HostWrites)> {
         let budget_raw = chi_budget_raw(&tx.chi_budget)?;
         let budget = VmBudget::new(budget_raw, XIAN_VM_V2_PROFILE);
-        let host = BlockHost {
-            view: self.view.clone(),
-            modules: &self.modules,
-            stop: None,
-        };
+        let host = BlockHost::new(self.view.clone(), &self.modules);
         validate_bundle_module(&entry, &tx.contract, XIAN_VM_V2_PROFILE)
             .map_err(|error| Stop::Handback(error.to_string()))?;
         let bundle = HashMap::from([(tx.contract.clone(), entry)]);
@@ -723,13 +345,13 @@ impl BlockExecutor {
             tx.kwargs.clone(),
             context,
         );
-        if let Some(stop) = executor.host.stop.take() {
+        if let Some(stop) = executor.host.take_stop() {
             return Err(stop);
         }
         // _combined_chi_used: the base charge plus measured work, within the budget.
         let combined = (outcome.stats.raw_cost / 1_000 + TRANSACTION_BASE_CHI).min(limit / 1_000);
         outcome.stats.chi_used = combined.max(outcome.stats.chi_used);
-        Ok(outcome)
+        Ok((outcome, executor.host.take_writes()))
     }
 
     /// Fee settlement, rewards and staging after the scope closed.
@@ -937,8 +559,13 @@ fn chi_budget_raw(chi_budget: &BigInt) -> Settled<u64> {
 }
 
 /// The VM outcome as `execute_contract` reports it: writes from the module
-/// snapshots, then the recorded storage writes, in key order.
-fn execution_of(outcome: ExecutionOutcome, reservation: Option<Reservation>) -> Execution {
+/// snapshots, then the recorded storage writes, then a success's host
+/// writes, in key order; a success's host events before the VM's events.
+fn execution_of(
+    outcome: ExecutionOutcome,
+    host_writes: HostWrites,
+    reservation: Option<Reservation>,
+) -> Execution {
     let mut writes = BTreeMap::new();
     for snapshot in outcome.snapshots {
         for variable in snapshot.variables {
@@ -957,6 +584,8 @@ fn execution_of(outcome: ExecutionOutcome, reservation: Option<Reservation>) -> 
         }
     }
     writes.extend(outcome.storage_writes);
+    let mut events = outcome.events;
+    host_writes.settle(outcome.status_code, &mut writes, &mut events);
     let mut contract_costs: Vec<(String, BigInt)> = outcome
         .stats
         .contract_costs
@@ -970,7 +599,7 @@ fn execution_of(outcome: ExecutionOutcome, reservation: Option<Reservation>) -> 
         result: outcome.result,
         exception: outcome.exception,
         writes,
-        events: outcome.events,
+        events,
         chi_used: BigInt::from(outcome.stats.chi_used),
         contract_costs,
     }
