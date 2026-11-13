@@ -300,8 +300,7 @@ impl VmInstance {
             .ok_or_else(|| VmExecutionError::new("Variable.set expects one argument"))?;
         self.variable_set(binding, value.clone())?;
         let storage_key = variable_storage_key(&self.module.module_name, binding);
-        host.record_storage_write(&storage_key, &value.detached()?)?;
-        host.charge_storage_write(&storage_key, &value.detached()?)?;
+        record_storage_write(host, &storage_key, &value.detached()?)?;
         Ok(VmValue::None)
     }
 }

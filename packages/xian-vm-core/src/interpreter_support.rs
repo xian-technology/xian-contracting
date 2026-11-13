@@ -2347,14 +2347,35 @@ pub(super) fn normalize_hash_key(value: &VmValue) -> Result<String, VmExecutionE
         other => storage_key_part(other)?,
     };
 
-    if normalized.len() > MAX_STORAGE_KEY_SIZE {
+    let max_size = if numeric_v2::active() {
+        crate::lmdb_env::MAX_STORAGE_KEY_BYTES
+    } else {
+        V1_MAX_HASH_KEY_SIZE
+    };
+    if normalized.len() > max_size {
         return Err(VmExecutionError::new(format!(
-            "Key is too long ({}). Max is {MAX_STORAGE_KEY_SIZE}.",
+            "Key is too long ({}). Max is {max_size}.",
             normalized.len()
         )));
     }
 
     Ok(normalized)
+}
+
+/// Hand one storage write to the host. V2 fails a write whose key the store
+/// cannot hold here, at the write, not when the block commits.
+pub(super) fn record_storage_write(
+    host: &mut dyn VmHost,
+    key: &str,
+    value: &VmValue,
+) -> Result<(), VmExecutionError> {
+    if numeric_v2::active() {
+        if let Some(message) = crate::lmdb_env::storage_key_error(key) {
+            return Err(VmExecutionError::new(message));
+        }
+    }
+    host.record_storage_write(key, value)?;
+    host.charge_storage_write(key, value)
 }
 
 /// The key suffix selected by `Hash.all(*prefix)`/`clear(*prefix)`, including
@@ -2957,4 +2978,59 @@ fn selected_object(values: &[VmValue], index: &VmValue) -> Result<VmValue, VmExe
         .get(index)
         .cloned()
         .ok_or_else(|| VmExecutionError::new("invalid random selection index"))
+}
+
+#[cfg(test)]
+mod storage_key_tests {
+    use super::*;
+
+    #[derive(Default)]
+    struct WriteLog(Vec<String>);
+
+    impl VmHost for WriteLog {
+        fn record_storage_write(
+            &mut self,
+            key: &str,
+            _value: &VmValue,
+        ) -> Result<(), VmExecutionError> {
+            self.0.push(key.to_owned());
+            Ok(())
+        }
+    }
+
+    fn text(len: usize) -> VmValue {
+        VmValue::String("k".repeat(len))
+    }
+
+    #[test]
+    fn v2_bounds_hash_keys_by_the_storage_key_limit_and_v1_keeps_1024() {
+        let v2 = numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
+        assert!(normalize_hash_key(&text(511)).is_ok());
+        let error = normalize_hash_key(&text(512)).unwrap_err();
+        assert_eq!(error.to_string(), "Key is too long (512). Max is 511.");
+        drop(v2);
+        let _v1 = numeric_v2::Scope::enter(crate::XIAN_VM_V1_PROFILE);
+        assert!(normalize_hash_key(&text(1024)).is_ok());
+        assert!(normalize_hash_key(&text(1025)).is_err());
+    }
+
+    #[test]
+    fn v2_fails_a_write_whose_key_the_store_cannot_hold_before_the_host_sees_it() {
+        let largest = "k".repeat(crate::lmdb_env::MAX_STORAGE_KEY_BYTES);
+        let over = format!("{largest}k");
+        let mut host = WriteLog::default();
+        let v2 = numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
+        record_storage_write(&mut host, &largest, &VmValue::None).unwrap();
+        let error = record_storage_write(&mut host, &over, &VmValue::None).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "Storage key is too long (512 bytes). Max is 511."
+        );
+        assert_eq!(host.0, vec![largest.clone()]);
+        drop(v2);
+        // Archival V1 execution is unchanged: the storage layer refuses the key.
+        let _v1 = numeric_v2::Scope::enter(crate::XIAN_VM_V1_PROFILE);
+        record_storage_write(&mut host, &over, &VmValue::None).unwrap();
+        assert_eq!(host.0, vec![largest, over]);
+    }
 }

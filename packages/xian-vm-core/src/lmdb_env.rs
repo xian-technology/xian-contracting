@@ -124,6 +124,27 @@ mod ffi {
     }
 }
 
+/// The longest storage key, in UTF-8 bytes: LMDB 0.9's `MDB_MAXKEYSIZE`.
+///
+/// LMDB refuses a longer key only when the block commits, after every node
+/// already agreed on the block's state root, so the chain would halt. Storage
+/// keys are therefore a consensus rule fixed at this value: V2 fails the
+/// transaction that forms a longer key, and the storage layer refuses to stage
+/// one. It is a constant rather than a value read from the backend because a
+/// rule must not move with the store (LMDB 1.0 derives its limit from the page
+/// size); a test pins that the vendored LMDB stores exactly this many bytes.
+pub const MAX_STORAGE_KEY_BYTES: usize = 511;
+
+/// Why `key` cannot be stored, or `None` when it can.
+pub fn storage_key_error(key: &str) -> Option<String> {
+    (key.len() > MAX_STORAGE_KEY_BYTES).then(|| {
+        format!(
+            "Storage key is too long ({} bytes). Max is {MAX_STORAGE_KEY_BYTES}.",
+            key.len()
+        )
+    })
+}
+
 /// A key and value borrowed from the map for one transaction.
 type Entry<'t> = (&'t [u8], &'t [u8]);
 /// A key and value copied out of the map.
@@ -688,6 +709,28 @@ mod tests {
             env.read(|txn| Ok(txn.get(b"d")?.map(<[u8]>::to_vec)))
                 .unwrap(),
             None
+        );
+        env.close();
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn the_storage_key_limit_is_the_largest_key_lmdb_stores() {
+        let dir = temp_dir("maxkey");
+        let env = LmdbEnv::open(&dir, options()).unwrap();
+        let largest = vec![b'k'; MAX_STORAGE_KEY_BYTES];
+        env.write(|txn| txn.put(&largest, b"1")).unwrap();
+        let refused = env
+            .write(|txn| txn.put(&[largest.as_slice(), b"k"].concat(), b"1"))
+            .unwrap_err();
+        assert!(refused.to_string().contains("MDB_BAD_VALSIZE"), "{refused}");
+        assert_eq!(
+            storage_key_error("k".repeat(MAX_STORAGE_KEY_BYTES).as_str()),
+            None
+        );
+        assert_eq!(
+            storage_key_error(&"\u{e9}".repeat(256)).as_deref(),
+            Some("Storage key is too long (512 bytes). Max is 511.")
         );
         env.close();
         std::fs::remove_dir_all(dir).unwrap();

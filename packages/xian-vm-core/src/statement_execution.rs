@@ -484,8 +484,7 @@ impl VmInstance {
     ) -> Result<(), VmExecutionError> {
         self.hash_set(binding, key, value.clone())?;
         let storage_key = hash_storage_key(&self.module.module_name, binding, key)?;
-        host.record_storage_write(&storage_key, &value.detached()?)?;
-        host.charge_storage_write(&storage_key, &value.detached()?)
+        record_storage_write(host, &storage_key, &value.detached()?)
     }
 }
 

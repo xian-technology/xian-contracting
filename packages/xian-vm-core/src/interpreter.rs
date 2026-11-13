@@ -16,7 +16,10 @@ mod diagnostics;
 const STORAGE_DELIMITER: &str = ":";
 const STORAGE_INDEX_SEPARATOR: &str = ".";
 const MAX_HASH_DIMENSIONS: usize = 16;
-const MAX_STORAGE_KEY_SIZE: usize = 1024;
+/// Archival V1's bound on a hash key, the text after `contract.binding:`.
+/// V2 bounds hash keys and whole storage keys by what the store can hold,
+/// `lmdb_env::MAX_STORAGE_KEY_BYTES`.
+const V1_MAX_HASH_KEY_SIZE: usize = 1024;
 pub(crate) const MAX_SEQUENCE_LENGTH: usize = 1024 * 128;
 pub(crate) const MAX_BINARY_ALLOCATION_BYTES: usize = 1024 * 128;
 pub(crate) const MAX_INTEGER_BITS: u64 = (MAX_BINARY_ALLOCATION_BYTES as u64) * 8;

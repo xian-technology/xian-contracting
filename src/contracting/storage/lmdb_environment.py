@@ -13,7 +13,13 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from threading import Lock
 
-from xian_vm_core import LmdbEnvironment, LmdbMapFullError, LmdbStorageError
+from xian_vm_core import (
+    MAX_STORAGE_KEY_BYTES,  # noqa: F401 - re-exported: the longest key this store holds
+    LmdbEnvironment,
+    LmdbMapFullError,
+    LmdbStorageError,
+    validate_storage_key,  # noqa: F401 - re-exported: refuses a longer key
+)
 
 # Storage failures (a host fault, never a transaction outcome) and their
 # map-full subclass, which callers handle by growing the map.

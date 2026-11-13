@@ -31,6 +31,7 @@ from contracting.storage.keys import (
 from contracting.storage.ordered import iter_overlay_items
 
 from ._native import (
+    MAX_STORAGE_KEY_BYTES,
     LmdbEnvironment,
     LmdbItems,
     LmdbMapFullError,
@@ -42,6 +43,7 @@ from ._native import (
     runtime_info_json,
     supports_execution_policy,
     validate_module_ir_json,
+    validate_storage_key,
 )
 
 _RANDOM_SYSCALLS = {
@@ -806,6 +808,7 @@ def _construct_function_name(module_ir: dict[str, Any]) -> str | None:
 
 
 __all__ = [
+    "MAX_STORAGE_KEY_BYTES",
     "LmdbEnvironment",
     "LmdbItems",
     "LmdbMapFullError",
@@ -821,4 +824,5 @@ __all__ = [
     "supports_execution_policy",
     "validate_module_ir",
     "validate_module_ir_json",
+    "validate_storage_key",
 ]

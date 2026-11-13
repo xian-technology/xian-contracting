@@ -2,9 +2,11 @@
 //!
 //! Python objects are created only after the environment lock is released: a
 //! garbage collection run during allocation may drop a cursor, which takes it.
-use crate::lmdb_env::{LmdbEnv, LmdbError, OpenOptions, SnapshotCursor};
+use crate::lmdb_env::{
+    storage_key_error, LmdbEnv, LmdbError, OpenOptions, SnapshotCursor, MAX_STORAGE_KEY_BYTES,
+};
 use pyo3::create_exception;
-use pyo3::exceptions::PyException;
+use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::path::PathBuf;
@@ -312,7 +314,18 @@ impl PyLmdbItems {
     }
 }
 
+/// Raise `ValueError` when `key` is longer than a storage key may be.
+#[pyfunction]
+fn validate_storage_key(key: &str) -> PyResult<()> {
+    match storage_key_error(key) {
+        Some(message) => Err(PyValueError::new_err(message)),
+        None => Ok(()),
+    }
+}
+
 pub(crate) fn register(py: Python<'_>, module: &Bound<'_, pyo3::types::PyModule>) -> PyResult<()> {
+    module.add("MAX_STORAGE_KEY_BYTES", MAX_STORAGE_KEY_BYTES)?;
+    module.add_function(wrap_pyfunction!(validate_storage_key, module)?)?;
     module.add_class::<PyLmdbEnvironment>()?;
     module.add_class::<PyLmdbItems>()?;
     module.add("LmdbStorageError", py.get_type::<LmdbStorageError>())?;

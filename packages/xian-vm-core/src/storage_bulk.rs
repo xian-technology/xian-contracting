@@ -101,8 +101,7 @@ impl VmInstance {
         state.entries.insert(key.to_owned(), value.clone());
         state.dirty_entries.insert(key.to_owned());
         let full_key = hash_storage_key_from_normalized(&self.module.module_name, binding, key);
-        host.record_storage_write(&full_key, &value)?;
-        host.charge_storage_write(&full_key, &value)?;
+        record_storage_write(host, &full_key, &value)?;
         Ok(())
     }
 }

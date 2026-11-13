@@ -27,7 +27,7 @@ Supported scope:
 
 The chain selects a profile for artifact admission and execution. Every module
 in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports
-execution revision `xvm-execution-12`, bytecode version `xvm-2` and gas schedule
+execution revision `xvm-execution-13`, bytecode version `xvm-2` and gas schedule
 `xvm-gas-6`. The native and Python host bindings select V2 by default. Public
 `ContractingClient` and `ParallelBatchExecutor` execution accepts only V2.
 
@@ -82,6 +82,19 @@ by value (`True` and `1` are different V2 keys), text and bytes by payload,
 tuples by their items and frozensets by their size. Archival V1 keeps the linear
 scan.
 Archival V1 keeps `xvm-gas-2`.
+
+`xvm-execution-13` bounds V2 storage keys by what the node's store can hold:
+LMDB 0.9 stores keys of at most 511 bytes (`MAX_STORAGE_KEY_BYTES`). A V2
+write whose whole key (`contract.variable` or `contract.hash:key`, in UTF-8
+bytes) is longer fails the transaction at the write, with `Storage key is too
+long (N bytes). Max is 511.`; this covers `Variable.set`, hash assignment and
+`clone_from`, including constructor writes during deployment. A hash key
+longer than 511 bytes is invalid for reads as well; a lookup whose hash key
+fits but whose whole key is longer finds nothing. Before this revision such a
+write succeeded during execution and only LMDB refused it when the block
+committed. Archival V1 keeps its 1,024-character hash key bound and its
+execution results; the storage driver refuses to stage a longer key in every
+profile. Gas is unchanged (`xvm-gas-6`).
 
 One V2 transaction may use at most 1,000,000 chi (`max_tx_chi` in
 `runtime_info()`); a larger or zero budget is capped there. Node fee policies set

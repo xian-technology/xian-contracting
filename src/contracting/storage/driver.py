@@ -34,6 +34,7 @@ from contracting.storage.keys import (  # noqa: F401 - re-exported storage key n
     TYPE_KEY,
     XIAN_VM_V1_IR_KEY,
 )
+from contracting.storage.lmdb_environment import validate_storage_key
 from contracting.storage.lmdb_store import LMDBStore
 from contracting.storage.ordered import iter_overlay_items
 
@@ -254,6 +255,7 @@ class Driver:
         value,
         is_txn_write: bool = False,
     ):
+        validate_storage_key(key)
         if self.pending_reads.get(key) is None:
             self.get(key)
         value = _copy_mutable_value(self._typed_value(value))
@@ -270,6 +272,9 @@ class Driver:
         return value
 
     def apply_writes(self, writes: dict[str, object]) -> None:
+        # Stage all or nothing: every key and value is checked first.
+        for key in writes:
+            validate_storage_key(key)
         typed = {key: self._typed_value(value) for key, value in writes.items()}
         for key, value in typed.items():
             self._put(self.pending_writes, key, value)
