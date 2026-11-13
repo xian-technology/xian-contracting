@@ -14,6 +14,13 @@ extern "C" {
         rounding: c_int,
         output: *mut *mut c_char,
     ) -> c_int;
+    #[cfg(any(feature = "python-extension", test))]
+    fn xian_python_decimal_calculate(
+        operation: *const c_char,
+        arguments: *const *const c_char,
+        count: usize,
+        output: *mut *mut c_char,
+    ) -> c_int;
     fn xian_decimal_free(text: *mut c_char);
 }
 
@@ -26,17 +33,44 @@ impl Drop for BackendOutput {
     }
 }
 
+/// `operation` in the VM's historical Decimal context with `rounding`.
 pub(crate) fn calculate(
     operation: &str,
     args: &[&str],
     rounding: Option<&str>,
+) -> Result<String, VmExecutionError> {
+    let rounding = rounding_code(rounding)?;
+    run(operation, args, |operation, pointers, count, output| {
+        // SAFETY: as `run` documents for its callback.
+        unsafe { xian_decimal_calculate(operation, pointers, count, rounding, output) }
+    })
+}
+
+#[cfg(any(feature = "python-extension", test))]
+/// `operation` in CPython's default `decimal` context (28 digits, half-even;
+/// a trapped signal is an error), the arithmetic node code does with
+/// `decimal.Decimal` values.
+pub(crate) fn python_calculate(operation: &str, args: &[&str]) -> Result<String, VmExecutionError> {
+    run(operation, args, |operation, pointers, count, output| {
+        // SAFETY: as `run` documents for its callback.
+        unsafe { xian_python_decimal_calculate(operation, pointers, count, output) }
+    })
+}
+
+/// Validate the operands and call one shim entry point. The callback gets a
+/// NUL-terminated operation name and `count` NUL-terminated operand pointers
+/// that live across the call; the shim validates arity and owns all C
+/// allocations, the output included.
+fn run(
+    operation: &str,
+    args: &[&str],
+    call: impl FnOnce(*const c_char, *const *const c_char, usize, *mut *mut c_char) -> c_int,
 ) -> Result<String, VmExecutionError> {
     if args.is_empty() || args.len() > 3 || operation.len() > 64 {
         return Err(VmExecutionError::new(
             "decimal operand count or operation name exceeds limit",
         ));
     }
-    let rounding = rounding_code(rounding)?;
     let operation = CString::new(operation)
         .map_err(|_| VmExecutionError::new("invalid decimal operation name"))?;
     let args: Vec<CString> = args
@@ -45,17 +79,12 @@ pub(crate) fn calculate(
         .collect::<Result<_, _>>()?;
     let pointers: Vec<_> = args.iter().map(|value| value.as_ptr()).collect();
     let mut output = BackendOutput(std::ptr::null_mut());
-    // SAFETY: All strings are NUL terminated and live across the call. The pointer
-    // array has count entries; the shim validates arity and owns all C allocations.
-    let status = unsafe {
-        xian_decimal_calculate(
-            operation.as_ptr(),
-            pointers.as_ptr(),
-            pointers.len(),
-            rounding,
-            &mut output.0,
-        )
-    };
+    let status = call(
+        operation.as_ptr(),
+        pointers.as_ptr(),
+        pointers.len(),
+        &mut output.0,
+    );
     check_status(status)?;
     output.to_string()
 }

@@ -41,9 +41,7 @@ impl PyBlockState {
     }
 }
 
-pub(crate) fn lock(state: &Mutex<BlockState>) -> MutexGuard<'_, BlockState> {
-    state.lock().expect("block state lock poisoned")
-}
+pub(crate) use crate::block_state::lock;
 
 #[pymethods]
 impl PyBlockState {

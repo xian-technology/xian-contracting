@@ -146,11 +146,10 @@ static int bounded_operand(const mpd_t *a, int expensive)
 }
 
 /* Every allocation stays owned by this function until returned as output. */
-int xian_decimal_calculate(const char *name, const char *const *text,
-                           size_t count, int rounding, char **output)
+static int calculate_in(const operation *op, const char *const *text, size_t count,
+                        const mpd_context_t *context_in, char **output)
 {
-    const operation *op = find_operation(name);
-    mpd_context_t context;
+    mpd_context_t context = *context_in;
     mpd_t *args[3] = {NULL, NULL, NULL};
     mpd_t *result = NULL;
     uint32_t status = 0;
@@ -159,15 +158,7 @@ int xian_decimal_calculate(const char *name, const char *const *text,
 
     *output = NULL;
     if (op == NULL) return XIAN_DECIMAL_UNKNOWN;
-    if (count != op->arity || rounding < 0 || rounding >= MPD_ROUND_TRUNC) return rc;
-    mpd_defaultcontext(&context);
-    context.prec = 91;
-    context.emin = -100;
-    context.emax = 100;
-    context.round = rounding;
-    context.clamp = 0;
-    context.allcr = 1;
-    context.traps = context.status = context.newtrap = 0;
+    if (count != op->arity) return rc;
 
     rc = XIAN_DECIMAL_RESOURCE;
     for (i = 0; i < count; ++i) {
@@ -213,6 +204,44 @@ done:
     for (i = 0; i < count; ++i) if (args[i] != NULL) mpd_del(args[i]);
     if (result != NULL) mpd_del(result);
     return rc;
+}
+
+/* The VM's historical Decimal: 91 digits, exponents within +-100. */
+int xian_decimal_calculate(const char *name, const char *const *text,
+                           size_t count, int rounding, char **output)
+{
+    mpd_context_t context;
+
+    *output = NULL;
+    if (rounding < 0 || rounding >= MPD_ROUND_TRUNC) return XIAN_DECIMAL_ARGUMENT;
+    mpd_defaultcontext(&context);
+    context.prec = 91;
+    context.emin = -100;
+    context.emax = 100;
+    context.round = rounding;
+    context.clamp = 0;
+    context.allcr = 1;
+    context.traps = context.status = context.newtrap = 0;
+    return calculate_in(find_operation(name), text, count, &context, output);
+}
+
+/* CPython's default decimal context (decimal.DefaultContext): 28 digits,
+ * ROUND_HALF_EVEN, exponents within +-999999. Its traps (InvalidOperation,
+ * DivisionByZero, Overflow) are the statuses calculate_in reports as errors. */
+int xian_python_decimal_calculate(const char *name, const char *const *text,
+                                  size_t count, char **output)
+{
+    mpd_context_t context;
+
+    mpd_defaultcontext(&context);
+    context.prec = 28;
+    context.emin = -999999;
+    context.emax = 999999;
+    context.round = MPD_ROUND_HALF_EVEN;
+    context.clamp = 0;
+    context.allcr = 1;
+    context.traps = context.status = context.newtrap = 0;
+    return calculate_in(find_operation(name), text, count, &context, output);
 }
 
 void xian_decimal_free(char *text)

@@ -11,7 +11,12 @@
 //! opens at most one discarding scope: every change made inside it is undone
 //! when it closes, at a cost that follows what the scope touched.
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
+
+/// The state behind its lock; a panic while it was held is a broken node.
+pub(crate) fn lock(state: &Mutex<BlockState>) -> MutexGuard<'_, BlockState> {
+    state.lock().expect("block state lock poisoned")
+}
 
 /// A stored value, or `None` for a pending deletion.
 pub(crate) type Stored = Option<Arc<[u8]>>;

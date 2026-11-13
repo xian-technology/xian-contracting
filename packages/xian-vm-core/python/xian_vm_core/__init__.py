@@ -43,6 +43,7 @@ from ._native import (
     execute_bundle,
     runtime_info_json,
     supports_execution_policy,
+    tx_rewards,
     validate_module_ir_json,
     validate_storage_key,
 )
@@ -821,6 +822,7 @@ __all__ = [
     "runtime_info",
     "runtime_info_json",
     "supports_execution_policy",
+    "tx_rewards",
     "validate_module_ir",
     "validate_module_ir_json",
     "validate_storage_key",

@@ -38,11 +38,19 @@ mod module_cache;
 mod raw_decimal;
 mod set_member_codec;
 pub use decimal_tuple::{VmDecimalExponent, VmDecimalTuple};
+#[cfg(any(feature = "python-extension", test))]
+mod python_decimal;
+#[cfg(any(feature = "python-extension", test))]
+mod settlement;
+#[cfg(any(feature = "python-extension", test))]
+mod state_view;
 mod storage_scan;
 #[cfg(any(feature = "python-extension", test))]
 mod stored_value;
 #[cfg(any(feature = "python-extension", test))]
 mod stored_value_encoder;
+#[cfg(any(feature = "python-extension", test))]
+mod tx_rewards;
 mod values;
 mod work_meter;
 pub use raw_decimal::VmRawDecimal;

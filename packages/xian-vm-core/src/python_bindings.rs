@@ -1,6 +1,8 @@
 use crate::interpreter::numeric_v2;
 #[path = "committed_reads.rs"]
 mod committed_reads;
+#[path = "settlement_python.rs"]
+mod settlement_python;
 use crate::interpreter::{vm_hash_storage_key, vm_variable_storage_key};
 use crate::module_cache::shared_module;
 use crate::XIAN_VM_V2_PROFILE;
@@ -1553,5 +1555,6 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(_stored_value_reencode_debug, module)?)?;
     crate::lmdb_python::register(py, module)?;
     crate::block_state_python::register(module)?;
+    settlement_python::register(module)?;
     Ok(())
 }
