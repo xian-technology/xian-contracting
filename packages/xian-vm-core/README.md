@@ -96,6 +96,21 @@ V2 integers have a maximum magnitude of 512 bits. Fixed decimals have 30 fractio
 
 `quantize(value, places, mode)` supports 0 through 30 places with `toward_zero`, `floor`, `ceil` and `half_even`. `sqrt(value)` returns the floor of the square root on the decimal grid. `mul_div_floor(a, b, d)` and `mul_div_ceil(a, b, d)` use an exact intermediate integer product and require a positive divisor. The bounded numeric formatter truncates discarded decimal places toward zero. Apply `quantize` first to select a different display rounding mode. Native binary floats and raw Python Decimal intermediates are rejected. Fixed decimal values and large integers use exact tagged JSON at the network boundary.
 
+## Node storage
+
+The node's state lives in one LMDB environment per directory, opened through
+`xian_vm_core.LmdbEnvironment` (LMDB 0.9.36 vendored under `vendor/lmdb`).
+`contracting.storage` uses it for every read and write; the py-lmdb package is
+only used by contracting's tests that prove file and lock compatibility.
+
+Under V2 the VM reads committed contract state itself: a `Variable` or `Hash`
+key without a pending write is read from LMDB and decoded in Rust
+(`src/stored_value.rs`), giving the same value Python's `decode` gives. Keys with
+a pending write in the block or staged by the host are still read through the
+host. Reads served in Rust are booked in the driver's read sets once per
+execution. A stored value the reader rejects is a host fault
+(`LmdbStorageError`), never a transaction outcome.
+
 ## V1 execution coverage
 
 - local function calls and builtin calls such as `len`, `range`, `str`, and
