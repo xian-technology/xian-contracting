@@ -8,7 +8,9 @@ binary-float edge cases under V1. Generated integer, collection, Unicode, time,
 and stateful programs run on V2. The generated raw-decimal/binary-float and
 random-float families select V1. The same campaign includes all 26 V2 numeric
 conformance vectors, including signed division, wide intermediates, rounding,
-square root, overflow and rollback. Each profile is selected explicitly for
+square root, overflow and rollback, and seven V2 writes at the 511-byte
+storage key limit (the largest key LMDB stores, committed and reopened, and one
+byte more, which fails). Each profile is selected explicitly for
 artifact generation, execution, storage and reopen checks. Every case uses
 the native compiler/VM, metering, fresh storage and fixed contract context.
 

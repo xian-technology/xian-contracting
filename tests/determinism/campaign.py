@@ -227,13 +227,15 @@ def collect_cases(seed, generated):
     from tests.determinism.cases import generated_cases
     from tests.determinism.float_cases import float_cases
     from tests.determinism.numeric_cases import numeric_cases
+    from tests.determinism.storage_key_cases import storage_key_cases
     from tests.surface.catalog import load_cases
 
     cases = sorted(
         [dict(case, vm_profile="xian_vm_v1") for case in load_cases()]
         + generated_cases(seed=seed, count=generated)
         + float_cases()
-        + numeric_cases(),
+        + numeric_cases()
+        + storage_key_cases(),
         key=lambda case: case["id"],
     )
     if len({case["id"] for case in cases}) != len(cases):
