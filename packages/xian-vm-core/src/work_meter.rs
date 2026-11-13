@@ -17,11 +17,18 @@ pub(crate) const VM_GAS_ELEMENT_WORK: u64 = 24;
 /// Units one operation may perform before the interpreter charges them.
 pub(crate) const MAX_PENDING_WORK: u64 = 1 << 20;
 
-thread_local! { static PENDING: Cell<u64> = const { Cell::new(0) }; }
+thread_local! {
+    static PENDING: Cell<u64> = const { Cell::new(0) };
+    static UNMETERED: Cell<bool> = const { Cell::new(false) };
+}
+
+fn counting() -> bool {
+    numeric_v2::active() && !UNMETERED.get()
+}
 
 /// Record `units` of element work done by the current operation.
 pub(crate) fn count(units: u64) -> Result<(), VmExecutionError> {
-    if !numeric_v2::active() {
+    if !counting() {
         return Ok(());
     }
     let pending = PENDING.get().saturating_add(units);
@@ -37,7 +44,7 @@ pub(crate) fn count(units: u64) -> Result<(), VmExecutionError> {
 /// Record element work where the caller cannot fail. The pending limit is
 /// enforced by the operation's next checked `count`.
 pub(crate) fn note(units: u64) {
-    if numeric_v2::active() {
+    if counting() {
         PENDING.set(PENDING.get().saturating_add(units));
     }
 }
@@ -114,6 +121,25 @@ impl Isolation {
 impl Drop for Isolation {
     fn drop(&mut self) {
         PENDING.set(self.0);
+    }
+}
+
+/// Host work that is not part of the metered VM (decoding stored values):
+/// nothing is counted until the guard drops.
+#[cfg(any(feature = "python-extension", test))]
+pub(crate) struct Unmetered(bool);
+
+#[cfg(any(feature = "python-extension", test))]
+impl Unmetered {
+    pub(crate) fn enter() -> Self {
+        Self(UNMETERED.replace(true))
+    }
+}
+
+#[cfg(any(feature = "python-extension", test))]
+impl Drop for Unmetered {
+    fn drop(&mut self) {
+        UNMETERED.set(self.0);
     }
 }
 

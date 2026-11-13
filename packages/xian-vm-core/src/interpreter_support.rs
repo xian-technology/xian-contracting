@@ -368,7 +368,7 @@ pub(super) fn set_like_values(value: &VmValue) -> Option<&[VmValue]> {
     }
 }
 
-pub(super) fn normalize_set_items(values: Vec<VmValue>) -> Result<Vec<VmValue>, VmExecutionError> {
+pub(crate) fn normalize_set_items(values: Vec<VmValue>) -> Result<Vec<VmValue>, VmExecutionError> {
     normalize_set_items_by_key(values, vm_set_key)
 }
 

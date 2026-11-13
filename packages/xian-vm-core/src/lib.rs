@@ -37,6 +37,8 @@ mod raw_decimal;
 mod set_member_codec;
 pub use decimal_tuple::{VmDecimalExponent, VmDecimalTuple};
 mod storage_scan;
+#[cfg(any(feature = "python-extension", test))]
+mod stored_value;
 mod values;
 mod work_meter;
 pub use raw_decimal::VmRawDecimal;

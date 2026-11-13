@@ -1357,6 +1357,25 @@ fn supports_execution_policy(bytecode_version: &str, gas_schedule: &str, vm_prof
     })
 }
 
+/// Parity hook: the `VmValue` the Rust stored-value reader yields for `data`,
+/// rendered with `Debug`. Raises `ValueError` for a value it rejects.
+#[pyfunction]
+fn _stored_value_debug(data: &[u8]) -> PyResult<String> {
+    crate::stored_value::decode_stored_value(data)
+        .map(|value| format!("{value:?}"))
+        .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+/// Parity hook: the `VmValue` a Python value becomes at the V2 VM boundary,
+/// rendered with `Debug`. Raises `ValueError` for a value it rejects.
+#[pyfunction]
+fn _vm_value_debug(value: Bound<'_, PyAny>) -> PyResult<String> {
+    let _scope = numeric_v2::Scope::enter(XIAN_VM_V2_PROFILE);
+    py_to_vm(value)
+        .map(|value| format!("{value:?}"))
+        .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
 #[pyfunction]
 fn validate_module_ir_json(module_ir_json: &str) -> PyResult<()> {
     parse_module_ir(module_ir_json)
@@ -1481,6 +1500,8 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
         module
     )?)?;
     module.add_function(wrap_pyfunction!(execute_bundle, module)?)?;
+    module.add_function(wrap_pyfunction!(_stored_value_debug, module)?)?;
+    module.add_function(wrap_pyfunction!(_vm_value_debug, module)?)?;
     crate::lmdb_python::register(py, module)?;
     Ok(())
 }

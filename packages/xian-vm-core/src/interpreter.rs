@@ -129,6 +129,8 @@ mod string_format;
 mod support;
 #[path = "value_formatting.rs"]
 mod value_formatting;
+#[cfg(any(feature = "python-extension", test))]
+pub(crate) use support::normalize_set_items as normalize_set_members;
 pub(crate) use support::python_is_printable;
 #[path = "syscall_dispatch.rs"]
 mod syscall_dispatch;
