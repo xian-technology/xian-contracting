@@ -59,11 +59,13 @@ def get_driver_runtime_features(
                 state_features[feature] = value
     if state_features:
         return normalize_runtime_features(state_features, default=default)
+    return _features_without_state(driver, default=default)
 
+
+def _features_without_state(driver, *, default: Mapping[str, Any] | None) -> dict[str, bool]:
     attr_features = getattr(driver, RUNTIME_FEATURE_DRIVER_ATTR, None)
     if isinstance(attr_features, Mapping):
         return normalize_runtime_features(attr_features, default=default)
-
     return normalize_runtime_features(default or DEFAULT_LOCAL_RUNTIME_FEATURES)
 
 
@@ -78,6 +80,19 @@ def runtime_feature_enabled(
         driver,
         default={feature: default_enabled},
     )[feature]
+
+
+def runtime_feature_without_state(
+    driver,
+    feature: str,
+    *,
+    default_enabled: bool = True,
+) -> bool:
+    """What ``runtime_feature_enabled`` returns while chain state does not
+    set the feature: the features installed on the driver, else
+    ``default_enabled``. The Rust block executor reads the state itself."""
+    _assert_supported_feature(feature)
+    return _features_without_state(driver, default={feature: default_enabled})[feature]
 
 
 def module_ir_uses_runtime_feature(module_ir: Mapping[str, Any] | None, feature: str) -> bool:

@@ -9,16 +9,16 @@
 //!
 //! A transaction the port does not cover stops with `Stop::Handback` before
 //! any of its effects reach the overlay; the node then runs it through the
-//! Python path, in block order. That covers contract submission
-//! (`submission.submit_contract`), contracts using zk host syscalls, host
-//! syscalls other than the contract metadata reads and changes and random
-//! (deploy), the random calls `block_host::random` leaves to Python,
+//! Python path, in block order. That covers contracts using zk host
+//! syscalls, the random calls `block_host::random` leaves to Python,
 //! preparation and entry rejections, and any value the Python checks could
-//! refuse. The VM's host
-//! (`block_host`) reads the overlay and LMDB, hash scans included. A storage
-//! fault stops with `Stop::Fault`.
+//! refuse. The VM's host (`block_host`) reads the overlay and LMDB, hash
+//! scans included, and serves the contract metadata syscalls, deployments
+//! and random. A storage fault stops with `Stop::Fault`.
 use crate::block_host::modules::{exports, runnable};
-use crate::block_host::{fault, text, BlockHost, HostCharges, HostWrites, Ir, Modules, OWNER_KEY};
+use crate::block_host::{
+    fault, text, BlockHost, HostCharges, HostWrites, Ir, Modules, TxInputs, OWNER_KEY,
+};
 use crate::block_state::lock;
 use crate::bundle_executor::{validate_bundle_module, BundleExecutor, ExecutionOutcome};
 use crate::interpreter::numeric_v2;
@@ -39,6 +39,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 const INSUFFICIENT_BALANCE: &str = "Sender does not have enough chi for the submitted budget.";
+/// `vm_contract_source_error("submission", "submit_contract")`.
+const MISSING_SOURCE: &str = "xian_vm_v2 requires source code for submission.submit_contract";
 
 /// The chain fee policy of the block (`xian.fee_policy.TxFeePolicy`).
 #[derive(Clone, Debug)]
@@ -49,6 +51,9 @@ pub(crate) struct BlockPolicy {
     pub(crate) meter_execution: bool,
     pub(crate) charge_fees: bool,
     pub(crate) distribute_fee_rewards: bool,
+    /// The zk runtime feature when chain state does not set it (the
+    /// features installed on the node's driver).
+    pub(crate) zk_enabled_without_state: bool,
     /// Keys contract effects may not write (the execution policy).
     pub(crate) protected_keys: Vec<String>,
 }
@@ -107,14 +112,16 @@ struct Execution {
 }
 
 impl Execution {
-    fn insufficient_balance() -> Self {
+    /// A transaction that failed before the VM ran: `_failed_vm_result`
+    /// with the exception `name(message)`.
+    fn failed(reservation: Option<Reservation>, name: &str, message: &str) -> Self {
         Self {
-            reservation: None,
+            reservation,
             status: 1,
-            result: VmValue::String(INSUFFICIENT_BALANCE.to_owned()),
+            result: VmValue::String(message.to_owned()),
             exception: Some(VmException {
-                name: "AssertionError".to_owned(),
-                args: vec![VmValue::String(INSUFFICIENT_BALANCE.to_owned())],
+                name: name.to_owned(),
+                args: vec![VmValue::String(message.to_owned())],
             }),
             writes: BTreeMap::new(),
             events: Vec::new(),
@@ -182,9 +189,6 @@ impl BlockExecutor {
 
     /// The transaction, executed and staged.
     pub(crate) fn execute(&self, tx: &PreparedTx) -> Settled<TxOutcome> {
-        if tx.contract == "submission" && tx.function == "submit_contract" {
-            return handback("contract submission");
-        }
         let rate = self.chi_rate()?;
         let balance_key = format!("currency.balances:{}", tx.sender);
         if let Some(error) = storage_key_error(&balance_key) {
@@ -237,17 +241,38 @@ impl BlockExecutor {
         rate: Option<&BigInt>,
         balance_key: &str,
     ) -> Settled<Execution> {
-        let reservation = match rate {
-            None => None,
-            Some(rate) => match self.reserve(tx, rate, balance_key)? {
-                Some(reservation) => Some(reservation),
-                None => return Ok(Execution::insufficient_balance()),
-            },
+        let reservation = match self.reservation(tx, rate, balance_key)? {
+            Ok(reservation) => reservation,
+            Err(unpaid) => return Ok(unpaid),
         };
         let entry = self.prepare(&tx.contract)?;
+        if missing_source(tx) {
+            return Ok(Execution::failed(reservation, "ValueError", MISSING_SOURCE));
+        }
         let context = self.entry_context(tx, &entry)?;
         let (outcome, host_writes) = self.run_vm(tx, entry, context)?;
         Ok(execution_of(outcome, host_writes, reservation))
+    }
+
+    /// The reservation of a charged transaction (`None` without fees), or
+    /// its failure when the sender cannot pay the budget.
+    fn reservation(
+        &self,
+        tx: &PreparedTx,
+        rate: Option<&BigInt>,
+        balance_key: &str,
+    ) -> Settled<Result<Option<Reservation>, Execution>> {
+        let Some(rate) = rate else {
+            return Ok(Ok(None));
+        };
+        Ok(match self.reserve(tx, rate, balance_key)? {
+            Some(reservation) => Ok(Some(reservation)),
+            None => Err(Execution::failed(
+                None,
+                "AssertionError",
+                INSUFFICIENT_BALANCE,
+            )),
+        })
     }
 
     /// `_reserve_vm_fee_budget`: the budget reserved from the sender's
@@ -354,7 +379,11 @@ impl BlockExecutor {
         let budget = VmBudget::new(budget_raw, XIAN_VM_V2_PROFILE);
         let limit = budget.limit();
         let charges = HostCharges::new(budget.clone(), self.policy.meter_execution, &tx.contract);
-        let host = BlockHost::new(self.view.clone(), &self.modules, charges, &context);
+        let inputs = TxInputs {
+            context: context.clone(),
+            zk_enabled_without_state: self.policy.zk_enabled_without_state,
+        };
+        let host = BlockHost::new(self.view.clone(), &self.modules, charges, inputs);
         validate_bundle_module(&entry, &tx.contract, XIAN_VM_V2_PROFILE)
             .map_err(|error| Stop::Handback(error.to_string()))?;
         let bundle = HashMap::from([(tx.contract.clone(), entry)]);
@@ -572,6 +601,16 @@ pub(crate) fn event_value(event: &VmEvent) -> VmValue {
     ])
 }
 
+/// `vm_requires_contract_source`: a contract submission without source
+/// code (`code` missing, not a string or empty).
+fn missing_source(tx: &PreparedTx) -> bool {
+    tx.contract == "submission"
+        && tx.function == "submit_contract"
+        && !tx.kwargs.iter().any(|(name, code)| {
+            name == "code" && matches!(code, VmValue::String(code) if !code.is_empty())
+        })
+}
+
 /// `execute_contract`'s accounting of what the host syscalls cost: the raw
 /// cost of the VM and the host makes the chi used (`_combined_chi_used`: the
 /// base charge plus measured work, within the budget), and the host's costs
@@ -596,28 +635,11 @@ fn chi_budget_raw(chi_budget: &BigInt) -> Settled<u64> {
 /// snapshots, then the recorded storage writes, then a success's host
 /// writes, in key order; a success's host events before the VM's events.
 fn execution_of(
-    outcome: ExecutionOutcome,
+    mut outcome: ExecutionOutcome,
     host_writes: HostWrites,
     reservation: Option<Reservation>,
 ) -> Execution {
-    let mut writes = BTreeMap::new();
-    for snapshot in outcome.snapshots {
-        for variable in snapshot.variables {
-            writes.insert(
-                format!("{}.{}", snapshot.contract_name, variable.binding),
-                variable.value.unwrap_or(VmValue::None),
-            );
-        }
-        for hash in snapshot.hashes {
-            for (key, value) in hash.entries {
-                writes.insert(
-                    format!("{}.{}:{}", snapshot.contract_name, hash.binding, key),
-                    value,
-                );
-            }
-        }
-    }
-    writes.extend(outcome.storage_writes);
+    let mut writes = outcome.take_writes();
     let mut events = outcome.events;
     host_writes.settle(outcome.status_code, &mut writes, &mut events);
     let mut contract_costs: Vec<(String, BigInt)> = outcome

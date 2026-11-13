@@ -30,7 +30,7 @@ mod block_executor;
 mod block_host;
 #[cfg(any(feature = "python-extension", test))]
 mod block_state;
-#[cfg(feature = "python-extension")]
+#[cfg(any(feature = "python-extension", test))]
 mod bundle_executor;
 mod decimal_backend;
 mod decimal_metering;

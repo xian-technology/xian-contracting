@@ -82,15 +82,19 @@ pub(crate) fn runnable(name: &str, cached: &CachedModule) -> Settled<ValidatedMo
     if module.vm_profile != XIAN_VM_V2_PROFILE {
         return handback("module does not target xian_vm_v2");
     }
-    let uses_zk = module.host_dependencies.iter().any(|dependency| {
-        dependency.category == "zk"
-            || dependency.id.starts_with("zk.")
-            || dependency.binding.starts_with("zk.")
-    });
-    if uses_zk {
+    if uses_zk(&module) {
         return handback("module uses zk host syscalls");
     }
     Ok(module)
+}
+
+/// `module_ir_uses_runtime_feature(module_ir, "zk")`.
+pub(crate) fn uses_zk(module: &ValidatedModuleIr) -> bool {
+    module.host_dependencies.iter().any(|dependency| {
+        dependency.category == "zk"
+            || dependency.id.starts_with("zk.")
+            || dependency.binding.starts_with("zk.")
+    })
 }
 
 /// Whether `module` exports `function`.

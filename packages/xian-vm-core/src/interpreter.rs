@@ -153,12 +153,12 @@ fn vm_trace_enabled(flag: &str) -> bool {
     env::var_os(flag).is_some()
 }
 
-#[cfg(feature = "python-extension")]
+#[cfg(any(feature = "python-extension", test))]
 pub(crate) fn vm_variable_storage_key(contract: &str, binding: &str) -> String {
     variable_storage_key(contract, binding)
 }
 
-#[cfg(feature = "python-extension")]
+#[cfg(any(feature = "python-extension", test))]
 pub(crate) fn vm_hash_storage_key(
     contract: &str,
     binding: &str,

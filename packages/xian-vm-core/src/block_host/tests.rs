@@ -26,8 +26,21 @@ fn host<'a>(fixture: &Fixture, modules: &'a Modules) -> BlockHost<'a> {
         fixture.view.clone(),
         modules,
         HostCharges::new(budget(10_000_000), true, "submission"),
-        &VmExecutionContext::default(),
+        inputs(),
     )
+}
+
+/// A transaction context with a block time and the zk feature on.
+fn inputs() -> TxInputs {
+    TxInputs {
+        context: crate::VmExecutionContext {
+            caller: Some("alice".to_owned()),
+            signer: Some("alice".to_owned()),
+            now: VmValue::Int(7.into()),
+            ..Default::default()
+        },
+        zk_enabled_without_state: true,
+    }
 }
 
 fn budget(raw: u64) -> VmBudget {
@@ -170,7 +183,7 @@ fn a_metadata_change_past_the_budget_fails_as_the_python_host_reports_it() {
         fixture.view.clone(),
         &modules,
         HostCharges::new(shared.clone(), true, "con_entry"),
-        &VmExecutionContext::default(),
+        inputs(),
     );
     let refused = metadata::change(
         &mut host,
@@ -196,7 +209,7 @@ fn unmetered_metadata_changes_are_free() {
         fixture.view.clone(),
         &modules,
         HostCharges::new(budget(1), false, "submission"),
-        &VmExecutionContext::default(),
+        inputs(),
     );
     change(&mut host, "contract.set_owner", &[text("con_x"), int(5)]);
     assert_eq!(host.get("con_x.__owner__").unwrap(), Some(int(5)));
@@ -230,4 +243,209 @@ fn metadata_changes_the_python_host_serves_otherwise_are_handed_back() {
     .is_none());
     assert!(change(&mut host, "contract.owner_of", &[text("con_x")]).is_none());
     assert_eq!(host.get("con_x.__owner__").unwrap(), None);
+}
+
+const EVENTS: &str = "v = Variable()
+Built = LogEvent(\"Built\", {\"by\": indexed(str), \"start\": int})
+
+@construct
+def seed(start: int):
+    assert start > 0, \"bad start\"
+    v.set(start)
+    Built({\"by\": ctx.caller, \"start\": start})
+
+@export
+def get():
+    return v.get()
+";
+
+/// `contract.deploy` as `submission.submit_contract` calls it.
+fn deployment(name: &str, code: &str, start: Option<i64>) -> Vec<(String, VmValue)> {
+    let arguments = start.map_or(VmValue::None, |start| {
+        VmValue::Dict(vec![(text("start"), int(start))])
+    });
+    vec![
+        ("name".to_owned(), text(name)),
+        ("code".to_owned(), text(code)),
+        ("owner".to_owned(), VmValue::None),
+        ("constructor_args".to_owned(), arguments),
+        ("developer".to_owned(), text("dev")),
+        ("deployer".to_owned(), VmValue::None),
+        ("initiator".to_owned(), VmValue::None),
+    ]
+}
+
+fn deploy(host: &mut BlockHost<'_>, kwargs: &[(String, VmValue)]) -> Result<VmValue, String> {
+    deploy::deploy(host, "contract.deploy", &[], kwargs)
+        .expect("contract.deploy is served here")
+        .map_err(|error| error.to_string())
+}
+
+#[test]
+fn a_deployment_runs_the_constructor_and_stages_its_effects_and_metadata() {
+    let fixture = fixture("deploy", &[], &[]);
+    let modules = Modules::default();
+    let mut host = host(&fixture, &modules);
+    assert_eq!(
+        deploy(&mut host, &deployment("con_new", EVENTS, Some(5))),
+        Ok(VmValue::None)
+    );
+    assert_eq!(host.get("con_new.v").unwrap(), Some(int(5)));
+    assert_eq!(host.get("con_new.__owner__").unwrap(), None);
+    assert_eq!(
+        host.get("con_new.__developer__").unwrap(),
+        Some(text("dev"))
+    );
+    assert_eq!(
+        host.get("con_new.__deployer__").unwrap(),
+        Some(text("alice"))
+    );
+    assert_eq!(
+        host.get("con_new.__initiator__").unwrap(),
+        Some(text("alice"))
+    );
+    assert_eq!(host.get("con_new.__submitted__").unwrap(), Some(int(7)));
+    let Some(VmValue::String(source)) = host.get("con_new.__source__").unwrap() else {
+        panic!("the normalized source is staged");
+    };
+    assert!(matches!(host.ir("con_new").unwrap(), Ir::Text(_)));
+    assert!(host.constructing.is_empty());
+    // A second deployment of the name finds the staged one.
+    assert_eq!(
+        deploy(&mut host, &deployment("con_new", EVENTS, Some(5))),
+        Err("VmRuntimeExecutionError: Contract already exists.".to_owned())
+    );
+    let (staged, charges) = host.finish().unwrap();
+    let mut events = Vec::new();
+    staged.settle(0, &mut std::collections::BTreeMap::new(), &mut events);
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].event, "Built");
+    assert_eq!(events[0].caller, text("alice"));
+    // The constructor's work, the metadata writes and the deployment itself.
+    assert!(charges.raw_cost() > 5_000 + source.len() as u64);
+}
+
+#[test]
+fn a_failed_constructor_fails_the_deployment_with_its_exception() {
+    let fixture = fixture("deploy-fails", &[], &[]);
+    let modules = Modules::default();
+    let mut host = host(&fixture, &modules);
+    let refused = deploy::deploy(
+        &mut host,
+        "contract.deploy",
+        &[],
+        &deployment("con_new", EVENTS, Some(0)),
+    )
+    .unwrap()
+    .unwrap_err();
+    assert!(
+        refused
+            .to_string()
+            .starts_with("VmRuntimeExecutionError: contract constructor failed: "),
+        "{refused}"
+    );
+    let exception = refused.exception().expect("the constructor's exception");
+    assert_eq!(
+        (exception.name.as_str(), &exception.args[..]),
+        ("AssertionError", &[text("bad start")][..])
+    );
+    assert!(host.constructing.is_empty());
+    assert_eq!(host.get("con_new.__xian_ir_v1__").unwrap(), None);
+    assert_eq!(host.get("con_new.v").unwrap(), None);
+    // The constructor's work still counts.
+    assert!(host.finish().unwrap().1.raw_cost() > 0);
+}
+
+#[test]
+fn deployments_refuse_bad_names_existing_contracts_and_bad_source_like_python() {
+    let fixture = fixture("deploy-refused", &[("con_old.__source__", "x = 1")], &[]);
+    let modules = Modules::default();
+    let mut host = host(&fixture, &modules);
+    let refused = |host: &mut BlockHost<'_>, name: &str, code: &str| {
+        deploy(host, &deployment(name, code, None)).unwrap_err()
+    };
+    let unsafe_name = "AssertionError: Contract name must start with a lowercase ASCII letter \
+                       and contain only lowercase ASCII letters, digits, and underscores.";
+    assert_eq!(refused(&mut host, "Bad", EVENTS), unsafe_name);
+    assert_eq!(refused(&mut host, "con_é", EVENTS), unsafe_name);
+    assert_eq!(
+        refused(&mut host, "", EVENTS),
+        "AssertionError: Contract name must be a non-empty string."
+    );
+    assert_eq!(
+        refused(&mut host, &"c".repeat(65), EVENTS),
+        "AssertionError: Contract name length exceeds 64 characters!"
+    );
+    assert_eq!(
+        refused(&mut host, "con_old", EVENTS),
+        "VmRuntimeExecutionError: Contract already exists."
+    );
+    assert_eq!(
+        refused(&mut host, "con_new", ""),
+        "VmRuntimeExecutionError: native contract deployment requires non-empty source code"
+    );
+    let syntax = refused(&mut host, "con_new", "def broken(:\n");
+    assert!(syntax.starts_with("CompilerError: "), "{syntax}");
+    assert!(syntax.contains("\n[{\"severity\":\"error\""), "{syntax}");
+    assert!(host.stop.is_none());
+}
+
+#[test]
+fn a_zk_contract_deploys_only_with_the_zk_feature_on() {
+    let source = "@export\ndef get():\n    return zk.is_available()\n";
+    let fixture = fixture("deploy-zk", &[], &[]);
+    let modules = Modules::default();
+    let mut host = host(&fixture, &modules);
+    assert_eq!(
+        deploy(&mut host, &deployment("con_zk", source, None)),
+        Ok(VmValue::None)
+    );
+    let mut off = self::host(&fixture, &modules);
+    off.tx.zk_enabled_without_state = false;
+    assert_eq!(
+        deploy(&mut off, &deployment("con_zk", source, None)),
+        Err(
+            "VmRuntimeExecutionError: contract 'con_zk' uses zk host syscalls, \
+             but the chain zk runtime feature is disabled"
+                .to_owned()
+        )
+    );
+}
+
+#[test]
+fn constructor_arguments_the_wire_round_trip_would_change_are_handed_back() {
+    let fixture = fixture("deploy-args", &[], &[]);
+    let modules = Modules::default();
+    for arguments in [
+        VmValue::Dict(vec![(text("start"), VmValue::Tuple(vec![int(1)]))]),
+        VmValue::Dict(vec![(
+            text("start"),
+            VmValue::Dict(vec![(text("__fixed__"), text("1"))]),
+        )]),
+        VmValue::Dict(vec![(int(1), int(1))]),
+        VmValue::List(vec![]),
+    ] {
+        let mut host = host(&fixture, &modules);
+        let mut kwargs = deployment("con_new", EVENTS, None);
+        kwargs[3].1 = arguments;
+        assert!(deploy(&mut host, &kwargs).is_err());
+        assert!(matches!(host.stop, Some(Stop::Handback(_))));
+    }
+}
+
+#[test]
+fn the_zk_feature_reads_as_python_coerces_it() {
+    use deploy::runtime_feature_value as value;
+    for (input, expected) in [
+        (VmValue::Bool(true), Some(Ok(true))),
+        (text(" On\x1c"), Some(Ok(true))),
+        (text("no"), Some(Ok(false))),
+        (int(0), Some(Ok(false))),
+        (int(1), Some(Ok(true))),
+        (int(2), Some(Err(()))),
+        (text("maybe"), Some(Err(()))),
+        (text("\u{a0}true"), None),
+    ] {
+        assert_eq!(value(&input), expected, "{input:?}");
+    }
 }

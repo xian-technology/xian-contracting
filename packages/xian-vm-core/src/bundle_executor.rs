@@ -1,5 +1,6 @@
 //! A VM bundle execution: module loading and instantiation, cross-contract
 //! calls, storage overlay, events and metering, over a `HostServices` host.
+#![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
 use crate::interpreter::{vm_hash_storage_key, vm_variable_storage_key};
 use crate::module_cache::shared_module;
 use crate::XIAN_VM_V2_PROFILE;
@@ -66,6 +67,73 @@ pub(crate) trait HostServices {
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError>;
+}
+
+/// A host lent to a nested execution (a contract's constructor during its
+/// deployment), which reads and stages through it for its duration.
+impl<H: HostServices + ?Sized> HostServices for &mut H {
+    fn module_ir_json(&mut self, module: &str) -> Result<Option<String>, VmExecutionError> {
+        (**self).module_ir_json(module)
+    }
+
+    fn module(
+        &mut self,
+        module: &str,
+        profile: &str,
+    ) -> Result<Option<crate::ValidatedModuleIr>, VmExecutionError> {
+        (**self).module(module, profile)
+    }
+
+    fn read_variable(
+        &mut self,
+        contract: &str,
+        binding: &str,
+        storage_key: &str,
+    ) -> Result<Option<VmValue>, VmExecutionError> {
+        (**self).read_variable(contract, binding, storage_key)
+    }
+
+    fn read_hash(
+        &mut self,
+        contract: &str,
+        binding: &str,
+        key: &VmValue,
+        storage_key: &str,
+    ) -> Result<VmValue, VmExecutionError> {
+        (**self).read_hash(contract, binding, key, storage_key)
+    }
+
+    fn scan_hash_entries(
+        &mut self,
+        contract: &str,
+        binding: &str,
+        prefix: &str,
+    ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
+        (**self).scan_hash_entries(contract, binding, prefix)
+    }
+
+    fn visit_hash_entries(
+        &mut self,
+        contract: &str,
+        binding: &str,
+        prefix: &str,
+        visit: &mut dyn FnMut(String, VmValue) -> Result<(), VmExecutionError>,
+    ) -> Result<(), VmExecutionError> {
+        (**self).visit_hash_entries(contract, binding, prefix, visit)
+    }
+
+    fn owner(&mut self, contract: &str) -> Result<Option<String>, VmExecutionError> {
+        (**self).owner(contract)
+    }
+
+    fn syscall(
+        &mut self,
+        syscall_id: &str,
+        args: Vec<VmValue>,
+        kwargs: Vec<(String, VmValue)>,
+    ) -> Result<VmValue, VmExecutionError> {
+        (**self).syscall(syscall_id, args, kwargs)
+    }
 }
 
 pub(crate) struct BundleExecutor<H> {
@@ -646,4 +714,31 @@ pub(crate) struct ExecutionOutcome {
     pub(crate) storage_writes: HashMap<String, VmValue>,
     pub(crate) events: Vec<VmEvent>,
     pub(crate) stats: VmExecutionStats,
+}
+
+impl ExecutionOutcome {
+    /// The storage writes as `execute_contract` reports them, taken out of
+    /// the outcome: the module snapshots' variables and hash entries, then
+    /// the recorded storage writes, by key.
+    pub(crate) fn take_writes(&mut self) -> BTreeMap<String, VmValue> {
+        let mut writes = BTreeMap::new();
+        for snapshot in std::mem::take(&mut self.snapshots) {
+            for variable in snapshot.variables {
+                writes.insert(
+                    format!("{}.{}", snapshot.contract_name, variable.binding),
+                    variable.value.unwrap_or(VmValue::None),
+                );
+            }
+            for hash in snapshot.hashes {
+                for (key, value) in hash.entries {
+                    writes.insert(
+                        format!("{}.{}:{}", snapshot.contract_name, hash.binding, key),
+                        value,
+                    );
+                }
+            }
+        }
+        writes.extend(std::mem::take(&mut self.storage_writes));
+        writes
+    }
 }

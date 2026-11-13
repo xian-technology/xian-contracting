@@ -103,7 +103,11 @@ impl BlockHost<'_> {
 
     /// `NativeVmHost._charge_host_write` without the write cap: metered
     /// execution pays for the encoded key and value.
-    fn charge_host_write(&mut self, key: &str, value: &VmValue) -> Result<(), VmExecutionError> {
+    pub(super) fn charge_host_write(
+        &mut self,
+        key: &str,
+        value: &VmValue,
+    ) -> Result<(), VmExecutionError> {
         if !self.charges.metered() {
             return Ok(());
         }
@@ -115,7 +119,7 @@ impl BlockHost<'_> {
     }
 
     /// `NativeVmHost._contract_exists`.
-    fn contract_exists(&mut self, contract: &str) -> Result<bool, VmExecutionError> {
+    pub(super) fn contract_exists(&mut self, contract: &str) -> Result<bool, VmExecutionError> {
         if !matches!(self.ir(contract)?, Ir::Absent) {
             return Ok(true);
         }
@@ -128,7 +132,7 @@ impl BlockHost<'_> {
         contract: &str,
         export: &str,
     ) -> Result<bool, VmExecutionError> {
-        let Ir::Text(module) = self.ir(contract)? else {
+        let Ir::Text(module) = self.module_ir(contract)? else {
             return Ok(false);
         };
         match runnable(contract, &module) {

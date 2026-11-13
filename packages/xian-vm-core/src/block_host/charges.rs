@@ -46,6 +46,11 @@ impl HostCharges {
         self.metered
     }
 
+    /// The budget the transaction's executions share.
+    pub(crate) fn budget(&self) -> VmBudget {
+        self.budget.clone()
+    }
+
     /// `_record_raw_cost`: record `raw_cost` for the entry contract and, when
     /// metered, charge it to the shared budget (recorded even when the
     /// budget refuses it).
@@ -62,6 +67,18 @@ impl HostCharges {
         Ok(())
     }
 
+    /// `_add_raw_cost`: raw cost already charged to the budget (a nested
+    /// execution's), recorded without attribution.
+    pub(crate) fn add_raw(&mut self, raw_cost: u64) {
+        self.raw_cost = self.raw_cost.saturating_add(raw_cost);
+    }
+
+    /// `_merge_contract_costs` of a nested execution's per-contract costs
+    /// into the recorded ones.
+    pub(crate) fn add_costs(&mut self, costs: &HashMap<String, u64>) {
+        merge_costs(&mut self.contract_costs, costs);
+    }
+
     /// The recorded raw cost (`extra_raw_cost`).
     pub(crate) fn raw_cost(&self) -> u64 {
         self.raw_cost
@@ -69,9 +86,13 @@ impl HostCharges {
 
     /// `_merge_contract_costs`: the recorded costs added to the VM's.
     pub(crate) fn add_contract_costs(&self, costs: &mut HashMap<String, u64>) {
-        for (contract, raw_cost) in &self.contract_costs {
-            let total = costs.entry(contract.clone()).or_insert(0);
-            *total = total.saturating_add(*raw_cost);
-        }
+        merge_costs(costs, &self.contract_costs);
+    }
+}
+
+fn merge_costs(into: &mut HashMap<String, u64>, costs: &HashMap<String, u64>) {
+    for (contract, raw_cost) in costs {
+        let total = into.entry(contract.clone()).or_insert(0);
+        *total = total.saturating_add(*raw_cost);
     }
 }

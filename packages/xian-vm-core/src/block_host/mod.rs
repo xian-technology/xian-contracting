@@ -4,13 +4,14 @@
 //! Python path (`Stop::Handback`); a storage failure halts (`Stop::Fault`).
 //!
 //! By concern: `modules` holds the contracts' IR as the node prepares it,
-//! `metadata` the contract metadata reads and changes, `random` the random
-//! syscalls and their per-transaction state, `writes` what one
-//! transaction's host syscalls stage, `charges` what they cost. Every other
-//! host syscall is still handed back.
+//! `metadata` the contract metadata reads and changes, `deploy` contract
+//! deployment, `random` the random syscalls and their per-transaction
+//! state, `writes` what one transaction's host syscalls stage, `charges`
+//! what they cost. The zk host syscalls are still handed back.
 #![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
 
 mod charges;
+mod deploy;
 mod metadata;
 pub(crate) mod modules;
 pub(crate) mod random;
@@ -24,6 +25,7 @@ use crate::settlement::Stop;
 use crate::state_view::StateView;
 use crate::{VmExecutionContext, VmExecutionError, VmValue};
 use random::TxRandom;
+use std::collections::HashMap;
 use std::convert::Infallible;
 
 pub(crate) const IR_KEY: &str = "__xian_ir_v1__";
@@ -49,29 +51,44 @@ fn host_text(value: &VmValue) -> Option<&str> {
     }
 }
 
+/// What the host takes from its transaction: the execution context
+/// (`NativeVmHost._context`) and the zk runtime feature when chain state
+/// does not set it (the features installed on the node's driver).
+#[derive(Debug, Clone)]
+pub(crate) struct TxInputs {
+    pub(crate) context: VmExecutionContext,
+    pub(crate) zk_enabled_without_state: bool,
+}
+
 pub(crate) struct BlockHost<'a> {
     view: StateView,
     modules: &'a Modules,
     writes: HostWrites,
     charges: HostCharges,
     random: TxRandom,
+    tx: TxInputs,
+    /// The modules whose constructors run (`NativeVmHost._ir_cache` while
+    /// `_run_constructor` runs): what loading them reads.
+    constructing: HashMap<String, Ir>,
     stop: Option<Stop>,
 }
 
 impl<'a> BlockHost<'a> {
-    /// The host of the transaction whose entry call runs in `context`.
+    /// The host of the transaction whose entry call runs in `tx.context`.
     pub(crate) fn new(
         view: StateView,
         modules: &'a Modules,
         charges: HostCharges,
-        context: &VmExecutionContext,
+        tx: TxInputs,
     ) -> Self {
         Self {
             view,
             modules,
             writes: HostWrites::default(),
             charges,
-            random: TxRandom::new(context),
+            random: TxRandom::new(&tx.context),
+            tx,
+            constructing: HashMap::new(),
             stop: None,
         }
     }
@@ -97,6 +114,15 @@ impl<'a> BlockHost<'a> {
         self.modules
             .ir(&self.view, name)
             .map_err(|error| self.halt(fault(error)))
+    }
+
+    /// The IR a module load reads (`load_module_ir_json`): the module whose
+    /// constructor runs, else `ir`.
+    fn module_ir(&mut self, name: &str) -> Result<Ir, VmExecutionError> {
+        match self.constructing.get(name) {
+            Some(ir) => Ok(ir.clone()),
+            None => self.ir(name),
+        }
     }
 
     fn halt(&mut self, stop: Stop) -> VmExecutionError {
@@ -150,17 +176,16 @@ impl<'a> BlockHost<'a> {
     }
 }
 
-#[cfg(feature = "python-extension")]
 mod services {
     use super::random::{self, Refusal};
-    use super::{metadata, BlockHost, Ir, OWNER_KEY};
+    use super::{deploy, metadata, BlockHost, Ir, OWNER_KEY};
     use crate::bundle_executor::{validate_bundle_module, HostServices};
     use crate::interpreter::vm_variable_storage_key;
     use crate::{ValidatedModuleIr, VmExecutionError, VmValue};
 
     impl HostServices for BlockHost<'_> {
         fn module_ir_json(&mut self, module: &str) -> Result<Option<String>, VmExecutionError> {
-            match self.ir(module)? {
+            match self.module_ir(module)? {
                 Ir::Text(cached) => Ok(Some(cached.text.clone())),
                 _ => Ok(None),
             }
@@ -171,7 +196,7 @@ mod services {
             module: &str,
             profile: &str,
         ) -> Result<Option<ValidatedModuleIr>, VmExecutionError> {
-            let Ir::Text(cached) = self.ir(module)? else {
+            let Ir::Text(cached) = self.module_ir(module)? else {
                 return Ok(None);
             };
             let validated = cached.validated(module).map_err(VmExecutionError::new)?;
@@ -254,6 +279,7 @@ mod services {
         ) -> Result<VmValue, VmExecutionError> {
             if let Some(result) = metadata::read(self, syscall_id, &args, &kwargs)
                 .or_else(|| metadata::change(self, syscall_id, &args, &kwargs))
+                .or_else(|| deploy::deploy(self, syscall_id, &args, &kwargs))
             {
                 return result;
             }

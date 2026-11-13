@@ -29,6 +29,8 @@ cache-keys = [
     { file = "python/**/*.py" },
     { file = "../xian-numeric/Cargo.toml" },
     { file = "../xian-numeric/src/**/*.rs" },
+    { file = "../xian-compiler-core/Cargo.toml" },
+    { file = "../xian-compiler-core/src/**/*.rs" },
     { file = "build.rs" },
     { file = "vendor/mpdecimal/**/*" },
 ]

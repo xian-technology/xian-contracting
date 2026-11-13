@@ -29,10 +29,6 @@ impl HostWrites {
     }
 
     /// Stage an event, after the ones staged before.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "contract deploys stage the first host events")
-    )]
     pub(crate) fn emit(&mut self, event: VmEvent) {
         self.events.push(event);
     }

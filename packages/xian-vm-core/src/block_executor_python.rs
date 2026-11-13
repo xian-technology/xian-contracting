@@ -115,7 +115,17 @@ fn optional_to_py<T>(
 #[pymethods]
 impl PyBlockExecutor {
     #[new]
-    #[pyo3(signature = (environment, overlay, *, meter_execution, charge_fees, distribute_fee_rewards, protected_keys))]
+    #[pyo3(signature = (
+        environment,
+        overlay,
+        *,
+        meter_execution,
+        charge_fees,
+        distribute_fee_rewards,
+        protected_keys,
+        zk_enabled_without_state,
+    ))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         environment: PyRef<'_, PyLmdbEnvironment>,
         overlay: PyRef<'_, PyBlockState>,
@@ -123,6 +133,7 @@ impl PyBlockExecutor {
         charge_fees: bool,
         distribute_fee_rewards: bool,
         protected_keys: Vec<String>,
+        zk_enabled_without_state: bool,
     ) -> Self {
         let view = StateView::new(environment.env().clone(), overlay.shared());
         let policy = BlockPolicy {
@@ -130,6 +141,7 @@ impl PyBlockExecutor {
             charge_fees,
             distribute_fee_rewards,
             protected_keys,
+            zk_enabled_without_state,
         };
         Self {
             executor: BlockExecutor::new(view, policy),
