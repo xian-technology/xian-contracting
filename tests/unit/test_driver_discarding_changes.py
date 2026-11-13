@@ -15,8 +15,6 @@ def pending_state(driver):
     """Everything restore_state restores, with dict order and value identity."""
     return {
         "pending_writes": driver.pending_items(),
-        "access": driver.transaction_access(),
-        "tracking": driver.track_transaction_reads,
         "transaction_writes": list(driver.transaction_writes.items()),
         "log_events": list(driver.log_events),
     }
@@ -100,7 +98,6 @@ def test_reads_inside_the_scope_see_the_scope_writes(driver):
     with driver.discarding_changes():
         driver.set("con_thing.balances:alice", 42)
         assert driver.get("con_thing.balances:alice") == 42
-        assert "con_thing.balances:bob" in driver.transaction_access()[0]
 
     assert driver.get("con_thing.balances:alice") == 10
 
@@ -120,9 +117,7 @@ def test_scopes_do_not_nest(driver):
         lambda d: d.flush_cache(),
         lambda d: d.flush_full(),
         lambda d: d.clear_transaction_writes(),
-        lambda d: d.clear_transaction_reads(),
         lambda d: d.clear_events(),
-        lambda d: d.set_transaction_read_tracking(False),
         lambda d: d.restore_state(d.snapshot_state()),
         lambda d: d.detach_pending_state(),
         lambda d: d.attach_pending_state(d.detach_pending_state()),
@@ -161,7 +156,7 @@ def _random_operation(rng, driver):
     elif choice == 4:
         driver.keys_from_disk(f"con_rand.{rng.randrange(3)}")
     elif choice == 5:
-        driver.get(key, save=False)
+        driver.find(key)
     else:
         list(driver.iter_items(key))
 
@@ -171,7 +166,6 @@ def test_random_executions_match_a_deep_copy_restore(driver, seed):
     rng = random.Random(seed)
     for _ in range(rng.randrange(30)):
         _random_operation(rng, driver)
-    driver.set_transaction_read_tracking(rng.random() < 0.8)
     snapshot = driver.snapshot_state()
     steps = [rng.getstate()]
 

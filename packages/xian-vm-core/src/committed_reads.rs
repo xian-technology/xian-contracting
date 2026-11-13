@@ -4,9 +4,9 @@
 //! The host names the environment, the driver's block overlay and the writes
 //! it staged itself during this execution (`NativeVmHost.committed_storage`).
 //! A key the host staged is read through the host as before; every other key
-//! is read from the overlay or LMDB and decoded here, and recorded as read in
-//! the overlay's access tracking. A read or decode failure is a host fault: it
-//! aborts the execution and is raised to the caller as `LmdbStorageError`.
+//! is read from the overlay or LMDB and decoded here. A read or decode failure
+//! is a host fault: it aborts the execution and is raised to the caller as
+//! `LmdbStorageError`.
 use crate::block_state::BlockState;
 use crate::block_state_python::{lock, PyBlockState};
 use crate::lmdb_env::LmdbEnv;
@@ -66,14 +66,10 @@ impl CommittedState {
         })
     }
 
-    /// The decoded value of `key` in the overlay or else in LMDB, booked as
-    /// read; any failure is a host fault.
+    /// The decoded value of `key` in the overlay or else in LMDB; any failure
+    /// is a host fault.
     fn load(&self, key: &str) -> PyResult<Option<VmValue>> {
-        let pending = {
-            let mut overlay = lock(&self.overlay);
-            overlay.record_read(key);
-            overlay.lookup(key).cloned()
-        };
+        let pending = lock(&self.overlay).lookup(key).cloned();
         let stored = match pending {
             Some(entry) => entry.as_deref().map(decode_stored_value),
             None => self

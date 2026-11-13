@@ -6,12 +6,9 @@
 //! order (UTF-8 byte order, as LMDB), which is what every consumer iterates in;
 //! nothing depends on insertion order (the state root is a treap keyed by key).
 //!
-//! The state also tracks which keys and prefixes the current transaction read
-//! (only while tracking is on; the node keeps it off, as nothing has consumed
-//! it since the legacy parallel executor was removed), and opens at most one
-//! discarding scope: every change made inside it is undone when it closes, at a
-//! cost that follows what the scope touched.
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+//! The state opens at most one discarding scope: every change made inside it is
+//! undone when it closes, at a cost that follows what the scope touched.
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 #[cfg(any(feature = "python-extension", test))]
 use std::sync::{Mutex, MutexGuard};
@@ -47,42 +44,17 @@ impl std::fmt::Display for BlockStateError {
 
 type Result<T> = std::result::Result<T, BlockStateError>;
 
-/// Keys and prefixes one transaction read.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct Access {
-    pub(crate) reads: BTreeSet<String>,
-    pub(crate) prefixes: BTreeSet<String>,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Tracked {
-    Read,
-    Prefix,
-}
-
-impl Access {
-    fn of(&mut self, kind: Tracked) -> &mut BTreeSet<String> {
-        match kind {
-            Tracked::Read => &mut self.reads,
-            Tracked::Prefix => &mut self.prefixes,
-        }
-    }
-}
-
 /// First-touch undo records of the open discarding scope.
 #[derive(Debug, Clone, Default)]
 struct Journal {
     /// Previous entry of each key the scope wrote; `None` when it had none.
     writes: Vec<(String, Option<Stored>)>,
     touched: HashSet<String>,
-    /// Access first tracked inside the scope.
-    tracked: Vec<(Tracked, String)>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct BlockState {
     writes: BTreeMap<String, Stored>,
-    access: Option<Access>,
     scope: Option<Journal>,
 }
 
@@ -131,16 +103,16 @@ impl BlockState {
         Ok(())
     }
 
-    /// Drop every pending entry and the tracked access; tracking stays as set.
+    /// Drop every pending entry.
     pub(crate) fn clear(&mut self) -> Result<()> {
-        self.clear_access()?;
+        self.require_no_scope("clear")?;
         self.writes.clear();
         Ok(())
     }
 
     /// Persist the pending entries (in key order) with `persist`; the overlay
-    /// and the tracked access are cleared only when it succeeds, so a failed
-    /// commit leaves the block intact for a retry.
+    /// is cleared only when it succeeds, so a failed commit leaves the block
+    /// intact for a retry.
     pub(crate) fn commit<E>(
         &mut self,
         persist: impl FnOnce(&BTreeMap<String, Stored>) -> std::result::Result<(), E>,
@@ -149,59 +121,8 @@ impl BlockState {
         let outcome = persist(&self.writes);
         if outcome.is_ok() {
             self.writes.clear();
-            self.forget_access();
         }
         Ok(outcome)
-    }
-
-    pub(crate) fn tracking(&self) -> bool {
-        self.access.is_some()
-    }
-
-    /// Turning tracking off drops what was tracked; turning it on keeps it.
-    pub(crate) fn set_tracking(&mut self, enabled: bool) -> Result<()> {
-        self.require_no_scope("set_tracking")?;
-        match (enabled, self.access.is_some()) {
-            (true, false) => self.access = Some(Access::default()),
-            (false, true) => self.access = None,
-            _ => {}
-        }
-        Ok(())
-    }
-
-    pub(crate) fn record_read(&mut self, key: &str) {
-        self.track(Tracked::Read, key);
-    }
-
-    pub(crate) fn record_prefix(&mut self, prefix: &str) {
-        self.track(Tracked::Prefix, prefix);
-    }
-
-    fn track(&mut self, kind: Tracked, item: &str) {
-        let Some(access) = self.access.as_mut() else {
-            return;
-        };
-        if access.of(kind).insert(item.to_owned()) {
-            if let Some(journal) = self.scope.as_mut() {
-                journal.tracked.push((kind, item.to_owned()));
-            }
-        }
-    }
-
-    fn forget_access(&mut self) {
-        if let Some(access) = self.access.as_mut() {
-            *access = Access::default();
-        }
-    }
-
-    pub(crate) fn access(&self) -> Option<&Access> {
-        self.access.as_ref()
-    }
-
-    pub(crate) fn clear_access(&mut self) -> Result<()> {
-        self.require_no_scope("clear_access")?;
-        self.forget_access();
-        Ok(())
     }
 
     pub(crate) fn begin_discarding(&mut self) -> Result<()> {
@@ -219,11 +140,6 @@ impl BlockState {
                 None => self.writes.remove(&key),
             };
         }
-        if let Some(access) = self.access.as_mut() {
-            for (kind, item) in &journal.tracked {
-                access.of(*kind).remove(item);
-            }
-        }
         Ok(())
     }
 
@@ -231,7 +147,7 @@ impl BlockState {
         self.scope.is_some()
     }
 
-    /// An independent copy of the pending entries and tracked access.
+    /// An independent copy of the pending entries.
     pub(crate) fn snapshot(&self) -> Result<Self> {
         self.require_no_scope("snapshot")?;
         Ok(self.clone())
@@ -302,47 +218,12 @@ mod tests {
     }
 
     #[test]
-    fn discarding_drops_only_the_access_tracked_inside_the_scope() {
-        let mut state = BlockState::default();
-        state.set_tracking(true).unwrap();
-        state.record_read("before");
-        state.record_prefix("p:");
-        state.begin_discarding().unwrap();
-        state.record_read("before");
-        state.record_read("inside");
-        state.record_prefix("p:");
-        state.record_prefix("q:");
-        state.discard().unwrap();
-        let access = state.access().unwrap();
-        assert_eq!(access.reads.iter().collect::<Vec<_>>(), ["before"]);
-        assert_eq!(access.prefixes.iter().collect::<Vec<_>>(), ["p:"]);
-    }
-
-    #[test]
-    fn nothing_is_tracked_while_tracking_is_off() {
-        let mut state = BlockState::default();
-        state.record_read("a");
-        assert!(state.access().is_none());
-        assert!(!state.tracking());
-        state.set_tracking(true).unwrap();
-        assert!(state.tracking());
-        state.record_read("a");
-        state.set_tracking(true).unwrap();
-        assert_eq!(state.access().unwrap().reads.len(), 1);
-        state.set_tracking(false).unwrap();
-        state.set_tracking(true).unwrap();
-        assert!(state.access().unwrap().reads.is_empty());
-    }
-
-    #[test]
     fn bulk_changes_are_refused_inside_a_scope() {
         let mut state = BlockState::default();
         state.begin_discarding().unwrap();
         assert!(state.clear().is_err());
         assert!(state.commit(|_| Ok::<(), ()>(())).is_err());
         assert!(state.forget_prefix("a").is_err());
-        assert!(state.set_tracking(true).is_err());
-        assert!(state.clear_access().is_err());
         assert!(state.snapshot().is_err());
         assert!(state.begin_discarding().is_err());
         state.discard().unwrap();

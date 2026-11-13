@@ -111,10 +111,8 @@ class Driver:
         if vm_profile not in SUPPORTED_VM_PROFILES:
             raise ValueError(f"unsupported vm_profile {vm_profile!r}")
         self.vm_profile = vm_profile
-        # The block overlay: pending writes as stored values, plus the access
-        # tracking of the current transaction.
+        # The block overlay: pending writes as stored values.
         self._pending = BlockState()
-        self._pending.set_tracking(True)
         self.transaction_writes = {}
         self.log_events = []
         self._undo: _PendingStateUndo | None = None
@@ -159,29 +157,18 @@ class Driver:
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
-    def get(self, key: str, save: bool = True):
-        value = self.find(key)
-        if save:
-            self._pending.record_read(key)
-        return value
+    def get(self, key: str):
+        return self.find(key)
 
     def committed_storage(self):
         """The state the VM may read without this driver, or None.
 
         Returns the LMDB environment and the block overlay; the VM reads both
-        in Rust and books its reads in the overlay's access tracking.
+        in Rust.
         """
         if self.vm_profile != XIAN_VM_V2_PROFILE:
             return None
         return self._store.environment, self._pending
-
-    @property
-    def track_transaction_reads(self) -> bool:
-        return self._pending.tracking
-
-    def transaction_access(self) -> tuple[frozenset[str], frozenset[str]]:
-        """``(read keys, read prefixes)`` of the current transaction."""
-        return self._pending.access()
 
     def pending_items(self) -> list[tuple[str, object]]:
         """The block's pending writes in key order; a deletion reads as None."""
@@ -233,9 +220,6 @@ class Driver:
         is_txn_write: bool = False,
     ):
         validate_storage_key(key)
-        # A write is booked as a read of its key, so access tracking stays
-        # conservative for blind writes.
-        self._pending.record_read(key)
         self._pending.write(key, self._stored(value))
         if is_txn_write:
             if self._undo is not None:
@@ -265,11 +249,7 @@ class Driver:
             return self._decode(key, raw)
         return self._store.get(key)
 
-    def _track_prefix(self, prefix: str) -> None:
-        self._pending.record_prefix(prefix)
-
     def keys_from_disk(self, prefix: str | None = None, length: int = 0):
-        self._track_prefix(prefix or "")
         keys = self._store.keys(prefix or "")
         if length > 0:
             return keys[:length]
@@ -282,7 +262,6 @@ class Driver:
         limit: int = 100,
         after_key: str | None = None,
     ) -> tuple[list[str], bool]:
-        self._track_prefix(prefix)
         return self._store.scan_keys(
             prefix,
             limit=limit,
@@ -290,7 +269,6 @@ class Driver:
         )
 
     def iter_from_disk(self, prefix: str = "", length: int = 0):
-        self._track_prefix(prefix)
         keys = self._store.keys(prefix)
         if length > 0:
             return keys[:length]
@@ -301,7 +279,6 @@ class Driver:
 
     def iter_items(self, prefix: str = ""):
         """Read a canonical merged view without copying the complete disk range."""
-        self._track_prefix(prefix)
         overlay = {key: self._decode(key, raw) for key, raw in self._pending.items(prefix)}
         yield from iter_overlay_items(overlay, self._store.iter_items(prefix), prefix)
 
@@ -334,16 +311,15 @@ class Driver:
         variable,
         arguments=None,
         value=None,
-        mark=True,
         *,
         is_txn_write: bool = False,
     ):
         key = self.make_key(contract, variable, arguments)
         self.set(key, value, is_txn_write=is_txn_write)
 
-    def get_var(self, contract, variable, arguments=None, mark=True):
+    def get_var(self, contract, variable, arguments=None):
         key = self.make_key(contract, variable, arguments)
-        return self.get(key, save=mark)
+        return self.get(key)
 
     def get_owner(self, name):
         owner = self.get_var(name, OWNER_KEY)
@@ -548,12 +524,8 @@ class Driver:
         taking the snapshot; the snapshot can be restored more than once and
         sent to another process.
         """
-        reads, prefixes = self._pending.access()
         return {
             "pending_writes": self._pending.items(),
-            "tracking": self._pending.tracking,
-            "transaction_reads": sorted(reads),
-            "transaction_read_prefixes": sorted(prefixes),
             "transaction_writes": deepcopy(self.transaction_writes),
             "log_events": deepcopy(self.log_events),
         }
@@ -566,11 +538,6 @@ class Driver:
         pending = BlockState()
         for key, raw in snapshot["pending_writes"]:
             pending.write(key, raw)
-        pending.set_tracking(snapshot["tracking"])
-        for key in snapshot["transaction_reads"]:
-            pending.record_read(key)
-        for prefix in snapshot["transaction_read_prefixes"]:
-            pending.record_prefix(prefix)
         self._pending = pending
         self.transaction_writes = deepcopy(snapshot["transaction_writes"])
         self.log_events = deepcopy(snapshot["log_events"])
@@ -587,9 +554,7 @@ class Driver:
             "transaction_writes": self.transaction_writes,
             "log_events": self.log_events,
         }
-        tracking = self._pending.tracking
         self._pending = BlockState()
-        self._pending.set_tracking(tracking)
         self.transaction_writes = {}
         self.log_events = []
         return detached
@@ -599,11 +564,9 @@ class Driver:
         """Re-attach pending state previously moved off by ``detach_pending_state``.
 
         Anything accumulated on the driver since the detach is discarded in
-        favor of the detached state; read tracking stays as currently set.
+        favor of the detached state.
         """
-        tracking = self._pending.tracking
         self._pending = detached["pending"]
-        self._pending.set_tracking(tracking)
         self.transaction_writes = detached["transaction_writes"]
         self.log_events = detached["log_events"]
 
@@ -637,14 +600,6 @@ class Driver:
     @_outside_discarding_scope
     def clear_transaction_writes(self):
         self.transaction_writes.clear()
-
-    @_outside_discarding_scope
-    def clear_transaction_reads(self):
-        self._pending.clear_access()
-
-    @_outside_discarding_scope
-    def set_transaction_read_tracking(self, enabled: bool) -> None:
-        self._pending.set_tracking(enabled)
 
     @_outside_discarding_scope
     def clear_events(self):

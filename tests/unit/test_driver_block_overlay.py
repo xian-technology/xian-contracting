@@ -101,32 +101,10 @@ def test_a_failed_commit_keeps_the_block_for_a_retry(driver, monkeypatch):
     assert driver.value_from_disk("con_a.x") == 1
 
 
-def test_transaction_access_tracks_reads_writes_and_prefixes(driver):
-    driver.set_transaction_read_tracking(True)
-    driver.get("con_a.read")
-    driver.set("con_a.written", 1)
-    driver.keys_from_disk("con_b.")
-    driver.get("con_a.unmarked", save=False)
-
-    assert driver.transaction_access() == (
-        frozenset({"con_a.read", "con_a.written"}),
-        frozenset({"con_b."}),
-    )
-
-
-def test_tracking_off_records_nothing(driver):
-    driver.set_transaction_read_tracking(False)
-    driver.get("con_a.read")
-    driver.set("con_a.written", 1)
-
-    assert driver.transaction_access() == (frozenset(), frozenset())
-    assert not driver.track_transaction_reads
-
-
-def test_a_discarding_scope_undoes_writes_and_tracked_reads(driver):
+def test_a_discarding_scope_undoes_writes(driver):
     driver.set("con_a.kept", 1)
     driver.get("con_a.read_before")
-    before = (driver.pending_items(), driver.transaction_access())
+    before = driver.pending_items()
 
     with driver.discarding_changes():
         driver.set("con_a.kept", 2)
@@ -135,20 +113,20 @@ def test_a_discarding_scope_undoes_writes_and_tracked_reads(driver):
         driver.get("con_a.read_inside")
         driver.keys_from_disk("con_c.")
 
-    assert (driver.pending_items(), driver.transaction_access()) == before
+    assert driver.pending_items() == before
 
 
 def test_a_snapshot_is_plain_data_restorable_more_than_once(driver):
     driver.set("con_a.x", [1, 2])
     driver.get("con_a.read")
     snapshot = pickle.loads(pickle.dumps(driver.snapshot_state()))
-    expected = (driver.pending_items(), driver.transaction_access())
+    expected = driver.pending_items()
 
     for _ in range(2):
         driver.set("con_a.x", "junk")
         driver.set("con_a.y", 1)
         driver.restore_state(snapshot)
-        assert (driver.pending_items(), driver.transaction_access()) == expected
+        assert driver.pending_items() == expected
 
 
 def test_detached_state_comes_back_and_interim_writes_are_dropped(driver):

@@ -110,13 +110,12 @@ struct ViewState(StateView);
 
 impl RewardState for ViewState {
     fn get(&mut self, key: &str) -> Settled<Option<VmValue>> {
-        self.0.get(key, false).map_err(Stop::Fault)
+        self.0.get(key).map_err(Stop::Fault)
     }
 }
 
 /// The fee rewards of a transaction over the node's state (block overlay,
-/// then LMDB; reads are not booked), or `None` when the Python code must
-/// compute them.
+/// then LMDB), or `None` when the Python code must compute them.
 #[pyfunction]
 #[pyo3(signature = (environment, overlay, total_chi, contract, contract_costs=None))]
 pub(super) fn tx_rewards(

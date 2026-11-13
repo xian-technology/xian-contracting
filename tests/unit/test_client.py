@@ -243,7 +243,6 @@ def ping():
             "result": error,
             "chi_used": 5,
             "writes": {},
-            "reads": {},
             "events": [],
         }
         executor = Mock()
@@ -267,7 +266,6 @@ def ping():
             "result": error,
             "chi_used": 5,
             "writes": {},
-            "reads": {},
             "events": [],
         }
         executor = Mock()

@@ -160,14 +160,13 @@ impl Modules {
         }
     }
 
-    /// The IR of `name`, read as `Driver.get` reads it (booked as read).
+    /// The IR of `name`, read as `Driver.get` reads it.
     fn ir(&self, view: &StateView, name: &str) -> Result<Ir, String> {
-        let key = format!("{name}.{IR_KEY}");
         if let Some(ir) = self.0.borrow().get(name) {
-            view.record_read(&key);
             return Ok(ir.clone());
         }
-        let ir = match view.get(&key, true)? {
+        let key = format!("{name}.{IR_KEY}");
+        let ir = match view.get(&key)? {
             None | Some(VmValue::None) => Ir::Absent,
             Some(VmValue::String(text)) if !text.is_empty() => Ir::Text(Rc::new(CachedModule {
                 text,
@@ -205,7 +204,7 @@ impl BlockHost<'_> {
     }
 
     fn get(&mut self, key: &str) -> Result<Option<VmValue>, VmExecutionError> {
-        match self.view.get(key, true) {
+        match self.view.get(key) {
             Ok(value) => Ok(value.filter(|value| !matches!(value, VmValue::None))),
             Err(error) => Err(self.halt(fault(error))),
         }
@@ -447,11 +446,11 @@ fn exports(module: &ValidatedModuleIr, function: &str) -> bool {
         .any(|candidate| candidate.visibility == "export" && candidate.name == function)
 }
 
-struct UntrackedState<'a>(&'a StateView);
+struct ViewRewardState<'a>(&'a StateView);
 
-impl RewardState for UntrackedState<'_> {
+impl RewardState for ViewRewardState<'_> {
     fn get(&mut self, key: &str) -> Settled<Option<VmValue>> {
-        self.0.get(key, false).map_err(fault)
+        self.0.get(key).map_err(fault)
     }
 }
 
@@ -510,7 +509,7 @@ impl BlockExecutor {
     }
 
     fn get(&self, key: &str) -> Settled<Option<VmValue>> {
-        self.view.get(key, true).map_err(fault)
+        self.view.get(key).map_err(fault)
     }
 
     fn stage(&self, key: &str, value: Option<&VmValue>) -> Settled<()> {
@@ -548,7 +547,7 @@ impl BlockExecutor {
         }
         let rate = if self.policy.charge_fees {
             Some(chain_chi_rate(
-                self.view.get("chi_cost.S:value", false).map_err(fault)?,
+                self.view.get("chi_cost.S:value").map_err(fault)?,
             )?)
         } else {
             None
@@ -747,7 +746,7 @@ impl BlockExecutor {
         }
         let rewards = if execution.status == 0 && self.policy.distribute_fee_rewards {
             Some(tx_reward_outputs(
-                &mut UntrackedState(&self.view),
+                &mut ViewRewardState(&self.view),
                 &execution.chi_used,
                 &tx.contract,
                 &execution.contract_costs,
@@ -807,7 +806,7 @@ impl BlockExecutor {
             let current = match writes.get(key) {
                 Some(VmValue::None) => return handback("reward delta on a deleted balance"),
                 Some(value) => Balance::of(Some(value))?,
-                None => Balance::of(self.view.get(key, false).map_err(fault)?.as_ref())?,
+                None => Balance::of(self.view.get(key).map_err(fault)?.as_ref())?,
             };
             writes.insert(key.clone(), VmValue::Decimal(current.plus(delta)?));
         }

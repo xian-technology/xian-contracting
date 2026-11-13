@@ -386,12 +386,12 @@ class ContractingClient:
                 contracts.add(key.replace(".__xian_ir_v1__", ""))
         return sorted(contracts)
 
-    def get_var(self, contract, variable, arguments=None, mark=False):
+    def get_var(self, contract, variable, arguments=None):
         if arguments is None:
             arguments = []
-        return self.raw_driver.get_var(contract, variable, arguments, mark)
+        return self.raw_driver.get_var(contract, variable, arguments)
 
-    def set_var(self, contract, variable, arguments=None, value=None, mark=False):
+    def set_var(self, contract, variable, arguments=None, value=None):
         if arguments is None:
             arguments = []
-        self.raw_driver.set_var(contract, variable, arguments, value, mark)
+        self.raw_driver.set_var(contract, variable, arguments, value)

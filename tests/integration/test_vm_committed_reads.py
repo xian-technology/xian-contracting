@@ -98,26 +98,6 @@ def test_pending_writes_are_read_in_rust_too(driver, host_reads):
     assert host_reads == []
 
 
-def test_vm_reads_are_tracked_as_transaction_access(driver):
-    driver.set_transaction_read_tracking(True)
-    _run(driver)
-
-    reads, _ = driver.transaction_access()
-    assert {
-        "con_reader.balances:alice",
-        "con_reader.balances:nobody",
-        "con_reader.total",
-    } <= reads
-
-
-def test_reads_tracked_inside_a_discarding_scope_are_undone(driver):
-    with driver.discarding_changes():
-        _run(driver)
-        assert "con_reader.total" in driver.transaction_access()[0]
-
-    assert "con_reader.total" not in driver.transaction_access()[0]
-
-
 def test_a_corrupt_stored_value_is_a_host_fault(driver):
     driver._store.environment.write([(b"con_reader.balances:alice", b'{"__fixed__":"1.50"}')])
 

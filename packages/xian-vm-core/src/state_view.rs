@@ -23,23 +23,11 @@ impl StateView {
         &self.overlay
     }
 
-    /// Book `key` as read, for a value served from a cache.
-    pub(crate) fn record_read(&self, key: &str) {
-        lock(&self.overlay).record_read(key);
-    }
-
     /// The value at `key` as `Driver.get` returns it: `None` when it is
-    /// missing or pending deletion. `track` books the key as read in the
-    /// overlay's access tracking. A read or decode failure is a host fault,
+    /// missing or pending deletion. A read or decode failure is a host fault,
     /// described by the error.
-    pub(crate) fn get(&self, key: &str, track: bool) -> Result<Option<VmValue>, String> {
-        let pending = {
-            let mut overlay = lock(&self.overlay);
-            if track {
-                overlay.record_read(key);
-            }
-            overlay.lookup(key).cloned()
-        };
+    pub(crate) fn get(&self, key: &str) -> Result<Option<VmValue>, String> {
+        let pending = lock(&self.overlay).lookup(key).cloned();
         let stored = match pending {
             Some(entry) => entry.as_deref().map(decode_stored_value),
             None => self
@@ -56,7 +44,7 @@ impl StateView {
     /// order: the overlay's pending entries over the LMDB entries, a pending
     /// deletion hiding the stored entry. Pending values are decoded first,
     /// stored ones as the scan reaches them, all from one LMDB snapshot;
-    /// `visit` returns false to stop the scan. The prefix is booked as read.
+    /// `visit` returns false to stop the scan.
     /// A read or decode failure is a host fault, described by the error.
     pub(crate) fn visit_prefix(
         &self,
@@ -85,10 +73,9 @@ impl StateView {
     }
 
     /// The overlay's entries under `prefix`, decoded (`None`: a pending
-    /// deletion), with the prefix booked as read.
+    /// deletion).
     fn pending_under(&self, prefix: &str) -> Result<Vec<(String, Option<VmValue>)>, String> {
-        let mut overlay = lock(&self.overlay);
-        overlay.record_prefix(prefix);
+        let overlay = lock(&self.overlay);
         overlay
             .items(prefix)
             .map(|(key, entry)| {
@@ -285,35 +272,10 @@ mod tests {
     #[test]
     fn reads_see_pending_entries_over_stored_ones() {
         let fixture = hash_fixture("get");
-        lock(fixture.view.overlay()).set_tracking(true).unwrap();
-        assert_eq!(fixture.view.get("h:a", true).unwrap(), Some(text("h:a")));
-        assert_eq!(
-            fixture.view.get("h:b", true).unwrap(),
-            Some(text("pending b"))
-        );
-        assert_eq!(fixture.view.get("h:d", false).unwrap(), None);
-        assert_eq!(fixture.view.get("h:x", true).unwrap(), None);
-        fixture.view.record_read("h:y");
-        let overlay = lock(fixture.view.overlay());
-        let reads: Vec<&str> = overlay
-            .access()
-            .unwrap()
-            .reads
-            .iter()
-            .map(String::as_str)
-            .collect();
-        assert_eq!(reads, ["h:a", "h:b", "h:x", "h:y"]);
-    }
-
-    #[test]
-    fn the_scanned_prefix_is_booked_as_read() {
-        let fixture = hash_fixture("tracked");
-        lock(fixture.view.overlay()).set_tracking(true).unwrap();
-        fixture.scan("h:", usize::MAX).unwrap();
-        let overlay = lock(fixture.view.overlay());
-        let access = overlay.access().unwrap();
-        assert!(access.prefixes.contains("h:"));
-        assert!(access.reads.is_empty());
+        assert_eq!(fixture.view.get("h:a").unwrap(), Some(text("h:a")));
+        assert_eq!(fixture.view.get("h:b").unwrap(), Some(text("pending b")));
+        assert_eq!(fixture.view.get("h:d").unwrap(), None);
+        assert_eq!(fixture.view.get("h:x").unwrap(), None);
     }
 
     #[test]

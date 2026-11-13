@@ -1,4 +1,4 @@
-"""Explicit execution drivers own the transaction's reads, writes and rollback."""
+"""Explicit execution drivers own the transaction's writes, events and rollback."""
 
 from contracting.local.native_executor import NativeExecutor
 from contracting.storage.driver import Driver
@@ -37,7 +37,7 @@ def test_override_driver_rolls_back_its_own_pending_state(tmp_path):
         assert primary.pending_items() == [("con_primary.value", 1)]
 
 
-def test_override_driver_resets_its_own_transaction_tracking(tmp_path):
+def test_override_driver_resets_its_own_transaction_state(tmp_path):
     with (
         Driver(storage_home=tmp_path / "primary", vm_profile="xian_vm_v2") as primary,
         Driver(storage_home=tmp_path / "override", vm_profile="xian_vm_v2") as override,
@@ -45,7 +45,6 @@ def test_override_driver_resets_its_own_transaction_tracking(tmp_path):
         override.set_contract_from_source("con_probe", SOURCE)
         override.commit()
         override.set("con_existing.value", 2, is_txn_write=True)
-        override.get("con_old_read.value")
         override.set_event({"event": "old"})
         primary.set("con_primary.value", 1, is_txn_write=True)
 
@@ -61,5 +60,5 @@ def test_override_driver_resets_its_own_transaction_tracking(tmp_path):
         assert output["result"] == 9
         assert output["writes"] == {"con_probe.value": 9}
         assert output["events"] == []
-        assert "con_old_read.value" not in output["reads"]
+        assert "reads" not in output and "prefix_reads" not in output
         assert primary.transaction_writes == {"con_primary.value": 1}

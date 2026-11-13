@@ -40,24 +40,6 @@ class TestDriver(unittest.TestCase):
         finally:
             driver.flush_full()
 
-    def test_get_var_respects_mark_false(self):
-        self.driver.set_var("currency", "balances", ["alice"], 42)
-        self.driver.commit()
-
-        value = self.driver.get_var("currency", "balances", ["alice"], mark=False)
-
-        self.assertEqual(value, 42)
-        self.assertEqual(self.driver.transaction_access(), (frozenset(), frozenset()))
-
-    def test_get_var_marks_reads_by_default(self):
-        self.driver.set_var("currency", "balances", ["alice"], 42)
-        self.driver.commit()
-
-        value = self.driver.get_var("currency", "balances", ["alice"])
-
-        self.assertEqual(value, 42)
-        self.assertIn("currency.balances:alice", self.driver.transaction_access()[0])
-
     def test_keys_from_disk(self):
         key1 = 'test_key1'
         key2 = 'test_key2'
@@ -197,7 +179,6 @@ class TestDriver(unittest.TestCase):
     def _pending(self):
         return {
             'writes': self.driver.pending_items(),
-            'access': self.driver.transaction_access(),
             'transaction_writes': dict(self.driver.transaction_writes),
             'log_events': list(self.driver.log_events),
         }
@@ -213,13 +194,6 @@ class TestDriver(unittest.TestCase):
         self.driver.restore_state(snapshot)
 
         self.assertEqual(self._pending(), expected)
-        self.assertEqual(
-            expected['access'],
-            (
-                frozenset({'con_thing.balances:alice', 'con_thing.balances:bob'}),
-                frozenset({'con_thing.'}),
-            ),
-        )
 
     def test_snapshot_state_supports_repeated_restores(self):
         self._populate_pending_state()
@@ -248,7 +222,6 @@ class TestDriver(unittest.TestCase):
             self._pending(),
             {
                 'writes': [],
-                'access': (frozenset(), frozenset()),
                 'transaction_writes': {},
                 'log_events': [],
             },

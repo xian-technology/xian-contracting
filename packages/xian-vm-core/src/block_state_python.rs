@@ -6,7 +6,7 @@ use crate::block_state::{BlockState, BlockStateError, Stored};
 use crate::lmdb_python::PyLmdbEnvironment;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyFrozenSet, PyList};
+use pyo3::types::{PyBytes, PyList};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 fn to_py(error: BlockStateError) -> PyErr {
@@ -17,8 +17,8 @@ fn stored_to_py(py: Python<'_>, value: &Stored) -> Option<Py<PyBytes>> {
     value.as_ref().map(|bytes| PyBytes::new(py, bytes).unbind())
 }
 
-/// Pending writes of the current block as stored values, with per-transaction
-/// access tracking and one discarding scope.
+/// Pending writes of the current block as stored values, with one discarding
+/// scope.
 #[pyclass(name = "BlockState", module = "xian_vm_core", frozen)]
 pub(crate) struct PyBlockState {
     state: Arc<Mutex<BlockState>>,
@@ -92,46 +92,6 @@ impl PyBlockState {
 
     fn clear(&self) -> PyResult<()> {
         self.lock().clear().map_err(to_py)
-    }
-
-    #[getter]
-    fn tracking(&self) -> bool {
-        self.lock().tracking()
-    }
-
-    fn set_tracking(&self, enabled: bool) -> PyResult<()> {
-        self.lock().set_tracking(enabled).map_err(to_py)
-    }
-
-    fn record_read(&self, key: &str) {
-        self.lock().record_read(key);
-    }
-
-    fn record_prefix(&self, prefix: &str) {
-        self.lock().record_prefix(prefix);
-    }
-
-    /// `(read keys, read prefixes)` of the current transaction; empty while
-    /// tracking is off.
-    fn access<'py>(
-        &self,
-        py: Python<'py>,
-    ) -> PyResult<(Bound<'py, PyFrozenSet>, Bound<'py, PyFrozenSet>)> {
-        let (reads, prefixes): (Vec<String>, Vec<String>) = match self.lock().access() {
-            Some(access) => (
-                access.reads.iter().cloned().collect(),
-                access.prefixes.iter().cloned().collect(),
-            ),
-            None => (Vec::new(), Vec::new()),
-        };
-        Ok((
-            PyFrozenSet::new(py, &reads)?,
-            PyFrozenSet::new(py, &prefixes)?,
-        ))
-    }
-
-    fn clear_access(&self) -> PyResult<()> {
-        self.lock().clear_access().map_err(to_py)
     }
 
     fn begin_discarding(&self) -> PyResult<()> {

@@ -53,7 +53,6 @@ class NativeExecutor:
         )
         # The Python host bridge installs transaction context for the native VM.
         with rt.execution_lock:
-            driver.clear_transaction_reads()
             context["owner"] = driver.get_owner(contract_name)
             try:
                 result = execute_contract(
@@ -79,7 +78,6 @@ class NativeExecutor:
                     chi_used=0,
                     contract_costs={},
                 )
-            reads, prefix_reads = driver.transaction_access()
             error = None
             if result.status_code:
                 error = (
@@ -97,8 +95,6 @@ class NativeExecutor:
                 "writes": result.writes,
                 "chi_used": result.chi_used,
                 "events": result.events,
-                "reads": reads,
-                "prefix_reads": prefix_reads,
                 "contract_costs": result.contract_costs,
                 "error_class": classify_execution_error(error),
             }
