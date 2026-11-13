@@ -2489,14 +2489,11 @@
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
         "tests/unit/test_parser.py",
-        "tests/unit/test_parallel_planner.py",
         "tests/unit/test_ir_lowering.py",
         "tests/unit/test_linter.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_conformance_manifest.py",
         "tests/unit/test_contracting_collections.py",
-        "tests/unit/test_speculative_controller.py",
-        "tests/integration/test_parallel_batch_executor.py",
         "tests/integration/test_vm_float_sets.py"
       ]
     },
@@ -2524,7 +2521,6 @@
         "tests/unit/test_context_data_struct.py",
         "tests/unit/test_stdlib_crypto.py",
         "tests/unit/test_driver_tombstones.py",
-        "tests/unit/test_parallel_planner.py",
         "tests/unit/test_ir_lowering.py",
         "tests/unit/test_state_management.py",
         "tests/unit/test_decimal.py",
@@ -2690,7 +2686,6 @@
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
-        "tests/unit/test_parallel_planner.py",
         "tests/unit/test_contract_runtime_guards.py",
         "tests/unit/test_vm_compatibility.py",
         "tests/unit/test_runtime.py",
@@ -2702,7 +2697,6 @@
         "tests/integration/test_vm_collection_methods.py",
         "tests/integration/test_vm_storage_scans.py",
         "tests/integration/test_vm_stateful_fuzz.py",
-        "tests/integration/test_parallel_batch_executor.py",
         "tests/integration/test_misc_contracts.py",
         "tests/integration/test_vm_language_conformance.py",
         "tests/integration/test_vm_legacy_compatibility.py",
@@ -2804,7 +2798,6 @@
       "existing_test_files": [
         "tests/unit/test_zk_stdlib.py",
         "tests/integration/test_vm_transaction_budget.py",
-        "tests/integration/test_parallel_batch_executor.py",
         "tests/integration/test_dynamic_imports.py"
       ]
     },
@@ -2815,7 +2808,6 @@
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
         "tests/unit/test_parser.py",
-        "tests/unit/test_parallel_planner.py",
         "tests/unit/test_zk_stdlib.py",
         "tests/unit/test_linter.py",
         "tests/integration/test_vm_stateful_fuzz.py",
@@ -2908,7 +2900,6 @@
         "tests/integration/test_vm_dynamic_foreign_storage.py",
         "tests/integration/test_vm_storage_scans.py",
         "tests/integration/test_vm_stateful_fuzz.py",
-        "tests/integration/test_parallel_batch_executor.py",
         "tests/integration/test_misc_contracts.py",
         "tests/integration/test_native_compiler_integration.py"
       ]
@@ -3069,14 +3060,11 @@
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
         "tests/unit/test_parser.py",
-        "tests/unit/test_parallel_planner.py",
         "tests/unit/test_ir_lowering.py",
         "tests/unit/test_linter.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_conformance_manifest.py",
         "tests/unit/test_contracting_collections.py",
-        "tests/unit/test_speculative_controller.py",
-        "tests/integration/test_parallel_batch_executor.py",
         "tests/integration/test_vm_float_sets.py"
       ]
     },
@@ -3182,7 +3170,6 @@
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
-        "tests/unit/test_parallel_planner.py",
         "tests/unit/test_contract_runtime_guards.py",
         "tests/unit/test_vm_compatibility.py",
         "tests/unit/test_runtime.py",
@@ -3194,7 +3181,6 @@
         "tests/integration/test_vm_collection_methods.py",
         "tests/integration/test_vm_storage_scans.py",
         "tests/integration/test_vm_stateful_fuzz.py",
-        "tests/integration/test_parallel_batch_executor.py",
         "tests/integration/test_misc_contracts.py",
         "tests/integration/test_vm_language_conformance.py",
         "tests/integration/test_vm_legacy_compatibility.py",

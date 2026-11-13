@@ -10,6 +10,7 @@ import pytest
     [
         "contracting.execution.executor",
         "contracting.execution.module",
+        "contracting.execution.parallel",
         "contracting.execution.python_tracer",
         "contracting.execution.tracer",
         "contracting.execution.sandbox",
@@ -18,3 +19,9 @@ import pytest
 )
 def test_retired_execution_module_is_unavailable(module):
     assert importlib.util.find_spec(module) is None
+
+
+def test_local_client_exposes_no_parallel_batch_executor():
+    from contracting.local import ContractingClient
+
+    assert not hasattr(ContractingClient, "build_parallel_executor")

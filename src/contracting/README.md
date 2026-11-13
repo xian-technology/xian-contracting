@@ -11,8 +11,7 @@ harness, manages contract storage, and exposes the contract-side stdlib bridge.
 - `local/`: `ContractingClient` facade used by tests, tools, and local callers
 - `compilation/`: linter, compiler internals, conformance checks, and
   `xian_ir_v1` lowering
-- `execution/`: shared native host context, execution errors, and speculative
-  parallel batch primitives
+- `execution/`: shared native host context and execution errors
 - `storage/`: LMDB-backed driver, contract storage helpers, and ORM objects
 - `stdlib/`: deterministic builtins and bridge modules exposed to contracts
 - `contracts/`: built-in submission contract source and bundled assets

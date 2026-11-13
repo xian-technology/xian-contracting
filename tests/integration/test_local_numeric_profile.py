@@ -42,36 +42,6 @@ def test_exact_closure_deployment_and_failed_call_preserves_persisted_state(tmp_
         assert client.get_contract_proxy("con_v2").inspect() == total
 
 
-def test_parallel_local_simulation_applies_v2_in_each_worker(tmp_path):
-    from xian_runtime_types.time import Datetime
-
-    from contracting.execution.parallel import ExecutionRequest
-
-    with ContractingClient(storage_home=tmp_path, vm_profile="xian_vm_v2") as client:
-        client.submit(con_v2)
-        client.raw_driver.commit()
-        workers = client.build_parallel_executor(workers=2, min_batch_size=2)
-        try:
-            requests = [
-                ExecutionRequest(
-                    sender=sender,
-                    contract_name="con_v2",
-                    function_name="multiply",
-                    kwargs={"amount": value, "denominator": 3},
-                    environment={"now": Datetime(2026, 1, 1)},
-                )
-                for sender, value in [("alice", 1), ("bob", 2)]
-            ]
-            results, stats = workers.execute(requests=requests)
-            assert [out["result"] for out in results] == [
-                Decimal("0." + "3" * 30),
-                Decimal("0." + "6" * 30),
-            ]
-            assert stats.speculative_wave_count
-        finally:
-            workers.close()
-
-
 def test_native_proxy_exposes_compiler_exports_with_explicit_typecheck(tmp_path):
     source = """def helper(x: int):
     return x + 1

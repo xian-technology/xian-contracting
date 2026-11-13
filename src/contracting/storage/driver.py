@@ -183,15 +183,6 @@ class Driver:
         """``(read keys, read prefixes)`` of the current transaction."""
         return self._pending.access()
 
-    @_outside_discarding_scope
-    def adopt_transaction_access(self, reads, prefixes) -> None:
-        """Take over the access a transaction executed elsewhere recorded."""
-        self._pending.clear_access()
-        for key in reads:
-            self._pending.record_read(key)
-        for prefix in prefixes:
-            self._pending.record_prefix(prefix)
-
     def pending_items(self) -> list[tuple[str, object]]:
         """The block's pending writes in key order; a deletion reads as None."""
         return [(key, self._decode(key, raw)) for key, raw in self._pending.items()]

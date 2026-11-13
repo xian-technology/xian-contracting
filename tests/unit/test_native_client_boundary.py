@@ -7,9 +7,7 @@ import textwrap
 
 import pytest
 
-from contracting.execution.parallel import ParallelBatchExecutor
 from contracting.local import ContractingClient
-from contracting.local.native_executor import NativeExecutor
 from contracting.storage.driver import Driver
 
 
@@ -33,15 +31,6 @@ def test_public_client_rejects_injected_v1_driver_without_seeding_state(tmp_path
         assert set(driver.keys()) == before
         assert driver.get("con_archive.value") == 7
         assert not driver.has_contract("submission")
-
-
-@pytest.mark.parametrize("enabled", [False, True])
-def test_public_parallel_rejects_native_v1_adapter_before_scheduling(tmp_path, enabled):
-    with Driver(storage_home=tmp_path / "archive", vm_profile="xian_vm_v1") as driver:
-        executor = NativeExecutor(driver, metering=False)
-        with pytest.raises(ValueError, match="ParallelBatchExecutor only supports xian_vm_v2"):
-            parallel = ParallelBatchExecutor(executor=executor, enabled=enabled, workers=1)
-            parallel.close()
 
 
 def test_archival_native_v1_executes_without_public_client(tmp_path):
@@ -95,16 +84,6 @@ def test_native_client_does_not_load_python_executor_or_tracer(tmp_path):
         with ContractingClient(storage_home=sys.argv[1]) as client:
             client.submit("@export\\ndef answer():\\n    return 42", name="con_answer")
             assert client.get_contract_proxy("con_answer").answer() == 42
-            parallel = client.build_parallel_executor(workers=1, min_batch_size=1)
-            try:
-                from contracting.execution.parallel import ExecutionRequest
-                outputs, stats = parallel.execute(requests=[
-                    ExecutionRequest(sender="sys", contract_name="con_answer", function_name="answer")
-                ])
-                assert outputs[0]["status_code"] == 0, outputs
-                assert outputs[0]["result"] == 42, outputs
-            finally:
-                parallel.close()
         assert not forbidden.intersection(sys.modules), forbidden.intersection(sys.modules)
         """
     )

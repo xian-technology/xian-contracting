@@ -7,9 +7,10 @@
 //! nothing depends on insertion order (the state root is a treap keyed by key).
 //!
 //! The state also tracks which keys and prefixes the current transaction read
-//! (only while tracking is on; the legacy parallel executor consumes it), and
-//! opens at most one discarding scope: every change made inside it is undone
-//! when it closes, at a cost that follows what the scope touched.
+//! (only while tracking is on; the node keeps it off, as nothing has consumed
+//! it since the legacy parallel executor was removed), and opens at most one
+//! discarding scope: every change made inside it is undone when it closes, at a
+//! cost that follows what the scope touched.
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;
 #[cfg(any(feature = "python-extension", test))]
