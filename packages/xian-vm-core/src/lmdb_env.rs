@@ -248,9 +248,28 @@ struct EnvState {
     env: *mut ffi::MDB_env,
     dbi: ffi::MDB_dbi,
     path: PathBuf,
-    /// Read transactions held open by cursors, aborted if the environment closes.
-    readers: HashMap<u64, *mut ffi::MDB_txn>,
+    /// Read snapshots held open by cursors, ended if the environment closes.
+    readers: HashMap<u64, Reader>,
     next_reader: u64,
+}
+
+/// A cursor and the read transaction it lives in.
+struct Reader {
+    txn: *mut ffi::MDB_txn,
+    cursor: *mut ffi::MDB_cursor,
+}
+
+impl Reader {
+    /// Close the cursor, then end its transaction. LMDB 1.0 reads the
+    /// transaction while closing a cursor (despite documenting that a read
+    /// cursor may be closed after its transaction ended), so the order matters.
+    ///
+    /// # Safety
+    /// Both handles must be live.
+    unsafe fn end(self) {
+        ffi::mdb_cursor_close(self.cursor);
+        ffi::mdb_txn_abort(self.txn);
+    }
 }
 
 // SAFETY: the environment is opened with MDB_NOTLS, so transactions are not
@@ -334,9 +353,9 @@ impl LmdbEnv {
         if state.env.is_null() {
             return;
         }
-        for (_, txn) in state.readers.drain() {
-            // SAFETY: each registered reader is a live read transaction.
-            unsafe { ffi::mdb_txn_abort(txn) };
+        for (_, reader) in state.readers.drain() {
+            // SAFETY: each registered reader is live.
+            unsafe { reader.end() };
         }
         // SAFETY: no transaction of this environment is live any more.
         unsafe { ffi::mdb_env_close(state.env) };
@@ -427,11 +446,10 @@ impl LmdbEnv {
         }
         let id = state.next_reader;
         state.next_reader += 1;
-        state.readers.insert(id, txn);
+        state.readers.insert(id, Reader { txn, cursor });
         Ok(SnapshotCursor {
             env: self.clone(),
             id,
-            cursor,
             start: Some(start.to_vec()),
         })
     }
@@ -439,9 +457,9 @@ impl LmdbEnv {
 
 impl Drop for EnvState {
     fn drop(&mut self) {
-        for (_, txn) in self.readers.drain() {
-            // SAFETY: registered readers are live read transactions.
-            unsafe { ffi::mdb_txn_abort(txn) };
+        for (_, reader) in self.readers.drain() {
+            // SAFETY: registered readers are live.
+            unsafe { reader.end() };
         }
         if !self.env.is_null() {
             // SAFETY: last handle; no transactions remain.
@@ -611,7 +629,6 @@ unsafe fn cursor_step<'t>(
 pub struct SnapshotCursor {
     env: LmdbEnv,
     id: u64,
-    cursor: *mut ffi::MDB_cursor,
     start: Option<Vec<u8>>,
 }
 
@@ -623,12 +640,10 @@ impl SnapshotCursor {
     /// The next entry, copied out of the map; `None` once the range ends.
     pub fn next_entry(&mut self) -> Result<Option<OwnedEntry>, LmdbError> {
         let state = self.env.state()?;
-        if !state.readers.contains_key(&self.id) {
-            return Err(LmdbError::Closed);
-        }
+        let reader = state.readers.get(&self.id).ok_or(LmdbError::Closed)?;
         let start = self.start.take();
         // SAFETY: the reader is registered, so its transaction and cursor live.
-        let entry = unsafe { cursor_step(self.cursor, start.as_deref()) }?;
+        let entry = unsafe { cursor_step(reader.cursor, start.as_deref()) }?;
         Ok(entry.map(|(key, value)| (key.to_vec(), value.to_vec())))
     }
 }
@@ -640,12 +655,10 @@ impl Drop for SnapshotCursor {
             .state
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        // SAFETY: a read-only cursor is freed explicitly, before or after its
-        // transaction ended; the transaction is aborted only if still live.
-        unsafe { ffi::mdb_cursor_close(self.cursor) };
-        if let Some(txn) = state.readers.remove(&self.id) {
+        // A reader the closed environment already ended is gone from the map.
+        if let Some(reader) = state.readers.remove(&self.id) {
             // SAFETY: the reader was still registered, so it is live.
-            unsafe { ffi::mdb_txn_abort(txn) };
+            unsafe { reader.end() };
         }
     }
 }
