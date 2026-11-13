@@ -1,15 +1,19 @@
-//! The contract metadata reads (`NativeVmHost.handle_syscall` for
-//! `contract.exists`, `has_export`, `owner_of`, `info` and `code_hash`).
+//! The contract metadata syscalls (`NativeVmHost.handle_syscall`): the
+//! reads `contract.exists`, `has_export`, `owner_of`, `info` and
+//! `code_hash`, and the changes `contract.set_owner` and `set_developer`
+//! (submission only; the VM checks that before the host sees them).
+use super::charges::{host_runtime_error, HOST_WRITE_COST_PER_BYTE};
 use super::modules::{exports, runnable, Ir};
-use super::{host_text, text, BlockHost, IR_KEY, OWNER_KEY, SOURCE_KEY};
+use super::{host_text, text, BlockHost, DEVELOPER_KEY, IR_KEY, OWNER_KEY, SOURCE_KEY};
 use crate::settlement::Stop;
+use crate::stored_value_encoder::encode_stored_value;
 use crate::{VmExecutionError, VmValue};
 use sha3::{Digest, Sha3_256};
 
 /// `contract.info`'s fields after the name, and the variables they read.
 const CONTRACT_INFO: [(&str, &str); 5] = [
     ("owner", OWNER_KEY),
-    ("developer", "__developer__"),
+    ("developer", DEVELOPER_KEY),
     ("deployer", "__deployer__"),
     ("initiator", "__initiator__"),
     ("submitted", "__submitted__"),
@@ -59,7 +63,57 @@ pub(super) fn read(
     )
 }
 
+/// The contract metadata changes and the variable each one writes.
+const METADATA_CHANGES: [(&str, &str); 2] = [
+    ("contract.set_owner", OWNER_KEY),
+    ("contract.set_developer", DEVELOPER_KEY),
+];
+
+/// The metadata change `syscall_id` with these arguments (the contract and
+/// the new value), or `None` when it is not one served here.
+pub(super) fn change(
+    host: &mut BlockHost<'_>,
+    syscall_id: &str,
+    args: &[VmValue],
+    kwargs: &[(String, VmValue)],
+) -> Option<Result<VmValue, VmExecutionError>> {
+    let (_, variable) = METADATA_CHANGES
+        .iter()
+        .find(|(id, _)| *id == syscall_id && args.len() == 2 && kwargs.is_empty())?;
+    Some(host.change_metadata(&args[0], variable, &args[1]))
+}
+
 impl BlockHost<'_> {
+    /// `NativeVmHost._stage_contract_metadata_write`: stage the value, then
+    /// charge the write.
+    fn change_metadata(
+        &mut self,
+        contract: &VmValue,
+        variable: &str,
+        value: &VmValue,
+    ) -> Result<VmValue, VmExecutionError> {
+        let VmValue::String(contract) = contract else {
+            return self.back("metadata change of a contract that is not a string");
+        };
+        let key = format!("{contract}.{variable}");
+        self.writes.stage(&key, value.clone());
+        self.charge_host_write(&key, value)?;
+        Ok(VmValue::None)
+    }
+
+    /// `NativeVmHost._charge_host_write` without the write cap: metered
+    /// execution pays for the encoded key and value.
+    fn charge_host_write(&mut self, key: &str, value: &VmValue) -> Result<(), VmExecutionError> {
+        if !self.charges.metered() {
+            return Ok(());
+        }
+        let Ok(encoded) = encode_stored_value(value) else {
+            return self.back("a host write the stored-value encoding refuses");
+        };
+        let written = (key.len() + encoded.len()) as u64;
+        self.charges.record(written * HOST_WRITE_COST_PER_BYTE)
+    }
+
     /// `NativeVmHost._contract_exists`.
     fn contract_exists(&mut self, contract: &str) -> Result<bool, VmExecutionError> {
         if !matches!(self.ir(contract)?, Ir::Absent) {
@@ -129,10 +183,7 @@ fn code_variable(kind: Option<&VmValue>) -> Result<&'static str, VmExecutionErro
     match kind.map(|kind| (kind, host_text(kind))) {
         None | Some((VmValue::None, _)) | Some((_, Some("runtime" | "ir"))) => Ok(IR_KEY),
         Some((_, Some("source"))) => Ok(SOURCE_KEY),
-        // The Python host's VmRuntimeExecutionError, as `host_error` reports it.
-        Some(_) => Err(VmExecutionError::new(
-            "VmRuntimeExecutionError: Hash kind must be 'ir' or 'source'!",
-        )),
+        Some(_) => Err(host_runtime_error("Hash kind must be 'ir' or 'source'!")),
     }
 }
 

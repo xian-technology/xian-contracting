@@ -24,13 +24,6 @@ impl HostWrites {
     }
 
     /// Stage a write; a later write of the same key replaces it.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "contract metadata changes stage the first host writes"
-        )
-    )]
     pub(crate) fn stage(&mut self, key: &str, value: VmValue) {
         self.writes.insert(key.to_owned(), value);
     }

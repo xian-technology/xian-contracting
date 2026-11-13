@@ -4,14 +4,17 @@
 //! Python path (`Stop::Handback`); a storage failure halts (`Stop::Fault`).
 //!
 //! By concern: `modules` holds the contracts' IR as the node prepares it,
-//! `metadata` the contract metadata reads, `writes` what one transaction's
-//! host syscalls stage. Every other host syscall is still handed back.
+//! `metadata` the contract metadata reads and changes, `writes` what one
+//! transaction's host syscalls stage, `charges` what they cost. Every other
+//! host syscall is still handed back.
 #![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
 
+mod charges;
 mod metadata;
 pub(crate) mod modules;
 mod writes;
 
+pub(crate) use charges::HostCharges;
 pub(crate) use modules::{Ir, Modules};
 pub(crate) use writes::HostWrites;
 
@@ -23,6 +26,7 @@ use std::convert::Infallible;
 pub(crate) const IR_KEY: &str = "__xian_ir_v1__";
 pub(crate) const SOURCE_KEY: &str = "__source__";
 pub(crate) const OWNER_KEY: &str = "__owner__";
+pub(crate) const DEVELOPER_KEY: &str = "__developer__";
 
 pub(crate) fn fault(error: String) -> Stop {
     Stop::Fault(error)
@@ -46,27 +50,28 @@ pub(crate) struct BlockHost<'a> {
     view: StateView,
     modules: &'a Modules,
     writes: HostWrites,
+    charges: HostCharges,
     stop: Option<Stop>,
 }
 
 impl<'a> BlockHost<'a> {
-    pub(crate) fn new(view: StateView, modules: &'a Modules) -> Self {
+    pub(crate) fn new(view: StateView, modules: &'a Modules, charges: HostCharges) -> Self {
         Self {
             view,
             modules,
             writes: HostWrites::default(),
+            charges,
             stop: None,
         }
     }
 
-    /// Why the transaction stopped, if it did.
-    pub(crate) fn take_stop(&mut self) -> Option<Stop> {
-        self.stop.take()
-    }
-
-    /// What the transaction's host syscalls staged.
-    pub(crate) fn take_writes(&mut self) -> HostWrites {
-        std::mem::take(&mut self.writes)
+    /// What the transaction's host syscalls staged and cost, or why the
+    /// transaction stopped.
+    pub(crate) fn finish(self) -> Result<(HostWrites, HostCharges), Stop> {
+        match self.stop {
+            Some(stop) => Err(stop),
+            None => Ok((self.writes, self.charges)),
+        }
     }
 
     /// The IR of `name`: a staged IR text (`NativeVmHost.load_module_ir_json`
@@ -235,7 +240,9 @@ mod services {
             args: Vec<VmValue>,
             kwargs: Vec<(String, VmValue)>,
         ) -> Result<VmValue, VmExecutionError> {
-            match metadata::read(self, syscall_id, &args, &kwargs) {
+            match metadata::read(self, syscall_id, &args, &kwargs)
+                .or_else(|| metadata::change(self, syscall_id, &args, &kwargs))
+            {
                 Some(result) => result,
                 None => self.back(format!("host syscall {syscall_id}")),
             }

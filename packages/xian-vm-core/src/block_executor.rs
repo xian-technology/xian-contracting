@@ -9,14 +9,15 @@
 //!
 //! A transaction the port does not cover stops with `Stop::Handback` before
 //! any of its effects reach the overlay; the node then runs it through the
-//! Python path, in block order. That covers contract submission, contracts
-//! using zk host syscalls, host syscalls other than the contract metadata
-//! reads (random, deploy, metadata changes), preparation and entry
-//! rejections, and any value the Python checks could refuse. The VM's host
+//! Python path, in block order. That covers contract submission
+//! (`submission.submit_contract`), contracts using zk host syscalls, host
+//! syscalls other than the contract metadata reads and changes (random,
+//! deploy), preparation and entry rejections, and any value the Python
+//! checks could refuse. The VM's host
 //! (`block_host`) reads the overlay and LMDB, hash scans included. A storage
 //! fault stops with `Stop::Fault`.
 use crate::block_host::modules::{exports, runnable};
-use crate::block_host::{fault, text, BlockHost, HostWrites, Ir, Modules, OWNER_KEY};
+use crate::block_host::{fault, text, BlockHost, HostCharges, HostWrites, Ir, Modules, OWNER_KEY};
 use crate::block_state::lock;
 use crate::bundle_executor::{validate_bundle_module, BundleExecutor, ExecutionOutcome};
 use crate::lmdb_env::storage_key_error;
@@ -27,8 +28,8 @@ use crate::state_view::StateView;
 use crate::stored_value_encoder::encode_stored_value;
 use crate::tx_rewards::{chain_chi_rate, tx_reward_outputs, RewardState, TxRewards};
 use crate::{
-    ValidatedModuleIr, VmBudget, VmEvent, VmException, VmExecutionContext, VmMeterConfig, VmValue,
-    XIAN_VM_V2_PROFILE,
+    ValidatedModuleIr, VmBudget, VmEvent, VmException, VmExecutionContext, VmExecutionStats,
+    VmMeterConfig, VmValue, XIAN_VM_V2_PROFILE,
 };
 use num_bigint::BigInt;
 use num_traits::Zero;
@@ -179,7 +180,7 @@ impl BlockExecutor {
 
     /// The transaction, executed and staged.
     pub(crate) fn execute(&self, tx: &PreparedTx) -> Settled<TxOutcome> {
-        if tx.contract == "submission" {
+        if tx.contract == "submission" && tx.function == "submit_contract" {
             return handback("contract submission");
         }
         let rate = self.chi_rate()?;
@@ -346,7 +347,9 @@ impl BlockExecutor {
     ) -> Settled<(ExecutionOutcome, HostWrites)> {
         let budget_raw = chi_budget_raw(&tx.chi_budget)?;
         let budget = VmBudget::new(budget_raw, XIAN_VM_V2_PROFILE);
-        let host = BlockHost::new(self.view.clone(), &self.modules);
+        let limit = budget.limit();
+        let charges = HostCharges::new(budget.clone(), self.policy.meter_execution, &tx.contract);
+        let host = BlockHost::new(self.view.clone(), &self.modules, charges);
         validate_bundle_module(&entry, &tx.contract, XIAN_VM_V2_PROFILE)
             .map_err(|error| Stop::Handback(error.to_string()))?;
         let bundle = HashMap::from([(tx.contract.clone(), entry)]);
@@ -355,7 +358,6 @@ impl BlockExecutor {
             chi_budget_raw: budget_raw,
             transaction_size_bytes: tx.size_bytes,
         };
-        let limit = budget.limit();
         let mut executor =
             BundleExecutor::with_modules(host, bundle, config, Some(budget), XIAN_VM_V2_PROFILE);
         let mut outcome = executor.execute_entry(
@@ -365,13 +367,9 @@ impl BlockExecutor {
             tx.kwargs.clone(),
             context,
         );
-        if let Some(stop) = executor.host.take_stop() {
-            return Err(stop);
-        }
-        // _combined_chi_used: the base charge plus measured work, within the budget.
-        let combined = (outcome.stats.raw_cost / 1_000 + TRANSACTION_BASE_CHI).min(limit / 1_000);
-        outcome.stats.chi_used = combined.max(outcome.stats.chi_used);
-        Ok((outcome, executor.host.take_writes()))
+        let (host_writes, charges) = executor.host.finish()?;
+        add_host_charges(&mut outcome.stats, &charges, limit);
+        Ok((outcome, host_writes))
     }
 
     /// Fee settlement, rewards and staging after the scope closed.
@@ -567,6 +565,17 @@ pub(crate) fn event_value(event: &VmEvent) -> VmValue {
         (text("data_indexed"), pairs(&event.data_indexed)),
         (text("data"), pairs(&event.data)),
     ])
+}
+
+/// `execute_contract`'s accounting of what the host syscalls cost: the raw
+/// cost of the VM and the host makes the chi used (`_combined_chi_used`: the
+/// base charge plus measured work, within the budget), and the host's costs
+/// join the VM's per-contract costs.
+fn add_host_charges(stats: &mut VmExecutionStats, charges: &HostCharges, limit: u64) {
+    stats.raw_cost = stats.raw_cost.saturating_add(charges.raw_cost());
+    let combined = (stats.raw_cost / 1_000 + TRANSACTION_BASE_CHI).min(limit / 1_000);
+    stats.chi_used = combined.max(stats.chi_used);
+    charges.add_contract_costs(&mut stats.contract_costs);
 }
 
 fn chi_budget_raw(chi_budget: &BigInt) -> Settled<u64> {
