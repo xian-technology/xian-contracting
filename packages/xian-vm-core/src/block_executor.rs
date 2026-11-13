@@ -20,6 +20,7 @@ use crate::block_host::modules::{exports, runnable};
 use crate::block_host::{fault, text, BlockHost, HostCharges, HostWrites, Ir, Modules, OWNER_KEY};
 use crate::block_state::lock;
 use crate::bundle_executor::{validate_bundle_module, BundleExecutor, ExecutionOutcome};
+use crate::interpreter::numeric_v2;
 use crate::lmdb_env::storage_key_error;
 use crate::metering::VM_TRANSACTION_BASE_CHI as TRANSACTION_BASE_CHI;
 use crate::python_decimal::PyDecimal;
@@ -345,6 +346,9 @@ impl BlockExecutor {
         entry: ValidatedModuleIr,
         context: VmExecutionContext,
     ) -> Settled<(ExecutionOutcome, HostWrites)> {
+        // `execute_bundle` runs the whole bundle in its profile's semantics,
+        // the charge for the entry's result included.
+        let _scope = numeric_v2::Scope::enter(XIAN_VM_V2_PROFILE);
         let budget_raw = chi_budget_raw(&tx.chi_budget)?;
         let budget = VmBudget::new(budget_raw, XIAN_VM_V2_PROFILE);
         let limit = budget.limit();
