@@ -1,7 +1,8 @@
 """xian_vm_core.StateRootTree as xian-abci's state root uses it.
 
-The roots are the ones the pre-Rust Python treap computed (xian-abci
-``tests/unit/state_root_reference.py``); xian-abci compares whole corpora.
+Roots are pinned from xian-abci's Python reference
+(``tests/unit/state_root_reference.py``), which also compares whole corpora.
+A leaf commits to the key and the value's stored bytes.
 """
 
 import hashlib
@@ -9,20 +10,20 @@ import hashlib
 import pytest
 from xian_vm_core import LmdbEnvironment, StateRootTree, state_root_leaf_hash
 
-EMPTY = hashlib.sha256(b"xian-state-root-v2:empty").digest()
-ALICE_BOB_ROOT = "7e3c87527d71b6fdf2c2bc2512147371b94e43ec3ca4cdc33feabe94936ba654"
+EMPTY = hashlib.sha256(b"xian-state-root-v3:empty").digest()
+ALICE_BOB_ROOT = "94e06b178389fe7d582eb734169201a5bf0779ba498c0e68c248f6557175452b"
 NODE_KEYS = ["__fee_policy", "__execution_policy"]
 NODE_PREFIXES = ["__n:", "__runtime_features."]
 
 
-def leaf(key, json_text):
-    return state_root_leaf_hash(key, json_text.encode())
+def leaf(key, stored_text):
+    return state_root_leaf_hash(key, stored_text.encode())
 
 
-def test_the_leaf_hash_frames_the_key_and_the_value_json():
+def test_the_leaf_hash_frames_the_key_and_the_stored_bytes():
     key, value = b"con.a", b'{"x":1}'
     framed = len(key).to_bytes(8, "big") + key + len(value).to_bytes(8, "big") + value
-    expected = hashlib.sha256(b"xian-state-root-v2:leaf:" + framed).digest()
+    expected = hashlib.sha256(b"xian-state-root-v3:leaf:" + framed).digest()
     assert state_root_leaf_hash("con.a", value) == expected
 
 
@@ -64,7 +65,7 @@ def test_a_leaf_hash_has_32_bytes(size):
         StateRootTree.from_leaves([("con.a", b"x" * size)])
 
 
-def test_from_storage_hashes_committed_entries_and_hands_back_the_rest(tmp_path):
+def test_from_storage_hashes_the_stored_bytes_of_hashed_keys(tmp_path):
     env = LmdbEnvironment(str(tmp_path), 1 << 24)
     env.write(
         [
@@ -72,11 +73,20 @@ def test_from_storage_hashes_committed_entries_and_hands_back_the_rest(tmp_path)
             (b"currency.balances:bob", b"2"),
             (b"__local.cache", b"3"),
             (b"con.gone", b"null"),
-            (b"con.raw", b'{"__bytes__":"ff"}'),
         ]
     )
-    tree, handed_back = StateRootTree.from_storage(env, NODE_KEYS, NODE_PREFIXES)
+    tree = StateRootTree.from_storage(env, NODE_KEYS, NODE_PREFIXES)
     assert tree.root_hash.hex() == ALICE_BOB_ROOT
     assert len(tree) == 2
-    assert handed_back == [(b"con.raw", b'{"__bytes__":"ff"}')]
+    env.write([(b"con.raw", b'{"__bytes__":"ff"}')])
+    tree = StateRootTree.from_storage(env, NODE_KEYS, NODE_PREFIXES)
+    assert tree.leaf_hash("con.raw") == leaf("con.raw", '{"__bytes__":"ff"}')
+    env.close()
+
+
+def test_from_storage_refuses_a_key_that_is_not_text(tmp_path):
+    env = LmdbEnvironment(str(tmp_path), 1 << 24)
+    env.write([(b"con.\xff", b"1")])
+    with pytest.raises(ValueError, match="not UTF-8"):
+        StateRootTree.from_storage(env, NODE_KEYS, NODE_PREFIXES)
     env.close()

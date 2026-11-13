@@ -1,12 +1,15 @@
-//! The consensus state root (`xian-state-root-v2`): a treap over the hashed
+//! The consensus state root (`xian-state-root-v3`): a treap over the hashed
 //! state keys whose shape and hashes depend only on the set of (key, leaf).
 //!
-//! - leaf = sha256("xian-state-root-v2:leaf:" | len8(key) | key | len8(json) | json),
-//!   where `json` is the value's ABCI JSON and `len8` a big-endian u64 length;
-//! - priority = sha256("xian-state-root-v2:priority:" | key) as a big-endian
+//! - leaf = sha256("xian-state-root-v3:leaf:" | len8(key) | key | len8(stored) | stored),
+//!   where `stored` is exactly the value's bytes in LMDB (the V2 stored
+//!   encoding, written byte-identically by the Python and Rust encoders) and
+//!   `len8` a big-endian u64 length. The leaf commits to the stored value, so
+//!   values that only render alike (a datetime and its text) never share it;
+//! - priority = sha256("xian-state-root-v3:priority:" | key) as a big-endian
 //!   number; a parent's priority is lower than its children's;
-//! - node hash = sha256("xian-state-root-v2:node:" | left | leaf | right), an
-//!   empty subtree hashing to sha256("xian-state-root-v2:empty").
+//! - node hash = sha256("xian-state-root-v3:node:" | left | leaf | right), an
+//!   empty subtree hashing to sha256("xian-state-root-v3:empty").
 //!
 //! Keys are ordered by their UTF-8 bytes, which is Python's code point order.
 //! Distinct keys have distinct priorities (sha256), so the treap, and with it
@@ -17,10 +20,10 @@ use std::sync::OnceLock;
 
 pub type Hash = [u8; 32];
 
-const EMPTY_TAG: &[u8] = b"xian-state-root-v2:empty";
-const LEAF_PREFIX: &[u8] = b"xian-state-root-v2:leaf:";
-const NODE_PREFIX: &[u8] = b"xian-state-root-v2:node:";
-const PRIORITY_PREFIX: &[u8] = b"xian-state-root-v2:priority:";
+const EMPTY_TAG: &[u8] = b"xian-state-root-v3:empty";
+const LEAF_PREFIX: &[u8] = b"xian-state-root-v3:leaf:";
+const NODE_PREFIX: &[u8] = b"xian-state-root-v3:node:";
+const PRIORITY_PREFIX: &[u8] = b"xian-state-root-v3:priority:";
 const NIL: u32 = u32::MAX;
 const LEFT: usize = 0;
 const RIGHT: usize = 1;
@@ -31,11 +34,11 @@ pub fn empty_root() -> Hash {
     *EMPTY.get_or_init(|| Sha256::digest(EMPTY_TAG).into())
 }
 
-/// The leaf hash of `key` holding a value whose ABCI JSON is `value_json`.
-pub fn leaf_hash(key: &str, value_json: &[u8]) -> Hash {
+/// The leaf hash of `key` whose value is stored as `stored`.
+pub fn leaf_hash(key: &str, stored: &[u8]) -> Hash {
     let mut digest = Sha256::new();
     digest.update(LEAF_PREFIX);
-    for part in [key.as_bytes(), value_json] {
+    for part in [key.as_bytes(), stored] {
         digest.update((part.len() as u64).to_be_bytes());
         digest.update(part);
     }
@@ -307,7 +310,7 @@ impl TreeBuilder {
 
 #[cfg(test)]
 mod tests {
-    //! Roots pinned from the Python treap the node used before (xian-abci
+    //! Roots pinned from the Python reference treap (xian-abci
     //! `tests/unit/state_root_reference.py`).
     use super::*;
 
@@ -340,23 +343,23 @@ mod tests {
         hex::encode(tree.root_hash())
     }
 
-    const TWO_HUNDRED: &str = "00705c1589e656029482e02094faad609a5f39fc8b61a7044b1b06401020c1f5";
-    const ODD: &str = "dfc68304459e2010012fd2f4c5db945740fc14584ac1d56124496a5872c25471";
+    const TWO_HUNDRED: &str = "814bdd46e7463fb5692745bd722ae9dc7a0d6423577a78e6b11d5f945fce3432";
+    const ODD: &str = "ad59d0e197950fb29a02023b725f4e9434cd66188c748a785fec57f971bd410b";
 
     #[test]
     fn hashes_match_the_python_definition() {
         assert_eq!(
             hex::encode(empty_root()),
-            "1b8cced727c37a3d8c770c4e67e9c2e798a145dd6b96086f398fad3c54e7ccc0"
+            "b3ae03cb30015d8864c67443f53d747daea54adedef003a3ce1be2f590dc7b1c"
         );
         assert_eq!(
             hex::encode(leaf_hash("currency.balances:alice", b"1")),
-            "ed6669f4697c4b09733c4a127d46510f089b8ac9f772a95ee23f5febb4246c3d"
+            "aca149007106c5d652036b82e9e1176cbfa30c6bf6a2c642af8ee3949fb1ff57"
         );
         let two = int_leaves([("currency.balances:alice", 1), ("currency.balances:bob", 2)]);
         assert_eq!(
             hex_root(&StateRootTree::from_leaves(two).unwrap()),
-            "7e3c87527d71b6fdf2c2bc2512147371b94e43ec3ca4cdc33feabe94936ba654"
+            "94e06b178389fe7d582eb734169201a5bf0779ba498c0e68c248f6557175452b"
         );
     }
 
@@ -387,7 +390,7 @@ mod tests {
         let leaves = int_leaves(keys.iter().rev().copied().zip(1..));
         assert_eq!(
             hex_root(&StateRootTree::from_leaves(leaves).unwrap()),
-            "0fd99f66c6768c03ea090b7b69bc6565f8871c7166206be6a1df12e40e5578c4"
+            "57392b40d8743a700afc8dc2b9f4644bf4c5241e434d390824467fc0f89becbc"
         );
     }
 

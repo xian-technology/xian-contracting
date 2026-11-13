@@ -1,7 +1,7 @@
 //! Python access to the consensus state root (xian-abci's `xian.state_root`).
 use crate::lmdb_python::{lmdb_error_to_py, PyLmdbEnvironment};
 use crate::state_root::{leaf_hash, DuplicateKey, Hash, StateRootTree};
-use crate::state_root_storage::{storage_state_root, HashedKeys};
+use crate::state_root_storage::{storage_state_root, HashedKeys, StorageRootError};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -10,9 +10,6 @@ fn hash_arg(leaf: &[u8]) -> PyResult<Hash> {
     leaf.try_into()
         .map_err(|_| PyValueError::new_err("a state root leaf hash has 32 bytes"))
 }
-
-/// `(key, stored value)` entries whose leaf Python decides.
-type HandedBack = Vec<(Py<PyBytes>, Py<PyBytes>)>;
 
 fn bytes(py: Python<'_>, value: &[u8]) -> Py<PyBytes> {
     PyBytes::new(py, value).unbind()
@@ -48,26 +45,25 @@ impl PyStateRootTree {
     }
 
     /// The tree of the hashed entries committed in `environment` (keys not
-    /// starting with `__`, `node_keys` and keys under `node_prefixes`), and the
-    /// `(key, stored value)` entries whose leaf only Python can decide. Reads
-    /// one snapshot with the GIL released.
+    /// starting with `__`, `node_keys` and keys under `node_prefixes`), each
+    /// leaf over the stored bytes. Reads one snapshot with the GIL released.
     #[staticmethod]
     fn from_storage(
         py: Python<'_>,
         environment: PyRef<'_, PyLmdbEnvironment>,
         node_keys: Vec<String>,
         node_prefixes: Vec<String>,
-    ) -> PyResult<(Self, HandedBack)> {
+    ) -> PyResult<Self> {
         let env = environment.env().clone();
         let hashed = HashedKeys::new(node_keys, node_prefixes);
-        let (tree, handed_back) = py
-            .detach(move || storage_state_root(&env, &hashed))
-            .map_err(lmdb_error_to_py)?;
-        let handed_back = handed_back
-            .iter()
-            .map(|(key, stored)| (bytes(py, key), bytes(py, stored)))
-            .collect();
-        Ok((Self { tree }, handed_back))
+        match py.detach(move || storage_state_root(&env, &hashed)) {
+            Ok(tree) => Ok(Self { tree }),
+            Err(StorageRootError::Lmdb(error)) => Err(lmdb_error_to_py(error)),
+            Err(StorageRootError::KeyNotText(key)) => Err(PyValueError::new_err(format!(
+                "stored state key is not UTF-8: {}",
+                String::from_utf8_lossy(&key)
+            ))),
+        }
     }
 
     #[getter]
@@ -94,10 +90,10 @@ impl PyStateRootTree {
     }
 }
 
-/// The leaf hash of `key` holding a value whose ABCI JSON is `value_json`.
+/// The leaf hash of `key` whose value is stored as `stored`.
 #[pyfunction]
-fn state_root_leaf_hash(py: Python<'_>, key: &str, value_json: &[u8]) -> Py<PyBytes> {
-    bytes(py, &leaf_hash(key, value_json))
+fn state_root_leaf_hash(py: Python<'_>, key: &str, stored: &[u8]) -> Py<PyBytes> {
+    bytes(py, &leaf_hash(key, stored))
 }
 
 pub(crate) fn register(module: &Bound<'_, pyo3::types::PyModule>) -> PyResult<()> {
