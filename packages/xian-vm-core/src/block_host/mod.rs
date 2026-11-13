@@ -283,7 +283,7 @@ mod services {
             {
                 return result;
             }
-            match random::call(&mut self.random, syscall_id, &args, &kwargs) {
+            match random::call(&mut self.random, syscall_id, args, kwargs) {
                 Some(Ok(value)) => Ok(value),
                 Some(Err(Refusal::Raised(error))) => Err(error),
                 Some(Err(Refusal::Handback(reason))) => self.back(reason),

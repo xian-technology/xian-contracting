@@ -31,7 +31,7 @@ fn _random_syscalls_debug(
     let mut outcomes = Vec::with_capacity(calls.len());
     for (syscall_id, args, kwargs) in calls {
         let (args, kwargs) = vm_arguments(&args, &kwargs)?;
-        let served = call(&mut random, &syscall_id, &args, &kwargs).ok_or_else(|| {
+        let served = call(&mut random, &syscall_id, args, kwargs).ok_or_else(|| {
             PyValueError::new_err(format!("{syscall_id} is not a random syscall"))
         })?;
         let handed_back = matches!(served, Err(Refusal::Handback(_)));

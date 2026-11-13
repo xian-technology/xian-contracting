@@ -11,11 +11,18 @@ class DeterministicRandom:
     seed_material: str
     counter: int = 0
     buffer: bytearray = field(default_factory=bytearray)
+    # The hasher after "<seed material>|": a refill hashes only its counter,
+    # not the whole seed material again.
+    _prefix: object = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        self._prefix = hashlib.sha3_256(f"{self.seed_material}|".encode("utf-8"))
 
     def _refill(self) -> None:
-        digest = hashlib.sha3_256(f"{self.seed_material}|{self.counter}".encode("utf-8")).digest()
+        hasher = self._prefix.copy()
+        hasher.update(str(self.counter).encode("utf-8"))
         self.counter += 1
-        self.buffer.extend(digest)
+        self.buffer.extend(hasher.digest())
 
     def getrandbits(self, k: int) -> int:
         if k < 0:

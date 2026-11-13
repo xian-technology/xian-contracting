@@ -3,12 +3,17 @@
 //! `code_hash`, and the changes `contract.set_owner` and `set_developer`
 //! (submission only; the VM checks that before the host sees them).
 use super::charges::{host_runtime_error, HOST_WRITE_COST_PER_BYTE};
+
 use super::modules::{exports, runnable, Ir};
 use super::{host_text, text, BlockHost, DEVELOPER_KEY, IR_KEY, OWNER_KEY, SOURCE_KEY};
 use crate::settlement::Stop;
 use crate::stored_value_encoder::encode_stored_value;
 use crate::{VmExecutionError, VmValue};
 use sha3::{Digest, Sha3_256};
+
+/// `contracting.constants.CODE_HASH_COST_PER_BYTE`: the raw chi per byte
+/// `code_hash` hashes, charged before hashing (`hashlib.sha3`'s rate).
+const CODE_HASH_COST_PER_BYTE: u64 = 4;
 
 /// `contract.info`'s fields after the name, and the variables they read.
 const CONTRACT_INFO: [(&str, &str); 5] = [
@@ -170,14 +175,21 @@ impl BlockHost<'_> {
         let variable = code_variable(kind)?;
         if variable == IR_KEY {
             if let Ir::Text(module) = self.ir(contract)? {
-                return Ok(code_digest(&module.text));
+                return self.code_digest(&module.text);
             }
         }
         match self.metadata(contract, variable)? {
             VmValue::None => Ok(VmValue::None),
-            VmValue::String(code) => Ok(code_digest(&code)),
+            VmValue::String(code) => self.code_digest(&code),
             _ => self.back("contract code is not a string"),
         }
+    }
+
+    /// The SHA3-256 hex digest of `code`, its bytes charged first.
+    fn code_digest(&mut self, code: &str) -> Result<VmValue, VmExecutionError> {
+        self.charges
+            .record(code.len() as u64 * CODE_HASH_COST_PER_BYTE)?;
+        Ok(text(&hex::encode(Sha3_256::digest(code.as_bytes()))))
     }
 }
 
@@ -189,8 +201,4 @@ fn code_variable(kind: Option<&VmValue>) -> Result<&'static str, VmExecutionErro
         Some((_, Some("source"))) => Ok(SOURCE_KEY),
         Some(_) => Err(host_runtime_error("Hash kind must be 'ir' or 'source'!")),
     }
-}
-
-fn code_digest(code: &str) -> VmValue {
-    text(&hex::encode(Sha3_256::digest(code.as_bytes())))
 }

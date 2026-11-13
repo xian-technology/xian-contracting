@@ -57,11 +57,30 @@ impl Stream {
         }
     }
 
-    /// `randbelow` of a positive length, as an index.
+    /// `randbelow` of a positive length, as an index: the same draws in
+    /// machine words (a shuffle or `choices` makes one per item).
     pub(crate) fn index_below(&mut self, len: usize) -> usize {
-        self.randbelow(&BigUint::from(len))
-            .to_usize()
-            .expect("an index below a usize length")
+        let upper = len as u64;
+        let bits = u64::BITS - (upper - 1).leading_zeros();
+        loop {
+            let candidate = self.word_bits(bits);
+            if candidate < upper {
+                return candidate as usize;
+            }
+        }
+    }
+
+    /// `getrandbits(bits)` for at most 64 bits.
+    fn word_bits(&mut self, bits: u32) -> u64 {
+        let bytes = bits.div_ceil(8) as usize;
+        while self.buffer.len() < bytes {
+            self.refill();
+        }
+        let value = self
+            .buffer
+            .drain(..bytes)
+            .fold(0u64, |value, byte| (value << 8) | u64::from(byte));
+        value >> (bytes as u32 * 8 - bits)
     }
 
     /// `random()`: 53 bits over 2^53, exact in a double.

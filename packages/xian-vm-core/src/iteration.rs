@@ -564,6 +564,11 @@ pub(crate) fn collect(
     callback: &mut Callback<'_>,
 ) -> Result<Vec<VmValue>> {
     let iterator = iter(source, heap)?;
+    // A range is created in constant time at any length: refuse one that
+    // cannot fit before producing (unmetered) the items that would.
+    if range_items_left(&iterator).is_some_and(|left| left > BigInt::from(MAX_ITEMS)) {
+        return Err(VmExecutionError::new("iterable exceeds allocation limit"));
+    }
     let mut result = Vec::new();
     while let Some(value) = next(&iterator, callback)? {
         if result.len() >= MAX_ITEMS {
@@ -572,6 +577,22 @@ pub(crate) fn collect(
         result.push(heap.capture(value)?);
     }
     Ok(result)
+}
+
+/// The items a range iterator still yields; `None` for other iterators,
+/// whose sources were allocated (and charged) item by item.
+fn range_items_left(iterator: &VmValue) -> Option<BigInt> {
+    let left = |value: &VmValue| match value {
+        VmValue::Iterator(iterator) if !iterator.exhausted => match &iterator.kind {
+            Kind::Range { range, index } => Some((range.len() - index).max(BigInt::zero())),
+            _ => None,
+        },
+        _ => None,
+    };
+    match iterator {
+        VmValue::Reference(reference) => reference.with_value(left),
+        other => left(other),
+    }
 }
 
 fn view_item(
@@ -676,6 +697,36 @@ mod tests {
 
     fn no_callback(_: VmValue, _: Vec<VmValue>) -> Result<VmValue> {
         panic!("unexpected callback")
+    }
+
+    fn range(start: i64, stop: i64, step: i64) -> VmValue {
+        VmValue::Range(VmRange {
+            start: start.into(),
+            stop: stop.into(),
+            step: step.into(),
+        })
+    }
+
+    #[test]
+    fn a_range_collects_up_to_the_item_limit_and_is_refused_beyond_it() {
+        let heap = VmHeap::default();
+        let limit = MAX_ITEMS as i64;
+        let collected = |source: &VmValue| collect(source, &heap, &mut no_callback);
+        assert_eq!(collected(&range(0, limit, 1)).unwrap().len(), MAX_ITEMS);
+        assert_eq!(collected(&range(limit, 0, -1)).unwrap().len(), MAX_ITEMS);
+        for source in [
+            range(0, limit + 1, 1),
+            range(0, i64::MAX, 1),
+            range(i64::MAX, 0, -2),
+        ] {
+            let error = collected(&source).unwrap_err();
+            assert_eq!(error.to_string(), "iterable exceeds allocation limit");
+        }
+        // A started range iterator counts what it still yields.
+        let cursor = iter(&range(0, limit + 1, 1), &heap).unwrap();
+        next(&cursor, &mut no_callback).unwrap();
+        assert_eq!(collected(&cursor).unwrap().len(), MAX_ITEMS);
+        assert_eq!(collected(&cursor).unwrap().len(), 0);
     }
 
     #[test]

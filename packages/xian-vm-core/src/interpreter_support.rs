@@ -2927,16 +2927,16 @@ pub(super) fn random_selection_shared(
         host.charge_execution_cost(cost)?;
     }
     let values = replace_random_population(&mut args, &mut kwargs);
-    let selected = host.handle_syscall(
-        syscall,
-        args.iter()
-            .map(VmValue::detached)
-            .collect::<Result<_, _>>()?,
-        kwargs
-            .into_iter()
-            .map(|(key, value)| Ok((key, value.detached()?)))
-            .collect::<Result<_, VmExecutionError>>()?,
-    )?;
+    let args = args
+        .iter()
+        .map(VmValue::detached)
+        .collect::<Result<Vec<_>, _>>()?;
+    let kwargs = kwargs
+        .into_iter()
+        .map(|(key, value)| Ok((key, value.detached()?)))
+        .collect::<Result<Vec<_>, VmExecutionError>>()?;
+    super::random_bounds::check(syscall, &args, &kwargs)?;
+    let selected = host.handle_syscall(syscall, args, kwargs)?;
     let Some(values) = values else {
         return Ok(selected);
     };

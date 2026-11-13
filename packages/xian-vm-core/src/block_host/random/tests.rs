@@ -42,7 +42,7 @@ fn node_context() -> TxRandom {
 }
 
 fn run(random: &mut TxRandom, syscall: &str, args: &[VmValue]) -> Served {
-    call(random, syscall, args, &[]).expect("a random syscall")
+    call(random, syscall, args.to_vec(), vec![]).expect("a random syscall")
 }
 
 fn ok(random: &mut TxRandom, syscall: &str, args: &[VmValue]) -> VmValue {
@@ -77,9 +77,25 @@ fn handback(
     args: &[VmValue],
     kwargs: &[(String, VmValue)],
 ) -> String {
-    match call(random, syscall, args, kwargs).expect("a random syscall") {
+    match call(random, syscall, args.to_vec(), kwargs.to_vec()).expect("a random syscall") {
         Err(Refusal::Handback(reason)) => reason,
         other => panic!("{syscall} was served: {other:?}"),
+    }
+}
+
+/// The text and exception type name of a call that raised or was refused.
+fn raised_or_refused(
+    random: &mut TxRandom,
+    syscall: &str,
+    args: &[VmValue],
+) -> (String, Option<String>, ()) {
+    match run(random, syscall, args) {
+        Err(Refusal::Raised(error)) => (
+            error.to_string(),
+            error.exception().map(|e| e.name.clone()),
+            (),
+        ),
+        other => panic!("{syscall} did not raise: {other:?}"),
     }
 }
 
@@ -149,8 +165,8 @@ fn the_seed_material_formats_the_context_and_salt_like_python() {
         call(
             &mut empty,
             "random.seed",
-            &[],
-            &[("aux_salt".to_owned(), salt)],
+            vec![],
+            vec![("aux_salt".to_owned(), salt)],
         )
         .unwrap()
         .unwrap();
@@ -324,7 +340,7 @@ fn errors_are_pythons_in_pythons_order() {
 }
 
 #[test]
-fn values_the_v2_boundary_refuses_fail_after_their_draw() {
+fn random_floats_fail_after_their_draw_and_large_draws_before_any() {
     let _scope = Scope::enter(XIAN_VM_V2_PROFILE);
     let mut random = node_context();
     ok(&mut random, "random.seed", &[]);
@@ -340,9 +356,17 @@ fn values_the_v2_boundary_refuses_fail_after_their_draw() {
         refused(run(&mut random, "random.getrandbits", &[int(600)])),
         "integer exceeds the 512-bit magnitude limit"
     );
-    // 7 + 75 bytes were drawn.
+    assert_eq!(
+        refused(run(
+            &mut random,
+            "random.choices",
+            &[list(&[1]), int(1 << 40)]
+        )),
+        "random.choices() exceeds the maximum allowed allocation size"
+    );
+    // random() drew 7 bytes; the refused calls drew nothing.
     let mut stream = Stream::new("chain_id=xian-local|block_num=17|block_hash=abc|input_hash=f00d");
-    stream.getrandbits(53 + 3 + 600);
+    stream.getrandbits(53 + 3);
     assert_eq!(
         ok(&mut random, "random.getrandbits", &[int(64)]),
         VmValue::Int(stream.getrandbits(64).into())
@@ -353,19 +377,14 @@ fn values_the_v2_boundary_refuses_fail_after_their_draw() {
 fn calls_python_would_serve_differently_are_handed_back() {
     let mut random = node_context();
     let decimal = VmValue::Decimal(crate::VmDecimal::from_str_literal("1.5").unwrap());
-    assert_eq!(
-        handback(
-            &mut random,
-            "random.seed",
-            std::slice::from_ref(&decimal),
-            &[]
-        ),
-        "random seed salt is a decimal"
-    );
-    assert_eq!(
-        handback(&mut random, "random.seed", &[list(&[1])], &[]),
-        "random seed salt is a list"
-    );
+    // Salts other than str, int, bool or None are refused (random_bounds).
+    for salt in [decimal.clone(), list(&[1])] {
+        let (text_, name, _) = raised_or_refused(&mut random, "random.seed", &[salt]);
+        assert_eq!(
+            (text_.as_str(), name),
+            ("random.seed() salt must be a str, int or None", None)
+        );
+    }
     let mut odd = context(decimal.clone(), int(1), text("h"), text("x"));
     assert_eq!(
         handback(&mut odd, "random.seed", &[], &[]),
@@ -401,8 +420,8 @@ fn calls_python_would_serve_differently_are_handed_back() {
         "random argument is a decimal"
     );
     assert_eq!(
-        handback(&mut random, "random.choice", &[VmValue::Dict(vec![])], &[]),
-        "random population is a dict"
+        raised_or_refused(&mut random, "random.choice", &[VmValue::Dict(vec![])]).0,
+        "random.choice() population must be a list, tuple, str, bytes or bytearray"
     );
     assert_eq!(
         handback(
@@ -413,32 +432,38 @@ fn calls_python_would_serve_differently_are_handed_back() {
         ),
         "random population is a list of str"
     );
-    assert_eq!(
-        handback(
-            &mut random,
-            "random.getrandbits",
-            &[int(MAX_BITS as i64 + 1)],
-            &[]
-        ),
-        "random.getrandbits of more than 1048576 bits"
-    );
-    assert_eq!(
-        handback(
-            &mut random,
-            "random.choices",
-            &[list(&[1]), int(MAX_CHOICES as i64 + 1)],
-            &[]
-        ),
-        "random.choices of more than 1048576 draws"
-    );
     // Served by name, bound like Python binds them.
     let kwargs = [("b".to_owned(), int(2)), ("a".to_owned(), int(2))];
     assert_eq!(
-        call(&mut random, "random.randint", &[], &kwargs)
+        call(&mut random, "random.randint", vec![], kwargs.to_vec())
             .unwrap()
             .unwrap(),
         int(2)
     );
-    assert!(call(&mut random, "random.missing", &[], &[]).is_none());
-    assert!(call(&mut random, "zk.is_available", &[], &[]).is_none());
+    assert!(call(&mut random, "random.missing", vec![], vec![]).is_none());
+    assert!(call(&mut random, "zk.is_available", vec![], vec![]).is_none());
+}
+
+#[test]
+fn word_sized_index_draws_are_randbelow() {
+    for len in [
+        1usize,
+        2,
+        3,
+        7,
+        8,
+        9,
+        255,
+        256,
+        257,
+        1000,
+        (1 << 32) + 5,
+        usize::MAX,
+    ] {
+        let (mut words, mut big) = (Stream::new("idx"), Stream::new("idx"));
+        for _ in 0..50 {
+            let expected = big.randbelow(&BigUint::from(len));
+            assert_eq!(BigUint::from(words.index_below(len)), expected, "len {len}");
+        }
+    }
 }

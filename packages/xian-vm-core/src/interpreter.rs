@@ -116,6 +116,8 @@ mod method_signatures;
 mod numeric_text;
 #[path = "numeric_v2.rs"]
 pub(crate) mod numeric_v2;
+#[path = "random_bounds.rs"]
+pub(crate) mod random_bounds;
 #[path = "rounding.rs"]
 mod rounding;
 #[path = "statement_execution.rs"]

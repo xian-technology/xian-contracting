@@ -25,6 +25,9 @@ MAX_KEY_SIZE = 1024
 
 READ_COST_PER_BYTE = 1
 WRITE_COST_PER_BYTE = 25
+# Raw chi per byte `importlib.code_hash` hashes (V2), charged before hashing:
+# the SHA3-256 rate of `hashlib.sha3` (xian-vm-core crypto_resources).
+CODE_HASH_COST_PER_BYTE = 4
 TRANSACTION_BYTES_COST_PER_BYTE = READ_COST_PER_BYTE
 RETURN_VALUE_COST_PER_BYTE = READ_COST_PER_BYTE
 MAX_SEQUENCE_LENGTH = 1024 * 128

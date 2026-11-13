@@ -449,3 +449,34 @@ fn the_zk_feature_reads_as_python_coerces_it() {
         assert_eq!(value(&input), expected, "{input:?}");
     }
 }
+
+#[test]
+fn a_code_hash_charges_the_bytes_it_hashes_first() {
+    let source = "x = 1\n".repeat(100);
+    let fixture = fixture("code-hash", &[("con_x.__source__", &source)], &[]);
+    let modules = Modules::default();
+    let mut host = host(&fixture, &modules);
+    let args = [text("con_x"), text("source")];
+    let digest = metadata::read(&mut host, "contract.code_hash", &args, &[]).unwrap();
+    assert!(matches!(digest.unwrap(), VmValue::String(hex) if hex.len() == 64));
+    let missing = [text("con_none"), text("source")];
+    assert_eq!(
+        metadata::read(&mut host, "contract.code_hash", &missing, &[])
+            .unwrap()
+            .unwrap(),
+        VmValue::None
+    );
+    assert_eq!(host.finish().unwrap().1.raw_cost(), source.len() as u64 * 4);
+    // Out of budget: refused before hashing.
+    let mut poor = BlockHost::new(
+        fixture.view.clone(),
+        &modules,
+        HostCharges::new(budget(10), true, "con_entry"),
+        inputs(),
+    );
+    let refused = metadata::read(&mut poor, "contract.code_hash", &args, &[]).unwrap();
+    assert_eq!(
+        refused.unwrap_err().to_string(),
+        "VmRuntimeExecutionError: Out of chi."
+    );
+}

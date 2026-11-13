@@ -7,27 +7,25 @@
 //! and return values the VM converts back (`vm_to_py`, `py_to_vm`). This port
 //! serves the calls whose arguments that conversion keeps as they are (ints,
 //! bools, text, bytes, `None`, the VM's index lists), bound as Python binds
-//! them, with Python's results and exceptions. It hands back to the Python
-//! path, unchanged: other argument and salt types (their conversion and
-//! `str()` are Python's), call shapes Python refuses with its own binding
-//! errors, and draws large enough to make the host do unmetered work
-//! (`getrandbits` above `MAX_BITS` bits, `choices` above `MAX_CHOICES`
-//! draws). Increment 7 of the single-engine plan gives those explicit rules.
+//! them, with Python's results and exceptions. The VM's work bounds
+//! (`interpreter::random_bounds`) come first, here as in the VM (this host
+//! runs V2 only): no draw above 512 bits or the sequence limit, salts only
+//! str, int, bool or `None`, populations only sequences the VM indexes. It
+//! hands back to the Python path, unchanged: other argument types for the
+//! numbers (their conversion is Python's) and call shapes Python refuses
+//! with its own binding errors. Increment 7 of the single-engine plan gives
+//! those explicit rules.
 mod stream;
 #[cfg(test)]
 mod tests;
 
 pub(crate) use stream::Stream;
 
-use crate::interpreter::numeric_v2;
+use crate::interpreter::{numeric_v2, random_bounds};
 use crate::{VmExecutionContext, VmExecutionError, VmValue};
 use num_bigint::BigInt;
 use num_traits::{Signed, ToPrimitive, Zero};
 
-/// The most bits one `getrandbits` draws here.
-const MAX_BITS: u64 = 1 << 20;
-/// The most draws one `choices` makes here.
-const MAX_CHOICES: u64 = 1 << 20;
 const UNSEEDED: &str = "Random state not seeded. Call seed().";
 /// `_seed_material`'s context fields with the defaults of their `or`.
 const SEED_FIELDS: [(&str, &str); 4] = [
@@ -90,7 +88,7 @@ impl TxRandom {
             parts.push(format!("{name}={text}"));
         }
         if !matches!(salt, VmValue::None) {
-            let text = python_text(salt).ok_or_else(|| unknown("seed salt", salt))?;
+            let text = python_text(salt).expect("random_bounds admits only these salts");
             parts.push(format!("aux_salt={text}"));
         }
         Ok(parts.join("|"))
@@ -101,11 +99,14 @@ impl TxRandom {
 pub(crate) fn call(
     random: &mut TxRandom,
     syscall_id: &str,
-    args: &[VmValue],
-    kwargs: &[(String, VmValue)],
+    args: Vec<VmValue>,
+    kwargs: Vec<(String, VmValue)>,
 ) -> Option<Served> {
     let name = syscall_id.strip_prefix("random.")?;
     let operation = OPERATIONS.iter().find(|operation| operation.name == name)?;
+    if let Err(refused) = random_bounds::check_v2(syscall_id, &args, &kwargs) {
+        return Some(Err(Refusal::Raised(refused)));
+    }
     Some(match bind(operation, args, kwargs) {
         Some(bound) => (operation.run)(random, &bound).and_then(boundary),
         None => Err(Refusal::Handback(format!("{syscall_id} call shape"))),
@@ -159,17 +160,17 @@ const OPERATIONS: [Operation; 8] = [
 /// or `None` where Python would raise a binding error.
 fn bind(
     operation: &Operation,
-    args: &[VmValue],
-    kwargs: &[(String, VmValue)],
+    args: Vec<VmValue>,
+    kwargs: Vec<(String, VmValue)>,
 ) -> Option<Vec<VmValue>> {
     if args.len() > operation.params.len() || (!operation.keywords && !kwargs.is_empty()) {
         return None;
     }
-    let mut bound: Vec<Option<VmValue>> = args.iter().cloned().map(Some).collect();
+    let mut bound: Vec<Option<VmValue>> = args.into_iter().map(Some).collect();
     bound.resize(operation.params.len(), None);
     for (name, value) in kwargs {
-        let index = operation.params.iter().position(|param| param == name)?;
-        if bound[index].replace(value.clone()).is_some() {
+        let index = operation.params.iter().position(|param| *param == name)?;
+        if bound[index].replace(value).is_some() {
             return None;
         }
     }
@@ -207,11 +208,6 @@ fn shuffle(random: &mut TxRandom, args: &[VmValue]) -> Served {
 
 fn getrandbits(random: &mut TxRandom, args: &[VmValue]) -> Served {
     let bits = number(&args[0])?;
-    if bits > BigInt::from(MAX_BITS) {
-        return Err(Refusal::Handback(format!(
-            "random.getrandbits of more than {MAX_BITS} bits"
-        )));
-    }
     let stream = random.stream()?;
     match bits.to_u64() {
         Some(bits) => Ok(VmValue::Int(stream.getrandbits(bits).into())),
@@ -252,12 +248,7 @@ fn choices(random: &mut TxRandom, args: &[VmValue]) -> Served {
             "number of choices must be non-negative",
         ));
     }
-    let draws = draws
-        .to_u64()
-        .filter(|draws| *draws <= MAX_CHOICES)
-        .ok_or_else(|| {
-            Refusal::Handback(format!("random.choices of more than {MAX_CHOICES} draws"))
-        })?;
+    let draws = draws.to_u64().expect("random_bounds bounds the draws");
     (0..draws)
         .map(|_| choose(random, &population))
         .collect::<Result<_, _>>()

@@ -7,8 +7,9 @@ This fuzz sends the same calls, as the VM sends them, through both: every
 call Rust serves must return the same value (after the V2 boundary) or raise
 the same exception with the same text, and Rust hands a call back to the
 Python path exactly when it is one of the documented cases (other argument,
-salt or context types, call shapes Python refuses itself, draws above the
-native bounds).
+population or context types, call shapes Python refuses itself). The VM
+refuses calls above its work bounds (``interpreter::random_bounds``) before
+either host runs them; ``vm_bound`` models that check for the Python side.
 """
 
 from __future__ import annotations
@@ -27,7 +28,8 @@ pytestmark = pytest.mark.optional_native
 native = pytest.importorskip("xian_vm_core._native")
 NativeVmHost = pytest.importorskip("xian_vm_core").NativeVmHost
 
-MAX_NATIVE = 1 << 20
+SEQUENCE_LIMIT = 128 * 1024
+SEQUENCES = (list, tuple, str, bytes, bytearray)
 # The exception types whose category the VM keeps (python_bindings
 # `builtin_exception_name`).
 KEPT_TYPES = (AssertionError, TypeError, ValueError, RuntimeError, Exception, KeyError, IndexError)
@@ -40,6 +42,59 @@ def _python_exception(error):
     return None
 
 
+MISSING = object()
+
+
+def _population(function, value):
+    if value("items") is MISSING or isinstance(value("items"), SEQUENCES):
+        return None
+    return f"random.{function}() population must be a list, tuple, str, bytes or bytearray"
+
+
+def _salt(value):
+    salt = value("aux_salt")
+    if salt is MISSING or salt is None or isinstance(salt, (str, int)):
+        return None
+    return "random.seed() salt must be a str, int or None"
+
+
+def _bits(value):
+    if type(value("k")) is int and value("k") > 512:
+        return "integer exceeds the 512-bit magnitude limit"
+    return None
+
+
+def _choices(value):
+    refused = _population("choices", value)
+    if refused is None and type(value("k")) is int and value("k") > SEQUENCE_LIMIT:
+        refused = "random.choices() exceeds the maximum allowed allocation size"
+    return refused
+
+
+# Parameters and rule of each bounded call (interpreter::random_bounds).
+BOUNDED = {
+    "random.getrandbits": (("k",), _bits),
+    "random.choices": (("items", "k"), _choices),
+    "random.choice": (("items",), lambda value: _population("choice", value)),
+    "random.seed": (("aux_salt",), _salt),
+}
+
+
+def vm_bound(syscall_id, args, kwargs):
+    """The VM's refusal of a call above the V2 work bounds, if any."""
+    if syscall_id not in BOUNDED:
+        return None
+    params, rule = BOUNDED[syscall_id]
+    if len(args) > len(params) or not set(kwargs) <= set(params[len(args) :]):
+        return None
+
+    def value(name):
+        position = params.index(name)
+        return args[position] if position < len(args) else kwargs.get(name, MISSING)
+
+    return rule(value)
+
+
 def python_outcomes(context, calls):
     """What the VM receives from the Python path for each call."""
     previous = dict(rt.env)  # rt.env is a live proxy
@@ -48,6 +103,10 @@ def python_outcomes(context, calls):
     outcomes = []
     try:
         for syscall_id, args, kwargs in calls:
+            refused = vm_bound(syscall_id, args, kwargs)
+            if refused is not None:
+                outcomes.append(("raised", refused, None))
+                continue
             try:
                 result = NativeVmHost.handle_syscall(
                     None, syscall_id, copy.deepcopy(args), dict(kwargs)
@@ -78,6 +137,8 @@ class Calls:
         self.handbacks = handbacks
 
     def add(self, syscall, args=(), kwargs=None, *, served=True):
+        # The VM's bounds refuse a call before any hand-back would.
+        served = served or vm_bound(f"random.{syscall}", list(args), dict(kwargs or {})) is not None
         if not served:
             if not self.handbacks:
                 return
@@ -119,13 +180,13 @@ SALTS = [
     (True, True),
     (False, True),
     (None, True),
-    (ContractingDecimal("1.5"), False),
-    ([1, "a"], False),
-    ({"b": 1}, False),
-    ((1, "a"), False),
+    (ContractingDecimal("1.5"), True),
+    ([1, "a"], True),
+    ({"b": 1}, True),
+    ((1, "a"), True),
 ]
 BITS = list(range(0, 301)) + [-1, -5, True, False]
-LARGE_BITS = [301, 333, 511, 512, 513, 514, 520, 600, 1024, 1100, MAX_NATIVE]
+LARGE_BITS = [301, 333, 511, 512, 513, 514, 520, 600, 1024, 2**20, 2**40, 2**511]
 BIG = [2**64, 2**256 + 3, 2**511, 2**512 - 1]
 
 
@@ -143,7 +204,7 @@ def _seed(calls: Calls):
 
 
 def _getrandbits(calls: Calls):
-    bits, served = calls.number(BITS, LARGE_BITS, ["8", ContractingDecimal("8"), MAX_NATIVE + 1])
+    bits, served = calls.number(BITS, LARGE_BITS, ["8", ContractingDecimal("8")])
     if calls.rng.random() < 0.2:
         calls.add("getrandbits", kwargs={"k": bits}, served=served)
     else:
@@ -173,7 +234,7 @@ def _choice(calls: Calls):
 def _choices(calls: Calls):
     items, items_served = calls.population()
     draws, draws_served = calls.number(
-        [-2, -1, 0, 1, 2, 3, 5, 30, True, False], [500], ["2", MAX_NATIVE + 1]
+        [-2, -1, 0, 1, 2, 3, 5, 30, True, False], [500, SEQUENCE_LIMIT + 1, 2**40], ["2"]
     )
     served = items_served and draws_served
     if calls.rng.random() < 0.2:
@@ -243,7 +304,8 @@ def _case(seed: int):
         rng.choices(functions, weights)[0](calls)
     if not context_served:
         calls.served = [
-            served and call[0] != "random.seed" for call, served in zip(calls.calls, calls.served)
+            served and (call[0] != "random.seed" or vm_bound(*call) is not None)
+            for call, served in zip(calls.calls, calls.served, strict=True)
         ]
     return context, calls
 

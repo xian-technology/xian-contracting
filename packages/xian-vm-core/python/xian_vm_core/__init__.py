@@ -482,7 +482,10 @@ class NativeVmHost:
         contract_text = self._contract_var(contract_name, key)
         if contract_text is None:
             return None
-        return hashlib.sha3_256(contract_text.encode("utf-8")).hexdigest()
+        code = contract_text.encode("utf-8")
+        if self.vm_profile == "xian_vm_v2":
+            self._record_raw_cost(len(code) * constants.CODE_HASH_COST_PER_BYTE)
+        return hashlib.sha3_256(code).hexdigest()
 
     def handle_syscall(self, syscall_id: str, args, kwargs):
         kwargs = dict(kwargs or {})

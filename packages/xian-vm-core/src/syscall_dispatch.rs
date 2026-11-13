@@ -151,6 +151,7 @@ impl VmInstance {
                     host.charge_execution_cost(cost)?;
                 }
                 let (args, kwargs) = host_callables::host_arguments(other, args, kwargs)?;
+                random_bounds::check(other, &args, &kwargs)?;
                 host.handle_syscall(other, args, kwargs)
             }
         }
