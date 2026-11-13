@@ -29,7 +29,7 @@ The chain selects a profile for artifact admission and execution. Every module
 in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports
 execution revision `xvm-execution-13`, bytecode version `xvm-2` and gas schedule
 `xvm-gas-6`. The native and Python host bindings select V2 by default. Public
-`ContractingClient` and `ParallelBatchExecutor` execution accepts only V2.
+`ContractingClient` execution accepts only V2.
 
 Low-level native V1 supports historical verification and migration: select
 `vm_profile="xian_vm_v1"` explicitly on its driver and execution entrypoint.
@@ -238,8 +238,8 @@ Metering covers both host-side data costs and VM execution:
 - source deployment and offline artifact tooling use the canonical Rust
   compiler and validate source-to-IR identity; the host bridge does not compile
   or execute contract source as Python bytecode
-- the five-node `make localnet-parallel-e2e` native-authority soak passes end to
-  end, including shielded token flows and parallel prefix-scan access patterns
+- the five-node localnet e2e native-authority soak passes end to end, including
+  shielded token flows and prefix-scan access patterns
 
 That parity corpus covers:
 

@@ -14,8 +14,6 @@ Current deeper notes:
 Current themes:
 
 - keep native VM metering and local-client behavior covered by standalone tests
-- keep parallel execution serial-equivalent while improving integration and
-  workload coverage
 - keep VM conformance, metering calibration, and authored fixture coverage moving
 - simplify storage/runtime internals only when deterministic behavior is
   unchanged and regression coverage is clear

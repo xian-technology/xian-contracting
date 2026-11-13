@@ -9,8 +9,8 @@
 
 The public local client compiles and executes contracts with the same Rust
 compiler and V2 VM as validators. Its storage and call context are local to
-the test. `ContractingClient` and `ParallelBatchExecutor` reject V1 profiles,
-including V1 profiles selected by an injected driver.
+the test. `ContractingClient` rejects V1 profiles, including V1 profiles
+selected by an injected driver.
 
 Low-level native V1 bindings, artifact tools and storage remain available for
 historical verification and migration. Immutable historical observations and
@@ -25,7 +25,7 @@ Main areas:
   validator
 - `src/contracting/local/`: local test harness entrypoint
 - `src/contracting/execution/`: shared native host context and execution-error
-  classification, plus speculative parallel batch execution primitives
+  classification
 - `src/contracting/storage/`: LMDB-backed state, key encoding, contract
   artifacts, and ORM helpers
 - `src/contracting/stdlib/`: deterministic contract stdlib bridge modules

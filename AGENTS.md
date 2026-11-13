@@ -13,8 +13,7 @@
 
 ## Project Layout
 - `src/contracting/compilation/`: parser, compiler, linter, and whitelist logic.
-- `src/contracting/execution/`: native host context, execution errors, and
-  speculative parallel batch execution.
+- `src/contracting/execution/`: native host context and execution errors.
 - `src/contracting/storage/`: drivers, ORM helpers, encoder, and LMDB-backed state storage.
 - `src/contracting/contracts/`: package-local contract assets such as the
   built-in submission contract.

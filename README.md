@@ -63,10 +63,9 @@ with TemporaryDirectory() as home:
 ```
 
 `submit` accepts source text or a Python function containing the contract
-definition. `ContractingClient` and `ParallelBatchExecutor` support only
-`xian_vm_v2`, the execution profile selected by fresh-chain validators.
-`ContractingClient` rejects an explicit V1 profile or a supplied V1 driver with
-`ValueError`. `ParallelBatchExecutor` rejects an executor whose driver uses V1.
+definition. `ContractingClient` supports only `xian_vm_v2`, the execution
+profile selected by fresh-chain validators. It rejects an explicit V1 profile
+or a supplied V1 driver with `ValueError`.
 Use a fresh V2 storage directory for local tests.
 
 Local clients use the canonical compiler and do not accept a `compiler=`
@@ -108,8 +107,7 @@ historical observations and their capture procedure.
   - `artifacts/` — public source compiler, artifact builder, and validator.
   - `compilation/` — parser, compiler, linter, and whitelist logic.
   - `compiler/` — public compiler import surface.
-  - `execution/` — shared native host context, execution errors, and speculative
-    parallel execution.
+  - `execution/` — shared native host context and execution errors.
   - `local/` — high-level `ContractingClient` for local tests and tooling.
   - `storage/` — drivers, ORM helpers, encoder, and LMDB-backed state.
   - `contracts/` — package-local contract assets (e.g. the built-in submission
@@ -129,7 +127,7 @@ historical observations and their capture procedure.
 - local harness execution, metering, and import restrictions
 - storage drivers and encoding
 - contract-side runtime helpers (`stdlib` bridge)
-- native V2 local clients and speculative parallel batch execution primitives
+- native V2 local clients
 - native zero-knowledge verifier building blocks
 - Xian VM IR generation, validation, native execution and compatibility fixtures
 
@@ -195,7 +193,6 @@ and `tests/integration/` paths explicitly.
 - [docs/BACKLOG.md](docs/BACKLOG.md) — open work and follow-ups
 - [docs/COMPILER_RELEASE.md](docs/COMPILER_RELEASE.md) — compiler package validation and publish order
 - [docs/SAFETY_INVARIANTS.md](docs/SAFETY_INVARIANTS.md) — invariants the runtime must preserve
-- [docs/PARALLEL_EXECUTION.md](docs/PARALLEL_EXECUTION.md) — speculative parallel batch execution model
 - [docs/COMPILE_TIME_EXTENDS.md](docs/COMPILE_TIME_EXTENDS.md) — contract import / extends model
 - [docs/EXECUTION_BACKLOG.md](docs/EXECUTION_BACKLOG.md) — execution-engine follow-ups
 - [docs/SHIELDED_STATE_REDESIGN_V2.md](docs/SHIELDED_STATE_REDESIGN_V2.md) — shielded-state model

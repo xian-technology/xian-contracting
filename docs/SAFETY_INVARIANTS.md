@@ -55,9 +55,8 @@ This file records the runtime properties that must hold before a
 
 - With no profile selected, a local compiler or test client must produce the same V2
   artifacts and contract results as explicit fresh-chain execution.
-- Public `ContractingClient` and `ParallelBatchExecutor` execution is V2-only;
-  explicit V1 profiles and injected V1 drivers fail before creating client state
-  or worker processes.
+- Public `ContractingClient` execution is V2-only; explicit V1 profiles and
+  injected V1 drivers fail before creating client state.
 - Low-level native `xian_vm_v1` historical verification must retain strict
   comparisons of results, writes, events and failures with immutable,
   provenance-checked Python observations.
