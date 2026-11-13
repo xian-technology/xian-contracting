@@ -107,7 +107,10 @@ took a two-character string (`"12"`, including non-ASCII digits) or the two
 keys of an object, fed through `int()`; a transaction with an argument spelled
 that way is now not canonical and is not admitted, where it used to run with a
 timedelta. `{"__time__": ...}`
-likewise takes only an array of three to seven safe integers. Gas is unchanged
+likewise takes only an array of three to seven safe integers. The block
+executor now settles writes and events holding a timedelta or a bytearray
+itself instead of handing them to Python, which failed them before this
+revision (receipts had no form for either). Gas is unchanged
 (`xvm-gas-6`); archival V1 decoding is unchanged.
 
 One V2 transaction may use at most 1,000,000 chi (`max_tx_chi` in

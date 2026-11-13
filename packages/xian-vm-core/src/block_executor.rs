@@ -843,14 +843,11 @@ impl BlockExecutor {
     }
 }
 
-/// Whether `encode_abci_json` takes `value`: it has no form for a bytearray
-/// or a timedelta; raw decimals and floats (whose conversion can refuse) are
-/// also left to Python.
+/// Whether `encode_abci_json` takes `value` as it is: raw decimals and floats
+/// (whose conversion can refuse) are left to Python.
 fn receipt_encodable(value: &VmValue) -> bool {
     match value {
-        VmValue::ByteArray(_)
-        | VmValue::TimeDelta(_)
-        | VmValue::RawDecimal(_)
+        VmValue::RawDecimal(_)
         | VmValue::DecimalTuple(_)
         | VmValue::Float(_)
         | VmValue::Reference(_) => false,
