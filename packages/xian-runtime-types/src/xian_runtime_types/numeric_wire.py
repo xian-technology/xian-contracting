@@ -41,6 +41,41 @@ def _fixed_payload(payload):
     return ContractingDecimal._from_scaled(_decimal_to_scaled(Decimal(payload)))
 
 
+def _array_payload(tag, payload, lengths):
+    """The integer array of a time or delta wrapper; a tuple is the array JSON writes."""
+    if not isinstance(payload, (list, tuple)) or len(payload) not in lengths:
+        raise ValueError(f"invalid {tag} payload")
+    return payload
+
+
+def _time_payload(payload):
+    """Datetime(year, month, day[, hour, minute, second, microsecond])."""
+    return Datetime(*_array_payload("__time__", payload, range(3, 8)))
+
+
+def _delta_payload(payload):
+    """Timedelta(days, seconds): the encoder writes exactly these two integers."""
+    days, seconds = _array_payload("__delta__", payload, (2,))
+    return Timedelta(days=days, seconds=seconds)
+
+
+_LISTED_PAYLOADS = {
+    "__time__": _time_payload,
+    "__delta__": _delta_payload,
+    "__bytes__": bytes.fromhex,
+    "__bytearray__": bytearray.fromhex,
+}
+
+
+def _listed_payload(tag, payload):
+    """The remaining reserved tags; an array payload holds safe integers only."""
+    if isinstance(payload, (list, tuple)) and not all(
+        type(x) is int and abs(x) <= SAFE_INTEGER for x in payload
+    ):
+        raise ValueError("invalid numeric value in runtime wrapper")
+    return _LISTED_PAYLOADS[tag](payload)
+
+
 def _decode_tag(tag, payload, budget):
     if tag == "__fixed__":
         return _fixed_payload(payload)
@@ -48,20 +83,7 @@ def _decode_tag(tag, payload, budget):
         return _tagged_integer(payload)
     if tag in ("__set__", "__frozenset__"):
         return decode_set_value(tag, payload, _normalization=budget)
-    if isinstance(payload, list) and not all(
-        type(x) is int and abs(x) <= SAFE_INTEGER for x in payload
-    ):
-        raise ValueError("invalid numeric value in runtime wrapper")
-    if tag == "__time__":
-        return Datetime(*payload)
-    if tag == "__delta__":
-        days, seconds = payload
-        return Timedelta(days=days, seconds=seconds)
-    if tag == "__bytes__":
-        return bytes.fromhex(payload)
-    if tag == "__bytearray__":
-        return bytearray.fromhex(payload)
-    raise ValueError(f"unknown runtime tag {tag}")
+    return _listed_payload(tag, payload)
 
 
 def _integer(number, decoding):

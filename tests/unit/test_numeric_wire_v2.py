@@ -157,3 +157,57 @@ def test_unqualified_wire_apis_select_the_current_numeric_profile():
     with pytest.raises(TypeError):
         encoding.encode_wire(1.5)
     assert encoding.encode_wire(amount, vm_profile="xian_vm_v1") == str(amount)
+
+
+DELTA_SPELLINGS_NEVER_WRITTEN = [
+    "12",
+    "١٢",
+    {"1": None, "2": None},
+    {"10": 1, "-5": 2},
+    {" 7 ": 1, "1_0": 2},
+]
+
+
+@pytest.mark.parametrize("payload", DELTA_SPELLINGS_NEVER_WRITTEN)
+def test_v2_delta_payload_must_be_a_list_of_two_integers(payload):
+    from xian_runtime_types import encoding
+
+    wrapper = {"__delta__": payload}
+    with pytest.raises(ValueError, match="invalid __delta__ payload"):
+        encoding.decode_wire_numbers({"kwarg": wrapper})
+    with pytest.raises(ValueError, match="invalid __delta__ payload"):
+        encoding.decode(json.dumps(wrapper))
+    with pytest.raises(ValueError, match="invalid __delta__ payload"):
+        encoding.convert("__delta__", payload)
+
+
+@pytest.mark.parametrize(
+    "wrapper",
+    [
+        {"__delta__": (True, 5)},
+        {"__delta__": (1, 2.0)},
+        {"__time__": (2024, True, 1)},
+        {"__time__": (2024, 1, 1, 0, 0, 0, 0, 0)},
+        {"__time__": "2024"},
+    ],
+)
+def test_v2_wrapper_arrays_are_checked_alike_as_lists_or_tuples(wrapper):
+    from xian_runtime_types import encoding
+
+    # json.dumps writes a tuple as the array the decoder must reject.
+    with pytest.raises(ValueError):
+        encoding.decode(json.dumps(wrapper))
+    with pytest.raises(ValueError):
+        encoding.decode_wire_numbers(wrapper)
+
+
+def test_v2_delta_and_time_accept_integer_arrays_of_their_arity():
+    from xian_runtime_types import encoding
+    from xian_runtime_types.time import Datetime, Timedelta
+
+    assert encoding.decode_wire_numbers({"__delta__": [1, 2]}) == Timedelta(days=1, seconds=2)
+    assert encoding.decode_wire_numbers({"__delta__": (-1, 86399)}) == Timedelta(seconds=-1)
+    assert encoding.decode_wire_numbers({"__time__": [2024, 2, 29]}) == Datetime(2024, 2, 29)
+    assert encoding.decode_wire_numbers({"__time__": (2024, 1, 1, 1, 2, 3, 4)}) == Datetime(
+        2024, 1, 1, 1, 2, 3, 4
+    )

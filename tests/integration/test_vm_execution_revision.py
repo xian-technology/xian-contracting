@@ -13,7 +13,7 @@ def test_native_execution_policy_defaults_to_v2_and_allows_explicit_replay():
     info = runtime_info()
     assert info == runtime_info("xian_vm_v2") == json.loads(runtime_info_json())
     assert info["vm_profile"] == "xian_vm_v2"
-    assert info["execution_revision"] == "xvm-execution-13"
+    assert info["execution_revision"] == "xvm-execution-14"
     assert info["set_codec"] == "xian-set-1"
     assert info["supported_bytecode_versions"] == ["xvm-2"]
     assert info["supported_gas_schedules"] == ["xvm-gas-6"]

@@ -21,9 +21,6 @@
 //!
 //! The encoder never writes anything else, so a rejected value means the store
 //! is corrupt; callers treat it as a host fault, never a transaction outcome.
-//! Python also accepts a `__delta__` payload spelled as a two-character string
-//! or a two-key object (tuple unpacking feeds `int()`); the encoder never
-//! writes those, and this reader rejects them.
 use crate::interpreter::numeric_v2;
 use crate::set_member_codec::{self, is_reserved_tag};
 use crate::{VmDateTime, VmDecimal, VmExecutionError, VmTimeDelta, VmValue};

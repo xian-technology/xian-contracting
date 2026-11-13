@@ -27,7 +27,7 @@ Supported scope:
 
 The chain selects a profile for artifact admission and execution. Every module
 in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports
-execution revision `xvm-execution-13`, bytecode version `xvm-2` and gas schedule
+execution revision `xvm-execution-14`, bytecode version `xvm-2` and gas schedule
 `xvm-gas-6`. The native and Python host bindings select V2 by default. Public
 `ContractingClient` execution accepts only V2.
 
@@ -99,6 +99,16 @@ compiler-core `xian.lint.E024`) rejects a storage declaration whose
 `contract.name` key (plus `:` for a hash) could exceed the limit under the
 longest, 64-byte contract name: variable names may have 446 bytes and hash
 names 445, so only hash entry keys can exceed it at runtime.
+
+`xvm-execution-14` reads a `{"__delta__": ...}` wrapper only as the encoder
+writes it: an array of exactly two safe integers `[days, seconds]`, as the
+stored-value reader already did. Before this revision the V2 wire decoder also
+took a two-character string (`"12"`, including non-ASCII digits) or the two
+keys of an object, fed through `int()`; a transaction with an argument spelled
+that way is now not canonical and is not admitted, where it used to run with a
+timedelta. `{"__time__": ...}`
+likewise takes only an array of three to seven safe integers. Gas is unchanged
+(`xvm-gas-6`); archival V1 decoding is unchanged.
 
 One V2 transaction may use at most 1,000,000 chi (`max_tx_chi` in
 `runtime_info()`); a larger or zero budget is capped there. Node fee policies set

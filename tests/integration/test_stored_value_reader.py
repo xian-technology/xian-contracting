@@ -16,6 +16,7 @@ from hypothesis import strategies as st
 from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
 from xian_runtime_types.encoding import decode, encode
+from xian_runtime_types.set_codec import RESERVED_TAGS
 from xian_runtime_types.time import Datetime, Timedelta
 from xian_vm_core._native import _stored_value_debug, _vm_value_debug
 
@@ -266,6 +267,51 @@ def _nested_tuple(depth):
 
 SPELLINGS += [_set_doc([_nested_tuple(63)]), _set_doc([_nested_tuple(64)])]
 
+# Every runtime tag with every payload shape: the encoder writes one shape per
+# tag, and the readers must agree on everything else.
+WRAPPER_PAYLOADS = [
+    "null",
+    "true",
+    "false",
+    "0",
+    "5",
+    "-1",
+    '""',
+    '"1"',
+    '"12"',
+    '"-1"',
+    '"\\u0661\\u0662"',
+    '"\\uff11\\uff12"',
+    '"ab"',
+    '"00ff"',
+    '"1.5"',
+    '"9007199254740992"',
+    "[]",
+    "[1]",
+    "[1,2]",
+    "[-1,86399]",
+    "[0,9007199254740991]",
+    "[1,2,3]",
+    "[2024,1,1]",
+    "[2024,1,1,0,0,0,0]",
+    "[2024,1,1,0,0,0,0,0]",
+    "[1,true]",
+    "[true,1]",
+    "[1,null]",
+    '["1","2"]',
+    "[[1],[2]]",
+    "{}",
+    '{"1":1}',
+    '{"1":null,"2":null}',
+    '{"10":0,"-5":0}',
+    '{" 7 ":1,"1_0":2}',
+    '{"a":1,"b":2,"c":3}',
+    '{"codec":"xian-set-1","items":[]}',
+]
+SPELLINGS += [
+    f'{{"{tag}":{payload}}}' for tag in sorted(RESERVED_TAGS) for payload in WRAPPER_PAYLOADS
+]
+
 
 @pytest.mark.parametrize("text", SPELLINGS)
 def test_noncanonical_and_limit_spellings_read_the_same(text):
@@ -281,12 +327,18 @@ def test_invalid_utf8_is_rejected_by_both(data):
 
 @pytest.mark.parametrize(
     "text",
-    ['{"__delta__":"12"}', '{"__delta__":{"1":null,"2":null}}', '{"__delta__":"١٢"}'],
+    [
+        '{"__delta__":"12"}',
+        '{"__delta__":"١٢"}',
+        '{"__delta__":{"1":null,"2":null}}',
+        '{"__delta__":{"10":1,"-5":2}}',
+        '{"__delta__":{" 7 ":1,"1_0":2}}',
+    ],
 )
-def test_delta_tuple_unpacking_spellings_are_rejected_only_in_rust(text):
-    # Python feeds a 2-character string or a 2-key object to int() through
-    # tuple unpacking. The encoder never writes these; the reader rejects them.
-    assert python_reads(text.encode()) != REJECTED
+def test_delta_payload_is_a_list_of_two_integers_in_both_readers(text):
+    # Tuple unpacking once fed a 2-character string or the keys of a 2-key
+    # object to int(); the encoder never writes either.
+    assert python_reads(text.encode()) == REJECTED
     assert rust_reads(text.encode()) == REJECTED
 
 
@@ -306,8 +358,6 @@ def test_mutated_encodings_read_the_same(value, data):
     position = data.draw(st.integers(0, len(encoded)))
     replacement = data.draw(st.sampled_from(list('{}[]",:0123456789-. aZ\\_')))
     mutated = encoded[:position] + replacement + encoded[position + 1 :]
-    if '__delta__":"' in mutated or '__delta__":{' in mutated:
-        return
     assert_same_reading(mutated.encode())
 
 
