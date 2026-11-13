@@ -105,10 +105,5 @@ fn parse_options(options_json: Option<&str>) -> PyResult<CompileOptions> {
 }
 
 fn compiler_error(diagnostics: Vec<crate::diagnostic::CompilerDiagnostic>) -> PyErr {
-    let message = diagnostics
-        .first()
-        .map(|diagnostic| format!("{}: {}", diagnostic.code, diagnostic.message))
-        .unwrap_or_else(|| "compiler failed".to_string());
-    let payload = serde_json::to_string(&diagnostics).unwrap_or_else(|_| message.clone());
-    CompilerError::new_err(format!("{message}\n{payload}"))
+    CompilerError::new_err(crate::diagnostic::compiler_error_message(&diagnostics))
 }

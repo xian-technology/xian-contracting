@@ -27,7 +27,7 @@ pub use constants::{
     XIAN_VM_V1_ADMISSION_REVISION, XIAN_VM_V1_PROFILE, XIAN_VM_V2_ADMISSION_REVISION,
     XIAN_VM_V2_PROFILE,
 };
-pub use diagnostic::{CompilerDiagnostic, DiagnosticSeverity, SourceRange};
+pub use diagnostic::{compiler_error_message, CompilerDiagnostic, DiagnosticSeverity, SourceRange};
 pub use error::ValidationError;
 pub use fixture::{
     parse_compiler_fixture_json, CompilerFixture, FixtureExpectation, FixtureGenerator,
