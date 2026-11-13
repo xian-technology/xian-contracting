@@ -1,0 +1,292 @@
+{
+ "ir": {
+  "docstring": null,
+  "functions": [
+   {
+    "body": [
+     {
+      "node": "assign",
+      "span": {
+       "col": 4,
+       "end_col": 23,
+       "end_line": 3,
+       "line": 3
+      },
+      "targets": [
+       {
+        "host_binding_id": null,
+        "id": "data",
+        "node": "name",
+        "span": {
+         "col": 4,
+         "end_col": 8,
+         "end_line": 3,
+         "line": 3
+        }
+       }
+      ],
+      "value": {
+       "args": [
+        {
+         "host_binding_id": null,
+         "id": "n",
+         "node": "name",
+         "span": {
+          "col": 21,
+          "end_col": 22,
+          "end_line": 3,
+          "line": 3
+         }
+        }
+       ],
+       "event_binding": null,
+       "func": {
+        "host_binding_id": null,
+        "id": "bytearray",
+        "node": "name",
+        "span": {
+         "col": 11,
+         "end_col": 20,
+         "end_line": 3,
+         "line": 3
+        }
+       },
+       "keywords": [],
+       "node": "call",
+       "span": {
+        "col": 11,
+        "end_col": 23,
+        "end_line": 3,
+        "line": 3
+       },
+       "syscall_id": null
+      }
+     },
+     {
+      "node": "assign",
+      "span": {
+       "col": 4,
+       "end_col": 13,
+       "end_line": 4,
+       "line": 4
+      },
+      "targets": [
+       {
+        "host_binding_id": null,
+        "id": "total",
+        "node": "name",
+        "span": {
+         "col": 4,
+         "end_col": 9,
+         "end_line": 4,
+         "line": 4
+        }
+       }
+      ],
+      "value": {
+       "node": "constant",
+       "span": {
+        "col": 12,
+        "end_col": 13,
+        "end_line": 4,
+        "line": 4
+       },
+       "value": 0,
+       "value_type": "int"
+      }
+     },
+     {
+      "body": [
+       {
+        "node": "aug_assign",
+        "operator": "add",
+        "span": {
+         "col": 8,
+         "end_col": 24,
+         "end_line": 6,
+         "line": 6
+        },
+        "target": {
+         "host_binding_id": null,
+         "id": "total",
+         "node": "name",
+         "span": {
+          "col": 8,
+          "end_col": 13,
+          "end_line": 6,
+          "line": 6
+         }
+        },
+        "value": {
+         "node": "subscript",
+         "slice": {
+          "node": "constant",
+          "span": {
+           "col": 22,
+           "end_col": 23,
+           "end_line": 6,
+           "line": 6
+          },
+          "value": 0,
+          "value_type": "int"
+         },
+         "span": {
+          "col": 17,
+          "end_col": 24,
+          "end_line": 6,
+          "line": 6
+         },
+         "value": {
+          "host_binding_id": null,
+          "id": "data",
+          "node": "name",
+          "span": {
+           "col": 17,
+           "end_col": 21,
+           "end_line": 6,
+           "line": 6
+          }
+         }
+        }
+       }
+      ],
+      "iter": {
+       "args": [
+        {
+         "host_binding_id": null,
+         "id": "k",
+         "node": "name",
+         "span": {
+          "col": 19,
+          "end_col": 20,
+          "end_line": 5,
+          "line": 5
+         }
+        }
+       ],
+       "event_binding": null,
+       "func": {
+        "host_binding_id": null,
+        "id": "range",
+        "node": "name",
+        "span": {
+         "col": 13,
+         "end_col": 18,
+         "end_line": 5,
+         "line": 5
+        }
+       },
+       "keywords": [],
+       "node": "call",
+       "span": {
+        "col": 13,
+        "end_col": 21,
+        "end_line": 5,
+        "line": 5
+       },
+       "syscall_id": null
+      },
+      "node": "for",
+      "orelse": [],
+      "span": {
+       "col": 4,
+       "end_col": 24,
+       "end_line": 6,
+       "line": 5
+      },
+      "target": {
+       "host_binding_id": null,
+       "id": "i",
+       "node": "name",
+       "span": {
+        "col": 8,
+        "end_col": 9,
+        "end_line": 5,
+        "line": 5
+       }
+      }
+     },
+     {
+      "node": "return",
+      "span": {
+       "col": 4,
+       "end_col": 16,
+       "end_line": 7,
+       "line": 7
+      },
+      "value": {
+       "host_binding_id": null,
+       "id": "total",
+       "node": "name",
+       "span": {
+        "col": 11,
+        "end_col": 16,
+        "end_line": 7,
+        "line": 7
+       }
+      }
+     }
+    ],
+    "decorator": {
+     "args": [],
+     "keywords": [],
+     "name": "export",
+     "node": "decorator",
+     "span": {
+      "col": 1,
+      "end_col": 7,
+      "end_line": 1,
+      "line": 1
+     }
+    },
+    "docstring": null,
+    "name": "index",
+    "node": "function",
+    "parameters": [
+     {
+      "annotation": "int",
+      "default": null,
+      "kind": "positional_or_keyword",
+      "name": "n",
+      "span": {
+       "col": 10,
+       "end_col": 16,
+       "end_line": 2,
+       "line": 2
+      }
+     },
+     {
+      "annotation": "int",
+      "default": null,
+      "kind": "positional_or_keyword",
+      "name": "k",
+      "span": {
+       "col": 18,
+       "end_col": 24,
+       "end_line": 2,
+       "line": 2
+      }
+     }
+    ],
+    "returns": null,
+    "span": {
+     "col": 0,
+     "end_col": 16,
+     "end_line": 7,
+     "line": 2
+    },
+    "visibility": "export"
+   }
+  ],
+  "global_declarations": [],
+  "host_catalog_version": "xian_vm_v1_host_v1",
+  "host_dependencies": [],
+  "imports": [],
+  "ir_version": "xian_ir_v1",
+  "module_body": [],
+  "module_name": "con_copy_metering",
+  "source_hash": "e8696ff9f2618261964587e43f583f46a2b896b1f2d6995b64d43e6a9fca8665",
+  "vm_profile": "xian_vm_v2"
+ },
+ "source": "@export\ndef index(n: int, k: int):\n    data = bytearray(n)\n    total = 0\n    for i in range(k):\n        total += data[0]\n    return total\n"
+}
