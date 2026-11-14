@@ -160,6 +160,9 @@ impl From<Stop> for PrepareStop {
     }
 }
 
+/// A transaction's writes after its fee, and the chi whose fee was paid.
+type SettledWrites = (BTreeMap<String, VmValue>, PyDecimal);
+
 /// What the VM part of a transaction produced, before settlement.
 struct Execution {
     reservation: Option<Reservation>,
@@ -636,7 +639,7 @@ impl BlockExecutor {
         execution: Execution,
         rate: Option<&BigInt>,
         balance_key: &str,
-    ) -> Settled<(Execution, (BTreeMap<String, VmValue>, PyDecimal))> {
+    ) -> Settled<(Execution, SettledWrites)> {
         let execution = if execution.status == 0 {
             match self.success_writes(&execution, rate, balance_key)? {
                 Ok(writes) => return Ok((execution, writes)),
@@ -671,7 +674,7 @@ impl BlockExecutor {
         execution: &Execution,
         rate: Option<&BigInt>,
         balance_key: &str,
-    ) -> Settled<Result<(BTreeMap<String, VmValue>, PyDecimal), InvalidBalance>> {
+    ) -> Settled<Result<SettledWrites, InvalidBalance>> {
         let mut writes = execution.writes.clone();
         if let Some(rate) = rate {
             let balance = match self.fee_mode {
