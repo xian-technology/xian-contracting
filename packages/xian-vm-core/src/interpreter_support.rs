@@ -27,7 +27,7 @@ pub(super) fn builtin_name_value(name: &str) -> Option<VmValue> {
         | "tuple" | "set" | "frozenset" | "isinstance" | "issubclass" | "sorted" | "sum"
         | "min" | "max" | "all" | "any" | "map" | "filter" | "reversed" | "zip" | "pow"
         | "format" | "ord" | "abs" | "ascii" | "bin" | "hex" | "oct" | "chr" | "divmod"
-        | "quantize" | "sqrt" | "mul_div_floor" | "mul_div_ceil" | "Exception" => {
+        | "round" | "quantize" | "sqrt" | "mul_div_floor" | "mul_div_ceil" | "Exception" => {
             Some(VmValue::Builtin(name.to_owned()))
         }
         "Any" | "decimal" => Some(VmValue::TypeMarker(name.to_owned())),

@@ -59,9 +59,10 @@ impl VmInstance {
             "mul_div_floor" | "mul_div_ceil" | "quantize" | "sqrt" => {
                 numeric_v2::helper(name, args, kwargs, host)
             }
-            "float" | "round" => Err(VmExecutionError::new(
+            "float" => Err(VmExecutionError::new(
                 "use decimal or quantize in xian_vm_v2",
             )),
+            "round" => rounding::builtin_round(host, &args, &kwargs),
             "abs" if matches!(args.first(), Some(VmValue::Bool(_))) => {
                 Err(VmExecutionError::new("abs requires a number"))
             }

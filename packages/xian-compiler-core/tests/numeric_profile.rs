@@ -37,12 +37,33 @@ fn v2_rejects_unrepresentable_numbers_and_retired_numeric_apis() {
         &over_limit,
         "float(1)",
         "decimal.Decimal('1')",
-        "round(1, 0)",
     ] {
         let source = format!("@export\ndef value():\n    return {expression}");
         assert!(
             compile_contract_artifact("con_numeric", &source, &options()).is_err(),
             "{expression}"
+        );
+    }
+}
+
+#[test]
+fn v2_admits_round_but_not_float() {
+    for expression in [
+        "round(1)",
+        "round(1.25, 1)",
+        "round(125, -1)",
+        "round(x, None)",
+    ] {
+        let source = format!("@export\ndef value(x: decimal):\n    return {expression}");
+        let artifact = compile_contract_artifact("con_numeric", &source, &options())
+            .unwrap_or_else(|error| panic!("{expression}: {error:?}"));
+        validate_contract_artifact(&artifact, "con_numeric", Some(&source)).unwrap();
+    }
+    for source in ["@export\ndef value():\n    return float(1)", "f = float\n"] {
+        let error = compile_contract_artifact("con_numeric", source, &options()).unwrap_err();
+        assert!(
+            format!("{error:?}").contains("'float' is unavailable in xian_vm_v2"),
+            "{error:?}"
         );
     }
 }

@@ -23,16 +23,7 @@ def observe(value):
     raise AssertionError(f"unexpected oracle result {value!r}")
 
 
-# The metadata of round() is V1 (round is unavailable in xian_vm_v2), which
-# current code no longer executes.
-V1_ONLY_CASES = ("metadata_086", "global_086")
-
-
-@pytest.mark.parametrize(
-    "case",
-    [case for case in CASES if case["id"] not in V1_ONLY_CASES],
-    ids=lambda case: case["id"],
-)
+@pytest.mark.parametrize("case", CASES, ids=lambda case: case["id"])
 def test_reviewed_host_code_metadata(tmp_path, case):
     with Driver(storage_home=tmp_path) as driver:
         for name, source in case.get("dependencies", {}).items():

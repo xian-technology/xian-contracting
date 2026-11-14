@@ -32,7 +32,7 @@ fn limit() -> VmExecutionError {
     VmExecutionError::new("integer exceeds the 512-bit magnitude limit")
 }
 
-fn checked(value: BigInt) -> Result<VmValue, VmExecutionError> {
+pub(super) fn checked(value: BigInt) -> Result<VmValue, VmExecutionError> {
     if value.bits() > INTEGER_BITS {
         return Err(limit());
     }

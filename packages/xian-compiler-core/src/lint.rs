@@ -669,7 +669,7 @@ impl SyntaxLinter {
     fn visit_expression(&mut self, expression: &SyntaxExpression) {
         match expression {
             SyntaxExpression::Name { span, id, .. } => {
-                if self.exact_numbers && matches!(id.as_str(), "float" | "round") {
+                if self.exact_numbers && id == "float" {
                     self.push(
                         "E014",
                         format!("'{id}' is unavailable in {XIAN_VM_V2_PROFILE}"),
