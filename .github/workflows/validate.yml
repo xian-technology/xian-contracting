@@ -133,7 +133,7 @@ jobs:
           uv run pytest -q
 
       - name: Run native support tests
-        run: uv run pytest -q tests/unit/test_native_host_independence.py tests/unit/test_runtime.py tests/unit/test_zk_stdlib.py tests/integration/test_chi_deduction.py
+        run: uv run pytest -q tests/unit/test_native_host_independence.py tests/unit/test_zk_stdlib.py tests/integration/test_chi_deduction.py
 
       - name: Run all optional native extension tests
         run: uv run --no-sync python -m pytest -q -m optional_native

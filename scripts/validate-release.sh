@@ -62,7 +62,6 @@ npm --prefix packages/xian-compiler-core/npm test
 )
 
 UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" pytest -q \
-  tests/unit/test_runtime.py \
   tests/unit/test_zk_stdlib.py \
   tests/integration/test_chi_deduction.py \
   tests/security/test_runtime_security.py
