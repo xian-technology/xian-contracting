@@ -8,6 +8,8 @@ mod committed_reads;
 mod random_python;
 #[path = "settlement_python.rs"]
 mod settlement_python;
+#[path = "transaction_admission_python.rs"]
+mod transaction_admission_python;
 use crate::XIAN_VM_V2_PROFILE;
 use crate::{
     parse_module_ir, VmDateTime, VmDecimal, VmExecutionContext, VmExecutionError, VmMeterConfig,
@@ -882,6 +884,7 @@ fn runtime_info_json(vm_profile: &str) -> PyResult<String> {
         "execution_revision": policy.revision,
         "max_tx_chi": crate::max_transaction_chi(vm_profile),
         "set_codec": XIAN_VM_SET_CODEC,
+        "tx_admission_revision": crate::transaction_admission::ADMISSION_REVISION,
     }))
     .map_err(|error| PyValueError::new_err(error.to_string()))
 }
@@ -1074,6 +1077,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     settlement_python::register(module)?;
     block_executor_python::register(module)?;
     random_python::register(module)?;
+    transaction_admission_python::register(module)?;
     crate::state_root_python::register(module)?;
     Ok(())
 }

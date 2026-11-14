@@ -22,6 +22,8 @@ python-extension = ["dep:pyo3", "pyo3/extension-module"]
 xian-numeric = { path = "../xian-numeric" }
 # Contract deployment compiles source in the block host.
 xian-compiler-core = { path = "../xian-compiler-core" }
+# Transaction wire decoding and the static admission rules.
+xian-fastpath-core = { path = "../xian-fastpath-core" }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
 hex = "0.4"

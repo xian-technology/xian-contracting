@@ -31,8 +31,9 @@ Main areas:
 - `src/contracting/stdlib/`: deterministic contract stdlib bridge modules
 - `packages/`: separately publishable packages:
   `xian-tech-runtime-types`, `xian-tech-accounts`,
-  `xian-tech-compiler-core`, `xian-tech-fastpath-core`,
-  `xian-tech-vm-core`, and `xian-tech-zk`
+  `xian-tech-compiler-core`, `xian-tech-vm-core`, and `xian-tech-zk`; the
+  Rust-only crate `xian-fastpath-core` (transaction wire decoding and static
+  admission) is linked into `xian-tech-vm-core`
 - `scripts/`: VM/runtime audit tools and pinned historical capture tooling
 - `tests/`: unit, integration, security, and performance coverage
 

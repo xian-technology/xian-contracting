@@ -31,6 +31,8 @@ cache-keys = [
     { file = "../xian-numeric/src/**/*.rs" },
     { file = "../xian-compiler-core/Cargo.toml" },
     { file = "../xian-compiler-core/src/**/*.rs" },
+    { file = "../xian-fastpath-core/Cargo.toml" },
+    { file = "../xian-fastpath-core/src/**/*.rs" },
     { file = "build.rs" },
     { file = "vendor/mpdecimal/**/*" },
 ]

@@ -28,10 +28,11 @@ This file records the runtime properties that must hold before a
 
 - Native admission and VM `crypto.verify` reject small-order public keys and
   signature points using strict Ed25519 verification.
-- Python admission and the native fast path agree on adversarial signatures,
-  including identity-point forgeries and noncanonical scalars. Run
-  `xian-abci/tests/unit/test_native_fastpath_parity.py` with the rebuilt native
-  extension; a skipped optional-native test is not evidence of parity.
+- Transaction admission exists once, in Rust (`xian-fastpath-core` linked into
+  `xian-vm-core`), and rejects adversarial signatures, including identity-point
+  forgeries and noncanonical scalars. Any change to what it admits must leave
+  `xian-abci/tests/fixtures/admission_parity.json` unchanged or come with a new
+  transaction admission revision.
 - Signature-policy changes require a coordinated validator release. SDK
   verification must apply compatible rejection rules.
 

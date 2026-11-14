@@ -40,7 +40,6 @@ UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" sync \
   --group dev \
   --reinstall-package xian-tech-compiler-core \
   --reinstall-package xian-tech-vm-core \
-  --extra native \
   --extra zk
 
 UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" ruff check .
@@ -48,6 +47,7 @@ UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" ruff
 UV_CACHE_DIR="${uv_cache_dir}" "${uv_bin}" run --python "${python_version}" pytest
 
 cargo test --manifest-path packages/xian-compiler-core/Cargo.toml
+cargo test --manifest-path packages/xian-fastpath-core/Cargo.toml
 cargo check --manifest-path packages/xian-compiler-core/Cargo.toml --features python-extension
 cargo check --manifest-path packages/xian-compiler-core/Cargo.toml --features wasm
 cargo check --manifest-path packages/xian-zk/Cargo.toml --features python-extension

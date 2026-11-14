@@ -1,29 +1,23 @@
-# xian-tech-fastpath-core
+# xian-fastpath-core
 
-Optional Rust fast paths for:
+Rust crate with the transaction admission rules:
 
-- transaction wire decode and static validation
-- payload extraction from decoded transaction JSON
+- wire decoding: hex text, UTF-8, JSON within the depth limit and the canonical
+  spelling (`decode_transaction`)
+- the static rules: exact key sets, field formats, the strict Ed25519 signature
+  over the signed payload, the chain id and the submission name
+  (`validate_transaction_static`)
+- `ADMISSION_REVISION`, the rule revision nodes fence on at startup
 
-This package is intentionally separate from the default Python path so both
-`xian-contracting` and `xian-abci` remain usable without native extensions.
-
-Integration note:
-
-- `xian-abci` uses the combined decode + static validation fast path.
-- `xian-abci` also uses the native payload extractor from Python decode paths.
-- Planner and accepted-prefix helpers were removed after benchmarks on
-  2026-04-04 showed the PyO3 boundary cost outweighed the Rust
-  implementation for planner-sized payloads.
-
-## API
-
-- `decode_and_validate_transaction_static(raw, chain_id)`
-- `extract_payload_string(json_str)`
-- `NativeFastpathValidationError`
+It has no Python binding of its own. `xian-vm-core` links it and exposes
+`decode_and_validate_transaction(raw, chain_id)`, which adds the V2 wire
+grammar of the payload (the stored-value reader) and is the one admission
+implementation CheckTx, PrepareProposal, ProcessProposal and FinalizeBlock use.
+Changing what it admits requires a new admission revision; the golden corpus in
+`xian-abci/tests/fixtures/admission_parity.json` shows every change.
 
 ## Validation
 
 ```bash
-cargo check --manifest-path packages/xian-fastpath-core/Cargo.toml
+cargo test --manifest-path packages/xian-fastpath-core/Cargo.toml
 ```

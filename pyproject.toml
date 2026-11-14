@@ -28,9 +28,6 @@ Repository = "https://github.com/xian-technology/xian-contracting"
 
 [project.optional-dependencies]
 v2 = []  # Compatibility alias for projects which already request this extra.
-native = [
-    "xian-tech-fastpath-core>=0.1.0,<0.2",
-]
 zk = [
     "xian-tech-zk>=0.2.0,<0.3",
 ]
@@ -87,5 +84,4 @@ ignore = ["E501"]
 xian-tech-vm-core = { path = "packages/xian-vm-core" }
 xian-tech-runtime-types = { path = "packages/xian-runtime-types", editable = true }
 xian-tech-compiler-core = { path = "packages/xian-compiler-core" }
-xian-tech-fastpath-core = { path = "packages/xian-fastpath-core", editable = true }
 xian-tech-zk = { path = "packages/xian-zk", editable = true }

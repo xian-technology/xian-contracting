@@ -11,8 +11,8 @@ small, purpose-built packages instead of growing one monolithic runtime.
 - `xian-accounts/`: shared signing and account primitives
 - `xian-compiler-core/`: shared Rust/WASM compiler core, published as
   `xian-tech-compiler-core`
-- `xian-fastpath-core/`: optional native fast paths for transaction admission,
-  published as `xian-tech-fastpath-core`
+- `xian-fastpath-core/`: Rust crate with transaction wire decoding and the static
+  admission rules; `xian-vm-core` links it and exposes admission to the node
 - `xian-vm-core/`: native `xian_ir_v1` validation and execution under V1 and V2,
   published as `xian-tech-vm-core`
 - `xian-zk/`: native Groth16 BN254 verification and shielded-note proving
@@ -24,8 +24,8 @@ flowchart LR
   Contracting --> Compiler["xian-compiler-core"]
   Contracting -->|v2 extra| VM["xian-vm-core"]
   Contracting -->|zk extra| ZK["xian-zk"]
-  ABCI["xian-abci"] --> Fastpath["xian-fastpath-core"]
-  ABCI --> VM
+  ABCI["xian-abci"] --> VM
+  VM --> Fastpath["xian-fastpath-core"]
   SDK["xian-py"] --> Accounts["xian-accounts"]
   Compiler --> Numeric["xian-numeric"]
   VM --> Numeric

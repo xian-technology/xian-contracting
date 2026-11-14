@@ -114,8 +114,9 @@ historical observations and their capture procedure.
     contract).
   - `stdlib/` — contract-side standard-library bridge.
 - `packages/` — independently released sibling packages:
-  `xian-accounts`, `xian-compiler-core`, `xian-fastpath-core`,
-  `xian-runtime-types`, `xian-vm-core`, `xian-zk`.
+  `xian-accounts`, `xian-compiler-core`, `xian-runtime-types`, `xian-vm-core`,
+  `xian-zk`; plus the Rust-only crates `xian-numeric` and
+  `xian-fastpath-core` (transaction admission rules) that `xian-vm-core` links.
 - `scripts/` — audit and fixture-generation tools used by VM/runtime work.
 - `tests/` — `unit/`, `integration/`, `security/`, `performance/` coverage.
 - `examples/` — notebook walk-throughs and a non-Jupyter validation script.
