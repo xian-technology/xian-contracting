@@ -6,8 +6,9 @@ cases run on `xian_vm_v2` (current code executes V2 only) through
 `xian_vm_core.execute_tx`, the code a block runs (`tests/vm_calls.py`): the V2
 allowed-surface corpus, reproducibly generated integer, alias, ordering,
 Unicode, time, random-stream and sequence programs with explicit expected
-results and failures, all 26 V2 numeric conformance vectors (signed division,
-wide intermediates, rounding, square root, overflow and rollback), and six V2
+results and failures, all 42 V2 numeric conformance vectors (signed division,
+wide intermediates, rounding, `round()`, square root, overflow and rollback),
+four `random.random()` decimal draws, and six V2
 writes at the 511-byte storage key limit (the largest key LMDB stores,
 committed and reopened, and one byte more, which fails). Every case uses the
 native compiler/VM, metering, fresh storage and fixed contract context.
@@ -31,7 +32,7 @@ Python assert statements. It then compares:
 - Committed state before/after execution, failure rollback, and state after
   closing and reopening storage.
 
-The typed encoder preserves float bits, including signed zero, integer values,
+The typed encoder preserves integer values,
 decimal components, container type/order, aliases and cycles where observed.
 Storage keys are sorted for comparison; contract-visible collection order is
 preserved. Persistence is checked at the documented codec boundary, including

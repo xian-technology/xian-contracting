@@ -22,6 +22,19 @@ VECTORS = [
     ("quantize(-1.001, 2, 'toward_zero')", "-1"),
     ("sqrt(2)", "1.414213562373095048801688724209"),
     ("sqrt(10**100)", "1" + "0" * 50),
+    # round(): Python's half-to-even on ints and decimals.
+    ("round(2.5)", 2),
+    ("round(-2.5)", -2),
+    ("round(3.5)", 4),
+    ("round(1.005, 2)", "1"),
+    ("round(-1.015, 2)", "-1.02"),
+    ("round(0.000000000000000000000000000015, 29)", "0.00000000000000000000000000002"),
+    ("round(1234.5678, -2)", "1200"),
+    ("round(1.5, 10**40)", "1.5"),
+    ("round(125, -1)", 120),
+    ("round(-135, -1)", -140),
+    ("round(2**511, -154)", 10**154),
+    ("round(5, -(10**40))", 0),
 ]
 
 FAILURES = [
@@ -31,7 +44,15 @@ FAILURES = [
     "sqrt(-1)",
     "mul_div_floor(1, 2, 0)",
     "quantize(0.1, 31, 'floor')",
+    "round(True)",
+    "round(1, 0.5)",
+    "round(" + "9" * 61 + ".5, 0)",
+    "round(2**512 - 1, -1)",
 ]
+
+# random.random(): an exact decimal on the 30-place grid, drawn like
+# randrange(10**30); the stored draw puts its exact digits in the writes.
+RANDOM_DECIMAL_SALTS = ["", "salt", 7, None]
 
 
 def numeric_cases():
@@ -65,6 +86,26 @@ def numeric_cases():
                     f"    balance.set(1)\n    return {expression}\n"
                 ),
                 "expected_failure": True,
+            }
+        )
+    return cases
+
+
+def random_decimal_cases():
+    cases = []
+    for index, salt in enumerate(RANDOM_DECIMAL_SALTS):
+        cases.append(
+            {
+                "id": f"random_decimal_{index}",
+                "vm_profile": "xian_vm_v2",
+                "source": (
+                    "drawn = Variable()\n@export\ndef probe():\n"
+                    f"    random.seed({salt!r})\n    r = random.random()\n    drawn.set(r)\n"
+                    f"    random.seed({salt!r})\n    k = random.randrange(10**30)\n"
+                    "    return [0 <= r < 1, r == k / 10**30, int(r * 10**30) == k,\n"
+                    "            round(r, 2) <= 1, isinstance(r, decimal)]\n"
+                ),
+                "expected_result": [True, True, True, True, True],
             }
         )
     return cases
