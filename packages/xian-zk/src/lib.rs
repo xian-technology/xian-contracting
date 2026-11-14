@@ -3,8 +3,9 @@ mod poseidon;
 mod shielded_notes;
 
 pub use crate::core::{
-    build_demo_vector, verify_groth16_bn254, verify_groth16_bn254_grouped, DemoVector,
-    Groth16Bn254BatchItem, VerifierError, EXPECTED_FIELD_ELEMENT_BYTES,
+    build_demo_vector, prepare_groth16_bn254_vk, verify_groth16_bn254,
+    verify_groth16_bn254_grouped, verify_groth16_bn254_prepared, DemoVector,
+    Groth16Bn254BatchItem, PreparedGroth16Bn254Key, VerifierError, EXPECTED_FIELD_ELEMENT_BYTES,
 };
 pub use crate::shielded_notes::{
     build_insecure_dev_shielded_command_bundle, build_insecure_dev_shielded_note_bundle,
