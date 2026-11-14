@@ -8,6 +8,8 @@ mod committed_reads;
 mod random_python;
 #[path = "settlement_python.rs"]
 mod settlement_python;
+#[path = "single_tx_python.rs"]
+mod single_tx_python;
 #[path = "transaction_admission_python.rs"]
 mod transaction_admission_python;
 #[path = "transaction_inputs_python.rs"]
@@ -1080,6 +1082,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     crate::block_state_python::register(module)?;
     settlement_python::register(module)?;
     block_executor_python::register(module)?;
+    single_tx_python::register(module)?;
     random_python::register(module)?;
     transaction_admission_python::register(module)?;
     zk_python::register(py, module)?;

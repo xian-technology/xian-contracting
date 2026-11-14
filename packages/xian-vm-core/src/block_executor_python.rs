@@ -17,13 +17,13 @@ use pyo3::types::{PyDict, PyList};
 /// SAFETY: `detach` runs its closure on the calling thread and returns
 /// before the GIL is taken again, so nothing in here is ever touched by two
 /// threads; the wrapper only satisfies the `Send` bound.
-struct Unshared<T>(T);
+pub(super) struct Unshared<T>(pub(super) T);
 unsafe impl<T> Send for Unshared<T> {}
 
 impl<T> Unshared<T> {
     /// Moves the whole wrapper into a closure (a field access would capture
     /// only the field).
-    fn into_inner(self) -> T {
+    pub(super) fn into_inner(self) -> T {
         self.0
     }
 }

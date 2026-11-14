@@ -45,6 +45,8 @@ mod raw_decimal;
 mod set_member_codec;
 pub use decimal_tuple::{VmDecimalExponent, VmDecimalTuple};
 #[cfg(any(feature = "python-extension", test))]
+mod panic_guard;
+#[cfg(any(feature = "python-extension", test))]
 mod python_decimal;
 #[cfg(any(feature = "python-extension", test))]
 mod settlement;

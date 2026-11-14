@@ -51,6 +51,9 @@ from ._native import (
     validate_module_ir_json,
     validate_storage_key,
 )
+from ._native import (
+    execute_tx as _execute_tx,
+)
 
 _RANDOM_SYSCALLS = {
     "seed": random_bridge.seed,
@@ -672,6 +675,90 @@ def execute_contract(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class TxRun:
+    """One call run by the block executor's rules (``execute_tx``)."""
+
+    status_code: int
+    # The return value; for a failure its exception when the VM gave its
+    # type, else the failure text (``native_error_result``).
+    result: Any
+    # Staged writes in receipt order; a deletion is None.
+    writes: dict[str, Any]
+    events: list[dict[str, Any]]
+    chi_used: int
+    contract_costs: dict[str, int]
+    # The contract cannot run in current chain state (preparation refused it).
+    unprepared: bool
+
+
+@dataclass(frozen=True, slots=True)
+class HandedBack:
+    """A call the Rust executor leaves to the Python path; nothing was staged."""
+
+    reason: str
+
+
+def execute_tx(
+    environment,
+    overlay,
+    *,
+    sender: str,
+    contract_name: str,
+    function_name: str,
+    kwargs: dict,
+    context: dict,
+    meter: bool,
+    charge_fees: bool = False,
+    chi_budget: int = 0,
+    transaction_size_bytes: int = 0,
+    protected_keys=(),
+    zk_enabled_without_state: bool = True,
+    estimate: bool = False,
+) -> TxRun | HandedBack:
+    """Run one call with the code a block runs, over ``environment`` (LMDB)
+    and ``overlay`` (a ``BlockState``), staging its effects into ``overlay``.
+
+    Pass ``overlay.snapshot()`` to drop them afterwards. ``context`` is
+    ``execute_contract``'s context dictionary; ``estimate`` settles the fee
+    as a dry run does (no budget reservation). A call whose arguments the VM
+    boundary refuses, or that the executor leaves to Python, is ``HandedBack``.
+    """
+    try:
+        coerced_kwargs = coerce_call_kwargs(kwargs)
+    except Exception:  # noqa: BLE001 - the Python path reports it
+        return HandedBack("inputs did not convert")
+    outcome, reason = _execute_tx(
+        environment,
+        overlay,
+        sender=sender,
+        contract=contract_name,
+        function=function_name,
+        kwargs=coerced_kwargs,
+        context=context,
+        chi_budget=chi_budget,
+        transaction_size_bytes=transaction_size_bytes,
+        meter_execution=meter,
+        charge_fees=charge_fees,
+        protected_keys=list(protected_keys),
+        zk_enabled_without_state=zk_enabled_without_state,
+        estimate=estimate,
+    )
+    if outcome is None:
+        return HandedBack(reason)
+    return TxRun(
+        status_code=outcome["status"],
+        result=native_error_result(
+            outcome["status"], outcome["result"], exception=outcome["exception"]
+        ),
+        writes=dict(outcome["writes"]),
+        events=outcome["events"],
+        chi_used=outcome["chi_used"],
+        contract_costs=outcome["contract_costs"],
+        unprepared=outcome["unprepared"],
+    )
+
+
 def _coerce_external_call_args(args: list[Any], vm_profile) -> list[Any]:
     if vm_profile == "xian_vm_v2":
         return decode_wire_numbers(normalize_wire_numbers(args))
@@ -829,10 +916,13 @@ __all__ = [
     "StateRootTree",
     "VmIrValidationError",
     "VmRuntimeExecutionError",
+    "HandedBack",
+    "TxRun",
     "coerce_call_kwargs",
     "decode_and_validate_transaction",
     "execute_bundle",
     "execute_contract",
+    "execute_tx",
     "native_error_result",
     "runtime_info",
     "runtime_info_json",

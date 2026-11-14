@@ -62,6 +62,21 @@ pub(crate) struct BlockPolicy {
     pub(crate) protected_keys: Vec<String>,
 }
 
+/// How a transaction's fee is settled.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum FeeMode {
+    /// A transaction with a submitted budget: the budget is reserved from
+    /// the sender's balance before execution and a success is refunded
+    /// against it (`execute_vm_transaction`).
+    Reserved,
+    /// A dry run (the simulator; decision 2 of the single-engine plan): no
+    /// budget is reserved, so a small balance still gets an estimate, and
+    /// the fee is metered from the balance the run leaves, success or
+    /// failure (`reserve_fee_budget=False`, `apply_metering_on_success_only=False`).
+    /// In the receipt, a fee write the run did not already make comes last.
+    Estimated,
+}
+
 /// One transaction's inputs, read from its wire bytes.
 pub(crate) use crate::transaction_inputs::PreparedTx;
 
@@ -83,6 +98,11 @@ pub(crate) struct TxOutcome {
     /// a success's writes and fee refund before reward deltas; none for a
     /// failure, whose fee is metered after it.
     pub(crate) output_writes: usize,
+    /// The raw cost per contract (VM and host), in contract order.
+    pub(crate) contract_costs: Vec<(String, BigInt)>,
+    /// Whether the transaction failed because its contract cannot run in
+    /// current chain state (`ContractPreparationError`).
+    pub(crate) unprepared: bool,
 }
 
 struct ViewRewardState<'a>(&'a StateView);
@@ -98,6 +118,8 @@ impl RewardState for ViewRewardState<'_> {
 struct Unprepared {
     name: &'static str,
     message: String,
+    /// The import graph's preparation refused it (not a missing source).
+    preparation: bool,
 }
 
 /// Why a contract's preparation stopped.
@@ -122,6 +144,7 @@ struct Execution {
     events: Vec<VmEvent>,
     chi_used: BigInt,
     contract_costs: Vec<(String, BigInt)>,
+    unprepared: bool,
 }
 
 impl Execution {
@@ -140,6 +163,15 @@ impl Execution {
             events: Vec::new(),
             chi_used: BigInt::zero(),
             contract_costs: Vec::new(),
+            unprepared: false,
+        }
+    }
+
+    /// A contract that cannot run: failed before the VM.
+    fn unprepared(reservation: Option<Reservation>, unprepared: Unprepared) -> Self {
+        Self {
+            unprepared: unprepared.preparation,
+            ..Self::failed(reservation, unprepared.name, &unprepared.message)
         }
     }
 }
@@ -147,14 +179,22 @@ impl Execution {
 pub(crate) struct BlockExecutor {
     view: StateView,
     policy: BlockPolicy,
+    fee_mode: FeeMode,
     modules: Modules,
 }
 
 impl BlockExecutor {
+    /// The executor of a block's transactions: fees are reserved.
     pub(crate) fn new(view: StateView, policy: BlockPolicy) -> Self {
+        Self::settling(view, policy, FeeMode::Reserved)
+    }
+
+    /// An executor that settles fees as `fee_mode` says.
+    pub(crate) fn settling(view: StateView, policy: BlockPolicy, fee_mode: FeeMode) -> Self {
         Self {
             view,
             policy,
+            fee_mode,
             modules: Modules::default(),
         }
     }
@@ -254,15 +294,14 @@ impl BlockExecutor {
         rate: Option<&BigInt>,
         balance_key: &str,
     ) -> Settled<Execution> {
+        let rate = rate.filter(|_| self.fee_mode == FeeMode::Reserved);
         let reservation = match self.reservation(tx, rate, balance_key)? {
             Ok(reservation) => reservation,
             Err(unpaid) => return Ok(unpaid),
         };
         let entry = match self.entry(tx)? {
             Ok(entry) => entry,
-            Err(Unprepared { name, message }) => {
-                return Ok(Execution::failed(reservation, name, &message));
-            }
+            Err(unprepared) => return Ok(Execution::unprepared(reservation, unprepared)),
         };
         let context = self.entry_context(tx, &entry)?;
         let (outcome, host_writes) = self.run_vm(tx, entry, context)?;
@@ -278,6 +317,7 @@ impl BlockExecutor {
             return Ok(Err(Unprepared {
                 name: "ValueError",
                 message: MISSING_SOURCE.to_owned(),
+                preparation: false,
             }));
         }
         Ok(entry)
@@ -406,7 +446,13 @@ impl BlockExecutor {
     /// syscalls: a disabled feature is a `ContractPreparationError`, a value
     /// the feature check refuses a failure in the host runtime.
     fn require_zk(&self, name: &str) -> Result<(), PrepareStop> {
-        let unprepared = |name, message| Err(PrepareStop::Unprepared(Unprepared { name, message }));
+        let unprepared = |name, message| {
+            Err(PrepareStop::Unprepared(Unprepared {
+                name,
+                message,
+                preparation: true,
+            }))
+        };
         match zk_enabled(&self.view, self.policy.zk_enabled_without_state).map_err(fault)? {
             Ok(true) => Ok(()),
             Ok(false) => unprepared("ValueError", zk_disabled(name)),
@@ -486,7 +532,7 @@ impl BlockExecutor {
         if let Some(rewards) = &rewards {
             self.add_deltas(&mut writes, rewards)?;
         }
-        let writes: Vec<(String, VmValue)> = writes.into_iter().collect();
+        let writes = self.receipt_order(writes, &execution, balance_key);
         self.stage_all(&writes)?;
         Ok(TxOutcome {
             status: execution.status,
@@ -498,6 +544,8 @@ impl BlockExecutor {
             rewards,
             chi_rate: rate.cloned(),
             output_writes,
+            contract_costs: execution.contract_costs,
+            unprepared: execution.unprepared,
         })
     }
 
@@ -540,10 +588,51 @@ impl BlockExecutor {
         self.validated(execution)?;
         let mut writes = execution.writes.clone();
         if let Some(rate) = rate {
-            let balance = self.refunded_balance(execution, rate, balance_key)?;
-            writes.insert(balance_key.to_owned(), balance);
+            let balance = match self.fee_mode {
+                FeeMode::Reserved => Some(self.refunded_balance(execution, rate, balance_key)?),
+                FeeMode::Estimated => self.metered_balance(execution, rate, balance_key)?,
+            };
+            if let Some(balance) = balance {
+                writes.insert(balance_key.to_owned(), balance);
+            }
         }
         Ok((writes, PyDecimal::int(execution.chi_used.clone())))
+    }
+
+    /// The sender's balance after an estimated success: the fee metered
+    /// from the balance the run left (`vm_metering_writes`); `None` when
+    /// nothing was used.
+    fn metered_balance(
+        &self,
+        execution: &Execution,
+        rate: &BigInt,
+        balance_key: &str,
+    ) -> Settled<Option<VmValue>> {
+        let balance = match execution.writes.get(balance_key) {
+            Some(value) => Balance::of(Some(value))?,
+            None => Balance::of(self.get(balance_key)?.as_ref())?,
+        };
+        let charge = settlement::failure_charge(&balance, &execution.chi_used, rate)?;
+        Ok(charge.map(|charge| charge.balance))
+    }
+
+    /// The writes in receipt order: key order, except that an estimate
+    /// lists a fee write its run did not make last (the Python dictionary
+    /// it reproduces gained that key after the run's writes).
+    fn receipt_order(
+        &self,
+        writes: BTreeMap<String, VmValue>,
+        execution: &Execution,
+        balance_key: &str,
+    ) -> Vec<(String, VmValue)> {
+        let appended = self.fee_mode == FeeMode::Estimated
+            && execution.status == 0
+            && !execution.writes.contains_key(balance_key);
+        let (mut ordered, fee): (Vec<_>, Vec<_>) = writes
+            .into_iter()
+            .partition(|(key, _)| !(appended && key == balance_key));
+        ordered.extend(fee);
+        ordered
     }
 
     /// The sender's balance after a success: refunded against the
@@ -709,5 +798,6 @@ fn execution_of(
         events,
         chi_used: BigInt::from(outcome.stats.chi_used),
         contract_costs,
+        unprepared: false,
     }
 }
