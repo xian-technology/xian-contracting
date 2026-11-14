@@ -84,7 +84,7 @@ def execute_source(home, body):
     with Driver(storage_home=home, vm_profile="xian_vm_v2") as driver:
         driver.set_contract_from_source("con_bound", source, owner=None)
         driver.commit()
-        from xian_vm_core import execute_contract
+        from tests.vm_calls import execute_contract
 
         result = execute_contract(
             driver=driver,
@@ -132,7 +132,7 @@ CROSS_PAYLOADS = [
 
 
 def execute_cross_contract(home, caller_body, callee_source):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     caller = (
         'import con_bound_target\nstate = Variable()\nnotice = LogEvent(event="Boundary", params={"value": int})\ndef append_for(values):\n    return values.append\n@export\ndef probe():\n'

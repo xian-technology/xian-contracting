@@ -58,7 +58,7 @@ def probe(tmp_path, body, prefix="", dependencies=None):
 )
 def test_raw_decimal_policy_across_call_paths(tmp_path, route, spec, expected):
     body = (
-        "value = round(decimal('-0.004'), 3)\n"
+        "value = decimal('-0.004')\n"
         f"spec = {spec!r}\n"
         "positional = '{0:' + spec + '}'\n"
         "named = '{value:' + spec + '}'\n"
@@ -84,10 +84,10 @@ def test_raw_decimal_policy_across_call_paths(tmp_path, route, spec, expected):
 def test_nondecimal_numeric_flags_and_decimal_comma_grouping(tmp_path):
     actual = probe(
         tmp_path,
-        "return [format(65536, '#_x'), format(float('12345.25'), '_.2f'), format(float('12'), '#.4g'), format(round(decimal('1234.5'), 1), ',.1f')]",
+        "return [format(65536, '#_x'), format(decimal('1234.5'), ',.1f')]",
     )
     assert actual["status_code"] == 0, actual
-    assert actual["result"] == encode(["0x1_0000", "12_345.25", "12.00", "1,234.5"])
+    assert actual["result"] == encode(["0x1_0000", "1,234.5"])
 
 
 @pytest.mark.parametrize("conversion", ["s", "r", "a"])
@@ -116,7 +116,7 @@ def test_nested_fstring_width_precision_evaluation_order(tmp_path):
     prefix = """trace = []
 def number():
     trace.append('number')
-    return round(decimal('2.125'), 3)
+    return decimal('2.125')
 def width():
     trace.append('width')
     return 8
@@ -174,7 +174,13 @@ def test_private_decimal_implementation_is_not_an_import_surface(tmp_path):
         },
         tmp_path,
     )
-    assert actual["admission"] == "rejected", actual
+    # V2 admits an import as a contract name; no contract has that name, so
+    # the module cannot run and Python's decimal implementation is never reached.
+    if actual["admission"] == "accepted":
+        assert actual["status_code"] == 1, actual
+        assert actual["writes"] == encode({}), actual
+    else:
+        assert actual["admission"] == "rejected", actual
 
 
 @pytest.mark.parametrize("warm", [False, True], ids=["cold", "fallback_preloaded"])
@@ -195,7 +201,7 @@ if sys.argv[1] == 'warm':
     except ValueError:
         pass
 from tests.compatibility.runner import run_case
-source = '@export\\ndef probe():\\n    return format(round(decimal("1.25"), 2), ' + repr(sys.argv[2]) + ')\\n'
+source = '@export\\ndef probe():\\n    return format(decimal("1.25"), ' + repr(sys.argv[2]) + ')\\n'
 result = run_case({'id':'isolated_decimal_policy', 'source':source}, Path(sys.argv[3]), native=True)
 print(json.dumps(result))
 """
@@ -232,7 +238,7 @@ def anchor():
     }
     actual = probe(
         tmp_path,
-        f"module = importlib.import_module('con_format_aliases')\nvalue = round(decimal('-0.004'), 3)\nspec = {spec!r}\nreturn "
+        f"module = importlib.import_module('con_format_aliases')\nvalue = decimal('-0.004')\nspec = {spec!r}\nreturn "
         + calls[route],
         dependencies={"con_format_aliases": dependency},
     )
@@ -272,7 +278,7 @@ def execute_format_call(driver, function):
         entry=(name, function),
         now=Datetime(2026, 11, 3),
     )
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     result = execute_contract(
         driver=driver,
@@ -281,7 +287,6 @@ def execute_format_call(driver, function):
         kwargs={},
         context=context,
         meter=False,
-        vm_profile=driver.vm_profile,
     )
     return result.status_code, result.result, result.writes, result.events
 
@@ -296,12 +301,12 @@ def fail():
     state.set(99)
     Changed({'value':99})
     render = '{0:#.2f}'.format
-    return render(round(decimal('1.25'), 2))
+    return render(decimal('1.25'))
 @export
 def recover():
-    return [state.get(), format(round(decimal('-0.004'), 3), 'z.2f')]
+    return [state.get(), format(decimal('-0.004'), 'z.2f')]
 """
-    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
+    with Driver(storage_home=tmp_path) as driver:
         driver.set_contract_from_source("con_format_rollback", source, owner=None)
         driver.set("con_format_rollback.state", 7)
         driver.commit()

@@ -11,7 +11,7 @@ pytestmark = pytest.mark.optional_native
 )
 @pytest.mark.parametrize("meter", [False, True])
 def test_expansion_bounds_and_rollback(tmp_path, operation, meter):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     with Driver(storage_home=tmp_path) as driver:
         driver.set_contract_from_source(

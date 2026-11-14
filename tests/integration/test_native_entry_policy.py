@@ -1,16 +1,17 @@
-"""Real native transactions enforce V2 policy while V1 remains archival."""
+"""Real native transactions enforce the V2 entry policy (V1 no longer executes)."""
 
 import hashlib
 
 import pytest
-from xian_vm_core import execute_contract, runtime_info
+from xian_vm_core import runtime_info
+from tests.vm_calls import execute_contract
 
 from contracting import constants
 from contracting.artifacts import compile_contract_source
 from contracting.local import ContractingClient
 from contracting.storage.driver import Driver
 
-PROFILES = ("xian_vm_v1", "xian_vm_v2")
+PROFILES = ("xian_vm_v2",)
 ENTRY_SOURCE = """stored = Variable()
 @construct
 def seed(initial: int = 7):
@@ -66,7 +67,6 @@ def execute(driver, contract, function, *, caller="alice", **kwargs):
         function_name=function,
         kwargs=kwargs,
         context={"caller": caller, "signer": caller},
-        vm_profile=driver.vm_profile,
     )
 
 
@@ -74,14 +74,13 @@ def assert_rejected(result):
     assert result.status_code == 1
     assert result.writes == {}
     assert result.events == []
-    assert result.snapshots == []
 
 
-@pytest.mark.parametrize(
-    "profile,revision", [("xian_vm_v1", "xvm-execution-7"), ("xian_vm_v2", "xvm-execution-14")]
-)
-def test_execution_revision_is_profile_specific(profile, revision):
-    assert runtime_info(profile)["execution_revision"] == revision
+def test_only_the_v2_profile_has_an_execution_revision():
+    assert runtime_info("xian_vm_v2")["execution_revision"] == "xvm-execution-14"
+    # V1 execution was removed from current code (it replays on its pinned release).
+    with pytest.raises(ValueError, match="unknown VM profile"):
+        runtime_info("xian_vm_v1")
 
 
 @pytest.mark.parametrize("profile", PROFILES)
@@ -91,16 +90,10 @@ def test_external_private_and_constructor_entries_follow_profile_policy(
 ):
     kwargs = {"initial": 123} if function == "seed" else {}
     result = execute(native_store, "con_entry", function, **kwargs)
-    if profile == "xian_vm_v2":
-        assert_rejected(result)
-        assert "not exported" in str(result.result)
-        assert result.raw_cost == 0
-        assert result.chi_used == constants.TRANSACTION_BASE_CHI
-        assert result.contract_costs == {}
-    else:
-        assert result.status_code == 0, result.result
-        assert result.result == (None if function == "seed" else 99)
-        assert result.writes["con_entry.stored"] == (123 if function == "seed" else 99)
+    assert_rejected(result)
+    assert "not exported" in str(result.result)
+    assert result.chi_used == constants.TRANSACTION_BASE_CHI
+    assert result.contract_costs == {}
     assert native_store.get_var("con_entry", "stored") == 7
 
 
@@ -187,27 +180,3 @@ def test_v2_invalid_hash_selectors_roll_back_preceding_writes(
     assert_rejected(result)
     assert "Hash kind must be 'ir' or 'source'!" in str(result.result)
     assert native_store.get_var("con_probe", "marker") == 0
-
-
-@pytest.mark.parametrize("profile", ["xian_vm_v1"])
-@pytest.mark.parametrize("target", ["con_target", "con_missing"])
-@pytest.mark.parametrize("function", ["positional", "keyword"])
-@pytest.mark.parametrize(
-    "kind,effective",
-    [
-        ("compiled", "source"),
-        ("", "ir"),
-        (False, "ir"),
-        (0, "ir"),
-        (1, "source"),
-        ([], "ir"),
-        ({}, "ir"),
-    ],
-)
-def test_v1_archival_hash_selector_fallbacks_are_preserved(
-    native_store, profile, target, function, kind, effective
-):
-    result = execute(native_store, "con_probe", function, target=target, kind=kind)
-    assert result.status_code == 0, result.result
-    assert result.result == expected_hash(native_store, target, effective)
-    assert result.writes["con_probe.marker"] == 1

@@ -1,18 +1,15 @@
-"""The block host's zk syscalls (Rust) against the Python zk bridge.
+"""The block host's zk syscalls (vm-core ``block_host/zk.rs``).
 
-The Rust block executor serves the contract zk syscalls in vm-core
-(``block_host/zk.rs``); the Python path serves them with
-``contracting.stdlib.bridge.zk`` through ``NativeVmHost.handle_syscall``.
-This fuzz sends the same calls, as the VM sends them (every argument bound
-positionally), through both over the same chain state: a ``zk_registry``
-with good and broken keys, some committed and some only in the block
-overlay. Every call must return the same value (after the V2 boundary) or
-raise the same exception with the same text, and none may be handed back.
+This fuzz sends zk syscalls as the VM sends them (every argument bound
+positionally) over a ``zk_registry`` with good and broken keys, some
+committed and some only in the block overlay. Until increment 9 of the
+single-engine plan every call was compared with the Python zk bridge (same
+value after the V2 boundary, or the same exception with the same text); the
+outcomes were frozen then (``FIXTURE``) and Rust must keep reproducing them.
 """
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import json
 import random
@@ -21,14 +18,12 @@ from pathlib import Path
 import pytest
 from xian_runtime_types.decimal import ContractingDecimal
 
-from contracting.execution.runtime import rt
 from contracting.local import ContractingClient
 from contracting.stdlib.bridge import zk as zk_bridge
 
 pytestmark = pytest.mark.optional_native
 
 native = pytest.importorskip("xian_vm_core._native")
-NativeVmHost = pytest.importorskip("xian_vm_core").NativeVmHost
 
 DEMO = json.loads(
     (
@@ -36,9 +31,6 @@ DEMO = json.loads(
         / "packages/xian-zk/tests/fixtures/groth16_bn254_demo.json"
     ).read_text()
 )
-# The exception types whose category the VM keeps (python_bindings
-# `builtin_exception_name`).
-KEPT_TYPES = (AssertionError, TypeError, ValueError, RuntimeError, Exception, KeyError, IndexError)
 
 
 def field(value: int) -> str:
@@ -225,32 +217,6 @@ def outcome_digest(outcome) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
-def _python_exception(error):
-    if type(error) in KEPT_TYPES:
-        return (type(error).__name__, list(error.args))
-    return None
-
-
-def python_outcomes(driver, calls):
-    """What the VM receives from the Python path for each call."""
-    previous = dict(rt.env)  # rt.env is a live proxy
-    rt.env = {"__Driver": driver}
-    outcomes = []
-    try:
-        for syscall_id, args in calls:
-            try:
-                result = NativeVmHost.handle_syscall(None, syscall_id, copy.deepcopy(args), {})
-            except Exception as error:  # noqa: BLE001 - every raise is an outcome
-                outcomes.append(
-                    ("raised", f"{type(error).__qualname__}: {error}", _python_exception(error))
-                )
-                continue
-            outcomes.append(("ok", native._vm_value_debug(result)))
-    finally:
-        rt.env = previous
-    return outcomes
-
-
 def rust_outcomes(driver, calls):
     environment, overlay = driver.committed_storage()
     return [tuple(outcome) for outcome in native._zk_syscalls_debug(environment, overlay, calls)]
@@ -263,24 +229,21 @@ def _calls(seed, count):
 
 
 @pytest.mark.parametrize("seed", range(6))
-def test_zk_syscalls_serve_what_the_python_bridge_serves(driver, seed):
+def test_zk_syscalls_reproduce_the_frozen_outcomes(driver, seed):
     calls = _calls(seed, 400)
-    expected = python_outcomes(driver, calls)
     zk_bridge.clear_verified_proof_cache()
     zk_bridge.clear_prepared_vk_cache()
     actual = rust_outcomes(driver, calls)
-    for call, left, right in zip(calls, actual, expected, strict=True):
-        assert left == right, call
     frozen = json.loads(FIXTURE.read_text())[str(seed)]
     assert [outcome_digest(outcome) for outcome in actual] == frozen
-    kinds = {(call[0], outcome[0]) for call, outcome in zip(calls, expected, strict=True)}
+    kinds = {(call[0], outcome[0]) for call, outcome in zip(calls, actual, strict=True)}
     assert ("zk.verify_groth16", "ok") in kinds
     assert ("zk.verify_groth16", "raised") in kinds
 
 
 def test_the_fuzz_reaches_every_outcome_of_every_syscall(driver):
     calls = _calls(99, 3000)
-    outcomes = python_outcomes(driver, calls)
+    outcomes = rust_outcomes(driver, calls)
     reached = {(call[0], outcome[0]) for call, outcome in zip(calls, outcomes, strict=True)}
     # has_verifying_key answers False for any key it cannot use.
     always_ok = {
@@ -302,30 +265,21 @@ def test_the_fuzz_reaches_every_outcome_of_every_syscall(driver):
 def test_a_key_registered_in_the_block_overlay_verifies(driver):
     calls = [("zk.verify_groth16", ["pending", DEMO["proof_hex"], DEMO["public_inputs"]])]
     assert rust_outcomes(driver, calls) == [("ok", "Bool(true)")]
-    assert python_outcomes(driver, calls) == [("ok", "Bool(true)")]
 
 
-def test_warming_fills_the_cache_both_paths_verify_from(driver):
+def test_warming_fills_the_cache_the_executor_verifies_from(driver):
     # The cache key holds the key's id and hash, not its bytes: a proof
     # warmed under a key verifies from the cache after the bytes changed.
     zk_bridge.clear_verified_proof_cache()
-    rt.env["__Driver"] = driver
-    try:
-        assert zk_bridge.warm_verified_proofs(
-            [
-                {
-                    "vk_id": "demo",
-                    "proof_hex": DEMO["proof_hex"],
-                    "public_inputs": DEMO["public_inputs"],
-                }
-            ]
-        ) == [True]
-    finally:
-        rt.env.pop("__Driver", None)
+    request = {
+        "vk_id": "demo",
+        "proof_hex": DEMO["proof_hex"],
+        "public_inputs": DEMO["public_inputs"],
+    }
+    assert zk_bridge.warm_verified_proofs([request], driver=driver) == [True]
     driver.set("zk_registry.verifying_keys:demo:vk_hex", "0x1234")
     calls = [("zk.verify_groth16", ["demo", DEMO["proof_hex"], DEMO["public_inputs"]])]
     assert rust_outcomes(driver, calls) == [("ok", "Bool(true)")]
-    assert python_outcomes(driver, calls) == [("ok", "Bool(true)")]
     zk_bridge.clear_verified_proof_cache()
     refused = rust_outcomes(driver, calls)[0]
     assert refused[1].startswith("AssertionError: invalid verifying key bytes"), refused

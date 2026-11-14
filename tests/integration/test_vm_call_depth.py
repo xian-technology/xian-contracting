@@ -11,9 +11,9 @@ from contracting.storage.driver import Driver
 pytestmark = pytest.mark.optional_native
 
 
-def _exercise(home, vm_profile, meter, mode):
+def _exercise(home, meter, mode):
     from xian_runtime_types.time import Datetime
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     nested = "1 + (" * 20 + "recurse()" + ")" * 20
     sources = {
@@ -26,7 +26,6 @@ def _exercise(home, vm_profile, meter, mode):
         "iterator": "def recurse():\n    cursor = [1]\n"
         "    for i in range(128):\n        cursor = map(abs, cursor)\n"
         "    return list(cursor)\n",
-        "cross_contract": "import con_other\ndef recurse():\n    return con_other.probe()\n",
     }
     if mode == "constructor":
         child = (
@@ -52,20 +51,13 @@ def _exercise(home, vm_profile, meter, mode):
         "@export\ndef probe():\n    value.set(1)\n    return recurse()\n"
         "@export\ndef safe():\n    return 7\n"
     )
-    with Driver(storage_home=home, vm_profile=vm_profile) as driver:
-        if mode == "cross_contract":
-            driver.set_contract_from_source(
-                "con_other",
-                "import con_depth\n@export\ndef probe():\n    return con_depth.probe()\n",
-                owner=None,
-            )
+    with Driver(storage_home=home) as driver:
         driver.set_contract_from_source(name, source, owner=None)
         driver.commit()
 
         def invoke(function):
             return execute_contract(
                 driver=driver,
-                vm_profile=vm_profile,
                 contract_name=name,
                 function_name=function,
                 kwargs={},
@@ -91,27 +83,27 @@ def _exercise(home, vm_profile, meter, mode):
         assert recovered.result == 7
 
 
-@pytest.mark.parametrize("vm_profile", ["xian_vm_v1", "xian_vm_v2"])
 @pytest.mark.parametrize("meter", [False, True])
-@pytest.mark.parametrize(
-    "mode", ["local", "expression", "block", "iterator", "cross_contract", "constructor"]
-)
-def test_shared_execution_depth_and_recovery(tmp_path, vm_profile, meter, mode):
+# A cross-contract recursion needs an import cycle, which preparation refuses
+# before anything runs (the block executor's rule).
+@pytest.mark.parametrize("mode", ["local", "expression", "block", "iterator", "constructor"])
+def test_shared_execution_depth_and_recovery(tmp_path, meter, mode):
     completed = subprocess.run(
         [
             sys.executable,
-            str(Path(__file__).resolve()),
+            "-m",
+            "tests.integration.test_vm_call_depth",
             str(tmp_path),
-            vm_profile,
             str(int(meter)),
             mode,
         ],
         capture_output=True,
         text=True,
         timeout=60,
+        cwd=Path(__file__).resolve().parents[2],
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
 if __name__ == "__main__":
-    _exercise(Path(sys.argv[1]), sys.argv[2], bool(int(sys.argv[3])), sys.argv[4])
+    _exercise(Path(sys.argv[1]), bool(int(sys.argv[2])), sys.argv[3])

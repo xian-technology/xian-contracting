@@ -45,7 +45,7 @@ def execute(home, body, *, meter=False, prefix="", target=TARGET):
         driver.set_contract_from_source("con_descriptor_target", target, owner=None)
         driver.set_contract_from_source("con_descriptor_probe", source, owner=None)
         driver.commit()
-        from xian_vm_core import execute_contract
+        from tests.vm_calls import execute_contract
 
         result = execute_contract(
             driver=driver,
@@ -290,7 +290,7 @@ def test_interface_self_and_reentrant_caller_use_live_metadata(tmp_path):
 
 
 def test_circular_interface_initialization_fails_and_next_execution_recovers(tmp_path):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     first = """ready = importlib.enforce_interface(importlib.import_module('con_cycle_b'), [importlib.Func('probe')])
 @export

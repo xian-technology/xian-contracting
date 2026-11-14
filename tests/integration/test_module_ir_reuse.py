@@ -1,13 +1,13 @@
 """Executions reuse parsed contract IR only while the stored IR is unchanged.
 
-The native host and the Rust VM keep modules parsed from a contract's IR text
+The Rust VM keeps modules parsed from a contract's IR text
 for later executions in the same process. A contract whose stored IR changes
 (redeployed, overwritten, rolled back) must run its current code at once, and a
 failed deployment must leave nothing behind for a later one.
 """
 
 import pytest
-from xian_vm_core import execute_bundle, execute_contract
+from tests.vm_calls import execute_contract
 
 from contracting.artifacts import compile_contract_source
 from contracting.storage.driver import Driver
@@ -32,7 +32,6 @@ def _call(driver, name, function="answer", kwargs=None, caller="alice"):
         function_name=function,
         kwargs=kwargs or {},
         context={"caller": caller, "signer": caller, "now": None},
-        vm_profile=PROFILE,
     )
 
 
@@ -85,41 +84,3 @@ def test_export_checks_follow_the_current_ir(driver):
     rejected = _call(driver, "con_answer")
     assert rejected.status_code == 1
     assert "not exported" in str(rejected.result)
-
-
-def test_bundle_modules_are_given_as_ir_text_by_name(driver):
-    class Host:
-        def get_owner(self, contract):
-            return None
-
-    output = execute_bundle(
-        {"con_answer": _ir("con_answer", _source(7))},
-        "con_answer",
-        "answer",
-        [],
-        {},
-        {"caller": "alice", "this": "con_answer"},
-        Host(),
-        vm_profile=PROFILE,
-    )
-
-    assert output["status_code"] == 0
-    assert output["result"] == 7
-
-
-def test_a_bundle_module_must_carry_its_own_name(driver):
-    class Host:
-        def get_owner(self, contract):
-            return None
-
-    with pytest.raises(ValueError, match="bundle module name"):
-        execute_bundle(
-            {"con_other": _ir("con_answer", _source(7))},
-            "con_other",
-            "answer",
-            [],
-            {},
-            {"caller": "alice", "this": "con_other"},
-            Host(),
-            vm_profile=PROFILE,
-        )

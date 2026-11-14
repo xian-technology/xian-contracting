@@ -7,11 +7,10 @@ from contracting.storage.driver import Driver
 pytestmark = pytest.mark.optional_native
 
 
-@pytest.mark.parametrize("vm_profile", ["xian_vm_v1", "xian_vm_v2"])
 @pytest.mark.parametrize("character", ["a", "é"])
 @pytest.mark.parametrize("overflow", [False, True])
-def test_fstring_aggregate_limit_and_rollback(tmp_path, vm_profile, character, overflow):
-    from xian_vm_core import execute_contract
+def test_fstring_aggregate_limit_and_rollback(tmp_path, character, overflow):
+    from tests.vm_calls import execute_contract
 
     limit = 128 * 1024
     count = limit // (2 * len(character.encode("utf-8")))
@@ -21,12 +20,11 @@ def test_fstring_aggregate_limit_and_rollback(tmp_path, vm_profile, character, o
         "    value.set(1)\n"
         "    return len(f'{part}{part}{extra}')\n"
     )
-    with Driver(storage_home=tmp_path, vm_profile=vm_profile) as driver:
+    with Driver(storage_home=tmp_path) as driver:
         driver.set_contract_from_source("con_fstring_bounds", source, owner=None)
         driver.commit()
         output = execute_contract(
             driver=driver,
-            vm_profile=vm_profile,
             contract_name="con_fstring_bounds",
             function_name="probe",
             kwargs={"extra": "x" if overflow else ""},

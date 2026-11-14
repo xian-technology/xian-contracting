@@ -1,22 +1,18 @@
-"""The block host's random syscalls (Rust) against the Python random bridge.
+"""The block host's random syscalls (vm-core ``block_host/random.rs``).
 
-The Rust block executor serves the contract random syscalls in vm-core
-(``block_host/random.rs``); the Python path serves them with
-``contracting.stdlib.bridge.random`` through ``NativeVmHost.handle_syscall``.
-This fuzz sends the same calls, as the VM sends them, through both: every
-call Rust serves must return the same value (after the V2 boundary) or raise
-the same exception with the same text. Execution revision 14 refuses the
-documented other cases (other argument, population or context types, call
-shapes that do not bind) with a ``TypeError`` of its own, where the Python
-bridge converted or raised its own way; the comparison of a sequence ends
-there, as their random states may differ after it. The VM refuses calls
-above its work bounds (``interpreter::random_bounds``) before either host
-runs them; ``vm_bound`` models that check for the Python side.
+This fuzz sends random syscalls as the VM sends them. Until increment 9 of
+the single-engine plan every call Rust serves was compared with the Python
+random bridge (same value after the V2 boundary, or the same exception with
+the same text); the outcomes were frozen then (``FIXTURE``) and Rust must
+keep reproducing them. Execution revision 14 refuses the documented other
+cases (other argument, population or context types, call shapes that do not
+bind) with a ``TypeError`` of its own. The VM refuses calls above its work
+bounds (``interpreter::random_bounds``) before the host runs them;
+``vm_bound`` models that check for the generator.
 """
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import json
 import random
@@ -25,20 +21,13 @@ from pathlib import Path
 import pytest
 from xian_runtime_types.decimal import ContractingDecimal
 
-from contracting.execution.runtime import rt
-from contracting.stdlib.bridge import random as random_bridge
 
 pytestmark = pytest.mark.optional_native
 
 native = pytest.importorskip("xian_vm_core._native")
-NativeVmHost = pytest.importorskip("xian_vm_core").NativeVmHost
 
 SEQUENCE_LIMIT = 128 * 1024
 SEQUENCES = (list, tuple, str, bytes, bytearray)
-# The exception types whose category the VM keeps (python_bindings
-# `builtin_exception_name`).
-KEPT_TYPES = (AssertionError, TypeError, ValueError, RuntimeError, Exception, KeyError, IndexError)
-HANDED_BACK = object()
 # Rust's outcomes of each fuzz case (16-digit digest of the whole sequence,
 # outcome_digest), frozen where every served call matched the Python bridge
 # before it was deleted.
@@ -52,12 +41,6 @@ def outcome_digest(outcome) -> str:
 
 def frozen_outcomes() -> dict:
     return json.loads(FIXTURE.read_text())
-
-
-def _python_exception(error):
-    if type(error) in KEPT_TYPES:
-        return (type(error).__name__, list(error.args))
-    return None
 
 
 MISSING = object()
@@ -111,37 +94,6 @@ def vm_bound(syscall_id, args, kwargs):
         return args[position] if position < len(args) else kwargs.get(name, MISSING)
 
     return rule(value)
-
-
-def python_outcomes(context, calls):
-    """What the VM receives from the Python path for each call."""
-    previous = dict(rt.env)  # rt.env is a live proxy
-    rt.env = dict(context)
-    random_bridge.clear_random_state()
-    outcomes = []
-    try:
-        for syscall_id, args, kwargs in calls:
-            refused = vm_bound(syscall_id, args, kwargs)
-            if refused is not None:
-                outcomes.append(("raised", refused, None))
-                continue
-            try:
-                result = NativeVmHost.handle_syscall(
-                    None, syscall_id, copy.deepcopy(args), dict(kwargs)
-                )
-            except Exception as error:  # noqa: BLE001 - every raise is an outcome
-                outcomes.append(
-                    ("raised", f"{type(error).__qualname__}: {error}", _python_exception(error))
-                )
-                continue
-            try:
-                outcomes.append(("ok", native._vm_value_debug(result)))
-            except ValueError as refused:
-                outcomes.append(("raised", str(refused), None))
-    finally:
-        random_bridge.clear_random_state()
-        rt.env = previous
-    return outcomes
 
 
 class Calls:
@@ -329,12 +281,11 @@ def _case(seed: int):
 
 
 @pytest.mark.parametrize("block", range(8))
-def test_rust_random_syscalls_match_the_python_bridge(block):
+def test_rust_random_syscalls_reproduce_the_frozen_outcomes(block):
     served_calls = 0
     frozen = frozen_outcomes()["fuzz"]
     for seed in range(block * 100, block * 100 + 100):
         context, calls = _case(seed)
-        expected = python_outcomes(context, calls.calls)
         actual = native._random_syscalls_debug(context, calls.calls)
         assert outcome_digest(actual) == frozen[str(seed)], seed
         for index, outcome in enumerate(actual):
@@ -343,8 +294,6 @@ def test_rust_random_syscalls_match_the_python_bridge(block):
                 assert outcome[0] == "raised", (label, outcome)
                 assert outcome[2][0] == "TypeError", (label, outcome)
                 break
-            assert calls.served[index], (label, outcome)
-            assert outcome == expected[index], label
             served_calls += 1
         else:
             assert len(actual) == len(calls.calls)
@@ -360,8 +309,7 @@ def test_one_state_serves_the_whole_call_sequence():
         ("random.seed", [], {}),
         ("random.randint", [-(2**511), 2**511], {}),
     ]
-    expected = python_outcomes(context, calls)
-    assert native._random_syscalls_debug(context, calls) == expected
+    expected = native._random_syscalls_debug(context, calls)
     assert outcome_digest(expected) == frozen_outcomes()["one_state"]
     # Reseeding restarts the stream.
     again = native._random_syscalls_debug(context, calls[3:] + calls[3:])

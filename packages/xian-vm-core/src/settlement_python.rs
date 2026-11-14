@@ -1,14 +1,14 @@
-//! Python access to the Rust fee settlement and reward port: the node's
-//! reward computation over its own state, and debug hooks the differential
-//! tests drive with explicit inputs.
-use super::{py_to_vm, vm_to_py};
-use crate::block_state_python::PyBlockState;
-use crate::lmdb_python::{LmdbStorageError, PyLmdbEnvironment};
+//! Python access to the Rust fee rules: the chain chi rate check, and debug
+//! hooks the fee and reward corpus tests drive with explicit inputs.
+use super::{bigint_to_py, py_to_vm, vm_to_py};
+use crate::interpreter::numeric_v2;
+use crate::lmdb_python::LmdbStorageError;
 use crate::python_decimal::PyDecimal;
 use crate::settlement::{self, Balance, Paid, Settled, Stop};
-use crate::state_view::StateView;
-use crate::tx_rewards::{tx_reward_outputs, RewardRecord, RewardState, TxRewards};
-use crate::{VmDecimal, VmValue};
+use crate::tx_rewards::{
+    tx_reward_outputs, valid_chi_rate, RewardRecord, RewardState, TxRewards, CHI_RATE_KEY,
+};
+use crate::{VmDecimal, VmValue, XIAN_VM_V2_PROFILE};
 use num_bigint::BigInt;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -131,33 +131,20 @@ fn contract_costs(costs: Option<Bound<'_, PyDict>>) -> PyResult<Vec<(String, Big
     Ok(costs)
 }
 
-struct ViewState(StateView);
-
-impl RewardState for ViewState {
-    fn get(&mut self, key: &str) -> Settled<Option<VmValue>> {
-        self.0.get(key).map_err(Stop::Fault)
-    }
-}
-
-/// The fee rewards of a transaction over the node's state (block overlay,
-/// then LMDB).
+/// `value` as the chain's chi rate (`chi_cost.S:value`) by the rule the
+/// block executor applies: a positive integer whose fee arithmetic
+/// (`ContractingDecimal`) can represent it. Admission, genesis building and
+/// state patches use it; anything else raises `ValueError` naming the value.
 #[pyfunction]
-#[pyo3(signature = (environment, overlay, total_chi, contract, contract_costs=None, *, pay_developers=true))]
-pub(super) fn tx_rewards(
-    py: Python<'_>,
-    environment: PyRef<'_, PyLmdbEnvironment>,
-    overlay: PyRef<'_, PyBlockState>,
-    total_chi: Bound<'_, PyAny>,
-    contract: &str,
-    contract_costs: Option<Bound<'_, PyDict>>,
-    pay_developers: bool,
-) -> PyResult<Py<PyAny>> {
-    let total_chi = chi_arg(total_chi)?;
-    let costs = self::contract_costs(contract_costs)?;
-    let mut state = ViewState(StateView::new(environment.env().clone(), overlay.shared()));
-    let outcome =
-        py.detach(|| tx_reward_outputs(&mut state, &total_chi, contract, &costs, pay_developers));
-    settled_to_py(py, outcome, |py, outputs| rewards_to_py(py, &outputs))
+fn validated_chi_rate(py: Python<'_>, value: Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let _scope = numeric_v2::Scope::enter(XIAN_VM_V2_PROFILE);
+    match py_to_vm(value.clone()).ok().and_then(valid_chi_rate) {
+        Some(rate) => bigint_to_py(py, &rate),
+        None => Err(PyValueError::new_err(format!(
+            "chain state has no valid chi rate ({CHI_RATE_KEY} = {})",
+            value.repr()?
+        ))),
+    }
 }
 
 struct MapState(HashMap<String, VmValue>);
@@ -168,7 +155,8 @@ impl RewardState for MapState {
     }
 }
 
-/// `tx_rewards` over a `{key: value}` state, for differential tests.
+/// The fee rewards of a transaction over a `{key: value}` state (the block
+/// executor's reward computation), for the reward corpus tests.
 #[pyfunction]
 #[pyo3(signature = (state, total_chi, contract, contract_costs=None, *, pay_developers=true))]
 pub(super) fn _tx_rewards_debug(
@@ -304,7 +292,7 @@ pub(super) fn _fee_metered_debug(
 }
 
 pub(super) fn register(module: &Bound<'_, pyo3::types::PyModule>) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(tx_rewards, module)?)?;
+    module.add_function(wrap_pyfunction!(validated_chi_rate, module)?)?;
     module.add_function(wrap_pyfunction!(_tx_rewards_debug, module)?)?;
     module.add_function(wrap_pyfunction!(_fee_reserve_debug, module)?)?;
     module.add_function(wrap_pyfunction!(_fee_refund_debug, module)?)?;

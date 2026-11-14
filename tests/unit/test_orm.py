@@ -3,7 +3,6 @@ from unittest import TestCase
 from xian_runtime_types.decimal import ContractingDecimal
 
 from contracting import constants
-from contracting.execution.runtime import rt
 from contracting.storage.driver import Driver
 from contracting.storage.orm import (
     Datum,
@@ -870,15 +869,6 @@ class TestForeignHash(ORMTestCase):
 class TestLogEvent(ORMTestCase):
     def setUp(self):
         super().setUp()
-        self.base_state = rt.context._base_state.copy()
-        rt.context._base_state = {
-            "this": "test_contract",
-            "caller": "caller_1",
-            "owner": None,
-            "signer": "signer_1",
-            "entry": ("test_contract", "transfer"),
-            "submission_name": None,
-        }
         self.args = {
             "from": indexed(str),
             "to": indexed(str),
@@ -891,9 +881,6 @@ class TestLogEvent(ORMTestCase):
             name="transfer_event",
             driver=self.driver,
         )
-
-    def tearDown(self):
-        rt.context._base_state = self.base_state
 
     def test_log_event_accepts_clean_constructor(self):
         self.assertEqual(self.log_event._event, "Transfer")
@@ -1024,10 +1011,9 @@ class TestLogEvent(ORMTestCase):
                 driver=self.driver,
             )
 
-    def test_write_event_success_uses_emit_time_context(self):
-        rt.context._base_state["caller"] = "caller_2"
-        rt.context._base_state["signer"] = "signer_2"
-
+    def test_write_event_outside_execution_has_no_signer_or_caller(self):
+        # Contract events are emitted by the VM; this storage tool has no
+        # transaction context.
         self.log_event.write_event(
             {
                 "from": "Alice",
@@ -1039,8 +1025,8 @@ class TestLogEvent(ORMTestCase):
         emitted = self.driver.log_events[-1]
         self.assertEqual(emitted["contract"], "test_contract")
         self.assertEqual(emitted["event"], "Transfer")
-        self.assertEqual(emitted["signer"], "signer_2")
-        self.assertEqual(emitted["caller"], "caller_2")
+        self.assertIsNone(emitted["signer"])
+        self.assertIsNone(emitted["caller"])
         self.assertEqual(emitted["data_indexed"], {"from": "Alice", "to": "Bob"})
         self.assertEqual(emitted["data"], {"amount": 100})
 

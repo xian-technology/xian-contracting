@@ -146,7 +146,7 @@ def test_identifier_uses_historical_unicode_15(tmp_path):
 
 @pytest.mark.parametrize("bound", [False, True])
 def test_expansion_work_is_charged_before_allocation_and_rolls_back(tmp_path, bound):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     from contracting.storage.driver import Driver
 
@@ -192,7 +192,7 @@ def test_large_custom_strip_membership_is_shared_by_all_variants(tmp_path):
 
 @pytest.mark.parametrize("bound", [False, True])
 def test_custom_strip_work_is_charged_and_rolls_back(tmp_path, bound):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     from contracting.storage.driver import Driver
 

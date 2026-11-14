@@ -97,11 +97,10 @@ def require_native_engine(engine):
 
 def invoke(driver, step, engine):
     require_native_engine(engine)
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     result = execute_contract(
         driver=driver,
-        vm_profile="xian_vm_v1",
         contract_name=step["contract"],
         function_name=step["function"],
         kwargs=arguments(step.get("kwargs", {})),

@@ -11,7 +11,7 @@ pytestmark = pytest.mark.optional_native
 
 
 def execute_canonical(home, source, kwargs):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     name = "con_string_probe"
     artifact = compile_contract_source(module_name=name, source=source)

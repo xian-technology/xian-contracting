@@ -29,7 +29,7 @@ def probe():
     with Driver(storage_home=tmp_path, vm_profile="xian_vm_v2") as driver:
         driver.set_contract_from_source("con_self_subject", source, owner="alice")
         driver.commit()
-        from xian_vm_core import execute_contract
+        from tests.vm_calls import execute_contract
 
         output = execute_contract(
             driver=driver,

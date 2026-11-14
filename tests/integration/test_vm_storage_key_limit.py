@@ -2,13 +2,13 @@
 
 V2 admission (xian-admission-3) rejects a storage binding whose key could
 not fit under the longest contract name, and V2 fails the transaction at the
-write that forms a longer key. Archival V1 admission and execution are
-unchanged; the driver refuses to stage such a key in every profile, so it can
-never reach a commit.
+write that forms a longer key. The driver refuses to stage such a key, so it
+can never reach a commit.
 """
 
 import pytest
-from xian_vm_core import MAX_STORAGE_KEY_BYTES, execute_contract
+from xian_vm_core import MAX_STORAGE_KEY_BYTES
+from tests.vm_calls import execute_contract
 
 from contracting.artifacts import compile_contract_source
 from contracting.local import ContractingClient
@@ -20,8 +20,6 @@ CONTRACT = "con_keys"
 # "con_keys.data:" is 14 bytes; every write below forms a 512-byte key except
 # largest_key, which forms exactly 511.
 TARGET = "t" * 102
-# Only archival V1 admits a binding this long.
-LONG_VARIABLE = "v" * 503
 SOURCE = (
     f"data = Hash(default_value=0)\n{TARGET} = Hash()\n\n"
     "@export\ndef hash_key():\n    data['x' * 498] = 1\n"
@@ -31,10 +29,6 @@ SOURCE = (
     f"@export\ndef clone_key():\n    data['k' * 400] = 1\n    {TARGET}.clone_from(data)\n"
     "@export\ndef largest_key():\n    data['x' * 497] = 1\n"
     "@export\ndef read(size: int):\n    return data['r' * size]\n"
-)
-V1_SOURCE = (
-    f"{SOURCE}{LONG_VARIABLE} = Variable()\n"
-    f"@export\ndef variable_key():\n    {LONG_VARIABLE}.set(1)\n"
 )
 OVER_LONG = ["hash_key", "mutate_key", "utf8_key", "multi_key", "clone_key"]
 LARGEST_KEY = f"{CONTRACT}.data:{'x' * 497}"
@@ -48,8 +42,7 @@ def test_the_limit_is_lmdbs_largest_key():
 @pytest.fixture
 def driver(tmp_path, profile):
     with Driver(storage_home=tmp_path / "state", vm_profile=profile) as driver:
-        source = V1_SOURCE if profile == "xian_vm_v1" else SOURCE
-        compiled = compile_contract_source(module_name=CONTRACT, source=source, vm_profile=profile)
+        compiled = compile_contract_source(module_name=CONTRACT, source=SOURCE, vm_profile=profile)
         driver.set_contract(
             name=CONTRACT, source=compiled["source"], vm_ir_json=compiled["vm_ir_json"]
         )
@@ -64,7 +57,6 @@ def execute(driver, function, **kwargs):
         function_name=function,
         kwargs=kwargs,
         context={"caller": "alice", "signer": "alice"},
-        vm_profile=driver.vm_profile,
     )
 
 
@@ -97,9 +89,6 @@ def test_v2_stores_and_commits_the_largest_key(driver):
         # key is too long but whose hash key fits finds nothing.
         ("xian_vm_v2", 511, None),
         ("xian_vm_v2", 512, "Key is too long (512). Max is 511."),
-        # Archival V1 keeps its 1024-character hash key bound.
-        ("xian_vm_v1", 1024, None),
-        ("xian_vm_v1", 1025, "Key is too long (1025). Max is 1024."),
     ],
 )
 def test_hash_key_bound_on_reads(driver, size, error):
@@ -112,18 +101,11 @@ def test_hash_key_bound_on_reads(driver, size, error):
         assert error in str(result.result)
 
 
-@pytest.mark.parametrize("profile", ["xian_vm_v1"])
-@pytest.mark.parametrize("function", [*OVER_LONG, "variable_key"])
-def test_archival_v1_execution_is_unchanged_but_the_key_is_never_staged(driver, function):
-    result = execute(driver, function)
-
-    assert result.status_code == 0
-    over_long = [key for key in result.writes if len(key.encode()) > MAX_STORAGE_KEY_BYTES]
-    assert over_long
+@pytest.mark.parametrize("profile", ["xian_vm_v2"])
+def test_the_driver_never_stages_an_over_long_key(driver):
     with pytest.raises(ValueError, match=LIMIT_ERROR.replace("(", r"\(").replace(")", r"\)")):
-        driver.apply_writes(result.writes)
+        driver.apply_writes({f"{CONTRACT}.data:{'x' * 498}": 1})
     assert not any(key.startswith(f"{CONTRACT}.") for key, _ in driver.pending_items())
-    driver.commit()
 
 
 def test_v2_deployment_fails_when_its_constructor_forms_an_over_long_key(tmp_path):

@@ -20,9 +20,9 @@ def _case(body, dependencies=()):
     }
 
 
-def _compare(tmp_path, body, dependencies=(), *, vm_profile="xian_vm_v2"):
+def _compare(tmp_path, body, dependencies=()):
     case = _case(body, dependencies)
-    _compare_case(tmp_path, case | {"vm_profile": vm_profile})
+    _compare_case(tmp_path, case | {"vm_profile": "xian_vm_v2"})
 
 
 def _compare_case(tmp_path, case):
@@ -143,20 +143,6 @@ def test_nested_builtin_set_equality_and_explicit_conversion(tmp_path):
     )
 
 
-def test_nan_membership_and_copy_preserve_distinct_objects(tmp_path):
-    _compare(
-        tmp_path,
-        "first=float('nan')\nsecond=float('nan')\nthird=float('nan')\n"
-        "values={first:1,second:2}.keys()|[]\ncopy=values.copy()\n"
-        "values.add(first)\nvalues.discard(third)\n"
-        "return [len(values),len(copy),first in values,second in copy,third in values,"
-        "copy==values,copy is values,isinstance(copy,set),"
-        "len(values.intersection(copy)),len(values.difference(copy)),"
-        "len(values.symmetric_difference(copy))]",
-        vm_profile="xian_vm_v1",
-    )
-
-
 def test_builtin_kind_and_shared_mutation_survive_cross_contract_calls(tmp_path):
     dependency = {
         "name": "con_set_kind_target",
@@ -186,7 +172,7 @@ def test_builtin_kind_and_shared_mutation_survive_cross_contract_calls(tmp_path)
     ],
 )
 def test_builtin_sets_require_explicit_conversion_at_external_boundaries(tmp_path, boundary):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     from contracting.storage.driver import Driver
 

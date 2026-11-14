@@ -1,9 +1,6 @@
-use crate::bundle_executor::{BundleExecutor, ExecutionOutcome, HostServices};
 use crate::interpreter::numeric_v2;
 #[path = "block_executor_python.rs"]
 mod block_executor_python;
-#[path = "committed_reads.rs"]
-mod committed_reads;
 #[path = "random_python.rs"]
 mod random_python;
 #[path = "settlement_python.rs"]
@@ -18,10 +15,9 @@ mod transaction_inputs_python;
 mod zk_python;
 use crate::XIAN_VM_V2_PROFILE;
 use crate::{
-    parse_module_ir, VmDateTime, VmDecimal, VmExecutionContext, VmExecutionError, VmMeterConfig,
-    VmTimeDelta, VmValue, XIAN_IR_V1, XIAN_VM_EXECUTION_REVISION, XIAN_VM_HOST_CATALOG_V1,
-    XIAN_VM_SET_CODEC, XIAN_VM_SUPPORTED_BYTECODE_VERSIONS, XIAN_VM_SUPPORTED_GAS_SCHEDULES,
-    XIAN_VM_V1_EXECUTION_REVISION, XIAN_VM_V1_PROFILE,
+    parse_module_ir, VmDateTime, VmDecimal, VmExecutionContext, VmExecutionError, VmTimeDelta,
+    VmValue, XIAN_IR_V1, XIAN_VM_EXECUTION_REVISION, XIAN_VM_HOST_CATALOG_V1, XIAN_VM_SET_CODEC,
+    XIAN_VM_SUPPORTED_BYTECODE_VERSIONS, XIAN_VM_SUPPORTED_GAS_SCHEDULES,
 };
 use num_bigint::BigInt;
 use pyo3::create_exception;
@@ -29,261 +25,14 @@ use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyByteArray, PyBytes, PyDict, PyList, PyModule, PyTuple};
 use serde_json::json;
-use std::collections::BTreeMap;
 use std::str::FromStr;
 
 create_exception!(xian_vm_core, VmIrValidationError, PyValueError);
 create_exception!(xian_vm_core, VmRuntimeExecutionError, PyValueError);
 
-#[pyclass(name = "_TransactionBudget")]
-struct PyTransactionBudget {
-    budget: crate::VmBudget,
-}
-
-#[pymethods]
-impl PyTransactionBudget {
-    #[new]
-    #[pyo3(signature = (chi_budget_raw, vm_profile = XIAN_VM_V2_PROFILE))]
-    fn new(chi_budget_raw: u64, vm_profile: &str) -> Self {
-        Self {
-            budget: crate::VmBudget::new(chi_budget_raw, vm_profile),
-        }
-    }
-
-    #[getter]
-    fn limit(&self) -> u64 {
-        self.budget.limit()
-    }
-
-    fn charge(&self, raw_cost: u64) -> PyResult<()> {
-        self.budget
-            .charge(raw_cost)
-            .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))
-    }
-}
-/// The Python host (`NativeVmHost`) of `execute_bundle`, reading committed
-/// V2 state in Rust when it offers it.
-struct PythonHost {
-    host: Py<PyAny>,
-    committed: Option<committed_reads::CommittedState>,
-}
-
-impl HostServices for PythonHost {
-    fn module_ir_json(&mut self, module: &str) -> Result<Option<String>, VmExecutionError> {
-        Python::attach(|py| -> PyResult<Option<String>> {
-            let response = self
-                .host
-                .bind(py)
-                .call_method1("load_module_ir_json", (module,))?;
-            if response.is_none() {
-                Ok(None)
-            } else {
-                response.extract::<Option<String>>()
-            }
-        })
-        .map_err(host_error)
-    }
-
-    fn read_variable(
-        &mut self,
-        contract: &str,
-        binding: &str,
-        storage_key: &str,
-    ) -> Result<Option<VmValue>, VmExecutionError> {
-        if let Some(committed) = self.committed.as_mut() {
-            if let Some(value) = committed.read(storage_key)? {
-                // The host reports a stored null as a missing variable.
-                return Ok(value.filter(|value| !matches!(value, VmValue::None)));
-            }
-        }
-        Python::attach(|py| -> Result<Option<VmValue>, VmExecutionError> {
-            let response = self
-                .host
-                .bind(py)
-                .call_method1("read_variable", (contract, binding))
-                .map_err(host_error)?;
-            py_optional_to_vm(response)
-        })
-    }
-
-    fn read_hash(
-        &mut self,
-        contract: &str,
-        binding: &str,
-        key: &VmValue,
-        storage_key: &str,
-    ) -> Result<VmValue, VmExecutionError> {
-        if let Some(committed) = self.committed.as_mut() {
-            if let Some(value) = committed.read(storage_key)? {
-                // Driver reads are authoritative, including missing keys.
-                return Ok(value.unwrap_or(VmValue::None));
-            }
-        }
-        Python::attach(|py| -> Result<VmValue, VmExecutionError> {
-            let key_py = vm_to_py(py, key).map_err(host_error)?;
-            let response = self
-                .host
-                .bind(py)
-                .call_method1("read_hash", (contract, binding, key_py))
-                .map_err(host_error)?;
-            // Driver reads are authoritative, including missing/deleted keys.
-            py_to_vm(response)
-        })
-    }
-
-    fn scan_hash_entries(
-        &mut self,
-        contract: &str,
-        binding: &str,
-        prefix: &str,
-    ) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
-        Python::attach(|py| -> Result<Vec<(String, VmValue)>, VmExecutionError> {
-            let response = self
-                .host
-                .bind(py)
-                .call_method1("scan_hash_entries", (contract, binding, prefix))
-                .map_err(host_error)?;
-            py_hash_entries_to_vm(response)
-        })
-    }
-
-    fn visit_hash_entries(
-        &mut self,
-        contract: &str,
-        binding: &str,
-        prefix: &str,
-        visit: &mut dyn FnMut(String, VmValue) -> Result<(), VmExecutionError>,
-    ) -> Result<(), VmExecutionError> {
-        Python::attach(|py| {
-            let host = self.host.bind(py);
-            let streaming = host.hasattr("iter_hash_entries").map_err(host_error)?;
-            let response = host
-                .call_method1(
-                    if streaming {
-                        "iter_hash_entries"
-                    } else {
-                        "scan_hash_entries"
-                    },
-                    (contract, binding, prefix),
-                )
-                .map_err(host_error)?;
-            if streaming {
-                for item in response.try_iter().map_err(host_error)? {
-                    let (suffix, value) = py_hash_entry_to_vm(item.map_err(host_error)?)?;
-                    visit(suffix, value)?;
-                }
-                return Ok(());
-            }
-            // Compatibility for trusted embedded hosts. The production host
-            // always supplies the lazy ordered iterator above.
-            let mut entries = py_hash_entries_to_vm(response)?;
-            entries.sort_by(|a, b| a.0.cmp(&b.0));
-            for (suffix, value) in entries {
-                visit(suffix, value)?;
-            }
-            Ok(())
-        })
-    }
-
-    fn owner(&mut self, contract: &str) -> Result<Option<String>, VmExecutionError> {
-        Python::attach(|py| -> Result<Option<String>, VmExecutionError> {
-            let response = self
-                .host
-                .bind(py)
-                .call_method1("get_owner", (contract,))
-                .map_err(host_error)?;
-            if response.is_none() {
-                Ok(None)
-            } else {
-                response.extract::<Option<String>>().map_err(host_error)
-            }
-        })
-    }
-
-    fn syscall(
-        &mut self,
-        syscall_id: &str,
-        args: Vec<VmValue>,
-        kwargs: Vec<(String, VmValue)>,
-    ) -> Result<VmValue, VmExecutionError> {
-        Python::attach(|py| -> Result<VmValue, VmExecutionError> {
-            let host = self.host.bind(py);
-            let py_args = PyList::empty(py);
-            for value in &args {
-                py_args
-                    .append(vm_to_py(py, value).map_err(host_error)?)
-                    .map_err(host_error)?;
-            }
-            let py_kwargs = PyDict::new(py);
-            for (key, value) in &kwargs {
-                py_kwargs
-                    .set_item(key, vm_to_py(py, value).map_err(host_error)?)
-                    .map_err(host_error)?;
-            }
-            let response = host
-                .call_method1("handle_syscall", (syscall_id, py_args, py_kwargs))
-                .map_err(host_error)?;
-            py_to_vm(response)
-        })
-    }
-}
-
-/// Python exception types whose host failures keep their category. Subclasses
-/// (such as `VmRuntimeExecutionError`) remain opaque runtime errors.
-fn builtin_exception_name(py: Python<'_>, error: &PyErr) -> Option<&'static str> {
-    use pyo3::exceptions::{
-        PyAssertionError, PyException, PyIndexError, PyKeyError, PyRuntimeError,
-    };
-    let kind = error.get_type(py);
-    [
-        (py.get_type::<PyAssertionError>(), "AssertionError"),
-        (py.get_type::<PyTypeError>(), "TypeError"),
-        (py.get_type::<PyValueError>(), "ValueError"),
-        (py.get_type::<PyRuntimeError>(), "RuntimeError"),
-        (py.get_type::<PyException>(), "Exception"),
-        (py.get_type::<PyKeyError>(), "KeyError"),
-        (py.get_type::<PyIndexError>(), "IndexError"),
-    ]
-    .into_iter()
-    .find_map(|(candidate, name)| kind.is(&candidate).then_some(name))
-}
-
-fn python_exception_args(arguments: Bound<'_, PyAny>) -> Option<Vec<VmValue>> {
-    let arguments = arguments.cast_into::<PyTuple>().ok()?;
-    arguments.iter().map(|item| py_to_vm(item).ok()).collect()
-}
-
-/// Convert a host failure, keeping its exception type and arguments. A failed
-/// nested execution carries its structured exception in `__xian_exception__`.
+/// A Python error met while converting a value at the boundary.
 fn host_error(error: PyErr) -> VmExecutionError {
-    let failure = VmExecutionError::new(error.to_string());
-    Python::attach(|py| {
-        let value = error.value(py);
-        if let Ok(carried) = value.getattr("__xian_exception__") {
-            if let Ok((name, arguments)) = carried.extract::<(String, Bound<'_, PyAny>)>() {
-                let arguments = arguments
-                    .cast_into::<PyList>()
-                    .ok()
-                    .and_then(|items| items.iter().map(|item| py_to_vm(item).ok()).collect());
-                if let Some(args) = arguments {
-                    return failure.with_exception(crate::VmException { name, args });
-                }
-            }
-            return failure;
-        }
-        let Some(name) = builtin_exception_name(py, &error) else {
-            return failure;
-        };
-        let args = value
-            .getattr("args")
-            .ok()
-            .and_then(python_exception_args)
-            .unwrap_or_else(|| vec![VmValue::String(value.to_string())]);
-        failure.with_exception(crate::VmException {
-            name: name.to_owned(),
-            args,
-        })
-    })
+    VmExecutionError::new(error.to_string())
 }
 
 /// `(type name, [arguments])` for a structured failure. An argument that cannot
@@ -303,42 +52,6 @@ fn exception_to_py(py: Python<'_>, exception: Option<&crate::VmException>) -> Py
         .into_pyobject(py)?
         .into_any()
         .unbind())
-}
-
-fn py_optional_to_vm(value: Bound<'_, PyAny>) -> Result<Option<VmValue>, VmExecutionError> {
-    if value.is_none() {
-        Ok(None)
-    } else {
-        py_to_vm(value).map(Some)
-    }
-}
-
-fn py_hash_entry_to_vm(item: Bound<'_, PyAny>) -> Result<(String, VmValue), VmExecutionError> {
-    let pair = item
-        .cast::<PyTuple>()
-        .map_err(|_| VmExecutionError::new("hash entry must be a tuple"))?;
-    if pair.len() != 2 {
-        return Err(VmExecutionError::new(
-            "hash entry tuples must contain key and value",
-        ));
-    }
-    let key = pair
-        .get_item(0)
-        .map_err(host_error)?
-        .extract::<String>()
-        .map_err(host_error)?;
-    let value = pair.get_item(1).map_err(host_error)?;
-    Ok((key, py_to_vm(value)?))
-}
-
-fn py_hash_entries_to_vm(
-    value: Bound<'_, PyAny>,
-) -> Result<Vec<(String, VmValue)>, VmExecutionError> {
-    value
-        .try_iter()
-        .map_err(host_error)?
-        .map(|item| py_hash_entry_to_vm(item.map_err(host_error)?))
-        .collect()
 }
 
 pub(crate) fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
@@ -794,67 +507,6 @@ fn event_to_py<'py>(py: Python<'py>, event: &crate::VmEvent) -> PyResult<Bound<'
     Ok(event_dict)
 }
 
-fn execution_result_to_py(py: Python<'_>, result: ExecutionOutcome) -> PyResult<Py<PyAny>> {
-    let payload = PyDict::new(py);
-    payload.set_item("status_code", result.status_code)?;
-    payload.set_item("result", vm_to_py(py, &result.result)?)?;
-    payload.set_item("exception", exception_to_py(py, result.exception.as_ref())?)?;
-
-    let snapshots = PyList::empty(py);
-    for snapshot in result.snapshots {
-        let snapshot_dict = PyDict::new(py);
-        snapshot_dict.set_item("contract_name", snapshot.contract_name)?;
-        let variables = PyList::empty(py);
-        for variable in snapshot.variables {
-            let item = PyDict::new(py);
-            item.set_item("binding", variable.binding)?;
-            item.set_item("default_value", vm_to_py(py, &variable.default_value)?)?;
-            if let Some(value) = variable.value {
-                item.set_item("value", vm_to_py(py, &value)?)?;
-            } else {
-                item.set_item("value", py.None())?;
-            }
-            variables.append(item)?;
-        }
-        let hashes = PyList::empty(py);
-        for hash in snapshot.hashes {
-            let item = PyDict::new(py);
-            item.set_item("binding", hash.binding)?;
-            item.set_item("default_value", vm_to_py(py, &hash.default_value)?)?;
-            let entries = PyDict::new(py);
-            for (key, value) in hash.entries {
-                entries.set_item(key, vm_to_py(py, &value)?)?;
-            }
-            item.set_item("entries", entries)?;
-            hashes.append(item)?;
-        }
-        snapshot_dict.set_item("variables", variables)?;
-        snapshot_dict.set_item("hashes", hashes)?;
-        snapshots.append(snapshot_dict)?;
-    }
-    payload.set_item("snapshots", snapshots)?;
-
-    let storage_writes = PyDict::new(py);
-    for (key, value) in result.storage_writes {
-        storage_writes.set_item(key, vm_to_py(py, &value)?)?;
-    }
-    payload.set_item("storage_writes", storage_writes)?;
-
-    let events = PyList::empty(py);
-    for event in &result.events {
-        events.append(event_to_py(py, event)?)?;
-    }
-    payload.set_item("events", events)?;
-    payload.set_item("raw_cost", result.stats.raw_cost)?;
-    payload.set_item("chi_used", result.stats.chi_used)?;
-    let contract_costs = PyDict::new(py);
-    for (contract, cost) in result.stats.contract_costs {
-        contract_costs.set_item(contract, cost)?;
-    }
-    payload.set_item("contract_costs", contract_costs)?;
-    Ok(payload.into_any().unbind())
-}
-
 struct ProfilePolicy {
     bytecode: &'static [&'static str],
     gas: &'static [&'static str],
@@ -867,11 +519,6 @@ fn profile_policy(vm_profile: &str) -> Option<ProfilePolicy> {
             bytecode: XIAN_VM_SUPPORTED_BYTECODE_VERSIONS,
             gas: XIAN_VM_SUPPORTED_GAS_SCHEDULES,
             revision: XIAN_VM_EXECUTION_REVISION,
-        }),
-        XIAN_VM_V1_PROFILE => Some(ProfilePolicy {
-            bytecode: &["xvm-1"],
-            gas: &["xvm-gas-2"],
-            revision: XIAN_VM_V1_EXECUTION_REVISION,
         }),
         _ => None,
     }
@@ -976,91 +623,8 @@ fn validate_deployment_artifacts_json(
     Ok(payload.into_any().unbind())
 }
 
-#[pyfunction(signature=(
-    bundle,
-    entry_module,
-    function_name,
-    args,
-    kwargs,
-    context,
-    host,
-    *,
-    meter=false,
-    chi_budget_raw=0,
-    transaction_size_bytes=0,
-    budget=None,
-    vm_profile="xian_vm_v2"
-))]
-fn execute_bundle(
-    py: Python<'_>,
-    bundle: BTreeMap<String, String>,
-    entry_module: &str,
-    function_name: &str,
-    args: Py<PyAny>,
-    kwargs: Py<PyAny>,
-    context: Py<PyAny>,
-    host: Py<PyAny>,
-    meter: bool,
-    chi_budget_raw: u64,
-    transaction_size_bytes: usize,
-    budget: Option<PyRef<'_, PyTransactionBudget>>,
-    vm_profile: &str,
-) -> PyResult<Py<PyAny>> {
-    if !matches!(vm_profile, XIAN_VM_V1_PROFILE | XIAN_VM_V2_PROFILE) {
-        return Err(PyValueError::new_err("unknown VM profile"));
-    }
-    let _scope = numeric_v2::Scope::enter(vm_profile);
-    let args = args.bind(py);
-    let kwargs = kwargs.bind(py);
-    let context = context.bind(py);
-    let args = args
-        .cast::<PyList>()
-        .map_err(|error| PyTypeError::new_err(error.to_string()))?
-        .iter()
-        .map(py_to_vm)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?;
-    let kwargs_dict = kwargs
-        .cast::<PyDict>()
-        .map_err(|error| PyTypeError::new_err(error.to_string()))?;
-    let mut converted_kwargs = Vec::new();
-    for (key, value) in kwargs_dict.iter() {
-        converted_kwargs.push((
-            key.extract::<String>()
-                .map_err(|error| PyTypeError::new_err(error.to_string()))?,
-            py_to_vm(value).map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?,
-        ));
-    }
-    let context = context_from_py(context)
-        .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?;
-    let committed = if vm_profile == XIAN_VM_V2_PROFILE {
-        committed_reads::CommittedState::from_host(host.bind(py))?
-    } else {
-        None
-    };
-    let mut executor = BundleExecutor::new(
-        PythonHost { host, committed },
-        bundle,
-        VmMeterConfig {
-            enabled: meter,
-            chi_budget_raw,
-            transaction_size_bytes,
-        },
-        budget.map(|shared| shared.budget.clone()),
-        vm_profile,
-    )
-    .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?;
-    let result =
-        executor.execute_entry(entry_module, function_name, args, converted_kwargs, context);
-    if let Some(committed) = executor.host.committed.take() {
-        committed.finish()?;
-    }
-    execution_result_to_py(py, result)
-}
-
 #[pymodule]
 fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_class::<PyTransactionBudget>()?;
     module.add("VmIrValidationError", py.get_type::<VmIrValidationError>())?;
     module.add(
         "VmRuntimeExecutionError",
@@ -1073,7 +637,6 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
         validate_deployment_artifacts_json,
         module
     )?)?;
-    module.add_function(wrap_pyfunction!(execute_bundle, module)?)?;
     module.add_function(wrap_pyfunction!(_stored_value_debug, module)?)?;
     module.add_function(wrap_pyfunction!(_vm_value_debug, module)?)?;
     module.add_function(wrap_pyfunction!(_stored_value_encode_debug, module)?)?;

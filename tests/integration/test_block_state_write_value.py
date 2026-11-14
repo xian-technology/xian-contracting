@@ -164,3 +164,21 @@ def test_the_v2_driver_stages_the_bytes_python_encodes(tmp_path):
         with pytest.raises(ValueError):
             driver.apply_writes({"con_x.e": 1, "con_x.f": 1.5})
         assert [key for key, _ in driver.pending_stored_items()] == sorted(written)
+
+
+@pytest.mark.parametrize("value", CASES, ids=range(len(CASES)))
+def test_stored_value_bytes_are_the_bytes_write_value_stages(value):
+    # Tooling outside execution (state roots over values) hashes these.
+    from xian_vm_core import stored_value_bytes
+
+    try:
+        stored = stored_value_bytes(value)
+    except ValueError:
+        stored = REFUSED
+    assert stored == rust_writes(value)
+
+
+def test_stored_value_bytes_of_none_is_a_deletion():
+    from xian_vm_core import stored_value_bytes
+
+    assert stored_value_bytes(None) is None

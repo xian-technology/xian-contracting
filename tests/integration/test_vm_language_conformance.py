@@ -98,24 +98,24 @@ def _deploy_case_contracts(driver: Driver, case: dict, contract_name: str) -> No
     driver.commit()
 
 
-def _run_native_case(case: dict, storage_home: Path, *, vm_profile=None) -> dict:
-    import xian_vm_core
+def _run_native_case(case: dict, storage_home: Path) -> dict:
+    from tests.vm_calls import execute_contract
 
-    vm_profile = vm_profile or case.get("vm_profile", "xian_vm_v2")
-    driver = Driver(storage_home=storage_home, vm_profile=vm_profile)
+    # Current code executes V2 only; V1 contracts replay on their pinned release.
+    assert case.get("vm_profile", "xian_vm_v2") == "xian_vm_v2", case["id"]
     contract_name = f"conformance_{case['id']}"
-    driver.flush_full()
-    _deploy_case_contracts(driver, case, contract_name)
-    context = _execution_context(contract_name, case["function_name"], "alice")
-    output = xian_vm_core.execute_contract(
-        vm_profile=vm_profile,
-        driver=driver,
-        contract_name=contract_name,
-        function_name=case["function_name"],
-        kwargs=dict(case["kwargs"]),
-        context=context,
-        meter=False,
-    )
+    with Driver(storage_home=storage_home, vm_profile="xian_vm_v2") as driver:
+        driver.flush_full()
+        _deploy_case_contracts(driver, case, contract_name)
+        context = _execution_context(contract_name, case["function_name"], "alice")
+        output = execute_contract(
+            driver=driver,
+            contract_name=contract_name,
+            function_name=case["function_name"],
+            kwargs=dict(case["kwargs"]),
+            context=context,
+            meter=False,
+        )
     return {
         "status_code": output.status_code,
         "result": _normalize(output.result),
@@ -124,101 +124,45 @@ def _run_native_case(case: dict, storage_home: Path, *, vm_profile=None) -> dict
     }
 
 
+def compare(tmp_path: Path, body: str) -> None:
+    """``body`` as a function returns what the pre-retirement Python engine
+    recorded for it."""
+    from tests.integration.pre_retirement_oracle import recorded_python_observation
+
+    case = {
+        "id": "raw_decimal",
+        "source": "@export\ndef probe():\n"
+        + "".join("    " + line + "\n" for line in body.splitlines()),
+        "function_name": "probe",
+        "kwargs": {},
+    }
+    expected = recorded_python_observation(case)
+    assert expected["status_code"] == 0, expected
+    assert _run_native_case(case, tmp_path / "native") == expected
+
+
+# These archived sources use float annotations, round or decimal exponentiation:
+# V1 contracts, which current code no longer executes.
+V1_ONLY_CASES = {
+    "subscripted_export_typecheck",
+    "builtin_scalar_helpers",
+    "decimal_scaled_integer_edges",
+    "authored_reward_change_flow",
+}
+
+
 @pytest.mark.parametrize(
     "case",
-    [pytest.param(case, id=case["id"]) for case in CONTRACT_LANGUAGE_CONFORMANCE_CASES],
+    [
+        pytest.param(case, id=case["id"])
+        for case in CONTRACT_LANGUAGE_CONFORMANCE_CASES
+        if case["id"] not in V1_ONLY_CASES
+    ],
 )
 def test_native_vm_matches_pre_retirement_conformance_observations(tmp_path: Path, case: dict):
     python_output = recorded_python_observation(case)
-    # These archived sources use float annotations, round or decimal exponentiation.
-    legacy = {
-        "subscripted_export_typecheck",
-        "builtin_scalar_helpers",
-        "decimal_scaled_integer_edges",
-        "authored_reward_change_flow",
-    }
-    profile = "xian_vm_v1" if case["id"] in legacy else "xian_vm_v2"
-    native_output = _run_native_case(case, tmp_path / "native", vm_profile=profile)
+    native_output = _run_native_case(case, tmp_path / "native")
 
     assert native_output == python_output, case["description"]
 
 
-DECIMAL_REJECTION_SOURCE = """
-@export
-def arbitrary_fractional_pow():
-    return decimal("9") ** decimal("0.3")
-
-@export
-def huge_positive_exponent():
-    return decimal("1e1000000")
-""".strip()
-
-
-TYPECHECK_REJECTION_SOURCE = """
-@export(typecheck=True)
-def summarize(items: list[int], metadata: dict[str, list[int]]) -> int:
-    return len(items) + len(metadata['counts'])
-
-@export(typecheck=True)
-def label(limit: float) -> str:
-    return 123
-""".strip()
-
-
-@pytest.mark.parametrize(
-    ("function_name", "expected_native_result"),
-    [
-        ("arbitrary_fractional_pow", "unsupported decimal exponent 0.3"),
-        (
-            "huge_positive_exponent",
-            "decimal value 1e1000000 exceeds the supported decimal range",
-        ),
-    ],
-)
-def test_native_vm_rejects_archived_decimal_edge_cases(
-    tmp_path: Path, function_name: str, expected_native_result: str
-):
-    case = {
-        "id": f"decimal_reject_{function_name}",
-        "description": f"Both engines reject decimal edge case {function_name}.",
-        "source": DECIMAL_REJECTION_SOURCE,
-        "function_name": function_name,
-        "kwargs": {},
-    }
-    python_output = recorded_python_observation(case)
-    native_output = _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1")
-
-    assert python_output["status_code"] == 1
-    assert native_output["status_code"] == 1
-    assert native_output["result"] == expected_native_result
-    assert native_output["writes"] == python_output["writes"] == {}
-    assert native_output["events"] == python_output["events"] == []
-
-
-@pytest.mark.parametrize(
-    ("function_name", "kwargs"),
-    [
-        (
-            "summarize",
-            {
-                "items": [1, 2],
-                "metadata": {"counts": [1, "2"]},
-            },
-        ),
-        ("label", {"limit": 1}),
-    ],
-)
-def test_native_vm_matches_pre_retirement_typecheck_rejections(
-    tmp_path: Path, function_name: str, kwargs: dict
-):
-    case = {
-        "id": f"typecheck_reject_{function_name}",
-        "description": f"Both engines reject typecheck mismatch {function_name}.",
-        "source": TYPECHECK_REJECTION_SOURCE,
-        "function_name": function_name,
-        "kwargs": kwargs,
-    }
-    python_output = recorded_python_observation(case)
-    native_output = _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1")
-
-    assert native_output == python_output

@@ -20,14 +20,16 @@ object and cached dependencies or network access. It never changes the working
 checkout or uses today's compiler to admit the historical source. Review
 snapshot changes; do not regenerate them from the current runtime. The snapshot
 records the revision, Python version, lock digest, corpus digest and observer
-digest. `historical/` retains the exact provenance-bound observers; the maintained
-`runner.py` executes native V1 only. Historical capture never uses the installed
+digest. `historical/` retains the exact provenance-bound observers. Current code
+no longer executes V1 (single-engine plan, decision 6): the corpus, baselines and
+observers stay for provenance, and their execution replays on the pinned release;
+the maintained `runner.py` runs the V2 surface matrix. Historical capture never uses the installed
 current package or the native observer to generate its oracle. Temporary environments are removed when capture completes.
 
-Run current compatibility checks with the native extension installed:
+The provenance checks run with the suite:
 
 ```sh
-uv run pytest -m optional_native tests/integration/test_vm_legacy_compatibility.py
+uv run pytest tests/integration/test_vm_legacy_compatibility.py
 ```
 
 Each case first checks admission separately, then compares success/failure,
@@ -116,8 +118,8 @@ zeros retain the first inserted representation. All NaN signs and payloads share
 one final sort key, so distinct NaNs preserve their insertion order while a
 repeated object deduplicates. Tuple and frozen-set keys apply this recursively.
 This is an explicit deterministic policy, not historical Python set iteration
-order. `tests/integration/test_vm_float_sets.py` checks authored native programs; Rust tests include binary64 boundaries and seeded bit
-patterns. Ordinary numeric equality remains independent of canonical sort keys.
+order (V1 only; Rust tests include binary64 boundaries and seeded bit
+patterns). Ordinary numeric equality remains independent of canonical sort keys.
 
 Resource limits are intentional: input text is at most 128 KiB, coefficient
 length and raw exponent magnitude are bounded at 131072, and transcendental
@@ -145,13 +147,10 @@ byte-pinned sources from `xian-contracts@45d1334ac4de44c67afc46b68b435dca7d71128
 Its real pre-VM oracle is the same runtime revision and Python version documented
 above. These sequences are newly authored tests, not historical transactions.
 
-Run the standalone observer from the repository root with an installed runtime:
-
-```sh
-python tests/compatibility/application_runner.py --engine native-metered --check --output /tmp/applications.json
-```
-
-It compares typed results, writes, events, complete fixture application state,
+The applications are V1 contracts; current code no longer executes them, so
+their sequences replay with the pinned release. The standalone observer
+(`application_runner.py --engine native-metered --check`) needs an installation
+that still executes V1. It compares typed results, writes, events, complete fixture application state,
 failure rollback and follow-up calls, reopening storage between calls. The
 historical snapshot is retained unchanged. Two existing policies—child
 constructor authority context and fixed-scaled square root—account for 110
@@ -176,4 +175,4 @@ top-level entries. The historical capture, values, result and events stay intact
 
 See [the immutable observer archive](historical/README.md) for byte provenance and
 the retired Python parity-generator retrieval procedure. Current public local
-clients are V2-only; these native V1 checks use the low-level driver and VM APIs.
+clients are V2-only, and current code executes V2 only.

@@ -246,9 +246,9 @@ def _run_native_step(
     kwargs: dict[str, Any],
     block_num: int,
 ) -> dict[str, Any]:
-    import xian_vm_core
+    from tests.vm_calls import execute_contract
 
-    output = xian_vm_core.execute_contract(
+    output = execute_contract(
         driver=driver,
         contract_name=contract_name,
         function_name=function_name,
@@ -273,7 +273,7 @@ def _run_native_step(
 
 
 def test_native_nested_callback_sees_parent_pending_storage_writes(tmp_path: Path):
-    import xian_vm_core
+    from tests.vm_calls import execute_contract
 
     controller_name = "con_vm_pending_controller"
     adapter_name = "con_vm_pending_adapter"
@@ -331,7 +331,7 @@ def check():
     )
     driver.commit()
 
-    output = xian_vm_core.execute_contract(
+    output = execute_contract(
         driver=driver,
         contract_name=controller_name,
         function_name="execute",

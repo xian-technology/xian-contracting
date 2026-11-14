@@ -72,19 +72,17 @@ def test_exact_wrapper_sets_keep_observed_iteration_and_fixed_decimal_type():
 def test_observations_equal_across_fresh_homes_and_reopened_driver(tmp_path):
     case = {
         "id": "stateful",
-        "vm_profile": "xian_vm_v1",
         "source": """value = Variable()
 @export
 def probe():
     value.set({'b': 2, 'a': 1})
-    return [float('-0'), round(decimal('1.00'), 2)]
+    return [-0, decimal('1.00')]
 """,
     }
     first = observe_case(case, tmp_path / "first")
     second = observe_case(case, tmp_path / "second", reopen=True)
     assert first == second
     assert first["executions"][0]["chi_used"] > 0
-    assert first["executions"][0]["raw_cost"] > 0
     assert first["executions"][0]["state_before"] != first["executions"][0]["state_after"]
     assert first["artifacts"][0]["source_sha256"]
     assert first["artifacts"][0]["ir_sha256"]

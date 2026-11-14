@@ -40,7 +40,7 @@ def execute(home, body, *, module="submission", child=CHILD, target=None):
             "block_num": 1,
             "chain_id": "deployment-test",
         }
-        from xian_vm_core import execute_contract
+        from tests.vm_calls import execute_contract
 
         result = execute_contract(
             driver=driver,

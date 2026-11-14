@@ -61,13 +61,12 @@ def scenarios(seed, *, extended=False):
         optimize="0",
         allocator="pymalloc",
         locale="C",
-        poison=False,
     )
     changes = [
         dict(id="hash", hash_seed=str(seed % 4294967295 + 1)),
         dict(id="timezone", timezone="Pacific/Auckland"),
         dict(id="decimal-low", decimal="low"),
-        dict(id="warm", warm=True, poison=True),
+        dict(id="warm", warm=True),
         dict(id="reverse-reopen", reverse=True, reopen=True),
         dict(id="allocator", allocator="malloc"),
         dict(id="locale", locale="utf8"),
@@ -87,7 +86,6 @@ def scenarios(seed, *, extended=False):
                     reopen=True,
                     allocator="malloc",
                     locale="utf8",
-                    poison=True,
                 ),
             ]
         )
@@ -125,14 +123,6 @@ def configure_host(scenario):
     if scenario["warm"]:
         format(decimal.Decimal("-0.001"), "z.2f")
         format(decimal.Decimal("0"), "#.0f")
-    if scenario["poison"]:
-        from contracting.execution.runtime import rt
-
-        rt.env.update(
-            __input_hash="unrelated-previous-input",
-            block_hash="unrelated-block",
-            chain_id="unrelated-chain",
-        )
     return dict(
         locale=selected,
         timezone=list(time.tzname),
@@ -225,15 +215,13 @@ def run_process(workload, output, scenario):
 
 def collect_cases(seed, generated):
     from tests.determinism.cases import generated_cases
-    from tests.determinism.float_cases import float_cases
     from tests.determinism.numeric_cases import numeric_cases
     from tests.determinism.storage_key_cases import storage_key_cases
-    from tests.surface.catalog import load_cases
+    from tests.surface.catalog import load_v2_cases
 
     cases = sorted(
-        [dict(case, vm_profile="xian_vm_v1") for case in load_cases()]
+        [dict(case, vm_profile="xian_vm_v2") for case in load_v2_cases()]
         + generated_cases(seed=seed, count=generated)
-        + float_cases()
         + numeric_cases()
         + storage_key_cases(),
         key=lambda case: case["id"],

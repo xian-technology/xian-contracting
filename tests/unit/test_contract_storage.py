@@ -1,9 +1,7 @@
 """Storage and host metadata behavior remain independent of Python execution."""
 
-import pytest
 from xian_runtime_types.time import Datetime
 
-from contracting.execution.runtime import rt
 from contracting.storage.contract import Contract
 from contracting.storage.driver import Driver
 
@@ -42,34 +40,12 @@ def test_host_metadata_reads_and_updates_native_contracts():
         }
 
 
-def test_active_contract_cannot_rewrite_another_contracts_metadata(monkeypatch):
+def test_metadata_changes_go_to_the_given_driver():
     with Driver() as driver:
         driver.set_contract_from_source(
             "con_meta", "@export\ndef read():\n    return 1", owner="alice"
         )
-        monkeypatch.setitem(rt.context._base_state, "this", "con_intruder")
-        with pytest.raises(AssertionError, match="restricted to submission"):
-            Contract.set_owner("con_meta", "attacker", driver=driver)
-        assert Contract.get_info("con_meta", driver=driver)["owner"] == "alice"
-
-
-def test_submission_metadata_uses_the_active_driver_and_tracks_transaction_writes(monkeypatch):
-    with Driver() as driver:
-        driver.set_contract_from_source(
-            "con_meta", "@export\ndef read():\n    return 1", owner="alice"
-        )
-        monkeypatch.setitem(rt.env, "__Driver", driver)
-        monkeypatch.setitem(rt.context._base_state, "this", "submission")
-        Contract.set_owner("con_meta", "bob")
-        assert Contract.get_info("con_meta")["owner"] == "bob"
-        assert driver.transaction_writes["con_meta.__owner__"] == "bob"
-
-
-def test_empty_host_context_is_not_an_active_contract(monkeypatch):
-    with Driver() as driver:
-        driver.set_contract_from_source(
-            "con_meta", "@export\ndef read():\n    return 1", owner="alice"
-        )
-        monkeypatch.setitem(rt.context._base_state, "this", "")
         Contract.set_owner("con_meta", "bob", driver=driver)
-        assert Contract.get_info("con_meta", driver=driver)["owner"] == "bob"
+        Contract.set_developer("con_meta", "dev", driver=driver)
+        info = Contract.get_info("con_meta", driver=driver)
+        assert (info["owner"], info["developer"]) == ("bob", "dev")

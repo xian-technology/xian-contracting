@@ -23,17 +23,23 @@ def observe(value):
     raise AssertionError(f"unexpected oracle result {value!r}")
 
 
-@pytest.mark.parametrize("case", CASES, ids=lambda case: case["id"])
+# The metadata of round() is V1 (round is unavailable in xian_vm_v2), which
+# current code no longer executes.
+V1_ONLY_CASES = ("metadata_086", "global_086")
+
+
+@pytest.mark.parametrize(
+    "case",
+    [case for case in CASES if case["id"] not in V1_ONLY_CASES],
+    ids=lambda case: case["id"],
+)
 def test_reviewed_host_code_metadata(tmp_path, case):
-    # Historical metadata for round() is retained for replay.
-    legacy = case["id"] in ("metadata_086", "global_086")
-    profile = "xian_vm_v1" if legacy else "xian_vm_v2"
-    with Driver(storage_home=tmp_path, vm_profile=profile) as driver:
+    with Driver(storage_home=tmp_path) as driver:
         for name, source in case.get("dependencies", {}).items():
             driver.set_contract_from_source(name, source, owner=None)
         driver.set_contract_from_source("con_metadata", case["source"], owner=None)
         driver.commit()
-        from xian_vm_core import execute_contract
+        from tests.vm_calls import execute_contract
 
         result = execute_contract(
             driver=driver,
@@ -42,7 +48,6 @@ def test_reviewed_host_code_metadata(tmp_path, case):
             kwargs={},
             context={"caller": "alice", "signer": "alice", "this": "con_metadata"},
             meter=False,
-            vm_profile=driver.vm_profile,
         )
         status, value = result.status_code, result.result
         expected = case["expected_current"]

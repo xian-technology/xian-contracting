@@ -136,18 +136,14 @@ def restored_host(monkeypatch):
     import locale
     import time
 
-    from contracting.execution.runtime import rt
-
     saved_context = decimal.getcontext().copy()
     saved_locale = locale.setlocale(locale.LC_ALL)
-    saved_env = dict(rt.env)
     monkeypatch.setenv("TZ", "Pacific/Auckland")
     try:
         yield
     finally:
         decimal.setcontext(saved_context)
         locale.setlocale(locale.LC_ALL, saved_locale)
-        rt.env = saved_env
         monkeypatch.undo()
         time.tzset()
 
@@ -155,17 +151,16 @@ def restored_host(monkeypatch):
 @pytest.mark.parametrize(
     "kind,precision,rounding", [("low", 6, "ROUND_UP"), ("high", 80, "ROUND_DOWN")]
 )
-def test_host_decimal_locale_timezone_and_poison_are_actual_perturbations(
+def test_host_decimal_locale_and_timezone_are_actual_perturbations(
     restored_host, kind, precision, rounding
 ):
     import decimal
     import locale
     import time
 
-    from contracting.execution.runtime import rt
     from tests.determinism.campaign import configure_host
 
-    scenario = {**scenarios(1)[0], "decimal": kind, "poison": True, "warm": True}
+    scenario = {**scenarios(1)[0], "decimal": kind, "warm": True}
     host = configure_host(scenario)
     assert decimal.getcontext().prec == host["decimal_precision"] == precision
     assert decimal.getcontext().rounding == rounding
@@ -173,7 +168,6 @@ def test_host_decimal_locale_timezone_and_poison_are_actual_perturbations(
     assert locale.setlocale(locale.LC_ALL) == "C"
     assert list(time.tzname) == host["timezone"]
     assert time.localtime(0).tm_hour == 12
-    assert rt.env["__input_hash"] == "unrelated-previous-input"
 
 
 def test_utf8_locale_is_real_or_fails_explicitly(restored_host):
@@ -197,7 +191,7 @@ def test_worker_records_actual_runtime_policy_and_reversed_case_order(tmp_path, 
 
     from tests.determinism import campaign, observer
 
-    cases = [{"id": "a", "vm_profile": "xian_vm_v1"}, {"id": "b", "vm_profile": "xian_vm_v2"}]
+    cases = [{"id": "a", "vm_profile": "xian_vm_v2"}, {"id": "b", "vm_profile": "xian_vm_v2"}]
     workload, destination = tmp_path / "workload.json", tmp_path / "report.json"
     campaign.write_json(workload, cases)
     calls = []
@@ -216,9 +210,7 @@ def test_worker_records_actual_runtime_policy_and_reversed_case_order(tmp_path, 
     monkeypatch.setattr(observer, "observe_case", observe)
     campaign.run_worker(workload, destination, {**scenarios(1)[0], "reverse": True, "reopen": True})
     value = json.loads(destination.read_text())
-    assert value["execution_policy"] == {
-        profile: {**policy, "vm_profile": profile} for profile in ("xian_vm_v1", "xian_vm_v2")
-    }
+    assert value["execution_policy"] == {"xian_vm_v2": {**policy, "vm_profile": "xian_vm_v2"}}
     assert calls == [("b", True), ("a", True)]
     assert list(value["observations"]) == ["a", "b"]
     assert value["corpus_sha256"] == campaign.corpus_digest(cases)
@@ -312,12 +304,10 @@ def test_first_worker_must_match_requested_workload(mode):
         campaign.validate_workload_report(observed, cases)
 
 
-def test_collection_includes_entire_fixed_float_corpus():
+def test_collection_is_v2_only_and_sorted():
     from tests.determinism.campaign import collect_cases
-    from tests.determinism.float_cases import float_cases
 
-    cases = collect_cases(seed=71, generated=0)
-    observed = [case for case in cases if case["id"].startswith("float_edge_")]
-    assert observed == sorted(float_cases(), key=lambda case: case["id"])
-    assert len(observed) == 32
+    cases = collect_cases(seed=71, generated=18)
+    assert {case["vm_profile"] for case in cases} == {"xian_vm_v2"}
+    assert not any(case["id"].startswith("float_edge_") for case in cases)
     assert [case["id"] for case in cases] == sorted(case["id"] for case in cases)

@@ -4,7 +4,7 @@ import pytest
 
 from tests.integration.pre_retirement_oracle import recorded_python_observation
 from tests.integration.test_vm_language_conformance import _run_native_case
-from tests.integration.test_vm_raw_decimal import compare
+from tests.integration.test_vm_language_conformance import compare
 
 pytestmark = pytest.mark.optional_native
 
@@ -64,14 +64,6 @@ def test_time_out_of_range_inputs_fail(tmp_path, expression):
     }
     assert recorded_python_observation(case)["status_code"] == 1
     assert _run_native_case(case, tmp_path / "native")["status_code"] == 1
-
-
-def test_time_factory_methods_and_integer_coercion(tmp_path):
-    compare(
-        tmp_path,
-        "x=datetime.datetime(2026,2,3)\ny=x.strptime('2027','%Y')\nz=datetime.timedelta(seconds='12',minutes=float('1.9'),hours=round(decimal('1.9'),1))\nreturn [str(y),z.seconds]",
-        vm_profile="xian_vm_v1",
-    )
 
 
 @pytest.mark.parametrize(

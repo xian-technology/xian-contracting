@@ -43,7 +43,7 @@ def contract(numeric_artifact):
 
 
 def call(driver, function, **kwargs):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     return execute_contract(
         driver=driver,
@@ -51,7 +51,6 @@ def call(driver, function, **kwargs):
         function_name=function,
         context=context_for({"contract": MODULE, "function": function}),
         kwargs=kwargs,
-        vm_profile=PROFILE,
         meter=True,
         chi_budget_raw=100_000_000,
     )
@@ -66,7 +65,7 @@ def test_exact_result(contract, index):
     expected = VECTORS[index][1]
     result = call(contract, f"vector_{index}")
     assert result.status_code == 0, str(result.result)
-    assert result.raw_cost > 0
+    assert result.chi_used > 0
     if isinstance(expected, str):
         assert isinstance(result.result, ContractingDecimal)
         assert Decimal(str(result.result)) == Decimal(expected)

@@ -10,7 +10,7 @@ pytestmark = pytest.mark.optional_native
 
 
 def execute(driver, contract="con_alias_probe", *, meter=False, budget=100_000_000):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     return execute_contract(
         driver=driver,
@@ -157,7 +157,7 @@ def probe():
         driver.commit()
         completed = execute(driver, meter=True)
         assert completed.status_code == 0 and completed.result == 384, completed.result
-        assert completed.raw_cost >= metadata_work + lookup_work
+        assert completed.chi_used >= (metadata_work + lookup_work) // 1000 + 5
         failed = execute(driver, meter=True, budget=metadata_work + lookup_work - 1)
         assert failed.status_code == 1 and "Out of chi" in str(failed.result), failed.result
         assert failed.writes == {} and failed.events == []

@@ -1622,7 +1622,6 @@
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
-        "tests/unit/test_native_vm_random_syscalls.py",
         "tests/integration/test_seneca_client_randoms.py"
       ]
     },
@@ -1632,7 +1631,6 @@
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
-        "tests/unit/test_native_vm_random_syscalls.py",
         "tests/integration/test_seneca_client_randoms.py"
       ]
     },
@@ -1642,7 +1640,6 @@
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
-        "tests/unit/test_native_vm_random_syscalls.py",
         "tests/integration/test_seneca_client_randoms.py"
       ]
     },
@@ -1652,7 +1649,6 @@
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
-        "tests/unit/test_native_vm_random_syscalls.py",
         "tests/integration/test_seneca_client_randoms.py"
       ]
     },
@@ -1661,9 +1657,7 @@
       "kind": "syscall",
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
-      "existing_test_files": [
-        "tests/unit/test_native_vm_random_syscalls.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "api.random.randrange",
@@ -1671,7 +1665,6 @@
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
-        "tests/unit/test_native_vm_random_syscalls.py",
         "tests/integration/test_seneca_client_randoms.py"
       ]
     },
@@ -1681,7 +1674,6 @@
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
-        "tests/unit/test_native_vm_random_syscalls.py",
         "tests/integration/test_seneca_client_randoms.py"
       ]
     },
@@ -1691,7 +1683,6 @@
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
-        "tests/unit/test_native_vm_random_syscalls.py",
         "tests/integration/test_seneca_client_randoms.py"
       ]
     },
@@ -2212,7 +2203,6 @@
       "existing_test_files": [
         "tests/unit/test_parser.py",
         "tests/unit/test_orm.py",
-        "tests/unit/test_context_data_struct.py",
         "tests/unit/test_ir_lowering.py",
         "tests/unit/test_authored_conformance.py",
         "tests/unit/test_zk_stdlib.py",
@@ -2239,9 +2229,7 @@
         "tests/unit/test_driver_tombstones.py",
         "tests/unit/test_contract_runtime_guards.py",
         "tests/unit/test_zk_stdlib.py",
-        "tests/unit/test_runtime.py",
         "tests/unit/test_compiler_fixtures.py",
-        "tests/unit/test_native_vm_random_syscalls.py",
         "tests/unit/test_encode.py",
         "tests/unit/test_client.py",
         "tests/unit/test_compiler_core_parity.py",
@@ -2249,7 +2237,6 @@
         "tests/security/test_erc20_token_hacks.py",
         "tests/integration/test_chi_deduction.py",
         "tests/integration/test_ifexp_support.py",
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_storage_bulk.py"
       ]
     },
@@ -2262,15 +2249,12 @@
         "tests/unit/test_parser.py",
         "tests/unit/test_orm.py",
         "tests/unit/test_new_driver.py",
-        "tests/unit/test_context_data_struct.py",
         "tests/unit/test_driver_tombstones.py",
         "tests/unit/test_contract_runtime_guards.py",
         "tests/unit/test_authored_conformance.py",
         "tests/unit/test_zk_stdlib.py",
-        "tests/unit/test_runtime.py",
         "tests/unit/test_compiler_fixtures.py",
         "tests/unit/test_artifacts.py",
-        "tests/unit/test_native_vm_random_syscalls.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_compiler_binding_parity.py",
         "tests/unit/test_encode.py",
@@ -2293,11 +2277,9 @@
         "tests/unit/test_contract_runtime_guards.py",
         "tests/unit/test_authored_conformance.py",
         "tests/unit/test_zk_stdlib.py",
-        "tests/unit/test_runtime.py",
         "tests/unit/test_compiler_fixtures.py",
         "tests/unit/test_linter.py",
         "tests/unit/test_artifacts.py",
-        "tests/unit/test_native_vm_random_syscalls.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_compiler_binding_parity.py",
         "tests/unit/test_conformance_manifest.py",
@@ -2416,14 +2398,10 @@
         "tests/unit/test_ir_lowering.py",
         "tests/unit/test_contract_runtime_guards.py",
         "tests/unit/test_vm_compatibility.py",
-        "tests/unit/test_runtime.py",
         "tests/unit/test_linter.py",
         "tests/unit/test_artifacts.py",
-        "tests/unit/test_native_vm_random_syscalls.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_compiler_binding_parity.py",
-        "tests/unit/test_stdlib_random.py",
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_export_typecheck.py",
         "tests/integration/test_vm_stateful_fuzz.py",
         "tests/integration/test_vm_language_conformance.py",
@@ -2455,7 +2433,6 @@
         "tests/unit/test_ir_lowering.py",
         "tests/unit/test_linter.py",
         "tests/unit/test_lmdb_store.py",
-        "tests/unit/test_stdlib_random.py",
         "tests/unit/test_contracting_collections.py",
         "tests/security/test_erc20_token_hacks.py",
         "tests/integration/test_chi_deduction.py",
@@ -2465,9 +2442,7 @@
         "tests/integration/test_vm_builtin_edges.py",
         "tests/integration/test_vm_decimal_methods.py",
         "tests/integration/test_misc_contracts.py",
-        "tests/integration/test_vm_language_conformance.py",
-        "tests/integration/test_vm_raw_decimal.py",
-        "tests/integration/test_vm_float_sets.py"
+        "tests/integration/test_vm_language_conformance.py"
       ]
     },
     {
@@ -2477,7 +2452,6 @@
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
         "tests/unit/test_client.py",
-        "tests/integration/test_vm_raw_decimal.py",
         "tests/integration/test_vm_formatting_policy.py",
         "tests/integration/test_vm_value_formatting.py"
       ]
@@ -2493,8 +2467,7 @@
         "tests/unit/test_linter.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_conformance_manifest.py",
-        "tests/unit/test_contracting_collections.py",
-        "tests/integration/test_vm_float_sets.py"
+        "tests/unit/test_contracting_collections.py"
       ]
     },
     {
@@ -2518,7 +2491,6 @@
         "tests/unit/test_orm.py",
         "tests/unit/test_compatibility_compiler_paths.py",
         "tests/unit/test_new_driver.py",
-        "tests/unit/test_context_data_struct.py",
         "tests/unit/test_stdlib_crypto.py",
         "tests/unit/test_driver_tombstones.py",
         "tests/unit/test_ir_lowering.py",
@@ -2528,7 +2500,6 @@
         "tests/unit/test_authored_conformance.py",
         "tests/unit/test_zk_stdlib.py",
         "tests/unit/test_vm_compatibility.py",
-        "tests/unit/test_runtime.py",
         "tests/unit/test_compiler.py",
         "tests/unit/test_compiler_fixtures.py"
       ]
@@ -2591,15 +2562,13 @@
         "tests/unit/test_conformance_manifest.py",
         "tests/unit/test_ordered_storage.py",
         "tests/unit/test_contracting_collections.py",
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_storage_bulk.py",
         "tests/integration/test_pixel_game.py",
         "tests/integration/test_vm_heap_boundaries.py",
         "tests/integration/test_vm_storage_scans.py",
         "tests/integration/test_export_typecheck.py",
         "tests/integration/test_vm_language_conformance.py",
-        "tests/integration/test_seneca_client_randoms.py",
-        "tests/integration/test_vm_float_sets.py"
+        "tests/integration/test_seneca_client_randoms.py"
       ]
     },
     {
@@ -2616,14 +2585,11 @@
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_ordered_storage.py",
         "tests/unit/test_contracting_collections.py",
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_storage_scans.py",
         "tests/integration/test_export_typecheck.py",
         "tests/integration/test_vm_stateful_fuzz.py",
         "tests/integration/test_vm_builtin_edges.py",
         "tests/integration/test_vm_language_conformance.py",
-        "tests/integration/test_vm_raw_decimal.py",
-        "tests/integration/test_vm_float_sets.py",
         "tests/integration/test_zk_bridge.py"
       ]
     },
@@ -2632,18 +2598,14 @@
       "kind": "builtin",
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "builtin.max",
       "kind": "builtin",
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
-      "existing_test_files": [
-        "tests/unit/test_runtime.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "builtin.min",
@@ -2651,7 +2613,6 @@
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_unpacking.py"
       ]
     },
@@ -2676,8 +2637,7 @@
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
         "tests/unit/test_contract_runtime_guards.py",
-        "tests/integration/test_vm_decimal_methods.py",
-        "tests/integration/test_vm_raw_decimal.py"
+        "tests/integration/test_vm_decimal_methods.py"
       ]
     },
     {
@@ -2688,9 +2648,6 @@
       "existing_test_files": [
         "tests/unit/test_contract_runtime_guards.py",
         "tests/unit/test_vm_compatibility.py",
-        "tests/unit/test_runtime.py",
-        "tests/unit/test_stdlib_random.py",
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_storage_bulk.py",
         "tests/integration/test_vm_heap_boundaries.py",
         "tests/integration/test_vm_unpacking.py",
@@ -2700,7 +2657,6 @@
         "tests/integration/test_misc_contracts.py",
         "tests/integration/test_vm_language_conformance.py",
         "tests/integration/test_vm_legacy_compatibility.py",
-        "tests/integration/test_vm_raw_decimal.py",
         "tests/performance/test_transfer.py"
       ]
     },
@@ -2721,8 +2677,7 @@
         "tests/integration/test_vm_heap_boundaries.py",
         "tests/integration/test_vm_builtin_edges.py",
         "tests/integration/test_vm_decimal_methods.py",
-        "tests/integration/test_seneca_client_randoms.py",
-        "tests/integration/test_vm_raw_decimal.py"
+        "tests/integration/test_seneca_client_randoms.py"
       ]
     },
     {
@@ -2742,10 +2697,7 @@
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_conformance_manifest.py",
         "tests/security/test_erc20_token_hacks.py",
-        "tests/integration/test_vm_decimal_metering.py",
-        "tests/integration/test_vm_legacy_compatibility.py",
-        "tests/integration/test_vm_raw_decimal.py",
-        "tests/integration/test_vm_float_sets.py"
+        "tests/integration/test_vm_legacy_compatibility.py"
       ]
     },
     {
@@ -2755,12 +2707,9 @@
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
         "tests/unit/test_linter.py",
-        "tests/unit/test_native_vm_random_syscalls.py",
         "tests/unit/test_compiler_binding_parity.py",
         "tests/unit/test_conformance_manifest.py",
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_stateful_fuzz.py",
-        "tests/integration/test_vm_refactor_invariants.py",
         "tests/integration/test_vm_language_conformance.py"
       ]
     },
@@ -2780,7 +2729,6 @@
         "tests/unit/test_vm_compatibility.py",
         "tests/unit/test_linter.py",
         "tests/unit/test_artifacts.py",
-        "tests/unit/test_native_vm_random_syscalls.py",
         "tests/unit/test_datetime.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_compiler_binding_parity.py",
@@ -2832,7 +2780,6 @@
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
         "tests/unit/test_parser.py",
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_storage_bulk.py",
         "tests/integration/test_vm_stateful_fuzz.py"
       ]
@@ -2932,7 +2879,6 @@
         "tests/unit/test_conformance_manifest.py",
         "tests/unit/test_client.py",
         "tests/security/test_runtime_security.py",
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_rich_ctx_calling.py",
         "tests/integration/test_vm_storage_bulk.py",
         "tests/integration/test_pixel_game.py",
@@ -3025,12 +2971,9 @@
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_encode.py",
         "tests/unit/test_contracting_collections.py",
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_stateful_fuzz.py",
         "tests/integration/test_vm_decimal_methods.py",
-        "tests/integration/test_vm_language_conformance.py",
-        "tests/integration/test_vm_raw_decimal.py",
-        "tests/integration/test_vm_float_sets.py"
+        "tests/integration/test_vm_language_conformance.py"
       ]
     },
     {
@@ -3064,8 +3007,7 @@
         "tests/unit/test_linter.py",
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_conformance_manifest.py",
-        "tests/unit/test_contracting_collections.py",
-        "tests/integration/test_vm_float_sets.py"
+        "tests/unit/test_contracting_collections.py"
       ]
     },
     {
@@ -3137,9 +3079,7 @@
       "kind": "value",
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "env.pow",
@@ -3148,8 +3088,7 @@
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
         "tests/unit/test_contract_runtime_guards.py",
-        "tests/integration/test_vm_decimal_methods.py",
-        "tests/integration/test_vm_raw_decimal.py"
+        "tests/integration/test_vm_decimal_methods.py"
       ]
     },
     {
@@ -3158,10 +3097,7 @@
       "implementation": "declared",
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
-        "tests/unit/test_native_vm_random_syscalls.py",
-        "tests/unit/test_stdlib_random.py",
-        "tests/integration/test_seneca_client_randoms.py",
-        "tests/integration/test_vm_raw_decimal.py"
+        "tests/integration/test_seneca_client_randoms.py"
       ]
     },
     {
@@ -3172,9 +3108,6 @@
       "existing_test_files": [
         "tests/unit/test_contract_runtime_guards.py",
         "tests/unit/test_vm_compatibility.py",
-        "tests/unit/test_runtime.py",
-        "tests/unit/test_stdlib_random.py",
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_storage_bulk.py",
         "tests/integration/test_vm_heap_boundaries.py",
         "tests/integration/test_vm_unpacking.py",
@@ -3184,7 +3117,6 @@
         "tests/integration/test_misc_contracts.py",
         "tests/integration/test_vm_language_conformance.py",
         "tests/integration/test_vm_legacy_compatibility.py",
-        "tests/integration/test_vm_raw_decimal.py",
         "tests/performance/test_transfer.py"
       ]
     },
@@ -3198,8 +3130,7 @@
         "tests/integration/test_vm_heap_boundaries.py",
         "tests/integration/test_vm_builtin_edges.py",
         "tests/integration/test_vm_decimal_methods.py",
-        "tests/integration/test_seneca_client_randoms.py",
-        "tests/integration/test_vm_raw_decimal.py"
+        "tests/integration/test_seneca_client_randoms.py"
       ]
     },
     {
@@ -3219,10 +3150,7 @@
         "tests/unit/test_lmdb_store.py",
         "tests/unit/test_conformance_manifest.py",
         "tests/security/test_erc20_token_hacks.py",
-        "tests/integration/test_vm_decimal_metering.py",
-        "tests/integration/test_vm_legacy_compatibility.py",
-        "tests/integration/test_vm_raw_decimal.py",
-        "tests/integration/test_vm_float_sets.py"
+        "tests/integration/test_vm_legacy_compatibility.py"
       ]
     },
     {
@@ -3443,9 +3371,7 @@
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_raw_decimal.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.Decimal.log10",
@@ -3647,9 +3573,7 @@
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.DecimalTuple.index",
@@ -3657,7 +3581,6 @@
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_decimal_methods.py"
       ]
     },
@@ -3930,7 +3853,6 @@
         "tests/integration/test_vm_dynamic_foreign_storage.py",
         "tests/integration/test_vm_heap_boundaries.py",
         "tests/integration/test_vm_language_conformance.py",
-        "tests/integration/test_vm_raw_decimal.py",
         "tests/integration/test_vm_storage_bulk.py",
         "tests/integration/test_vm_storage_scans.py"
       ]
@@ -3971,9 +3893,7 @@
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.bytearray.count",
@@ -3982,7 +3902,6 @@
       "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
         "tests/integration/test_vm_binary_methods.py",
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_surface_matrix.py"
       ]
     },
@@ -4061,7 +3980,6 @@
       "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
         "tests/integration/test_vm_binary_methods.py",
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_decimal_methods.py",
         "tests/integration/test_vm_surface_matrix.py"
       ]
@@ -4168,8 +4086,6 @@
       "existing_test_files": [
         "tests/integration/test_vm_binary_methods.py",
         "tests/integration/test_vm_dynamic_foreign_storage.py",
-        "tests/integration/test_vm_float_sets.py",
-        "tests/integration/test_vm_raw_decimal.py",
         "tests/integration/test_vm_surface_matrix.py"
       ]
     },
@@ -4229,7 +4145,6 @@
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py",
         "tests/integration/test_vm_stateful_fuzz.py"
       ]
     },
@@ -4240,7 +4155,6 @@
       "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
         "tests/integration/test_vm_binary_methods.py",
-        "tests/integration/test_vm_float_sets.py",
         "tests/integration/test_vm_surface_matrix.py"
       ]
     },
@@ -4373,8 +4287,6 @@
       "existing_test_files": [
         "tests/integration/test_vm_binary_methods.py",
         "tests/integration/test_vm_dynamic_foreign_storage.py",
-        "tests/integration/test_vm_float_sets.py",
-        "tests/integration/test_vm_raw_decimal.py",
         "tests/integration/test_vm_surface_matrix.py"
       ]
     },
@@ -4480,7 +4392,6 @@
       "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
         "tests/integration/test_vm_binary_methods.py",
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_surface_matrix.py"
       ]
     },
@@ -4553,7 +4464,6 @@
       "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
         "tests/integration/test_vm_binary_methods.py",
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_decimal_methods.py",
         "tests/integration/test_vm_surface_matrix.py"
       ]
@@ -4650,8 +4560,6 @@
       "existing_test_files": [
         "tests/integration/test_vm_binary_methods.py",
         "tests/integration/test_vm_dynamic_foreign_storage.py",
-        "tests/integration/test_vm_float_sets.py",
-        "tests/integration/test_vm_raw_decimal.py",
         "tests/integration/test_vm_surface_matrix.py"
       ]
     },
@@ -4815,8 +4723,6 @@
       "existing_test_files": [
         "tests/integration/test_vm_binary_methods.py",
         "tests/integration/test_vm_dynamic_foreign_storage.py",
-        "tests/integration/test_vm_float_sets.py",
-        "tests/integration/test_vm_raw_decimal.py",
         "tests/integration/test_vm_surface_matrix.py"
       ]
     },
@@ -4921,9 +4827,7 @@
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.dict.fromkeys",
@@ -4938,12 +4842,9 @@
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_dynamic_foreign_storage.py",
         "tests/integration/test_vm_entry_owner.py",
         "tests/integration/test_vm_language_conformance.py",
-        "tests/integration/test_vm_raw_decimal.py",
-        "tests/integration/test_vm_refactor_invariants.py",
         "tests/integration/test_vm_stateful_fuzz.py",
         "tests/integration/test_vm_storage_bulk.py",
         "tests/integration/test_vm_transaction_budget.py"
@@ -4956,7 +4857,6 @@
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
       "existing_test_files": [
         "tests/integration/test_vm_language_conformance.py",
-        "tests/integration/test_vm_refactor_invariants.py",
         "tests/integration/test_vm_stateful_fuzz.py"
       ]
     },
@@ -4973,7 +4873,6 @@
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py",
         "tests/integration/test_vm_stateful_fuzz.py"
       ]
     },
@@ -5100,9 +4999,7 @@
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py"
-      ],
+      "existing_test_files": [],
       "notes": [
         "At least one recorded supported-family case disagrees with the explicit Python expectation; see value-case-validation.json."
       ]
@@ -5112,18 +5009,14 @@
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.frozenset.intersection",
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.frozenset.isdisjoint",
@@ -5151,19 +5044,14 @@
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.frozenset.union",
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py",
-        "tests/integration/test_vm_float_sets.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.int.as_integer_ratio",
@@ -5246,7 +5134,6 @@
         "tests/integration/test_vm_dynamic_foreign_storage.py",
         "tests/integration/test_vm_heap_boundaries.py",
         "tests/integration/test_vm_language_conformance.py",
-        "tests/integration/test_vm_raw_decimal.py",
         "tests/integration/test_vm_storage_bulk.py",
         "tests/integration/test_vm_storage_scans.py"
       ]
@@ -5267,18 +5154,14 @@
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.list.count",
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.list.extend",
@@ -5293,7 +5176,6 @@
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_decimal_methods.py"
       ]
     },
@@ -5310,7 +5192,6 @@
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py",
         "tests/integration/test_vm_stateful_fuzz.py"
       ]
     },
@@ -5319,9 +5200,7 @@
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.list.reverse",
@@ -5395,7 +5274,6 @@
       "implementation": "present",
       "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_scalar_protocols.py",
         "tests/integration/test_vm_surface_matrix.py"
       ]
@@ -5406,7 +5284,6 @@
       "implementation": "present",
       "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_decimal_methods.py",
         "tests/integration/test_vm_scalar_protocols.py",
         "tests/integration/test_vm_surface_matrix.py"
@@ -5417,9 +5294,7 @@
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.set.clear",
@@ -5437,18 +5312,14 @@
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.set.difference",
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.set.discard",
@@ -5462,9 +5333,7 @@
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.set.isdisjoint",
@@ -5493,7 +5362,6 @@
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py",
         "tests/integration/test_vm_stateful_fuzz.py"
       ]
     },
@@ -5502,28 +5370,21 @@
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.set.symmetric_difference",
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_float_sets.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.set.union",
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py",
-        "tests/integration/test_vm_float_sets.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.str.capitalize",
@@ -5560,9 +5421,7 @@
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.str.encode",
@@ -5626,7 +5485,6 @@
       "implementation": "present",
       "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_decimal_methods.py",
         "tests/integration/test_vm_string_methods.py",
         "tests/integration/test_vm_surface_matrix.py"
@@ -5763,9 +5621,7 @@
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_dynamic_foreign_storage.py",
-        "tests/integration/test_vm_float_sets.py",
-        "tests/integration/test_vm_raw_decimal.py"
+        "tests/integration/test_vm_dynamic_foreign_storage.py"
       ]
     },
     {
@@ -5923,8 +5779,6 @@
       "reason": "Native implementation and successful authored direct cases are present; full signature, protocol and resource-limit coverage must be read separately.",
       "existing_test_files": [
         "tests/integration/test_vm_dynamic_foreign_storage.py",
-        "tests/integration/test_vm_float_sets.py",
-        "tests/integration/test_vm_raw_decimal.py",
         "tests/integration/test_vm_string_methods.py",
         "tests/integration/test_vm_surface_matrix.py"
       ]
@@ -6005,9 +5859,7 @@
       "kind": "method",
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
-      "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py"
-      ]
+      "existing_test_files": []
     },
     {
       "id": "method.tuple.index",
@@ -6015,7 +5867,6 @@
       "implementation": "present",
       "reason": "Native dispatch is present; argument and behavioral coverage must be read separately.",
       "existing_test_files": [
-        "tests/integration/test_vm_decimal_metering.py",
         "tests/integration/test_vm_decimal_methods.py"
       ]
     },

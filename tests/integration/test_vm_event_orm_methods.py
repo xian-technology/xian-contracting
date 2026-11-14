@@ -154,7 +154,8 @@ def test_unbound_orm_never_grants_wrong_receiver_authority(tmp_path, body):
         ("str", "'x' * 1024", True),
         ("str", "'x' * 1025", False),
         ("int", "'bad'", False),
-        ("int", "True", True),
+        # V2: a bool is not an int.
+        ("int", "True", False),
         ("bool", "1", False),
         ("(str, int)", "3", True),
         ("bytes", "b'a'", True),
@@ -318,7 +319,7 @@ def test_indexed_requires_at_least_one_positional_argument(tmp_path):
 
 @pytest.mark.optional_native
 def test_indexed_tuple_work_is_metered_and_failure_rolls_back(tmp_path):
-    import xian_vm_core
+    from tests.vm_calls import execute_contract
 
     from contracting.storage.driver import Driver
 
@@ -339,7 +340,7 @@ def probe(count: int):
         driver.commit()
 
         def run(count, budget=100_000_000):
-            return xian_vm_core.execute_contract(
+            return execute_contract(
                 driver=driver,
                 contract_name="con_indexed_budget",
                 function_name="probe",
@@ -356,9 +357,10 @@ def probe(count: int):
 
         once, twice = run(1), run(2)
         assert once.status_code == twice.status_code == 0, (once.result, twice.result)
-        extra_work = twice.raw_cost - once.raw_cost
-        assert extra_work >= 4096 * 32
-        failed = run(2, once.raw_cost + extra_work // 2)
+        # 4096 tuple members at 32 raw each, at least 131 chi more.
+        extra_chi = twice.chi_used - once.chi_used
+        assert extra_chi >= 4096 * 32 // 1000
+        failed = run(2, (once.chi_used + extra_chi // 2) * 1000)
         assert failed.status_code == 1
         assert "Out of chi" in str(failed.result)
         assert failed.writes == {}

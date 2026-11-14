@@ -17,9 +17,9 @@ def bump():
 
 
 def _call(driver, caller):
-    import xian_vm_core
+    from tests.vm_calls import execute_contract
 
-    return xian_vm_core.execute_contract(
+    return execute_contract(
         driver=driver,
         contract_name="con_child",
         function_name="bump",

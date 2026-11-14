@@ -35,7 +35,7 @@ def test_native_fromhex_bounds_external_text_before_output_allocation(tmp_path, 
     "operation", ["d.update(zip(range(1000),range(1000)))", "bytes.fromhex('41' * 50000)"]
 )
 def test_collection_work_is_metered_and_rolls_back(tmp_path, operation):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     with Driver(storage_home=tmp_path) as driver:
         driver.set_contract_from_source(

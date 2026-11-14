@@ -77,15 +77,3 @@ def test_sort_callback_observes_empty_list_and_rejects_mutation(tmp_path, mutate
     else:
         assert output["status_code"] == 0, output
         assert output["result"] == encode([3, 1, 2])
-
-
-def test_round_extreme_integer_digits_returns_zero_without_large_allocation(tmp_path):
-    output = run_case(
-        {
-            "id": "round_limit",
-            "source": "@export\ndef probe():\n    return round(123, -(10**50))\n",
-        },
-        tmp_path,
-    )
-    assert output["status_code"] == 0, output
-    assert output["result"] == encode(0)

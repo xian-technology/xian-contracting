@@ -64,7 +64,7 @@ def _deployed(home, caller_body, callee_body):
 
 
 def _execute(driver, function, meter):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     return execute_contract(
         driver=driver,

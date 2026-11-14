@@ -23,9 +23,8 @@ fn stored_to_py(py: Python<'_>, value: &Stored) -> Option<Py<PyBytes>> {
 }
 
 /// The V2 stored bytes of a Python value: the VM boundary conversion, the
-/// aggregate set normalization budget, then the stored-value writer (what
-/// `encode(value, vm_profile="xian_vm_v2")` writes). `None` stages a deletion; a value V2 cannot store raises
-/// `ValueError`.
+/// aggregate set normalization budget, then the stored-value writer. `None`
+/// stages a deletion; a value V2 cannot store raises `ValueError`.
 fn stored_bytes(value: &Bound<'_, PyAny>) -> PyResult<Stored> {
     if value.is_none() {
         return Ok(None);
@@ -180,6 +179,19 @@ impl PyBlockState {
     }
 }
 
+/// The bytes `BlockState.write_value` stores for `value` (`None` for
+/// `None`, a deletion): what tooling outside execution (state roots over
+/// values, exports) must hash or store. A value V2 cannot store raises
+/// `ValueError`.
+#[pyfunction]
+fn stored_value_bytes<'py>(
+    py: Python<'py>,
+    value: &Bound<'py, PyAny>,
+) -> PyResult<Option<Bound<'py, PyBytes>>> {
+    Ok(stored_bytes(value)?.map(|bytes| PyBytes::new(py, &bytes)))
+}
+
 pub(crate) fn register(module: &Bound<'_, pyo3::types::PyModule>) -> PyResult<()> {
-    module.add_class::<PyBlockState>()
+    module.add_class::<PyBlockState>()?;
+    module.add_function(wrap_pyfunction!(stored_value_bytes, module)?)
 }

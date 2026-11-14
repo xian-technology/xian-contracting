@@ -4,29 +4,9 @@ import pytest
 
 from tests.integration.pre_retirement_oracle import recorded_python_observation
 from tests.integration.test_vm_language_conformance import _run_native_case
-from tests.integration.test_vm_raw_decimal import compare
+from tests.integration.test_vm_language_conformance import compare
 
 pytestmark = pytest.mark.optional_native
-
-
-@pytest.mark.parametrize(
-    "body",
-    [
-        "x=257\ny=True\nreturn [x.real,x.imag,x.numerator,x.denominator,x.bit_count(),"
-        "x.bit_length(),x.is_integer(),x.as_integer_ratio(),x.conjugate(),"
-        "y.real,y.imag,y.numerator,y.denominator,y.is_integer()]",
-        "x=-129\nb=x.to_bytes(length=2,byteorder='little',signed=True)\n"
-        "return [list(b),int.from_bytes(b,byteorder='little',signed=True),"
-        "list((255).to_bytes()),bool.from_bytes([0]),True.from_bytes([2])]",
-        "x=float('-0.0')\ny=float('1.5')\nreturn [x.real.hex(),x.imag.hex(),"
-        "y.as_integer_ratio(),y.hex(),float.fromhex(y.hex()),y.is_integer(),"
-        "float('5e-324').as_integer_ratio(),y.conjugate()]",
-        "r=range(10,-5,-3)\nreturn [r.start,r.stop,r.step,r.count(4),r.index(4),"
-        "r.count(float('4.0')),r.count(decimal('4')),r.count('4')]",
-    ],
-)
-def test_scalar_protocols_match_python(tmp_path, body):
-    compare(tmp_path, body, vm_profile="xian_vm_v1")
 
 
 def test_wide_integer_range_matches_python(tmp_path):
@@ -91,10 +71,7 @@ def test_view_operations_and_popitem_preserve_aliases(tmp_path):
         "(-1).to_bytes()",
         "(128).to_bytes(1,signed=True)",
         "int.from_bytes([256])",
-        "int.from_bytes([float('1')])",
         "(1).to_bytes(1,'big',True)",
-        "float.fromhex('0x1.fffffffffffff8p+1023')",
-        "float.fromhex('0x1_0p0')",
         "range(4).index(5)",
         "range(4).count(value=2)",
         "{}.popitem()",
@@ -111,22 +88,10 @@ def test_invalid_scalar_and_view_calls_fail(tmp_path, expression):
         "kwargs": {},
     }
     expected = recorded_python_observation(case)
-    actual = _run_native_case(
-        case,
-        tmp_path / "native",
-        vm_profile="xian_vm_v1" if "float" in expression else "xian_vm_v2",
-    )
+    actual = _run_native_case(case, tmp_path / "native")
     assert expected["status_code"] == actual["status_code"] == 1
     assert expected["writes"] == actual["writes"] == {}
     assert expected["events"] == actual["events"] == []
-
-
-def test_numeric_self_attributes_and_methods_preserve_identity(tmp_path):
-    compare(
-        tmp_path,
-        "i=1000\nf=float('1.25')\nreturn [i.real is i,i.numerator is i,i.conjugate() is i,i.as_integer_ratio()[0] is i,f.real is f,f.conjugate() is f]",
-        vm_profile="xian_vm_v1",
-    )
 
 
 def test_items_symmetric_difference_cancels_equal_unhashable_values(tmp_path):
@@ -137,7 +102,7 @@ def test_items_symmetric_difference_cancels_equal_unhashable_values(tmp_path):
     "operation", ["left==right", "left.isdisjoint(right)", "left | right", "left & right"]
 )
 def test_view_payload_work_is_charged_before_comparing(tmp_path, operation):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     from contracting.storage.driver import Driver
 

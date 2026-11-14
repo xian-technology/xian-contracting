@@ -22,9 +22,10 @@ whenever a change touches execution semantics, import restrictions, metering, or
 storage encoding. The optional-native release gate includes stateful model-based
 VM fuzz coverage in `integration/test_vm_stateful_fuzz.py`.
 
-Public-client tests use native V2 execution. Archival native V1 tests use
-low-level bindings and immutable, provenance-checked Python observations;
-maintained test runs do not execute contracts with a current Python engine.
+Tests execute contracts with the native V2 engine (the block executor's rules,
+through `tests/vm_calls.py` or the local client); V1 is compiled, encoded and
+checked against immutable, provenance-checked observations but no longer
+executed. Maintained test runs do not execute contracts with a Python engine.
 Pinned historical capture environments are documented separately in
 [`compatibility/README.md`](compatibility/README.md).
 

@@ -382,7 +382,7 @@ def execute_source(home, source):
     with Driver(storage_home=home, vm_profile="xian_vm_v2") as driver:
         driver.set_contract_from_source("con_scoping", source, owner=None)
         driver.commit()
-        from xian_vm_core import execute_contract
+        from tests.vm_calls import execute_contract
 
         result = execute_contract(
             driver=driver,

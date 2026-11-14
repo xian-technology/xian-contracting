@@ -4,6 +4,7 @@ import pytest
 from xian_runtime_types.time import Datetime
 
 from contracting.local import ContractingClient
+from tests.vm_calls import execute_contract
 
 pytestmark = pytest.mark.optional_native
 
@@ -49,9 +50,7 @@ def _context(this):
 
 
 def _submit(driver, name, code):
-    import xian_vm_core
-
-    return xian_vm_core.execute_contract(
+    return execute_contract(
         driver=driver,
         contract_name="submission",
         function_name="submit_contract",
@@ -81,12 +80,11 @@ def test_constructor_cannot_change_another_contracts_metadata(client):
 
 
 def test_user_contract_cannot_deploy_contracts(client):
-    import xian_vm_core
 
     client.raw_driver.set_contract_from_source("con_deployer", EXPORT_DEPLOYS, owner=None)
     client.raw_driver.commit()
 
-    output = xian_vm_core.execute_contract(
+    output = execute_contract(
         driver=client.raw_driver,
         contract_name="con_deployer",
         function_name="spawn",
@@ -121,9 +119,8 @@ def transfer():
     driver.set_var("con_target", "__owner__", value="con_parent")
     driver.set_var("con_target", "__developer__", value="con_parent")
     driver.commit()
-    import xian_vm_core
 
-    output = xian_vm_core.execute_contract(
+    output = execute_contract(
         driver=driver,
         contract_name="con_parent",
         function_name="transfer",
@@ -155,9 +152,8 @@ def ping():
 def test_non_owner_cannot_change_owner_via_submission(client):
     client.raw_driver.set_var("con_target", "__owner__", value="legitimate")
     client.raw_driver.commit()
-    import xian_vm_core
 
-    output = xian_vm_core.execute_contract(
+    output = execute_contract(
         driver=client.raw_driver,
         contract_name="submission",
         function_name="change_owner",

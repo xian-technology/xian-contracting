@@ -19,11 +19,11 @@ def _case(body, dependencies=()):
     }
 
 
-def _compare(tmp_path, body, dependencies=(), *, vm_profile="xian_vm_v2"):
+def _compare(tmp_path, body, dependencies=()):
     case = _case(body, dependencies)
     expected = recorded_python_observation(case)
     assert expected["status_code"] == 0, expected
-    assert _run_native_case(case, tmp_path / "native", vm_profile=vm_profile) == expected
+    assert _run_native_case(case, tmp_path / "native") == expected
 
 
 def _reject(tmp_path, body):
@@ -36,17 +36,11 @@ def _reject(tmp_path, body):
     assert actual["writes"] == {} and actual["events"] == []
 
 
-LEGACY_HASHABLE_VALUES = [
-    "float('1.25')",
-    "float('nan')",
-    "round(decimal('1.25'), 2)",
-    "round(decimal('1'), 0).from_float(float('nan'))",
-]
+# Floats and raw decimals are V1 values (V1 execution was removed).
 HASHABLE_VALUES = [
     "None",
     "True",
     "2",
-    *LEGACY_HASHABLE_VALUES,
     "'abc'",
     "b'abc'",
     "(1, 'abc')",
@@ -73,7 +67,6 @@ def test_builtin_hashable_scalar_and_frozen_families(tmp_path, expression):
         f"value={expression}\nresult={{}}.keys()|[]\nresult.add(value)\n"
         "merged=result.union([value])\n"
         "return [len(result),value in result,len(merged),result.issubset([value])]",
-        vm_profile="xian_vm_v1" if expression in LEGACY_HASHABLE_VALUES else "xian_vm_v2",
     )
 
 
@@ -246,13 +239,3 @@ def test_callable_bucket_has_explicit_stable_encounter_order(tmp_path):
     actual = _run_native_case(_case(body), tmp_path / "native")
     assert actual["status_code"] == 0, actual
     assert actual["result"] == ["none", "two", "first", "second"]
-
-
-def test_callable_tuple_nan_identity_is_preserved(tmp_path):
-    _compare(
-        tmp_path,
-        "nan=float('nan')\nfirst=(helper,nan)\nsecond=(helper,nan)\n"
-        "other=(helper,float('nan'))\nresult={first:1,second:2,other:3}.keys()|[]\n"
-        "return [len(result),first in result,second in result,other in result]",
-        vm_profile="xian_vm_v1",
-    )

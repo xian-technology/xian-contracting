@@ -1,4 +1,4 @@
-"""Typed evidence and native V1 execution for current compatibility checks.
+"""Typed evidence and native V2 execution for current surface checks.
 
 Immutable historical Python observers live in historical/ and are used only by
 the pinned capture scripts, never as a fallback for current execution.
@@ -43,12 +43,12 @@ def historical_decimal_text(value):
 
 
 def run_case(case, storage_home, *, native=True):
-    """Observe current native V1 execution without a working-tree Python engine."""
+    """Observe current native (V2) execution without a working-tree Python engine."""
     if native is not True:
         raise ValueError("Current compatibility observation requires native execution.")
     from contracting.storage.driver import Driver
 
-    with Driver(storage_home=storage_home, vm_profile="xian_vm_v1") as driver:
+    with Driver(storage_home=storage_home, vm_profile="xian_vm_v2") as driver:
         return observe_case(driver, case)
 
 
@@ -69,7 +69,7 @@ def execution_context(name):
 
 
 def observe_case(driver, case):
-    import xian_vm_core
+    from tests.vm_calls import execute_contract
 
     name = "baseline_" + case["id"]
     try:
@@ -79,9 +79,8 @@ def observe_case(driver, case):
     except Exception as exc:
         return {"admission": "rejected", "diagnostic": type(exc).__name__}
     driver.commit()
-    output = xian_vm_core.execute_contract(
+    output = execute_contract(
         driver=driver,
-        vm_profile="xian_vm_v1",
         contract_name=name,
         function_name="probe",
         kwargs={},

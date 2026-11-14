@@ -474,24 +474,27 @@ fn developer_weights(
     weights
 }
 
-/// The chain chi rate as `chain_chi_rate` reads it: a positive integer
-/// (whose `ContractingDecimal` is representable). The node refuses to run on
-/// any other rate, as admission and the Python path do: a broken chain, not
-/// a price to guess.
+/// The state key of the chain's chi rate (chi per native token).
+pub(crate) const CHI_RATE_KEY: &str = "chi_cost.S:value";
+
+/// The chain chi rate: a positive integer (whose `ContractingDecimal` is
+/// representable). The node refuses to run on any other rate, as admission
+/// does (`validated_chi_rate`): a broken chain, not a price to guess.
 pub(crate) fn chain_chi_rate(value: Option<VmValue>) -> Settled<BigInt> {
     let shown = value
         .as_ref()
         .map_or_else(|| "None".to_owned(), VmValue::python_repr);
-    valid_chi_rate(value).ok_or_else(|| {
+    value.and_then(valid_chi_rate).ok_or_else(|| {
         Stop::Fault(format!(
-            "chain state has no valid chi rate (chi_cost.S:value = {shown})"
+            "chain state has no valid chi rate ({CHI_RATE_KEY} = {shown})"
         ))
     })
 }
 
-fn valid_chi_rate(value: Option<VmValue>) -> Option<BigInt> {
+/// `value` as a chi rate, if it is one.
+pub(crate) fn valid_chi_rate(value: VmValue) -> Option<BigInt> {
     match value {
-        Some(VmValue::Int(rate)) if rate.is_positive() && fixed_int(&rate).is_ok() => Some(rate),
+        VmValue::Int(rate) if rate.is_positive() && fixed_int(&rate).is_ok() => Some(rate),
         _ => None,
     }
 }
@@ -690,7 +693,10 @@ fn reward_terms(
     if total.sign()? != Ordering::Greater {
         return Ok(None);
     }
-    let Some(rate) = valid_chi_rate(rewards.var("chi_cost", "S", &["value"])?) else {
+    let Some(rate) = rewards
+        .var("chi_cost", "S", &["value"])?
+        .and_then(valid_chi_rate)
+    else {
         return invalid();
     };
     // A configuration without a foundation owner is incomplete.

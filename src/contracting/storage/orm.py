@@ -4,7 +4,6 @@ from xian_runtime_types.collections import ContractingFrozenSet, ContractingSet
 from xian_runtime_types.decimal import ContractingDecimal
 
 from contracting import constants
-from contracting.execution.runtime import rt
 from contracting.storage.driver import Driver
 
 _MISSING = object()
@@ -69,7 +68,7 @@ class Variable(Datum):
 
         self._default_value = default_value
 
-        resolved_driver = driver or rt.env.get("__Driver") or Driver()
+        resolved_driver = driver or Driver()
         super().__init__(contract, name, driver=resolved_driver)
 
     def set(self, value):
@@ -194,7 +193,7 @@ class Hash(Datum):
         driver: Driver | None = None,
         default_value=None,
     ):
-        resolved_driver = driver or rt.env.get("__Driver") or Driver()
+        resolved_driver = driver or Driver()
         super().__init__(contract, name, driver=resolved_driver)
         self._delimiter = constants.DELIMITER
         self._default_value = default_value
@@ -364,9 +363,9 @@ class LogEvent(Datum):
     ):
         if event is None or params is None:
             raise TypeError("LogEvent requires both event and params.")
-        self._contract = contract or rt.context.this or "__event__"
+        self._contract = contract or "__event__"
         self._name = name or event
-        resolved_driver = driver or rt.env.get("__Driver") or Driver()
+        resolved_driver = driver or Driver()
         super().__init__(self._contract, self._name, driver=resolved_driver)
 
         self._event = self._validate_event_name(event)
@@ -439,8 +438,6 @@ class LogEvent(Datum):
     def write_event(self, event_data):
         _require_receiver(self, LogEvent, write=True)
         assert isinstance(event_data, dict), "Event data must be a dictionary."
-        caller = rt.context.caller
-        signer = rt.context.signer
         assert len(event_data) == len(self._params), (
             "Data must have the same number of arguments as specified in the event."
         )
@@ -468,8 +465,8 @@ class LogEvent(Datum):
         event = {
             "contract": self._contract,
             "event": self._event,
-            "signer": signer,
-            "caller": caller,
+            "signer": None,
+            "caller": None,
             "data_indexed": {
                 arg: _copy_mutable(event_data[arg])
                 for arg in self._params

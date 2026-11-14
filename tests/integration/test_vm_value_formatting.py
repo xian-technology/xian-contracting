@@ -6,6 +6,8 @@ from tests.compatibility.runner import encode, run_case
 
 pytestmark = pytest.mark.optional_native
 
+# V2 values only: binary floats, raw Decimals and bool-as-int are V1 (current
+# code no longer executes V1).
 SUCCESS = [
     ("format('é猫', '*^7')", "**é猫***"),
     ("format('abcdef', '>8.3s')", "     abc"),
@@ -19,32 +21,12 @@ SUCCESS = [
     ("format(65536, '#_x')", "0x1_0000"),
     ("format(1234, '010,d')", "00,001,234"),
     ("format(9731, 'c')", "☃"),
-    ("format(True, '04d')", "0001"),
     ("format(False, '')", "False"),
     ("format(12, '.2f')", "12.00"),
-    ("format(float('2.675'), '.2f')", "2.67"),
-    ("format(float('2.5'), '.0f')", "2"),
-    ("format(float('3.5'), '.0f')", "4"),
-    ("format(float('-0'), '+z.2f')", "+0.00"),
-    ("format(float('-0.004'), 'z.2f')", "0.00"),
-    ("format(float('12.5'), '.2e')", "1.25e+01"),
-    ("format(float('0.0000123'), '.2g')", "1.2e-05"),
-    ("format(float('999.5'), '.3g')", "1e+03"),
-    ("format(float('12'), '#.4g')", "12.00"),
-    ("format(float('12'), '.4')", "12.0"),
-    ("format(float('0.125'), '.1%')", "12.5%"),
-    ("format(float('inf'), '+08F')", "+0000INF"),
-    ("format(float('nan'), 'F')", "NAN"),
-    ("format(float('1e16'), '')", "1e+16"),
-    ("format(float('1e-7'), '')", "1e-07"),
-    ("format(float('12345.25'), '_.2f')", "12_345.25"),
-    ("format(float('12345.25'), 'n')", "12345.2"),
     ("format(None, '')", "None"),
     ("format([1, 2], '')", "[1, 2]"),
     ("format(Exception('x'), '')", "x"),
-    ("format(round(decimal('2.125'), 3), '.2f')", "2.12"),
     ("f'{42:#06x}'", "0x002a"),
-    ("f'{float(\"2.675\"):.2f}'", "2.67"),
     ("f'{\"é\"!r}'", "'é'"),
     ("f'{\"é\"!a}'", "'\\xe9'"),
     ("f'{Exception(\"x\")!s}'", "x"),
@@ -60,9 +42,6 @@ INVALID = [
     "format(1, ',x')",
     "format(1, '+c')",
     "format(1114112, 'c')",
-    "format(float('1'), 'd')",
-    "format(float('1'), ',n')",
-    "format(decimal('1'), '.2f')",
     "format(None, 's')",
     "format(1, '99999999999999999999d')",
     "format('x', '99999999999999999999s')",
@@ -124,10 +103,6 @@ def probe():
 @pytest.mark.parametrize(
     ("expression", "expected"),
     [
-        ("str(float('1e-7'))", "1e-07"),
-        ("ascii(float('1e16'))", "1e+16"),
-        ("str([float('1e-7'), float('1e16')])", "[1e-07, 1e+16]"),
-        ("str([float('-0'), float('inf'), float('-nan')])", "[-0.0, inf, nan]"),
         ("ascii(['é', '猫'])", "['\\xe9', '\\u732b']"),
         ('ascii("don\\\'t")', '"don\'t"'),
     ],

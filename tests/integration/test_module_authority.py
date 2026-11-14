@@ -6,7 +6,7 @@ from contracting.storage.driver import Driver
 
 
 def execute(driver, contract, function, kwargs):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     output = execute_contract(
         driver=driver,
@@ -15,7 +15,6 @@ def execute(driver, contract, function, kwargs):
         kwargs=kwargs,
         context={"caller": "alice", "signer": "alice", "this": contract},
         meter=False,
-        vm_profile="xian_vm_v2",
     )
     return {"status_code": output.status_code, "result": output.result, "writes": output.writes}
 

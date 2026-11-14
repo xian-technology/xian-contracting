@@ -2,8 +2,7 @@
 
 A call runs in Rust with the code a block runs (``xian_vm_core.execute_tx``)
 over the driver's LMDB environment and pending state, without fees; a
-success's writes are staged in the driver as a block stages them. The few
-calls the Rust executor leaves to Python run on the Python host instead.
+success's writes are staged in the driver as a block stages them.
 """
 
 from xian_runtime_types.time import Datetime

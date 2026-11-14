@@ -43,9 +43,9 @@ def run(driver, body, *, meter=False, budget=10000000, kwargs=None):
     driver.commit()
     params = {"contract": "con_data", **(kwargs or {})}
     context = {"signer": "alice", "caller": "alice", "this": "con_probe", "owner": "alice"}
-    import xian_vm_core
+    from tests.vm_calls import execute_contract
 
-    return xian_vm_core.execute_contract(
+    return execute_contract(
         driver=driver,
         contract_name="con_probe",
         function_name="probe",
@@ -162,8 +162,9 @@ def test_read_charges_and_budget_are_enforced(driver):
     first = run(driver, single, meter=True)
     second = run(driver, double, meter=True)
     assert first.status_code == second.status_code == 0
-    assert second.raw_cost > first.raw_cost > 0
-    exhausted = run(driver, double, meter=True, budget=first.raw_cost)
+    assert second.chi_used >= first.chi_used > 0
+    # A budget below what the single read used cannot pay for two.
+    exhausted = run(driver, double, meter=True, budget=(first.chi_used - 1) * 1000)
     assert exhausted.status_code == 1
     assert exhausted.writes == {}
 

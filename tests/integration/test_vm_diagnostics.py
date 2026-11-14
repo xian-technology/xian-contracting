@@ -17,7 +17,7 @@ SCRIPT = textwrap.dedent("""
     from tempfile import TemporaryDirectory
     from contracting.artifacts import build_contract_artifacts
     from contracting.storage.driver import Driver
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     source = "value = Variable()\\n@export\\ndef probe(fail: bool):\\n    value.set('private-contract-value')\\n    assert not fail, 'private-error-message'\\n    return 'private-return-value'\\n"
     with TemporaryDirectory() as home:
@@ -36,7 +36,7 @@ SCRIPT = textwrap.dedent("""
                 meter=True, chi_budget_raw=100_000_000)
             print(json.dumps({'status': output.status_code, 'result': str(output.result),
                 'writes': output.writes, 'events': output.events,
-                'raw_cost': output.raw_cost, 'chi_used': output.chi_used, 'costs': output.contract_costs}))
+                'chi_used': output.chi_used, 'costs': output.contract_costs}))
 """)
 
 

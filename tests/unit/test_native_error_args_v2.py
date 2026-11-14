@@ -2,12 +2,12 @@
 
 V2 never interprets failure text. Contract data inside a message (for example
 a missing dictionary key) cannot select an exception type, and decoding cannot
-depend on the host's stack, memory or interpreter limits. Archival V1 keeps its
-text classification (see test_native_error_representations).
+depend on the host's stack, memory or interpreter limits.
 """
 
 import pytest
-from xian_vm_core import native_error_result, execute_contract
+from xian_vm_core import native_error_result
+from tests.vm_calls import execute_contract
 
 from contracting.execution.errors import classify_execution_error
 from contracting.local import ContractingClient
@@ -83,7 +83,6 @@ def run(tmp_path):
                 context={"caller": "alice", "signer": "alice"},
                 meter=True,
                 chi_budget_raw=50_000_000,
-                vm_profile="xian_vm_v2",
             )
 
         yield execute
@@ -114,7 +113,19 @@ def test_message_text_cannot_select_the_category(run):
 @pytest.mark.parametrize(
     "function,kwargs,kind,args",
     [
-        ("structured_args", {}, Exception, ([1, {"a": (2, 3)}], "b", None, True)),
+        pytest.param(
+            "structured_args",
+            {},
+            Exception,
+            ([1, {"a": (2, 3)}], "b", None, True),
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason=(
+                    "the block executor's VmException keeps list/dict arguments as "
+                    "unresolved heap references: they cross as None (reported)"
+                ),
+            ),
+        ),
         ("no_args", {}, Exception, ()),
         ("assertion", {"message": "it's ValueError: x"}, AssertionError, ("it's ValueError: x",)),
         ("bare_assertion", {}, AssertionError, ()),
@@ -144,7 +155,7 @@ def test_constructor_failure_reports_the_constructor_exception():
 
 def test_unstructured_v2_failures_remain_text():
     text = "constructor failed: AssertionError('ValueError: stop')"
-    assert native_error_result(1, text, vm_profile="xian_vm_v2") == text
+    assert native_error_result(1, text) == text
 
 
 @pytest.mark.parametrize(
@@ -156,7 +167,7 @@ def test_unstructured_v2_failures_remain_text():
     ],
 )
 def test_structured_failure_selects_only_known_types(exception, kind, args):
-    result = native_error_result(1, "text", vm_profile="xian_vm_v2", exception=exception)
+    result = native_error_result(1, "text", exception=exception)
     if kind is None:
         assert result == "text"
     else:

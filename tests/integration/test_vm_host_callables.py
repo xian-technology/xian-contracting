@@ -235,7 +235,7 @@ def variadic(left: int, *rest: int, **options: int):
         driver.set("con_host_callable_target.ledger:ready", 9)
         driver.set_contract_from_source("con_host_callables", source, owner="alice")
         driver.commit()
-        from xian_vm_core import execute_contract
+        from tests.vm_calls import execute_contract
 
         result = execute_contract(
             driver=driver,
@@ -339,7 +339,7 @@ def probe(count: int):
 
 
 def run_metered_source(home, source, kwargs, *, budget=1_000_000):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     with Driver(storage_home=home) as driver:
         driver.set_contract_from_source("con_host_meter", source, owner=None)
@@ -360,7 +360,8 @@ def test_host_callback_work_is_charged_per_invocation(tmp_path):
     large = run_metered_callbacks(tmp_path / "large", 20)
     assert small.status_code == large.status_code == 0
     assert (small.result, large.result) == (10, 20)
-    assert large.raw_cost - small.raw_cost >= 10 * 5_000
+    # At least 5000 raw for each of the 10 extra callbacks: at least 50 chi.
+    assert large.chi_used - small.chi_used >= 10 * 5_000 // 1000
 
 
 def test_host_callback_budget_failure_rolls_back_prior_writes(tmp_path):
@@ -418,11 +419,14 @@ def test_class_and_instance_strptime_callbacks_pay_the_same_dispatch_work(tmp_pa
             f"    f = {origin}\n"
             '    return len(list(map(f, ["2026"] * count, ["%Y"] * count)))\n'
         )
-        for count in [10, 20]:
-            result = run_metered_source(tmp_path / f"{label}-{count}", source, {"count": count})
+        # 1000 extra callbacks: their whole cost in chi, exact per callback.
+        for count in [10, 1010]:
+            result = run_metered_source(
+                tmp_path / f"{label}-{count}", source, {"count": count}, budget=100_000_000
+            )
             assert result.status_code == 0, result.result
             assert result.result == count
-            costs.append(result.raw_cost)
+            costs.append(result.chi_used)
         deltas.append(costs[1] - costs[0])
     assert deltas[0] == deltas[1]
-    assert deltas[0] >= 10 * 5_000
+    assert deltas[0] >= 1000 * 5_000 // 1000

@@ -60,9 +60,7 @@ def test_clear_prefix_and_default_value(tmp_path, expression):
 @pytest.mark.parametrize("operation", ["h.clear()", "g.clone_from(h)"])
 @pytest.mark.parametrize("count", [100, 2000])
 def test_bulk_scan_is_metered_and_rolls_back(tmp_path, operation, count):
-    from unittest.mock import patch
-
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     from contracting.storage.driver import Driver
 
@@ -76,27 +74,20 @@ def test_bulk_scan_is_metered_and_rolls_back(tmp_path, operation, count):
         for i in range(count):
             driver.set_var("con_bulk", "h", [str(i)], i)
         driver.commit()
-        consumed = []
-        original = driver._store.iter_items
-
-        def observe(prefix):
-            for item in original(prefix):
-                consumed.append(item)
-                yield item
-
-        with patch.object(driver._store, "iter_items", side_effect=observe):
-            output = execute_contract(
-                driver=driver,
-                contract_name="con_bulk",
-                function_name="probe",
-                kwargs={},
-                context={"caller": "alice", "signer": "alice", "this": "con_bulk"},
-                meter=True,
-                chi_budget_raw=30_000,
-            )
+        # The scan runs in Rust over LMDB and stops at the entry that runs out
+        # of chi (vm-core block_host::writes a_scan_stops_when_the_visitor_asks).
+        output = execute_contract(
+            driver=driver,
+            contract_name="con_bulk",
+            function_name="probe",
+            kwargs={},
+            context={"caller": "alice", "signer": "alice", "this": "con_bulk"},
+            meter=True,
+            chi_budget_raw=30_000,
+        )
         assert output.status_code == 1 and "Out of chi" in str(output.result)
         assert output.writes == {} and output.events == []
-        assert 0 < len(consumed) < 1000
+        assert output.chi_used == 30
 
 
 @pytest.mark.parametrize("fail", [False, True])

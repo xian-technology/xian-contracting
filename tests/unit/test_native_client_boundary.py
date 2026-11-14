@@ -33,9 +33,9 @@ def test_public_client_rejects_injected_v1_driver_without_seeding_state(tmp_path
         assert not driver.has_contract("submission")
 
 
-def test_archival_native_v1_executes_without_public_client(tmp_path):
-    from xian_vm_core import execute_contract
-
+def test_archival_v1_artifacts_are_stored_but_never_executed(tmp_path):
+    # V1 compilation and storage stay for archival tooling; current code has
+    # no V1 execution (V1 replays on its pinned release).
     from contracting.artifacts import compile_contract_source
     compiled = compile_contract_source(
         module_name="con_archive",
@@ -47,18 +47,10 @@ def test_archival_native_v1_executes_without_public_client(tmp_path):
             name="con_archive", source=compiled["source"], vm_ir_json=compiled["vm_ir_json"]
         )
         driver.commit()
-        result = execute_contract(
-            driver=driver,
-            contract_name="con_archive",
-            function_name="answer",
-            context={"signer": "sys", "caller": "sys"},
-            vm_profile="xian_vm_v1",
-        )
 
-        assert result.status_code == 0, result.result
-        assert result.result == 42
-        assert result.writes == {}
         assert driver.get_contract_ir("con_archive") == compiled["vm_ir_json"]
+        # The VM executes over V2 storage only.
+        assert driver.committed_storage() is None
 
 
 def test_native_client_does_not_load_python_executor_or_tracer(tmp_path):

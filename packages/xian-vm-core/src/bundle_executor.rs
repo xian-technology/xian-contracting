@@ -186,28 +186,6 @@ pub(crate) fn load_bundle_module(
 }
 
 impl<H: HostServices> BundleExecutor<H> {
-    /// `bundle` maps module names to their IR JSON text, checked in name order.
-    pub(crate) fn new(
-        host: H,
-        bundle: BTreeMap<String, String>,
-        meter_config: VmMeterConfig,
-        budget: Option<crate::VmBudget>,
-        vm_profile: &str,
-    ) -> Result<Self, VmExecutionError> {
-        let mut modules = HashMap::new();
-        for (module_name, module_ir_json) in bundle {
-            let module = load_bundle_module(&module_name, &module_ir_json, vm_profile)?;
-            modules.insert(module_name, module);
-        }
-        Ok(Self::with_modules(
-            host,
-            modules,
-            meter_config,
-            budget,
-            vm_profile,
-        ))
-    }
-
     /// An executor whose bundle is already loaded and checked.
     pub(crate) fn with_modules(
         host: H,

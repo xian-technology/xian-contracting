@@ -3,12 +3,12 @@
 import pytest
 
 from tests.compatibility.runner import encode, run_case
-from tests.surface.catalog import load_cases
+from tests.surface.catalog import load_v2_cases
 
 pytestmark = pytest.mark.optional_native
 
 
-@pytest.mark.parametrize("case", load_cases(), ids=lambda case: case["id"])
+@pytest.mark.parametrize("case", load_v2_cases(), ids=lambda case: case["id"])
 def test_runtime_surface_case(tmp_path, case):
     actual = run_case(case, tmp_path)
     assert actual["admission"] == "accepted", actual

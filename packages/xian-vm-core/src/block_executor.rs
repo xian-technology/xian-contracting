@@ -30,7 +30,7 @@ use crate::python_decimal::PyDecimal;
 use crate::settlement::{self, Balance, InvalidBalance, Reservation, Settled, Stop};
 use crate::state_view::StateView;
 use crate::stored_value_encoder::encode_stored_value;
-use crate::tx_rewards::{chain_chi_rate, tx_reward_outputs, RewardState, TxRewards};
+use crate::tx_rewards::{chain_chi_rate, tx_reward_outputs, RewardState, TxRewards, CHI_RATE_KEY};
 use crate::{
     ValidatedModuleIr, VmBudget, VmEvent, VmException, VmExecutionContext, VmExecutionStats,
     VmMeterConfig, VmValue, XIAN_VM_V2_PROFILE,
@@ -303,7 +303,7 @@ impl BlockExecutor {
         if !self.policy.charge_fees {
             return Ok(None);
         }
-        Ok(Some(chain_chi_rate(self.get("chi_cost.S:value")?)?))
+        Ok(Some(chain_chi_rate(self.get(CHI_RATE_KEY)?)?))
     }
 
     /// `run` inside the overlay's discarding scope: what it stages (the

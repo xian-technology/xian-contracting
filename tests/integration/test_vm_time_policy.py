@@ -4,7 +4,7 @@ import pytest
 
 from tests.integration.pre_retirement_oracle import recorded_python_observation
 from tests.integration.test_vm_language_conformance import _run_native_case
-from tests.integration.test_vm_raw_decimal import compare
+from tests.integration.test_vm_language_conformance import compare
 
 pytestmark = pytest.mark.optional_native
 
@@ -119,7 +119,7 @@ def test_conflicting_calendar_representations_are_rejected(tmp_path, text, forma
     ],
 )
 def test_strptime_precharges_work_before_parsing_and_rolls_back(tmp_path, call):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     from contracting.storage.driver import Driver
 

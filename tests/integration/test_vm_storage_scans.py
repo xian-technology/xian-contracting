@@ -1,7 +1,6 @@
 """Consensus ordering and bounded work for all native storage-scan surfaces."""
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -11,9 +10,9 @@ pytestmark = pytest.mark.optional_native
 
 
 def execute(driver, *, budget=10_000_000):
-    import xian_vm_core
+    from tests.vm_calls import execute_contract
 
-    return xian_vm_core.execute_contract(
+    return execute_contract(
         driver=driver,
         contract_name="con_scan",
         function_name="probe",
@@ -50,19 +49,12 @@ def test_scan_stops_reading_when_chi_is_exhausted(tmp_path: Path, scan):
         for index in range(4000):
             driver.set_var("con_scan", "values", [str(index)], index)
         driver.commit()
-        consumed = []
-        original = driver._store.iter_items
-
-        def observe(prefix):
-            for key, value in original(prefix):
-                consumed.append(key)
-                yield key, value
-
-        with patch.object(driver._store, "iter_items", side_effect=observe):
-            output = execute(driver, budget=100_000)
+        # The scan runs in Rust over LMDB and stops at the entry that runs out
+        # of chi (vm-core block_host::writes a_scan_stops_when_the_visitor_asks).
+        output = execute(driver, budget=100_000)
         assert output.status_code != 0
         assert "Out of chi" in str(output.result)
-        assert 0 < len(consumed) < 2000
+        assert output.chi_used == 100
         assert output.writes == {}
 
 
@@ -97,7 +89,7 @@ def test_scan_order_survives_fresh_process_hash_seeds(tmp_path):
 import json, sys
 from pathlib import Path
 from contracting.storage.driver import Driver
-from xian_vm_core import execute_contract
+from tests.vm_calls import execute_contract
 source = '''
 h = Hash()
 result = Variable()

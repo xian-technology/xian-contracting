@@ -185,12 +185,11 @@ def _deploy(driver, case, name):
 
 
 def _execute(driver, name, step):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     function = step.get("function", "probe")
     return execute_contract(
         driver=driver,
-        vm_profile=driver.vm_profile,
         contract_name=name,
         function_name=function,
         kwargs=step.get("kwargs", {}),
@@ -258,7 +257,6 @@ def _observe_step(driver, name, step, label):
     observation = {
         "status_code": output.status_code,
         "chi_used": output.chi_used,
-        "raw_cost": output.raw_cost,
         "contract_costs": encode_exact(output.contract_costs),
         "writes": encode_exact(output.writes),
         "events": encode_exact(output.events),
@@ -295,6 +293,8 @@ def observe_case(case, home, *, reopen=False):
     home = Path(home)
     name = "determinism_" + case["id"]
     profile = case.get("vm_profile", "xian_vm_v2")
+    # Current code executes V2 only; V1 replays on its pinned release.
+    _require(profile == "xian_vm_v2", f"{case['id']}: current code executes xian_vm_v2 only")
     driver = Driver(storage_home=home, vm_profile=profile)
     try:
         _require(not driver.keys_from_disk(), f"{case['id']}: expected fresh storage home")

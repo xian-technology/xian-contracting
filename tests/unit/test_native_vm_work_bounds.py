@@ -85,7 +85,7 @@ def driver(tmp_path_factory):
 
 
 def run(driver, function, input_hash="x", **kwargs):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     context = {
         "signer": "alice",

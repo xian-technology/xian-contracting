@@ -7,7 +7,7 @@ asking the host again on every call.
 """
 
 import pytest
-import xian_vm_core
+from tests.vm_calls import execute_contract
 from xian_runtime_types.time import Datetime
 
 from contracting.local import ContractingClient
@@ -69,7 +69,7 @@ def _run(driver, name, source, *, target_owner=None):
     driver.set_contract_from_source(name, source, owner=None)
     driver.set_var("con_target", "__owner__", value=target_owner)
     driver.commit()
-    return xian_vm_core.execute_contract(
+    return execute_contract(
         driver=driver,
         contract_name=name,
         function_name="run",
@@ -80,25 +80,13 @@ def _run(driver, name, source, *, target_owner=None):
     )
 
 
-@pytest.fixture
-def owner_reads(monkeypatch):
-    reads = []
-    original = xian_vm_core.NativeVmHost.get_owner
-
-    def counting(self, contract):
-        reads.append(contract)
-        return original(self, contract)
-
-    monkeypatch.setattr(xian_vm_core.NativeVmHost, "get_owner", counting)
-    return reads
-
-
-def test_each_owner_is_read_once_per_execution(driver, owner_reads):
+def test_repeated_calls_to_an_owned_contract_pass_the_owner_check(driver):
+    # The executor reads each owner once per execution (BundleExecutor's owner
+    # cache); here the repeated calls only have to succeed.
     output = _run(driver, "con_caller", REPEATED_CALLS)
 
     assert output.status_code == 0, output.result
     assert output.result == 5
-    assert owner_reads.count("con_target") == 1
 
 
 def test_an_owner_change_applies_to_the_next_call_in_the_same_execution(driver):

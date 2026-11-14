@@ -233,4 +233,5 @@ def probe():
 
 def test_subject_type_factory_is_not_an_authored_surface(tmp_path):
     actual = execute(tmp_path, callback="factory = type(subject)\nreturn True")
-    assert actual == {"admission": "rejected", "diagnostic": "LintingError"}
+    # The V2 compiler refuses the source (the V1 linter raised LintingError).
+    assert actual == {"admission": "rejected", "diagnostic": "CompilerError"}

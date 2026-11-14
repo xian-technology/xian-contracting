@@ -13,7 +13,7 @@ import pytest
 from tests.integration.test_vm_language_conformance import _run_native_case
 
 
-def _probe(tmp_path: Path, body: str, *, vm_profile: str = "xian_vm_v2") -> dict:
+def _probe(tmp_path: Path, body: str) -> dict:
     case = {
         "id": "subscript_rules",
         "source": "@export\ndef probe():\n"
@@ -21,22 +21,12 @@ def _probe(tmp_path: Path, body: str, *, vm_profile: str = "xian_vm_v2") -> dict
         "function_name": "probe",
         "kwargs": {},
     }
-    return _run_native_case(case, tmp_path, vm_profile=vm_profile)
+    return _run_native_case(case, tmp_path)
 
 
 def test_nested_mapping_proxy_reads_through_to_the_dict(tmp_path):
     outcome = _probe(tmp_path, "d={'a':1}\nm=d.keys().mapping\nreturn m.keys().mapping['a']")
     assert (outcome["status_code"], outcome["result"]) == (0, 1)
-
-
-def test_decimal_tuple_is_indexed_like_a_tuple(tmp_path):
-    outcome = _probe(
-        tmp_path,
-        "t=round(decimal('-1.50'),2).as_tuple()\nreturn [t[0], t[1], t[2], t[-1]]",
-        vm_profile="xian_vm_v1",
-    )
-    assert outcome["status_code"] == 0, outcome
-    assert outcome["result"] == [1, [1, 5, 0], -2, -2]
 
 
 @pytest.mark.parametrize(("value", "type_name"), [("5", "int"), ("None", "none")])

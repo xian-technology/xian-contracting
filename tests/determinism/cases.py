@@ -5,7 +5,6 @@ source templates are fixed; generated data enters only through Python literals.
 """
 
 import datetime
-import decimal
 import random
 import textwrap
 
@@ -91,38 +90,6 @@ def _unicode(rng, index):
     )
 
 
-def _numeric(rng, index):
-    if index % 2:
-        return _raw_decimal(rng)
-    numerator = rng.randint(-(1 << 53), 1 << 53)
-    value = numerator / (1 << rng.randrange(0, 40))
-    literal = value.hex()
-    return _probe(
-        f"value = float.fromhex({literal!r})\n"
-        "return [value.hex(), list(value.as_integer_ratio()), value.is_integer(), format(value, '.6e')]",
-        [literal, list(value.as_integer_ratio()), value.is_integer(), format(value, ".6e")],
-    )
-
-
-def _raw_decimal(rng):
-    amount = f"{rng.randint(-9999, 9999)}.{rng.randrange(1_000_000):06d}"
-    places = rng.randrange(0, 7)
-    context = decimal.Context(prec=91, rounding=decimal.ROUND_DOWN, Emin=-100, Emax=100)
-    with decimal.localcontext(context):
-        value = decimal.Decimal(amount).quantize(decimal.Decimal((0, (1,), -places)))
-        expected = [
-            str(value),
-            list(value.as_tuple().digits),
-            value.as_tuple().exponent,
-            format(value, ".3f"),
-        ]
-    return _probe(
-        f"value = round(decimal({amount!r}), {places})\nparts = value.as_tuple()\n"
-        "return [str(value), list(parts.digits), parts.exponent, format(value, '.3f')]",
-        expected,
-    )
-
-
 def _time(rng, index):
     base = rng.choice(
         [
@@ -149,7 +116,7 @@ def _random_stream(rng, index):
         f"salt = {salt!r}\nrandom.seed(salt)\nfirst = random.getrandbits(97)\n"
         "random.seed(salt)\nsecond = random.getrandbits(97)\n"
         f"values = {values!r}\nalias = values\nrandom.shuffle(values)\n"
-        "stream.set([first, second, values, random.random(), random.choices(values, 3)])\n"
+        "stream.set([first, second, values, random.choices(values, 3)])\n"
         "return [first == second, alias is values, sorted(values)]",
         [True, True, sorted(values)],
         "stream = Variable()\n",
@@ -207,7 +174,6 @@ GENERATORS = {
     "dictionary_order": _dictionary_order,
     "set_order": _set_order,
     "unicode": _unicode,
-    "numeric": _numeric,
     "time": _time,
     "random_stream": _random_stream,
     "sequence": _sequence,
@@ -224,9 +190,12 @@ def generated_cases(*, seed=DEFAULT_SEED, count=256):
     for index in range(count):
         family = FAMILIES[index % len(FAMILIES)]
         case = GENERATORS[family](rng, index)
-        # The numeric and random-stream probes intentionally exercise binary floats.
-        profile = "xian_vm_v1" if family in ("numeric", "random_stream") else "xian_vm_v2"
         cases.append(
-            {"id": f"generated_{family}_{index:04d}", "family": family, "vm_profile": profile, **case}
+            {
+                "id": f"generated_{family}_{index:04d}",
+                "family": family,
+                "vm_profile": "xian_vm_v2",
+                **case,
+            }
         )
     return cases

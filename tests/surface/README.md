@@ -1,7 +1,10 @@
 # Contract surface coverage
 
-The native compatibility matrix in this directory uses the explicit historical
-`xian_vm_v1` profile and checks reviewed explicit semantic expectations. The
+The native compatibility matrix in this directory runs on `xian_vm_v2` (current
+code executes V2 only) and checks reviewed explicit semantic expectations;
+`catalog.V1_ONLY_CASES` lists the cases whose expectations are the historical
+`xian_vm_v1` profile's (binary floats, raw Decimals, bool as int), which are not
+executed. The
 complementary fixed conformance suites retain immutable, provenance-checked
 Python observations. Neither requires a current Python contract engine. Public local clients and fresh contracts use
 `xian_vm_v2`; its numeric admission, wire values and arithmetic have separate

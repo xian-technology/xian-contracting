@@ -1,7 +1,5 @@
 """Native persistence reloads typed wrapper members and rejects invalid effects."""
 
-from decimal import Decimal
-
 import pytest
 from xian_runtime_types.encoding import TYPES
 
@@ -9,38 +7,31 @@ from contracting.storage.driver import Driver
 
 pytestmark = pytest.mark.optional_native
 
+# V2 members only: binary floats and raw Decimals are V1 values.
 SOURCE = """
 state=Variable()
 @export
 def seed():
-    prototype=round(decimal('1'),0)
-    state.set(set([('tuple',7),frozenset([('inside',2)]),round(decimal('1.2300'),4),
-        prototype.from_float(float('5e-324')),float('-0.0'),b'x',
+    state.set(set([('tuple',7),frozenset([('inside',2)]),decimal('1.23'),b'x',
         datetime.datetime(2026,1,2,3,4,5,6),datetime.timedelta(seconds=-90001)]))
     return 1
 @export
 def probe():
     values=state.get()
-    raw=[]
-    floats=[]
     times=[]
     durations=[]
     for item in values:
-        if isinstance(item,float):
-            floats.append(item.hex())
-        elif isinstance(item,datetime.datetime):
+        if isinstance(item,datetime.datetime):
             times.append(str(item))
         elif isinstance(item,datetime.timedelta):
             durations.append(item.seconds)
-        elif not isinstance(item,(tuple,frozenset,bytes)):
-            raw.append([str(item),item.as_tuple().exponent])
     return [('tuple',7) in values,frozenset([('inside',2)]) in values,b'x' in values,
-        raw,floats,times,durations]
+        decimal('1.23') in values,times,durations]
 """
 
 
 def _execute(driver, function, meter):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     return execute_contract(
         driver=driver,
@@ -50,13 +41,12 @@ def _execute(driver, function, meter):
         context={"caller": "alice", "signer": "alice", "this": "con_set_codec"},
         meter=meter,
         chi_budget_raw=100_000_000,
-        vm_profile=driver.vm_profile,
     )
 
 
 @pytest.mark.parametrize("meter", [False, True])
-def test_native_members_keep_types_and_quantum_after_lmdb_reopen(tmp_path, meter):
-    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
+def test_native_members_keep_types_after_lmdb_reopen(tmp_path, meter):
+    with Driver(storage_home=tmp_path) as driver:
         driver.set_contract_from_source("con_set_codec", SOURCE, owner=None)
         driver.commit()
         result = _execute(driver, "seed", meter)
@@ -64,28 +54,26 @@ def test_native_members_keep_types_and_quantum_after_lmdb_reopen(tmp_path, meter
         for key, value in result.writes.items():
             driver.set(key, value)
         driver.commit()
-    with Driver(storage_home=tmp_path, vm_profile="xian_vm_v1") as driver:
+    with Driver(storage_home=tmp_path) as driver:
         result = _execute(driver, "probe", meter)
         assert result.status_code == 0, result.result
-        smallest = Decimal.from_float(5e-324)
         assert result.result == [
             True,
             True,
             True,
-            [[str(smallest), smallest.as_tuple().exponent], ["1.2300", -4]],
-            ["-0x0.0p+0"],
+            True,
             ["2026-01-02 03:04:05.000006"],
             [-90001],
         ]
 
 
-def _assert_rejected_then_recovers(home, expression, meter, fragment, *, vm_profile="xian_vm_v2"):
+def _assert_rejected_then_recovers(home, expression, meter, fragment):
     source = (
         "state=Variable()\n@export\ndef fail():\n    state.set(1)\n    state.set("
         + expression
         + ")\n    return 0\n@export\ndef recover():\n    assert state.get() is None\n    state.set(set([(1,2)]))\n    return 7\n"
     )
-    with Driver(storage_home=home, vm_profile=vm_profile) as driver:
+    with Driver(storage_home=home) as driver:
         driver.set_contract_from_source("con_set_codec", source, owner=None)
         driver.commit()
         failed = _execute(driver, "fail", meter)
@@ -93,16 +81,6 @@ def _assert_rejected_then_recovers(home, expression, meter, fragment, *, vm_prof
         assert failed.writes == {} and failed.events == []
         recovered = _execute(driver, "recover", meter)
         assert recovered.status_code == 0 and recovered.result == 7, recovered.result
-
-
-@pytest.mark.parametrize("meter", [False, True])
-@pytest.mark.parametrize(
-    "member", ["float('nan')", "float('inf')", "round(decimal('1'),0).from_float(float('inf'))"]
-)
-def test_nonfinite_persistent_set_members_fail_even_without_metering(tmp_path, meter, member):
-    _assert_rejected_then_recovers(
-        tmp_path, "set([(" + member + ",)])", meter, "finite", vm_profile="xian_vm_v1"
-    )
 
 
 @pytest.mark.parametrize("meter", [False, True])

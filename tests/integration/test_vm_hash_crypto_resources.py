@@ -9,7 +9,7 @@ TEXT_LIMIT = 1024 * 1024
 
 
 def execute(home, body, payload, *, budget=50_000_000, meter=True):
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     source = "state = Variable()\n@export\ndef probe(payload: str):\n"
     source += "    state.set(7)\n" + "\n".join("    " + line for line in body.splitlines()) + "\n"
@@ -45,11 +45,13 @@ def test_hash_byte_prices_apply_once_per_invocation(tmp_path, name, price, route
         "alias": f"f = hashlib.{name}\nreturn f(payload)",
         "callback": f"return list(map(hashlib.{name}, [payload, payload]))",
     }
+    # 1000 more payload bytes cost exactly `price` chi more per invocation
+    # (whole chi, so the charge is exact whatever the rest of the run costs).
     short = execute(tmp_path / "short", bodies[route], "ab" * 8)
-    wide = execute(tmp_path / "wide", bodies[route], "ab" * 128)
+    wide = execute(tmp_path / "wide", bodies[route], "ab" * 508)
     assert short.status_code == wide.status_code == 0, (short.result, wide.result)
     invocations = 2 if route == "callback" else 1
-    assert wide.raw_cost - short.raw_cost == (256 - 16) * price * invocations
+    assert wide.chi_used - short.chi_used == price * invocations
 
 
 @pytest.mark.parametrize("meter", [True, False])
@@ -89,7 +91,7 @@ def test_ed25519_message_price_and_valid_signatures(tmp_path, route):
     signer = nacl.signing.SigningKey(b"\x07" * 32)
     key = signer.verify_key.encode().hex()
     results = []
-    for size in [16, 256]:
+    for size in [16, 1016]:
         payload = "é" * (size // 2)
         signature = signer.sign(payload.encode()).signature.hex()
         bodies = {
@@ -102,7 +104,8 @@ def test_ed25519_message_price_and_valid_signatures(tmp_path, route):
         assert result.result == ([True, True] if route == "callback" else True)
         results.append(result)
     calls = 2 if route == "callback" else 1
-    assert results[1].raw_cost - results[0].raw_cost == 4 * (256 - 16) * calls
+    # 1000 more message bytes at 4 raw each: exactly 4 chi more per call.
+    assert results[1].chi_used - results[0].chi_used == 4 * calls
 
 
 @pytest.mark.parametrize("meter", [True, False])
@@ -122,7 +125,7 @@ def test_ed25519_caps_are_admission_errors(tmp_path, operand, meter):
 def test_payload_origin_does_not_change_syscall_admission(tmp_path, route, size):
     import hashlib
 
-    from xian_vm_core import execute_contract
+    from tests.vm_calls import execute_contract
 
     payload = "x" * size
     body = {

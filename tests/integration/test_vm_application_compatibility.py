@@ -1,12 +1,15 @@
-"""New bounded workflows over byte-identical, published pre-VM applications."""
+"""Provenance of the published pre-VM application corpus.
+
+The applications are V1 contracts (floats among others). Current code no
+longer executes V1 (single-engine plan, decision 6); their sequences replay
+on the pinned release.
+"""
 
 import hashlib
 import json
 
-import pytest
 
-from tests.compatibility.application_expectations import expected_current
-from tests.compatibility.application_runner import FIXTURES, comparison, fixtures, run_sequence
+from tests.compatibility.application_runner import FIXTURES, fixtures
 
 MANIFEST, SOURCES, SEQUENCES = fixtures()
 BASELINE = json.loads((FIXTURES / "legacy_baseline.json").read_text())
@@ -27,19 +30,3 @@ def test_application_baseline_provenance():
         )
     assert set(BASELINE["observations"]) == {case["id"] for case in SEQUENCES}
     assert all(len(case["steps"]) <= 64 for case in SEQUENCES)
-
-
-@pytest.mark.parametrize(
-    "engine",
-    [
-        pytest.param("native", marks=pytest.mark.optional_native),
-        pytest.param("native-metered", marks=pytest.mark.optional_native),
-    ],
-)
-@pytest.mark.parametrize("sequence", SEQUENCES, ids=lambda item: item["id"])
-def test_published_application_sequence(tmp_path, sequence, engine):
-    actual = {sequence["id"]: run_sequence(sequence, SOURCES, tmp_path, engine)}
-    expected = {sequence["id"]: BASELINE["observations"][sequence["id"]]}
-    deviations = json.loads((FIXTURES / "current_policy_deviations.json").read_text())
-    expected, _ = expected_current(expected, deviations)
-    assert comparison(actual) == comparison(expected)

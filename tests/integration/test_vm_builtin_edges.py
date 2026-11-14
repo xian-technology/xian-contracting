@@ -10,7 +10,8 @@ from tests.integration.test_vm_language_conformance import _run_native_case
 pytestmark = pytest.mark.optional_native
 
 
-@pytest.mark.parametrize("expression", ["bool()", "int()", "float()", "str()", "list(zip())"])
+# float() is V1 only (V1 execution was removed from current code).
+@pytest.mark.parametrize("expression", ["bool()", "int()", "str()", "list(zip())"])
 def test_empty_builtin_defaults_match_python(tmp_path: Path, expression: str):
     case = {
         "id": "empty_builtin",
@@ -20,14 +21,7 @@ def test_empty_builtin_defaults_match_python(tmp_path: Path, expression: str):
     }
     expected = recorded_python_observation(case)
     assert expected["status_code"] == 0
-    assert (
-        _run_native_case(
-            case,
-            tmp_path / "native",
-            vm_profile="xian_vm_v1" if expression == "float()" else "xian_vm_v2",
-        )
-        == expected
-    )
+    assert _run_native_case(case, tmp_path / "native") == expected
 
 
 @pytest.mark.parametrize(
@@ -51,37 +45,3 @@ def test_slice_boundaries_match_python(tmp_path: Path, expression: str):
     expected = recorded_python_observation(case)
     assert expected["status_code"] == 0
     assert _run_native_case(case, tmp_path / "native") == expected
-
-
-@pytest.mark.parametrize(
-    "expression",
-    [
-        "abs(True)",
-        "abs(False)",
-        "round(5, None)",
-        "round(1.5, None)",
-        'float(" 1.25 ")',
-        'float(b" 1.25 ")',
-    ],
-)
-def test_numeric_builtin_boundaries_match_python(tmp_path: Path, expression: str):
-    case = {
-        "id": "numeric_boundary",
-        "source": f"@export\ndef probe():\n    return {expression}\n",
-        "function_name": "probe",
-        "kwargs": {},
-    }
-    expected = recorded_python_observation(case)
-    assert expected["status_code"] == 0
-    assert _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1") == expected
-
-
-def test_float_bytes_reject_non_ascii_whitespace(tmp_path: Path):
-    case = {
-        "id": "float_bytes_whitespace",
-        "source": '@export\ndef probe():\n    return float(b"\\xc2\\xa01.25\\xc2\\xa0")\n',
-        "function_name": "probe",
-        "kwargs": {},
-    }
-    assert recorded_python_observation(case)["status_code"] == 1
-    assert _run_native_case(case, tmp_path / "native", vm_profile="xian_vm_v1")["status_code"] == 1
