@@ -1,6 +1,6 @@
 //! The node's zk proof caches: prepared verifying keys and the verified
 //! results of proofs against registered keys (`zk.verify_groth16`), shared
-//! by the block host, the Python host and the node's proof pre-verification
+//! by the block host and the node's proof pre-verification
 //! (`warm`). They only save work: a cached result is the result verifying
 //! the same proof against the same registered key returns, so no outcome
 //! depends on what a node has cached.

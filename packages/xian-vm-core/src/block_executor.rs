@@ -1,14 +1,15 @@
 //! A block's transactions executed in Rust over the block overlay.
 //!
-//! This is the node's per-transaction path (`xian.processor.TxProcessor.
-//! process_tx` with `xian.execution_engine.execute_vm_transaction` and
-//! `xian_vm_core.execute_contract`) for chain and system transactions whose contract
-//! needs nothing from Python: fee reservation, contract preparation, VM
-//! execution, the failure charge, refund or failure metering, fee rewards
-//! and staging the writes, with that path's outcomes and texts.
+//! This is the node's only transaction engine (blocks through
+//! `xian.processor.TxProcessor.process_block`, single calls through
+//! `execute_tx`): fee reservation, contract preparation, VM execution, the
+//! failure charge, refund or failure metering, fee rewards and staging the
+//! writes. The outcomes and texts are those of the former Python
+//! per-transaction path (deleted in increment 9 of the single-engine plan),
+//! pinned by xian-abci's golden corpora.
 //!
 //! Every transaction gets a receipt here; revision 14 gives the inputs the
-//! Python path halted on or decided by its own quirks explicit rules: a
+//! former Python path halted on or decided by its own quirks explicit rules: a
 //! sender balance that is not a number cannot pay (`INVALID_BALANCE`, no
 //! charge), a failure charge never raises a negative balance, and an invalid
 //! reward input pays no rewards (`tx_rewards`). The VM's host (`block_host`)
@@ -348,8 +349,8 @@ impl BlockExecutor {
             Ok(call) => call,
             Err(refused) => return Ok(refused.reserved(reservation)),
         };
-        // `execute_contract` takes the raw budget as a u64: a larger one is
-        // a failure in the host runtime.
+        // The raw budget is a u64: a larger one is a failure in the host
+        // runtime.
         let Some(budget_raw) = chi_budget_raw(&tx.chi_budget) else {
             return Ok(Execution::failed(reservation, "RuntimeError", HOST_FAILURE));
         };
@@ -434,16 +435,15 @@ impl BlockExecutor {
         Ok(Ok(Some(reservation)))
     }
 
-    /// The execution context of an entry call that passes
-    /// `execute_contract`'s checks.
+    /// The execution context of an entry call that passes the entry checks.
     fn entry_context(
         &self,
         tx: &PreparedTx,
         entry: &ValidatedModuleIr,
     ) -> Settled<Result<VmExecutionContext, Unprepared>> {
-        // execute_contract's own load of the entry module.
+        // The entry module must load.
         self.ir(&tx.contract)?;
-        // execute_contract's entry checks: only the owner may call an owned
+        // The entry checks: only the owner may call an owned
         // contract (an empty owner too, and an owner that is not a string
         // no caller is), and only exported functions.
         let owner = match self.get(&format!("{}.{OWNER_KEY}", tx.contract))? {
@@ -795,7 +795,7 @@ fn refunded_balance(
     settlement::refund(reservation, &after, &execution.chi_used, rate).map(VmValue::Decimal)
 }
 
-/// An event as the Python path's event dictionary.
+/// An event as the receipt's event dictionary.
 pub(crate) fn event_value(event: &VmEvent) -> VmValue {
     let pairs = |pairs: &[(String, VmValue)]| {
         VmValue::Dict(
@@ -825,10 +825,9 @@ fn missing_source(tx: &PreparedTx) -> bool {
         })
 }
 
-/// `execute_contract`'s accounting of what the host syscalls cost: the raw
-/// cost of the VM and the host makes the chi used (`_combined_chi_used`: the
-/// base charge plus measured work, within the budget), and the host's costs
-/// join the VM's per-contract costs.
+/// The accounting of what the host syscalls cost: the raw cost of the VM
+/// and the host makes the chi used (the base charge plus measured work,
+/// within the budget), and the host's costs join the VM's per-contract costs.
 fn add_host_charges(stats: &mut VmExecutionStats, charges: &HostCharges, limit: u64) {
     stats.raw_cost = stats.raw_cost.saturating_add(charges.raw_cost());
     let combined = (stats.raw_cost / 1_000 + TRANSACTION_BASE_CHI).min(limit / 1_000);
@@ -836,7 +835,7 @@ fn add_host_charges(stats: &mut VmExecutionStats, charges: &HostCharges, limit: 
     charges.add_contract_costs(&mut stats.contract_costs);
 }
 
-/// `max(chi_budget, 0) * 1000` as `execute_contract` takes it.
+/// The raw budget, `max(chi_budget, 0) * 1000`.
 fn chi_budget_raw(chi_budget: &BigInt) -> Option<u64> {
     let budget = if chi_budget < &BigInt::zero() {
         BigInt::zero()
@@ -860,7 +859,7 @@ fn invalid_ir(name: &str) -> Unprepared {
     Unprepared::prepare_error(format!("contract '{name}' has invalid persisted VM IR"))
 }
 
-/// The VM outcome as `execute_contract` reports it: writes from the module
+/// The VM outcome: writes from the module
 /// snapshots, then the recorded storage writes, then a success's host
 /// writes, in key order; a success's host events before the VM's events.
 fn execution_of(

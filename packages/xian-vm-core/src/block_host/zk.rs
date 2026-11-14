@@ -1,11 +1,10 @@
-//! The contract zk syscalls: `contracting.stdlib.bridge.zk` as
-//! `NativeVmHost.handle_syscall` serves them, over the `xian-zk` crate this
+//! The contract zk syscalls, over the `xian-zk` crate this
 //! crate links (every node verifies zk proofs: zk is always available).
 //!
 //! The VM charges a zk call before the host runs it and binds every
 //! argument positionally. Each function checks its arguments with the
 //! Python function's checks and texts (`checks`), reads verifying keys
-//! from `zk_registry` in chain state as the Python path does (the block
+//! from `zk_registry` in chain state (the block
 //! overlay and LMDB, not the transaction's own writes), verifies through the
 //! node's proof caches (`crate::zk_cache`) and returns what the Python
 //! function returns after the VM boundary. Revision 14: `zk.is_available`
@@ -253,8 +252,7 @@ fn request_item<'a>(entries: &'a [(VmValue, VmValue)], name: &str) -> &'a VmValu
         .map_or(&VmValue::None, |(_, value)| value)
 }
 
-/// Whether the V2 boundary takes `value` back from the Python host
-/// (`py_to_vm`): ints within 512 bits, no floats or raw decimals, dicts with
+/// Whether the V2 boundary takes `value` as a syscall result: ints within 512 bits, no floats or raw decimals, dicts with
 /// plain string keys.
 fn v2_returnable(value: &VmValue) -> bool {
     if numeric_v2::validate_leaf(value).is_err() {

@@ -2,8 +2,7 @@
 //! any host runs them (V2; archival V1 keeps its historical behaviour).
 //!
 //! The VM checks them on the arguments it hands to the host (after its own
-//! boundary checks), for every host, the Rust block host and Python's
-//! `NativeVmHost` alike, so both paths fail the same way and no host ever
+//! boundary checks), before any host runs them, so no host ever
 //! draws, formats or allocates in proportion to an unbounded argument:
 //! - `getrandbits(k)` with `k` above the 512-bit V2 integer limit: its result
 //!   could not cross the V2 boundary, which refuses it with the same text;

@@ -1,5 +1,5 @@
-//! The chain's zk runtime feature (`contracting.runtime_features`) as the
-//! Python path reads it: the chain state's value (the block overlay and
+//! The chain's zk runtime feature (`contracting.runtime_features`): the
+//! chain state's value (the block overlay and
 //! LMDB, not a transaction's host writes), else the features installed on
 //! the node's driver. Contract preparation, `contract.has_export` and
 //! deployments refuse a contract that uses zk host syscalls while it is off,
@@ -74,8 +74,8 @@ pub(crate) fn zk_syscall_disabled(syscall_id: &str) -> String {
 }
 
 impl BlockHost<'_> {
-    /// `NativeVmHost._reject_disabled_runtime_features` for `contract`,
-    /// which uses zk host syscalls.
+    /// Refuses `contract`, which uses zk host syscalls, while the zk
+    /// feature is off.
     pub(super) fn require_zk(&mut self, contract: &str) -> Result<(), VmExecutionError> {
         self.zk_feature(|| zk_disabled(contract))
     }

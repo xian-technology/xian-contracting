@@ -1,4 +1,4 @@
-//! The contract metadata syscalls (`NativeVmHost.handle_syscall`): the
+//! The contract metadata syscalls: the
 //! reads `contract.exists`, `has_export`, `owner_of`, `info` and
 //! `code_hash`, and the changes `contract.set_owner` and `set_developer`
 //! (submission only; the VM checks that before the host sees them).
@@ -88,8 +88,7 @@ pub(super) fn change(
 }
 
 impl BlockHost<'_> {
-    /// `NativeVmHost._stage_contract_metadata_write`: stage the value, then
-    /// charge the write.
+    /// Stage a metadata value, then charge the write.
     fn change_metadata(
         &mut self,
         contract: &VmValue,
@@ -107,8 +106,8 @@ impl BlockHost<'_> {
         Ok(VmValue::None)
     }
 
-    /// `NativeVmHost._charge_host_write` without the write cap: metered
-    /// execution pays for the encoded key and value.
+    /// A host write's charge (no write cap): metered execution pays for the
+    /// encoded key and value.
     pub(super) fn charge_host_write(
         &mut self,
         key: &str,
@@ -126,7 +125,7 @@ impl BlockHost<'_> {
         self.charges.record(written * HOST_WRITE_COST_PER_BYTE)
     }
 
-    /// `NativeVmHost._contract_exists`.
+    /// Whether `contract` exists.
     pub(super) fn contract_exists(&mut self, contract: &str) -> Result<bool, VmExecutionError> {
         if !matches!(self.ir(contract)?, Ir::Absent) {
             return Ok(true);
@@ -134,7 +133,7 @@ impl BlockHost<'_> {
         Ok(self.get(&format!("{contract}.{SOURCE_KEY}"))?.is_some())
     }
 
-    /// `NativeVmHost._contract_has_export`: the module summary refuses a
+    /// Whether `contract` exports a function; the module summary refuses a
     /// module that uses zk host syscalls while the chain's zk feature is off.
     fn contract_has_export(
         &mut self,
@@ -155,7 +154,7 @@ impl BlockHost<'_> {
         Ok(exports(&module, export))
     }
 
-    /// A contract metadata variable (`NativeVmHost._contract_var`).
+    /// A contract metadata variable.
     fn metadata(&mut self, contract: &str, variable: &str) -> Result<VmValue, VmExecutionError> {
         Ok(self
             .get(&format!("{contract}.{variable}"))?
@@ -172,7 +171,7 @@ impl BlockHost<'_> {
         Ok(VmValue::Dict(info))
     }
 
-    /// `NativeVmHost._code_hash`: the SHA3-256 hex digest of the contract's
+    /// `contract.code_hash`: the SHA3-256 hex digest of the contract's
     /// IR (kind "runtime", the default, or "ir") or source ("source"); `None`
     /// when it has none.
     fn code_hash(

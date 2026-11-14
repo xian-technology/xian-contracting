@@ -1,5 +1,4 @@
-//! What a transaction's host syscalls cost: `NativeVmHost._record_raw_cost`
-//! and `_charge_host_write`.
+//! What a transaction's host syscalls cost.
 //!
 //! The raw cost is recorded beside the VM's own (`extra_raw_cost`) and
 //! attributed to the transaction's entry contract (`extra_contract_costs`);
@@ -14,8 +13,7 @@ use std::collections::HashMap;
 /// and do not count towards the VM meter's written bytes.
 pub(crate) const HOST_WRITE_COST_PER_BYTE: u64 = 25;
 
-/// A failure the Python host raises as `VmRuntimeExecutionError`, as the VM
-/// reports a host failure (`host_error`).
+/// A host failure, reported as `VmRuntimeExecutionError`.
 pub(crate) fn host_runtime_error(message: impl std::fmt::Display) -> VmExecutionError {
     VmExecutionError::new(format!("VmRuntimeExecutionError: {message}"))
 }

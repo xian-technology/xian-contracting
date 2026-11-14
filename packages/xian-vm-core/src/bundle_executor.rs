@@ -13,8 +13,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// What a VM execution needs from its host beyond the executor's own state:
 /// module IR, storage the execution has not touched, contract owners and
-/// host syscalls. The Python host (`NativeVmHost`) and the Rust block host
-/// implement it; the executor logic is shared.
+/// host syscalls. The block host (`block_host::BlockHost`) implements it.
 /// The refusal of a call to an owned contract by anyone but its owner.
 pub(crate) fn not_owner() -> VmExecutionError {
     let message = "Caller is not the owner!";
@@ -696,7 +695,7 @@ pub(crate) struct ExecutionOutcome {
 }
 
 impl ExecutionOutcome {
-    /// The storage writes as `execute_contract` reports them, taken out of
+    /// The storage writes of the execution, taken out of
     /// the outcome: the module snapshots' variables and hash entries, then
     /// the recorded storage writes, by key.
     pub(crate) fn take_writes(&mut self) -> BTreeMap<String, VmValue> {

@@ -1,5 +1,4 @@
-//! The VM host of a block transaction (`NativeVmHost` for the Rust block
-//! executor): state from the transaction's host writes, then the block
+//! The VM host of a transaction in the block executor: state from the transaction's host writes, then the block
 //! overlay and LMDB. Every syscall has a defined outcome; only a storage
 //! failure stops the transaction (`Stop::Fault`): the node halts.
 //!
@@ -44,8 +43,8 @@ pub(crate) fn text(value: &str) -> VmValue {
     VmValue::String(value.to_owned())
 }
 
-/// The string the Python host receives for `value` (`vm_to_py`): a string
-/// or a contract module handle's name.
+/// The text a syscall takes for `value`: a string or a contract module
+/// handle's name.
 fn host_text(value: &VmValue) -> Option<&str> {
     match value {
         VmValue::String(text) => Some(text),
@@ -54,8 +53,7 @@ fn host_text(value: &VmValue) -> Option<&str> {
     }
 }
 
-/// What the host takes from its transaction: the execution context
-/// (`NativeVmHost._context`) and the zk runtime feature when chain state
+/// What the host takes from its transaction: the execution context and the zk runtime feature when chain state
 /// does not set it (the features installed on the node's driver).
 #[derive(Debug, Clone)]
 pub(crate) struct TxInputs {
@@ -70,8 +68,7 @@ pub(crate) struct BlockHost<'a> {
     charges: HostCharges,
     random: TxRandom,
     tx: TxInputs,
-    /// The modules whose constructors run (`NativeVmHost._ir_cache` while
-    /// `_run_constructor` runs): what loading them reads.
+    /// The modules whose constructors run: what loading them reads.
     constructing: HashMap<String, Ir>,
     stop: Option<Stop>,
 }
@@ -105,8 +102,8 @@ impl<'a> BlockHost<'a> {
         }
     }
 
-    /// The IR of `name`: a staged IR text (`NativeVmHost.load_module_ir_json`
-    /// reads the pending IR first), else the run's cached read.
+    /// The IR of `name`: a staged IR text first, else the run's cached
+    /// read.
     fn ir(&mut self, name: &str) -> Result<Ir, VmExecutionError> {
         let key = format!("{name}.{IR_KEY}");
         if let Some(staged @ VmValue::String(text)) = self.writes.get(&key) {
@@ -135,8 +132,7 @@ impl<'a> BlockHost<'a> {
         VmExecutionError::new(message)
     }
 
-    /// The value at `key` as `NativeVmHost._lookup_key` reads it: a staged
-    /// write first; `None` when missing or deleted.
+    /// The value at `key`: a staged write first; `None` when missing or deleted.
     fn get(&mut self, key: &str) -> Result<Option<VmValue>, VmExecutionError> {
         let value = match self.writes.get(key) {
             Some(staged) => Ok(Some(staged.clone())),
@@ -159,8 +155,7 @@ impl<'a> BlockHost<'a> {
         }
     }
 
-    /// The live entries under `prefix` as `NativeVmHost.iter_hash_entries`
-    /// sees them, in key order: the staged entries merged into the overlay
+    /// The live entries under `prefix`, in key order: the staged entries merged into the overlay
     /// and LMDB scan; `visit` returns false to stop.
     fn visit_prefix(
         &mut self,
@@ -239,7 +234,7 @@ mod services {
             Ok(entries)
         }
 
-        /// `NativeVmHost.iter_hash_entries`: the hash's entries under
+        /// The hash's entries under
         /// `prefix` (its key suffix with the trailing delimiter), as
         /// `(suffix, value)`.
         fn visit_hash_entries(

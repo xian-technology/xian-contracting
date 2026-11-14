@@ -1,5 +1,4 @@
-//! Contract deployment (`NativeVmHost._stage_contract_deploy` for
-//! `contract.deploy`, which only submission may call): the source is
+//! Contract deployment (`contract.deploy`, which only submission may call): the source is
 //! compiled with the linked compiler as `compile_contract_source` compiles
 //! it, the module checked, its constructor run in a nested execution over
 //! this host and the transaction's budget, and the contract's metadata and
@@ -33,7 +32,7 @@ const MAX_CONTRACT_NAME_LENGTH: usize = 64;
 const TIME_KEY: &str = "__submitted__";
 const DEPLOYER_KEY: &str = "__deployer__";
 const INITIATOR_KEY: &str = "__initiator__";
-/// `contract.deploy`'s arguments as `NativeVmHost.handle_syscall` reads them.
+/// `contract.deploy`'s arguments.
 struct Deployment {
     name: VmValue,
     code: VmValue,
@@ -431,8 +430,8 @@ fn optional_text(field: &str, value: &VmValue) -> Result<Option<String>, VmExecu
     }
 }
 
-/// Exception arguments as the Python host's round trip returns them
-/// (detached from the heap), when they are plain values it keeps.
+/// Exception arguments detached from the heap, when they are plain values
+/// (what a constructor failure carries out).
 fn plain_arguments(args: &[VmValue]) -> Option<Vec<VmValue>> {
     args.iter()
         .map(|arg| {

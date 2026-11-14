@@ -1,5 +1,5 @@
-//! The contract random syscalls: `contracting.stdlib.bridge.random` as
-//! `NativeVmHost.handle_syscall` serves them. A transaction has one random
+//! The contract random syscalls (the stream of the former Python random
+//! bridge, byte for byte). A transaction has one random
 //! state, shared by its nested calls and constructors; `seed()` starts a
 //! stream from the transaction's context and an optional salt.
 //!

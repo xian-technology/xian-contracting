@@ -1,6 +1,7 @@
-//! The zk primitives for the Python host (`contracting.stdlib.bridge.zk`),
-//! served by the `xian-zk` crate this module links, so the Python path and
-//! the block host verify with one library and share the node's proof caches
+//! The zk primitives for node tooling (`contracting.stdlib.bridge.zk`:
+//! shielded preverification), served by the `xian-zk` crate this module
+//! links, so the tooling and the block host verify with one library and
+//! share the node's proof caches
 //! (`zk_cache`). The node's proof pre-verification fills them through
 //! `zk_warm_registered`. Signatures, results and exceptions are those of
 //! `xian_zk._native`, whose functions the bridge used before.

@@ -138,7 +138,7 @@ fn the_staged_writes_leave_with_the_transaction() {
     assert_eq!(next.get("c.k").unwrap(), None);
 }
 
-/// `NativeVmHost.handle_syscall` for a contract metadata change.
+/// The syscall of a contract metadata change.
 fn change(host: &mut BlockHost<'_>, syscall: &str, args: &[VmValue]) -> Option<VmValue> {
     metadata::change(host, syscall, args, &[]).map(|result| result.unwrap())
 }

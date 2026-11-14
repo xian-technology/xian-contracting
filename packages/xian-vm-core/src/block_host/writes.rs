@@ -1,5 +1,4 @@
-//! What a transaction's host syscalls stage: `NativeVmHost._pending_writes`
-//! and `_pending_events`.
+//! What a transaction's host syscalls stage: writes and events.
 //!
 //! The transaction's reads see a staged write before the block overlay and
 //! LMDB, a hash scan merges the staged entries in key order, and a staged
@@ -47,8 +46,7 @@ impl HostWrites {
     }
 
     /// A merge of the staged entries under `prefix` into a scan that yields
-    /// the live stored entries in key order (`iter_overlay_items` over
-    /// `NativeVmHost._pending_writes`).
+    /// the live stored entries in key order.
     pub(crate) fn merge_under<'v>(
         &self,
         prefix: &str,
@@ -57,7 +55,7 @@ impl HostWrites {
         OverlayMerge::new(self.under(prefix), visit)
     }
 
-    /// The execution's writes and events with the staged ones (`execute_contract`):
+    /// The execution's writes and events with the staged ones:
     /// a success takes them over its own, a failure drops them.
     pub(crate) fn settle(
         self,

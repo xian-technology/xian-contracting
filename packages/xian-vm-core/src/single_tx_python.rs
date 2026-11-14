@@ -115,8 +115,8 @@ fn outcome_to_py(py: Python<'_>, outcome: &TxOutcome) -> PyResult<Py<PyAny>> {
 /// Run one call by the block executor's rules over `environment` and
 /// `overlay` with the GIL released, staging its writes into `overlay`.
 ///
-/// `context` is `execute_contract`'s context dictionary (the owner is read
-/// from state); `estimate` settles the fee as a dry run (no reservation).
+/// `context` is the call's VM context dictionary (the owner is read from
+/// state); `estimate` settles the fee as a dry run (no reservation).
 /// Returns `(outcome, None)` with the outcome as a dictionary (`status`,
 /// `result`, `exception`, `writes` in receipt order, `events`, `chi_used`,
 /// `contract_costs`, `unprepared`), or `(None, reason)` for inputs the VM

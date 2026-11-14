@@ -48,7 +48,7 @@ impl CachedModule {
 /// The IR of the contracts one run read, by contract name, so a large IR is
 /// decoded and validated once per run. Only a write to an IR key changes
 /// it: the run's own staging forgets such keys, and every run starts empty
-/// (the Python path writes between runs).
+/// (state may change between runs).
 #[derive(Default)]
 pub(crate) struct Modules(RefCell<HashMap<String, Ir>>);
 
