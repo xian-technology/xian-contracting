@@ -78,10 +78,15 @@ struct ContractMeterFrame {
 }
 
 /// One budget spans every executor and host operation in a transaction.
+///
+/// A V2 transaction's fixed base chi counts against it (revision 14): the
+/// work may cost at most what makes the chi used (`raw / 1000 + base`) the
+/// budget, so a transaction never uses more chi than it supplies.
 #[derive(Debug, Clone)]
 pub(crate) struct VmBudget {
     raw_cost: Arc<AtomicU64>,
     limit: u64,
+    base_chi: u64,
     pub(crate) execution_stack: crate::execution_stack::ExecutionStack,
 }
 
@@ -96,11 +101,26 @@ impl VmBudget {
                 0 => ceiling,
                 budget => budget.min(ceiling),
             },
+            base_chi: if vm_profile == crate::XIAN_VM_V1_PROFILE {
+                0
+            } else {
+                VM_TRANSACTION_BASE_CHI
+            },
         }
     }
 
     pub(crate) fn limit(&self) -> u64 {
         self.limit
+    }
+
+    /// Whether `raw_cost` of work leaves the budget: V2 compares the chi it
+    /// makes with the base charge (`raw / 1000 + base`, as the chi used is
+    /// computed) to the budget's chi; V1 compares the raw work alone.
+    fn exceeded(&self, raw_cost: u64) -> bool {
+        if self.base_chi == 0 {
+            return raw_cost > self.limit;
+        }
+        raw_cost / 1_000 + self.base_chi > self.limit / 1_000
     }
 
     pub(crate) fn charge(&self, cost: u64) -> Result<(), VmExecutionError> {
@@ -110,7 +130,7 @@ impl VmBudget {
                 raw.checked_add(cost)
             })
             .map_err(|_| VmExecutionError::new("chi metering overflow"))?;
-        if previous + cost > self.limit {
+        if self.exceeded(previous + cost) {
             return Err(VmExecutionError::new("Out of chi."));
         }
         Ok(())
@@ -517,13 +537,35 @@ mod tests {
             (crate::XIAN_VM_V1_PROFILE, 50_000_000),
         ] {
             assert_eq!(super::max_transaction_chi(profile), ceiling);
+            // V2 work may cost what makes the chi used (with the base) the
+            // ceiling; V1 work the ceiling itself.
+            let work = if profile == crate::XIAN_VM_V2_PROFILE {
+                (ceiling - VM_TRANSACTION_BASE_CHI) * 1_000 + 999
+            } else {
+                ceiling * 1_000
+            };
             for supplied in [0, ceiling * 2_000] {
                 let budget = VmBudget::new(supplied, profile);
                 assert_eq!(budget.limit(), ceiling * 1_000);
-                assert!(budget.charge(ceiling * 1_000).is_ok());
+                assert!(budget.charge(work).is_ok());
                 assert!(budget.charge(1).is_err());
             }
         }
+    }
+
+    #[test]
+    fn the_v2_base_chi_counts_against_the_supplied_chi() {
+        // 20 chi supplied: the chi used (raw / 1000 + 5) may reach 20.
+        let budget = VmBudget::new(20_000, crate::XIAN_VM_V2_PROFILE);
+        assert!(budget.charge(14_000).is_ok());
+        assert!(budget.charge(1_999).is_ok());
+        assert_eq!(budget.charge(1).unwrap_err().to_string(), "Out of chi.");
+        // Below the base charge no work fits.
+        let tiny = VmBudget::new(5_000, crate::XIAN_VM_V2_PROFILE);
+        assert!(tiny.charge(999).is_ok());
+        assert!(tiny.charge(1).is_err());
+        let none = VmBudget::new(4_000, crate::XIAN_VM_V2_PROFILE);
+        assert!(none.charge(1).is_err());
     }
 
     #[test]
@@ -560,7 +602,8 @@ mod tests {
         let mut child = VmMeter::with_budget(config, budget.clone());
         parent.charge(10_000).unwrap();
         child.charge(10_000).unwrap();
-        budget.charge(5_000).unwrap();
+        // 20 chi of work and the 5 base chi fill the 25 chi budget.
+        budget.charge(999).unwrap();
         assert!(parent.charge(1).is_err());
         assert_eq!(parent.raw_cost, 10_001);
         assert_eq!(child.raw_cost, 10_000);

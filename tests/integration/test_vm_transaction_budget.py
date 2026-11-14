@@ -2,6 +2,8 @@
 
 import pytest
 from xian_runtime_types.time import Datetime
+
+from contracting.constants import TRANSACTION_BASE_CHI
 from contracting.local import ContractingClient
 
 pytestmark = pytest.mark.optional_native
@@ -75,10 +77,13 @@ def assert_out_of_chi(output, budget=BUDGET):
     assert "Out of chi" in str(output.result)
     assert output.writes == {}
     assert output.events == []
-    assert output.raw_cost >= budget
+    # The base chi counts against the budget (revision 14): the work runs
+    # out once it and the base exceed the budget's chi.
+    work_limit = budget - (TRANSACTION_BASE_CHI - 1) * 1000
+    assert output.raw_cost >= work_limit
     assert output.chi_used == budget // 1000
     # Attribution includes the measured failed work, not just its parent.
-    assert sum(output.contract_costs.values()) >= budget
+    assert sum(output.contract_costs.values()) >= work_limit
 
 
 def test_serial_constructors_share_one_transaction_budget(client):
