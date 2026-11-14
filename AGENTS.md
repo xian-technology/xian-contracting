@@ -24,9 +24,12 @@
 - Preserve runtime behavior deliberately. If a fix changes execution semantics, add regression tests in the same change.
 - Avoid cross-repo orchestration changes here unless the ABCI or CLI layer requires a new importable primitive.
 - Keep built-in contracts and storage/runtime helpers aligned with the execution model. Do not treat this repo like a general utilities package.
-- Public local clients are V2-only. Preserve low-level native V1 compilation,
-  encoding and execution for historical verification and migration; do not add a
-  current CPython executor or a V1 public-client fallback.
+- Current code executes only `xian_vm_v2`, in Rust (`xian_vm_core.BlockExecutor`
+  and `execute_tx`). Keep V1 compilation, IR validation and stored-value
+  encoding for migration and archival tooling (xian-migration, `xian-cli
+  contract build-artifacts --vm-profile xian_vm_v1`, xian-linter); V1 execution
+  and historical replay use the pinned older release. Do not add a Python
+  execution host, a CPython executor or a V1 execution path.
 
 ## Validation
 - Preferred setup: `uv sync --group dev`

@@ -8,9 +8,9 @@ flowchart LR
   Compiler --> IR["xian_ir_v1"]
   IR --> Validator["Rust IR validator"]
   Validator --> VM["Native VM interpreter"]
-  VM --> Host["Host storage and syscall bridge"]
+  VM --> Host["Block host: storage and syscalls"]
   Host --> State["Deterministic state and events"]
-  Fixtures["Python parity fixtures"] --> Validator
+  Fixtures["Golden and parity fixtures"] --> Validator
   Fixtures --> VM
 ```
 
@@ -20,34 +20,30 @@ Supported scope:
 - validate its top-level invariants and recursive node shapes
 - instantiate validated modules and execute their IR using the chain-selected numeric rules
 - provide one Rust-owned contract for the Python frontend to target
-- expose a minimal Python-facing native capability surface for `xian-abci`
-  probing via `xian_vm_core._native`
+- run transactions for the node (`BlockExecutor` for blocks, `execute_tx` for
+  one call) and expose the Python-facing surface `xian-abci` and
+  `contracting` use via `xian_vm_core._native`
 
 ## Numeric profiles
 
 The chain selects a profile for artifact admission and execution. Every module
 in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports
 execution revision `xvm-execution-14`, bytecode version `xvm-2` and gas schedule
-`xvm-gas-6`. The native and Python host bindings select V2 by default. Public
-`ContractingClient` execution accepts only V2.
-
-Low-level native V1 supports historical verification and migration: select
-`vm_profile="xian_vm_v1"` explicitly on its driver and execution entrypoint.
-V1 retains execution revision `xvm-execution-7`, bytecode version `xvm-1` and
-gas schedule `xvm-gas-2`. Both profiles share the documented resource bounds;
-replaying earlier execution semantics requires the corresponding pinned runtime.
+`xvm-gas-6`. Every execution entry point runs V2; `runtime_info` and
+`supports_execution_policy` know only `xian_vm_v2`. V1 IR still validates (for
+migration and archival tooling), but current code does not execute V1;
+replaying earlier execution semantics requires the corresponding pinned
+release.
 
 V2 external entrypoints must be exported functions. Constructors execute only
 through trusted deployment. Code-hash inspection accepts only the `runtime`,
-`ir` and `source` selectors; other kinds fail. Archival V1 semantics remain
-separate from these V2 checks.
+`ir` and `source` selectors; other kinds fail.
 
 V2 failures carry their exception type and arguments as structured data from
 the VM, including exceptions raised by a constructor during deployment and
 builtin exceptions raised by host syscalls. The failure text is never parsed:
 contract data inside a message cannot select an exception type, and a failure
-without structured data remains an opaque message. Archival V1 retains its
-rightmost-prefix text classification without recursive host calls.
+without structured data remains an opaque message.
 
 V2 `Hash.all(*prefix)` and `Hash.clear(*prefix)` select the whole hash only
 when called without arguments; `""` is an ordinary first dimension. V2
@@ -79,9 +75,7 @@ up. Dictionary displays, comprehensions, `dict()`, `fromkeys()` and `|` build
 through the same index. Insertion order, the retained first key, iteration and
 the errors are unchanged. Equal keys hash equally under V2 equality: integers
 by value (`True` and `1` are different V2 keys), text and bytes by payload,
-tuples by their items and frozensets by their size. Archival V1 keeps the linear
-scan.
-Archival V1 keeps `xvm-gas-2`.
+tuples by their items and frozensets by their size.
 
 `xvm-execution-13` bounds V2 storage keys by what the node's store can hold:
 LMDB 0.9 stores keys of at most 511 bytes (`MAX_STORAGE_KEY_BYTES`). A V2
@@ -92,8 +86,7 @@ long (N bytes). Max is 511.`; this covers `Variable.set`, hash assignment and
 longer than 511 bytes is invalid for reads as well; a lookup whose hash key
 fits but whose whole key is longer finds nothing. Before this revision such a
 write succeeded during execution and only LMDB refused it when the block
-committed. Archival V1 keeps its 1,024-character hash key bound and its
-execution results; the storage driver refuses to stage a longer key in every
+committed. The storage driver refuses to stage a longer key in every
 profile. Gas is unchanged (`xvm-gas-6`). V2 contract admission (`xian-admission-3`,
 compiler-core `xian.lint.E024`) rejects a storage declaration whose
 `contract.name` key (plus `:` for a hash) could exceed the limit under the
@@ -111,12 +104,11 @@ likewise takes only an array of three to seven safe integers. The block
 executor now settles writes and events holding a timedelta or a bytearray
 itself instead of handing them to Python, which failed them before this
 revision (receipts had no form for either). Gas is unchanged
-(`xvm-gas-6`); archival V1 decoding is unchanged.
+(`xvm-gas-6`).
 
 One V2 transaction may use at most 1,000,000 chi (`max_tx_chi` in
 `runtime_info()`); a larger or zero budget is capped there. Node fee policies set
-their per-transaction caps at or below this ceiling. Archival V1 keeps its
-historical 50,000,000-chi ceiling.
+their per-transaction caps at or below this ceiling.
 
 F-string output is limited to 128 KiB in UTF-8 bytes across the complete result, including literal text and every interpolated field. The VM checks each append before allocating the aggregate output.
 
@@ -142,13 +134,13 @@ when the write succeeded.
 
 Under V2 the VM reads contract state itself: a `Variable` or `Hash` key is read
 from the block overlay, else from LMDB, and decoded in Rust
-(`src/stored_value.rs`), giving the same value Python's `decode` gives. Only keys
-the host staged itself during the execution are still read through the host.
-Reads served in Rust are tracked in the overlay like Python reads. A stored
-value the reader rejects is a host fault (`LmdbStorageError`), never a
-transaction outcome.
+(`src/stored_value.rs`), giving the same value Python's `decode` gives; keys the
+transaction's own host syscalls staged are read from its host writes first. A
+stored value the reader rejects is a host fault (`LmdbStorageError`), never a
+transaction outcome. Tooling that hashes or stores values outside execution
+uses `stored_value_bytes(value)`, the bytes `BlockState.write_value` stores.
 
-## V1 execution coverage
+## Execution coverage
 
 - local function calls and builtin calls such as `len`, `range`, `str`, and
   `isinstance`
@@ -159,11 +151,6 @@ transaction outcome.
   function-local references with dynamic contract/variable targets
 - arbitrary-precision integer values instead of `i64`-only VM integers
 - fixed-precision `decimal(...)` construction and arithmetic
-- raw Decimal results from explicit-digit rounding: general powers, non-finite
-  in-memory values, exact float conversion, all 53 historically reachable public
-  methods, and DecimalTuple named results; see the
-  [compatibility contract](../../tests/compatibility/README.md) for context,
-  storage, set ordering and resource bounds
 - native `datetime.datetime` / `datetime.timedelta` values, including
   `datetime.datetime.strptime(...)`, arithmetic, comparison, and common field
   access
@@ -182,15 +169,12 @@ transaction outcome.
   the `value[2:]` helper pattern used in the shielded contracts
 - sequence repetition for `list`, `tuple`, and `str`
 - the `zk.*` syscalls: this crate links `xian-zk` (every node verifies zk
-  proofs). The block host serves them in Rust with the Python bridge's checks
-  and texts, reads verifying keys from `zk_registry` in chain state, and
-  verifies through the node's proof caches (`zk_cache`: prepared keys and
-  verified results of registered keys), which the Python host and the node's
-  proof pre-verification (`zk_warm_registered`) share. Contract preparation,
+  proofs). The block host serves them in Rust, reads verifying keys from
+  `zk_registry` in chain state, and verifies through the node's proof caches
+  (`zk_cache`: prepared keys and verified results of registered keys), which
+  the node's proof pre-verification (`zk_warm_registered`) fills. Contract preparation,
   `has_export` and deployments refuse a contract using zk while the chain's
   zk runtime feature is off, as ordinary failures.
-
-It is a bounded execution slice, not the full executor.
 
 Contract ownership is enforced on both direct transactions and cross-contract
 calls. A non-null stored owner must match the immediate caller: the sender for
@@ -228,22 +212,21 @@ Metering covers both host-side data costs and VM execution:
 - one transaction budget is shared by the entry executor, host operations, and
   every serial or nested constructor; starting a constructor never resets it
 - metered execution uses the supplied budget capped at the profile's ceiling
-  (1,000,000 chi for V2, 50,000,000 chi for archival V1); a zero budget uses
-  that cap, while explicitly unmetered execution remains available for trusted
+  (1,000,000 chi); a zero budget uses that cap, while explicitly unmetered execution remains available for trusted
   local tooling
 - failed execution discards writes and events but retains measured work and
   contract cost attribution, including failed constructors
 - storage reads, writes, transaction bytes, and return-value bytes are charged
   directly in the VM host path
-- execution cost is driven by an explicit `xian_vm_v1` gas schedule over VM
+- execution cost is driven by the explicit gas schedule (`xvm-gas-6`) over VM
   statements, expressions, calls, and loop iterations
 - module initialization is metered, so first-load authored contracts do not get
   free global-declaration and module-body execution
 - `contract.exists(...)`, `contract.has_export(...)`, `contract.info(...)`, and
-  related contract metadata syscalls resolve directly against the driver/IR in
-  the native host bridge
-- authored contract storage persists `__xian_ir_v1__`, and the native host
-  requires that validator-derived artifact for `xian_vm_v1` execution; stored
+  related contract metadata syscalls resolve directly against chain state and
+  IR in the block host
+- authored contract storage persists `__xian_ir_v1__`, and the block host
+  requires that validator-derived artifact for execution; stored
   `__source__` remains available for dashboards, BDS, and other inspection
   tooling
 - native deployment accepts cleartext source only, rejects submitted
@@ -255,7 +238,7 @@ Metering covers both host-side data costs and VM execution:
 - the native deployment path validates the compiler-produced IR before staging
   writes or executing constructors
 - source deployment and offline artifact tooling use the canonical Rust
-  compiler and validate source-to-IR identity; the host bridge does not compile
+  compiler and validate source-to-IR identity; the block host does not compile
   or execute contract source as Python bytecode
 - the five-node localnet e2e native-authority soak passes end to end, including
   shielded token flows and prefix-scan access patterns
@@ -288,10 +271,22 @@ The crate ships a small PyO3/maturin surface for integration work:
 - `runtime_info()` / `runtime_info_json()`
 - `supports_execution_policy(...)`
 - `validate_module_ir(...)` / `validate_module_ir_json(...)`
+- `decode_and_validate_transaction(raw, chain_id)`: transaction admission
+- `BlockExecutor`: a block's transactions from their wire bytes, with fees,
+  rewards and receipts
+- `execute_tx(environment, overlay, ...)`: one call by the block executor's
+  rules over any `BlockState` (pass `overlay.snapshot()` to drop the
+  effects); the simulator, contract views, genesis deploys and the local
+  `ContractingClient` use it
+- `LmdbEnvironment`, `BlockState`, `StateRootTree`, `state_root_leaf_hash`,
+  `stored_value_bytes(value)`
+- `validated_chi_rate(value)`: the chain chi rate rule (a positive integer
+  whose fee arithmetic is representable), which admission, genesis building
+  and state patches apply before the executor would refuse the rate
 
 Node-side code uses the capability surface to check exact runtime policy before
-executing transactions through the Rust engine. Python-facing execution also
-provides low-level native bindings for archival V1 tools.
+executing transactions through the Rust engine. There is no Python execution
+host.
 
 The largest remaining runtime work is metering drift on the heaviest authored
 flows and the host-operation split between delegated calls and Rust-owned

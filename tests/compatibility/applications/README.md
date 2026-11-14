@@ -19,20 +19,25 @@ business failures. A small trusted bootstrap contract invokes each runtime's
 submission helper (`__Contract` historically, `Contract` today). Only this
 adapter bypasses ordinary linting; application sources use normal deployment
 admission. Native bootstrap artifacts use the production Rust
-`build_contract_artifacts` path; real native child deployments use `NativeVmHost`
-canonical Rust compilation.
+`build_contract_artifacts` path; real native child deployments use canonical
+Rust compilation.
 No application source is rewritten, no balances are seeded directly,
 and constructors run. This is application/constructor-state evidence, not a
 certificate that historical deployment metadata or submission APIs are identical.
 
 ## Run against an installed runtime
 
-From the repository root, without installing or rebuilding anything:
+The applications are V1 contracts. Current code does not execute V1, so the
+observer runs only with an installation of the pinned older release that still
+does; there, from the repository root:
 
 ```sh
 python tests/compatibility/application_runner.py --engine native --check --output /tmp/applications.json
 python tests/compatibility/application_runner.py --engine native-metered --check
 ```
+
+The current test suite keeps the corpus's provenance checks (manifest, Git
+blobs, SHA-256 of the sources and the baseline).
 
 `--sequence dex_liquidity_swap` selects one workflow; unknown names fail. Each
 run uses fresh temporary storage and fixed sender/time/context inputs. The

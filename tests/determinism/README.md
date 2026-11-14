@@ -1,18 +1,16 @@
 # Native contracting determinism campaign
 
 This campaign checks whether the same admitted contract programs produce exactly
-the same observations across host environments and native architectures. It runs
-the historical V1 allowed-surface corpus, plus reproducibly
-generated programs with explicit expected results and failures, and 32 fixed
-binary-float edge cases under V1. Generated integer, collection, Unicode, time,
-and stateful programs run on V2. The generated raw-decimal/binary-float and
-random-float families select V1. The same campaign includes all 26 V2 numeric
-conformance vectors, including signed division, wide intermediates, rounding,
-square root, overflow and rollback, and six V2 writes at the 511-byte
-storage key limit (the largest key LMDB stores, committed and reopened, and one
-byte more, which fails). Each profile is selected explicitly for
-artifact generation, execution, storage and reopen checks. Every case uses
-the native compiler/VM, metering, fresh storage and fixed contract context.
+the same observations across host environments and native architectures. All
+cases run on `xian_vm_v2` (current code executes V2 only) through
+`xian_vm_core.execute_tx`, the code a block runs (`tests/vm_calls.py`): the V2
+allowed-surface corpus, reproducibly generated integer, alias, ordering,
+Unicode, time, random-stream and sequence programs with explicit expected
+results and failures, all 26 V2 numeric conformance vectors (signed division,
+wide intermediates, rounding, square root, overflow and rollback), and six V2
+writes at the 511-byte storage key limit (the largest key LMDB stores,
+committed and reopened, and one byte more, which fails). Every case uses the
+native compiler/VM, metering, fresh storage and fixed contract context.
 
 **Determinism is not correctness or an exhaustive proof.** Identical outputs can
 still be identically wrong. The existing case oracles and generated semantic
@@ -29,7 +27,7 @@ Python assert statements. It then compares:
 
 - Canonical source/IR digests and relevant artifact metadata.
 - Exact typed return values, error type/message/arguments, ordered writes and
-  events, raw cost, chi usage and per-contract costs.
+  events, chi usage and per-contract costs.
 - Committed state before/after execution, failure rollback, and state after
   closing and reopening storage.
 
@@ -49,8 +47,8 @@ successful determinism observation.
 
 Each scenario starts a separate Python process with a fresh temporary HOME.
 The default eight scenarios cover baseline execution and changes to Python hash
-seed, timezone, Decimal precision/rounding, warmed formatting/ambient runtime
-state, case order plus storage reopen boundaries, allocator, and locale.
+seed, timezone, Decimal precision/rounding, warmed formatting state, case
+order plus storage reopen boundaries, allocator, and locale.
 `--extended` adds high-precision Decimal, a second hash seed, and a combined
 perturbation, for eleven scenarios. These are selected comparisons,
 not the Cartesian product of every setting.

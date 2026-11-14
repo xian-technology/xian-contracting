@@ -33,9 +33,10 @@ flowchart LR
 
 ## Notes
 
-Public local clients execute native V2 only. Low-level native V1 compilation,
-storage and execution serve historical verification and migration tooling;
-historical Python observers use pinned archived packages.
+Every contract call runs in the Rust VM (`xian_vm_core.execute_tx` for the
+local client), V2 only. V1 compilation, IR validation and stored-value encoding
+serve migration and archival tooling; V1 execution and historical Python
+observers use pinned archived packages.
 
 This package is consensus-sensitive. Changes to compilation output, metering,
 storage encoding, import restrictions, event semantics, or stdlib behavior can

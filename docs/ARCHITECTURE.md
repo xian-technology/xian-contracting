@@ -12,11 +12,13 @@ compiler and V2 VM as validators. Its storage and call context are local to
 the test. `ContractingClient` rejects V1 profiles, including V1 profiles
 selected by an injected driver.
 
-Low-level native V1 bindings, artifact tools and storage remain available for
-historical verification and migration. Immutable historical observations and
-independent semantic models provide conformance evidence. Authored contract code
-executes in the native VM rather than as CPython bytecode; Python host bindings
-continue to provide explicit context, storage and bridge operations.
+Every contract call runs in Rust: blocks in `xian_vm_core.BlockExecutor`, single
+calls (local client, simulations, views, genesis deploys) in
+`xian_vm_core.execute_tx`, with the same preparation, entry checks, host
+syscalls and metering. There is no Python execution host. V1 compilation, IR
+validation and stored-value encoding remain for migration and archival tooling;
+current code does not execute V1. Immutable historical observations, frozen
+golden outputs and independent semantic models provide conformance evidence.
 
 Main areas:
 
@@ -24,11 +26,12 @@ Main areas:
 - `src/contracting/artifacts/`: public source compiler, artifact builder, and
   validator
 - `src/contracting/local/`: local test harness entrypoint
-- `src/contracting/execution/`: shared native host context and execution-error
-  classification
+- `src/contracting/execution/`: execution-error classification
 - `src/contracting/storage/`: LMDB-backed state, key encoding, contract
   artifacts, and ORM helpers
-- `src/contracting/stdlib/`: deterministic contract stdlib bridge modules
+- `src/contracting/stdlib/`: the stdlib manifest and host-side helpers
+  (hashing, crypto, and the zk helpers node tooling uses for shielded
+  preverification)
 - `packages/`: separately publishable packages:
   `xian-tech-runtime-types`, `xian-tech-accounts`,
   `xian-tech-compiler-core`, `xian-tech-vm-core`, and `xian-tech-zk`; the
@@ -52,7 +55,7 @@ should be treated as protocol-affecting.
 - The Rust compiler core is the compiler/artifact authority behind public APIs.
   Python source inspection and archival V1 IR tooling must not compile or
   execute contract source as CPython bytecode.
-- Shared host context and execution-error classification must be importable
-  without a Python execution engine, import hook or line tracer.
+- Execution-error classification must be importable without a Python
+  execution engine, import hook or line tracer.
 - Historical Python observers run only with their pinned archived package in
   isolated capture environments; they are not an alternate current runtime.

@@ -7,9 +7,9 @@ The chain and public local clients execute `xian_vm_v2`.
 `xian-contracting` remains usable as a standalone library outside the full
 blockchain stack. Compilation and artifact building require the canonical
 `xian-compiler-core` Rust package. `ContractingClient` executes through the
-native V2 VM and rejects V1 drivers.
-Low-level native V1 tooling is reserved for historical verification and
-migration. Historical Python evidence comes from immutable observers run with
+native V2 VM and rejects V1 drivers. Current code does not execute V1; V1
+compilation, IR validation and encoding remain for migration and archival
+tooling. Historical Python evidence comes from immutable observers run with
 pinned archived packages, rather than a maintained Python contract executor.
 
 ## Return Value Metering
@@ -38,4 +38,5 @@ identical to serial block order.
 1. Keep native V2 as the public local-client and network execution target.
 2. Preserve independent semantic models and immutable historical observations
    while expanding native workload coverage.
-3. Keep native V1 tooling isolated to historical verification and migration.
+3. Keep V1 tooling to compilation, IR validation and encoding for migration;
+   V1 execution stays with the pinned older release.

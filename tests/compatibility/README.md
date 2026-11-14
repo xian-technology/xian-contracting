@@ -148,9 +148,9 @@ Its real pre-VM oracle is the same runtime revision and Python version documente
 above. These sequences are newly authored tests, not historical transactions.
 
 The applications are V1 contracts; current code no longer executes them, so
-their sequences replay with the pinned release. The standalone observer
+their sequences replay with the pinned older release. The standalone observer
 (`application_runner.py --engine native-metered --check`) needs an installation
-that still executes V1. It compares typed results, writes, events, complete fixture application state,
+of that release. It compares typed results, writes, events, complete fixture application state,
 failure rollback and follow-up calls, reopening storage between calls. The
 historical snapshot is retained unchanged. Two existing policies—child
 constructor authority context and fixed-scaled square root—account for 110

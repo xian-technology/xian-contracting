@@ -40,7 +40,6 @@ subnormal and rounding-boundary cases plus historical and cross-platform evidenc
 NaN-payload constructor syntax is also rejected; canonical NaN values remain
 separately tested.
 
-Archival native V1 uses pinned software binary-float power. Historical Python
-observations are not a cross-platform oracle for those values; native platform
-campaigns remain the release evidence. V2 exposes bounded integers and exact
-fixed-point decimals rather than binary-float values.
+Current code executes only V2, which exposes bounded integers and exact
+fixed-point decimals rather than binary-float values. (Archival V1 binary-float
+power belongs to the pinned older release that still executes V1.)

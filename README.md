@@ -71,11 +71,11 @@ Use a fresh V2 storage directory for local tests.
 
 Local clients use the canonical compiler and do not accept a `compiler=`
 override. Use `compile_contract_source` or `build_contract_artifacts` from
-`contracting.artifacts` to compile offline. Native V1 compilation, encoding,
-storage and low-level VM bindings are reserved for historical verification and
-migration tools. They do not provide a supported V1 local client. The Python
-package does not execute contracts through CPython or expose a Python-bytecode
-compiler. See the [compatibility guide](tests/compatibility/README.md) for pinned
+`contracting.artifacts` to compile offline. V1 compilation, IR validation and
+stored-value encoding remain for migration and archival tooling; current code
+does not execute V1 contracts (historical V1 execution uses the pinned older
+release). Every contract call runs in the Rust VM; the Python package does not
+execute contracts through CPython or expose a Python-bytecode compiler. See the [compatibility guide](tests/compatibility/README.md) for pinned
 historical observations and their capture procedure.
 
 ## Principles
@@ -160,16 +160,10 @@ coverage, and the Rust-side package checks used by release CI. It is the gate
 for tagging a release.
 
 The [published application corpus](tests/compatibility/applications/README.md)
-compares bounded token, nameservice, staking and DEX workflows with a pinned
-pre-VM Python capture. Run it against an already installed native runtime:
-
-```sh
-python tests/compatibility/application_runner.py --engine native-metered --check
-```
-
-These are authored workflows over unchanged historical sources, not historical
-chain transactions. Two documented constructor-context and square-root policy
-differences have exact expected values; all other observations compare strictly.
+pins bounded token, nameservice, staking and DEX workflows over unchanged
+historical V1 sources against a pinned pre-VM Python capture. Current code no
+longer executes V1, so its observer runs only with the pinned older release;
+the current suite keeps the corpus's provenance checks.
 The [compatibility guide](tests/compatibility/README.md) also describes the
 separate language-level corpus and historical capture procedure.
 

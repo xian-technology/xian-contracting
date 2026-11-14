@@ -47,8 +47,7 @@ This file records the runtime properties that must hold before a
 - Entry execution, host costs, and serial or nested constructors share one
   transaction budget. Zero and oversized metered budgets are capped at the
   profile's ceiling: 1,000,000 chi (1,000,000,000 raw) for V2, reported as
-  `runtime_info()["max_tx_chi"]`, and the historical 50,000,000 chi
-  (50,000,000,000 raw) for archival V1.
+  `runtime_info()["max_tx_chi"]`.
 - Failure rolls back state, not the cost of work already performed. Failed
   constructor costs remain in the transaction's charge and attribution.
 
@@ -58,9 +57,9 @@ This file records the runtime properties that must hold before a
   artifacts and contract results as explicit fresh-chain execution.
 - Public `ContractingClient` execution is V2-only; explicit V1 profiles and
   injected V1 drivers fail before creating client state.
-- Low-level native `xian_vm_v1` historical verification must retain strict
-  comparisons of results, writes, events and failures with immutable,
-  provenance-checked Python observations.
+- Current code does not execute `xian_vm_v1`; strict comparisons of V1
+  results, writes, events and failures with immutable, provenance-checked
+  Python observations run with the pinned older release.
 - Stateful contract sequences must agree with independent semantic models,
   including committed state and rollback after deliberate post-write failure.
 - Native deployment must reject client-supplied IR artifacts and derive VM IR

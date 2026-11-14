@@ -65,8 +65,8 @@ Current behavior:
 Public compiler APIs use the Rust compiler. The Python facade supports source
 normalization, diagnostics and IR/artifact tooling; it does not expose CPython
 AST or bytecode compilation through `parse`, `compile` or `parse_legacy_runtime`.
-Nonexecuting native V1 IR tooling remains for archival verification and migration.
-Public local clients execute only native V2.
+V1 compilation and IR validation remain for archival tooling and migration;
+current code executes only V2.
 
 Validators compile submitted source with the Rust compiler binding and persist
 the canonical IR. Python and JavaScript SDKs submit cleartext source. The
