@@ -49,6 +49,8 @@ def driver(tmp_path: Path):
     driver.set_contract_from_source("con_probe", PROBE)
     driver.set_contract_from_source("con_zk", ZK_PROBE)
     driver.set_contract_from_source("con_owned", OWNED, owner="bob")
+    # A contract whose keys sort after the sender's balance.
+    driver.set_contract_from_source("zz_probe", PROBE)
     driver.set("chi_cost.S:value", RATE)
     driver.set(BALANCE_KEY, ContractingDecimal("1"))
     driver.commit()
@@ -104,6 +106,19 @@ def test_an_estimate_reports_the_chi_without_reserving_the_budget(driver):
     # The fee write comes after the run's own writes, as in the Python receipt.
     assert list(run.writes) == ["con_probe.values:a", BALANCE_KEY]
     assert run.contract_costs["con_probe"] > 0
+
+
+def test_only_an_estimate_lists_a_fee_write_its_run_did_not_make_last(driver):
+    driver.set(BALANCE_KEY, ContractingDecimal("1000"))
+
+    estimate = _run(
+        driver, driver.committed_storage()[1].snapshot(), contract="zz_probe", estimate=True
+    )
+    block = _run(driver, driver.committed_storage()[1].snapshot(), contract="zz_probe")
+
+    assert list(estimate.writes) == ["zz_probe.values:a", BALANCE_KEY]
+    assert list(block.writes) == [BALANCE_KEY, "zz_probe.values:a"]
+    assert estimate.writes[BALANCE_KEY] == block.writes[BALANCE_KEY]
 
 
 def test_an_estimated_failure_pays_its_fee_and_keeps_no_effects(driver):
