@@ -7,8 +7,6 @@ use crate::stored_value::decode_stored_value;
 use serde_json::Value;
 use xian_fastpath_core::{decode_transaction, validate_transaction_static, AdmissionError};
 
-pub(crate) use xian_fastpath_core::ADMISSION_REVISION;
-
 /// The decoded transaction document if `raw` is admitted for `chain_id`.
 pub(crate) fn admit_transaction(raw: &[u8], chain_id: &str) -> Result<Value, AdmissionError> {
     let decoded = decode_transaction(raw)?;

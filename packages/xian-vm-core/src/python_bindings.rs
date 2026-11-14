@@ -884,7 +884,7 @@ fn runtime_info_json(vm_profile: &str) -> PyResult<String> {
         "execution_revision": policy.revision,
         "max_tx_chi": crate::max_transaction_chi(vm_profile),
         "set_codec": XIAN_VM_SET_CODEC,
-        "tx_admission_revision": crate::transaction_admission::ADMISSION_REVISION,
+        "tx_admission_revision": xian_fastpath_core::ADMISSION_REVISION,
     }))
     .map_err(|error| PyValueError::new_err(error.to_string()))
 }
