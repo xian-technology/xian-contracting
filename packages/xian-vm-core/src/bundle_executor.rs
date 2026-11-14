@@ -15,6 +15,12 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 /// module IR, storage the execution has not touched, contract owners and
 /// host syscalls. The Python host (`NativeVmHost`) and the Rust block host
 /// implement it; the executor logic is shared.
+/// The refusal of a call to an owned contract by anyone but its owner.
+pub(crate) fn not_owner() -> VmExecutionError {
+    let message = "Caller is not the owner!";
+    VmExecutionError::described("Exception", format!("Exception({message:?})"), message)
+}
+
 pub(crate) trait HostServices {
     /// The IR JSON text of `module`, or `None` when it has none.
     fn module_ir_json(&mut self, module: &str) -> Result<Option<String>, VmExecutionError>;
@@ -645,12 +651,7 @@ impl<H: HostServices> VmHost for BundleExecutor<H> {
         let caller = call.caller_contract.clone().or_else(|| call.signer.clone());
         if let Some(owner) = owner.as_deref() {
             if caller.as_deref() != Some(owner) {
-                let message = "Caller is not the owner!";
-                return Err(VmExecutionError::described(
-                    "Exception",
-                    format!("Exception({message:?})"),
-                    message,
-                ));
+                return Err(not_owner());
             }
         }
         let call_index = self.contract_call_count;

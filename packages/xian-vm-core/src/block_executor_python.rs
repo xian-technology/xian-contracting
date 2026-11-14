@@ -1,12 +1,11 @@
 //! Python access to the Rust block executor: the node adds a block's
-//! transactions and runs them from an index until one needs the Python path.
+//! transactions and runs them all.
 use super::settlement_python::rewards_to_py;
 use super::transaction_inputs_python::block_meta_from_py;
 use super::{bigint_to_py, event_to_py, exception_to_py, vm_to_py};
 use crate::block_executor::{BlockExecutor, BlockPolicy, PreparedTx, TxOutcome};
 use crate::block_state_python::PyBlockState;
 use crate::lmdb_python::{LmdbStorageError, PyLmdbEnvironment};
-use crate::settlement::Stop;
 use crate::state_view::StateView;
 use crate::transaction_inputs::{prepared_tx, BlockMeta};
 use pyo3::prelude::*;
@@ -34,8 +33,7 @@ impl<T> Unshared<T> {
 pub(super) struct PyBlockExecutor {
     executor: BlockExecutor,
     block_meta: BlockMeta,
-    /// `None` for a transaction whose inputs did not convert.
-    txs: Vec<Option<PreparedTx>>,
+    txs: Vec<PreparedTx>,
 }
 
 /// `items` converted one by one into a Python list.
@@ -127,59 +125,44 @@ impl PyBlockExecutor {
     }
 
     /// Add an admitted transaction by its wire bytes; Rust reads its call,
-    /// arguments and context (`transaction_inputs`). One whose inputs the
-    /// Python path would not have converted is left to Python.
-    fn add(&mut self, raw: &[u8]) {
-        self.txs.push(prepared_tx(raw, &self.block_meta));
+    /// arguments and context (`transaction_inputs`). Bytes admission would
+    /// refuse raise `ValueError`.
+    fn add(&mut self, raw: &[u8]) -> PyResult<()> {
+        let tx = prepared_tx(raw, &self.block_meta).ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("not an admitted transaction")
+        })?;
+        self.txs.push(tx);
+        Ok(())
     }
 
     fn __len__(&self) -> usize {
         self.txs.len()
     }
 
-    /// Execute and stage the transactions from `start` with the GIL
-    /// released, until the end or the first one the Python path must run.
-    /// Returns `(outcomes, stop)`: one `(status, result, exception, writes,
-    /// events, chi_used, rewards, chi_rate, output_writes)` per executed
-    /// transaction (the last two feed the per-transaction log records), and
-    /// `(index, reason)` of the transaction left to Python (`None` at the
-    /// end). A storage fault raises `LmdbStorageError`.
-    fn run(
-        &self,
-        py: Python<'_>,
-        start: usize,
-    ) -> PyResult<(Vec<Py<PyAny>>, Option<(usize, String)>)> {
-        let work = Unshared((&self.executor, self.txs.get(start..).unwrap_or(&[])));
-        let (outcomes, stopped) = py
+    /// Execute and stage every transaction with the GIL released. Returns
+    /// one `(status, result, exception, writes, events, chi_used, rewards,
+    /// chi_rate, output_writes)` per transaction (the last two feed the
+    /// per-transaction log records). A host fault raises
+    /// `LmdbStorageError`: the node halts.
+    fn run(&self, py: Python<'_>) -> PyResult<Vec<Py<PyAny>>> {
+        let work = Unshared((&self.executor, self.txs.as_slice()));
+        let outcomes = py
             .detach(move || {
                 let (executor, txs) = work.into_inner();
                 executor.begin_run();
-                let mut outcomes = Vec::new();
-                for (offset, tx) in txs.iter().enumerate() {
-                    let Some(tx) = tx else {
-                        return Unshared((
-                            outcomes,
-                            Some((offset, Stop::Handback("inputs did not convert".to_owned()))),
-                        ));
-                    };
-                    match executor.execute(tx) {
-                        Ok(outcome) => outcomes.push(outcome),
-                        Err(stop) => return Unshared((outcomes, Some((offset, stop)))),
-                    }
-                }
-                Unshared((outcomes, None))
+                let outcomes: Result<Vec<TxOutcome>, _> =
+                    txs.iter().map(|tx| executor.execute(tx)).collect();
+                Unshared(outcomes)
             })
             .into_inner();
-        let stop = match stopped {
-            None => None,
-            Some((_, Stop::Fault(fault))) => return Err(LmdbStorageError::new_err(fault)),
-            Some((offset, Stop::Handback(reason))) => Some((start + offset, reason)),
-        };
-        let outcomes = outcomes
+        let outcomes = outcomes.map_err(|fault| {
+            let crate::settlement::Stop::Fault(fault) = fault;
+            LmdbStorageError::new_err(fault)
+        })?;
+        outcomes
             .iter()
             .map(|outcome| outcome_to_py(py, outcome))
-            .collect::<PyResult<_>>()?;
-        Ok((outcomes, stop))
+            .collect()
     }
 }
 

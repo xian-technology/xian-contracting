@@ -4,14 +4,16 @@
 //! it, the module checked, its constructor run in a nested execution over
 //! this host and the transaction's budget, and the contract's metadata and
 //! the constructor's effects staged. Every failure reads as the Python
-//! host's; an argument the Python host would convert in a way not ported
-//! here is handed back.
+//! host's; revision 14 defines the rest: any contract name that is not a
+//! string is refused as an empty one, constructor arguments reach the
+//! constructor as the VM values they are (a dict with string keys), the
+//! deployment's actors must be strings, and a constructor exception whose
+//! arguments are not plain values fails with the host failure alone.
 use super::charges::host_runtime_error;
 use super::modules::{uses_zk, Ir};
 use super::{BlockHost, DEVELOPER_KEY, IR_KEY, OWNER_KEY, SOURCE_KEY};
 use crate::bundle_executor::{validate_bundle_module, BundleExecutor, ExecutionOutcome};
 use crate::module_cache::shared_module;
-use crate::set_member_codec::is_reserved_tag;
 use crate::{
     ValidatedModuleIr, VmEvent, VmException, VmExecutionContext, VmExecutionError, VmMeterConfig,
     VmValue, XIAN_VM_V2_PROFILE,
@@ -31,10 +33,6 @@ const MAX_CONTRACT_NAME_LENGTH: usize = 64;
 const TIME_KEY: &str = "__submitted__";
 const DEPLOYER_KEY: &str = "__deployer__";
 const INITIATOR_KEY: &str = "__initiator__";
-/// The nesting a constructor argument may have to pass the Python host's
-/// wire round trip unchanged (its traversal limit is 128).
-const MAX_ARGUMENT_DEPTH: usize = 64;
-
 /// `contract.deploy`'s arguments as `NativeVmHost.handle_syscall` reads them.
 struct Deployment {
     name: VmValue,
@@ -158,31 +156,24 @@ impl BlockHost<'_> {
 
     /// `assert_safe_contract_name`.
     fn contract_name(&mut self, name: &VmValue) -> Result<String, VmExecutionError> {
-        let name = match name {
-            VmValue::String(name) if !name.is_empty() => name,
-            VmValue::String(_)
-            | VmValue::None
-            | VmValue::Bool(_)
-            | VmValue::Int(_)
-            | VmValue::Decimal(_)
-            | VmValue::List(_)
-            | VmValue::Dict(_) => {
-                return Err(assertion("Contract name must be a non-empty string."))
-            }
-            _ => return self.back("contract name the Python host may read as a string"),
+        let VmValue::String(name) = name.detached()? else {
+            return Err(assertion("Contract name must be a non-empty string."));
         };
+        if name.is_empty() {
+            return Err(assertion("Contract name must be a non-empty string."));
+        }
         if name.chars().count() > MAX_CONTRACT_NAME_LENGTH {
             return Err(assertion(&format!(
                 "Contract name length exceeds {MAX_CONTRACT_NAME_LENGTH} characters!"
             )));
         }
-        if !safe_contract_name(name) {
+        if !safe_contract_name(&name) {
             return Err(assertion(
                 "Contract name must start with a lowercase ASCII letter and contain only \
                  lowercase ASCII letters, digits, and underscores.",
             ));
         }
-        Ok(name.clone())
+        Ok(name)
     }
 
     /// The developer, deployer and initiator (the transaction's caller and
@@ -278,19 +269,20 @@ impl BlockHost<'_> {
         let Some(exception) = outcome.exception else {
             return Err(error);
         };
-        // The host carries the exception through Python (`__xian_exception__`).
-        match plain_arguments(&exception.args) {
-            Some(args) => Err(error.with_exception(VmException {
+        // The exception crosses with plain arguments; one with others
+        // fails the deployment with the host failure alone (revision 14).
+        Err(match plain_arguments(&exception.args) {
+            Some(args) => error.with_exception(VmException {
                 name: exception.name,
                 args,
-            })),
-            None => self.back("constructor exception arguments the host would convert"),
-        }
+            }),
+            None => error,
+        })
     }
 
-    /// `coerce_call_kwargs(dict(constructor_args or {}))`: arguments that
-    /// pass the Python host's wire round trip unchanged; others are handed
-    /// back.
+    /// The constructor's keyword arguments: a dict with string keys (or
+    /// `None`), passed as the VM values they are (revision 14: no wire
+    /// round trip).
     fn constructor_kwargs(
         &mut self,
         arguments: &VmValue,
@@ -298,18 +290,15 @@ impl BlockHost<'_> {
         let entries = match arguments {
             VmValue::None => return Ok(Vec::new()),
             VmValue::Dict(entries) => entries,
-            _ => return self.back("constructor arguments that are not a dict"),
+            _ => return Err(host_runtime_error("constructor_args must be a dict")),
         };
-        let mut kwargs = Vec::with_capacity(entries.len());
-        for (key, value) in entries {
-            match key {
-                VmValue::String(key) if wire_stable(value, 1) && !is_reserved_tag(key) => {
-                    kwargs.push((key.clone(), value.clone()));
-                }
-                _ => return self.back("constructor arguments the wire round trip changes"),
-            }
-        }
-        Ok(kwargs)
+        entries
+            .iter()
+            .map(|(key, value)| match key {
+                VmValue::String(key) => Ok((key.clone(), value.clone())),
+                _ => Err(host_runtime_error("constructor_args keys must be strings")),
+            })
+            .collect()
     }
 
     /// The constructor's context: signed by the initiator, called by the
@@ -329,9 +318,9 @@ impl BlockHost<'_> {
         );
         Ok(VmExecutionContext {
             this: Some(artifacts.name.clone()),
-            caller: self.optional_text(&actors.deployer)?,
-            signer: self.optional_text(&actors.initiator)?,
-            owner: self.optional_text(&deployment.owner)?,
+            caller: optional_text("deployer", &actors.deployer)?,
+            signer: optional_text("initiator", &actors.initiator)?,
+            owner: optional_text("owner", &deployment.owner)?,
             entry,
             submission_name: Some(artifacts.name.clone()),
             now: actors.now.clone(),
@@ -341,16 +330,6 @@ impl BlockHost<'_> {
             // `_stage_contract_deploy`'s context has no `__input_hash`.
             input_hash: VmValue::None,
         })
-    }
-
-    /// A context string as `context_from_py` reads it; anything else is
-    /// handed back.
-    fn optional_text(&mut self, value: &VmValue) -> Result<Option<String>, VmExecutionError> {
-        match value {
-            VmValue::None => Ok(None),
-            VmValue::String(text) => Ok(Some(text.clone())),
-            _ => self.back("constructor context value that is not a string"),
-        }
     }
 
     /// The constructor's effects, then the contract's metadata, each
@@ -440,24 +419,15 @@ fn safe_contract_name(name: &str) -> bool {
         && chars.all(|char| char.is_ascii_lowercase() || char.is_ascii_digit() || char == '_')
 }
 
-/// Whether `normalize_wire_numbers` then `decode_wire_numbers` gives
-/// `value` back unchanged: strings, booleans, integers of at most 512 bits,
-/// exact decimals whose fixed text has at most 93 characters, and lists and
-/// string-keyed dicts of those.
-fn wire_stable(value: &VmValue, depth: usize) -> bool {
-    if depth > MAX_ARGUMENT_DEPTH {
-        return false;
-    }
+/// A deployment actor of the constructor's context: a string or `None`
+/// (revision 14: anything else fails the deployment).
+fn optional_text(field: &str, value: &VmValue) -> Result<Option<String>, VmExecutionError> {
     match value {
-        VmValue::None | VmValue::Bool(_) | VmValue::String(_) => true,
-        VmValue::Int(number) => number.bits() <= 512,
-        VmValue::Decimal(number) => number.to_string().len() <= 93,
-        VmValue::List(items) => items.iter().all(|item| wire_stable(item, depth + 1)),
-        VmValue::Dict(entries) => entries.iter().all(|(key, item)| {
-            matches!(key, VmValue::String(key) if !is_reserved_tag(key))
-                && wire_stable(item, depth + 1)
-        }),
-        _ => false,
+        VmValue::None => Ok(None),
+        VmValue::String(text) => Ok(Some(text.clone())),
+        _ => Err(host_runtime_error(format!(
+            "deployment {field} must be a string"
+        ))),
     }
 }
 

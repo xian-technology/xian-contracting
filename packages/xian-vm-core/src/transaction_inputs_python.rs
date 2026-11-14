@@ -28,7 +28,7 @@ pub(super) fn block_meta_from_py(meta: &Bound<'_, PyDict>) -> PyResult<BlockMeta
 
 /// Parity hook: the inputs the executor reads from `raw` for `block_meta`
 /// (kwargs as `(name, Debug of the VM value)`, context values back in
-/// Python), or `None` when the transaction would go to the Python path.
+/// Python), or `None` for bytes admission refuses.
 #[pyfunction]
 pub(super) fn _transaction_inputs_debug(
     py: Python<'_>,

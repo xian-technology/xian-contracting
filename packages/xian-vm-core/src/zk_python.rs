@@ -243,8 +243,7 @@ fn zk_shielded_command_public_inputs(
 /// served by the block host over the node's LMDB environment and block
 /// overlay, at the V2 VM boundary. Each outcome is `("ok", value)` with the
 /// value's `Debug` rendering, `("raised", text, exception)` with
-/// `exception` as `(type name, [args])` or `None`, or `("handback",
-/// reason)`.
+/// `exception` as `(type name, [args])` or `None`, or `("fault", reason)`.
 #[pyfunction]
 fn _zk_syscalls_debug(
     py: Python<'_>,
@@ -280,7 +279,6 @@ fn outcome(
     stop: Option<Stop>,
 ) -> PyResult<Py<PyAny>> {
     let outcome = match (served, stop) {
-        (_, Some(Stop::Handback(reason))) => ("handback", reason),
         (_, Some(Stop::Fault(reason))) => ("fault", reason),
         (Ok(value), None) => ("ok", format!("{value:?}")),
         (Err(error), None) => {

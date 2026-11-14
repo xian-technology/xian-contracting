@@ -6,7 +6,6 @@ use super::charges::{host_runtime_error, HOST_WRITE_COST_PER_BYTE};
 
 use super::modules::{exports, runnable, uses_zk, Ir};
 use super::{host_text, text, BlockHost, DEVELOPER_KEY, IR_KEY, OWNER_KEY, SOURCE_KEY};
-use crate::settlement::Stop;
 use crate::stored_value_encoder::encode_stored_value;
 use crate::{VmExecutionError, VmValue};
 use sha3::{Digest, Sha3_256};
@@ -97,8 +96,10 @@ impl BlockHost<'_> {
         variable: &str,
         value: &VmValue,
     ) -> Result<VmValue, VmExecutionError> {
-        let VmValue::String(contract) = contract else {
-            return self.back("metadata change of a contract that is not a string");
+        let Some(contract) = host_text(contract) else {
+            return Err(host_runtime_error(
+                "contract metadata syscall arguments must be strings",
+            ));
         };
         let key = format!("{contract}.{variable}");
         self.writes.stage(&key, value.clone());
@@ -117,7 +118,9 @@ impl BlockHost<'_> {
             return Ok(());
         }
         let Ok(encoded) = encode_stored_value(value) else {
-            return self.back("a host write the stored-value encoding refuses");
+            return Err(host_runtime_error(format!(
+                "the value written to '{key}' cannot be stored"
+            )));
         };
         let written = (key.len() + encoded.len()) as u64;
         self.charges.record(written * HOST_WRITE_COST_PER_BYTE)
@@ -141,10 +144,10 @@ impl BlockHost<'_> {
         let Ir::Text(module) = self.module_ir(contract)? else {
             return Ok(false);
         };
-        let module = match runnable(contract, &module) {
-            Ok(module) => module,
-            Err(Stop::Handback(reason)) => return self.back(reason),
-            Err(stop) => return Err(self.halt(stop)),
+        let Some(module) = runnable(contract, &module) else {
+            return Err(host_runtime_error(format!(
+                "contract '{contract}' has invalid persisted VM IR"
+            )));
         };
         if uses_zk(&module) {
             self.require_zk(contract)?;
@@ -183,10 +186,10 @@ impl BlockHost<'_> {
                 return self.code_digest(&module.text);
             }
         }
+        // Code that is not text has no hash (revision 14).
         match self.metadata(contract, variable)? {
-            VmValue::None => Ok(VmValue::None),
             VmValue::String(code) => self.code_digest(&code),
-            _ => self.back("contract code is not a string"),
+            _ => Ok(VmValue::None),
         }
     }
 

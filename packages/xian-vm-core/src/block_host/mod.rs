@@ -1,7 +1,7 @@
 //! The VM host of a block transaction (`NativeVmHost` for the Rust block
 //! executor): state from the transaction's host writes, then the block
-//! overlay and LMDB. A request it cannot serve marks the transaction for the
-//! Python path (`Stop::Handback`); a storage failure halts (`Stop::Fault`).
+//! overlay and LMDB. Every syscall has a defined outcome; only a storage
+//! failure stops the transaction (`Stop::Fault`): the node halts.
 //!
 //! By concern: `modules` holds the contracts' IR as the node prepares it,
 //! `metadata` the contract metadata reads and changes, `deploy` contract
@@ -129,10 +129,8 @@ impl<'a> BlockHost<'a> {
     }
 
     fn halt(&mut self, stop: Stop) -> VmExecutionError {
-        let message = match &stop {
-            Stop::Handback(reason) => format!("handed back to the Python path: {reason}"),
-            Stop::Fault(reason) => format!("host fault: {reason}"),
-        };
+        let Stop::Fault(reason) = &stop;
+        let message = format!("host fault: {reason}");
         self.stop.get_or_insert(stop);
         VmExecutionError::new(message)
     }
@@ -150,14 +148,14 @@ impl<'a> BlockHost<'a> {
         }
     }
 
-    fn back<T>(&mut self, reason: impl Into<String>) -> Result<T, VmExecutionError> {
-        Err(self.halt(Stop::Handback(reason.into())))
-    }
-
+    /// A syscall's contract-name argument: a string or a contract handle
+    /// (revision 14: anything else fails the call).
     fn string_arg(&mut self, args: &[VmValue], index: usize) -> Result<String, VmExecutionError> {
         match args.get(index).and_then(host_text) {
             Some(value) => Ok(value.to_owned()),
-            None => self.back("syscall argument is not a string"),
+            None => Err(charges::host_runtime_error(
+                "contract metadata syscall arguments must be strings",
+            )),
         }
     }
 
@@ -180,9 +178,10 @@ impl<'a> BlockHost<'a> {
 }
 
 mod services {
-    use super::random::{self, Refusal};
+    use super::charges::host_runtime_error;
+    use super::random;
     use super::{deploy, metadata, zk, BlockHost, Ir, OWNER_KEY};
-    use crate::bundle_executor::{validate_bundle_module, HostServices};
+    use crate::bundle_executor::{not_owner, validate_bundle_module, HostServices};
     use crate::interpreter::vm_variable_storage_key;
     use crate::{ValidatedModuleIr, VmExecutionError, VmValue};
 
@@ -266,11 +265,13 @@ mod services {
             refused.map_or(Ok(()), Err)
         }
 
+        /// The owner of `contract`; one that is not a string no caller
+        /// is (revision 14): the call is refused as the owner's would be.
         fn owner(&mut self, contract: &str) -> Result<Option<String>, VmExecutionError> {
             match self.get(&format!("{contract}.{OWNER_KEY}"))? {
                 None => Ok(None),
                 Some(VmValue::String(owner)) => Ok(Some(owner)),
-                Some(_) => self.back("contract owner is not a string"),
+                Some(_) => Err(not_owner()),
             }
         }
 
@@ -287,12 +288,11 @@ mod services {
             {
                 return result;
             }
-            match random::call(&mut self.random, syscall_id, args, kwargs) {
-                Some(Ok(value)) => Ok(value),
-                Some(Err(Refusal::Raised(error))) => Err(error),
-                Some(Err(Refusal::Handback(reason))) => self.back(reason),
-                None => self.back(format!("host syscall {syscall_id}")),
-            }
+            random::call(&mut self.random, syscall_id, args, kwargs).unwrap_or_else(|| {
+                Err(host_runtime_error(format!(
+                    "unsupported host syscall '{syscall_id}'"
+                )))
+            })
         }
     }
 }

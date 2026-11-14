@@ -2,7 +2,6 @@
 //! zk bridge (the contracting fuzz test compares the two call by call).
 use super::super::{BlockHost, HostCharges, Modules, TxInputs};
 use super::call;
-use crate::settlement::Stop;
 use crate::state_view::tests::Fixture;
 use crate::stored_value_encoder::encode_stored_value;
 use crate::{VmBudget, VmContractHandle, VmValue};
@@ -247,7 +246,7 @@ fn arguments_are_checked_with_the_python_texts() {
 }
 
 #[test]
-fn values_the_python_host_cannot_convert_are_handed_back() {
+fn arguments_the_zk_functions_do_not_take_fail_with_a_type_error() {
     let fixture = fixture("handback", &[]);
     let modules = Modules::default();
     let mut host = host(&fixture, &modules);
@@ -257,8 +256,16 @@ fn values_the_python_host_cannot_convert_are_handed_back() {
         &[VmValue::BuiltinSet(vec![])],
         &[],
     );
-    assert!(refused.unwrap().is_err());
-    assert!(matches!(host.stop, Some(Stop::Handback(_))));
+    assert_eq!(
+        refused.unwrap().unwrap_err().to_string(),
+        "TypeError: zk.has_verifying_key() cannot take a set argument"
+    );
+    let shape = call(&mut host, "zk.has_verifying_key", &[], &[]);
+    assert_eq!(
+        shape.unwrap().unwrap_err().to_string(),
+        "TypeError: zk.has_verifying_key() takes exactly 1 positional arguments"
+    );
+    assert!(host.stop.is_none());
     assert!(call(&mut host, "zk.unknown", &[], &[]).is_none());
 }
 

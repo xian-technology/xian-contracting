@@ -59,7 +59,7 @@ fn raised_by(
     args: &[VmValue],
 ) -> (String, String, Vec<VmValue>) {
     match run(random, syscall, args) {
-        Err(Refusal::Raised(error)) => {
+        Err(error) => {
             let exception = error.exception().expect("a structured exception");
             (
                 error.to_string(),
@@ -71,14 +71,23 @@ fn raised_by(
     }
 }
 
-fn handback(
+/// The message of a call that fails with a `TypeError`.
+fn type_error(
     random: &mut TxRandom,
     syscall: &str,
     args: &[VmValue],
     kwargs: &[(String, VmValue)],
 ) -> String {
     match call(random, syscall, args.to_vec(), kwargs.to_vec()).expect("a random syscall") {
-        Err(Refusal::Handback(reason)) => reason,
+        Err(error) => {
+            let exception = error.exception().expect("a structured exception");
+            assert_eq!(exception.name, "TypeError");
+            let VmValue::String(message) = &exception.args[0] else {
+                panic!("a message argument");
+            };
+            assert_eq!(error.to_string(), format!("TypeError: {message}"));
+            message.clone()
+        }
         other => panic!("{syscall} was served: {other:?}"),
     }
 }
@@ -90,7 +99,7 @@ fn raised_or_refused(
     args: &[VmValue],
 ) -> (String, Option<String>, ()) {
     match run(random, syscall, args) {
-        Err(Refusal::Raised(error)) => (
+        Err(error) => (
             error.to_string(),
             error.exception().map(|e| e.name.clone()),
             (),
@@ -345,7 +354,7 @@ fn random_floats_fail_after_their_draw_and_large_draws_before_any() {
     let mut random = node_context();
     ok(&mut random, "random.seed", &[]);
     let refused = |served: Served| match served {
-        Err(Refusal::Raised(error)) if error.exception().is_none() => error.to_string(),
+        Err(error) if error.exception().is_none() => error.to_string(),
         other => panic!("not refused: {other:?}"),
     };
     assert_eq!(
@@ -374,7 +383,7 @@ fn random_floats_fail_after_their_draw_and_large_draws_before_any() {
 }
 
 #[test]
-fn calls_python_would_serve_differently_are_handed_back() {
+fn calls_python_binds_differently_fail_with_a_type_error() {
     let mut random = node_context();
     let decimal = VmValue::Decimal(crate::VmDecimal::from_str_literal("1.5").unwrap());
     // Salts other than str, int, bool or None are refused (random_bounds).
@@ -387,8 +396,8 @@ fn calls_python_would_serve_differently_are_handed_back() {
     }
     let mut odd = context(decimal.clone(), int(1), text("h"), text("x"));
     assert_eq!(
-        handback(&mut odd, "random.seed", &[], &[]),
-        "random seed chain_id is a decimal"
+        type_error(&mut odd, "random.seed", &[], &[]),
+        "random seed chain_id cannot be a decimal"
     );
     ok(&mut random, "random.seed", &[]);
     for (syscall, args, kwargs) in [
@@ -410,27 +419,28 @@ fn calls_python_would_serve_differently_are_handed_back() {
             vec![("items".to_owned(), list(&[1]))],
         ),
     ] {
-        assert_eq!(
-            handback(&mut random, syscall, &args, &kwargs),
-            format!("{syscall} call shape")
+        assert!(
+            type_error(&mut random, syscall, &args, &kwargs)
+                .starts_with(&format!("{syscall}() takes the parameters (")),
+            "{syscall}"
         );
     }
     assert_eq!(
-        handback(&mut random, "random.getrandbits", &[decimal], &[]),
-        "random argument is a decimal"
+        type_error(&mut random, "random.getrandbits", &[decimal], &[]),
+        "random argument cannot be a decimal"
     );
     assert_eq!(
         raised_or_refused(&mut random, "random.choice", &[VmValue::Dict(vec![])]).0,
         "random.choice() population must be a list, tuple, str, bytes or bytearray"
     );
     assert_eq!(
-        handback(
+        type_error(
             &mut random,
             "random.choice",
             &[VmValue::List(vec![text("a")])],
             &[]
         ),
-        "random population is a list of str"
+        "random population item cannot be a str"
     );
     // Served by name, bound like Python binds them.
     let kwargs = [("b".to_owned(), int(2)), ("a".to_owned(), int(2))];

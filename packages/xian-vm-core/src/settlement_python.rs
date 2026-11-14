@@ -5,7 +5,7 @@ use super::{py_to_vm, vm_to_py};
 use crate::block_state_python::PyBlockState;
 use crate::lmdb_python::{LmdbStorageError, PyLmdbEnvironment};
 use crate::python_decimal::PyDecimal;
-use crate::settlement::{self, Balance, Settled, Stop};
+use crate::settlement::{self, Balance, Paid, Settled, Stop};
 use crate::state_view::StateView;
 use crate::tx_rewards::{tx_reward_outputs, RewardRecord, RewardState, TxRewards};
 use crate::{VmDecimal, VmValue};
@@ -95,7 +95,7 @@ pub(super) fn rewards_to_py(py: Python<'_>, outputs: &TxRewards) -> PyResult<Py<
         .unbind())
 }
 
-/// `None` for a hand-back; a fault is raised as `LmdbStorageError`.
+/// A fault is raised as `LmdbStorageError`.
 fn settled_to_py<T>(
     py: Python<'_>,
     outcome: Settled<T>,
@@ -103,8 +103,19 @@ fn settled_to_py<T>(
 ) -> PyResult<Py<PyAny>> {
     match outcome {
         Ok(value) => convert(py, value),
-        Err(Stop::Handback(_)) => Ok(py.None()),
         Err(Stop::Fault(fault)) => Err(LmdbStorageError::new_err(fault)),
+    }
+}
+
+/// `None` for a balance that cannot pay (`InvalidBalance`).
+fn paid_to_py<T>(
+    py: Python<'_>,
+    outcome: Paid<T>,
+    convert: impl FnOnce(Python<'_>, T) -> PyResult<Py<PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    match outcome {
+        Ok(value) => convert(py, value),
+        Err(settlement::InvalidBalance) => Ok(py.None()),
     }
 }
 
@@ -129,7 +140,7 @@ impl RewardState for ViewState {
 }
 
 /// The fee rewards of a transaction over the node's state (block overlay,
-/// then LMDB), or `None` when the Python code must compute them.
+/// then LMDB).
 #[pyfunction]
 #[pyo3(signature = (environment, overlay, total_chi, contract, contract_costs=None, *, pay_developers=true))]
 pub(super) fn tx_rewards(
@@ -189,7 +200,7 @@ fn tuple_to_py(py: Python<'_>, items: Vec<Py<PyAny>>) -> PyResult<Py<PyAny>> {
 }
 
 /// `_reserve_vm_fee_budget`, for differential tests: `(amount, spendable)`,
-/// `("insufficient",)`, or `None` for a hand-back.
+/// `("insufficient",)`, or `None` for a balance that cannot pay.
 #[pyfunction]
 pub(super) fn _fee_reserve_debug(
     py: Python<'_>,
@@ -201,23 +212,27 @@ pub(super) fn _fee_reserve_debug(
     let (budget, rate) = (int_arg(budget)?, int_arg(rate)?);
     let outcome = Balance::of(Some(&balance))
         .and_then(|balance| settlement::reserve(&balance, &budget, &rate));
-    settled_to_py(py, outcome, |py, reservation| match reservation {
-        None => tuple_to_py(
-            py,
-            vec!["insufficient".into_pyobject(py)?.into_any().unbind()],
-        ),
-        Some(reservation) => tuple_to_py(
-            py,
-            vec![
-                fixed_to_py(py, &reservation.amount)?,
-                fixed_to_py(py, &reservation.spendable)?,
-            ],
-        ),
-    })
+    paid_to_py(
+        py,
+        outcome,
+        |py, reservation: Option<settlement::Reservation>| match reservation {
+            None => tuple_to_py(
+                py,
+                vec!["insufficient".into_pyobject(py)?.into_any().unbind()],
+            ),
+            Some(reservation) => tuple_to_py(
+                py,
+                vec![
+                    fixed_to_py(py, &reservation.amount)?,
+                    fixed_to_py(py, &reservation.spendable)?,
+                ],
+            ),
+        },
+    )
 }
 
 /// `_VmFeeReservation.refund_writes`, for differential tests: the refunded
-/// balance, or `None` for a hand-back. `written` is what execution left at
+/// balance, or `None` for a balance that cannot pay. `written` is what execution left at
 /// the balance key; without `has_written` the spendable balance is used.
 #[pyfunction]
 #[pyo3(signature = (amount, spendable, chi_used, rate, written=None, has_written=false))]
@@ -249,11 +264,12 @@ pub(super) fn _fee_refund_debug(
     };
     let outcome = Balance::of(after.as_ref())
         .and_then(|after| settlement::refund(&reservation, &after, &chi_used, &rate));
-    settled_to_py(py, outcome, |py, value| fixed_to_py(py, &value))
+    paid_to_py(py, outcome, |py, value| fixed_to_py(py, &value))
 }
 
 /// `vm_failure_charge`, for differential tests: `("write", balance, paid
-/// chi as decimal text)`, `("unchanged",)`, or `None` for a hand-back.
+/// chi as decimal text)`, `("unchanged",)`, or `None` for a balance that
+/// cannot pay.
 #[pyfunction]
 pub(super) fn _fee_metered_debug(
     py: Python<'_>,
@@ -265,22 +281,26 @@ pub(super) fn _fee_metered_debug(
     let (chi_used, rate) = (int_arg(chi_used)?, int_arg(rate)?);
     let outcome = Balance::of(Some(&balance))
         .and_then(|balance| settlement::failure_charge(&balance, &chi_used, &rate));
-    settled_to_py(py, outcome, |py, charge| match charge {
-        None => tuple_to_py(py, vec!["unchanged".into_pyobject(py)?.into_any().unbind()]),
-        Some(charge) => tuple_to_py(
-            py,
-            vec![
-                "write".into_pyobject(py)?.into_any().unbind(),
-                vm_to_py(py, &charge.balance)?,
-                charge
-                    .paid_chi
-                    .to_string()
-                    .into_pyobject(py)?
-                    .into_any()
-                    .unbind(),
-            ],
-        ),
-    })
+    paid_to_py(
+        py,
+        outcome,
+        |py, charge: Option<settlement::FailureCharge>| match charge {
+            None => tuple_to_py(py, vec!["unchanged".into_pyobject(py)?.into_any().unbind()]),
+            Some(charge) => tuple_to_py(
+                py,
+                vec![
+                    "write".into_pyobject(py)?.into_any().unbind(),
+                    vm_to_py(py, &charge.balance)?,
+                    charge
+                        .paid_chi
+                        .to_string()
+                        .into_pyobject(py)?
+                        .into_any()
+                        .unbind(),
+                ],
+            ),
+        },
+    )
 }
 
 pub(super) fn register(module: &Bound<'_, pyo3::types::PyModule>) -> PyResult<()> {

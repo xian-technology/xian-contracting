@@ -5,17 +5,17 @@
 //! `xian_vm_core.execute_contract`) for chain and system transactions whose contract
 //! needs nothing from Python: fee reservation, contract preparation, VM
 //! execution, the failure charge, refund or failure metering, fee rewards
-//! and staging the writes. Every outcome is byte-identical to that path.
+//! and staging the writes, with that path's outcomes and texts.
 //!
-//! A transaction the port does not cover stops with `Stop::Handback` before
-//! any of its effects reach the overlay; the node then runs it through the
-//! Python path, in block order. That covers the random and zk calls
-//! `block_host` leaves to Python, preparation and entry rejections (except a
-//! contract the chain's zk runtime feature refuses), and any value the
-//! Python checks could refuse. The VM's host (`block_host`) reads the
-//! overlay and LMDB, hash scans included, and serves the contract metadata
-//! syscalls, deployments, random and zk. A storage fault stops with
-//! `Stop::Fault`.
+//! Every transaction gets a receipt here; revision 14 gives the inputs the
+//! Python path halted on or decided by its own quirks explicit rules: a
+//! sender balance that is not a number cannot pay (`INVALID_BALANCE`, no
+//! charge), a failure charge never raises a negative balance, and an invalid
+//! reward input pays no rewards (`tx_rewards`). The VM's host (`block_host`)
+//! reads the overlay and LMDB, hash scans included, and serves every host
+//! syscall. Only a host fault (unreadable state, or a chain chi rate the
+//! node refuses to price with) stops a transaction (`Stop::Fault`): the
+//! node halts.
 use crate::block_host::features::{zk_disabled, zk_enabled, Unread};
 use crate::block_host::modules::{exports, runnable, uses_zk};
 use crate::block_host::{
@@ -27,7 +27,7 @@ use crate::interpreter::numeric_v2;
 use crate::lmdb_env::storage_key_error;
 use crate::metering::VM_TRANSACTION_BASE_CHI as TRANSACTION_BASE_CHI;
 use crate::python_decimal::PyDecimal;
-use crate::settlement::{self, handback, Balance, Reservation, Settled, Stop};
+use crate::settlement::{self, Balance, InvalidBalance, Reservation, Settled, Stop};
 use crate::state_view::StateView;
 use crate::stored_value_encoder::encode_stored_value;
 use crate::tx_rewards::{chain_chi_rate, tx_reward_outputs, RewardState, TxRewards};
@@ -45,6 +45,12 @@ const INSUFFICIENT_BALANCE: &str = "Sender does not have enough chi for the subm
 const MISSING_SOURCE: &str = "xian_vm_v2 requires source code for submission.submit_contract";
 /// `canonical_failure`'s text for a failure outside the VM's own errors.
 const HOST_FAILURE: &str = "Transaction failed in the host runtime.";
+/// A sender whose balance is not a number (revision 14): it cannot pay.
+pub(crate) const INVALID_BALANCE: &str = "Sender balance is not a number.";
+/// `_validated_vm_result`'s refusal of effects consensus cannot store.
+const UNENCODABLE: &str = "Contract writes or events cannot be encoded for consensus.";
+/// `_external_entry_error`'s refusals.
+const NOT_OWNER: &str = "Caller is not the owner!";
 
 /// The chain fee policy of the block (`xian.fee_policy.TxFeePolicy`).
 #[derive(Clone, Debug)]
@@ -122,6 +128,26 @@ struct Unprepared {
     preparation: bool,
 }
 
+impl Unprepared {
+    /// A failure before the VM that is no preparation error (an entry
+    /// rejection, a submission without source).
+    fn new(name: &'static str, message: String) -> Self {
+        Self {
+            name,
+            message,
+            preparation: false,
+        }
+    }
+
+    /// `ContractPreparationError` (a `ValueError` in the receipt).
+    fn prepare_error(message: String) -> Self {
+        Self {
+            preparation: true,
+            ..Self::new("ValueError", message)
+        }
+    }
+}
+
 /// Why a contract's preparation stopped.
 enum PrepareStop {
     Stop(Stop),
@@ -150,6 +176,23 @@ struct Execution {
 impl Execution {
     /// A transaction that failed before the VM ran: `_failed_vm_result`
     /// with the exception `name(message)`.
+    fn reserved(self, reservation: Option<Reservation>) -> Self {
+        Self {
+            reservation,
+            ..self
+        }
+    }
+
+    /// The failure `name(message)` in place of what the VM produced: its
+    /// effects are dropped, its chi and costs stay.
+    fn refused(self, name: &str, message: &str) -> Self {
+        Self {
+            chi_used: self.chi_used,
+            contract_costs: self.contract_costs,
+            ..Self::failed(self.reservation, name, message)
+        }
+    }
+
     fn failed(reservation: Option<Reservation>, name: &str, message: &str) -> Self {
         Self {
             reservation,
@@ -199,7 +242,7 @@ impl BlockExecutor {
         }
     }
 
-    /// Start a run: the Python path may have changed state since the last.
+    /// Start a run: the node may have changed state since the last.
     pub(crate) fn begin_run(&self) {
         self.modules.clear();
     }
@@ -220,14 +263,15 @@ impl BlockExecutor {
     fn stage_all(&self, writes: &[(String, VmValue)]) -> Settled<()> {
         let mut encoded = Vec::with_capacity(writes.len());
         for (key, value) in writes {
+            // Every staged key and value was checked before (the balance
+            // key, `validated`, `tx_rewards`): a refusal here is a bug.
             if let Some(error) = storage_key_error(key) {
-                return handback(error);
+                return Err(fault(error));
             }
             let stored = match value {
                 VmValue::None => None,
                 value => Some(Arc::<[u8]>::from(
-                    encode_stored_value(value)
-                        .map_err(|error| Stop::Handback(error.to_string()))?,
+                    encode_stored_value(value).map_err(|error| fault(error.to_string()))?,
                 )),
             };
             encoded.push((key, stored));
@@ -243,13 +287,11 @@ impl BlockExecutor {
     /// The transaction, executed and staged.
     pub(crate) fn execute(&self, tx: &PreparedTx) -> Settled<TxOutcome> {
         let rate = self.chi_rate()?;
+        // Admission takes only 64-hex senders: the key is always storable.
         let balance_key = format!("currency.balances:{}", tx.sender);
-        if let Some(error) = storage_key_error(&balance_key) {
-            return handback(error);
-        }
         let execution =
             self.discarding(|| self.execute_in_scope(tx, rate.as_ref(), &balance_key))?;
-        let execution = self.charge_failure(execution, tx);
+        let execution = self.charge_failure(self.validated(execution), tx);
         self.settle(tx, execution, rate.as_ref(), &balance_key)
     }
 
@@ -299,13 +341,37 @@ impl BlockExecutor {
             Ok(reservation) => reservation,
             Err(unpaid) => return Ok(unpaid),
         };
+        let (entry, context) = match self.entry_call(tx)? {
+            Ok(call) => call,
+            Err(refused) => return Ok(refused.reserved(reservation)),
+        };
+        // `execute_contract` takes the raw budget as a u64: a larger one is
+        // a failure in the host runtime.
+        let Some(budget_raw) = chi_budget_raw(&tx.chi_budget) else {
+            return Ok(Execution::failed(reservation, "RuntimeError", HOST_FAILURE));
+        };
+        let (outcome, host_writes) = self.run_vm(tx, entry, context, budget_raw)?;
+        Ok(execution_of(outcome, host_writes, reservation))
+    }
+
+    /// The entry module and its call's context, or the failure of a
+    /// transaction whose entry cannot run (before its reservation is set).
+    fn entry_call(
+        &self,
+        tx: &PreparedTx,
+    ) -> Settled<Result<(ValidatedModuleIr, VmExecutionContext), Execution>> {
         let entry = match self.entry(tx)? {
             Ok(entry) => entry,
-            Err(unprepared) => return Ok(Execution::unprepared(reservation, unprepared)),
+            Err(refused) => return Ok(Err(Execution::unprepared(None, refused))),
         };
-        let context = self.entry_context(tx, &entry)?;
-        let (outcome, host_writes) = self.run_vm(tx, entry, context)?;
-        Ok(execution_of(outcome, host_writes, reservation))
+        Ok(match self.entry_context(tx, &entry)? {
+            Ok(context) => Ok((entry, context)),
+            // `_rejected_entry` reports the base chi, metered or not.
+            Err(refused) => Err(Execution {
+                chi_used: BigInt::from(TRANSACTION_BASE_CHI),
+                ..Execution::unprepared(None, refused)
+            }),
+        })
     }
 
     /// The prepared entry module, or why the transaction fails without
@@ -335,12 +401,13 @@ impl BlockExecutor {
             return Ok(Ok(None));
         };
         Ok(match self.reserve(tx, rate, balance_key)? {
-            Some(reservation) => Ok(Some(reservation)),
-            None => Err(Execution::failed(
+            Ok(Some(reservation)) => Ok(Some(reservation)),
+            Ok(None) => Err(Execution::failed(
                 None,
                 "AssertionError",
                 INSUFFICIENT_BALANCE,
             )),
+            Err(InvalidBalance) => Err(Execution::failed(None, "AssertionError", INVALID_BALANCE)),
         })
     }
 
@@ -351,16 +418,17 @@ impl BlockExecutor {
         tx: &PreparedTx,
         rate: &BigInt,
         balance_key: &str,
-    ) -> Settled<Option<Reservation>> {
-        let balance = Balance::of(self.get(balance_key)?.as_ref())?;
-        let Some(reservation) = settlement::reserve(&balance, &tx.chi_budget, rate)? else {
-            return Ok(None);
+    ) -> Settled<Result<Option<Reservation>, InvalidBalance>> {
+        let reservation = Balance::of(self.get(balance_key)?.as_ref())
+            .and_then(|balance| settlement::reserve(&balance, &tx.chi_budget, rate));
+        let Ok(Some(reservation)) = reservation else {
+            return Ok(reservation);
         };
         self.stage(
             balance_key,
             Some(&VmValue::Decimal(reservation.spendable.clone())),
         )?;
-        Ok(Some(reservation))
+        Ok(Ok(Some(reservation)))
     }
 
     /// The execution context of an entry call that passes
@@ -369,29 +437,32 @@ impl BlockExecutor {
         &self,
         tx: &PreparedTx,
         entry: &ValidatedModuleIr,
-    ) -> Settled<VmExecutionContext> {
+    ) -> Settled<Result<VmExecutionContext, Unprepared>> {
         // execute_contract's own load of the entry module.
         self.ir(&tx.contract)?;
-        let owner = match self.get(&format!("{}.{OWNER_KEY}", tx.contract))? {
-            None => None,
-            Some(VmValue::String(owner)) => Some(owner),
-            Some(_) => return handback("contract owner is not a string"),
-        };
         // execute_contract's entry checks: only the owner may call an owned
-        // contract (an empty owner too), and only exported functions.
-        if owner
-            .as_deref()
-            .is_some_and(|owner| Some(owner) != tx.context.caller.as_deref())
-        {
-            return handback("caller is not the owner");
+        // contract (an empty owner too, and an owner that is not a string
+        // no caller is), and only exported functions.
+        let owner = match self.get(&format!("{}.{OWNER_KEY}", tx.contract))? {
+            None | Some(VmValue::None) => None,
+            Some(VmValue::String(owner))
+                if Some(owner.as_str()) == tx.context.caller.as_deref() =>
+            {
+                Some(owner)
+            }
+            Some(_) => return Ok(Err(Unprepared::new("Exception", NOT_OWNER.to_owned()))),
+        };
+        if !exports(entry, &tx.function) {
+            let message = format!(
+                "Function '{}' is not exported by contract '{}'.",
+                tx.function, tx.contract
+            );
+            return Ok(Err(Unprepared::new("RuntimeError", message)));
         }
         let mut context = tx.context.clone();
         // Driver.get_owner: an empty owner is no owner.
         context.owner = owner.filter(|owner| !owner.is_empty());
-        if !exports(entry, &tx.function) {
-            return handback("function is not exported");
-        }
-        Ok(context)
+        Ok(Ok(context))
     }
 
     /// `_prepare_vm_contract_bundle`: the import graph of `contract` must
@@ -400,9 +471,14 @@ impl BlockExecutor {
     fn prepare(&self, contract: &str) -> Settled<Result<ValidatedModuleIr, Unprepared>> {
         let mut prepared = BTreeMap::new();
         match self.prepare_module(contract, &mut Vec::new(), &mut prepared) {
-            Ok(()) => Ok(Ok(prepared
-                .remove(contract)
-                .expect("the entry module was prepared"))),
+            Ok(()) => {
+                let entry = prepared
+                    .remove(contract)
+                    .expect("the entry module was prepared");
+                Ok(validate_bundle_module(&entry, contract, XIAN_VM_V2_PROFILE)
+                    .map(|()| entry)
+                    .map_err(|_| invalid_ir(contract)))
+            }
             Err(PrepareStop::Unprepared(unprepared)) => Ok(Err(unprepared)),
             Err(PrepareStop::Stop(stop)) => Err(stop),
         }
@@ -415,15 +491,21 @@ impl BlockExecutor {
         prepared: &mut BTreeMap<String, ValidatedModuleIr>,
     ) -> Result<(), PrepareStop> {
         if stack.iter().any(|entry| entry == name) {
-            return Err(Stop::Handback("import graph contains a cycle".to_owned()).into());
+            let path = [stack.as_slice(), &[name.to_owned()]].concat().join(" -> ");
+            return Err(PrepareStop::Unprepared(Unprepared::prepare_error(format!(
+                "xian_vm_v2 import graph contains a cycle: {path}"
+            ))));
         }
         if prepared.contains_key(name) {
             return Ok(());
         }
         let Ir::Text(cached) = self.ir(name)? else {
-            return Err(Stop::Handback("contract has no persisted IR".to_owned()).into());
+            return Err(PrepareStop::Unprepared(Unprepared::prepare_error(
+                missing_ir(name),
+            )));
         };
-        let module = runnable(name, &cached)?;
+        let module =
+            runnable(name, &cached).ok_or_else(|| PrepareStop::Unprepared(invalid_ir(name)))?;
         if uses_zk(&module) {
             self.require_zk(name)?;
         }
@@ -456,10 +538,7 @@ impl BlockExecutor {
         match zk_enabled(&self.view, self.policy.zk_enabled_without_state).map_err(fault)? {
             Ok(true) => Ok(()),
             Ok(false) => unprepared("ValueError", zk_disabled(name)),
-            Err(Unread::Refused) => unprepared("RuntimeError", HOST_FAILURE.to_owned()),
-            Err(Unread::Untranslated) => {
-                Err(Stop::Handback("runtime feature text the port does not read".to_owned()).into())
-            }
+            Err(Unread) => unprepared("RuntimeError", HOST_FAILURE.to_owned()),
         }
     }
 
@@ -468,11 +547,11 @@ impl BlockExecutor {
         tx: &PreparedTx,
         entry: ValidatedModuleIr,
         context: VmExecutionContext,
+        budget_raw: u64,
     ) -> Settled<(ExecutionOutcome, HostWrites)> {
         // `execute_bundle` runs the whole bundle in its profile's semantics,
         // the charge for the entry's result included.
         let _scope = numeric_v2::Scope::enter(XIAN_VM_V2_PROFILE);
-        let budget_raw = chi_budget_raw(&tx.chi_budget)?;
         let budget = VmBudget::new(budget_raw, XIAN_VM_V2_PROFILE);
         let limit = budget.limit();
         let charges = HostCharges::new(budget.clone(), self.policy.meter_execution, &tx.contract);
@@ -481,8 +560,6 @@ impl BlockExecutor {
             zk_enabled_without_state: self.policy.zk_enabled_without_state,
         };
         let host = BlockHost::new(self.view.clone(), &self.modules, charges, inputs);
-        validate_bundle_module(&entry, &tx.contract, XIAN_VM_V2_PROFILE)
-            .map_err(|error| Stop::Handback(error.to_string()))?;
         let bundle = HashMap::from([(tx.contract.clone(), entry)]);
         let config = VmMeterConfig {
             enabled: self.policy.meter_execution,
@@ -511,7 +588,8 @@ impl BlockExecutor {
         rate: Option<&BigInt>,
         balance_key: &str,
     ) -> Settled<TxOutcome> {
-        let (mut writes, paid_chi) = self.settled_writes(&execution, rate, balance_key)?;
+        let (execution, (mut writes, paid_chi)) =
+            self.settled_writes(execution, rate, balance_key)?;
         let output_writes = if execution.status == 0 {
             writes.len()
         } else {
@@ -529,9 +607,10 @@ impl BlockExecutor {
         } else {
             None
         };
-        if let Some(rewards) = &rewards {
-            self.add_deltas(&mut writes, rewards)?;
-        }
+        let rewards = match rewards {
+            Some(rewards) => self.paid(&mut writes, rewards)?,
+            None => None,
+        };
         let writes = self.receipt_order(writes, &execution, balance_key);
         self.stage_all(&writes)?;
         Ok(TxOutcome {
@@ -554,28 +633,36 @@ impl BlockExecutor {
     /// no fee is charged) and the chi it paid.
     fn settled_writes(
         &self,
-        execution: &Execution,
+        execution: Execution,
         rate: Option<&BigInt>,
         balance_key: &str,
-    ) -> Settled<(BTreeMap<String, VmValue>, PyDecimal)> {
-        if execution.status == 0 {
-            return self.success_writes(execution, rate, balance_key);
-        }
+    ) -> Settled<(Execution, (BTreeMap<String, VmValue>, PyDecimal))> {
+        let execution = if execution.status == 0 {
+            match self.success_writes(&execution, rate, balance_key)? {
+                Ok(writes) => return Ok((execution, writes)),
+                // What execution left at the sender's balance cannot be
+                // refunded: the transaction fails with its chi.
+                Err(InvalidBalance) => execution.refused("AssertionError", INVALID_BALANCE),
+            }
+        } else {
+            execution
+        };
         let charge = match rate {
             None => None,
-            Some(rate) => {
-                // Metered from the balance before the transaction.
-                let balance = Balance::of(self.get(balance_key)?.as_ref())?;
-                settlement::failure_charge(&balance, &execution.chi_used, rate)?
-            }
+            // Metered from the balance before the transaction; a balance
+            // that is not a number pays nothing.
+            Some(rate) => Balance::of(self.get(balance_key)?.as_ref())
+                .and_then(|balance| settlement::failure_charge(&balance, &execution.chi_used, rate))
+                .unwrap_or(None),
         };
-        Ok(match charge {
+        let writes = match charge {
             None => (BTreeMap::new(), PyDecimal::int(0)),
             Some(charge) => (
                 BTreeMap::from([(balance_key.to_owned(), charge.balance)]),
                 charge.paid_chi,
             ),
-        })
+        };
+        Ok((execution, writes))
     }
 
     /// A success's writes with its refunded fee, and its chi used.
@@ -584,19 +671,22 @@ impl BlockExecutor {
         execution: &Execution,
         rate: Option<&BigInt>,
         balance_key: &str,
-    ) -> Settled<(BTreeMap<String, VmValue>, PyDecimal)> {
-        self.validated(execution)?;
+    ) -> Settled<Result<(BTreeMap<String, VmValue>, PyDecimal), InvalidBalance>> {
         let mut writes = execution.writes.clone();
         if let Some(rate) = rate {
             let balance = match self.fee_mode {
-                FeeMode::Reserved => Some(self.refunded_balance(execution, rate, balance_key)?),
+                FeeMode::Reserved => refunded_balance(execution, rate, balance_key).map(Some),
                 FeeMode::Estimated => self.metered_balance(execution, rate, balance_key)?,
             };
-            if let Some(balance) = balance {
-                writes.insert(balance_key.to_owned(), balance);
+            match balance {
+                Ok(Some(balance)) => {
+                    writes.insert(balance_key.to_owned(), balance);
+                }
+                Ok(None) => {}
+                Err(invalid) => return Ok(Err(invalid)),
             }
         }
-        Ok((writes, PyDecimal::int(execution.chi_used.clone())))
+        Ok(Ok((writes, PyDecimal::int(execution.chi_used.clone()))))
     }
 
     /// The sender's balance after an estimated success: the fee metered
@@ -607,13 +697,14 @@ impl BlockExecutor {
         execution: &Execution,
         rate: &BigInt,
         balance_key: &str,
-    ) -> Settled<Option<VmValue>> {
+    ) -> Settled<Result<Option<VmValue>, InvalidBalance>> {
         let balance = match execution.writes.get(balance_key) {
-            Some(value) => Balance::of(Some(value))?,
-            None => Balance::of(self.get(balance_key)?.as_ref())?,
+            Some(value) => Balance::of(Some(value)),
+            None => Balance::of(self.get(balance_key)?.as_ref()),
         };
-        let charge = settlement::failure_charge(&balance, &execution.chi_used, rate)?;
-        Ok(charge.map(|charge| charge.balance))
+        Ok(balance
+            .and_then(|balance| settlement::failure_charge(&balance, &execution.chi_used, rate))
+            .map(|charge| charge.map(|charge| charge.balance)))
     }
 
     /// The writes in receipt order: key order, except that an estimate
@@ -632,56 +723,46 @@ impl BlockExecutor {
         writes.into_iter().chain(fee).collect()
     }
 
-    /// The sender's balance after a success: refunded against the
-    /// reservation.
-    fn refunded_balance(
-        &self,
-        execution: &Execution,
-        rate: &BigInt,
-        balance_key: &str,
-    ) -> Settled<VmValue> {
-        let reservation = execution
-            .reservation
-            .as_ref()
-            .expect("a charged success reserved its budget");
-        let after = match execution.writes.get(balance_key) {
-            Some(value) => Balance::of(Some(value))?,
-            None => Balance::Fixed(reservation.spendable.clone()),
-        };
-        let refunded = settlement::refund(reservation, &after, &execution.chi_used, rate)?;
-        Ok(VmValue::Decimal(refunded))
-    }
-
-    /// `materialize_writes`: each reward delta added to the written or
-    /// current balance (a missing balance is 0).
-    fn add_deltas(
+    /// The rewards a transaction pays, their deltas added to `writes`
+    /// (`materialize_writes`: to the written or current balance; a missing
+    /// or deleted balance is 0). A recipient whose balance is not a number
+    /// voids the payout (revision 14): no rewards, the fee is burned.
+    fn paid(
         &self,
         writes: &mut BTreeMap<String, VmValue>,
-        rewards: &TxRewards,
-    ) -> Settled<()> {
+        rewards: TxRewards,
+    ) -> Settled<Option<TxRewards>> {
+        let mut credited = Vec::with_capacity(rewards.deltas.len());
         for (key, delta) in &rewards.deltas {
             let current = match writes.get(key) {
-                Some(VmValue::None) => return handback("reward delta on a deleted balance"),
-                Some(value) => Balance::of(Some(value))?,
-                None => Balance::of(self.view.get(key).map_err(fault)?.as_ref())?,
+                Some(value) => Balance::of(Some(value)),
+                None => Balance::of(self.view.get(key).map_err(fault)?.as_ref()),
             };
-            writes.insert(key.clone(), VmValue::Decimal(current.plus(delta)?));
+            match current.and_then(|current| current.plus(delta)) {
+                Ok(balance) => credited.push((key.clone(), VmValue::Decimal(balance))),
+                Err(InvalidBalance) => return Ok(None),
+            }
         }
-        Ok(())
+        writes.extend(credited);
+        Ok(Some(rewards))
     }
 
-    /// `_validated_vm_result`: what the Python checks would refuse is left
-    /// to Python. The writes and events are encoded as one document, as
-    /// `validate_persistent_value((writes, events))` traverses them.
-    fn validated(&self, execution: &Execution) -> Settled<()> {
-        for key in execution.writes.keys() {
-            if self.policy.protected_keys.contains(key) {
-                return handback("contract effects write a protected key");
-            }
-            if let Some(error) = storage_key_error(key) {
-                return handback(error);
-            }
+    /// `_validated_vm_result`: a success whose effects write the protected
+    /// execution policy, a key LMDB cannot store, or a value the stored-value
+    /// encoding refuses fails with its chi. The writes and events are encoded
+    /// as one document, as `validate_persistent_value((writes, events))`
+    /// traverses them.
+    fn validated(&self, execution: Execution) -> Execution {
+        if execution.status != 0 || self.storable(&execution) {
+            return execution;
         }
+        execution.refused("ValueError", UNENCODABLE)
+    }
+
+    fn storable(&self, execution: &Execution) -> bool {
+        let keys_ok = execution.writes.keys().all(|key| {
+            !self.policy.protected_keys.contains(key) && storage_key_error(key).is_none()
+        });
         let writes = VmValue::Dict(
             execution
                 .writes
@@ -690,32 +771,25 @@ impl BlockExecutor {
                 .collect(),
         );
         let events = VmValue::List(execution.events.iter().map(event_value).collect());
-        let document = VmValue::List(vec![writes, events]);
-        if !receipt_encodable(&document) {
-            return handback("a value the receipt encoding refuses");
-        }
-        encode_stored_value(&document).map_err(|error| Stop::Handback(error.to_string()))?;
-        Ok(())
+        keys_ok && encode_stored_value(&VmValue::List(vec![writes, events])).is_ok()
     }
 }
 
-/// Whether `encode_abci_json` takes `value` as it is: raw decimals and floats
-/// (whose conversion can refuse) are left to Python.
-fn receipt_encodable(value: &VmValue) -> bool {
-    match value {
-        VmValue::RawDecimal(_)
-        | VmValue::DecimalTuple(_)
-        | VmValue::Float(_)
-        | VmValue::Reference(_) => false,
-        VmValue::List(items)
-        | VmValue::Tuple(items)
-        | VmValue::Set(items)
-        | VmValue::FrozenSet(items) => items.iter().all(receipt_encodable),
-        VmValue::Dict(entries) => entries
-            .iter()
-            .all(|(key, value)| receipt_encodable(key) && receipt_encodable(value)),
-        _ => true,
-    }
+/// The sender's balance after a success: refunded against the reservation.
+fn refunded_balance(
+    execution: &Execution,
+    rate: &BigInt,
+    balance_key: &str,
+) -> Result<VmValue, InvalidBalance> {
+    let reservation = execution
+        .reservation
+        .as_ref()
+        .expect("a charged success reserved its budget");
+    let after = match execution.writes.get(balance_key) {
+        Some(value) => Balance::of(Some(value))?,
+        None => Balance::Fixed(reservation.spendable.clone()),
+    };
+    settlement::refund(reservation, &after, &execution.chi_used, rate).map(VmValue::Decimal)
 }
 
 /// An event as the Python path's event dictionary.
@@ -759,13 +833,28 @@ fn add_host_charges(stats: &mut VmExecutionStats, charges: &HostCharges, limit: 
     charges.add_contract_costs(&mut stats.contract_costs);
 }
 
-fn chi_budget_raw(chi_budget: &BigInt) -> Settled<u64> {
+/// `max(chi_budget, 0) * 1000` as `execute_contract` takes it.
+fn chi_budget_raw(chi_budget: &BigInt) -> Option<u64> {
     let budget = if chi_budget < &BigInt::zero() {
         BigInt::zero()
     } else {
         chi_budget.clone()
     };
-    u64::try_from(budget * 1_000).map_err(|_| Stop::Handback("chi budget out of range".to_owned()))
+    u64::try_from(budget * 1_000).ok()
+}
+
+/// `_load_vm_module_ir_json`'s refusal.
+fn missing_ir(name: &str) -> String {
+    format!(
+        "xian_vm_v2 requires persisted __xian_ir_v1__ for contract '{name}'; \
+         stored source is inspection-only"
+    )
+}
+
+/// A persisted IR that is not a valid xian_vm_v2 module (revision 14: one
+/// text whatever the IR's defect).
+fn invalid_ir(name: &str) -> Unprepared {
+    Unprepared::prepare_error(format!("contract '{name}' has invalid persisted VM IR"))
 }
 
 /// The VM outcome as `execute_contract` reports it: writes from the module

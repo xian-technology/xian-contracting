@@ -85,13 +85,19 @@ fn submission_names_reach_the_context_only_as_text() {
         None
     );
     let numbered = wire(payload("submission", json!({"name": 5})));
-    assert!(prepared_tx(&numbered, &meta()).is_none());
+    assert_eq!(
+        prepared_tx(&numbered, &meta())
+            .unwrap()
+            .context
+            .submission_name,
+        None
+    );
     let elsewhere = wire(payload("currency", json!({"name": 5})));
     assert!(prepared_tx(&elsewhere, &meta()).is_some());
 }
 
 #[test]
-fn inputs_python_did_not_convert_go_to_the_python_path() {
+fn bytes_admission_refuses_have_no_inputs() {
     let unsafe_int = wire(payload("currency", json!({"a": 9_007_199_254_740_992_u64})));
     assert!(prepared_tx(&unsafe_int, &meta()).is_none());
     let mut document =

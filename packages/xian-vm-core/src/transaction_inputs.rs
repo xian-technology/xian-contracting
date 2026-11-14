@@ -11,8 +11,8 @@
 //! (`canonical_transaction_size_bytes`: the document's JSON with every
 //! character outside `' '..='~'` escaped).
 //!
-//! `None` means the transaction runs on the Python path instead, exactly
-//! where the Python inputs did not convert.
+//! `None` means bytes admission refuses (the node runs only admitted
+//! transactions).
 use crate::stored_value::decode_stored_value;
 use crate::{VmDateTime, VmExecutionContext, VmValue};
 use chrono::{DateTime, Datelike, Timelike};
@@ -23,7 +23,7 @@ use xian_fastpath_core::{canonical_json, decode_transaction};
 
 const NANOS_PER_SECOND: i64 = 1_000_000_000;
 
-/// One transaction's inputs, as the Python path converted them.
+/// One transaction's inputs, as the Python node converted them.
 pub(crate) struct PreparedTx {
     pub(crate) sender: String,
     pub(crate) contract: String,
@@ -46,8 +46,8 @@ pub(crate) struct BlockMeta {
     pub(crate) chain_id: VmValue,
 }
 
-/// The transaction `raw` as the block executor runs it, or `None` for the
-/// Python path.
+/// The transaction `raw` as the block executor runs it, or `None` for bytes
+/// admission refuses.
 pub(crate) fn prepared_tx(raw: &[u8], meta: &BlockMeta) -> Option<PreparedTx> {
     let decoded = decode_transaction(raw).ok()?;
     let (payload, signature) = sections(&decoded.document)?;
@@ -127,7 +127,7 @@ fn context(meta: &BlockMeta, call: &Call, signature: &str) -> Option<VmExecution
         signer: Some(call.sender.clone()),
         owner: None,
         entry: Some((call.contract.clone(), call.function.clone())),
-        submission_name: submission_name(&call.contract, &call.kwargs)?,
+        submission_name: submission_name(&call.contract, &call.kwargs),
         now: block_time(meta.nanos)?,
         block_num: meta.height.clone(),
         block_hash: meta.hash.clone(),
@@ -136,16 +136,16 @@ fn context(meta: &BlockMeta, call: &Call, signature: &str) -> Option<VmExecution
     })
 }
 
-/// The `name` argument of a call to the submission contract: `Some(None)`
-/// when there is none, `None` (Python path) when it is not text.
-fn submission_name(contract: &str, kwargs: &[(String, VmValue)]) -> Option<Option<String>> {
+/// The `name` argument of a call to the submission contract, when it is
+/// text (revision 14: a name of another type is no submission name; the
+/// deployment then refuses it).
+fn submission_name(contract: &str, kwargs: &[(String, VmValue)]) -> Option<String> {
     if contract != "submission" {
-        return Some(None);
+        return None;
     }
     match kwargs.iter().find(|(key, _)| key == "name") {
-        None | Some((_, VmValue::None)) => Some(None),
-        Some((_, VmValue::String(name))) => Some(Some(name.clone())),
-        Some(_) => None,
+        Some((_, VmValue::String(name))) => Some(name.clone()),
+        _ => None,
     }
 }
 

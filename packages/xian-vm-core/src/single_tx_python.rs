@@ -197,7 +197,6 @@ pub(super) fn execute_tx(
             "the transaction executor panicked: {panic}"
         ))),
         Ok(Err(Stop::Fault(fault))) => Err(LmdbStorageError::new_err(fault)),
-        Ok(Err(Stop::Handback(reason))) => Ok((None, Some(reason))),
         Ok(Ok(outcome)) => Ok((Some(outcome_to_py(py, &outcome)?), None)),
     }
 }

@@ -1,7 +1,7 @@
 //! Parity hook: the block host's random syscalls on their own, for the
 //! differential tests against `contracting.stdlib.bridge.random`.
 use super::{context_from_py, exception_to_py, py_to_vm};
-use crate::block_host::random::{call, Refusal, TxRandom};
+use crate::block_host::random::{call, TxRandom};
 use crate::interpreter::numeric_v2;
 use crate::{VmValue, XIAN_VM_V2_PROFILE};
 use pyo3::exceptions::PyValueError;
@@ -17,8 +17,7 @@ type VmArguments = (Vec<VmValue>, Vec<(String, VmValue)>);
 /// for `context` (a transaction context dict), at the V2 VM boundary. Each
 /// outcome is `("ok", value)` with the value's `Debug` rendering,
 /// `("raised", text, exception)` with `exception` as `(type name, [args])`
-/// or `None`, or `("handback", reason)`; a hand-back ends the calls as it
-/// ends a transaction.
+/// or `None`.
 #[pyfunction]
 fn _random_syscalls_debug(
     py: Python<'_>,
@@ -34,11 +33,7 @@ fn _random_syscalls_debug(
         let served = call(&mut random, &syscall_id, args, kwargs).ok_or_else(|| {
             PyValueError::new_err(format!("{syscall_id} is not a random syscall"))
         })?;
-        let handed_back = matches!(served, Err(Refusal::Handback(_)));
         outcomes.push(outcome(py, served)?);
-        if handed_back {
-            break;
-        }
     }
     Ok(outcomes)
 }
@@ -59,13 +54,12 @@ fn vm_arguments(args: &Bound<'_, PyList>, kwargs: &Bound<'_, PyDict>) -> PyResul
 fn outcome(py: Python<'_>, served: crate::block_host::random::Served) -> PyResult<Py<PyAny>> {
     let outcome = match served {
         Ok(value) => ("ok", format!("{value:?}")).into_pyobject(py)?.into_any(),
-        Err(Refusal::Raised(error)) => {
+        Err(error) => {
             let exception = exception_to_py(py, error.exception())?;
             ("raised", error.to_string(), exception)
                 .into_pyobject(py)?
                 .into_any()
         }
-        Err(Refusal::Handback(reason)) => ("handback", reason).into_pyobject(py)?.into_any(),
     };
     Ok(outcome.unbind())
 }

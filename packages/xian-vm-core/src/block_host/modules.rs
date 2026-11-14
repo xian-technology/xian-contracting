@@ -1,7 +1,6 @@
 //! The contracts' IR as the node prepares it, read once per run.
 use super::IR_KEY;
 use crate::module_cache::shared_module;
-use crate::settlement::{handback, Settled, Stop};
 use crate::state_view::StateView;
 use crate::{ValidatedModuleIr, VmValue, XIAN_VM_V2_PROFILE};
 use std::cell::{OnceCell, RefCell};
@@ -75,15 +74,12 @@ impl Modules {
     }
 }
 
-/// The module `name` as the node prepares it; a module the Python path
-/// would refuse is left to Python. Whether the chain lets a module that uses
-/// zk host syscalls run is the caller's check (`features`).
-pub(crate) fn runnable(name: &str, cached: &CachedModule) -> Settled<ValidatedModuleIr> {
-    let module = cached.validated(name).map_err(Stop::Handback)?;
-    if module.vm_profile != XIAN_VM_V2_PROFILE {
-        return handback("module does not target xian_vm_v2");
-    }
-    Ok(module)
+/// The module `name` as the node prepares it: `None` for an IR that is not
+/// a valid xian_vm_v2 module. Whether the chain lets a module that uses zk
+/// host syscalls run is the caller's check (`features`).
+pub(crate) fn runnable(name: &str, cached: &CachedModule) -> Option<ValidatedModuleIr> {
+    let module = cached.validated(name).ok()?;
+    (module.vm_profile == XIAN_VM_V2_PROFILE).then_some(module)
 }
 
 /// `module_ir_uses_runtime_feature(module_ir, "zk")`.

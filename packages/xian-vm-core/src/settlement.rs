@@ -2,48 +2,42 @@
 //! `xian.execution_engine` and `xian.processor` compute them in Python.
 //!
 //! Balances and amounts are `ContractingDecimal` values (30 fractional
-//! digits; division truncates toward zero; 91 digits at most). Anything the
-//! Python code would raise on, or an input this port does not cover, stops
-//! with `Stop::Handback` so the Python path decides it.
-use crate::python_decimal::{DecimalSignal, PyDecimal};
+//! digits; division truncates toward zero; 91 digits at most). A sender
+//! balance that is not a number (or that leaves the representable range) is
+//! `InvalidBalance`: such a sender cannot pay (revision 14).
+use crate::python_decimal::PyDecimal;
 use crate::{VmDecimal, VmValue};
 use num_bigint::BigInt;
 use num_traits::{Signed, Zero};
 
-/// Why the Rust path stops on a transaction.
+/// Why the Rust path stops on a transaction: a host fault (unreadable
+/// state, or chain state the node refuses to run on): the node halts.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Stop {
-    /// Left to the Python path, which reproduces the reference behaviour
-    /// (including the cases where it raises).
-    Handback(String),
-    /// A host fault (unreadable state): the node halts, as on the Python path.
     Fault(String),
-}
-
-impl From<DecimalSignal> for Stop {
-    fn from(signal: DecimalSignal) -> Self {
-        Stop::Handback(signal.0)
-    }
 }
 
 pub(crate) type Settled<T> = Result<T, Stop>;
 
-pub(crate) fn handback<T>(reason: impl Into<String>) -> Settled<T> {
-    Err(Stop::Handback(reason.into()))
-}
+/// A balance that cannot pay a fee: not a number (missing is 0), or one
+/// whose settlement leaves the `ContractingDecimal` range.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct InvalidBalance;
 
-/// A `ContractingDecimal` result; out of range (Python raises) is left to Python.
-pub(crate) fn checked(value: Result<VmDecimal, crate::VmExecutionError>) -> Settled<VmDecimal> {
-    value.map_err(|error| Stop::Handback(error.to_string()))
+pub(crate) type Paid<T> = Result<T, InvalidBalance>;
+
+/// A `ContractingDecimal` result; out of range is an invalid amount.
+pub(crate) fn checked(value: Result<VmDecimal, crate::VmExecutionError>) -> Paid<VmDecimal> {
+    value.map_err(|_| InvalidBalance)
 }
 
 /// `left + right` of two `ContractingDecimal` values.
-pub(crate) fn checked_add(left: &VmDecimal, right: &VmDecimal) -> Settled<VmDecimal> {
+pub(crate) fn checked_add(left: &VmDecimal, right: &VmDecimal) -> Paid<VmDecimal> {
     checked(left.add(right))
 }
 
 /// `ContractingDecimal(n)`.
-pub(crate) fn fixed_int(value: &BigInt) -> Settled<VmDecimal> {
+pub(crate) fn fixed_int(value: &BigInt) -> Paid<VmDecimal> {
     checked(VmDecimal::from_scaled(value * scale()))
 }
 
@@ -51,17 +45,14 @@ fn scale() -> BigInt {
     BigInt::from(10u8).pow(30)
 }
 
-/// `ContractingDecimal(chi) / ContractingDecimal(rate)`: chi priced in tokens.
-pub(crate) fn chi_to_tokens(chi: &BigInt, rate: &BigInt) -> Settled<VmDecimal> {
-    let rate = fixed_int(rate)?;
-    if rate.is_zero() {
-        return handback("division by zero");
-    }
-    checked(fixed_int(chi)?.div(&rate))
+/// `ContractingDecimal(chi) / ContractingDecimal(rate)`: chi priced in
+/// tokens; `rate` is a valid chain chi rate (`chain_chi_rate`).
+pub(crate) fn chi_to_tokens(chi: &BigInt, rate: &BigInt) -> Paid<VmDecimal> {
+    checked(fixed_int(chi)?.div(&fixed_int(rate)?))
 }
 
-/// A balance as `_coerce_balance_value` returns it: a missing balance is the
-/// integer 0; other value types are left to Python.
+/// A balance as `_coerce_balance_value` returns it for the values a
+/// balance may hold: a missing balance is the integer 0.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Balance {
     Int(BigInt),
@@ -69,17 +60,18 @@ pub(crate) enum Balance {
 }
 
 impl Balance {
-    pub(crate) fn of(value: Option<&VmValue>) -> Settled<Self> {
+    /// An int, a decimal or nothing; any other value is not a balance.
+    pub(crate) fn of(value: Option<&VmValue>) -> Paid<Self> {
         match value {
             None | Some(VmValue::None) => Ok(Self::Int(BigInt::zero())),
             Some(VmValue::Int(value)) => Ok(Self::Int(value.clone())),
             Some(VmValue::Decimal(value)) => Ok(Self::Fixed(value.clone())),
-            Some(other) => handback(format!("{} balance", other.type_name())),
+            Some(_) => Err(InvalidBalance),
         }
     }
 
     /// The balance as a `ContractingDecimal` operand (`_coerce_scaled`).
-    fn fixed(&self) -> Settled<VmDecimal> {
+    fn fixed(&self) -> Paid<VmDecimal> {
         match self {
             Self::Int(value) => fixed_int(value),
             Self::Fixed(value) => Ok(value.clone()),
@@ -87,12 +79,12 @@ impl Balance {
     }
 
     /// `self + amount` (an integer balance takes `ContractingDecimal.__radd__`).
-    pub(crate) fn plus(&self, amount: &VmDecimal) -> Settled<VmDecimal> {
+    pub(crate) fn plus(&self, amount: &VmDecimal) -> Paid<VmDecimal> {
         checked(self.fixed()?.add(amount))
     }
 
     /// `self - amount`.
-    pub(crate) fn minus(&self, amount: &VmDecimal) -> Settled<VmDecimal> {
+    pub(crate) fn minus(&self, amount: &VmDecimal) -> Paid<VmDecimal> {
         checked(self.fixed()?.sub(amount))
     }
 
@@ -118,10 +110,7 @@ pub(crate) fn reserve(
     balance: &Balance,
     budget: &BigInt,
     rate: &BigInt,
-) -> Settled<Option<Reservation>> {
-    if !rate.is_positive() {
-        return handback("chi rate is not positive");
-    }
+) -> Paid<Option<Reservation>> {
     if !budget.is_positive() || balance.scaled() * rate < budget * scale() {
         return Ok(None);
     }
@@ -138,7 +127,7 @@ pub(crate) fn refund(
     balance: &Balance,
     chi_used: &BigInt,
     rate: &BigInt,
-) -> Settled<VmDecimal> {
+) -> Paid<VmDecimal> {
     let fee = chi_to_tokens(chi_used, rate)?;
     let unused = checked(reservation.amount.sub(&fee))?;
     balance.plus(&unused)
@@ -155,13 +144,14 @@ pub(crate) struct FailureCharge {
 
 /// `vm_failure_charge`: the fee is `chi_used / rate`; a balance that cannot
 /// cover it is taken whole (the integer 0 remains) and pays its own worth
-/// in chi. `None` (no write) when nothing was used.
+/// in chi. `None` (no write) when nothing was used, and (revision 14) for a
+/// negative balance: a failure charge never raises a balance to 0.
 pub(crate) fn failure_charge(
     balance: &Balance,
     chi_used: &BigInt,
     rate: &BigInt,
-) -> Settled<Option<FailureCharge>> {
-    if !chi_used.is_positive() {
+) -> Paid<Option<FailureCharge>> {
+    if !chi_used.is_positive() || balance.scaled().is_negative() {
         return Ok(None);
     }
     let remaining = balance.minus(&chi_to_tokens(chi_used, rate)?)?;
@@ -178,11 +168,11 @@ pub(crate) fn failure_charge(
     }))
 }
 
-/// `max(balance, 0) * rate`: a whole balance priced in chi (an integer
+/// `balance * rate` of a non-negative balance: priced in chi (an integer
 /// balance stays an integer).
-fn whole_balance_chi(balance: &Balance, rate: &BigInt) -> Settled<PyDecimal> {
+fn whole_balance_chi(balance: &Balance, rate: &BigInt) -> Paid<PyDecimal> {
     Ok(match balance {
-        _ if !balance.scaled().is_positive() => PyDecimal::int(0),
+        _ if balance.scaled().is_zero() => PyDecimal::int(0),
         Balance::Int(value) => PyDecimal::int(value * rate),
         Balance::Fixed(value) => PyDecimal::fixed(&checked(value.mul(&fixed_int(rate)?))?),
     })
@@ -279,19 +269,29 @@ mod tests {
         );
         // Nothing to take.
         assert_eq!(charge(int(0), 40).unwrap().1, "0");
-        assert_eq!(charge(Balance::Fixed(fixed("-1")), 40).unwrap().1, "0");
     }
 
     #[test]
-    fn other_balance_types_are_left_to_python() {
-        assert!(matches!(
-            Balance::of(Some(&VmValue::String("5".into()))),
-            Err(Stop::Handback(_))
-        ));
-        assert!(matches!(
-            Balance::of(Some(&VmValue::Bool(true))),
-            Err(Stop::Handback(_))
-        ));
+    fn a_failure_never_raises_a_negative_balance() {
+        assert!(charge(Balance::Fixed(fixed("-1")), 40).is_none());
+        assert!(charge(Balance::Int(BigInt::from(-5)), 40).is_none());
+        assert!(charge(
+            Balance::Fixed(fixed("-0.000000000000000000000000000001")),
+            1
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn other_balance_types_are_invalid_balances() {
+        for value in [
+            VmValue::String("5".into()),
+            VmValue::Bool(true),
+            VmValue::List(vec![]),
+            VmValue::Dict(vec![]),
+        ] {
+            assert_eq!(Balance::of(Some(&value)), Err(InvalidBalance));
+        }
         assert_eq!(Balance::of(None).unwrap(), Balance::Int(BigInt::zero()));
     }
 

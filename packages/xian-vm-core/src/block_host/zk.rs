@@ -8,11 +8,12 @@
 //! from `zk_registry` in chain state as the Python path does (the block
 //! overlay and LMDB, not the transaction's own writes), verifies through the
 //! node's proof caches (`crate::zk_cache`) and returns what the Python
-//! function returns after the VM boundary. An argument the Python host
-//! could not convert, and a returned registry value the V2 boundary would
-//! refuse, are left to the Python path. Whether the chain's zk runtime
-//! feature lets a contract use these calls is checked where the Python path
-//! checks it: contract preparation, `contract.has_export` and deployments.
+//! function returns after the VM boundary. Revision 14: every zk syscall
+//! fails while the chain's zk runtime feature is off (besides contract
+//! preparation, `contract.has_export` and deployments refusing a contract
+//! that uses them), a call shape or argument type the functions do not take
+//! fails with a `TypeError`, and registry metadata the V2 boundary would
+//! refuse fails the call.
 mod checks;
 mod shielded;
 #[cfg(test)]
@@ -124,14 +125,36 @@ pub(crate) fn call(
 ) -> Option<Served> {
     let name = syscall_id.strip_prefix("zk.")?;
     let (_, arity, run) = OPERATIONS.iter().find(|(id, _, _)| *id == name)?;
-    if args.len() != *arity || !kwargs.is_empty() {
-        return Some(host.back(format!("{syscall_id} call shape")));
+    Some(served(host, syscall_id, args, kwargs, *arity, *run))
+}
+
+/// A zk syscall: the feature on, the call shape and argument types the zk
+/// functions take (revision 14: a `TypeError` otherwise), then the call.
+fn served(
+    host: &mut BlockHost<'_>,
+    syscall_id: &str,
+    args: &[VmValue],
+    kwargs: &[(String, VmValue)],
+    arity: usize,
+    run: fn(&mut BlockHost<'_>, &[VmValue]) -> Served,
+) -> Served {
+    host.require_zk_syscall(syscall_id)?;
+    if args.len() != arity || !kwargs.is_empty() {
+        return Err(type_error(format!(
+            "{syscall_id}() takes exactly {arity} positional arguments"
+        )));
     }
     if let Some(value) = args.iter().find(|value| !convertible(value)) {
-        let reason = format!("zk argument is a {}", value.type_name());
-        return Some(host.back(reason));
+        return Err(type_error(format!(
+            "{syscall_id}() cannot take a {} argument",
+            value.type_name()
+        )));
     }
-    Some(run(host, args))
+    run(host, args)
+}
+
+fn type_error(message: String) -> VmExecutionError {
+    VmExecutionError::described("TypeError", format!("TypeError: {message}"), message)
 }
 
 /// A native verifier failure as the bridge raises it.
@@ -165,7 +188,9 @@ fn get_vk_info(host: &mut BlockHost<'_>, args: &[VmValue]) -> Served {
     }
     let info = VmValue::Dict(info);
     if !v2_returnable(&info) {
-        return host.back("zk key metadata the V2 boundary refuses");
+        return Err(super::charges::host_runtime_error(format!(
+            "zk_registry metadata of '{vk_id}' cannot cross the VM boundary"
+        )));
     }
     Ok(info)
 }

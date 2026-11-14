@@ -10,11 +10,10 @@
 //! them, with Python's results and exceptions. The VM's work bounds
 //! (`interpreter::random_bounds`) come first, here as in the VM (this host
 //! runs V2 only): no draw above 512 bits or the sequence limit, salts only
-//! str, int, bool or `None`, populations only sequences the VM indexes. It
-//! hands back to the Python path, unchanged: other argument types for the
-//! numbers (their conversion is Python's) and call shapes Python refuses
-//! with its own binding errors. Increment 7 of the single-engine plan gives
-//! those explicit rules.
+//! str, int, bool or `None`, populations only sequences the VM indexes.
+//! Revision 14: a call whose arguments do not bind to the function's
+//! parameters, and a number argument that is not an int (a bool is one),
+//! fail with a `TypeError` of their own text.
 mod stream;
 #[cfg(test)]
 mod tests;
@@ -35,17 +34,9 @@ const SEED_FIELDS: [(&str, &str); 4] = [
     ("input_hash", "0"),
 ];
 
-/// Why a random syscall returned no value.
-#[derive(Debug)]
-pub(crate) enum Refusal {
-    /// What the Python call raises, as the VM receives it (`host_error`), or
-    /// the boundary's refusal of its result.
-    Raised(VmExecutionError),
-    /// A call this port leaves to the Python path.
-    Handback(String),
-}
-
-pub(crate) type Served = Result<VmValue, Refusal>;
+/// A random syscall's value, or what it raises as the VM receives it
+/// (`host_error`), or the boundary's refusal of its result.
+pub(crate) type Served = Result<VmValue, VmExecutionError>;
 
 /// One transaction's random state.
 pub(crate) struct TxRandom {
@@ -68,7 +59,7 @@ impl TxRandom {
     }
 
     /// `_current_random`.
-    fn stream(&mut self) -> Result<&mut Stream, Refusal> {
+    fn stream(&mut self) -> Result<&mut Stream, VmExecutionError> {
         self.stream
             .as_mut()
             .ok_or_else(|| raised("AssertionError", UNSEEDED))
@@ -76,7 +67,7 @@ impl TxRandom {
 
     /// `_seed_material`: each context value, or its default when falsy,
     /// then the salt unless it is `None`.
-    fn seed_material(&self, salt: &VmValue) -> Result<String, Refusal> {
+    fn seed_material(&self, salt: &VmValue) -> Result<String, VmExecutionError> {
         let mut parts = Vec::with_capacity(SEED_FIELDS.len() + 1);
         for ((name, default), value) in SEED_FIELDS.iter().zip(&self.context) {
             let text = match falsy(value) {
@@ -105,11 +96,14 @@ pub(crate) fn call(
     let name = syscall_id.strip_prefix("random.")?;
     let operation = OPERATIONS.iter().find(|operation| operation.name == name)?;
     if let Err(refused) = random_bounds::check_v2(syscall_id, &args, &kwargs) {
-        return Some(Err(Refusal::Raised(refused)));
+        return Some(Err(refused));
     }
     Some(match bind(operation, args, kwargs) {
         Some(bound) => (operation.run)(random, &bound).and_then(boundary),
-        None => Err(Refusal::Handback(format!("{syscall_id} call shape"))),
+        None => Err(type_error(&format!(
+            "{syscall_id}() takes the parameters ({}) once each",
+            operation.params.join(", ")
+        ))),
     })
 }
 
@@ -275,15 +269,12 @@ enum Population<'a> {
 }
 
 impl<'a> Population<'a> {
-    fn of(value: &'a VmValue) -> Result<Self, Refusal> {
+    fn of(value: &'a VmValue) -> Result<Self, VmExecutionError> {
         match value {
             VmValue::List(items) => {
                 match items.iter().find(|item| !matches!(item, VmValue::Int(_))) {
                     None => Ok(Self::Items(items)),
-                    Some(item) => Err(Refusal::Handback(format!(
-                        "random population is a list of {}",
-                        item.type_name()
-                    ))),
+                    Some(item) => Err(unknown("population item", item)),
                 }
             }
             VmValue::String(text) => Ok(Self::Text(text.chars().collect())),
@@ -310,7 +301,7 @@ impl<'a> Population<'a> {
 }
 
 /// An int argument (a bool is one in Python).
-fn number(value: &VmValue) -> Result<BigInt, Refusal> {
+fn number(value: &VmValue) -> Result<BigInt, VmExecutionError> {
     match value {
         VmValue::Int(number) => Ok(number.clone()),
         VmValue::Bool(flag) => Ok(BigInt::from(u8::from(*flag))),
@@ -344,20 +335,21 @@ fn python_text(value: &VmValue) -> Option<String> {
 /// The V2 boundary's refusal of a returned value (`py_to_vm`).
 fn boundary(value: VmValue) -> Served {
     if numeric_v2::active() {
-        numeric_v2::validate_leaf(&value).map_err(Refusal::Raised)?;
+        numeric_v2::validate_leaf(&value)?;
     }
     Ok(value)
 }
 
 /// A Python exception with one message, as `host_error` converts it.
-fn raised(name: &str, message: &str) -> Refusal {
-    Refusal::Raised(VmExecutionError::described(
-        name,
-        format!("{name}: {message}"),
-        message,
-    ))
+fn raised(name: &str, message: &str) -> VmExecutionError {
+    VmExecutionError::described(name, format!("{name}: {message}"), message)
 }
 
-fn unknown(what: &str, value: &VmValue) -> Refusal {
-    Refusal::Handback(format!("random {what} is a {}", value.type_name()))
+fn type_error(message: &str) -> VmExecutionError {
+    raised("TypeError", message)
+}
+
+/// A value of a type the random functions do not take.
+fn unknown(what: &str, value: &VmValue) -> VmExecutionError {
+    type_error(&format!("random {what} cannot be a {}", value.type_name()))
 }

@@ -5,11 +5,13 @@ The Rust block executor serves the contract random syscalls in vm-core
 ``contracting.stdlib.bridge.random`` through ``NativeVmHost.handle_syscall``.
 This fuzz sends the same calls, as the VM sends them, through both: every
 call Rust serves must return the same value (after the V2 boundary) or raise
-the same exception with the same text, and Rust hands a call back to the
-Python path exactly when it is one of the documented cases (other argument,
-population or context types, call shapes Python refuses itself). The VM
-refuses calls above its work bounds (``interpreter::random_bounds``) before
-either host runs them; ``vm_bound`` models that check for the Python side.
+the same exception with the same text. Execution revision 14 refuses the
+documented other cases (other argument, population or context types, call
+shapes that do not bind) with a ``TypeError`` of its own, where the Python
+bridge converted or raised its own way; the comparison of a sequence ends
+there, as their random states may differ after it. The VM refuses calls
+above its work bounds (``interpreter::random_bounds``) before either host
+runs them; ``vm_bound`` models that check for the Python side.
 """
 
 from __future__ import annotations
@@ -129,25 +131,25 @@ def python_outcomes(context, calls):
 class Calls:
     """Random syscalls as the VM issues them, each marked served or not."""
 
-    def __init__(self, rng: random.Random, handbacks: int):
+    def __init__(self, rng: random.Random, refusals: int):
         self.rng = rng
         self.calls = []
         self.served = []
-        # A hand-back ends the transaction: at most this many per sequence.
-        self.handbacks = handbacks
+        # A refusal ends the comparison: at most this many per sequence.
+        self.refusals = refusals
 
     def add(self, syscall, args=(), kwargs=None, *, served=True):
-        # The VM's bounds refuse a call before any hand-back would.
+        # The VM's bounds refuse a call before the host would.
         served = served or vm_bound(f"random.{syscall}", list(args), dict(kwargs or {})) is not None
         if not served:
-            if not self.handbacks:
+            if not self.refusals:
                 return
-            self.handbacks -= 1
+            self.refusals -= 1
         self.calls.append((f"random.{syscall}", list(args), dict(kwargs or {})))
         self.served.append(served)
 
     def number(self, small, large=(), bad=()):
-        """An int or bool argument; ``bad`` ones are handed back."""
+        """An int or bool argument; ``bad`` ones are refused."""
         pick = self.rng.random()
         if bad and pick < 0.05:
             return self.rng.choice(bad), False
@@ -296,7 +298,7 @@ def _context(rng: random.Random):
 def _case(seed: int):
     rng = random.Random(seed)
     context, context_served = _context(rng)
-    calls = Calls(rng, handbacks=int(rng.random() < 0.3))
+    calls = Calls(rng, refusals=int(rng.random() < 0.3))
     functions, weights = zip(*OPERATIONS, strict=True)
     if rng.random() < 0.85:
         calls.add("seed")
@@ -319,9 +321,9 @@ def test_rust_random_syscalls_match_the_python_bridge(block):
         actual = native._random_syscalls_debug(context, calls.calls)
         for index, outcome in enumerate(actual):
             label = (seed, index, calls.calls[index])
-            if outcome[0] == "handback":
-                assert not calls.served[index], (label, outcome)
-                assert index == len(actual) - 1
+            if not calls.served[index]:
+                assert outcome[0] == "raised", (label, outcome)
+                assert outcome[2][0] == "TypeError", (label, outcome)
                 break
             assert calls.served[index], (label, outcome)
             assert outcome == expected[index], label

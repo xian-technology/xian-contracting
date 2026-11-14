@@ -41,8 +41,8 @@ pub(super) fn py(value: &VmValue) -> Py<'_> {
     }
 }
 
-/// Whether `vm_to_py` converts `value` (else the Python host fails before
-/// the zk function runs, which this port leaves to the Python path).
+/// Whether `vm_to_py` converts `value` (an argument type the zk functions
+/// take).
 pub(super) fn convertible(value: &VmValue) -> bool {
     match value {
         VmValue::None

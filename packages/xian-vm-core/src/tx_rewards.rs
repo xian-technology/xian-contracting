@@ -1,10 +1,18 @@
 //! A transaction's fee rewards, as `xian.rewards.RewardsHandler.
 //! build_tx_reward_outputs` computes them: shares in `decimal.Decimal` at the
 //! default 28-digit context, each converted to `ContractingDecimal` and
-//! divided by the chain chi rate. Inputs the port does not cover, and every
-//! case where Python raises, stop with `Stop::Handback`.
-use crate::python_decimal::PyDecimal;
-use crate::settlement::{checked_add, fixed_int, handback, Settled};
+//! divided by the chain chi rate.
+//!
+//! Revision 14: a transaction's rewards are paid in full or not at all. A
+//! reward input of a type it may not hold (the split, the foundation owner,
+//! the validators and their terms, a developer), a computation the decimal
+//! context cannot represent, or a recipient whose balance key LMDB cannot
+//! store means no rewards for that transaction: its fee is burned, as the
+//! burn share is. The transaction itself is unaffected, so the governance
+//! transaction that repairs the configuration still runs.
+use crate::lmdb_env::storage_key_error;
+use crate::python_decimal::{DecimalSignal, PyDecimal};
+use crate::settlement::{checked_add, fixed_int, InvalidBalance, Settled, Stop};
 use crate::{VmDecimal, VmValue};
 use num_bigint::BigInt;
 use num_traits::{Signed, Zero};
@@ -13,6 +21,38 @@ use std::cmp::Ordering;
 /// Reads state as the node's client does (`get_var`, unmarked).
 pub(crate) trait RewardState {
     fn get(&mut self, key: &str) -> Settled<Option<VmValue>>;
+}
+
+/// Why a transaction pays no rewards.
+#[derive(Debug)]
+pub(crate) enum Unpaid {
+    /// An invalid reward input or an unrepresentable amount.
+    Invalid,
+    Fault(Stop),
+}
+
+impl From<Stop> for Unpaid {
+    fn from(stop: Stop) -> Self {
+        Self::Fault(stop)
+    }
+}
+
+impl From<DecimalSignal> for Unpaid {
+    fn from(_: DecimalSignal) -> Self {
+        Self::Invalid
+    }
+}
+
+impl From<InvalidBalance> for Unpaid {
+    fn from(_: InvalidBalance) -> Self {
+        Self::Invalid
+    }
+}
+
+type Reward<T> = Result<T, Unpaid>;
+
+fn invalid<T>() -> Reward<T> {
+    Err(Unpaid::Invalid)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,14 +109,14 @@ impl TxRewards {
     }
 }
 
-fn merge(credits: &mut Credits, other: &Credits) -> Settled<()> {
+fn merge(credits: &mut Credits, other: &Credits) -> Reward<()> {
     for (key, amount) in other {
         credit(credits, key, amount)?;
     }
     Ok(())
 }
 
-fn credit(credits: &mut Credits, key: &str, amount: &VmDecimal) -> Settled<()> {
+fn credit(credits: &mut Credits, key: &str, amount: &VmDecimal) -> Reward<()> {
     match credits.iter_mut().find(|(existing, _)| existing == key) {
         Some((_, total)) => *total = checked_add(total, amount)?,
         None => credits.push((key.to_owned(), amount.clone())),
@@ -85,11 +125,11 @@ fn credit(credits: &mut Credits, key: &str, amount: &VmDecimal) -> Settled<()> {
 }
 
 /// `RewardsHandler._as_decimal` for the value types the port covers.
-fn as_decimal(value: &VmValue) -> Settled<PyDecimal> {
+fn as_decimal(value: &VmValue) -> Reward<PyDecimal> {
     match value {
         VmValue::Int(value) => Ok(PyDecimal::int(value.clone())),
         VmValue::Decimal(value) => Ok(PyDecimal::fixed(value)),
-        other => handback(format!("{} reward input", other.type_name())),
+        _ => invalid(),
     }
 }
 
@@ -98,7 +138,7 @@ fn present(value: Option<VmValue>) -> Option<VmValue> {
 }
 
 /// Python truthiness of a state value the port covers.
-fn truthy(value: &VmValue) -> Settled<bool> {
+fn truthy(value: &VmValue) -> Reward<bool> {
     Ok(match value {
         VmValue::None => false,
         VmValue::Bool(value) => *value,
@@ -106,38 +146,38 @@ fn truthy(value: &VmValue) -> Settled<bool> {
         VmValue::Decimal(value) => !value.is_zero(),
         VmValue::String(value) => !value.is_empty(),
         VmValue::List(items) => !items.is_empty(),
-        other => return handback(format!("truthiness of {}", other.type_name())),
+        _ => return invalid(),
     })
 }
 
-fn string(value: VmValue, what: &str) -> Settled<String> {
+fn string(value: VmValue) -> Reward<String> {
     match value {
         VmValue::String(value) => Ok(value),
-        other => handback(format!("{what} is a {}", other.type_name())),
+        _ => invalid(),
     }
 }
 
 /// A list of strings; a falsy value is the empty list.
-fn names(value: Option<VmValue>, what: &str) -> Settled<Vec<String>> {
+fn names(value: Option<VmValue>) -> Reward<Vec<String>> {
     match present(value) {
         None => Ok(Vec::new()),
-        Some(VmValue::List(items)) => items.into_iter().map(|item| string(item, what)).collect(),
+        Some(VmValue::List(items)) => items.into_iter().map(string).collect(),
         Some(other) if !truthy(&other)? => Ok(Vec::new()),
-        Some(other) => handback(format!("{what} list is a {}", other.type_name())),
+        Some(_) => invalid(),
     }
 }
 
 /// A key value: the default when missing or empty, else a string.
-fn key_or(value: Option<VmValue>, default: &str, what: &str) -> Settled<String> {
+fn key_or(value: Option<VmValue>, default: &str) -> Reward<String> {
     match present(value) {
         None => Ok(default.to_owned()),
         Some(VmValue::String(value)) if value.is_empty() => Ok(default.to_owned()),
-        Some(value) => string(value, what),
+        Some(value) => string(value),
     }
 }
 
 /// A non-negative amount: missing is 0, negative is 0.
-fn non_negative(value: Option<VmValue>) -> Settled<PyDecimal> {
+fn non_negative(value: Option<VmValue>) -> Reward<PyDecimal> {
     let Some(value) = present(value) else {
         return Ok(PyDecimal::int(0));
     };
@@ -150,7 +190,7 @@ fn non_negative(value: Option<VmValue>) -> Settled<PyDecimal> {
 }
 
 /// `0 + w1 + w2 + ...`, as Python's `sum` adds.
-fn sum<T>(weights: &[(T, PyDecimal)]) -> Settled<PyDecimal> {
+fn sum<T>(weights: &[(T, PyDecimal)]) -> Reward<PyDecimal> {
     let mut total = PyDecimal::int(0);
     for (_, weight) in weights {
         total = total.add(weight)?;
@@ -165,7 +205,7 @@ fn split<T>(
     scale: &PyDecimal,
     base: &PyDecimal,
     mut allocated: PyDecimal,
-) -> Settled<Vec<PyDecimal>> {
+) -> Reward<Vec<PyDecimal>> {
     let mut shares = Vec::with_capacity(weights.len());
     for (index, (_, weight)) in weights.iter().enumerate() {
         if index + 1 == weights.len() {
@@ -184,22 +224,21 @@ struct Rewards<'a> {
 }
 
 impl Rewards<'_> {
-    fn var(&mut self, contract: &str, variable: &str, args: &[&str]) -> Settled<Option<VmValue>> {
+    fn var(&mut self, contract: &str, variable: &str, args: &[&str]) -> Reward<Option<VmValue>> {
         let mut key = format!("{contract}.{variable}");
         for arg in args {
             key.push(':');
             key.push_str(arg);
         }
-        self.state.get(&key)
+        Ok(self.state.get(&key)?)
     }
 
     /// The operator's reward key, commission (basis points, capped at
     /// 10000) and self bond of `validator`.
-    fn operator_terms(&mut self, validator: &str) -> Settled<(String, PyDecimal, PyDecimal)> {
+    fn operator_terms(&mut self, validator: &str) -> Reward<(String, PyDecimal, PyDecimal)> {
         let operator_key = key_or(
             self.var("validators", "reward_keys", &[validator])?,
             validator,
-            "reward key",
         )?;
         let commission_bps =
             non_negative(self.var("validators", "commission_bps", &[validator])?)?;
@@ -218,13 +257,10 @@ impl Rewards<'_> {
     fn delegations(
         &mut self,
         validator: &str,
-    ) -> Settled<(Vec<((String, String), PyDecimal)>, PyDecimal)> {
+    ) -> Reward<(Vec<((String, String), PyDecimal)>, PyDecimal)> {
         let mut weights = Vec::new();
         let mut total = PyDecimal::int(0);
-        for delegator in names(
-            self.var("validators", "delegator_lists", &[validator])?,
-            "delegator",
-        )? {
+        for delegator in names(self.var("validators", "delegator_lists", &[validator])?)? {
             let delegation =
                 non_negative(self.var("validators", "delegations", &[&delegator, validator])?)?;
             if delegation.sign()? != Ordering::Greater {
@@ -238,7 +274,6 @@ impl Rewards<'_> {
                     &[&delegator, validator],
                 )?,
                 &delegator,
-                "reward key",
             )?;
             weights.push(((delegator, reward_key), delegation));
         }
@@ -253,7 +288,7 @@ impl Rewards<'_> {
         total_reward: &PyDecimal,
         mapping: &mut Credits,
         records: &mut Vec<RewardRecord>,
-    ) -> Settled<()> {
+    ) -> Reward<()> {
         let (operator_key, commission_bps, self_bond) = self.operator_terms(validator)?;
         let (weights, total_delegated) = self.delegations(validator)?;
         let record =
@@ -313,7 +348,7 @@ impl Rewards<'_> {
         total: &PyDecimal,
         ratio: &PyDecimal,
         redirected: &PyDecimal,
-    ) -> Settled<Vec<RewardRecord>> {
+    ) -> Reward<Vec<RewardRecord>> {
         let validator_total = total.mul(ratio)?.add(redirected)?;
         let weighted = self.weighted_validators()?;
         let mut records = Vec::new();
@@ -337,11 +372,8 @@ impl Rewards<'_> {
 
     /// The active validators with their power (a missing or non-positive
     /// power counts as 1).
-    fn weighted_validators(&mut self) -> Settled<Vec<(String, PyDecimal)>> {
-        let validators = names(
-            self.var("validators", "active_validators", &[])?,
-            "validator",
-        )?;
+    fn weighted_validators(&mut self) -> Reward<Vec<(String, PyDecimal)>> {
+        let validators = names(self.var("validators", "active_validators", &[])?)?;
         let mut weighted = Vec::with_capacity(validators.len());
         for validator in validators {
             let power = match present(self.var("validators", "powers", &[&validator])?) {
@@ -361,9 +393,9 @@ impl Rewards<'_> {
     }
 
     /// The developer of `source`; "" when it has none.
-    fn developer(&mut self, source: &str) -> Settled<String> {
+    fn developer(&mut self, source: &str) -> Reward<String> {
         match present(self.var(source, "__developer__", &[])?) {
-            Some(value) if truthy(&value)? => string(value, "developer"),
+            Some(value) if truthy(&value)? => string(value),
             _ => Ok(String::new()),
         }
     }
@@ -377,7 +409,7 @@ impl Rewards<'_> {
         ratio: &PyDecimal,
         contract_costs: &[(String, BigInt)],
         pay_developers: bool,
-    ) -> Settled<(Credits, Vec<RewardRecord>, PyDecimal)> {
+    ) -> Reward<(Credits, Vec<RewardRecord>, PyDecimal)> {
         let developer_total = total.mul(ratio)?;
         if !pay_developers {
             return Ok((Credits::new(), Vec::new(), developer_total));
@@ -400,7 +432,7 @@ impl Rewards<'_> {
         &mut self,
         weights: &[(String, PyDecimal)],
         shares: Vec<PyDecimal>,
-    ) -> Settled<(Credits, Vec<RewardRecord>, PyDecimal)> {
+    ) -> Reward<(Credits, Vec<RewardRecord>, PyDecimal)> {
         let mut credits = Credits::new();
         let mut records = Vec::new();
         let mut redirected = PyDecimal::int(0);
@@ -442,23 +474,29 @@ fn developer_weights(
     weights
 }
 
-/// The chain chi rate as `chain_chi_rate` reads it; anything but a positive
-/// integer is refused there, so it is left to Python.
+/// The chain chi rate as `chain_chi_rate` reads it: a positive integer
+/// (whose `ContractingDecimal` is representable). The node refuses to run on
+/// any other rate, as admission and the Python path do: a broken chain, not
+/// a price to guess.
 pub(crate) fn chain_chi_rate(value: Option<VmValue>) -> Settled<BigInt> {
+    valid_chi_rate(value).ok_or_else(|| Stop::Fault("chain state has no valid chi rate".to_owned()))
+}
+
+fn valid_chi_rate(value: Option<VmValue>) -> Option<BigInt> {
     match value {
-        Some(VmValue::Int(rate)) if rate.is_positive() => Ok(rate),
-        _ => handback("chain state has no valid chi rate"),
+        Some(VmValue::Int(rate)) if rate.is_positive() && fixed_int(&rate).is_ok() => Some(rate),
+        _ => None,
     }
 }
 
 /// The reward split (validator, burn, foundation, developer ratios), or
 /// `None` when rewards are not set up.
-fn reward_split(value: Option<VmValue>) -> Settled<Option<Vec<VmValue>>> {
+fn reward_split(value: Option<VmValue>) -> Reward<Option<Vec<VmValue>>> {
     match present(value) {
         None => Ok(None),
         Some(value) if !truthy(&value)? => Ok(None),
         Some(VmValue::List(parts)) if parts.len() == 4 => Ok(Some(parts)),
-        Some(other) => handback(format!("reward split is a {}", other.type_name())),
+        Some(_) => invalid(),
     }
 }
 
@@ -488,26 +526,28 @@ impl Payout {
     }
 
     /// `value` in chi, priced in tokens at the chain rate.
-    fn tokens(&self, value: &VmDecimal) -> Settled<VmDecimal> {
-        crate::settlement::checked(value.div(&fixed_int(&self.rate)?))
+    fn tokens(&self, value: &VmDecimal) -> Reward<VmDecimal> {
+        Ok(crate::settlement::checked(
+            value.div(&fixed_int(&self.rate)?),
+        )?)
     }
 
-    fn pay(&mut self, kind: RewardKind, recipient: &str, amount: &VmDecimal) -> Settled<()> {
+    fn pay(&mut self, kind: RewardKind, recipient: &str, amount: &VmDecimal) -> Reward<()> {
+        let key = format!("currency.balances:{recipient}");
+        if storage_key_error(&key).is_some() {
+            return invalid();
+        }
         let bucket = self
             .buckets
             .iter_mut()
             .find(|(candidate, _)| *candidate == kind)
             .expect("every kind has a bucket");
         credit(&mut bucket.1, recipient, amount)?;
-        credit(
-            &mut self.deltas,
-            &format!("currency.balances:{recipient}"),
-            amount,
-        )
+        credit(&mut self.deltas, &key, amount)
     }
 
     /// Pays `record` and keeps it, with its amount in tokens.
-    fn pay_record(&mut self, record: RewardRecord) -> Settled<()> {
+    fn pay_record(&mut self, record: RewardRecord) -> Reward<()> {
         let amount = self.tokens(&record.value)?;
         self.pay(record.kind, &record.recipient_key, &amount)?;
         self.records.push(RewardRecord {
@@ -517,7 +557,7 @@ impl Payout {
         Ok(())
     }
 
-    fn pay_records(&mut self, records: Vec<RewardRecord>) -> Settled<()> {
+    fn pay_records(&mut self, records: Vec<RewardRecord>) -> Reward<()> {
         for record in records {
             self.pay_record(record)?;
         }
@@ -525,7 +565,7 @@ impl Payout {
     }
 
     /// The foundation's share, when it has one.
-    fn pay_foundation(&mut self, owner: String, reward: VmDecimal) -> Settled<()> {
+    fn pay_foundation(&mut self, owner: String, reward: VmDecimal) -> Reward<()> {
         if reward.is_zero() {
             return Ok(());
         }
@@ -541,7 +581,7 @@ impl Payout {
 
     /// The developer credits by developer; their records are priced one by
     /// one, after the per-developer sums.
-    fn pay_developers(&mut self, credits: &Credits, records: Vec<RewardRecord>) -> Settled<()> {
+    fn pay_developers(&mut self, credits: &Credits, records: Vec<RewardRecord>) -> Reward<()> {
         for (developer, reward) in credits {
             let amount = self.tokens(reward)?;
             self.pay(RewardKind::Developer, developer, &amount)?;
@@ -568,6 +608,7 @@ impl Payout {
 /// `build_tx_reward_outputs` for the fee of `total` chi paid by a
 /// transaction to `contract`; `contract_costs` in name order. Without
 /// `pay_developers` (a failed call) the developer share goes to validators.
+/// An invalid reward input pays nothing (the fee is burned).
 pub(crate) fn tx_reward_outputs(
     state: &mut dyn RewardState,
     total: &PyDecimal,
@@ -575,6 +616,20 @@ pub(crate) fn tx_reward_outputs(
     contract_costs: &[(String, BigInt)],
     pay_developers: bool,
 ) -> Settled<TxRewards> {
+    match paid_rewards(state, total, contract, contract_costs, pay_developers) {
+        Ok(rewards) => Ok(rewards),
+        Err(Unpaid::Invalid) => Ok(TxRewards::none(Vec::new())),
+        Err(Unpaid::Fault(stop)) => Err(stop),
+    }
+}
+
+fn paid_rewards(
+    state: &mut dyn RewardState,
+    total: &PyDecimal,
+    contract: &str,
+    contract_costs: &[(String, BigInt)],
+    pay_developers: bool,
+) -> Reward<TxRewards> {
     let mut rewards = Rewards { state };
     let Some((split, rate, foundation_owner)) = reward_terms(&mut rewards, total)? else {
         return Ok(TxRewards::none(Vec::new()));
@@ -599,7 +654,7 @@ pub(crate) fn tx_reward_outputs(
 
 /// The validator, foundation and developer ratios of the split. The burn
 /// share is never paid: it is the part no one is credited.
-fn paid_ratios(split: &[VmValue]) -> Settled<[PyDecimal; 3]> {
+fn paid_ratios(split: &[VmValue]) -> Reward<[PyDecimal; 3]> {
     Ok([
         as_decimal(&split[0])?,
         as_decimal(&split[2])?,
@@ -607,9 +662,8 @@ fn paid_ratios(split: &[VmValue]) -> Settled<[PyDecimal; 3]> {
     ])
 }
 
-/// `calculate_participant_reward(foundation_ratio, 1, total)`: Python turns
-/// a failure into a zero reward; the port leaves that to Python.
-fn foundation_share(ratio: &PyDecimal, total: &PyDecimal) -> Settled<VmDecimal> {
+/// `calculate_participant_reward(foundation_ratio, 1, total)`.
+fn foundation_share(ratio: &PyDecimal, total: &PyDecimal) -> Reward<VmDecimal> {
     Ok(ratio
         .div(&PyDecimal::int(1))?
         .mul(total)?
@@ -622,23 +676,21 @@ fn foundation_share(ratio: &PyDecimal, total: &PyDecimal) -> Settled<VmDecimal> 
 fn reward_terms(
     rewards: &mut Rewards<'_>,
     total: &PyDecimal,
-) -> Settled<Option<(Vec<VmValue>, BigInt, String)>> {
+) -> Reward<Option<(Vec<VmValue>, BigInt, String)>> {
     let Some(split) = reward_split(rewards.var("rewards", "S", &["value"])?)? else {
         return Ok(None);
     };
     if total.sign()? != Ordering::Greater {
         return Ok(None);
     }
-    let rate = chain_chi_rate(rewards.var("chi_cost", "S", &["value"])?)?;
-    // Python logs an incomplete configuration; it keeps that report.
-    let Some(foundation_owner) = present(rewards.var("foundation", "owner", &[])?) else {
-        return handback("reward configuration is incomplete");
+    let Some(rate) = valid_chi_rate(rewards.var("chi_cost", "S", &["value"])?) else {
+        return invalid();
     };
-    Ok(Some((
-        split,
-        rate,
-        string(foundation_owner, "foundation owner")?,
-    )))
+    // A configuration without a foundation owner is incomplete.
+    let Some(foundation_owner) = present(rewards.var("foundation", "owner", &[])?) else {
+        return invalid();
+    };
+    Ok(Some((split, rate, string(foundation_owner)?)))
 }
 
 #[cfg(test)]
@@ -648,7 +700,7 @@ mod tests {
     //! its Python reference, as wire JSON. xian-abci checks the same cases
     //! through the Python bindings; this runs them in Rust.
     use super::*;
-    use crate::settlement::{self, Balance, Stop};
+    use crate::settlement::{self, Balance, InvalidBalance};
     use crate::stored_value::decode_stored_value;
     use crate::stored_value_encoder::encode_stored_value;
     use serde_json::Value;
@@ -784,7 +836,7 @@ mod tests {
         assert_reward_corpus("failed_rewards", false);
     }
 
-    fn fee_outcome(case: &Value) -> Result<VmValue, Stop> {
+    fn fee_outcome(case: &Value) -> Result<VmValue, InvalidBalance> {
         let rate = int(&case["rate"]);
         let chi_used = int(&case["chi_used"]);
         let start = Balance::of(Some(&decode(case["balance"].as_str().unwrap())))?;
@@ -818,6 +870,24 @@ mod tests {
         ]))
     }
 
+    /// The Python reference's outcome, with revision 14's rule: a failure
+    /// charge leaves a negative balance as it is and pays nothing.
+    fn expected_fee_outcome(case: &Value) -> Value {
+        let expected: Value = serde_json::from_str(case["expected"].as_str().unwrap()).unwrap();
+        let start = decode(case["balance"].as_str().unwrap());
+        let negative = match Balance::of(Some(&start)) {
+            Ok(Balance::Int(value)) => value.is_negative(),
+            Ok(Balance::Fixed(value)) => value.scaled.is_negative(),
+            Err(_) => false,
+        };
+        let mut outcome = expected;
+        if negative {
+            outcome["metered"] = Value::from("unchanged");
+            outcome["paid"] = Value::from("0");
+        }
+        outcome
+    }
+
     #[test]
     fn fee_settlement_matches_the_python_corpus() {
         let corpus = corpus();
@@ -825,8 +895,8 @@ mod tests {
         assert_eq!(cases.len(), 400);
         for (index, case) in cases.iter().enumerate() {
             assert_eq!(
-                wire(&fee_outcome(case).unwrap()),
-                case["expected"].as_str().unwrap(),
+                serde_json::from_str::<Value>(&wire(&fee_outcome(case).unwrap())).unwrap(),
+                expected_fee_outcome(case),
                 "case {index}"
             );
         }

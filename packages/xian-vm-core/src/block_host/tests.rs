@@ -217,21 +217,28 @@ fn unmetered_metadata_changes_are_free() {
 }
 
 #[test]
-fn metadata_changes_the_python_host_serves_otherwise_are_handed_back() {
+fn metadata_changes_name_a_contract_by_its_name_or_handle() {
     let fixture = fixture("set-owner-back", &[], &[]);
     let modules = Modules::default();
     let mut host = host(&fixture, &modules);
-    // Not a contract name string: `make_key` would raise.
     let handle = VmValue::ContractHandle(crate::VmContractHandle {
-        module: "con_x".to_owned(),
+        module: "con_y".to_owned(),
         origin: "dynamic_import".to_owned(),
     });
-    assert!(
-        metadata::change(&mut host, "contract.set_owner", &[handle, text("bob")], &[])
-            .unwrap()
-            .is_err()
+    assert_eq!(
+        metadata::change(&mut host, "contract.set_owner", &[handle, text("bob")], &[]).unwrap(),
+        Ok(VmValue::None)
     );
-    assert!(matches!(host.stop.take(), Some(Stop::Handback(_))));
+    assert_eq!(host.get("con_y.__owner__").unwrap(), Some(text("bob")));
+    // Anything else is no contract name: the call fails (revision 14).
+    assert_eq!(
+        metadata::change(&mut host, "contract.set_owner", &[int(5), text("bob")], &[])
+            .unwrap()
+            .unwrap_err()
+            .to_string(),
+        "VmRuntimeExecutionError: contract metadata syscall arguments must be strings"
+    );
+    assert!(host.stop.is_none());
     // Any other shape is not served here.
     assert!(change(&mut host, "contract.set_owner", &[text("con_x")]).is_none());
     assert!(metadata::change(
@@ -413,23 +420,30 @@ fn a_zk_contract_deploys_only_with_the_zk_feature_on() {
 }
 
 #[test]
-fn constructor_arguments_the_wire_round_trip_would_change_are_handed_back() {
+fn constructor_arguments_reach_the_constructor_as_they_are() {
     let fixture = fixture("deploy-args", &[], &[]);
     let modules = Modules::default();
-    for arguments in [
-        VmValue::Dict(vec![(text("start"), VmValue::Tuple(vec![int(1)]))]),
-        VmValue::Dict(vec![(
-            text("start"),
-            VmValue::Dict(vec![(text("__fixed__"), text("1"))]),
-        )]),
-        VmValue::Dict(vec![(int(1), int(1))]),
-        VmValue::List(vec![]),
+    for (arguments, expected) in [
+        // No wire round trip: a tuple stays a tuple (and fails `start: int`).
+        (
+            VmValue::Dict(vec![(text("start"), VmValue::Tuple(vec![int(1)]))]),
+            "TypeError",
+        ),
+        (
+            VmValue::Dict(vec![(int(1), int(1))]),
+            "VmRuntimeExecutionError: constructor_args keys must be strings",
+        ),
+        (
+            VmValue::List(vec![]),
+            "VmRuntimeExecutionError: constructor_args must be a dict",
+        ),
     ] {
         let mut host = host(&fixture, &modules);
         let mut kwargs = deployment("con_new", EVENTS, None);
         kwargs[3].1 = arguments;
-        assert!(deploy(&mut host, &kwargs).is_err());
-        assert!(matches!(host.stop, Some(Stop::Handback(_))));
+        let error = deploy(&mut host, &kwargs).unwrap_err();
+        assert!(error.contains(expected), "{error}");
+        assert!(host.stop.is_none());
     }
 }
 
@@ -442,9 +456,10 @@ fn the_zk_feature_reads_as_python_coerces_it() {
         (text("no"), Ok(false)),
         (int(0), Ok(false)),
         (int(1), Ok(true)),
-        (int(2), Err(Unread::Refused)),
-        (text("maybe"), Err(Unread::Refused)),
-        (text("\u{a0}true"), Err(Unread::Untranslated)),
+        (int(2), Err(Unread)),
+        (text("maybe"), Err(Unread)),
+        // Revision 14: non-ASCII text is refused.
+        (text("\u{a0}true"), Err(Unread)),
     ] {
         assert_eq!(value(&input), expected, "{input:?}");
     }
