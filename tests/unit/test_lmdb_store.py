@@ -162,6 +162,7 @@ class TestDriverWithLMDB(TestCase):
 
     def tearDown(self):
         self.driver.flush_full()
+        self.driver.close()
 
     def test_set_commit_get(self):
         self.driver.set_var("currency", "balances", ["alice"], value=1000)

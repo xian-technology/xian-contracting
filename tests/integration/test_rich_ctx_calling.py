@@ -100,6 +100,7 @@ class TestRandomsContract(TestCase):
 
     def tearDown(self):
         self.c.flush()
+        self.c.close()
 
     def test_ctx2(self):
         module = self.c.get_contract_proxy('con_module1')

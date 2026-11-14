@@ -83,6 +83,7 @@ class TestMiscContracts(TestCase):
 
     def tearDown(self):
         self.c.raw_driver.flush_full()
+        self.c.close()
 
     def test_H_values_return(self):
         output = self.foreign_thing.read_H_hello()
@@ -266,6 +267,7 @@ class TestMiscContracts(TestCase):
 class TestPassHash(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
+        self.addCleanup(self.c.raw_driver.close)
         self.addCleanup(self.c.close)
         self.c.flush()
 
@@ -382,6 +384,7 @@ def malicious_developer_rewrite():
 class TestDeveloperSubmission(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
+        self.addCleanup(self.c.raw_driver.close)
         self.addCleanup(self.c.close)
         self.c.flush()
 
@@ -611,6 +614,7 @@ def con_float_thing():
 class TestFloatThing(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu", vm_profile="xian_vm_v2")
+        self.addCleanup(self.c.raw_driver.close)
         self.addCleanup(self.c.close)
         self.c.flush()
 
@@ -791,6 +795,7 @@ def test_closure2():
 class TestHackThing(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu")
+        self.addCleanup(self.c.raw_driver.close)
         self.addCleanup(self.c.close)
         self.c.flush()
 
@@ -853,6 +858,7 @@ def con_test_fixed():
 class TestFixed(TestCase):
     def setUp(self):
         self.c = ContractingClient(signer="stu", driver=Driver())
+        self.addCleanup(self.c.raw_driver.close)
         self.addCleanup(self.c.close)
         self.c.flush()
 

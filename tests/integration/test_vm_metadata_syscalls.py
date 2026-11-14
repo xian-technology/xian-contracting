@@ -69,6 +69,7 @@ def client(tmp_path):
     client.raw_driver.commit()
     yield client
     client.flush()
+    client.close()
 
 
 def test_constructor_cannot_change_another_contracts_metadata(client):

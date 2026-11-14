@@ -11,6 +11,7 @@ class TestDriverTombstones(unittest.TestCase):
 
     def tearDown(self):
         self.driver.flush_full()
+        self.driver.close()
 
     def test_items_excludes_pending_deletes(self):
         key = 'con.hash:subkey'

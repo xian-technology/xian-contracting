@@ -65,6 +65,7 @@ class TestZkBridge(TestCase):
 
     def tearDown(self):
         self.c.raw_driver.flush_full()
+        self.c.close()
 
     def test_runtime_reports_zk_availability(self):
         self.assertTrue(self.contract.available())

@@ -11,6 +11,7 @@ class TestContractNames(TestCase):
 
     def tearDown(self):
         self.driver.flush_full()
+        self.driver.close()
 
     def test_safe_contract_name_helper_accepts_valid_names(self):
         self.assertTrue(is_safe_contract_name("submission"))

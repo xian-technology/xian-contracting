@@ -44,6 +44,7 @@ class TestExportTypecheck(TestCase):
 
     def tearDown(self):
         self.client.flush()
+        self.client.close()
 
     def test_typechecked_export_accepts_decimal_backed_numeric_values(self):
         self.client.submit(TYPECHECKED_CONTRACT, name="con_typed_calc")

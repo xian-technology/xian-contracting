@@ -63,6 +63,7 @@ def driver(tmp_path):
     client.raw_driver.commit()
     yield client.raw_driver
     client.flush()
+    client.close()
 
 
 def _run(driver, name, source, *, target_owner=None):

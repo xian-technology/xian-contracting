@@ -49,6 +49,7 @@ def client(tmp_path):
     client.flush()
     yield client
     client.flush()
+    client.close()
 
 
 def call(client, contract, function, kwargs, budget=BUDGET):

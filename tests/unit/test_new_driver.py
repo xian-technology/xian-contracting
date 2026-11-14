@@ -14,6 +14,7 @@ class TestDriver(unittest.TestCase):
     def tearDown(self):
         # Clean up any state that might affect other tests
         self.driver.flush_full()
+        self.driver.close()
 
     def test_set_and_get(self):
         key = 'test_key'
@@ -39,6 +40,7 @@ class TestDriver(unittest.TestCase):
             self.assertEqual(driver.find("pending_key"), "pending_value")
         finally:
             driver.flush_full()
+            driver.close()
 
     def test_keys_from_disk(self):
         key1 = 'test_key1'

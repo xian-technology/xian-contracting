@@ -79,6 +79,7 @@ class TestRandomsContract(TestCase):
 
     def tearDown(self):
         self.c.flush()
+        self.c.close()
 
     def test_basic_shuffle(self):
         cards_1 = self.random_contract.shuffle_cards()

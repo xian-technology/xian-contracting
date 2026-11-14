@@ -79,6 +79,7 @@ class TestCoinContract(TestCase):
 
     def tearDown(self):
         self.c.flush()
+        self.c.close()
 
     def test_coin_construction(self):
         self.assertEqual(self.coin.balances['stu'], 1000000)
@@ -224,6 +225,7 @@ class TestPixelGame(TestCase):
 
     def tearDown(self):
         self.c.flush()
+        self.c.close()
 
     def test_init(self):
         self.assertEqual(1, 1)

@@ -20,6 +20,7 @@ class TestSenecaClientReplacesExecutor(TestCase):
 
     def tearDown(self):
         self.c.flush()
+        self.c.close()
 
     def test_datetime_passed_argument_and_now_are_correctly_compared(self):
         self.dater.replicate(d=Datetime(year=3000, month=1, day=1))

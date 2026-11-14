@@ -313,7 +313,19 @@ def check():
     return controller.store_from_child()
 """.strip()
 
-    driver = Driver(storage_home=tmp_path)
+    with Driver(storage_home=tmp_path) as driver:
+        output = _run_controller(driver, controller_name, controller_source, adapter_name, adapter_source)
+
+    assert output.status_code == 0, output.result
+    assert output.result == 5
+    assert output.writes[f"{controller_name}.active"] == 5
+    assert output.writes[f"{controller_name}.values:direct"] == 7
+    assert output.writes[f"{controller_name}.values:child"] == 5
+
+
+def _run_controller(driver, controller_name, controller_source, adapter_name, adapter_source):
+    from tests.vm_calls import execute_contract
+
     driver.flush_full()
     driver.set_contract_from_source(
         controller_name,
@@ -331,7 +343,7 @@ def check():
     )
     driver.commit()
 
-    output = execute_contract(
+    return execute_contract(
         driver=driver,
         contract_name=controller_name,
         function_name="execute",
@@ -344,12 +356,6 @@ def check():
         ),
         meter=False,
     )
-
-    assert output.status_code == 0, output.result
-    assert output.result == 5
-    assert output.writes[f"{controller_name}.active"] == 5
-    assert output.writes[f"{controller_name}.values:direct"] == 7
-    assert output.writes[f"{controller_name}.values:child"] == 5
 
 
 FUZZ_OPERATION = st.one_of(

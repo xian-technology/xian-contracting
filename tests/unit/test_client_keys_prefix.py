@@ -29,6 +29,7 @@ def f():
 
     def tearDown(self):
         self.client.flush()
+        self.client.close()
 
     def test_keys_scoped_to_exact_contract(self):
         abc = self.client.get_contract_proxy('abc')

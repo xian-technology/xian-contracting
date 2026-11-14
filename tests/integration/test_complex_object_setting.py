@@ -32,6 +32,7 @@ class TestComplexStorage(TestCase):
 
     def tearDown(self):
         self.c.flush()
+        self.c.close()
 
     def test_storage(self):
         self.contract.create(x=1, y=2, color='howdy')

@@ -20,6 +20,7 @@ class TestStateManagement(TestCase):
     def tearDown(self):
         self.client.flush()
         self.storage_home.cleanup()
+        self.client.close()
 
     def test_ctx_this_and_caller_are_preserved_through_proxy_imports(self):
         self.client.submit(read_contract("proxythis.py"), name="con_proxythis")

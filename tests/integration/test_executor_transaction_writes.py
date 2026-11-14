@@ -20,6 +20,7 @@ class TestTransactionWrites(TestCase):
 
     def tearDown(self):
         self.c.raw_driver.flush_full()
+        self.c.close()
 
     def test_transfers(self):
         self.c.set_var(

@@ -31,6 +31,7 @@ class TestSenecaClientReplacesExecutor(TestCase):
 
     def tearDown(self):
         self.c.raw_driver.flush_full()
+        self.c.close()
 
     def test_initiate_not_enough_approved(self):
         self.erc20_clone.approve(amount=1000000, to='con_atomic_swaps')
