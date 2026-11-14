@@ -7,6 +7,7 @@ state directory.
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
@@ -76,16 +77,21 @@ class LMDBEnvironmentLease:
         self._closed = True
         self._pool.release(self._key, self.env)
 
+    def close_from_finalizer(self) -> None:
+        """``close`` for a finalizer: the pool completes the release later
+        (see ``LMDBEnvironmentPool.release_later``)."""
+        if self._closed:
+            return
+        self._closed = True
+        self._pool.release_later(self._key, self.env)
+
     def resize(self, map_size: int) -> None:
         if self._closed:
             raise RuntimeError("LMDB environment lease is closed")
         self._pool.resize(self._key, self.env, map_size)
 
     def __del__(self) -> None:
-        try:
-            self.close()
-        except Exception:
-            pass
+        self.close_from_finalizer()
 
 
 class LMDBEnvironmentPool:
@@ -94,6 +100,8 @@ class LMDBEnvironmentPool:
     def __init__(self) -> None:
         self._lock = Lock()
         self._entries: dict[Path, _EnvironmentEntry] = {}
+        # Releases handed over by finalizers; completed under the lock.
+        self._finalized: deque[tuple[Path, LmdbEnvironment]] = deque()
 
     def acquire(
         self,
@@ -106,6 +114,7 @@ class LMDBEnvironmentPool:
         path_signature = self._path_signature(key)
 
         with self._lock:
+            self._drain_finalized()
             existing = self._entries.get(key)
             if existing is not None:
                 if existing.path_signature == path_signature:
@@ -138,6 +147,7 @@ class LMDBEnvironmentPool:
         """Read a pooled environment without opening, creating, or resizing storage."""
         storage_path = Path(path).resolve()
         with self._lock:
+            self._drain_finalized()
             entry = self._entries.get(storage_path)
             if entry is None or not storage_path.exists():
                 return None
@@ -152,17 +162,38 @@ class LMDBEnvironmentPool:
 
     def release(self, key: Path, env: LmdbEnvironment) -> None:
         with self._lock:
-            existing = self._entries.get(key)
-            if existing is None or existing.env is not env:
-                self._close_environment(env)
-                return
+            self._drain_finalized()
+            self._release_locked(key, env)
 
-            existing.ref_count -= 1
-            if existing.ref_count > 0:
-                return
+    def release_later(self, key: Path, env: LmdbEnvironment) -> None:
+        """Release for a finalizer. The garbage collector can run a finalizer
+        at any allocation, also on a thread inside a pool operation that holds
+        the (non-reentrant) lock; taking it there would wait for ever. So the
+        release is queued and completed now if the lock is free, else by the
+        next pool operation."""
+        self._finalized.append((key, env))
+        if self._lock.acquire(blocking=False):
+            try:
+                self._drain_finalized()
+            finally:
+                self._lock.release()
 
-            self._entries.pop(key, None)
+    def _drain_finalized(self) -> None:
+        while self._finalized:
+            self._release_locked(*self._finalized.popleft())
+
+    def _release_locked(self, key: Path, env: LmdbEnvironment) -> None:
+        existing = self._entries.get(key)
+        if existing is None or existing.env is not env:
             self._close_environment(env)
+            return
+
+        existing.ref_count -= 1
+        if existing.ref_count > 0:
+            return
+
+        self._entries.pop(key, None)
+        self._close_environment(env)
 
     def resize(
         self,
@@ -171,6 +202,7 @@ class LMDBEnvironmentPool:
         map_size: int,
     ) -> None:
         with self._lock:
+            self._drain_finalized()
             existing = self._entries.get(key)
             if existing is None or existing.env is not env:
                 env.set_map_size(map_size)
@@ -180,6 +212,7 @@ class LMDBEnvironmentPool:
     def ref_count(self, path: str | Path) -> int:
         key = Path(path).resolve()
         with self._lock:
+            self._drain_finalized()
             existing = self._entries.get(key)
             return 0 if existing is None else existing.ref_count
 

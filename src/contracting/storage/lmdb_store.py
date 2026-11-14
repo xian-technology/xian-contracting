@@ -67,10 +67,10 @@ class LMDBStore:
         self.close()
 
     def __del__(self):
-        try:
-            self.close()
-        except Exception:
-            pass
+        # Never block in a finalizer (see LMDBEnvironmentPool.release_later).
+        lease = getattr(self, "_lease", None)
+        if lease is not None:
+            lease.close_from_finalizer()
 
     def _grow_map(self):
         self._map_size *= 2

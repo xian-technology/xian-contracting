@@ -57,6 +57,9 @@ contracting = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-m 'not optional_native'"
+# Dump every thread's stack when one test runs over 10 minutes (diagnosis only;
+# the test keeps running).
+faulthandler_timeout = 600
 markers = [
     "optional_native: requires optional native/Rust extension packages and is run by the native CI job",
 ]
