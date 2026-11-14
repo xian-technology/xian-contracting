@@ -373,3 +373,33 @@ fn warming_verifies_what_is_not_cached_and_feeds_verification() {
         Err("AssertionError: requests[0] must be a dict!".to_owned())
     );
 }
+
+#[test]
+fn with_zk_off_only_the_capability_probe_answers_and_says_no() {
+    for (feature, available) in [
+        (VmValue::Bool(true), Ok(VmValue::Bool(true))),
+        (VmValue::Bool(false), Ok(VmValue::Bool(false))),
+        (
+            text("maybe"),
+            Err("ValueError: runtime feature 'zk' must be a boolean".to_owned()),
+        ),
+    ] {
+        let stored = [("__runtime_features.zk".to_owned(), feature.clone())];
+        let fixture = fixture("feature", &stored);
+        let modules = Modules::default();
+        let mut host = host(&fixture, &modules);
+        assert_eq!(zk(&mut host, "is_available", &[]), available, "{feature:?}");
+        let other = zk(&mut host, "has_verifying_key", &[text("demo")]);
+        if feature == VmValue::Bool(false) {
+            assert_eq!(
+                other,
+                Err(
+                    "VmRuntimeExecutionError: zk.has_verifying_key is unavailable: \
+                     the chain zk runtime feature is disabled"
+                        .to_owned()
+                )
+            );
+        }
+        assert!(host.stop.is_none());
+    }
+}

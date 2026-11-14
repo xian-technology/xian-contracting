@@ -86,16 +86,20 @@ impl BlockHost<'_> {
     }
 
     fn zk_feature(&mut self, disabled: impl FnOnce() -> String) -> Result<(), VmExecutionError> {
+        if self.zk_available()? {
+            Ok(())
+        } else {
+            Err(host_runtime_error(disabled()))
+        }
+    }
+
+    /// Whether the chain's zk feature is on (`zk.is_available`); a value the
+    /// feature check refuses raises its `ValueError`.
+    pub(super) fn zk_available(&mut self) -> Result<bool, VmExecutionError> {
         let enabled = zk_enabled(&self.view, self.tx.zk_enabled_without_state)
             .map_err(|error| self.halt(fault(error)))?;
-        match enabled {
-            Ok(true) => Ok(()),
-            Ok(false) => Err(host_runtime_error(disabled())),
-            Err(Unread) => Err(VmExecutionError::described(
-                "ValueError",
-                format!("ValueError: {REFUSED}"),
-                REFUSED,
-            )),
-        }
+        enabled.map_err(|Unread| {
+            VmExecutionError::described("ValueError", format!("ValueError: {REFUSED}"), REFUSED)
+        })
     }
 }

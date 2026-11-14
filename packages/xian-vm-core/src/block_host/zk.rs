@@ -8,8 +8,9 @@
 //! from `zk_registry` in chain state as the Python path does (the block
 //! overlay and LMDB, not the transaction's own writes), verifies through the
 //! node's proof caches (`crate::zk_cache`) and returns what the Python
-//! function returns after the VM boundary. Revision 14: every zk syscall
-//! fails while the chain's zk runtime feature is off (besides contract
+//! function returns after the VM boundary. Revision 14: `zk.is_available`
+//! reports whether the chain's zk runtime feature is on, and every other zk
+//! syscall fails while it is off (besides contract
 //! preparation, `contract.has_export` and deployments refusing a contract
 //! that uses them), a call shape or argument type the functions do not take
 //! fails with a `TypeError`, and registry metadata the V2 boundary would
@@ -67,7 +68,10 @@ type Operation = (
 );
 
 const OPERATIONS: [Operation; 18] = [
-    ("is_available", 0, |_, _| Ok(VmValue::Bool(true))),
+    // The capability probe: whether the chain's zk feature is on.
+    ("is_available", 0, |host, _| {
+        host.zk_available().map(VmValue::Bool)
+    }),
     ("has_verifying_key", 1, has_verifying_key),
     ("get_vk_info", 1, get_vk_info),
     ("verify_groth16_bn254", 3, |_, args| {
@@ -128,8 +132,9 @@ pub(crate) fn call(
     Some(served(host, syscall_id, args, kwargs, *arity, *run))
 }
 
-/// A zk syscall: the feature on, the call shape and argument types the zk
-/// functions take (revision 14: a `TypeError` otherwise), then the call.
+/// A zk syscall: the feature on (except for the capability probe, which
+/// reports it), the call shape and argument types the zk functions take
+/// (revision 14: a `TypeError` otherwise), then the call.
 fn served(
     host: &mut BlockHost<'_>,
     syscall_id: &str,
@@ -138,7 +143,9 @@ fn served(
     arity: usize,
     run: fn(&mut BlockHost<'_>, &[VmValue]) -> Served,
 ) -> Served {
-    host.require_zk_syscall(syscall_id)?;
+    if syscall_id != "zk.is_available" {
+        host.require_zk_syscall(syscall_id)?;
+    }
     if args.len() != arity || !kwargs.is_empty() {
         return Err(type_error(format!(
             "{syscall_id}() takes exactly {arity} positional arguments"
