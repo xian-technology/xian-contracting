@@ -17,7 +17,10 @@ runs them; ``vm_bound`` models that check for the Python side.
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import random
+from pathlib import Path
 
 import pytest
 from xian_runtime_types.decimal import ContractingDecimal
@@ -36,6 +39,19 @@ SEQUENCES = (list, tuple, str, bytes, bytearray)
 # `builtin_exception_name`).
 KEPT_TYPES = (AssertionError, TypeError, ValueError, RuntimeError, Exception, KeyError, IndexError)
 HANDED_BACK = object()
+# Rust's outcomes of each fuzz case (16-digit digest of the whole sequence,
+# outcome_digest), frozen where every served call matched the Python bridge
+# before it was deleted.
+FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "random_syscall_outcomes.json"
+
+
+def outcome_digest(outcome) -> str:
+    text = json.dumps(outcome, separators=(",", ":"), default=str)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def frozen_outcomes() -> dict:
+    return json.loads(FIXTURE.read_text())
 
 
 def _python_exception(error):
@@ -315,10 +331,12 @@ def _case(seed: int):
 @pytest.mark.parametrize("block", range(8))
 def test_rust_random_syscalls_match_the_python_bridge(block):
     served_calls = 0
+    frozen = frozen_outcomes()["fuzz"]
     for seed in range(block * 100, block * 100 + 100):
         context, calls = _case(seed)
         expected = python_outcomes(context, calls.calls)
         actual = native._random_syscalls_debug(context, calls.calls)
+        assert outcome_digest(actual) == frozen[str(seed)], seed
         for index, outcome in enumerate(actual):
             label = (seed, index, calls.calls[index])
             if not calls.served[index]:
@@ -344,6 +362,7 @@ def test_one_state_serves_the_whole_call_sequence():
     ]
     expected = python_outcomes(context, calls)
     assert native._random_syscalls_debug(context, calls) == expected
+    assert outcome_digest(expected) == frozen_outcomes()["one_state"]
     # Reseeding restarts the stream.
     again = native._random_syscalls_debug(context, calls[3:] + calls[3:])
     assert again[1] == again[3] == expected[4]

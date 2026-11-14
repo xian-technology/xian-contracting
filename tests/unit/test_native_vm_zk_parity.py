@@ -13,6 +13,7 @@ raise the same exception with the same text, and none may be handed back.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import random
 from pathlib import Path
@@ -214,6 +215,16 @@ def driver(tmp_path):
     driver.close()
 
 
+# Rust's outcome of every fuzz call, as 16-digit digests (outcome_digest),
+# frozen where they matched the Python bridge before it was deleted.
+FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "zk_syscall_outcomes.json"
+
+
+def outcome_digest(outcome) -> str:
+    text = json.dumps(outcome, separators=(",", ":"), default=str)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
 def _python_exception(error):
     if type(error) in KEPT_TYPES:
         return (type(error).__name__, list(error.args))
@@ -260,6 +271,8 @@ def test_zk_syscalls_serve_what_the_python_bridge_serves(driver, seed):
     actual = rust_outcomes(driver, calls)
     for call, left, right in zip(calls, actual, expected, strict=True):
         assert left == right, call
+    frozen = json.loads(FIXTURE.read_text())[str(seed)]
+    assert [outcome_digest(outcome) for outcome in actual] == frozen
     kinds = {(call[0], outcome[0]) for call, outcome in zip(calls, expected, strict=True)}
     assert ("zk.verify_groth16", "ok") in kinds
     assert ("zk.verify_groth16", "raised") in kinds
