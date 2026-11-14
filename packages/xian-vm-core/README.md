@@ -10,7 +10,7 @@ flowchart LR
   Validator --> VM["Native VM interpreter"]
   VM --> Host["Block host: storage and syscalls"]
   Host --> State["Deterministic state and events"]
-  Fixtures["Golden and parity fixtures"] --> Validator
+  Fixtures["Golden fixtures and vectors"] --> Validator
   Fixtures --> VM
 ```
 
@@ -30,10 +30,11 @@ The chain selects a profile for artifact admission and execution. Every module
 in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports
 execution revision `xvm-execution-14`, bytecode version `xvm-2` and gas schedule
 `xvm-gas-6`. Every execution entry point runs V2; `runtime_info` and
-`supports_execution_policy` know only `xian_vm_v2`. V1 IR still validates (for
-migration and archival tooling), but current code does not execute V1;
-replaying earlier execution semantics requires the corresponding pinned
-release.
+`supports_execution_policy` know only `xian_vm_v2`. The interpreter has no
+V1 numeric rules: it refuses to instantiate a module whose `vm_profile` is not
+`xian_vm_v2`. V1 IR still validates with its own constant rules (for migration
+and archival tooling), but current code does not execute V1; replaying earlier
+execution semantics requires the corresponding pinned release.
 
 V2 external entrypoints must be exported functions. Constructors execute only
 through trusted deployment. Code-hash inspection accepts only the `runtime`,

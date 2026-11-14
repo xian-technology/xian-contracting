@@ -14,9 +14,6 @@ impl VmInstance {
                 _ => None,
             })
             .unwrap_or(value);
-        if resolves_to!(value, VmValue::Dict(_)) {
-            crate::decimal_metering::comparison(host, &value, index, false)?;
-        }
         let value = if let VmValue::StorageRef(reference) = &value {
             if reference.storage_type != "Hash" {
                 return Err(VmExecutionError::new(
@@ -296,7 +293,6 @@ impl VmInstance {
             if index + 1 == generators.len() {
                 let dict_key = self.eval_expression(key, scope, host)?;
                 let dict_value = self.eval_expression(value, scope, host)?;
-                crate::decimal_metering::entry_comparison(host, results.entries(), &dict_key)?;
                 results.set(dict_key, dict_value)?;
             } else {
                 self.eval_dict_comprehension_generator(
@@ -441,7 +437,6 @@ impl VmInstance {
                 let iterator = crate::iteration::iter(&right, &self.heap)?;
                 let mut found = false;
                 while let Some(item) = self.next_item(&iterator, host)? {
-                    crate::decimal_metering::comparison(host, &left, &item, true)?;
                     if vm_values_equal(&left, &item)? {
                         found = true;
                         break;
@@ -453,14 +448,6 @@ impl VmInstance {
                     !found
                 }
             } else {
-                if !matches!(operator, "is" | "is_not") {
-                    crate::decimal_metering::comparison(
-                        host,
-                        &left,
-                        &right,
-                        matches!(operator, "eq" | "not_eq"),
-                    )?;
-                }
                 apply_compare_operator(operator, &left, &right)?
             };
             if !passed {
@@ -524,7 +511,6 @@ impl VmInstance {
                     ));
                 };
                 for (key, value) in unpacked_entries {
-                    crate::decimal_metering::entry_comparison(host, entries.entries(), &key)?;
                     entries.set(key, value)?;
                 }
             } else {
@@ -532,7 +518,6 @@ impl VmInstance {
                     self.eval_expression(required_value(entry_object, "key")?, scope, host)?;
                 let value =
                     self.eval_expression(required_value(entry_object, "value")?, scope, host)?;
-                crate::decimal_metering::entry_comparison(host, entries.entries(), &key)?;
                 entries.set(key, value)?;
             }
         }
@@ -575,16 +560,7 @@ impl VmInstance {
             host.charge_execution_cost(union_cost)?;
         }
         support::set_kinds::charge_binary(operator, &left, &right, host)?;
-        if resolves_to!(left, VmValue::Set(_) | VmValue::FrozenSet(_))
-            && matches!(operator, "bitand" | "bitor" | "bitxor" | "sub")
-        {
-            crate::decimal_metering::normalization(host, &[left.clone(), right.clone()])?;
-        }
-        if numeric_v2::active() {
-            host.charge_execution_cost(numeric_v2::op_cost(operator, &left, &right))?;
-        } else {
-            host.charge_execution_cost(crate::raw_decimal::work_cost(operator, &left, &right))?;
-        }
+        host.charge_execution_cost(numeric_v2::op_cost(operator, &left, &right))?;
         apply_binary_operator(operator, left, right)
     }
 

@@ -3,12 +3,10 @@
 //! The state is shared with VM executions through an `Arc`; Python objects are
 //! created only after its lock is released.
 use crate::block_state::{BlockState, BlockStateError, Stored};
-use crate::interpreter::numeric_v2;
 use crate::lmdb_python::PyLmdbEnvironment;
 use crate::python_bindings::py_to_vm;
 use crate::set_member_codec::validate_set_normalization_work;
 use crate::stored_value_encoder::encode_stored_value;
-use crate::XIAN_VM_V2_PROFILE;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList};
@@ -29,7 +27,6 @@ fn stored_bytes(value: &Bound<'_, PyAny>) -> PyResult<Stored> {
     if value.is_none() {
         return Ok(None);
     }
-    let _scope = numeric_v2::Scope::enter(XIAN_VM_V2_PROFILE);
     py_to_vm(value.clone())
         .and_then(|value| {
             validate_set_normalization_work(&value)?;

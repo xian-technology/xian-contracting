@@ -9,13 +9,13 @@
 //! hashes by its size alone. Callables, handles and descriptors are equal
 //! only to themselves or to an equal object of their own kind and share one
 //! hash per kind. Binary floats and raw Decimals (and their tuples) do not
-//! exist in V2; a key holding one has no hash and its dictionary keeps the
+//! exist in V2 values; a key holding one has no hash and its dictionary keeps the
 //! linear scan.
 //!
 //! The hash function is fixed (FNV-1a over a tagged encoding), so collisions,
 //! and with them the number of compared entries, are the same on every node.
 //! Each comparison is metered, which makes engineered collisions cost their
-//! author. Archival V1 never builds an index.
+//! author.
 use crate::{VmExecutionError, VmValue};
 use std::borrow::Cow;
 use std::collections::HashMap;

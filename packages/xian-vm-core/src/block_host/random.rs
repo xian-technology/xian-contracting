@@ -8,8 +8,7 @@
 //! serves the calls whose arguments that conversion keeps as they are (ints,
 //! bools, text, bytes, `None`, the VM's index lists), bound as Python binds
 //! them, with Python's results and exceptions. The VM's work bounds
-//! (`interpreter::random_bounds`) come first, here as in the VM (this host
-//! runs V2 only): no draw above 512 bits or the sequence limit, salts only
+//! (`interpreter::random_bounds`) come first, here as in the VM: no draw above 512 bits or the sequence limit, salts only
 //! str, int, bool or `None`, populations only sequences the VM indexes.
 //! Revision 14: a call whose arguments do not bind to the function's
 //! parameters, and a number argument that is not an int (a bool is one),
@@ -95,7 +94,7 @@ pub(crate) fn call(
 ) -> Option<Served> {
     let name = syscall_id.strip_prefix("random.")?;
     let operation = OPERATIONS.iter().find(|operation| operation.name == name)?;
-    if let Err(refused) = random_bounds::check_v2(syscall_id, &args, &kwargs) {
+    if let Err(refused) = random_bounds::check(syscall_id, &args, &kwargs) {
         return Some(Err(refused));
     }
     Some(match bind(operation, args, kwargs) {
@@ -334,9 +333,7 @@ fn python_text(value: &VmValue) -> Option<String> {
 
 /// The V2 boundary's refusal of a returned value (`py_to_vm`).
 fn boundary(value: VmValue) -> Served {
-    if numeric_v2::active() {
-        numeric_v2::validate_leaf(&value)?;
-    }
+    numeric_v2::validate_leaf(&value)?;
     Ok(value)
 }
 

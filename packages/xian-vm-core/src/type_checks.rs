@@ -14,8 +14,7 @@ pub(super) fn issubclass(candidate: &VmValue, target: &VmValue) -> Result<bool> 
     // the candidate only when reaching a class, in the same order as Python.
     walk(target, 0, &mut 0, &mut |name| {
         let candidate = candidate_name(candidate)?;
-        Ok(candidate == name
-            || (!crate::interpreter::numeric_v2::active() && candidate == "bool" && name == "int"))
+        Ok(candidate == name)
     })
 }
 
@@ -167,7 +166,8 @@ mod tests {
     #[test]
     fn scalar_and_capability_classes_have_exact_relationships() {
         use crate::{VmEventDefinition, VmException, VmForeignStorageRef, VmStorageRef};
-        assert!(issubclass(&class("bool"), &class("int")).unwrap());
+        // V2 keeps bool apart from int.
+        assert!(!issubclass(&class("bool"), &class("int")).unwrap());
         assert!(!issubclass(&class("bool"), &class("str")).unwrap());
         assert!(!issubclass(&class("int"), &class("bool")).unwrap());
         let instances = [

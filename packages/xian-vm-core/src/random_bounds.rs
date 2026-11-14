@@ -1,5 +1,5 @@
 //! Random calls whose host work would grow with an argument, refused before
-//! any host runs them (V2; archival V1 keeps its historical behaviour).
+//! any host runs them.
 //!
 //! The VM checks them on the arguments it hands to the host (after its own
 //! boundary checks), before any host runs them, so no host ever
@@ -14,25 +14,12 @@
 //! - `seed(salt)` with a salt other than a str, int (bool included) or
 //!   `None` (decision 4 of the single-engine plan): the seed material holds
 //!   the salt's text, and only those types have a text of their own size.
-use super::{numeric_v2, MAX_SEQUENCE_LENGTH};
+use super::MAX_SEQUENCE_LENGTH;
 use crate::{VmExecutionError, VmValue};
 use num_bigint::BigInt;
 
-/// Refuse `syscall_id` when its host work would exceed the V2 bounds (in
-/// V2 execution only).
+/// Refuse `syscall_id` when its host work would exceed the V2 bounds.
 pub(crate) fn check(
-    syscall_id: &str,
-    args: &[VmValue],
-    kwargs: &[(String, VmValue)],
-) -> Result<(), VmExecutionError> {
-    if !numeric_v2::active() {
-        return Ok(());
-    }
-    check_v2(syscall_id, args, kwargs)
-}
-
-/// The V2 bounds, for a V2-only host.
-pub(crate) fn check_v2(
     syscall_id: &str,
     args: &[VmValue],
     kwargs: &[(String, VmValue)],
@@ -128,7 +115,6 @@ mod tests {
     }
 
     fn checked(syscall: &str, args: &[VmValue], kwargs: &[(&str, VmValue)]) -> Result<(), String> {
-        let _scope = numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
         let kwargs: Vec<(String, VmValue)> = kwargs
             .iter()
             .map(|(key, value)| ((*key).to_owned(), value.clone()))
@@ -269,12 +255,5 @@ mod tests {
         ] {
             assert_eq!(checked("random.seed", &[salt], &[]), refused);
         }
-    }
-
-    #[test]
-    fn archival_v1_is_unbounded_as_before() {
-        let _scope = numeric_v2::Scope::enter(crate::XIAN_VM_V1_PROFILE);
-        assert!(check("random.getrandbits", &[int(1u64 << 40)], &[]).is_ok());
-        assert!(check("random.seed", &[VmValue::List(vec![])], &[]).is_ok());
     }
 }

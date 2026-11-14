@@ -77,7 +77,7 @@ impl From<FunctionIr> for DefinedFunction {
     fn from(function: FunctionIr) -> Self {
         let module = ModuleIr {
             ir_version: crate::XIAN_IR_V1.into(),
-            vm_profile: crate::XIAN_VM_V1_PROFILE.into(),
+            vm_profile: crate::XIAN_VM_V2_PROFILE.into(),
             host_catalog_version: crate::XIAN_VM_HOST_CATALOG_V1.into(),
             module_name: "con_fixture".into(),
             source_hash: "0".repeat(64),
@@ -144,7 +144,7 @@ mod tests {
             "node": "call", "func": name("long"), "args": [], "keywords": []}})];
         crate::ValidatedModuleIr::unchecked(ModuleIr {
             ir_version: crate::XIAN_IR_V1.into(),
-            vm_profile: crate::XIAN_VM_V1_PROFILE.into(),
+            vm_profile: crate::XIAN_VM_V2_PROFILE.into(),
             host_catalog_version: crate::XIAN_VM_HOST_CATALOG_V1.into(),
             module_name: "con_functions".into(),
             source_hash: "0".repeat(64),

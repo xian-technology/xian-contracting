@@ -2,8 +2,6 @@
 //! produces (generated with the Python bridge; the full differential fuzz is
 //! `tests/unit/test_native_vm_random_parity.py` in xian-contracting).
 use super::*;
-use crate::interpreter::numeric_v2::Scope;
-use crate::XIAN_VM_V2_PROFILE;
 use num_bigint::BigUint;
 
 fn int(value: i64) -> VmValue {
@@ -350,7 +348,6 @@ fn errors_are_pythons_in_pythons_order() {
 
 #[test]
 fn random_floats_fail_after_their_draw_and_large_draws_before_any() {
-    let _scope = Scope::enter(XIAN_VM_V2_PROFILE);
     let mut random = node_context();
     ok(&mut random, "random.seed", &[]);
     let refused = |served: Served| match served {

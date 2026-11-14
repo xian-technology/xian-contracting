@@ -8,7 +8,6 @@
 use super::{exception_to_py, py_to_vm};
 use crate::block_host::{zk, BlockHost, HostCharges, Modules, TxInputs};
 use crate::block_state_python::PyBlockState;
-use crate::interpreter::numeric_v2;
 use crate::lmdb_python::PyLmdbEnvironment;
 use crate::settlement::Stop;
 use crate::state_view::StateView;
@@ -252,7 +251,6 @@ fn _zk_syscalls_debug(
     overlay: PyRef<'_, PyBlockState>,
     calls: Vec<(String, Bound<'_, PyList>)>,
 ) -> PyResult<Vec<Py<PyAny>>> {
-    let _scope = numeric_v2::Scope::enter(XIAN_VM_V2_PROFILE);
     let view = StateView::new(environment.env().clone(), overlay.shared());
     let modules = Modules::default();
     let mut outcomes = Vec::with_capacity(calls.len());

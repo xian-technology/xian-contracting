@@ -25,7 +25,6 @@ impl VmInstance {
                     (name, value),
                     ("int", VmValue::Int(_))
                         | ("str", VmValue::String(_))
-                        | ("float", VmValue::Float(_))
                         | ("tuple", VmValue::Tuple(_))
                         | ("bytes", VmValue::Bytes(_))
                         | ("frozenset", VmValue::FrozenSet(_))
@@ -56,23 +55,16 @@ impl VmInstance {
             .into_iter()
             .map(|(k, v)| (k, v.snapshot()))
             .collect::<Vec<_>>();
-        if numeric_v2::active() {
-            match name {
-                "mul_div_floor" | "mul_div_ceil" | "quantize" | "sqrt" => {
-                    return numeric_v2::helper(name, args, kwargs, host)
-                }
-                "float" | "round" => {
-                    return Err(VmExecutionError::new(
-                        "use decimal or quantize in xian_vm_v2",
-                    ))
-                }
-                "abs" if matches!(args.first(), Some(VmValue::Bool(_))) => {
-                    return Err(VmExecutionError::new("abs requires a number"))
-                }
-                _ => {}
-            }
-        }
         match name {
+            "mul_div_floor" | "mul_div_ceil" | "quantize" | "sqrt" => {
+                numeric_v2::helper(name, args, kwargs, host)
+            }
+            "float" | "round" => Err(VmExecutionError::new(
+                "use decimal or quantize in xian_vm_v2",
+            )),
+            "abs" if matches!(args.first(), Some(VmValue::Bool(_))) => {
+                Err(VmExecutionError::new("abs requires a number"))
+            }
             "Contract" => deployment_handles::constructor(&args, &kwargs),
             "datetime.datetime.strptime" => time_datetime_strptime(args, kwargs, host),
             "len" => self.builtin_len(args, kwargs),
@@ -92,7 +84,6 @@ impl VmInstance {
             "int" => numeric_text::int_value(args, kwargs),
             "pow" => self.builtin_pow(host, args, kwargs),
             "format" => self.builtin_format(host, shared_args, kwargs),
-            "float" => self.builtin_float(args, kwargs),
             "ord" => self.builtin_ord(args, kwargs),
             "ascii" => self.builtin_ascii(host, args, kwargs, shared_args),
             "bin" | "hex" | "oct" => self.builtin_integer_repr(name, args, kwargs),
@@ -101,9 +92,7 @@ impl VmInstance {
                 if args.len() != 2 || !kwargs.is_empty() {
                     return Err(VmExecutionError::new("divmod() expects two arguments"));
                 }
-                if numeric_v2::active() {
-                    host.charge_execution_cost(2 * numeric_v2::OP_GAS)?;
-                }
+                host.charge_execution_cost(2 * numeric_v2::OP_GAS)?;
                 let quotient = apply_binary_operator("floordiv", args[0].clone(), args[1].clone())?;
                 let remainder = apply_binary_operator("mod", args[0].clone(), args[1].clone())?;
                 Ok(VmValue::Tuple(vec![quotient, remainder]))
@@ -135,7 +124,6 @@ impl VmInstance {
                     &shared_args[1],
                 )?))
             }
-            "round" => rounding::call(&args, &kwargs),
             other => Err(VmExecutionError::new(format!(
                 "unsupported builtin '{other}'"
             ))),
@@ -305,7 +293,6 @@ impl VmInstance {
             [_] => self.collect_iterable(&shared_args[0], host)?,
             _ => unreachable!(),
         };
-        crate::decimal_metering::normalization(host, &values)?;
         let values = normalize_set_items(values)?;
         Ok(if name == "set" {
             VmValue::Set(values)
@@ -352,91 +339,10 @@ impl VmInstance {
                 "pow() expects two or three positional arguments",
             ));
         }
-        if numeric_v2::active() {
-            host.charge_execution_cost(numeric_v2::op_cost("pow", &args[0], &args[1]))?;
-            if args.len() == 2 {
-                return numeric_v2::binary("pow", &args[0], &args[1]);
-            }
-            if !args.iter().all(|v| matches!(v, VmValue::Int(_))) {
-                return Err(VmExecutionError::new("modular pow requires integers"));
-            }
-        }
-        if let Some(modulus) = args.get(2) {
-            if args
-                .iter()
-                .any(|value| matches!(value, VmValue::RawDecimal(_)))
-            {
-                host.charge_execution_cost(crate::raw_decimal::modular_work_cost(&args))?;
-                let values = args
-                    .iter()
-                    .map(|value| match value {
-                        VmValue::RawDecimal(_) | VmValue::Int(_) | VmValue::Bool(_) => {
-                            crate::VmRawDecimal::from_value(value)
-                        }
-                        _ => Err(VmExecutionError::new(
-                            "modular Decimal power requires Decimal or integer operands",
-                        )),
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                return Ok(VmValue::RawDecimal(values[0].calculate(
-                    "powmod",
-                    &values[1..],
-                    None,
-                )?));
-            }
-            let base = args[0].as_bigint()?;
-            let exponent = args[1].as_bigint()?;
-            let modulus = modulus.as_bigint()?;
-            if exponent.sign() == Sign::Minus {
-                return Err(VmExecutionError::new(
-                    "pow() 3rd argument not allowed unless all arguments are integers",
-                ));
-            }
-            if modulus.is_zero() {
-                return Err(VmExecutionError::new("pow() 3rd argument cannot be 0"));
-            }
-            ensure_bigint_bits(&modulus, "modular exponentiation modulus")?;
-            if exponent.bits() > MAX_MODULAR_POW_EXPONENT_BITS {
-                return Err(integer_limit_error("modular exponentiation exponent"));
-            }
-            return checked_int_value(base.modpow(&exponent, &modulus), "modular exponentiation");
-        }
-        if args
-            .iter()
-            .any(|value| matches!(value, VmValue::RawDecimal(_)))
-        {
-            host.charge_execution_cost(crate::raw_decimal::work_cost("pow", &args[0], &args[1]))?;
-            return apply_binary_operator("pow", args[0].clone(), args[1].clone());
-        }
-        match (&args[0], &args[1]) {
-            (VmValue::Int(base), VmValue::Int(exponent)) => {
-                checked_bigint_pow(base, exponent, "integer exponentiation")
-            }
-            (VmValue::Decimal(base), VmValue::Decimal(exponent)) => {
-                Ok(VmValue::Decimal(base.pow(exponent)?))
-            }
-            (VmValue::Decimal(base), exponent) => Ok(VmValue::Decimal(
-                base.pow(&VmDecimal::from_vm_value(exponent)?)?,
-            )),
-            (base, VmValue::Decimal(exponent)) => Ok(VmValue::Decimal(
-                VmDecimal::from_vm_value(base)?.pow(exponent)?,
-            )),
-            (VmValue::Float(base), VmValue::Float(exponent)) => {
-                Ok(VmValue::Float(float_pow(*base, *exponent)))
-            }
-            (VmValue::Float(base), VmValue::Int(exponent)) => Ok(VmValue::Float(float_pow(
-                *base,
-                bigint_to_f64(exponent, "pow() exponent")?,
-            ))),
-            (VmValue::Int(base), VmValue::Float(exponent)) => Ok(VmValue::Float(float_pow(
-                bigint_to_f64(base, "pow() base")?,
-                *exponent,
-            ))),
-            (left, right) => Err(VmExecutionError::new(format!(
-                "pow() does not support {} and {}",
-                left.type_name(),
-                right.type_name()
-            ))),
+        host.charge_execution_cost(numeric_v2::op_cost("pow", &args[0], &args[1]))?;
+        match args.get(2) {
+            None => numeric_v2::binary("pow", &args[0], &args[1]),
+            Some(modulus) => modular_pow(&args[0], &args[1], modulus),
         }
     }
 
@@ -460,41 +366,6 @@ impl VmInstance {
         Ok(VmValue::String(super::value_formatting::format_value(
             &args[0], &spec,
         )?))
-    }
-
-    fn builtin_float(
-        &mut self,
-        args: Vec<VmValue>,
-        kwargs: Vec<(String, VmValue)>,
-    ) -> Result<VmValue, VmExecutionError> {
-        if !kwargs.is_empty() || args.len() > 1 {
-            return Err(VmExecutionError::new(
-                "float() expects at most one argument",
-            ));
-        }
-        if args.is_empty() {
-            return Ok(VmValue::Float(0.0));
-        }
-        match &args[0] {
-            VmValue::Int(value) => Ok(VmValue::Float(bigint_to_f64(value, "float() input")?)),
-            VmValue::Bool(value) => Ok(VmValue::Float(if *value { 1.0 } else { 0.0 })),
-            VmValue::Float(value) => Ok(VmValue::Float(*value)),
-            VmValue::Decimal(value) => Ok(VmValue::Float(value.to_f64()?)),
-            VmValue::RawDecimal(value) => Ok(VmValue::Float(value.float()?)),
-            VmValue::String(value) => numeric_text::parse_float(value).map(VmValue::Float),
-            VmValue::Bytes(value) | VmValue::ByteArray(value) => {
-                let text = std::str::from_utf8(value)
-                    .map_err(|_| VmExecutionError::new("invalid float bytes"))?;
-                if !text.is_ascii() {
-                    return Err(VmExecutionError::new("invalid float bytes"));
-                }
-                numeric_text::parse_float(text).map(VmValue::Float)
-            }
-            other => Err(VmExecutionError::new(format!(
-                "float() does not support {}",
-                other.type_name()
-            ))),
-        }
     }
 
     fn builtin_ord(
@@ -633,17 +504,11 @@ impl VmInstance {
                     if pair.len() != 2 {
                         return Err(VmExecutionError::new("dict() expected key/value pairs"));
                     }
-                    crate::decimal_metering::entry_comparison(host, entries.entries(), &pair[0])?;
                     entries.set(pair[0].clone(), pair[1].clone())?;
                 }
             }
         }
         for (key, value) in shared_kwargs {
-            crate::decimal_metering::entry_comparison(
-                host,
-                entries.entries(),
-                &VmValue::String(key.clone()),
-            )?;
             entries.set(VmValue::String(key), value)?;
         }
         Ok(VmValue::Dict(entries.into_entries()))
@@ -713,6 +578,32 @@ impl VmInstance {
 }
 
 // Exception.__str__ uses its argument payload; repr/ascii retain the class name.
+/// `pow(base, exponent, modulus)`: V2 accepts only integers.
+fn modular_pow(
+    base: &VmValue,
+    exponent: &VmValue,
+    modulus: &VmValue,
+) -> Result<VmValue, VmExecutionError> {
+    let (VmValue::Int(base), VmValue::Int(exponent), VmValue::Int(modulus)) =
+        (base, exponent, modulus)
+    else {
+        return Err(VmExecutionError::new("modular pow requires integers"));
+    };
+    if exponent.sign() == Sign::Minus {
+        return Err(VmExecutionError::new(
+            "pow() 3rd argument not allowed unless all arguments are integers",
+        ));
+    }
+    if modulus.is_zero() {
+        return Err(VmExecutionError::new("pow() 3rd argument cannot be 0"));
+    }
+    ensure_bigint_bits(modulus, "modular exponentiation modulus")?;
+    if exponent.bits() > MAX_MODULAR_POW_EXPONENT_BITS {
+        return Err(integer_limit_error("modular exponentiation exponent"));
+    }
+    checked_int_value(base.modpow(exponent, modulus), "modular exponentiation")
+}
+
 pub(super) fn public_string(value: &VmValue, depth: usize) -> Result<String, VmExecutionError> {
     if depth > 128 {
         return Err(VmExecutionError::new(

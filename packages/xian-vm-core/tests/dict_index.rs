@@ -1,11 +1,8 @@
-//! Dictionary operations through every entry point, in V2 (hash index, in
-//! place) and archival V1 (linear scan, copy and replace).
+//! Dictionary operations through every entry point (hash index, in place).
 //!
 //! The fixture is compiled from its embedded `source` by the canonical
-//! compiler for both profiles. Results are the same in both profiles except
-//! where V2 equality keeps `True` and `1` apart. V1 costs are pinned to the
-//! values of `xvm-execution-11`: V1 must not change. V2 costs follow
-//! `xvm-gas-6`; the time bound separates linear from quadratic work.
+//! compiler. Equality keeps `True` and `1` apart. Costs follow `xvm-gas-6`;
+//! the time bound separates linear from quadratic work.
 use serde_json::Value;
 use std::time::{Duration, Instant};
 use xian_vm_core::{ModuleIr, VmExecutionError, VmHost, VmInstance, VmValue};
@@ -112,11 +109,10 @@ fn expected_operations(mixed: VmValue) -> VmValue {
 
 #[test]
 fn every_entry_point_keeps_python_dictionary_semantics() {
-    let (v2, v2_cost) = call("ir", "operations", vec![]);
-    let (v1, v1_cost) = call("ir_v1", "operations", vec![]);
-    // V2 keeps True and 1 apart; V1 merges them as Python does.
+    let (result, cost) = call("ir", "operations", vec![]);
+    // True and 1 are different keys.
     assert_eq!(
-        v2.unwrap(),
+        result.unwrap(),
         expected_operations(VmValue::List(vec![
             text("int"),
             text("bool"),
@@ -125,36 +121,24 @@ fn every_entry_point_keeps_python_dictionary_semantics() {
             int(4)
         ]))
     );
-    assert_eq!(
-        v1.unwrap(),
-        expected_operations(VmValue::List(vec![
-            text("bool"),
-            text("bool"),
-            text("tuple"),
-            text("set"),
-            int(3)
-        ]))
-    );
-    assert_eq!((v2_cost, v1_cost), (324_466, 316_744));
+    assert_eq!(cost, 324_466);
 }
 
 #[test]
 fn errors_are_unchanged() {
-    for ir in ["ir", "ir_v1"] {
-        for (kind, message) in [
-            ("missing", "missing dict key z"),
-            ("unhashable", "unhashable type: 'list'"),
-            ("pop", "missing dict key z"),
-            ("popitem", "popitem(): dictionary is empty"),
-        ] {
-            let (result, _) = call(ir, "errors", vec![text(kind)]);
-            assert_eq!(result.unwrap_err().to_string(), message, "{ir} {kind}");
-        }
+    for (kind, message) in [
+        ("missing", "missing dict key z"),
+        ("unhashable", "unhashable type: 'list'"),
+        ("pop", "missing dict key z"),
+        ("popitem", "popitem(): dictionary is empty"),
+    ] {
+        let (result, _) = call("ir", "errors", vec![text(kind)]);
+        assert_eq!(result.unwrap_err().to_string(), message, "{kind}");
     }
 }
 
 #[test]
-fn v2_dictionaries_scale_linearly() {
+fn dictionaries_scale_linearly() {
     const N: i64 = 20_000;
     let started = Instant::now();
     let (result, cost) = call("ir", "scale", vec![int(N)]);
@@ -170,14 +154,4 @@ fn v2_dictionaries_scale_linearly() {
     let (_, small) = call("ir", "scale", vec![int(N / 10)]);
     // Linear: ten times the keys cost about ten times as much.
     assert!(cost < 11 * small, "{cost} vs {small}");
-}
-
-#[test]
-fn v1_dictionary_costs_are_unchanged() {
-    let (result, cost) = call("ir_v1", "scale", vec![int(300)]);
-    assert_eq!(
-        result.unwrap(),
-        VmValue::List(vec![int(300 * 299 / 2), int(0)])
-    );
-    assert_eq!(cost, 6_610_092);
 }

@@ -66,7 +66,6 @@ fn numeric_int(value: &VmValue, explicit_base: bool) -> Result<VmValue, VmExecut
     }
     match value {
         VmValue::Int(value) => checked_int_value(value.clone(), "int()"),
-        VmValue::Bool(value) if !numeric_v2::active() => Ok(vm_int(*value as u8)),
         VmValue::Float(value) => checked_int_value(f64_to_bigint_trunc(*value, "int()")?, "int()"),
         VmValue::Decimal(value) => checked_int_value(value.to_bigint(), "int()"),
         VmValue::RawDecimal(value) => checked_int_value(value.integer()?, "int()"),
@@ -125,12 +124,6 @@ fn integer_prefix(digits: &str, base: u32) -> (&str, u32, bool) {
     (digits, if base == 0 { 10 } else { base }, false)
 }
 
-pub(super) fn parse_float(text: &str) -> Result<f64, VmExecutionError> {
-    let normalized = decimal_digits::normalize(text);
-    let clean = remove_underscores(normalized.trim(), |ch| ch.is_ascii_digit())?;
-    clean.parse().map_err(|_| invalid())
-}
-
 fn remove_underscores(
     text: &str,
     digit: impl Fn(char) -> bool,
@@ -178,15 +171,6 @@ mod tests {
             ("1", 1),
         ] {
             assert!(parse_int(text, base).is_err(), "{text}, base {base}");
-        }
-    }
-
-    #[test]
-    fn floating_separators_require_decimal_digits_on_both_sides() {
-        assert_eq!(parse_float("1_000.5").unwrap(), 1000.5);
-        assert_eq!(parse_float("1_2.5e1_0").unwrap(), 125000000000.0);
-        for text in ["1_.0", "1._0", "_1", "1_", "1__0", "1e_2"] {
-            assert!(parse_float(text).is_err(), "{text}");
         }
     }
 }

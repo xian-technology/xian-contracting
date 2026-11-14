@@ -2,8 +2,7 @@
 //! differential tests against `contracting.stdlib.bridge.random`.
 use super::{context_from_py, exception_to_py, py_to_vm};
 use crate::block_host::random::{call, TxRandom};
-use crate::interpreter::numeric_v2;
-use crate::{VmValue, XIAN_VM_V2_PROFILE};
+use crate::VmValue;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -24,7 +23,6 @@ fn _random_syscalls_debug(
     context: Bound<'_, PyAny>,
     calls: Vec<Call<'_>>,
 ) -> PyResult<Vec<Py<PyAny>>> {
-    let _scope = numeric_v2::Scope::enter(XIAN_VM_V2_PROFILE);
     let context = context_from_py(&context).map_err(value_error)?;
     let mut random = TxRandom::new(&context);
     let mut outcomes = Vec::with_capacity(calls.len());

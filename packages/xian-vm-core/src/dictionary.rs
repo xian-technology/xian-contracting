@@ -1,11 +1,11 @@
 //! Dictionary key eligibility and matching. Keep insertion order and the first
 //! key object when an equal key replaces its value, as the Python runtime does.
 //!
-//! Archival V1 finds keys with a linear scan. V2 dictionaries find them
-//! through a hash index (`crate::dict_index`) and change heap dictionaries
-//! in place, so every alias sees the change and one operation costs the same
-//! at any size. The index tries candidates in insertion order with the same
-//! equality as the scan, so both return the same entry.
+//! Dictionaries find keys through a hash index (`crate::dict_index`) and
+//! change heap dictionaries in place, so every alias sees the change and one
+//! operation costs the same at any size. The index tries candidates in
+//! insertion order with the same equality as a linear scan, so both return
+//! the same entry.
 use super::*;
 use crate::dict_index::{key_hash, DictIndex};
 use crate::VmReference;
@@ -116,8 +116,7 @@ fn find(
 pub(in crate::interpreter) fn indexed_dict(receiver: &VmValue) -> Option<&VmReference> {
     match receiver {
         VmValue::Reference(reference)
-            if numeric_v2::active()
-                && reference.with_value(|value| matches!(value, VmValue::Dict(_))) =>
+            if reference.with_value(|value| matches!(value, VmValue::Dict(_))) =>
         {
             Some(reference)
         }
@@ -238,9 +237,6 @@ impl DictBuilder {
         &mut self,
         key: &VmValue,
     ) -> Result<bool, VmExecutionError> {
-        if !numeric_v2::active() {
-            return Ok(dict_get(&self.entries, key)?.is_some());
-        }
         check_key(key)?;
         let hash = key_hash(key)?;
         Ok(find(&self.entries, &mut self.index, key, hash)?.is_some())
@@ -251,9 +247,6 @@ impl DictBuilder {
         key: VmValue,
         value: VmValue,
     ) -> Result<(), VmExecutionError> {
-        if !numeric_v2::active() {
-            return dict_set(&mut self.entries, key, value);
-        }
         check_key(&key)?;
         let hash = key_hash(&key)?;
         match find(&self.entries, &mut self.index, &key, hash)? {
@@ -343,7 +336,6 @@ mod tests {
 
     #[test]
     fn equal_v2_keys_have_equal_hashes() {
-        let _scope = numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
         let heap = VmHeap::default();
         let mut random = Random(0x9e37_79b9_7f4a_7c15);
         let keys: Vec<VmValue> = (0..700)
@@ -368,7 +360,6 @@ mod tests {
 
     #[test]
     fn hash_edge_cases_follow_v2_equality() {
-        let _scope = numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
         let _work = crate::work_meter::Isolation::enter();
         let heap = VmHeap::default();
         let hash = |value: &VmValue| key_hash(value).unwrap();
@@ -427,7 +418,6 @@ mod tests {
 
     #[test]
     fn indexed_builder_matches_the_linear_scan() {
-        let _scope = numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
         let heap = VmHeap::default();
         let mut random = Random(42);
         for _ in 0..200 {
@@ -450,7 +440,7 @@ mod tests {
         }
     }
 
-    /// The archival way to mutate a heap dictionary: copy, change, replace.
+    /// The reference way to mutate a heap dictionary: copy, change, replace.
     fn replaced(dict: &VmReference, change: impl FnOnce(&mut Vec<(VmValue, VmValue)>)) {
         let VmValue::Dict(mut entries) = dict.value() else {
             unreachable!()
@@ -465,7 +455,6 @@ mod tests {
 
     #[test]
     fn in_place_operations_match_copy_and_replace() {
-        let _scope = numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
         let heap = VmHeap::default();
         let mut random = Random(7);
         for _ in 0..100 {
@@ -511,7 +500,6 @@ mod tests {
 
     #[test]
     fn a_key_without_hash_keeps_the_dictionary_scanning() {
-        let _scope = numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
         let _work = crate::work_meter::Isolation::enter();
         let heap = VmHeap::default();
         let VmValue::Reference(dict) = heap.capture(VmValue::Dict(vec![])).unwrap() else {
@@ -551,7 +539,6 @@ mod tests {
 
     #[test]
     fn indexed_operations_keep_key_errors_and_limits() {
-        let _scope = numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
         let _work = crate::work_meter::Isolation::enter();
         let heap = VmHeap::default();
         let VmValue::Reference(dict) = heap.capture(VmValue::Dict(vec![])).unwrap() else {
@@ -579,20 +566,24 @@ mod tests {
     }
 
     #[test]
-    fn dictionary_preserves_first_key_and_matches_numeric_probes() {
+    fn dictionary_keeps_bool_and_int_keys_apart() {
         let mut entries = vec![];
+        let tail = VmValue::String("tail".into());
         dict_set(&mut entries, VmValue::Bool(true), vm_int(1)).unwrap();
         dict_set(&mut entries, vm_int(1), vm_int(2)).unwrap();
-        dict_set(&mut entries, VmValue::String("tail".into()), vm_int(3)).unwrap();
-        assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0], (VmValue::Bool(true), vm_int(2)));
+        dict_set(&mut entries, tail.clone(), vm_int(3)).unwrap();
+        dict_set(&mut entries, vm_int(1), vm_int(4)).unwrap();
+        assert_eq!(entries.len(), 3);
         assert_eq!(
-            dict_get(&entries, &VmValue::Float(1.0)).unwrap(),
-            Some(vm_int(2))
+            dict_get(&entries, &VmValue::Bool(true)).unwrap(),
+            Some(vm_int(1))
         );
         assert_eq!(dict_get(&entries, &vm_int(9)).unwrap(), None);
-        assert_eq!(dict_pop(&mut entries, &vm_int(1)).unwrap(), Some(vm_int(2)));
-        assert_eq!(entries, vec![(VmValue::String("tail".into()), vm_int(3))]);
+        assert_eq!(dict_pop(&mut entries, &vm_int(1)).unwrap(), Some(vm_int(4)));
+        assert_eq!(
+            entries,
+            vec![(VmValue::Bool(true), vm_int(1)), (tail, vm_int(3))]
+        );
         assert_eq!(dict_pop(&mut entries, &vm_int(1)).unwrap(), None);
     }
 
@@ -604,7 +595,7 @@ mod tests {
             VmValue::ByteArray(vec![]),
             VmValue::Set(vec![]),
             VmValue::Tuple(vec![VmValue::List(vec![])]),
-            VmValue::Decimal(VmDecimal::one()),
+            VmValue::Decimal(VmDecimal::from_str_literal("1").unwrap()),
         ] {
             let mut entries = vec![];
             assert!(dict_set(&mut entries, key.clone(), vm_int(1)).is_err());

@@ -345,39 +345,6 @@ impl VmInstance {
             }
             return Ok(receiver);
         }
-        if matches!(
-            method,
-            "count" | "index" | "remove" | "get" | "pop" | "setdefault"
-        ) {
-            if let Some(needle) = args.first() {
-                crate::decimal_metering::comparison(host, &receiver, needle, false)?;
-            }
-        }
-        let set_comparison = resolves_to!(
-            receiver,
-            VmValue::Set(_) | VmValue::FrozenSet(_) | VmValue::BuiltinSet(_)
-        ) && matches!(
-            method,
-            "add"
-                | "remove"
-                | "discard"
-                | "issubset"
-                | "issuperset"
-                | "isdisjoint"
-                | "union"
-                | "intersection"
-                | "difference"
-                | "symmetric_difference"
-                | "update"
-                | "intersection_update"
-                | "difference_update"
-                | "symmetric_difference_update"
-        );
-        if set_comparison {
-            let mut values = vec![receiver.clone()];
-            values.extend(args.iter().cloned());
-            crate::decimal_metering::normalization(host, &values)?;
-        }
         if resolves_to!(receiver, VmValue::BuiltinSet(_)) {
             return self.call_builtin_set_method(receiver, method, args, host);
         }
@@ -420,7 +387,6 @@ impl VmInstance {
             let iterator = crate::iteration::iter(&args[0], &self.heap)?;
             let mut entries = DictBuilder::default();
             while let Some(key) = self.next_item(&iterator, host)? {
-                crate::decimal_metering::entry_comparison(host, entries.entries(), &key)?;
                 entries.set(key, default.clone())?;
             }
             return Ok(VmValue::Dict(entries.into_entries()));
@@ -476,11 +442,6 @@ impl VmInstance {
             self.extend_sequence(&receiver, &args[0], host)?;
             return Ok(VmValue::None);
         }
-        let mut set_inputs = if set_comparison {
-            Some(crate::decimal_metering::SetInputs::new(&receiver)?)
-        } else {
-            None
-        };
         match call_native_method_collected(receiver.clone(), method, args, kwargs, &mut |source| {
             let values = self.collect_iterable(source, host)?;
             if method == "join" && resolves_to!(receiver, VmValue::Bytes(_) | VmValue::ByteArray(_))
@@ -491,9 +452,6 @@ impl VmInstance {
                 let separators =
                     binary_length(&receiver).saturating_mul(values.len().saturating_sub(1) as u64);
                 charge_method_work(host, content.saturating_add(separators))?;
-            }
-            if let Some(inputs) = &mut set_inputs {
-                inputs.collected(host, &values)?;
             }
             Ok(values)
         })? {

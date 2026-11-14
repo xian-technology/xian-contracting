@@ -1,29 +1,10 @@
-//! Arithmetic for the fresh-genesis profile. Fixed values use integer multiples of 10^-30.
+//! Arithmetic of the `xian_vm_v2` profile, the only one the VM executes.
+//! Fixed values use integer multiples of 10^-30.
 use super::*;
-use std::cell::Cell;
 use std::cmp::Ordering;
 
 use xian_numeric::INTEGER_BITS;
 pub(super) const OP_GAS: u64 = 96;
-
-// Collections, callbacks and comparison helpers share an interpreter invocation. Scope
-// their semantics to this synchronous call and restore the caller on every exit.
-thread_local! { static ACTIVE: Cell<bool> = const { Cell::new(false) }; }
-
-pub(crate) struct Scope(bool);
-impl Scope {
-    pub(crate) fn enter(profile: &str) -> Self {
-        Self(ACTIVE.replace(profile == crate::XIAN_VM_V2_PROFILE))
-    }
-}
-impl Drop for Scope {
-    fn drop(&mut self) {
-        ACTIVE.set(self.0);
-    }
-}
-pub(crate) fn active() -> bool {
-    ACTIVE.get()
-}
 
 pub(crate) fn validate_leaf(value: &VmValue) -> Result<(), VmExecutionError> {
     match value {

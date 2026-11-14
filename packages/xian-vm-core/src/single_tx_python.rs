@@ -10,12 +10,11 @@ use super::block_executor_python::Unshared;
 use super::{bigint_to_py, context_from_py, event_to_py, exception_to_py, py_to_vm, vm_to_py};
 use crate::block_executor::{BlockExecutor, BlockPolicy, FeeMode, PreparedTx, TxOutcome};
 use crate::block_state_python::PyBlockState;
-use crate::interpreter::numeric_v2;
 use crate::lmdb_python::{LmdbStorageError, PyLmdbEnvironment};
 use crate::panic_guard::catching;
 use crate::settlement::Stop;
 use crate::state_view::StateView;
-use crate::{VmExecutionError, VmValue, XIAN_VM_V2_PROFILE};
+use crate::{VmExecutionError, VmValue};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -46,7 +45,6 @@ fn prepared(
     chi_budget: &Bound<'_, PyAny>,
     size_bytes: usize,
 ) -> Option<PreparedTx> {
-    let _scope = numeric_v2::Scope::enter(XIAN_VM_V2_PROFILE);
     let VmValue::Int(chi_budget) = py_to_vm(chi_budget.clone()).ok()? else {
         return None;
     };

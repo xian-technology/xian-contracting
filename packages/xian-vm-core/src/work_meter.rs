@@ -5,9 +5,8 @@
 //! Primitive helpers count units without a host. The interpreter charges
 //! pending units before its next expression or statement and when a call
 //! returns. One operation may not accumulate more than `MAX_PENDING_WORK`
-//! uncharged units, which bounds the work done before any charge. Archival V1
-//! keeps its historical schedule and counts nothing.
-use crate::{interpreter::numeric_v2, VmExecutionError, VmHost};
+//! uncharged units, which bounds the work done before any charge.
+use crate::{VmExecutionError, VmHost};
 use std::cell::Cell;
 
 /// Raw chi per unit of element work. `xvm-gas-5` raised it from 8: copying or
@@ -23,7 +22,7 @@ thread_local! {
 }
 
 fn counting() -> bool {
-    numeric_v2::active() && !UNMETERED.get()
+    !UNMETERED.get()
 }
 
 /// Record `units` of element work done by the current operation.
@@ -158,7 +157,6 @@ mod tests {
 
     #[test]
     fn v2_counts_charge_once_and_isolate_nested_executions() {
-        let _scope = numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
         let mut host = Host::default();
         count(3).unwrap();
         {
@@ -174,7 +172,6 @@ mod tests {
 
     #[test]
     fn one_operation_cannot_exceed_the_pending_limit() {
-        let _scope = numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
         let _isolated = Isolation::enter();
         count(MAX_PENDING_WORK).unwrap();
         assert!(count(1).is_err());
@@ -185,15 +182,5 @@ mod tests {
         assert_eq!((characters(1), characters(4)), (0, 2));
         assert_eq!((searched(7), searched(800)), (0, 100));
         assert_eq!((compared(1280, 256), compared(127, 4096)), (2, 0));
-    }
-
-    #[test]
-    fn archival_v1_counts_nothing() {
-        let _scope = numeric_v2::Scope::enter(crate::XIAN_VM_V1_PROFILE);
-        let _isolated = Isolation::enter();
-        count(MAX_PENDING_WORK * 2).unwrap();
-        let mut host = Host::default();
-        flush(&mut host).unwrap();
-        assert_eq!(host.0, 0);
     }
 }

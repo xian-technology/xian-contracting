@@ -1,14 +1,13 @@
 //! Python access to the Rust fee rules: the chain chi rate check, and debug
 //! hooks the fee and reward corpus tests drive with explicit inputs.
 use super::{bigint_to_py, py_to_vm, vm_to_py};
-use crate::interpreter::numeric_v2;
 use crate::lmdb_python::LmdbStorageError;
 use crate::python_decimal::PyDecimal;
 use crate::settlement::{self, Balance, Paid, Settled, Stop};
 use crate::tx_rewards::{
     tx_reward_outputs, valid_chi_rate, RewardRecord, RewardState, TxRewards, CHI_RATE_KEY,
 };
-use crate::{VmDecimal, VmValue, XIAN_VM_V2_PROFILE};
+use crate::{VmDecimal, VmValue};
 use num_bigint::BigInt;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -137,7 +136,6 @@ fn contract_costs(costs: Option<Bound<'_, PyDict>>) -> PyResult<Vec<(String, Big
 /// state patches use it; anything else raises `ValueError` naming the value.
 #[pyfunction]
 fn validated_chi_rate(py: Python<'_>, value: Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    let _scope = numeric_v2::Scope::enter(XIAN_VM_V2_PROFILE);
     match py_to_vm(value.clone()).ok().and_then(valid_chi_rate) {
         Some(rate) => bigint_to_py(py, &rate),
         None => Err(PyValueError::new_err(format!(

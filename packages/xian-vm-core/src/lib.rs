@@ -33,7 +33,6 @@ mod block_state;
 #[cfg(any(feature = "python-extension", test))]
 mod bundle_executor;
 mod decimal_backend;
-mod decimal_metering;
 mod decimal_methods;
 mod decimal_tuple;
 mod interpreter;
@@ -250,6 +249,26 @@ pub fn parse_module_ir(input: &str) -> Result<ModuleIr, IrValidationError> {
     Ok(module)
 }
 
+/// The constant rules a module's IR is validated with. Both profiles still
+/// validate (V1 for migration and archival tooling); only V2 executes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IrProfile {
+    V1,
+    V2,
+}
+
+impl IrProfile {
+    fn of(vm_profile: &str) -> Result<Self, IrValidationError> {
+        match vm_profile {
+            XIAN_VM_V1_PROFILE => Ok(Self::V1),
+            XIAN_VM_V2_PROFILE => Ok(Self::V2),
+            other => Err(IrValidationError::new(format!(
+                "unsupported vm_profile '{other}'"
+            ))),
+        }
+    }
+}
+
 pub fn validate_module_ir(module: &ModuleIr) -> Result<(), IrValidationError> {
     if module.ir_version != XIAN_IR_V1 {
         return Err(IrValidationError::new(format!(
@@ -257,16 +276,7 @@ pub fn validate_module_ir(module: &ModuleIr) -> Result<(), IrValidationError> {
             module.ir_version
         )));
     }
-    let _scope = interpreter::numeric_v2::Scope::enter(&module.vm_profile);
-    if !matches!(
-        module.vm_profile.as_str(),
-        XIAN_VM_V1_PROFILE | XIAN_VM_V2_PROFILE
-    ) {
-        return Err(IrValidationError::new(format!(
-            "unsupported vm_profile '{}'",
-            module.vm_profile
-        )));
-    }
+    let profile = IrProfile::of(&module.vm_profile)?;
     if module.host_catalog_version != XIAN_VM_HOST_CATALOG_V1 {
         return Err(IrValidationError::new(format!(
             "unsupported host_catalog_version '{}'",
@@ -290,7 +300,7 @@ pub fn validate_module_ir(module: &ModuleIr) -> Result<(), IrValidationError> {
 
     let mut global_names = HashSet::new();
     for declaration in &module.global_declarations {
-        let name = validate_global_declaration(declaration)?;
+        let name = validate_global_declaration(declaration, profile)?;
         if !global_names.insert(name.clone()) {
             return Err(IrValidationError::new(format!(
                 "duplicate global declaration '{}'",
@@ -301,7 +311,7 @@ pub fn validate_module_ir(module: &ModuleIr) -> Result<(), IrValidationError> {
 
     let mut function_names = HashSet::new();
     for function in &module.functions {
-        validate_function(function)?;
+        validate_function(function, profile)?;
         if !function_names.insert(function.name.clone()) {
             return Err(IrValidationError::new(format!(
                 "duplicate function '{}'",
@@ -311,7 +321,7 @@ pub fn validate_module_ir(module: &ModuleIr) -> Result<(), IrValidationError> {
     }
 
     for statement in &module.module_body {
-        validate_statement(statement)?;
+        validate_statement(statement, profile)?;
     }
 
     let mut dependency_ids = HashSet::new();
@@ -358,7 +368,7 @@ fn validate_host_dependency(dependency: &HostDependency) -> Result<(), IrValidat
     )
 }
 
-fn validate_function(function: &FunctionIr) -> Result<(), IrValidationError> {
+fn validate_function(function: &FunctionIr, profile: IrProfile) -> Result<(), IrValidationError> {
     if function.node != "function" {
         return Err(IrValidationError::new("function node must be 'function'"));
     }
@@ -377,25 +387,28 @@ fn validate_function(function: &FunctionIr) -> Result<(), IrValidationError> {
         validate_span(&decorator.span)?;
         ensure_non_empty("decorator.name", &decorator.name)?;
         for value in &decorator.args {
-            validate_expression(value)?;
+            validate_expression(value, profile)?;
         }
         for keyword in &decorator.keywords {
-            validate_keyword(keyword)?;
+            validate_keyword(keyword, profile)?;
         }
     }
 
     for parameter in &function.parameters {
-        validate_parameter(parameter)?;
+        validate_parameter(parameter, profile)?;
     }
 
     for statement in &function.body {
-        validate_statement(statement)?;
+        validate_statement(statement, profile)?;
     }
 
     Ok(())
 }
 
-fn validate_parameter(parameter: &ParameterIr) -> Result<(), IrValidationError> {
+fn validate_parameter(
+    parameter: &ParameterIr,
+    profile: IrProfile,
+) -> Result<(), IrValidationError> {
     ensure_non_empty("parameter.name", &parameter.name)?;
     ensure_allowed(
         "parameter.kind",
@@ -404,12 +417,15 @@ fn validate_parameter(parameter: &ParameterIr) -> Result<(), IrValidationError> 
     )?;
     validate_span(&parameter.span)?;
     if let Some(default) = &parameter.default {
-        validate_expression(default)?;
+        validate_expression(default, profile)?;
     }
     Ok(())
 }
 
-fn validate_global_declaration(declaration: &Value) -> Result<String, IrValidationError> {
+fn validate_global_declaration(
+    declaration: &Value,
+    profile: IrProfile,
+) -> Result<String, IrValidationError> {
     let object = expect_object(declaration, "global declaration")?;
     let node = expect_string_field(object, "node")?;
     validate_object_span(object)?;
@@ -427,10 +443,10 @@ fn validate_global_declaration(declaration: &Value) -> Result<String, IrValidati
                 expect_string_field(object, "syscall_id")?,
             )?;
             for argument in expect_array_field(object, "args")? {
-                validate_expanded_expression(argument)?;
+                validate_expanded_expression(argument, profile)?;
             }
             for keyword in expect_array_field(object, "keywords")? {
-                validate_keyword(keyword)?;
+                validate_keyword(keyword, profile)?;
             }
         }
         "event_decl" => {
@@ -442,10 +458,10 @@ fn validate_global_declaration(declaration: &Value) -> Result<String, IrValidati
                 "event_decl.event_name",
                 expect_string_field(object, "event_name")?,
             )?;
-            validate_expression(expect_value_field(object, "params")?)?;
+            validate_expression(expect_value_field(object, "params")?, profile)?;
         }
         "binding_decl" => {
-            validate_expression(expect_value_field(object, "value")?)?;
+            validate_expression(expect_value_field(object, "value")?, profile)?;
         }
         _ => {
             return Err(IrValidationError::new(format!(
@@ -458,7 +474,7 @@ fn validate_global_declaration(declaration: &Value) -> Result<String, IrValidati
     Ok(name)
 }
 
-fn validate_statement(statement: &Value) -> Result<(), IrValidationError> {
+fn validate_statement(statement: &Value, profile: IrProfile) -> Result<(), IrValidationError> {
     let object = expect_object(statement, "statement")?;
     let node = expect_string_field(object, "node")?;
     validate_object_span(object)?;
@@ -466,14 +482,14 @@ fn validate_statement(statement: &Value) -> Result<(), IrValidationError> {
     match node {
         "assign" => {
             for target in expect_array_field(object, "targets")? {
-                validate_target(target)?;
+                validate_target(target, profile)?;
             }
-            validate_expression(expect_value_field(object, "value")?)?;
+            validate_expression(expect_value_field(object, "value")?, profile)?;
         }
         "storage_set" => {
             validate_storage_access_base(object, &["Hash"], "syscall_id", &["storage.hash.set"])?;
-            validate_expression(expect_value_field(object, "key")?)?;
-            validate_expression(expect_value_field(object, "value")?)?;
+            validate_expression(expect_value_field(object, "key")?, profile)?;
+            validate_expression(expect_value_field(object, "value")?, profile)?;
         }
         "storage_mutate" => {
             validate_storage_access_base(
@@ -487,7 +503,7 @@ fn validate_statement(statement: &Value) -> Result<(), IrValidationError> {
                 expect_string_field(object, "read_syscall_id")?,
                 &["storage.hash.get"],
             )?;
-            validate_expression(expect_value_field(object, "key")?)?;
+            validate_expression(expect_value_field(object, "key")?, profile)?;
             ensure_allowed(
                 "storage_mutate.operator",
                 expect_string_field(object, "operator")?,
@@ -496,7 +512,7 @@ fn validate_statement(statement: &Value) -> Result<(), IrValidationError> {
                     "bitxor", "lshift", "rshift",
                 ],
             )?;
-            validate_expression(expect_value_field(object, "value")?)?;
+            validate_expression(expect_value_field(object, "value")?, profile)?;
         }
         "aug_assign" => {
             ensure_allowed(
@@ -507,46 +523,46 @@ fn validate_statement(statement: &Value) -> Result<(), IrValidationError> {
                     "bitxor", "lshift", "rshift",
                 ],
             )?;
-            validate_target(expect_value_field(object, "target")?)?;
-            validate_expression(expect_value_field(object, "value")?)?;
+            validate_target(expect_value_field(object, "target")?, profile)?;
+            validate_expression(expect_value_field(object, "value")?, profile)?;
         }
         "return" => {
             if let Some(value) = object.get("value") {
                 if !value.is_null() {
-                    validate_expression(value)?;
+                    validate_expression(value, profile)?;
                 }
             }
         }
         "expr" => {
-            validate_expression(expect_value_field(object, "value")?)?;
+            validate_expression(expect_value_field(object, "value")?, profile)?;
         }
         "if" => {
-            validate_expression(expect_value_field(object, "test")?)?;
-            validate_statement_array(expect_array_field(object, "body")?)?;
-            validate_statement_array(expect_array_field(object, "orelse")?)?;
+            validate_expression(expect_value_field(object, "test")?, profile)?;
+            validate_statement_array(expect_array_field(object, "body")?, profile)?;
+            validate_statement_array(expect_array_field(object, "orelse")?, profile)?;
         }
         "while" => {
-            validate_expression(expect_value_field(object, "test")?)?;
-            validate_statement_array(expect_array_field(object, "body")?)?;
-            validate_statement_array(expect_array_field(object, "orelse")?)?;
+            validate_expression(expect_value_field(object, "test")?, profile)?;
+            validate_statement_array(expect_array_field(object, "body")?, profile)?;
+            validate_statement_array(expect_array_field(object, "orelse")?, profile)?;
         }
         "for" => {
-            validate_target(expect_value_field(object, "target")?)?;
-            validate_expression(expect_value_field(object, "iter")?)?;
-            validate_statement_array(expect_array_field(object, "body")?)?;
-            validate_statement_array(expect_array_field(object, "orelse")?)?;
+            validate_target(expect_value_field(object, "target")?, profile)?;
+            validate_expression(expect_value_field(object, "iter")?, profile)?;
+            validate_statement_array(expect_array_field(object, "body")?, profile)?;
+            validate_statement_array(expect_array_field(object, "orelse")?, profile)?;
         }
         "assert" => {
-            validate_expression(expect_value_field(object, "test")?)?;
+            validate_expression(expect_value_field(object, "test")?, profile)?;
             if let Some(value) = object.get("message") {
                 if !value.is_null() {
-                    validate_expression(value)?;
+                    validate_expression(value, profile)?;
                 }
             }
         }
         "raise" => {
-            validate_optional_expression(object.get("exception"))?;
-            validate_optional_expression(object.get("cause"))?;
+            validate_optional_expression(object.get("exception"), profile)?;
+            validate_optional_expression(object.get("cause"), profile)?;
         }
         "break" | "continue" | "pass" => {}
         _ => {
@@ -560,9 +576,9 @@ fn validate_statement(statement: &Value) -> Result<(), IrValidationError> {
     Ok(())
 }
 
-fn validate_statement_array(values: &[Value]) -> Result<(), IrValidationError> {
+fn validate_statement_array(values: &[Value], profile: IrProfile) -> Result<(), IrValidationError> {
     for value in values {
-        validate_statement(value)?;
+        validate_statement(value, profile)?;
     }
     Ok(())
 }
@@ -586,17 +602,20 @@ fn validate_storage_access_base(
     )
 }
 
-fn validate_expanded_expression(value: &Value) -> Result<(), IrValidationError> {
+fn validate_expanded_expression(
+    value: &Value,
+    profile: IrProfile,
+) -> Result<(), IrValidationError> {
     if value.get("node").and_then(Value::as_str) == Some("starred") {
         let object = expect_object(value, "starred expression")?;
         validate_object_span(object)?;
-        validate_expression(expect_value_field(object, "value")?)
+        validate_expression(expect_value_field(object, "value")?, profile)
     } else {
-        validate_expression(value)
+        validate_expression(value, profile)
     }
 }
 
-fn validate_target(target: &Value) -> Result<(), IrValidationError> {
+fn validate_target(target: &Value, profile: IrProfile) -> Result<(), IrValidationError> {
     let object = expect_object(target, "target")?;
     let node = expect_string_field(object, "node")?;
     validate_object_span(object)?;
@@ -604,7 +623,7 @@ fn validate_target(target: &Value) -> Result<(), IrValidationError> {
     match node {
         "name" => ensure_non_empty("target.name.id", expect_string_field(object, "id")?),
         "attribute" => {
-            validate_expression(expect_value_field(object, "value")?)?;
+            validate_expression(expect_value_field(object, "value")?, profile)?;
             ensure_non_empty(
                 "target.attribute.attr",
                 expect_string_field(object, "attr")?,
@@ -612,8 +631,8 @@ fn validate_target(target: &Value) -> Result<(), IrValidationError> {
             Ok(())
         }
         "subscript" => {
-            validate_expression(expect_value_field(object, "value")?)?;
-            validate_expression(expect_value_field(object, "slice")?)?;
+            validate_expression(expect_value_field(object, "value")?, profile)?;
+            validate_expression(expect_value_field(object, "slice")?, profile)?;
             Ok(())
         }
         "tuple_target" | "list_target" => {
@@ -628,9 +647,9 @@ fn validate_target(target: &Value) -> Result<(), IrValidationError> {
                     starred = true;
                     let object = expect_object(value, "starred target")?;
                     validate_object_span(object)?;
-                    validate_target(expect_value_field(object, "value")?)?;
+                    validate_target(expect_value_field(object, "value")?, profile)?;
                 } else {
-                    validate_target(value)?;
+                    validate_target(value, profile)?;
                 }
             }
             Ok(())
@@ -642,7 +661,7 @@ fn validate_target(target: &Value) -> Result<(), IrValidationError> {
     }
 }
 
-fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
+fn validate_expression(expression: &Value, profile: IrProfile) -> Result<(), IrValidationError> {
     let object = expect_object(expression, "expression")?;
     let node = expect_string_field(object, "node")?;
     validate_object_span(object)?;
@@ -653,13 +672,12 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
             ensure_allowed(
                 "expression.constant.value_type",
                 expect_string_field(object, "value_type")?,
-                if interpreter::numeric_v2::active() {
-                    &["none", "bool", "int", "decimal", "str", "bytes"]
-                } else {
-                    &["none", "bool", "int", "float", "str", "bytes"]
+                match profile {
+                    IrProfile::V2 => &["none", "bool", "int", "decimal", "str", "bytes"],
+                    IrProfile::V1 => &["none", "bool", "int", "float", "str", "bytes"],
                 },
             )?;
-            if interpreter::numeric_v2::active() && object["value_type"] == "int" {
+            if profile == IrProfile::V2 && object["value_type"] == "int" {
                 let payload = expect_value_field(object, "value")?;
                 let text = match payload {
                     Value::String(text) => std::borrow::Cow::Borrowed(text.as_str()),
@@ -700,7 +718,7 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
         }
         "list" | "tuple" => {
             for value in expect_array_field(object, "elements")? {
-                validate_expanded_expression(value)?;
+                validate_expanded_expression(value, profile)?;
             }
             Ok(())
         }
@@ -708,31 +726,31 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
             for value in expect_array_field(object, "elements")
                 .or_else(|_| expect_array_field(object, "values"))?
             {
-                validate_expression(value)?;
+                validate_expression(value, profile)?;
             }
             Ok(())
         }
         "list_comp" => {
-            validate_expression(expect_value_field(object, "element")?)?;
+            validate_expression(expect_value_field(object, "element")?, profile)?;
             for generator in expect_array_field(object, "generators")? {
                 let generator_obj = expect_object(generator, "list comprehension generator")?;
-                validate_target(expect_value_field(generator_obj, "target")?)?;
-                validate_expression(expect_value_field(generator_obj, "iter")?)?;
+                validate_target(expect_value_field(generator_obj, "target")?, profile)?;
+                validate_expression(expect_value_field(generator_obj, "iter")?, profile)?;
                 for condition in expect_array_field(generator_obj, "ifs")? {
-                    validate_expression(condition)?;
+                    validate_expression(condition, profile)?;
                 }
             }
             Ok(())
         }
         "dict_comp" => {
-            validate_expression(expect_value_field(object, "key")?)?;
-            validate_expression(expect_value_field(object, "value")?)?;
+            validate_expression(expect_value_field(object, "key")?, profile)?;
+            validate_expression(expect_value_field(object, "value")?, profile)?;
             for generator in expect_array_field(object, "generators")? {
                 let generator_obj = expect_object(generator, "dict comprehension generator")?;
-                validate_target(expect_value_field(generator_obj, "target")?)?;
-                validate_expression(expect_value_field(generator_obj, "iter")?)?;
+                validate_target(expect_value_field(generator_obj, "target")?, profile)?;
+                validate_expression(expect_value_field(generator_obj, "iter")?, profile)?;
                 for condition in expect_array_field(generator_obj, "ifs")? {
-                    validate_expression(condition)?;
+                    validate_expression(condition, profile)?;
                 }
             }
             Ok(())
@@ -741,16 +759,16 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
             for entry in expect_array_field(object, "entries")? {
                 let entry_obj = expect_object(entry, "dict entry")?;
                 if let Some(unpack) = entry_obj.get("unpack") {
-                    validate_expression(unpack)?;
+                    validate_expression(unpack, profile)?;
                 } else {
-                    validate_expression(expect_value_field(entry_obj, "key")?)?;
-                    validate_expression(expect_value_field(entry_obj, "value")?)?;
+                    validate_expression(expect_value_field(entry_obj, "key")?, profile)?;
+                    validate_expression(expect_value_field(entry_obj, "value")?, profile)?;
                 }
             }
             Ok(())
         }
         "attribute" => {
-            validate_expression(expect_value_field(object, "value")?)?;
+            validate_expression(expect_value_field(object, "value")?, profile)?;
             ensure_non_empty(
                 "expression.attribute.attr",
                 expect_string_field(object, "attr")?,
@@ -758,8 +776,8 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
             Ok(())
         }
         "subscript" => {
-            validate_expression(expect_value_field(object, "value")?)?;
-            validate_expression(expect_value_field(object, "slice")?)?;
+            validate_expression(expect_value_field(object, "value")?, profile)?;
+            validate_expression(expect_value_field(object, "slice")?, profile)?;
             Ok(())
         }
         "storage_get" => {
@@ -769,22 +787,22 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
                 "syscall_id",
                 &["storage.hash.get", "storage.foreign_hash.get"],
             )?;
-            validate_expression(expect_value_field(object, "key")?)?;
+            validate_expression(expect_value_field(object, "key")?, profile)?;
             Ok(())
         }
         "slice" => {
-            validate_optional_expression(object.get("lower"))?;
-            validate_optional_expression(object.get("upper"))?;
-            validate_optional_expression(object.get("step"))?;
+            validate_optional_expression(object.get("lower"), profile)?;
+            validate_optional_expression(object.get("upper"), profile)?;
+            validate_optional_expression(object.get("step"), profile)?;
             Ok(())
         }
         "call" => {
-            validate_expression(expect_value_field(object, "func")?)?;
+            validate_expression(expect_value_field(object, "func")?, profile)?;
             for argument in expect_array_field(object, "args")? {
-                validate_expanded_expression(argument)?;
+                validate_expanded_expression(argument, profile)?;
             }
             for keyword in expect_array_field(object, "keywords")? {
-                validate_keyword(keyword)?;
+                validate_keyword(keyword, profile)?;
             }
             validate_optional_non_empty_string(object.get("syscall_id"))?;
             validate_optional_non_empty_string(object.get("event_binding"))?;
@@ -792,7 +810,7 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
             validate_optional_non_empty_string(object.get("receiver_type"))?;
             validate_optional_non_empty_string(object.get("method"))?;
             validate_optional_non_empty_string(object.get("function_name"))?;
-            validate_optional_contract_target(object.get("contract_target"))?;
+            validate_optional_contract_target(object.get("contract_target"), profile)?;
 
             if let Some(syscall_id) = object.get("syscall_id").and_then(Value::as_str) {
                 match syscall_id {
@@ -827,7 +845,10 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
                             "call.function_name",
                             expect_string_field(object, "function_name")?,
                         )?;
-                        validate_contract_target(expect_value_field(object, "contract_target")?)?;
+                        validate_contract_target(
+                            expect_value_field(object, "contract_target")?,
+                            profile,
+                        )?;
                     }
                     "event.log.emit" => {
                         ensure_non_empty(
@@ -841,7 +862,7 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
             Ok(())
         }
         "compare" => {
-            validate_expression(expect_value_field(object, "left")?)?;
+            validate_expression(expect_value_field(object, "left")?, profile)?;
             for operator in expect_array_field(object, "operators")? {
                 let name = expect_string(operator, "compare operator")?;
                 ensure_allowed(
@@ -853,7 +874,7 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
                 )?;
             }
             for comparator in expect_array_field(object, "comparators")? {
-                validate_expression(comparator)?;
+                validate_expression(comparator, profile)?;
             }
             Ok(())
         }
@@ -864,7 +885,7 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
                 &["and", "or"],
             )?;
             for value in expect_array_field(object, "values")? {
-                validate_expression(value)?;
+                validate_expression(value, profile)?;
             }
             Ok(())
         }
@@ -877,8 +898,8 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
                     "bitxor", "lshift", "rshift",
                 ],
             )?;
-            validate_expression(expect_value_field(object, "left")?)?;
-            validate_expression(expect_value_field(object, "right")?)?;
+            validate_expression(expect_value_field(object, "left")?, profile)?;
+            validate_expression(expect_value_field(object, "right")?, profile)?;
             Ok(())
         }
         "unary_op" => {
@@ -887,19 +908,19 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
                 expect_string_field(object, "operator")?,
                 &["not", "neg", "pos", "invert"],
             )?;
-            validate_expression(expect_value_field(object, "operand")?)?;
+            validate_expression(expect_value_field(object, "operand")?, profile)?;
             Ok(())
         }
         "if_expr" => {
-            validate_expression(expect_value_field(object, "test")?)?;
-            validate_expression(expect_value_field(object, "body")?)?;
-            validate_expression(expect_value_field(object, "orelse")?)?;
+            validate_expression(expect_value_field(object, "test")?, profile)?;
+            validate_expression(expect_value_field(object, "body")?, profile)?;
+            validate_expression(expect_value_field(object, "orelse")?, profile)?;
             Ok(())
         }
         "formatted_value" => {
-            validate_expression(expect_value_field(object, "value")?)?;
+            validate_expression(expect_value_field(object, "value")?, profile)?;
             validate_optional_non_empty_string(object.get("conversion"))?;
-            validate_optional_expression(object.get("format_spec"))?;
+            validate_optional_expression(object.get("format_spec"), profile)?;
             Ok(())
         }
         _ => Err(IrValidationError::new(format!(
@@ -909,16 +930,19 @@ fn validate_expression(expression: &Value) -> Result<(), IrValidationError> {
     }
 }
 
-fn validate_optional_expression(value: Option<&Value>) -> Result<(), IrValidationError> {
+fn validate_optional_expression(
+    value: Option<&Value>,
+    profile: IrProfile,
+) -> Result<(), IrValidationError> {
     if let Some(value) = value {
         if !value.is_null() {
-            validate_expression(value)?;
+            validate_expression(value, profile)?;
         }
     }
     Ok(())
 }
 
-fn validate_keyword(keyword: &Value) -> Result<(), IrValidationError> {
+fn validate_keyword(keyword: &Value, profile: IrProfile) -> Result<(), IrValidationError> {
     let object = expect_object(keyword, "keyword")?;
     validate_object_span(object)?;
     match object
@@ -928,10 +952,10 @@ fn validate_keyword(keyword: &Value) -> Result<(), IrValidationError> {
     {
         "keyword" => {
             ensure_non_empty("keyword.arg", expect_string_field(object, "arg")?)?;
-            validate_expression(expect_value_field(object, "value")?)?;
+            validate_expression(expect_value_field(object, "value")?, profile)?;
             Ok(())
         }
-        "keyword_unpack" => validate_expression(expect_value_field(object, "value")?),
+        "keyword_unpack" => validate_expression(expect_value_field(object, "value")?, profile),
         other => Err(IrValidationError::new(format!(
             "unsupported keyword node '{}'",
             other
@@ -939,16 +963,19 @@ fn validate_keyword(keyword: &Value) -> Result<(), IrValidationError> {
     }
 }
 
-fn validate_optional_contract_target(value: Option<&Value>) -> Result<(), IrValidationError> {
+fn validate_optional_contract_target(
+    value: Option<&Value>,
+    profile: IrProfile,
+) -> Result<(), IrValidationError> {
     if let Some(value) = value {
         if !value.is_null() {
-            validate_contract_target(value)?;
+            validate_contract_target(value, profile)?;
         }
     }
     Ok(())
 }
 
-fn validate_contract_target(value: &Value) -> Result<(), IrValidationError> {
+fn validate_contract_target(value: &Value, profile: IrProfile) -> Result<(), IrValidationError> {
     let object = expect_object(value, "contract_target")?;
     validate_object_span(object)?;
     let kind = expect_string_field(object, "kind")?;
@@ -975,17 +1002,17 @@ fn validate_contract_target(value: &Value) -> Result<(), IrValidationError> {
                 "contract_target.binding",
                 expect_string_field(object, "binding")?,
             )?;
-            validate_expression(expect_value_field(object, "source")?)?;
+            validate_expression(expect_value_field(object, "source")?, profile)?;
         }
         "dynamic_import" => {
-            validate_expression(expect_value_field(object, "source")?)?;
+            validate_expression(expect_value_field(object, "source")?, profile)?;
         }
         "factory_call" => {
             ensure_non_empty(
                 "contract_target.factory",
                 expect_string_field(object, "factory")?,
             )?;
-            validate_expression(expect_value_field(object, "source")?)?;
+            validate_expression(expect_value_field(object, "source")?, profile)?;
         }
         _ => unreachable!(),
     }
@@ -1209,18 +1236,21 @@ mod tests {
 
     #[test]
     fn rejects_starred_nodes_outside_expansion_positions() {
-        use super::{validate_expanded_expression, validate_expression, validate_target};
+        use super::{
+            validate_expanded_expression, validate_expression, validate_target, IrProfile,
+        };
+        let profile = IrProfile::V2;
         let name =
             json!({"node":"name", "id":"a", "span":{"line":1,"col":0,"end_line":1,"end_col":1}});
         let star = json!({"node":"starred_target", "value":name, "span":{"line":1,"col":0,"end_line":1,"end_col":2}});
-        assert!(validate_target(&star).is_err());
+        assert!(validate_target(&star, profile).is_err());
         let mut sequence = json!({"node":"tuple_target", "elements":[star.clone()], "span":{"line":1,"col":0,"end_line":1,"end_col":2}});
-        assert!(validate_target(&sequence).is_ok());
+        assert!(validate_target(&sequence, profile).is_ok());
         sequence["elements"].as_array_mut().unwrap().push(star);
-        assert!(validate_target(&sequence).is_err());
+        assert!(validate_target(&sequence, profile).is_err());
         let star = json!({"node":"starred", "value":name, "span":{"line":1,"col":0,"end_line":1,"end_col":2}});
-        assert!(validate_expression(&star).is_err());
-        assert!(validate_expanded_expression(&star).is_ok());
+        assert!(validate_expression(&star, profile).is_err());
+        assert!(validate_expanded_expression(&star, profile).is_ok());
     }
 
     #[test]

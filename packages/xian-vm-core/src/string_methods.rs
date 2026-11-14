@@ -27,7 +27,6 @@ fn append(output: &mut String, text: &str) -> Result<()> {
 pub(in crate::interpreter) fn index_integer(value: &VmValue) -> Result<BigInt> {
     match value.snapshot() {
         VmValue::Int(value) => Ok(value),
-        VmValue::Bool(value) if !numeric_v2::active() => Ok(BigInt::from(u8::from(value))),
         _ => Err(error("string index argument must be an integer")),
     }
 }
@@ -566,7 +565,12 @@ mod tests {
                 .len(),
             LIMIT
         );
-        assert!(call("x", "center", &[VmValue::Decimal(VmDecimal::one())]).is_err());
+        assert!(call(
+            "x",
+            "center",
+            &[VmValue::Decimal(VmDecimal::from_str_literal("1").unwrap())]
+        )
+        .is_err());
         assert!(work_cost("x", "center", &[vm_int(LIMIT + 1)]).is_err());
         assert!(call("\t", "expandtabs", &[vm_int(LIMIT + 1)]).is_err());
     }

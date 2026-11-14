@@ -1,5 +1,5 @@
 //! Bounded Python 3.12 scalar attributes and methods; dispatch binds keywords.
-use crate::interpreter::{numeric_v2, MAX_BINARY_ALLOCATION_BYTES, MAX_INTEGER_BITS};
+use crate::interpreter::{MAX_BINARY_ALLOCATION_BYTES, MAX_INTEGER_BITS};
 use crate::{VmDecimal, VmExecutionError, VmRange, VmRawDecimal, VmValue};
 use num_bigint::{BigInt, Sign};
 use num_traits::{FromPrimitive, Signed, ToPrimitive, Zero};
@@ -9,7 +9,7 @@ mod float;
 type Result<T> = std::result::Result<T, VmExecutionError>;
 
 pub(crate) fn supports(value: &VmValue, method: &str) -> bool {
-    if numeric_v2::active() && is_bool_receiver(value) {
+    if is_bool_receiver(value) {
         return false;
     }
     if !is_scalar_receiver(value) {
@@ -17,7 +17,7 @@ pub(crate) fn supports(value: &VmValue, method: &str) -> bool {
     }
     match value.snapshot() {
         VmValue::Range(_) => matches!(method, "count" | "index"),
-        VmValue::Int(_) | VmValue::Bool(_) => matches!(
+        VmValue::Int(_) => matches!(
             method,
             "bit_count"
                 | "bit_length"
@@ -33,7 +33,7 @@ pub(crate) fn supports(value: &VmValue, method: &str) -> bool {
         ),
         VmValue::Builtin(name) | VmValue::TypeMarker(name) => matches!(
             (name.as_str(), method),
-            ("int" | "bool", "from_bytes") | ("float", "fromhex")
+            ("int", "from_bytes") | ("float", "fromhex")
         ),
         _ => false,
     }
@@ -71,9 +71,6 @@ pub(crate) fn attribute(value: &VmValue, name: &str) -> Option<Result<VmValue>> 
             _ => return None,
         },
         VmValue::Int(number) => integer_attribute(number, name)?,
-        VmValue::Bool(boolean) if !numeric_v2::active() => {
-            integer_attribute(BigInt::from(boolean as u8), name)?
-        }
         VmValue::Float(number) => match name {
             "real" => VmValue::Float(number),
             "imag" => VmValue::Float(0.0),
@@ -107,21 +104,13 @@ pub(crate) fn call(value: &VmValue, method: &str, args: Vec<VmValue>) -> Result<
         }
     }
     if method == "from_bytes" && supports(value, method) {
-        let number = from_bytes(&args)?;
-        return Ok(if is_bool_receiver(value) {
-            VmValue::Bool(!number.is_zero())
-        } else {
-            VmValue::Int(number)
-        });
+        return from_bytes(&args).map(VmValue::Int);
     }
     if method == "fromhex" && supports(value, method) {
         return float::from_hex(&args);
     }
     match value.snapshot() {
         VmValue::Range(range) => range_method(&range, method, &args),
-        VmValue::Bool(number) if !numeric_v2::active() => {
-            integer_method(BigInt::from(number as u8), method, &args)
-        }
         VmValue::Int(number) => integer_method(number, method, &args),
         VmValue::Float(number) => float::call(number, method, &args),
         _ => Err(VmExecutionError::new("unsupported scalar method")),
@@ -160,7 +149,6 @@ fn integer_method(number: BigInt, method: &str, args: &[VmValue]) -> Result<VmVa
 fn index_integer(value: &VmValue) -> Result<BigInt> {
     match value.snapshot() {
         VmValue::Int(number) => Ok(number),
-        VmValue::Bool(number) if !numeric_v2::active() => Ok(BigInt::from(number as u8)),
         _ => Err(VmExecutionError::new("an integer is required")),
     }
 }
@@ -275,7 +263,6 @@ fn byte_input(value: &VmValue) -> Result<Vec<u8>> {
 fn exact_integer(value: &VmValue) -> Result<Option<BigInt>> {
     Ok(match value.snapshot() {
         VmValue::Int(number) => Some(number),
-        VmValue::Bool(number) if !numeric_v2::active() => Some(BigInt::from(number as u8)),
         VmValue::Float(number) if number.is_finite() && number.fract() == 0.0 => {
             BigInt::from_f64(number)
         }
@@ -423,25 +410,20 @@ mod tests {
     }
 
     #[test]
-    fn boolean_methods_return_the_historical_numeric_types() {
+    fn booleans_have_no_integer_methods_and_integers_do() {
+        let bool_class = VmValue::Builtin("bool".into());
+        assert!(!supports(&bool_class, "from_bytes"));
+        assert!(!supports(&VmValue::Bool(true), "conjugate"));
+        assert!(call(&VmValue::Bool(true), "conjugate", vec![]).is_err());
+        assert!(attribute(&VmValue::Bool(true), "numerator").is_none());
         assert_eq!(
             call(
-                &VmValue::Bool(false),
+                &VmValue::Builtin("int".into()),
                 "from_bytes",
                 vec![VmValue::Bytes(vec![2])]
             )
             .unwrap(),
-            VmValue::Bool(true)
-        );
-        assert_eq!(
-            call(&VmValue::Bool(true), "conjugate", vec![]).unwrap(),
-            integer(1)
-        );
-        assert_eq!(
-            attribute(&VmValue::Bool(true), "numerator")
-                .unwrap()
-                .unwrap(),
-            integer(1)
+            integer(2)
         );
         assert_eq!(
             call(&integer(-257), "bit_count", vec![]).unwrap(),

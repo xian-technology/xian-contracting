@@ -165,7 +165,6 @@ impl VmInstance {
         let iterator = crate::iteration::iter(other, &self.heap)?;
         while let Some(item) = self.next_item(&iterator, host)? {
             host.charge_execution_cost(pair_work(&view.source, &item))?;
-            crate::decimal_metering::comparison(host, &view.source, &item, false)?;
             if contains(&view, &item)? {
                 return Ok(VmValue::Bool(false));
             }
@@ -196,7 +195,6 @@ impl VmInstance {
             let mut matches = Vec::new();
             while let Some(item) = self.next_item(&iterator, host)? {
                 host.charge_execution_cost(pair_work(&view.source, &item))?;
-                crate::decimal_metering::comparison(host, &view.source, &item, false)?;
                 if contains(&view, &item)? {
                     if matches.len() >= MAX_SEQUENCE_LENGTH {
                         return Err(VmExecutionError::new(
@@ -219,7 +217,6 @@ impl VmInstance {
                 .saturating_add(value_work(&left).saturating_mul(left_len))
                 .saturating_add(value_work(&right).saturating_mul(right_len)),
         )?;
-        crate::decimal_metering::normalization(host, &[left.clone(), right.clone()])?;
         apply_binary_operator(operator, left, right)
     }
 
@@ -230,7 +227,6 @@ impl VmInstance {
         host: &mut dyn VmHost,
     ) -> Result<VmValue, VmExecutionError> {
         host.charge_execution_cost(comparison_work(left, right).saturating_mul(2))?;
-        crate::decimal_metering::comparison(host, left, right, false)?;
         let left = set_values(left).expect("items view");
         let right = set_values(right).expect("items view");
         let mut output = Vec::new();
@@ -260,7 +256,6 @@ impl VmInstance {
                 .saturating_mul(values.len() as u64)
                 .saturating_mul(32),
         )?;
-        crate::decimal_metering::normalization(host, &[value.clone()])?;
         support::set_kinds::normalized(values.clone(), MAX_SEQUENCE_LENGTH)
     }
 }

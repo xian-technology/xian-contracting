@@ -125,7 +125,7 @@ mod tests {
     fn ir(name: &str, docstring: &str) -> String {
         json!({
             "ir_version": "xian_ir_v1",
-            "vm_profile": "xian_vm_v1",
+            "vm_profile": "xian_vm_v2",
             "host_catalog_version": "xian_vm_v1_host_v1",
             "module_name": name,
             "source_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",

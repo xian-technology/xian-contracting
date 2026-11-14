@@ -57,8 +57,7 @@ pub(in crate::interpreter) fn charge_binary(
             .saturating_add(1)
             .saturating_mul(members.max(1))
             .saturating_mul(32),
-    )?;
-    crate::decimal_metering::normalization(host, &[left.clone(), right.clone()])
+    )
 }
 fn builtin_len(value: &VmValue) -> Option<usize> {
     match value {
@@ -112,7 +111,7 @@ mod tests {
         VmInstance::new(
             ModuleIr {
                 ir_version: crate::XIAN_IR_V1.into(),
-                vm_profile: crate::XIAN_VM_V1_PROFILE.into(),
+                vm_profile: crate::XIAN_VM_V2_PROFILE.into(),
                 host_catalog_version: crate::XIAN_VM_HOST_CATALOG_V1.into(),
                 module_name: "con_set_resources".into(),
                 source_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

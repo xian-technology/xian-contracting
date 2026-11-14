@@ -113,7 +113,6 @@ impl VmInstance {
         while let Some(candidate) = self.next_item(&iterator, host)? {
             host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
             let key = self.keyed(&candidate, &options.key, host)?;
-            crate::decimal_metering::comparison(host, &key, &best_key, false)?;
             if compare_vm_values(&key, &best_key)? == wanted {
                 best = candidate;
                 best_key = key;
@@ -138,9 +137,7 @@ impl VmInstance {
         let iterator = crate::iteration::iter(&args[0], &self.heap)?;
         while let Some(value) = self.next_item(&iterator, host)? {
             host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
-            if numeric_v2::active() {
-                host.charge_execution_cost(numeric_v2::op_cost("add", &total, &value))?;
-            }
+            host.charge_execution_cost(numeric_v2::op_cost("add", &total, &value))?;
             total = apply_binary_operator("add", total, value)?;
         }
         Ok(total)
@@ -243,7 +240,6 @@ fn merge_runs(
     let (mut a, mut b) = (0, 0);
     while a < left.len() && b < right.len() {
         host.charge_execution_cost(VM_GAS_LOOP_ITERATION)?;
-        crate::decimal_metering::comparison(host, &left[a].0, &right[b].0, false)?;
         let ordering = compare_vm_values(&left[a].0, &right[b].0)?;
         let ordering = if reverse {
             ordering.reverse()

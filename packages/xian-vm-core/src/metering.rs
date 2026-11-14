@@ -32,18 +32,10 @@ const VM_WRITE_MAX_BYTES: usize = 1024 * 128;
 /// Raw chi for each entry a whole-hash scan (`all`, `clear`, `clone_from`)
 /// visits, on top of the per-byte read charge (`xvm-gas-5`). Scanning one
 /// entry takes about as much host work as two keyed storage reads.
-const VM_GAS_HASH_SCAN_ENTRY: u64 = 2_560;
+pub(crate) const VM_GAS_HASH_SCAN_ENTRY: u64 = 2_560;
 
 pub(crate) const VM_GAS_CROSS_CONTRACT_CALL_BASE: u64 = 10_000;
 
-/// Fixed raw chi of one scanned hash entry; archival V1 charges bytes only.
-pub(crate) fn hash_scan_entry_cost() -> u64 {
-    if crate::interpreter::numeric_v2::active() {
-        VM_GAS_HASH_SCAN_ENTRY
-    } else {
-        0
-    }
-}
 pub(crate) const VM_GAS_CROSS_CONTRACT_CALL_REPEAT: u64 = 0;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -200,7 +192,7 @@ impl VmMeter {
     ) -> Result<(), VmExecutionError> {
         self.charge_read(key, value)?;
         if self.enabled {
-            self.charge(hash_scan_entry_cost())?;
+            self.charge(VM_GAS_HASH_SCAN_ENTRY)?;
         }
         Ok(())
     }
@@ -351,10 +343,7 @@ fn vm_value_to_json(value: &VmValue) -> Result<Value, VmExecutionError> {
         VmValue::None => Value::Null,
         VmValue::Bool(value) => Value::Bool(*value),
         VmValue::Int(value) => {
-            if let Some(number) = value
-                .to_i64()
-                .filter(|_| !crate::interpreter::numeric_v2::active() || value.bits() <= 53)
-            {
+            if let Some(number) = value.to_i64().filter(|_| value.bits() <= 53) {
                 Value::Number(number.into())
             } else {
                 let mut object = Map::new();
@@ -569,24 +558,22 @@ mod tests {
     }
 
     #[test]
-    fn scanned_entries_pay_a_fixed_v2_cost_on_top_of_their_bytes() {
-        let cost = |profile| {
-            let _scope = crate::interpreter::numeric_v2::Scope::enter(profile);
-            let mut meter = VmMeter::new(VmMeterConfig {
+    fn scanned_entries_pay_a_fixed_cost_on_top_of_their_bytes() {
+        let meter = || {
+            VmMeter::new(VmMeterConfig {
                 enabled: true,
                 chi_budget_raw: 0,
                 transaction_size_bytes: 0,
-            });
-            meter
-                .charge_scan_entry("con.h:k", &crate::VmValue::Int(1.into()))
-                .unwrap();
-            meter.raw_cost
+            })
         };
-        let bytes = cost(crate::XIAN_VM_V1_PROFILE);
-        assert!(bytes > 0);
+        let value = crate::VmValue::Int(1.into());
+        let (mut read, mut scanned) = (meter(), meter());
+        read.charge_read("con.h:k", &value).unwrap();
+        scanned.charge_scan_entry("con.h:k", &value).unwrap();
+        assert!(read.raw_cost > 0);
         assert_eq!(
-            cost(crate::XIAN_VM_V2_PROFILE),
-            bytes + super::VM_GAS_HASH_SCAN_ENTRY
+            scanned.raw_cost,
+            read.raw_cost + super::VM_GAS_HASH_SCAN_ENTRY
         );
     }
 

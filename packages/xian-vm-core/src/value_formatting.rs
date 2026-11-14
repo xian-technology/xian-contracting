@@ -184,15 +184,13 @@ pub(super) fn format_value(value: &VmValue, text: &str) -> Result<String> {
         return value.format(text);
     }
     let spec = parse(text)?;
-    if numeric_v2::active() {
-        match &value {
-            VmValue::Decimal(n) => return crate::VmRawDecimal::parse(&n.to_string())?.format(text),
-            VmValue::Int(n) if spec.kind.is_some_and(|ch| "eEfFgG%".contains(ch)) => {
-                return crate::VmRawDecimal::from_integer(n.clone())?.format(text);
-            }
-            VmValue::Bool(_) => return Err(error()),
-            _ => {}
+    match &value {
+        VmValue::Decimal(n) => return crate::VmRawDecimal::parse(&n.to_string())?.format(text),
+        VmValue::Int(n) if spec.kind.is_some_and(|ch| "eEfFgG%".contains(ch)) => {
+            return crate::VmRawDecimal::from_integer(n.clone())?.format(text);
         }
+        VmValue::Bool(_) => return Err(error()),
+        _ => {}
     }
     bounded(format_scalar(&value, &spec)?)
 }
@@ -553,6 +551,11 @@ mod tests {
                 _ => VmValue::String(text.into()),
             };
             let spec = vector["spec"].as_str().unwrap();
+            // An int with a float presentation type formats as an exact
+            // decimal, not as Python's binary float.
+            if matches!(value, VmValue::Int(_)) && spec.ends_with(|ch| "eEfFgG%".contains(ch)) {
+                continue;
+            }
             let expected = vector["result"].as_str().unwrap();
             assert_eq!(format_value(&value, spec).unwrap(), expected, "{vector}");
         }

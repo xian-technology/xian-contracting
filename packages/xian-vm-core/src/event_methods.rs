@@ -423,7 +423,7 @@ mod tests {
         assert!(validate_payload(&text, &schema(VmValue::String("é".repeat(512)))).is_ok());
         assert!(validate_payload(&text, &schema(VmValue::String("é".repeat(513)))).is_err());
         assert!(validate_payload(&text, &schema(vm_int(1))).is_err());
-        assert!(validate_payload(&schema(marker("int")), &schema(VmValue::Bool(true))).is_ok());
+        assert!(validate_payload(&schema(marker("int")), &schema(VmValue::Bool(true))).is_err());
         assert!(validate_payload(&schema(marker("bool")), &schema(vm_int(1))).is_err());
     }
 

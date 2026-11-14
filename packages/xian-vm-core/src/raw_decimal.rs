@@ -2,7 +2,7 @@
 //! Exact constructors preserve quantum; arithmetic uses 91 digits and ROUND_DOWN.
 use crate::{VmDecimal, VmExecutionError, VmValue};
 use num_bigint::{BigInt, Sign};
-use num_traits::{Signed, ToPrimitive, Zero};
+use num_traits::{Signed, Zero};
 use std::str::FromStr;
 use std::{cmp::Ordering, fmt};
 
@@ -10,8 +10,6 @@ use std::{cmp::Ordering, fmt};
 mod formatting;
 
 type Result<T> = std::result::Result<T, VmExecutionError>;
-const ETINY: i32 = -190;
-const EMAX: i32 = 100;
 const EXACT_LIMIT: usize = 128 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -340,15 +338,6 @@ impl VmRawDecimal {
         denominator /= a;
         Ok((numerator, denominator))
     }
-    pub(crate) fn float(&self) -> Result<f64> {
-        if self.is_snan() {
-            return Err(error());
-        }
-        if self.is_nan() {
-            return Ok(f64::NAN.copysign(if self.negative() { -1.0 } else { 1.0 }));
-        }
-        self.to_string().parse().map_err(|_| error())
-    }
     fn rescale(&self, exponent: i32) -> BigInt {
         let shift = self.exponent - exponent;
         if shift >= 0 {
@@ -358,21 +347,6 @@ impl VmRawDecimal {
         } else {
             &self.coefficient / ten((-shift) as u32)
         }
-    }
-    pub(crate) fn quantize(&self, places: i32) -> Result<Self> {
-        // Quiet NaNs propagate before context exponent checks in Decimal.
-        if self.is_nan() && places != i32::MIN && places != i32::MAX {
-            return self.calculate("quantize", &[Self::new(BigInt::from(1u8), 0, false)], None);
-        }
-        let exponent = places.checked_neg().ok_or_else(error)?;
-        if !(ETINY..=EMAX).contains(&exponent) {
-            return Err(error());
-        }
-        self.calculate(
-            "quantize",
-            &[Self::new(BigInt::from(1u8), exponent, false)],
-            None,
-        )
     }
     pub(crate) fn calculate(
         &self,
@@ -532,67 +506,6 @@ impl fmt::Display for VmRawDecimal {
     }
 }
 
-pub(crate) fn modular_work_cost(values: &[VmValue]) -> u64 {
-    let size = values.iter().fold(0u64, |total, value| {
-        let size = match value.snapshot() {
-            VmValue::RawDecimal(value) => value
-                .coefficient
-                .bits()
-                .saturating_add(value.exponent.unsigned_abs() as u64),
-            VmValue::Int(value) => value.bits(),
-            _ => 64,
-        };
-        total.saturating_add(size)
-    });
-    size.saturating_mul(size).saturating_mul(4).max(64)
-}
-
-pub(crate) fn work_cost(op: &str, left: &VmValue, right: &VmValue) -> u64 {
-    let left = left.snapshot();
-    let right = right.snapshot();
-    if !matches!(left, VmValue::RawDecimal(_)) && !matches!(right, VmValue::RawDecimal(_)) {
-        return 0;
-    }
-    let bits = |value: &VmValue| match value {
-        VmValue::RawDecimal(v) => v.coefficient.bits(),
-        VmValue::Decimal(v) => v.scaled.bits(),
-        VmValue::Int(v) => v.bits(),
-        _ => 64,
-    };
-    let work = bits(&left).saturating_add(bits(&right)).saturating_mul(4);
-    if op == "pow" {
-        if is_general_fractional_power(&right) {
-            let digits = bits(&left).saturating_add(bits(&right)) / 3 + 91;
-            return work.max(digits.saturating_mul(digits).saturating_mul(16));
-        }
-        let exponent = VmRawDecimal::from_value(&right)
-            .ok()
-            .and_then(|v| v.integer().ok())
-            .map(|v| v.abs().to_u64().unwrap_or(4096).min(4096))
-            .unwrap_or(1);
-        work.saturating_mul(exponent.max(1))
-    } else {
-        work
-    }
-}
-
-fn is_general_fractional_power(exponent: &VmValue) -> bool {
-    let Ok(exponent) = VmRawDecimal::from_value(exponent) else {
-        return false;
-    };
-    if !exponent.is_finite() {
-        return false;
-    }
-    let half = VmRawDecimal::new(BigInt::from(5u8), -1, false);
-    if exponent.total_compare(&half) == Ordering::Equal {
-        return false;
-    }
-    let Ok(integer) = exponent.integer() else {
-        return false;
-    };
-    exponent.total_compare(&VmRawDecimal::new(integer, 0, false)) != Ordering::Equal
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -649,7 +562,6 @@ mod tests {
         assert!(VmRawDecimal::parse("sNaN").unwrap().unary("pos").is_err());
         let infinity = VmRawDecimal::parse("Infinity").unwrap();
         assert_eq!(infinity.tuple_parts(), (false, vec![0], None, Some('F')));
-        assert!(infinity.quantize(2).is_err());
         assert_eq!(infinity.engineering(), "Infinity");
         assert_eq!(infinity.format("+010,.2f").unwrap(), " +Infinity");
         assert_eq!(nan.format(".2%").unwrap(), "-NaN12%");
@@ -709,32 +621,6 @@ mod tests {
     }
 
     #[test]
-    fn only_new_general_fractional_powers_get_transcendental_work_charge() {
-        let base = VmValue::RawDecimal(VmRawDecimal::parse("2").unwrap());
-        let half = VmValue::RawDecimal(VmRawDecimal::parse("0.5").unwrap());
-        let general = VmValue::RawDecimal(VmRawDecimal::parse("0.2").unwrap());
-        let integer = VmValue::RawDecimal(VmRawDecimal::parse("2").unwrap());
-        assert_eq!(work_cost("pow", &base, &half), 20);
-        assert_eq!(work_cost("pow", &base, &integer), 32);
-        assert!(work_cost("pow", &base, &general) >= 91 * 91 * 16);
-    }
-
-    #[test]
-    fn quantum_and_signed_zero_survive_rounding() {
-        let value = VmRawDecimal::from_fixed(&VmDecimal::from_str_literal("2").unwrap());
-        assert_eq!(value.quantize(2).unwrap().to_string(), "2.00");
-        let value = VmRawDecimal::parse("-0.001").unwrap().quantize(2).unwrap();
-        assert_eq!(value.to_string(), "-0.00");
-        assert_eq!(value.unary("pos").unwrap().to_string(), "0.00");
-        assert!(value.float().unwrap().is_sign_negative());
-        assert_eq!(value.to_fixed().unwrap(), VmDecimal::zero());
-        assert_eq!(
-            VmRawDecimal::parse("2.00").unwrap().integer().unwrap(),
-            BigInt::from(2)
-        );
-    }
-
-    #[test]
     fn context_limits_and_exact_underflow_quantum() {
         let one = VmRawDecimal::parse("-1.00").unwrap();
         let divisor = VmRawDecimal::from_value(&VmValue::Int(ten(200))).unwrap();
@@ -742,11 +628,7 @@ mod tests {
             one.arithmetic("div", &divisor).unwrap().to_string(),
             "-0E-190"
         );
-        assert!(one.quantize(191).is_err());
-        assert!(one.quantize(-101).is_err());
-        assert!(one.quantize(91).is_err());
         let zero = VmRawDecimal::parse("0").unwrap();
-        assert_eq!(zero.quantize(190).unwrap().to_string(), "0E-190");
         assert!(one.arithmetic("div", &zero).is_err());
         assert!(VmRawDecimal::parse("1E+101").unwrap().unary("pos").is_err());
     }

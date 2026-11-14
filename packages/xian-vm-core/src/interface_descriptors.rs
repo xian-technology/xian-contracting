@@ -819,7 +819,7 @@ mod tests {
     fn instance() -> VmInstance {
         let module = ModuleIr {
             ir_version: crate::XIAN_IR_V1.into(),
-            vm_profile: crate::XIAN_VM_V1_PROFILE.into(),
+            vm_profile: crate::XIAN_VM_V2_PROFILE.into(),
             host_catalog_version: crate::XIAN_VM_HOST_CATALOG_V1.into(),
             module_name: "con_descriptors".into(),
             source_hash: "0".repeat(64),

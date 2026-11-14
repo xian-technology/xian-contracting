@@ -273,9 +273,7 @@ impl VmHeap {
         if depth > MAX_VALUE_DEPTH {
             return Err(VmExecutionError::new("VM value depth limit exceeded"));
         }
-        if crate::interpreter::numeric_v2::active() {
-            crate::interpreter::numeric_v2::validate_leaf(&value)?;
-        }
+        crate::interpreter::numeric_v2::validate_leaf(&value)?;
         let value = map_children(value, |item| self.capture_at(item, depth + 1))?;
         if matches!(
             value,
@@ -398,14 +396,11 @@ fn shallow_bytes(value: &VmValue) -> usize {
 }
 
 /// Accounted bytes of one dictionary entry: the key/value pair, its
-/// insertion slot and, in V2, its share of the lookup index.
+/// insertion slot and its share of the lookup index.
 fn dict_entry_bytes() -> usize {
-    let index = if crate::interpreter::numeric_v2::active() {
-        crate::dict_index::INDEX_BYTES_PER_ENTRY
-    } else {
-        0
-    };
-    std::mem::size_of::<(VmValue, VmValue)>() + std::mem::size_of::<usize>() + index
+    std::mem::size_of::<(VmValue, VmValue)>()
+        + std::mem::size_of::<usize>()
+        + crate::dict_index::INDEX_BYTES_PER_ENTRY
 }
 
 fn map_children(
@@ -596,7 +591,6 @@ mod tests {
 
     #[test]
     fn in_place_dictionary_entries_keep_heap_accounting() {
-        let _scope = crate::interpreter::numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
         let heap = VmHeap::default();
         let VmValue::Reference(dict) = heap.capture(VmValue::Dict(vec![])).unwrap() else {
             unreachable!()
@@ -843,9 +837,7 @@ impl ContractValueVisitor {
             }
             VmValue::Dict(entries) => {
                 for (key, value) in entries {
-                    if self.boundary == "the VM boundary"
-                        && crate::interpreter::numeric_v2::active()
-                    {
+                    if self.boundary == "the VM boundary" {
                         crate::interpreter::numeric_v2::wire_dict_key(key)?;
                     }
                     self.visit(key, depth + 1)?;
@@ -878,7 +870,6 @@ impl ContractValueVisitor {
 #[cfg(test)]
 mod contract_boundary_tests {
     use super::*;
-    use crate::interpreter::numeric_v2;
 
     #[derive(Default)]
     struct Host(u64);
@@ -889,8 +880,7 @@ mod contract_boundary_tests {
         }
     }
 
-    fn boundary_cost(profile: &str, value: &VmValue) -> u64 {
-        let _scope = numeric_v2::Scope::enter(profile);
+    fn boundary_cost(value: &VmValue) -> u64 {
         let _work = crate::work_meter::Isolation::enter();
         validate_contract_values(std::iter::once(value)).unwrap();
         validate_external_values(std::iter::once(value)).unwrap();
@@ -912,8 +902,7 @@ mod contract_boundary_tests {
         // Root, three items and the shared list's two members once; external
         // validation is not element work.
         let unit = crate::work_meter::VM_GAS_ELEMENT_WORK;
-        assert_eq!(boundary_cost(crate::XIAN_VM_V2_PROFILE, &value), 6 * unit);
-        assert_eq!(boundary_cost(crate::XIAN_VM_V1_PROFILE, &value), 0);
+        assert_eq!(boundary_cost(&value), 6 * unit);
     }
 
     fn bound_storage_get() -> VmValue {

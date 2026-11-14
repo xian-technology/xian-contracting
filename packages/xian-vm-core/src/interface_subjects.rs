@@ -146,7 +146,7 @@ mod tests {
         VmInstance::new(
             ModuleIr {
                 ir_version: crate::XIAN_IR_V1.into(),
-                vm_profile: crate::XIAN_VM_V1_PROFILE.into(),
+                vm_profile: crate::XIAN_VM_V2_PROFILE.into(),
                 host_catalog_version: crate::XIAN_VM_HOST_CATALOG_V1.into(),
                 module_name: "con_subject".into(),
                 source_hash: "0".repeat(64),
@@ -274,7 +274,7 @@ mod tests {
         for value in [
             subject.clone(),
             VmValue::List(vec![subject.clone()]),
-            VmValue::Dict(vec![(subject, VmValue::None)]),
+            VmValue::Dict(vec![(VmValue::String("subject".into()), subject)]),
         ] {
             assert!(value
                 .external_value()

@@ -15,8 +15,8 @@ mod transaction_inputs_python;
 mod zk_python;
 use crate::XIAN_VM_V2_PROFILE;
 use crate::{
-    parse_module_ir, VmDateTime, VmDecimal, VmExecutionContext, VmExecutionError, VmTimeDelta,
-    VmValue, XIAN_IR_V1, XIAN_VM_EXECUTION_REVISION, XIAN_VM_HOST_CATALOG_V1, XIAN_VM_SET_CODEC,
+    parse_module_ir, VmDateTime, VmExecutionContext, VmExecutionError, VmTimeDelta, VmValue,
+    XIAN_IR_V1, XIAN_VM_EXECUTION_REVISION, XIAN_VM_HOST_CATALOG_V1, XIAN_VM_SET_CODEC,
     XIAN_VM_SUPPORTED_BYTECODE_VERSIONS, XIAN_VM_SUPPORTED_GAS_SCHEDULES,
 };
 use num_bigint::BigInt;
@@ -59,7 +59,7 @@ pub(crate) fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionEr
         return Ok(VmValue::None);
     }
     let type_name = python_type_name(&value);
-    if numeric_v2::active() && matches!(type_name.as_str(), "float" | "Decimal" | "DecimalTuple") {
+    if matches!(type_name.as_str(), "float" | "Decimal" | "DecimalTuple") {
         return Err(VmExecutionError::new(
             "binary float and raw Decimal are unavailable in xian_vm_v2",
         ));
@@ -78,11 +78,6 @@ pub(crate) fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionEr
             .collect::<Result<Vec<_>, _>>()?;
         return Ok(VmValue::List(values));
     }
-    if python_class_path(&value)
-        .is_some_and(|(module, name)| module == "decimal" && name == "DecimalTuple")
-    {
-        return py_decimal_tuple_to_vm(&value);
-    }
     if value.is_instance_of::<PyTuple>() {
         let values = value
             .cast::<PyTuple>()
@@ -99,9 +94,7 @@ pub(crate) fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionEr
         let mut entries = Vec::new();
         for (key, item) in dict.iter() {
             let key = py_to_vm(key)?;
-            if numeric_v2::active() {
-                numeric_v2::wire_dict_key(&key)?;
-            }
+            numeric_v2::wire_dict_key(&key)?;
             entries.push((key, py_to_vm(item)?));
         }
         return Ok(VmValue::Dict(entries));
@@ -136,23 +129,10 @@ pub(crate) fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionEr
                     .collect::<Result<Vec<_>, _>>()?;
                 return Ok(VmValue::FrozenSet(values));
             }
-            ("decimal", "Decimal") => {
-                return Ok(VmValue::RawDecimal(crate::VmRawDecimal::parse(
-                    value
-                        .str()
-                        .map_err(host_error)?
-                        .to_str()
-                        .map_err(host_error)?,
-                )?));
-            }
             ("xian_runtime_types.decimal", "ContractingDecimal") => {
                 let rendered = value.str().map_err(host_error)?;
                 let text = rendered.to_str().map_err(host_error)?;
-                return Ok(VmValue::Decimal(if numeric_v2::active() {
-                    numeric_v2::exact_decimal(text)?
-                } else {
-                    VmDecimal::from_str_literal(text)?
-                }));
+                return Ok(VmValue::Decimal(numeric_v2::exact_decimal(text)?));
             }
             ("xian_runtime_types.time", "Datetime") | ("datetime", "datetime") => {
                 return Ok(VmValue::DateTime(VmDateTime::new(
@@ -173,18 +153,12 @@ pub(crate) fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionEr
             _ => {}
         }
     }
-    if let Ok(number) = value.extract::<f64>() {
-        if type_name == "float" {
-            return Ok(VmValue::Float(number));
-        }
-    }
     if type_name == "int" {
-        if numeric_v2::active()
-            && value
-                .call_method0("bit_length")
-                .and_then(|n| n.extract::<u64>())
-                .map_err(host_error)?
-                > xian_numeric::INTEGER_BITS
+        if value
+            .call_method0("bit_length")
+            .and_then(|n| n.extract::<u64>())
+            .map_err(host_error)?
+            > xian_numeric::INTEGER_BITS
         {
             return Err(VmExecutionError::new(
                 "integer exceeds the 512-bit magnitude limit",
@@ -208,33 +182,6 @@ pub(crate) fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionEr
         "unsupported Python value at VM boundary: {}",
         type_name
     )))
-}
-
-fn py_decimal_tuple_to_vm(value: &Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
-    let components = (|| -> PyResult<(u8, Vec<u8>, Bound<'_, PyAny>)> {
-        Ok((
-            value.getattr("sign")?.extract()?,
-            value.getattr("digits")?.extract()?,
-            value.getattr("exponent")?,
-        ))
-    })()
-    .map_err(host_error)?;
-    let (sign, digits, exponent) = components;
-    if sign > 1 {
-        return Err(VmExecutionError::new("DecimalTuple sign must be 0 or 1"));
-    }
-    let (finite, special) = if let Ok(number) = exponent.extract::<i32>() {
-        (Some(number), None)
-    } else {
-        let marker = exponent.extract::<char>().map_err(host_error)?;
-        (None, Some(marker))
-    };
-    Ok(VmValue::DecimalTuple(crate::VmDecimalTuple::from_parts(
-        sign == 1,
-        digits,
-        finite,
-        special,
-    )?))
 }
 
 fn bigint_to_py(py: Python<'_>, value: &BigInt) -> PyResult<Py<PyAny>> {
@@ -560,7 +507,6 @@ fn _stored_value_debug(data: &[u8]) -> PyResult<String> {
 /// value becomes at the V2 VM boundary. Raises `ValueError` when refused.
 #[pyfunction]
 fn _stored_value_encode_debug(py: Python<'_>, value: Bound<'_, PyAny>) -> PyResult<Py<PyBytes>> {
-    let _scope = numeric_v2::Scope::enter(XIAN_VM_V2_PROFILE);
     py_to_vm(value)
         .and_then(|value| crate::stored_value_encoder::encode_stored_value(&value))
         .map(|bytes| PyBytes::new(py, &bytes).unbind())
@@ -570,7 +516,6 @@ fn _stored_value_encode_debug(py: Python<'_>, value: Bound<'_, PyAny>) -> PyResu
 /// Parity hook: stored-value bytes decoded and written again in Rust.
 #[pyfunction]
 fn _stored_value_reencode_debug(py: Python<'_>, data: &[u8]) -> PyResult<Py<PyBytes>> {
-    let _scope = numeric_v2::Scope::enter(XIAN_VM_V2_PROFILE);
     crate::stored_value::decode_stored_value(data)
         .and_then(|value| crate::stored_value_encoder::encode_stored_value(&value))
         .map(|bytes| PyBytes::new(py, &bytes).unbind())
@@ -581,7 +526,6 @@ fn _stored_value_reencode_debug(py: Python<'_>, data: &[u8]) -> PyResult<Py<PyBy
 /// rendered with `Debug`. Raises `ValueError` for a value it rejects.
 #[pyfunction]
 fn _vm_value_debug(value: Bound<'_, PyAny>) -> PyResult<String> {
-    let _scope = numeric_v2::Scope::enter(XIAN_VM_V2_PROFILE);
     py_to_vm(value)
         .map(|value| format!("{value:?}"))
         .map_err(|error| PyValueError::new_err(error.to_string()))

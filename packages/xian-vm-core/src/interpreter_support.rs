@@ -22,21 +22,14 @@ mod dictionary;
 pub(super) use dictionary::*;
 
 pub(super) fn builtin_name_value(name: &str) -> Option<VmValue> {
-    if numeric_v2::active() {
-        match name {
-            "float" | "round" => return None,
-            "quantize" | "sqrt" | "mul_div_floor" | "mul_div_ceil" => {
-                return Some(VmValue::Builtin(name.to_owned()))
-            }
-            _ => {}
-        }
-    }
     match name {
-        "len" | "range" | "str" | "bool" | "int" | "float" | "bytes" | "bytearray" | "dict"
-        | "list" | "tuple" | "set" | "frozenset" | "isinstance" | "issubclass" | "sorted"
-        | "sum" | "min" | "max" | "all" | "any" | "map" | "filter" | "reversed" | "zip" | "pow"
+        "len" | "range" | "str" | "bool" | "int" | "bytes" | "bytearray" | "dict" | "list"
+        | "tuple" | "set" | "frozenset" | "isinstance" | "issubclass" | "sorted" | "sum"
+        | "min" | "max" | "all" | "any" | "map" | "filter" | "reversed" | "zip" | "pow"
         | "format" | "ord" | "abs" | "ascii" | "bin" | "hex" | "oct" | "chr" | "divmod"
-        | "round" | "Exception" => Some(VmValue::Builtin(name.to_owned())),
+        | "quantize" | "sqrt" | "mul_div_floor" | "mul_div_ceil" | "Exception" => {
+            Some(VmValue::Builtin(name.to_owned()))
+        }
         "Any" | "decimal" => Some(VmValue::TypeMarker(name.to_owned())),
         _ => None,
     }
@@ -67,13 +60,6 @@ pub(super) fn byte_from_value(value: &VmValue) -> Result<u8, VmExecutionError> {
     let value = &value.snapshot();
     let bigint = match value {
         VmValue::Int(value) => value.clone(),
-        VmValue::Bool(value) if !numeric_v2::active() => {
-            if *value {
-                BigInt::from(1u8)
-            } else {
-                BigInt::from(0u8)
-            }
-        }
         other => {
             return Err(VmExecutionError::new(format!(
                 "a bytes-like object is required, not '{}'",
@@ -162,58 +148,6 @@ pub(super) fn ensure_int_bytes_input_size(value: &[u8]) -> Result<(), VmExecutio
         )));
     }
     Ok(())
-}
-
-fn estimated_mul_bits(left: &BigInt, right: &BigInt) -> u64 {
-    if left.is_zero() || right.is_zero() {
-        return 0;
-    }
-    left.bits().saturating_add(right.bits())
-}
-
-fn is_power_of_two_bigint(value: &BigInt) -> bool {
-    if value.sign() == Sign::Minus || value.is_zero() {
-        return false;
-    }
-    let one = BigInt::from(1u8);
-    (value.clone() & (value - &one)).is_zero()
-}
-
-fn estimated_pow_bits(base: &BigInt, exponent: &BigInt) -> Result<u64, VmExecutionError> {
-    if exponent.sign() == Sign::Minus || base.is_zero() || base.abs() == BigInt::from(1u8) {
-        return Ok(1);
-    }
-    let exponent = exponent
-        .to_u64()
-        .ok_or_else(|| integer_limit_error("integer exponentiation"))?;
-    let absolute = base.abs();
-    let base_bits = if is_power_of_two_bigint(&absolute) {
-        absolute.bits().saturating_sub(1)
-    } else {
-        absolute.bits()
-    };
-    base_bits
-        .checked_mul(exponent)
-        .and_then(|value| value.checked_add(1))
-        .ok_or_else(|| integer_limit_error("integer exponentiation"))
-}
-
-fn checked_bigint_mul(left: BigInt, right: BigInt) -> Result<VmValue, VmExecutionError> {
-    if estimated_mul_bits(&left, &right) > MAX_INTEGER_BITS + 1 {
-        return Err(integer_limit_error("integer multiplication"));
-    }
-    checked_int_value(left * right, "integer multiplication")
-}
-
-pub(super) fn checked_bigint_pow(
-    base: &BigInt,
-    exponent: &BigInt,
-    kind: &str,
-) -> Result<VmValue, VmExecutionError> {
-    if estimated_pow_bits(base, exponent)? > MAX_INTEGER_BITS {
-        return Err(integer_limit_error(kind));
-    }
-    checked_int_value(base.pow(bigint_to_u32(exponent, "pow exponent")?), kind)
 }
 
 fn checked_left_shift(left: BigInt, right: BigInt) -> Result<VmValue, VmExecutionError> {
@@ -551,13 +485,6 @@ pub(super) fn set_symmetric_difference_values(
     Ok(values)
 }
 
-fn bool_number(value: VmValue) -> VmValue {
-    match value {
-        VmValue::Bool(value) => vm_int(value as u8),
-        value => value,
-    }
-}
-
 pub(super) fn apply_binary_operator(
     operator: &str,
     left: VmValue,
@@ -565,7 +492,7 @@ pub(super) fn apply_binary_operator(
 ) -> Result<VmValue, VmExecutionError> {
     let left = tuple_equivalent(left.snapshot());
     let right = tuple_equivalent(right.snapshot());
-    if numeric_v2::active() && numeric_v2::handles_binary(&left, &right) {
+    if numeric_v2::handles_binary(&left, &right) {
         return numeric_v2::binary(operator, &left, &right);
     }
     if let (VmValue::BuiltinSet(a), VmValue::BuiltinSet(b)) = (&left, &right) {
@@ -581,11 +508,6 @@ pub(super) fn apply_binary_operator(
     } else {
         right
     };
-    let (left, right) = if matches!(operator, "bitand" | "bitor" | "bitxor") {
-        (left, right)
-    } else {
-        (bool_number(left), bool_number(right))
-    };
     if (matches!(left, VmValue::RawDecimal(_)) || matches!(right, VmValue::RawDecimal(_)))
         && !matches!(left, VmValue::Decimal(_))
         && !matches!(right, VmValue::Decimal(_))
@@ -594,15 +516,6 @@ pub(super) fn apply_binary_operator(
         let right = crate::VmRawDecimal::from_value(&right)?;
         return Ok(VmValue::RawDecimal(left.arithmetic(operator, &right)?));
     }
-    let coerce_decimal = |value: &VmValue, side: &str| -> Result<VmDecimal, VmExecutionError> {
-        VmDecimal::from_vm_value(value).map_err(|err| {
-            VmExecutionError::new(format!(
-                "binary operator '{operator}' could not coerce {side} operand {} ({}) to decimal: {err}",
-                value.python_repr(),
-                value.type_name()
-            ))
-        })
-    };
     match operator {
         "add" => match (left, right) {
             (VmValue::DateTime(left), VmValue::TimeDelta(right)) => {
@@ -614,16 +527,6 @@ pub(super) fn apply_binary_operator(
             (VmValue::TimeDelta(left), VmValue::TimeDelta(right)) => {
                 Ok(VmValue::TimeDelta(left.add(&right)?))
             }
-            (VmValue::Decimal(left), VmValue::Decimal(right)) => {
-                Ok(VmValue::Decimal(left.add(&right)?))
-            }
-            (VmValue::Decimal(left), right) => Ok(VmValue::Decimal(
-                left.add(&coerce_decimal(&right, "right")?)?,
-            )),
-            (left, VmValue::Decimal(right)) => Ok(VmValue::Decimal(
-                coerce_decimal(&left, "left")?.add(&right)?,
-            )),
-            (VmValue::Int(left), VmValue::Int(right)) => Ok(VmValue::Int(left + right)),
             (VmValue::Float(left), VmValue::Float(right)) => Ok(VmValue::Float(left + right)),
             (VmValue::Int(left), VmValue::Float(right)) => Ok(VmValue::Float(
                 bigint_to_f64(&left, "left int operand")? + right,
@@ -669,16 +572,6 @@ pub(super) fn apply_binary_operator(
             (VmValue::TimeDelta(left), VmValue::TimeDelta(right)) => {
                 Ok(VmValue::TimeDelta(left.sub(&right)?))
             }
-            (VmValue::Decimal(left), VmValue::Decimal(right)) => {
-                Ok(VmValue::Decimal(left.sub(&right)?))
-            }
-            (VmValue::Decimal(left), right) => Ok(VmValue::Decimal(
-                left.sub(&coerce_decimal(&right, "right")?)?,
-            )),
-            (left, VmValue::Decimal(right)) => Ok(VmValue::Decimal(
-                coerce_decimal(&left, "left")?.sub(&right)?,
-            )),
-            (VmValue::Int(left), VmValue::Int(right)) => Ok(VmValue::Int(left - right)),
             (VmValue::Float(left), VmValue::Float(right)) => Ok(VmValue::Float(left - right)),
             (VmValue::Int(left), VmValue::Float(right)) => Ok(VmValue::Float(
                 bigint_to_f64(&left, "left int operand")? - right,
@@ -740,16 +633,6 @@ pub(super) fn apply_binary_operator(
             | (VmValue::Int(count), VmValue::ByteArray(bytes)) => {
                 Ok(VmValue::ByteArray(repeat_bytes_like(&bytes, &count)?))
             }
-            (VmValue::Decimal(left), VmValue::Decimal(right)) => {
-                Ok(VmValue::Decimal(left.mul(&right)?))
-            }
-            (VmValue::Decimal(left), right) => Ok(VmValue::Decimal(
-                left.mul(&coerce_decimal(&right, "right")?)?,
-            )),
-            (left, VmValue::Decimal(right)) => Ok(VmValue::Decimal(
-                coerce_decimal(&left, "left")?.mul(&right)?,
-            )),
-            (VmValue::Int(left), VmValue::Int(right)) => checked_bigint_mul(left, right),
             (VmValue::Float(left), VmValue::Float(right)) => Ok(VmValue::Float(left * right)),
             (VmValue::Int(left), VmValue::Float(right)) => Ok(VmValue::Float(
                 bigint_to_f64(&left, "left int operand")? * right,
@@ -764,24 +647,6 @@ pub(super) fn apply_binary_operator(
             ))),
         },
         "div" => match (left, right) {
-            (VmValue::Decimal(left), VmValue::Decimal(right)) => {
-                Ok(VmValue::Decimal(left.div(&right)?))
-            }
-            (VmValue::Decimal(left), right) => Ok(VmValue::Decimal(
-                left.div(&coerce_decimal(&right, "right")?)?,
-            )),
-            (left, VmValue::Decimal(right)) => Ok(VmValue::Decimal(
-                coerce_decimal(&left, "left")?.div(&right)?,
-            )),
-            (VmValue::Int(left), VmValue::Int(right)) => {
-                if right.is_zero() {
-                    return Err(VmExecutionError::new("division by zero"));
-                }
-                Ok(VmValue::Float(
-                    bigint_to_f64(&left, "left int operand")?
-                        / bigint_to_f64(&right, "right int operand")?,
-                ))
-            }
             (VmValue::Float(left), VmValue::Float(right)) => Ok(VmValue::Float(left / right)),
             (VmValue::Int(left), VmValue::Float(right)) => Ok(VmValue::Float(
                 bigint_to_f64(&left, "left int operand")? / right,
@@ -796,18 +661,6 @@ pub(super) fn apply_binary_operator(
             ))),
         },
         "floordiv" => match (left, right) {
-            (VmValue::Decimal(left), VmValue::Decimal(right)) => {
-                Ok(VmValue::Decimal(left.floor_div(&right)?))
-            }
-            (VmValue::Decimal(left), right) => Ok(VmValue::Decimal(
-                left.floor_div(&coerce_decimal(&right, "right")?)?,
-            )),
-            (left, VmValue::Decimal(right)) => Ok(VmValue::Decimal(
-                coerce_decimal(&left, "left")?.floor_div(&right)?,
-            )),
-            (VmValue::Int(left), VmValue::Int(right)) => {
-                Ok(VmValue::Int(bigint_floor_div(&left, &right)?))
-            }
             (left, right) => Err(VmExecutionError::new(format!(
                 "unsupported floordiv operands {} and {}",
                 left.type_name(),
@@ -815,18 +668,6 @@ pub(super) fn apply_binary_operator(
             ))),
         },
         "mod" => match (left, right) {
-            (VmValue::Decimal(left), VmValue::Decimal(right)) => {
-                Ok(VmValue::Decimal(left.modulo(&right)?))
-            }
-            (VmValue::Decimal(left), right) => Ok(VmValue::Decimal(
-                left.modulo(&coerce_decimal(&right, "right")?)?,
-            )),
-            (left, VmValue::Decimal(right)) => Ok(VmValue::Decimal(
-                coerce_decimal(&left, "left")?.modulo(&right)?,
-            )),
-            (VmValue::Int(left), VmValue::Int(right)) => {
-                Ok(VmValue::Int(bigint_modulo(&left, &right)?))
-            }
             (left, right) => Err(VmExecutionError::new(format!(
                 "unsupported mod operands {} and {}",
                 left.type_name(),
@@ -834,18 +675,6 @@ pub(super) fn apply_binary_operator(
             ))),
         },
         "pow" => match (left, right) {
-            (VmValue::Int(left), VmValue::Int(right)) => {
-                checked_bigint_pow(&left, &right, "integer exponentiation")
-            }
-            (VmValue::Decimal(left), VmValue::Decimal(right)) => {
-                Ok(VmValue::Decimal(left.pow(&right)?))
-            }
-            (VmValue::Decimal(left), right) => Ok(VmValue::Decimal(
-                left.pow(&coerce_decimal(&right, "right")?)?,
-            )),
-            (left, VmValue::Decimal(right)) => Ok(VmValue::Decimal(
-                coerce_decimal(&left, "left")?.pow(&right)?,
-            )),
             (VmValue::Float(left), VmValue::Float(right)) => {
                 Ok(VmValue::Float(float_pow(left, right)))
             }
@@ -864,7 +693,6 @@ pub(super) fn apply_binary_operator(
             ))),
         },
         "bitand" => match (left, right) {
-            (VmValue::Bool(left), VmValue::Bool(right)) => Ok(VmValue::Bool(left & right)),
             (VmValue::Set(values), right) if set_like_values(&right).is_some() => {
                 let right = set_like_values(&right).expect("checked above");
                 Ok(VmValue::Set(normalize_set_items(set_intersection_values(
@@ -892,7 +720,6 @@ pub(super) fn apply_binary_operator(
                 }
                 Ok(VmValue::Dict(union.into_entries()))
             }
-            (VmValue::Bool(left), VmValue::Bool(right)) => Ok(VmValue::Bool(left | right)),
             (VmValue::Set(values), right) if set_like_values(&right).is_some() => {
                 let right = set_like_values(&right).expect("checked above");
                 Ok(VmValue::Set(normalize_set_items(set_union_values(
@@ -908,7 +735,6 @@ pub(super) fn apply_binary_operator(
             (left, right) => Ok(VmValue::Int(left.as_bigint()? | right.as_bigint()?)),
         },
         "bitxor" => match (left, right) {
-            (VmValue::Bool(left), VmValue::Bool(right)) => Ok(VmValue::Bool(left ^ right)),
             (VmValue::Set(values), right) if set_like_values(&right).is_some() => {
                 let right = set_like_values(&right).expect("checked above");
                 Ok(VmValue::Set(normalize_set_items(
@@ -975,10 +801,9 @@ pub(super) fn apply_unary_operator(
     operand: VmValue,
 ) -> Result<VmValue, VmExecutionError> {
     let operand = operand.snapshot();
-    if numeric_v2::active() && operator != "not" && matches!(operand, VmValue::Bool(_)) {
+    if operator != "not" && matches!(operand, VmValue::Bool(_)) {
         return Err(VmExecutionError::new("bool is not an arithmetic operand"));
     }
-    let operand = bool_number(operand);
     match operator {
         "not" => Ok(VmValue::Bool(!operand.truthy())),
         "neg" => match operand {
@@ -1380,10 +1205,8 @@ fn compare_resolved_values(
     right: &VmValue,
     depth: usize,
 ) -> Result<std::cmp::Ordering, VmExecutionError> {
-    if numeric_v2::active() {
-        if let Some(ordering) = numeric_v2::ordering(left, right) {
-            return ordering;
-        }
+    if let Some(ordering) = numeric_v2::ordering(left, right) {
+        return ordering;
     }
     crate::work_meter::count(payload_comparison_units(left, right))?;
     match (left, right) {
@@ -1404,19 +1227,6 @@ fn compare_resolved_values(
         (VmValue::RawDecimal(left), right) => left.compare_value(right),
         (left, VmValue::RawDecimal(right)) => {
             right.compare_value(left).map(std::cmp::Ordering::reverse)
-        }
-        (VmValue::Decimal(left), VmValue::Decimal(right)) => Ok(left.scaled.cmp(&right.scaled)),
-        (VmValue::Decimal(left), right) => {
-            Ok(left.scaled.cmp(&VmDecimal::from_vm_value(right)?.scaled))
-        }
-        (left, VmValue::Decimal(right)) => {
-            Ok(VmDecimal::from_vm_value(left)?.scaled.cmp(&right.scaled))
-        }
-        (VmValue::Bool(left), VmValue::Int(right)) => {
-            Ok(BigInt::from(if *left { 1 } else { 0 }).cmp(right))
-        }
-        (VmValue::Int(left), VmValue::Bool(right)) => {
-            Ok(left.cmp(&BigInt::from(if *right { 1 } else { 0 })))
         }
         (VmValue::Bool(left), VmValue::Float(right)) => (if *left { 1.0 } else { 0.0 })
             .partial_cmp(right)
@@ -1611,7 +1421,7 @@ fn resolved_values_equal(
     right: &VmValue,
     depth: usize,
 ) -> Result<bool, VmExecutionError> {
-    if numeric_v2::active() && numeric_v2::bool_number_pair(left, right) {
+    if numeric_v2::bool_number_pair(left, right) {
         return Ok(false);
     }
     if let Some(equal) = nan_equality(left, right)? {
@@ -2179,8 +1989,7 @@ pub(super) fn type_matches_name(value: &VmValue, name: &str) -> bool {
     match name {
         "Any" => true,
         "bool" => matches!(value, VmValue::Bool(_)),
-        "int" if numeric_v2::active() => matches!(value, VmValue::Int(_)),
-        "int" => matches!(value, VmValue::Int(_) | VmValue::Bool(_)),
+        "int" => matches!(value, VmValue::Int(_)),
         "float" => matches!(value, VmValue::Float(_)),
         "decimal" => matches!(value, VmValue::Decimal(_)),
         "datetime.datetime" => matches!(value, VmValue::DateTime(_)),
@@ -2347,11 +2156,7 @@ pub(super) fn normalize_hash_key(value: &VmValue) -> Result<String, VmExecutionE
         other => storage_key_part(other)?,
     };
 
-    let max_size = if numeric_v2::active() {
-        crate::lmdb_env::MAX_STORAGE_KEY_BYTES
-    } else {
-        V1_MAX_HASH_KEY_SIZE
-    };
+    let max_size = crate::lmdb_env::MAX_STORAGE_KEY_BYTES;
     if normalized.len() > max_size {
         return Err(VmExecutionError::new(format!(
             "Key is too long ({}). Max is {max_size}.",
@@ -2369,22 +2174,19 @@ pub(super) fn record_storage_write(
     key: &str,
     value: &VmValue,
 ) -> Result<(), VmExecutionError> {
-    if numeric_v2::active() {
-        if let Some(message) = crate::lmdb_env::storage_key_error(key) {
-            return Err(VmExecutionError::new(message));
-        }
+    if let Some(message) = crate::lmdb_env::storage_key_error(key) {
+        return Err(VmExecutionError::new(message));
     }
     host.record_storage_write(key, value)?;
     host.charge_storage_write(key, value)
 }
 
 /// The key suffix selected by `Hash.all(*prefix)`/`clear(*prefix)`, including
-/// its trailing delimiter; empty selects the whole hash. In V2 only a call
-/// without arguments does that, so `""` is an ordinary first dimension.
-/// Archival V1 also treats a prefix that renders empty as the whole hash.
+/// its trailing delimiter; empty selects the whole hash. Only a call without
+/// arguments does that, so `""` is an ordinary first dimension.
 pub(super) fn hash_scan_prefix(values: &[VmValue]) -> Result<String, VmExecutionError> {
     let prefix = normalize_hash_key(&VmValue::Tuple(values.to_vec()))?;
-    if values.is_empty() || (prefix.is_empty() && !numeric_v2::active()) {
+    if values.is_empty() {
         return Ok(String::new());
     }
     Ok(format!("{prefix}{STORAGE_DELIMITER}"))
@@ -3003,15 +2805,10 @@ mod storage_key_tests {
     }
 
     #[test]
-    fn v2_bounds_hash_keys_by_the_storage_key_limit_and_v1_keeps_1024() {
-        let v2 = numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
+    fn hash_keys_are_bounded_by_the_storage_key_limit() {
         assert!(normalize_hash_key(&text(511)).is_ok());
         let error = normalize_hash_key(&text(512)).unwrap_err();
         assert_eq!(error.to_string(), "Key is too long (512). Max is 511.");
-        drop(v2);
-        let _v1 = numeric_v2::Scope::enter(crate::XIAN_VM_V1_PROFILE);
-        assert!(normalize_hash_key(&text(1024)).is_ok());
-        assert!(normalize_hash_key(&text(1025)).is_err());
     }
 
     #[test]
@@ -3019,18 +2816,12 @@ mod storage_key_tests {
         let largest = "k".repeat(crate::lmdb_env::MAX_STORAGE_KEY_BYTES);
         let over = format!("{largest}k");
         let mut host = WriteLog::default();
-        let v2 = numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
         record_storage_write(&mut host, &largest, &VmValue::None).unwrap();
         let error = record_storage_write(&mut host, &over, &VmValue::None).unwrap_err();
         assert_eq!(
             error.to_string(),
             "Storage key is too long (512 bytes). Max is 511."
         );
-        assert_eq!(host.0, vec![largest.clone()]);
-        drop(v2);
-        // Archival V1 execution is unchanged: the storage layer refuses the key.
-        let _v1 = numeric_v2::Scope::enter(crate::XIAN_VM_V1_PROFILE);
-        record_storage_write(&mut host, &over, &VmValue::None).unwrap();
-        assert_eq!(host.0, vec![largest, over]);
+        assert_eq!(host.0, vec![largest]);
     }
 }

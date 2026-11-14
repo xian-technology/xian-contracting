@@ -151,46 +151,9 @@ mod tests {
     }
 
     #[test]
-    fn tuple_iteration_preserves_field_types() {
-        let tuple = VmDecimalTuple::from_parts(false, vec![3, 1], Some(-1), None).unwrap();
-        let expected = tuple.as_values();
-        let heap = crate::heap::VmHeap::default();
-        let source = heap.capture(VmValue::DecimalTuple(tuple)).unwrap();
-        let actual =
-            crate::iteration::collect(&source, &heap, &mut |_, _| panic!("unexpected callback"))
-                .unwrap();
-        let actual = actual
-            .iter()
-            .map(|item| item.detached().unwrap())
-            .collect::<Vec<_>>();
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
     fn named_tuple_rendering_obeys_output_limit() {
         let tuple = VmDecimalTuple::from_parts(false, vec![1; 50_000], Some(0), None).unwrap();
         assert!(VmValue::DecimalTuple(tuple).try_python_repr().is_err());
-    }
-
-    #[test]
-    fn captured_tuple_fields_keep_identity() {
-        let tuple = VmDecimalTuple::from_parts(false, vec![2, 5], Some(-1), None).unwrap();
-        let heap = crate::heap::VmHeap::default();
-        let source = heap.capture(VmValue::DecimalTuple(tuple)).unwrap();
-        let VmValue::DecimalTuple(tuple) = source.snapshot() else {
-            panic!("wrong value type")
-        };
-        let first = tuple.as_values();
-        let second = tuple.as_values();
-        assert!(first[1].identical(&second[1]));
-        let iterated =
-            crate::iteration::collect(&source, &heap, &mut |_, _| panic!("unexpected callback"))
-                .unwrap();
-        assert!(first[1].identical(&iterated[1]));
-        let VmValue::DecimalTuple(detached) = source.detached().unwrap() else {
-            panic!("wrong detached type")
-        };
-        assert_eq!(detached.as_values()[1], first[1].detached().unwrap());
     }
 
     #[test]

@@ -148,148 +148,40 @@ impl VmDecimal {
         }
     }
 
-    pub(crate) fn one() -> Self {
-        Self {
-            scaled: decimal_scale_factor().clone(),
-        }
-    }
-
     pub(crate) fn is_zero(&self) -> bool {
         self.scaled.is_zero()
-    }
-
-    pub(crate) fn to_i64(&self) -> Result<i64, VmExecutionError> {
-        bigint_to_i64(&self.to_bigint(), &format!("decimal value {}", self))
     }
 
     pub(crate) fn to_bigint(&self) -> BigInt {
         &self.scaled / decimal_scale_factor()
     }
 
-    pub(crate) fn to_f64(&self) -> Result<f64, VmExecutionError> {
-        self.to_string().parse::<f64>().map_err(|_| {
-            VmExecutionError::new(format!(
-                "decimal value {} cannot be converted to float",
-                self
-            ))
-        })
-    }
-
     pub(crate) fn python_repr(&self) -> String {
-        if crate::interpreter::numeric_v2::active() {
-            return self.to_string();
-        }
-        if self.scaled.is_zero() {
-            return "0".to_owned();
-        }
-
-        let (digits, exponent) = normalized_decimal_parts(&self.scaled.abs());
-        let adjusted_exponent = exponent + digits.len() as i64 - 1;
-        let rendered = if exponent <= 0 && adjusted_exponent >= -6 {
-            render_plain_decimal(&digits, exponent)
-        } else {
-            render_engineering_decimal(&digits, adjusted_exponent)
-        };
-
-        if self.scaled.sign() == Sign::Minus {
-            format!("-{rendered}")
-        } else {
-            rendered
-        }
+        self.to_string()
     }
 
+    /// Fee settlement and reward arithmetic (the interpreter uses `numeric_v2`).
+    #[cfg(any(feature = "python-extension", test))]
     pub(crate) fn add(&self, other: &Self) -> Result<Self, VmExecutionError> {
         Self::from_scaled(&self.scaled + &other.scaled)
     }
 
+    #[cfg(any(feature = "python-extension", test))]
     pub(crate) fn sub(&self, other: &Self) -> Result<Self, VmExecutionError> {
         Self::from_scaled(&self.scaled - &other.scaled)
     }
 
+    #[cfg(any(feature = "python-extension", test))]
     pub(crate) fn mul(&self, other: &Self) -> Result<Self, VmExecutionError> {
         Self::from_scaled((&self.scaled * &other.scaled) / decimal_scale_factor())
     }
 
+    #[cfg(any(feature = "python-extension", test))]
     pub(crate) fn div(&self, other: &Self) -> Result<Self, VmExecutionError> {
         if other.is_zero() {
             return Err(VmExecutionError::new("division by zero"));
         }
         Self::from_scaled((&self.scaled * decimal_scale_factor()) / &other.scaled)
-    }
-
-    pub(crate) fn modulo(&self, other: &Self) -> Result<Self, VmExecutionError> {
-        if other.is_zero() {
-            return Err(VmExecutionError::new("modulo by zero"));
-        }
-        Self::from_scaled(&self.scaled % &other.scaled)
-    }
-
-    pub(crate) fn floor_div(&self, other: &Self) -> Result<Self, VmExecutionError> {
-        if other.is_zero() {
-            return Err(VmExecutionError::new("division by zero"));
-        }
-        let quotient = &self.scaled / &other.scaled;
-        Self::from_scaled(quotient * decimal_scale_factor())
-    }
-
-    pub(crate) fn pow(&self, exponent: &Self) -> Result<Self, VmExecutionError> {
-        if exponent.is_zero() {
-            return Ok(Self::one());
-        }
-        if exponent.scaled == *decimal_half_scale_factor() {
-            return self.sqrt();
-        }
-        if (&exponent.scaled % decimal_scale_factor()).is_zero() {
-            return self.pow_integer(&(&exponent.scaled / decimal_scale_factor()));
-        }
-        Err(VmExecutionError::new(format!(
-            "unsupported decimal exponent {}",
-            exponent
-        )))
-    }
-
-    fn pow_integer(&self, exponent: &BigInt) -> Result<Self, VmExecutionError> {
-        if exponent.is_zero() {
-            return Ok(Self::one());
-        }
-        if exponent.sign() == Sign::Minus {
-            if self.is_zero() {
-                return Err(VmExecutionError::new(
-                    "0 cannot be raised to a negative power",
-                ));
-            }
-            let positive = self.pow_integer(&(-exponent))?;
-            return Self::one().div(&positive);
-        }
-
-        let mut remaining = exponent.clone();
-        let mut base = self.clone();
-        let mut result = Self::one();
-        let two = BigInt::from(2u8);
-        let zero = BigInt::zero();
-        let one = BigInt::from(1u8);
-
-        while remaining > zero {
-            if (&remaining % &two) == one {
-                result = result.mul(&base)?;
-            }
-            remaining /= &two;
-            if remaining > zero {
-                base = base.mul(&base)?;
-            }
-        }
-
-        Ok(result)
-    }
-
-    fn sqrt(&self) -> Result<Self, VmExecutionError> {
-        if self.scaled.sign() == Sign::Minus {
-            return Err(VmExecutionError::new(
-                "cannot take square root of a negative decimal",
-            ));
-        }
-        let radicand = &self.scaled * decimal_scale_factor();
-        Self::from_scaled(bigint_integer_sqrt(&radicand))
     }
 }
 
@@ -332,29 +224,9 @@ pub(crate) fn decimal_scale_factor() -> &'static BigInt {
     SCALE_FACTOR.get_or_init(|| BigInt::from(10u8).pow(DECIMAL_SCALE))
 }
 
-fn decimal_half_scale_factor() -> &'static BigInt {
-    static HALF_SCALE_FACTOR: OnceLock<BigInt> = OnceLock::new();
-    HALF_SCALE_FACTOR.get_or_init(|| decimal_scale_factor() / BigInt::from(2u8))
-}
-
 fn decimal_max_scaled() -> &'static BigInt {
     static MAX_SCALED: OnceLock<BigInt> = OnceLock::new();
     MAX_SCALED.get_or_init(|| BigInt::from(10u8).pow(DECIMAL_MAX_SCALED_DIGITS) - BigInt::from(1u8))
-}
-
-pub(crate) fn bigint_integer_sqrt(value: &BigInt) -> BigInt {
-    if value.sign() != Sign::Plus {
-        return BigInt::zero();
-    }
-    let one = BigInt::from(1u8);
-    let two = BigInt::from(2u8);
-    let mut x0 = value.clone();
-    let mut x1 = (&x0 + &one) / &two;
-    while x1 < x0 {
-        x0 = x1.clone();
-        x1 = (&x1 + value / &x1) / &two;
-    }
-    x0
 }
 
 fn normalize_zero_bigint(value: BigInt) -> BigInt {
@@ -367,69 +239,6 @@ fn normalize_zero_bigint(value: BigInt) -> BigInt {
 
 fn trim_decimal_fraction(fraction: &str) -> String {
     fraction.trim_end_matches('0').to_owned()
-}
-
-fn normalized_decimal_parts(value: &BigInt) -> (String, i64) {
-    let mut coefficient = value.clone();
-    let mut exponent = -(DECIMAL_SCALE as i64);
-    let ten = BigInt::from(10u8);
-    while (&coefficient % &ten).is_zero() {
-        coefficient /= &ten;
-        exponent += 1;
-    }
-    (coefficient.to_str_radix(10), exponent)
-}
-
-fn render_plain_decimal(digits: &str, exponent: i64) -> String {
-    if exponent >= 0 {
-        let mut rendered = digits.to_owned();
-        rendered.push_str(&"0".repeat(exponent as usize));
-        return rendered;
-    }
-
-    let split = digits.len() as i64 + exponent;
-    if split > 0 {
-        let split = split as usize;
-        let fraction = trim_decimal_fraction(&digits[split..]);
-        if fraction.is_empty() {
-            digits[..split].to_owned()
-        } else {
-            format!("{}.{fraction}", &digits[..split])
-        }
-    } else {
-        let mut fraction = String::with_capacity((-split) as usize + digits.len());
-        fraction.push_str(&"0".repeat((-split) as usize));
-        fraction.push_str(digits);
-        format!("0.{}", trim_decimal_fraction(&fraction))
-    }
-}
-
-fn render_engineering_decimal(digits: &str, adjusted_exponent: i64) -> String {
-    let engineering_exponent = adjusted_exponent - adjusted_exponent.rem_euclid(3);
-    let integer_digits = (adjusted_exponent - engineering_exponent + 1) as usize;
-    let mut coefficient = digits.to_owned();
-    if coefficient.len() < integer_digits {
-        coefficient.push_str(&"0".repeat(integer_digits - coefficient.len()));
-    }
-
-    let mantissa = if coefficient.len() == integer_digits {
-        coefficient
-    } else {
-        let fraction = trim_decimal_fraction(&coefficient[integer_digits..]);
-        if fraction.is_empty() {
-            coefficient[..integer_digits].to_owned()
-        } else {
-            format!("{}.{fraction}", &coefficient[..integer_digits])
-        }
-    };
-
-    if engineering_exponent == 0 {
-        mantissa
-    } else if engineering_exponent > 0 {
-        format!("{mantissa}E+{engineering_exponent}")
-    } else {
-        format!("{mantissa}E{engineering_exponent}")
-    }
 }
 
 pub(crate) fn vm_int<T>(value: T) -> VmValue
@@ -945,12 +754,8 @@ impl VmValue {
     pub(crate) fn as_i64(&self) -> Result<i64, VmExecutionError> {
         match self {
             Self::Reference(value) => value.with_value(|value| value.as_i64()),
-            Self::Bool(_) | Self::Decimal(_) if crate::interpreter::numeric_v2::active() => {
-                Err(VmExecutionError::new("expected an integer"))
-            }
+            Self::Bool(_) | Self::Decimal(_) => Err(VmExecutionError::new("expected an integer")),
             Self::Int(value) => bigint_to_i64(value, "integer value"),
-            Self::Bool(value) => Ok(if *value { 1 } else { 0 }),
-            Self::Decimal(value) => value.to_i64(),
             _ => Err(VmExecutionError::new(format!(
                 "expected int-compatible value, got {}",
                 self.type_name()
@@ -961,16 +766,8 @@ impl VmValue {
     pub(crate) fn as_bigint(&self) -> Result<BigInt, VmExecutionError> {
         match self {
             Self::Reference(value) => value.with_value(|value| value.as_bigint()),
-            Self::Bool(_) | Self::Decimal(_) if crate::interpreter::numeric_v2::active() => {
-                Err(VmExecutionError::new("expected an integer"))
-            }
+            Self::Bool(_) | Self::Decimal(_) => Err(VmExecutionError::new("expected an integer")),
             Self::Int(value) => Ok(value.clone()),
-            Self::Bool(value) => Ok(if *value {
-                BigInt::from(1)
-            } else {
-                BigInt::zero()
-            }),
-            Self::Decimal(value) => Ok(value.to_bigint()),
             _ => Err(VmExecutionError::new(format!(
                 "expected int-compatible value, got {}",
                 self.type_name()
@@ -1255,7 +1052,7 @@ impl VmExecutionError {
     }
 
     /// An exception with one message argument whose text keeps an established
-    /// (archival V1) spelling. Hosts read the structured form instead.
+    /// spelling. Hosts read the structured form instead.
     pub(crate) fn described(
         name: &str,
         text: impl Into<String>,
@@ -1295,16 +1092,15 @@ mod tests {
     use super::{VmDecimal, VmValue};
 
     #[test]
-    fn formats_decimal_python_repr_like_contracting_decimal_strings() {
+    fn decimal_python_repr_is_the_plain_decimal_text() {
         let cases = [
-            ("1000", "1E+3"),
-            ("50000000", "50E+6"),
-            ("1234000", "1.234E+6"),
-            ("1234500", "1.2345E+6"),
+            ("1000", "1000"),
+            ("50000000", "50000000"),
+            ("1234000", "1234000"),
             ("0.0001", "0.0001"),
-            ("0.0000001", "100E-9"),
+            ("0.0000001", "0.0000001"),
             ("1234.5", "1234.5"),
-            ("12345", "12345"),
+            ("-12345", "-12345"),
         ];
         for (literal, expected) in cases {
             let value = VmDecimal::from_str_literal(literal).expect("decimal literal should parse");

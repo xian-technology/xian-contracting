@@ -49,7 +49,6 @@ fn corrupt(reason: impl Into<String>) -> VmExecutionError {
 
 /// Decode one stored V2 value. Decoding is host work: like the Python reader it is not metered.
 pub(crate) fn decode_stored_value(data: &[u8]) -> Result<VmValue> {
-    let _scope = numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
     let _unmetered = crate::work_meter::Unmetered::enter();
     let text = std::str::from_utf8(data).map_err(|_| corrupt("stored value is not UTF-8"))?;
     let document = Parser::new(text).document()?;

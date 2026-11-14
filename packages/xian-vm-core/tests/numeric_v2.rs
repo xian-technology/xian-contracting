@@ -5,20 +5,24 @@ use xian_vm_core::{ModuleIr, VmDecimal, VmExecutionError, VmHost, VmInstance, Vm
 struct Host;
 impl VmHost for Host {}
 
-fn execute(op: &str, lhs: VmValue, rhs: VmValue) -> Result<VmValue, VmExecutionError> {
+fn probe_module(profile: &str, op: &str) -> ModuleIr {
     let span = json!({"line":1,"col":0,"end_line":1,"end_col":1});
     let name = |id: &str| json!({"node":"name","id":id,"span":span});
     let param = |id: &str| json!({"name":id,"kind":"positional_or_keyword","annotation":null,"default":null,"span":span});
     let op = json!({"node":"bin_op","operator":op,"left":name("a"),"right":name("b"),"span":span});
-    let module: ModuleIr = serde_json::from_value(json!({
-        "ir_version":"xian_ir_v1","vm_profile":"xian_vm_v2","host_catalog_version":"xian_vm_v1_host_v1",
+    serde_json::from_value(json!({
+        "ir_version":"xian_ir_v1","vm_profile":profile,"host_catalog_version":"xian_vm_v1_host_v1",
         "module_name":"probe","source_hash":"0".repeat(64),"docstring":Value::Null,"imports":[],
         "global_declarations":[],"module_body":[],"host_dependencies":[],
         "functions":[{"node":"function","span":span,"name":"probe","visibility":"export","decorator":null,
         "docstring":null,"parameters":[param("a"),param("b")],"returns":null,
         "body":[{"node":"return","span":span,"value":op}]}]
-    })).unwrap();
-    VmInstance::new(module, Default::default())?.call_function(
+    }))
+    .unwrap()
+}
+
+fn execute(op: &str, lhs: VmValue, rhs: VmValue) -> Result<VmValue, VmExecutionError> {
+    VmInstance::new(probe_module("xian_vm_v2", op), Default::default())?.call_function(
         &mut Host,
         "probe",
         vec![lhs, rhs],
@@ -31,6 +35,21 @@ fn int(v: i64) -> VmValue {
 }
 fn dec(v: &str) -> VmValue {
     VmValue::Decimal(VmDecimal::from_str_literal(v).unwrap())
+}
+
+#[test]
+fn the_interpreter_executes_only_v2_modules() {
+    // V1 IR still validates (archival tooling) but current code never runs it.
+    let v1 = probe_module("xian_vm_v1", "add");
+    assert!(xian_vm_core::validate_module_ir(&v1).is_ok());
+    let error = VmInstance::new(v1, Default::default())
+        .err()
+        .expect("a V1 module must not execute");
+    assert_eq!(
+        error.to_string(),
+        "unsupported vm_profile 'xian_vm_v1': current code executes only xian_vm_v2"
+    );
+    assert_eq!(execute("add", int(1), int(2)).unwrap(), int(3));
 }
 
 #[test]

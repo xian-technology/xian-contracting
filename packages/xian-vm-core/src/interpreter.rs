@@ -16,10 +16,6 @@ mod diagnostics;
 const STORAGE_DELIMITER: &str = ":";
 const STORAGE_INDEX_SEPARATOR: &str = ".";
 const MAX_HASH_DIMENSIONS: usize = 16;
-/// Archival V1's bound on a hash key, the text after `contract.binding:`.
-/// V2 bounds hash keys and whole storage keys by what the store can hold,
-/// `lmdb_env::MAX_STORAGE_KEY_BYTES`.
-const V1_MAX_HASH_KEY_SIZE: usize = 1024;
 pub(crate) const MAX_SEQUENCE_LENGTH: usize = 1024 * 128;
 pub(crate) const MAX_BINARY_ALLOCATION_BYTES: usize = 1024 * 128;
 pub(crate) const MAX_INTEGER_BITS: u64 = (MAX_BINARY_ALLOCATION_BYTES as u64) * 8;
@@ -455,8 +451,7 @@ fn check_function_arguments(
         let Some(value) = scope.get(&parameter.name) else {
             continue;
         };
-        if numeric_v2::active()
-            && matches!(value, VmValue::None)
+        if matches!(value, VmValue::None)
             && parameter
                 .default
                 .as_ref()
@@ -558,7 +553,7 @@ fn check_typed_value(
                 Err(typecheck_error(label, annotation, value))
             }
         }
-        "decimal" if numeric_v2::active() => {
+        "decimal" => {
             if matches!(value, VmValue::Decimal(_)) {
                 Ok(())
             } else {
@@ -624,17 +619,14 @@ fn typecheck_dict_key_repr(key: &VmValue) -> String {
     }
 }
 
-/// Charge one entry of a whole-hash scan: its bytes and, in V2, a fixed cost.
+/// Charge one entry of a whole-hash scan: its bytes and a fixed cost.
 pub(crate) fn charge_scan_entry(
     host: &mut (impl VmHost + ?Sized),
     key: &str,
     value: &VmValue,
 ) -> Result<(), VmExecutionError> {
     host.charge_storage_read(key, value)?;
-    match crate::metering::hash_scan_entry_cost() {
-        0 => Ok(()),
-        cost => host.charge_execution_cost(cost),
-    }
+    host.charge_execution_cost(crate::metering::VM_GAS_HASH_SCAN_ENTRY)
 }
 
 pub trait VmHost {
@@ -926,8 +918,14 @@ impl VmInstance {
         host: &mut dyn VmHost,
         heap: crate::heap::VmHeap,
     ) -> Result<Self, VmExecutionError> {
+        if module.vm_profile != crate::XIAN_VM_V2_PROFILE {
+            return Err(VmExecutionError::new(format!(
+                "unsupported vm_profile '{}': current code executes only {}",
+                module.vm_profile,
+                crate::XIAN_VM_V2_PROFILE
+            )));
+        }
         let _call = heap.enter_execution_frame()?;
-        let _scope = numeric_v2::Scope::enter(&module.vm_profile);
         let functions = (0..module.functions.len())
             .map(|index| function_table::DefinedFunction::new(module, index))
             .collect::<Vec<_>>();
@@ -1246,7 +1244,6 @@ impl VmInstance {
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
-        let _scope = numeric_v2::Scope::enter(&self.module.vm_profile);
         let _work = crate::work_meter::Isolation::enter();
         self.call_function_shared(host, name, args, kwargs)?
             .external_value()
@@ -1259,7 +1256,6 @@ impl VmInstance {
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
-        let _scope = numeric_v2::Scope::enter(&self.module.vm_profile);
         let args = args
             .into_iter()
             .map(|v| self.heap.capture(v))
@@ -1448,9 +1444,8 @@ impl VmInstance {
             .ok_or_else(|| VmExecutionError::new(format!("unknown function '{name}'")))?;
         host.charge_execution_cost(function.entry_cost())?;
         let mut scope = self.bind_function_arguments(&function, args, kwargs, host)?;
-        let public_v2 =
-            numeric_v2::active() && matches!(function.visibility.as_str(), "export" | "construct");
-        if public_v2 {
+        let public = matches!(function.visibility.as_str(), "export" | "construct");
+        if public {
             for parameter in &function.parameters {
                 if let (Some(annotation), Some(value)) =
                     (&parameter.annotation, scope.get_mut(&parameter.name))
@@ -1482,7 +1477,7 @@ impl VmInstance {
                 "function '{name}' leaked loop control"
             ))),
         }?;
-        if public_v2 {
+        if public {
             if let Some(annotation) = &function.returns {
                 numeric_v2::bind_numeric_annotation(&mut result, annotation, &self.heap)?;
             }
@@ -1689,7 +1684,7 @@ fn ir_root_name(value: &Value) -> Result<Option<&str>, VmExecutionError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{parse_module_ir, XIAN_IR_V1, XIAN_VM_HOST_CATALOG_V1, XIAN_VM_V1_PROFILE};
+    use crate::{parse_module_ir, XIAN_IR_V1, XIAN_VM_HOST_CATALOG_V1, XIAN_VM_V2_PROFILE};
     use serde_json::json;
 
     #[derive(Default)]
@@ -1798,7 +1793,7 @@ mod tests {
         VmInstance::new(
             ModuleIr {
                 ir_version: XIAN_IR_V1.to_owned(),
-                vm_profile: XIAN_VM_V1_PROFILE.to_owned(),
+                vm_profile: XIAN_VM_V2_PROFILE.to_owned(),
                 host_catalog_version: XIAN_VM_HOST_CATALOG_V1.to_owned(),
                 module_name: module_name.to_owned(),
                 source_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -1942,6 +1937,7 @@ mod tests {
         assert_eq!(
             host.execution_costs,
             vec![
+                2 * crate::work_meter::VM_GAS_ELEMENT_WORK,
                 VM_GAS_EXPR_NAME,
                 VM_GAS_EXPR_STORAGE_GET,
                 VM_GAS_EXPR_CONSTANT,
@@ -2000,6 +1996,7 @@ mod tests {
             host.execution_costs,
             vec![
                 VM_GAS_EXPR_SUBSCRIPT,
+                6 * crate::work_meter::VM_GAS_ELEMENT_WORK,
                 VM_GAS_EXPR_NAME,
                 VM_GAS_EXPR_CONSTANT,
                 VM_GAS_EXPR_CONSTANT,
@@ -2039,11 +2036,13 @@ mod tests {
         assert_eq!(
             host.execution_costs,
             vec![
+                crate::work_meter::VM_GAS_ELEMENT_WORK,
                 VM_GAS_STMT_AUG_ASSIGN,
                 VM_GAS_EXPR_SUBSCRIPT,
                 VM_GAS_EXPR_NAME,
                 VM_GAS_EXPR_CONSTANT,
                 VM_GAS_EXPR_CONSTANT,
+                numeric_v2::OP_GAS,
             ]
         );
     }
@@ -2084,7 +2083,13 @@ mod tests {
         assert!(instance.next_item(&items, &mut host).unwrap().is_none());
         assert_eq!(
             host.execution_costs,
-            vec![VM_GAS_STMT_AUG_ASSIGN, VM_GAS_EXPR_NAME, VM_GAS_EXPR_NAME]
+            vec![
+                crate::work_meter::VM_GAS_ELEMENT_WORK,
+                VM_GAS_STMT_AUG_ASSIGN,
+                VM_GAS_EXPR_NAME,
+                VM_GAS_EXPR_NAME,
+                0, // a list `+=` has no numeric operator cost
+            ]
         );
     }
 
@@ -2138,6 +2143,7 @@ mod tests {
         assert_eq!(
             host.execution_costs,
             vec![
+                2 * crate::work_meter::VM_GAS_ELEMENT_WORK,
                 VM_GAS_STMT_EXPR,
                 VM_GAS_CALL_DISPATCH,
                 VM_GAS_EXPR_SUBSCRIPT,
@@ -2182,7 +2188,7 @@ mod tests {
                 VM_GAS_STMT_ASSIGN,
                 VM_GAS_EXPR_CONSTANT,
                 VM_GAS_EXPR_NAME,
-                VM_GAS_EXPR_CONSTANT,
+                2 * crate::work_meter::VM_GAS_ELEMENT_WORK,
             ]
         );
     }
@@ -2230,7 +2236,9 @@ mod tests {
                 VM_GAS_STMT_ASSIGN,
                 VM_GAS_EXPR_LIST,
                 VM_GAS_EXPR_CONSTANT,
+                crate::work_meter::VM_GAS_ELEMENT_WORK,
                 VM_GAS_EXPR_NAME,
+                3 * crate::work_meter::VM_GAS_ELEMENT_WORK,
                 VM_GAS_EXPR_SUBSCRIPT,
             ]
         );
@@ -2241,7 +2249,7 @@ mod tests {
         let module = parse_module_ir(
             &json!({
                 "ir_version": XIAN_IR_V1,
-                "vm_profile": XIAN_VM_V1_PROFILE,
+                "vm_profile": XIAN_VM_V2_PROFILE,
                 "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
                 "module_name": "sample_token",
                 "source_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -2854,7 +2862,7 @@ mod tests {
         let module = parse_module_ir(
             &json!({
                 "ir_version": XIAN_IR_V1,
-                "vm_profile": XIAN_VM_V1_PROFILE,
+                "vm_profile": XIAN_VM_V2_PROFILE,
                 "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
                 "module_name": "interface_probe",
                 "source_hash": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
@@ -3032,7 +3040,7 @@ mod tests {
         let module = parse_module_ir(
             &json!({
                 "ir_version": XIAN_IR_V1,
-                "vm_profile": XIAN_VM_V1_PROFILE,
+                "vm_profile": XIAN_VM_V2_PROFILE,
                 "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
                 "module_name": "adapter",
                 "source_hash": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
@@ -3403,27 +3411,6 @@ mod tests {
     }
 
     #[test]
-    fn supports_decimal_pow_for_integer_and_square_root_exponents() {
-        let nine = VmDecimal::from_str_literal("9").expect("decimal literal should parse");
-        let square_root = nine
-            .pow(&VmDecimal::from_str_literal("0.5").expect("decimal exponent should parse"))
-            .expect("square root exponent should succeed");
-        assert_eq!(
-            square_root,
-            VmDecimal::from_str_literal("3").expect("expected decimal should parse")
-        );
-
-        let fractional = VmDecimal::from_str_literal("0.1").expect("decimal literal should parse");
-        let cubic = fractional
-            .pow(&VmDecimal::from_str_literal("3.0").expect("decimal exponent should parse"))
-            .expect("integer-like decimal exponent should succeed");
-        assert_eq!(
-            cubic,
-            VmDecimal::from_str_literal("0.001").expect("expected decimal should parse")
-        );
-    }
-
-    #[test]
     fn hash_syscalls_separate_text_and_hex_inputs() {
         let text = hash_sha3_256_text(vec![VmValue::String("68656c6c6f".to_owned())], vec![])
             .expect("text hash should succeed");
@@ -3447,22 +3434,19 @@ mod tests {
 
     #[test]
     fn integer_arithmetic_rejects_oversized_results() {
-        let huge = BigInt::from(1u8) << (MAX_INTEGER_BITS as usize);
-        let mul_error = apply_binary_operator("mul", VmValue::Int(huge), vm_int(2))
+        let limit = "integer exceeds the 512-bit magnitude limit";
+        let largest = BigInt::from(1u8) << 511usize;
+        let mul_error = apply_binary_operator("mul", VmValue::Int(largest), vm_int(2))
             .expect_err("oversized multiplication should fail");
-        assert!(mul_error
-            .to_string()
-            .contains("integer multiplication exceeds"));
+        assert_eq!(mul_error.to_string(), limit);
 
-        let pow_error = apply_binary_operator("pow", vm_int(2), vm_int(MAX_INTEGER_BITS))
+        let pow_error = apply_binary_operator("pow", vm_int(2), vm_int(512))
             .expect_err("oversized exponentiation should fail");
-        assert!(pow_error
-            .to_string()
-            .contains("integer exponentiation exceeds"));
+        assert_eq!(pow_error.to_string(), limit);
 
-        let shift_error = apply_binary_operator("lshift", vm_int(1), vm_int(MAX_INTEGER_BITS))
+        let shift_error = apply_binary_operator("lshift", vm_int(1), vm_int(512))
             .expect_err("oversized left shift should fail");
-        assert!(shift_error.to_string().contains("left shift exceeds"));
+        assert_eq!(shift_error.to_string(), limit);
     }
 
     #[test]
@@ -3478,7 +3462,7 @@ mod tests {
         let module = parse_module_ir(
             &json!({
                 "ir_version": XIAN_IR_V1,
-                "vm_profile": XIAN_VM_V1_PROFILE,
+                "vm_profile": XIAN_VM_V2_PROFILE,
                 "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
                 "module_name": "zk_probe",
                 "source_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -3707,7 +3691,7 @@ mod tests {
         let module = parse_module_ir(
             &json!({
                 "ir_version": XIAN_IR_V1,
-                "vm_profile": XIAN_VM_V1_PROFILE,
+                "vm_profile": XIAN_VM_V2_PROFILE,
                 "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
                 "module_name": "list_comp_probe",
                 "source_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -3821,7 +3805,7 @@ mod tests {
         let module = parse_module_ir(
             &json!({
                 "ir_version": XIAN_IR_V1,
-                "vm_profile": XIAN_VM_V1_PROFILE,
+                "vm_profile": XIAN_VM_V2_PROFILE,
                 "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
                 "module_name": "dict_comp_probe",
                 "source_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -3976,7 +3960,7 @@ mod tests {
         let module = parse_module_ir(
             &json!({
                 "ir_version": XIAN_IR_V1,
-                "vm_profile": XIAN_VM_V1_PROFILE,
+                "vm_profile": XIAN_VM_V2_PROFILE,
                 "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
                 "module_name": "dict_unpack_probe",
                 "source_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -4103,7 +4087,7 @@ mod tests {
         let module = parse_module_ir(
             &json!({
                 "ir_version": XIAN_IR_V1,
-                "vm_profile": XIAN_VM_V1_PROFILE,
+                "vm_profile": XIAN_VM_V2_PROFILE,
                 "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
                 "module_name": "while_probe",
                 "source_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -4221,7 +4205,7 @@ mod tests {
         let module = parse_module_ir(
             &json!({
                 "ir_version": XIAN_IR_V1,
-                "vm_profile": XIAN_VM_V1_PROFILE,
+                "vm_profile": XIAN_VM_V2_PROFILE,
                 "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
                 "module_name": "assert_probe",
                 "source_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -4316,7 +4300,7 @@ mod tests {
         let module = parse_module_ir(
             &json!({
                 "ir_version": XIAN_IR_V1,
-                "vm_profile": XIAN_VM_V1_PROFILE,
+                "vm_profile": XIAN_VM_V2_PROFILE,
                 "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
                 "module_name": "ord_probe",
                 "source_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",

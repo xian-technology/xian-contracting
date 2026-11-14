@@ -226,17 +226,14 @@ fn key_is_valid(args: &[VmValue], kwargs: &[(String, VmValue)]) -> Result<VmValu
             "crypto.key_is_valid() expects one argument",
         ));
     }
-    // V2 accepts only the canonical spelling, so one key has one account name.
-    // Archival V1 accepts either hex case.
-    let canonical = crate::interpreter::numeric_v2::active();
+    // Only the canonical lowercase spelling is valid, so one key has one
+    // account name.
     with_string(key, |key| {
         Ok(VmValue::Bool(
             key.len() == 64
-                && key.bytes().all(|byte| {
-                    byte.is_ascii_digit()
-                        || (b'a'..=b'f').contains(&byte)
-                        || (!canonical && (b'A'..=b'F').contains(&byte))
-                }),
+                && key
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)),
         ))
     })
 }
@@ -245,7 +242,7 @@ fn key_is_valid(args: &[VmValue], kwargs: &[(String, VmValue)]) -> Result<VmValu
 mod tests {
     use super::*;
     use crate::{parse_module_ir, VmExecutionContext, VmInstance};
-    use serde_json::{Map, Value};
+    use serde_json::Map;
     use std::collections::HashMap;
 
     #[derive(Default)]
@@ -267,9 +264,28 @@ mod tests {
         dispatch(id, &[VmValue::String(text.into())], &[], meter).unwrap()
     }
     fn instance() -> VmInstance {
-        let fixture: Value =
-            serde_json::from_str(include_str!("../tests/fixtures/time_hash_crypto.json")).unwrap();
-        let module = parse_module_ir(&fixture["modules"][0]["ir"].to_string()).unwrap();
+        let module = parse_module_ir(
+            &serde_json::json!({
+                "ir_version": "xian_ir_v1",
+                "vm_profile": "xian_vm_v2",
+                "host_catalog_version": "xian_vm_v1_host_v1",
+                "module_name": "con_crypto_probe",
+                "source_hash": "0".repeat(64),
+                "docstring": null,
+                "imports": [],
+                "global_declarations": [],
+                "functions": [],
+                "module_body": [],
+                "host_dependencies": [{
+                    "binding": "hashlib.sha256_text",
+                    "category": "hashing",
+                    "id": "hash.sha256_text",
+                    "kind": "syscall"
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
         VmInstance::new(module, VmExecutionContext::default()).unwrap()
     }
 
@@ -497,26 +513,18 @@ mod tests {
     }
 
     #[test]
-    fn v2_keys_are_canonical_lowercase_hex_and_v1_keeps_any_case() {
+    fn keys_are_canonical_lowercase_hex() {
         let mut meter = Meter::default();
         let upper = "A".repeat(64);
         let mixed = format!("{}F", "a".repeat(63));
-        {
-            let _scope = crate::interpreter::numeric_v2::Scope::enter(crate::XIAN_VM_V2_PROFILE);
-            for key in [&upper, &mixed] {
-                assert_eq!(
-                    run("crypto.key_is_valid", key, &mut meter).unwrap(),
-                    VmValue::Bool(false)
-                );
-            }
+        for key in [&upper, &mixed] {
             assert_eq!(
-                run("crypto.key_is_valid", &"0f".repeat(32), &mut meter).unwrap(),
-                VmValue::Bool(true)
+                run("crypto.key_is_valid", key, &mut meter).unwrap(),
+                VmValue::Bool(false)
             );
         }
-        let _scope = crate::interpreter::numeric_v2::Scope::enter(crate::XIAN_VM_V1_PROFILE);
         assert_eq!(
-            run("crypto.key_is_valid", &upper, &mut meter).unwrap(),
+            run("crypto.key_is_valid", &"0f".repeat(32), &mut meter).unwrap(),
             VmValue::Bool(true)
         );
     }

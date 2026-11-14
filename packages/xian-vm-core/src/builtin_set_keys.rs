@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn wrapper_only_leaves_are_rejected_but_wrapped_frozen_sets_are_hashable() {
         let values = [
-            VmValue::Decimal(VmDecimal::one()),
+            VmValue::Decimal(VmDecimal::from_str_literal("1").unwrap()),
             VmValue::DateTime(crate::VmDateTime::new(2024, 1, 2, 0, 0, 0, 0).unwrap()),
             VmValue::TimeDelta(crate::VmTimeDelta::from_raw_seconds(2).unwrap()),
         ];
@@ -149,12 +149,18 @@ mod tests {
     }
 
     #[test]
-    fn nested_local_keys_preserve_first_equal_representative_and_validate_siblings() {
+    fn nested_local_keys_keep_bool_and_int_apart_and_validate_siblings() {
         let function = VmValue::FunctionRef("first".into());
         let first = VmValue::Tuple(vec![function.clone(), VmValue::Bool(true)]);
-        let equal = VmValue::Tuple(vec![function.clone(), vm_int(1)]);
-        assert_eq!(normalize(vec![first.clone(), equal]).unwrap(), vec![first]);
-        for invalid in [VmValue::List(vec![]), VmValue::Decimal(VmDecimal::one())] {
+        let other = VmValue::Tuple(vec![function.clone(), vm_int(1)]);
+        assert_eq!(
+            normalize(vec![first.clone(), other.clone(), first.clone()]).unwrap(),
+            vec![first, other]
+        );
+        for invalid in [
+            VmValue::List(vec![]),
+            VmValue::Decimal(VmDecimal::from_str_literal("1").unwrap()),
+        ] {
             assert!(ensure_hashable(&VmValue::Tuple(vec![function.clone(), invalid])).is_err());
         }
         assert!(ensure_hashable(&VmValue::FrozenSet(vec![function])).is_err());
@@ -248,7 +254,9 @@ mod tests {
             VmValue::String("x".into()),
             VmValue::Bytes(vec![120]),
             VmValue::Tuple(vec![vm_int(3)]),
-            VmValue::FrozenSet(vec![VmValue::Decimal(VmDecimal::one())]),
+            VmValue::FrozenSet(vec![VmValue::Decimal(
+                VmDecimal::from_str_literal("1").unwrap(),
+            )]),
             VmValue::RawDecimal(crate::VmRawDecimal::parse("4.75").unwrap()),
             VmValue::FunctionRef("callback".into()),
         ];

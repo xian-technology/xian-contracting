@@ -176,6 +176,7 @@ mod tests {
                 VM_GAS_EXPR_STORAGE_GET,
                 VM_GAS_EXPR_STORAGE_GET,
                 VM_GAS_HASH_SCAN,
+                crate::metering::VM_GAS_HASH_SCAN_ENTRY,
                 VM_GAS_VARIABLE_GET
             ]
         );

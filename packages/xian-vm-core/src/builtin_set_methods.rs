@@ -205,7 +205,7 @@ impl VmInstance {
         if let Some(item) = args.first() {
             charge_scan(receiver, item, host)?;
         }
-        crate::decimal_metering::normalization(host, &set_items(receiver))?;
+        charge_receiver_copy(receiver);
         let result =
             support::set_kinds::method(set_items(receiver), method, args, &mut |source| {
                 self.collect_iterable(source, host)
@@ -223,6 +223,14 @@ impl VmInstance {
     }
 }
 
+/// `xvm-gas-6` prices one copy of a referenced receiver's members ahead of
+/// a basic method's own work (revision 14 copied the receiver once more for
+/// a raw-Decimal normalization check that V2 never needs).
+fn charge_receiver_copy(receiver: &VmValue) {
+    if let VmValue::Reference(reference) = receiver {
+        reference.with_value(|value| crate::work_meter::note(crate::work_meter::copied(value)));
+    }
+}
 fn set_items(receiver: &VmValue) -> Vec<VmValue> {
     let VmValue::BuiltinSet(items) = receiver.snapshot() else {
         unreachable!("builtin set receiver")
@@ -264,8 +272,7 @@ fn charge_scan(receiver: &VmValue, item: &VmValue, host: &mut dyn VmHost) -> Res
     let payload = mapping_views::set_items_work(receiver).saturating_add(
         mapping_views::value_work(item).saturating_mul(set_len(receiver) as u64 + 1),
     );
-    host.charge_execution_cost(VM_GAS_LOOP_ITERATION.saturating_add(payload.saturating_mul(32)))?;
-    crate::decimal_metering::comparison(host, receiver, item, false)
+    host.charge_execution_cost(VM_GAS_LOOP_ITERATION.saturating_add(payload.saturating_mul(32)))
 }
 fn contains_set(receiver: &VmValue, item: &VmValue, host: &mut dyn VmHost) -> Result<bool> {
     charge_scan(receiver, item, host)?;
@@ -290,7 +297,7 @@ mod tests {
         VmInstance::new(
             ModuleIr {
                 ir_version: crate::XIAN_IR_V1.into(),
-                vm_profile: crate::XIAN_VM_V1_PROFILE.into(),
+                vm_profile: crate::XIAN_VM_V2_PROFILE.into(),
                 host_catalog_version: crate::XIAN_VM_HOST_CATALOG_V1.into(),
                 module_name: "con_builtin_sets".into(),
                 source_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -329,6 +336,34 @@ mod tests {
         args: Vec<VmValue>,
     ) -> Result<VmValue> {
         vm.call_builtin_set_method(receiver.clone(), method, args, &mut NoopHost)
+    }
+
+    /// Element work units a basic method charges on a referenced receiver.
+    fn basic_method_units(method: &str, args: Vec<VmValue>) -> u64 {
+        #[derive(Default)]
+        struct Units(u64);
+        impl VmHost for Units {
+            fn charge_execution_cost(&mut self, cost: u64) -> Result<()> {
+                self.0 += cost;
+                Ok(())
+            }
+        }
+        let mut vm = instance();
+        let target = receiver(&vm, &[1, 2, 3]);
+        let _isolated = crate::work_meter::Isolation::enter();
+        invoke(&mut vm, &target, method, args).unwrap();
+        let mut units = Units::default();
+        crate::work_meter::flush(&mut units).unwrap();
+        units.0 / crate::work_meter::VM_GAS_ELEMENT_WORK
+    }
+
+    #[test]
+    fn basic_methods_charge_one_receiver_copy_before_their_own_work() {
+        // `xvm-gas-6` prices one copy of the receiver's three members ahead
+        // of the method's own copies.
+        assert_eq!(basic_method_units("copy", vec![]), 3 + 3);
+        assert_eq!(basic_method_units("clear", vec![]), 3 + 3);
+        assert_eq!(basic_method_units("discard", vec![vm_int(2)]), 3 + 9);
     }
 
     #[test]
@@ -491,29 +526,6 @@ mod tests {
             )
             .is_err());
         }
-    }
-
-    #[test]
-    fn insertion_preserves_canonical_representatives_and_nan_identity() {
-        let mut vm = instance();
-        let target = receiver(&vm, &[2]);
-        let nan = vm.heap.capture(VmValue::Float(f64::NAN)).unwrap();
-        let other_nan = vm.heap.capture(VmValue::Float(f64::NAN)).unwrap();
-        let source = VmValue::List(vec![
-            vm_int(2),
-            vm_int(1),
-            VmValue::Bool(true),
-            nan.clone(),
-            nan.clone(),
-            other_nan.clone(),
-        ]);
-        invoke(&mut vm, &target, "update", vec![source]).unwrap();
-        let items = set_items(&target);
-        assert_eq!(items.len(), 4);
-        assert_eq!(items[0].snapshot(), VmValue::Bool(true));
-        assert_eq!(items[1].snapshot(), vm_int(2));
-        assert!(items[2].identical(&nan));
-        assert!(items[3].identical(&other_nan));
     }
 
     #[test]

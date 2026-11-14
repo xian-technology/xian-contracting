@@ -268,9 +268,6 @@ impl VmInstance {
                 if matches!(container, VmValue::ForeignStorageRef(_)) {
                     return Err(VmExecutionError::new("cannot write to foreign storage"));
                 }
-                if resolves_to!(container, VmValue::Dict(_)) {
-                    crate::decimal_metering::comparison(host, &container, &index, false)?;
-                }
                 if matches!(container, VmValue::Reference(_)) {
                     assign_subscript(container, &index, value)?;
                     return Ok(());
@@ -348,9 +345,7 @@ impl VmInstance {
         let current = self.hash_get(binding, &key, host)?;
         let operand = self.eval_expression(required_value(object, "value")?, scope, host)?;
         let operator = required_string(object, "operator")?;
-        if numeric_v2::active() {
-            host.charge_execution_cost(numeric_v2::op_cost(operator, &current, &operand))?;
-        }
+        host.charge_execution_cost(numeric_v2::op_cost(operator, &current, &operand))?;
         let result = apply_binary_operator(operator, current, operand)?;
         self.write_hash_value(binding, &key, result, host)?;
         Ok(ControlFlow::Next)
@@ -380,9 +375,7 @@ impl VmInstance {
                 "mappingproxy does not support in-place union",
             ));
         }
-        if numeric_v2::active() {
-            host.charge_execution_cost(numeric_v2::op_cost(operator, &current, &operand))?;
-        }
+        host.charge_execution_cost(numeric_v2::op_cost(operator, &current, &operand))?;
         let union_cost = mapping_views::union_work(operator, &current, &operand);
         if union_cost > 0 {
             host.charge_execution_cost(union_cost)?;
