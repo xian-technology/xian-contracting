@@ -115,14 +115,6 @@ def probe(use_int: bool):
     assert call(source, kwargs={"use_int": True}).status_code == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "execute_tx/BlockExecutor.run convert outcomes outside the V2 numeric scope "
-        "(single_tx_python/block_executor_python outcome_to_py), so ContractingSet(...) "
-        "collapses True and 1; reported, fix belongs in vm-core"
-    ),
-)
 def test_v2_set_distinguishes_bool_and_int_across_native_boundary():
     source = """@export
 def probe():

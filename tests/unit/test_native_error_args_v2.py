@@ -113,19 +113,7 @@ def test_message_text_cannot_select_the_category(run):
 @pytest.mark.parametrize(
     "function,kwargs,kind,args",
     [
-        pytest.param(
-            "structured_args",
-            {},
-            Exception,
-            ([1, {"a": (2, 3)}], "b", None, True),
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "the block executor's VmException keeps list/dict arguments as "
-                    "unresolved heap references: they cross as None (reported)"
-                ),
-            ),
-        ),
+        ("structured_args", {}, Exception, ([1, {"a": (2, 3)}], "b", None, True)),
         ("no_args", {}, Exception, ()),
         ("assertion", {"message": "it's ValueError: x"}, AssertionError, ("it's ValueError: x",)),
         ("bare_assertion", {}, AssertionError, ()),

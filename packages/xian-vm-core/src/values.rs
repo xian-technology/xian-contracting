@@ -1095,6 +1095,13 @@ pub struct VmContractHandle {
     pub origin: String,
 }
 
+/// An exception argument as a plain value: the exception outlives the
+/// execution's heap, so a list or dict it holds by reference is copied out
+/// now. A value that cannot be detached (a cycle) keeps its reference.
+fn detached_argument(value: VmValue) -> VmValue {
+    value.detached().unwrap_or(value)
+}
+
 fn python_exception_arg_repr(value: &VmValue) -> String {
     match &value.snapshot() {
         VmValue::String(inner) => {
@@ -1239,7 +1246,7 @@ impl VmExecutionError {
     pub fn raised(name: impl Into<String>, args: Vec<VmValue>) -> Self {
         let exception = VmException {
             name: name.into(),
-            args,
+            args: args.into_iter().map(detached_argument).collect(),
         };
         Self {
             message: exception.python_repr(),

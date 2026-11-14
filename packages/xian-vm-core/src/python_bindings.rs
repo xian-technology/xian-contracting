@@ -306,24 +306,8 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
         VmValue::BuiltinSet(_) => Err(PyValueError::new_err(
             "builtin sets cannot cross the VM boundary; convert with set() first",
         )),
-        VmValue::Set(values) | VmValue::FrozenSet(values) => {
-            let class = if matches!(value, VmValue::Set(_)) {
-                "ContractingSet"
-            } else {
-                "ContractingFrozenSet"
-            };
-            let wrapper = PyModule::import(py, "xian_runtime_types.collections")?.getattr(class)?;
-            let list = PyList::empty(py);
-            for item in values {
-                list.append(vm_to_py(py, item)?)?;
-            }
-            let set = if numeric_v2::active() {
-                wrapper.call_method1("_from_v2_members", (list,))?
-            } else {
-                wrapper.call1((list,))?
-            };
-            Ok(set.unbind())
-        }
+        VmValue::Set(values) => set_to_py(py, "ContractingSet", values),
+        VmValue::FrozenSet(values) => set_to_py(py, "ContractingFrozenSet", values),
         VmValue::List(values) => {
             let list = PyList::empty(py);
             for item in values {
@@ -365,6 +349,20 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
             format!("{other:?}")
         ))),
     }
+}
+
+/// A set as its `xian_runtime_types` class with V2 members (True and 1 stay
+/// apart): every value crossing to Python is a V2 value, whatever numeric
+/// scope the caller is in.
+fn set_to_py(py: Python<'_>, class: &str, values: &[VmValue]) -> PyResult<Py<PyAny>> {
+    let list = PyList::empty(py);
+    for item in values {
+        list.append(vm_to_py(py, item)?)?;
+    }
+    Ok(PyModule::import(py, "xian_runtime_types.collections")?
+        .getattr(class)?
+        .call_method1("_from_v2_members", (list,))?
+        .unbind())
 }
 
 fn python_class_path(value: &Bound<'_, PyAny>) -> Option<(String, String)> {
