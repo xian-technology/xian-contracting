@@ -5,7 +5,7 @@ edition = "2021"
 # Rust 1.98 ships the LLVM fix for rust-lang/rust#157750: older toolchains strip
 # macOS libraries with a misaligned string table that macOS 27 refuses to load.
 rust-version = "1.98"
-license = "MIT"
+license = "MIT AND OLDAP-2.8"
 description = "Core IR and validation types for the future Xian VM"
 repository = "https://github.com/xian-technology/xian-contracting"
 homepage = "https://github.com/xian-technology/xian-contracting"
