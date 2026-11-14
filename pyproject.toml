@@ -11,7 +11,7 @@ license = "GPL-3.0-only"
 authors = [{ name = "Xian Network", email = "info@xian.org" }]
 requires-python = ">=3.14,<3.15"
 dependencies = [
-    "cachetools>=7.0.6,<9",
+    "cachetools>=8.0.0,<9",
     "pynacl>=1.5.0,<2",
     "xian-tech-compiler-core>=0.2.1,<0.3",
     "xian-tech-runtime-types>=0.1.6,<0.2",
