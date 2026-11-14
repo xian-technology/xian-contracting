@@ -621,18 +621,15 @@ impl BlockExecutor {
     /// it reproduces gained that key after the run's writes).
     fn receipt_order(
         &self,
-        writes: BTreeMap<String, VmValue>,
+        mut writes: BTreeMap<String, VmValue>,
         execution: &Execution,
         balance_key: &str,
     ) -> Vec<(String, VmValue)> {
         let appended = self.fee_mode == FeeMode::Estimated
             && execution.status == 0
             && !execution.writes.contains_key(balance_key);
-        let (mut ordered, fee): (Vec<_>, Vec<_>) = writes
-            .into_iter()
-            .partition(|(key, _)| !(appended && key == balance_key));
-        ordered.extend(fee);
-        ordered
+        let fee = appended.then(|| writes.remove_entry(balance_key)).flatten();
+        writes.into_iter().chain(fee).collect()
     }
 
     /// The sender's balance after a success: refunded against the
