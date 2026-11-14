@@ -6,7 +6,10 @@ random bridge (same value after the V2 boundary, or the same exception with
 the same text); the outcomes were frozen then (``FIXTURE``) and Rust must
 keep reproducing them. Execution revision 14 refuses the documented other
 cases (other argument, population or context types, call shapes that do not
-bind) with a ``TypeError`` of its own. The VM refuses calls above its work
+bind) with a ``TypeError`` of its own, and serves ``random()`` as a decimal
+(``randbelow(10**30) / 10**30``; the bridge's float failed at the V2
+boundary): the 339 sequences whose first differing outcome is a seeded
+``random()`` call were restated. The VM refuses calls above its work
 bounds (``interpreter::random_bounds``) before the host runs them;
 ``vm_bound`` models that check for the generator.
 """

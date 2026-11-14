@@ -12,7 +12,8 @@
 //! str, int, bool or `None`, populations only sequences the VM indexes.
 //! Revision 14: a call whose arguments do not bind to the function's
 //! parameters, and a number argument that is not an int (a bool is one),
-//! fail with a `TypeError` of their own text.
+//! fail with a `TypeError` of their own text. `random()` is Xian's own: an
+//! exact decimal `randbelow(10**30) / 10**30` (Python's is a 53-bit float).
 mod stream;
 #[cfg(test)]
 mod tests;
@@ -20,7 +21,7 @@ mod tests;
 pub(crate) use stream::Stream;
 
 use crate::interpreter::{numeric_v2, random_bounds};
-use crate::{VmExecutionContext, VmExecutionError, VmValue};
+use crate::{VmDecimal, VmExecutionContext, VmExecutionError, VmValue};
 use num_bigint::BigInt;
 use num_traits::{Signed, ToPrimitive, Zero};
 
@@ -136,7 +137,7 @@ const OPERATIONS: [Operation; 8] = [
         required: 0,
         ..operation("seed", &["aux_salt"], seed)
     },
-    operation("random", &[], random_float),
+    operation("random", &[], random_decimal),
     // `handle_syscall` returns shuffle's first positional argument.
     Operation {
         keywords: false,
@@ -182,8 +183,14 @@ fn seed(random: &mut TxRandom, args: &[VmValue]) -> Served {
     Ok(VmValue::None)
 }
 
-fn random_float(random: &mut TxRandom, _: &[VmValue]) -> Served {
-    Ok(VmValue::Float(random.stream()?.random()))
+/// `random()`: a decimal in [0, 1) on the 30-place grid, drawn as
+/// `randrange(10**30)` draws it; its digits are the decimal's scaled integer.
+fn random_decimal(random: &mut TxRandom, _: &[VmValue]) -> Served {
+    let grid = crate::values::decimal_scale_factor()
+        .to_biguint()
+        .expect("a positive scale");
+    let scaled = random.stream()?.randbelow(&grid);
+    Ok(VmValue::Decimal(VmDecimal::from_scaled(scaled.into())?))
 }
 
 fn shuffle(random: &mut TxRandom, args: &[VmValue]) -> Served {

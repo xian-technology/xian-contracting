@@ -139,8 +139,6 @@ fn the_stream_is_pythons_deterministic_random() {
         .map(|upper| stream.randbelow(&upper).to_string())
         .collect();
     assert_eq!(below, ["0", "3", "190777804437847548588612"]);
-    assert_eq!(stream.random(), 0.914674176037491);
-    assert_eq!(Stream::new("x").random(), 0.18259175789971782);
 }
 
 #[test]
@@ -348,17 +346,51 @@ fn errors_are_pythons_in_pythons_order() {
 }
 
 #[test]
-fn random_floats_fail_after_their_draw_and_large_draws_before_any() {
+fn random_is_a_decimal_drawn_as_randrange_of_ten_to_the_thirty() {
+    let grid = BigUint::from(10u8).pow(30);
+    let mut random = node_context();
+    let mut stream = Stream::new("chain_id=xian-local|block_num=17|block_hash=abc|input_hash=f00d");
+    ok(&mut random, "random.seed", &[]);
+    for _ in 0..64 {
+        let VmValue::Decimal(drawn) = ok(&mut random, "random.random", &[]) else {
+            panic!("random() is not a decimal");
+        };
+        // k / 10**30 for k = randbelow(10**30): the decimal's scaled integer.
+        assert_eq!(drawn.scaled, stream.randbelow(&grid).into());
+    }
+    // Both draw from the one stream: randrange(10**30) continues it.
+    assert_eq!(
+        ok(
+            &mut random,
+            "random.randrange",
+            &[VmValue::Int(grid.clone().into())]
+        ),
+        VmValue::Int(stream.randbelow(&grid).into())
+    );
+}
+
+#[test]
+fn random_takes_no_arguments_and_needs_a_seed() {
+    let mut random = node_context();
+    assert_eq!(
+        raised_by(&mut random, "random.random", &[]).0,
+        "AssertionError: Random state not seeded. Call seed()."
+    );
+    ok(&mut random, "random.seed", &[]);
+    assert_eq!(
+        type_error(&mut random, "random.random", &[int(1)], &[]),
+        "random.random() takes the parameters () once each"
+    );
+}
+
+#[test]
+fn large_draws_fail_before_any() {
     let mut random = node_context();
     ok(&mut random, "random.seed", &[]);
     let refused = |served: Served| match served {
         Err(error) if error.exception().is_none() => error.to_string(),
         other => panic!("not refused: {other:?}"),
     };
-    assert_eq!(
-        refused(run(&mut random, "random.random", &[])),
-        "binary float and raw Decimal are unavailable in xian_vm_v2"
-    );
     assert_eq!(
         refused(run(&mut random, "random.getrandbits", &[int(600)])),
         "integer exceeds the 512-bit magnitude limit"
@@ -371,9 +403,8 @@ fn random_floats_fail_after_their_draw_and_large_draws_before_any() {
         )),
         "random.choices() exceeds the maximum allowed allocation size"
     );
-    // random() drew 7 bytes; the refused calls drew nothing.
+    // The refused calls drew nothing.
     let mut stream = Stream::new("chain_id=xian-local|block_num=17|block_hash=abc|input_hash=f00d");
-    stream.getrandbits(53 + 3);
     assert_eq!(
         ok(&mut random, "random.getrandbits", &[int(64)]),
         VmValue::Int(stream.getrandbits(64).into())

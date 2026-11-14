@@ -2,7 +2,6 @@
 //! the SHA3-256 digests of `"<seed material>|<counter>"` for counter 0, 1, 2,
 //! ..., consumed in order as one byte stream.
 use num_bigint::BigUint;
-use num_traits::ToPrimitive;
 use sha3::{Digest, Sha3_256};
 use std::collections::VecDeque;
 
@@ -81,11 +80,5 @@ impl Stream {
             .drain(..bytes)
             .fold(0u64, |value, byte| (value << 8) | u64::from(byte));
         value >> (bytes as u32 * 8 - bits)
-    }
-
-    /// `random()`: 53 bits over 2^53, exact in a double.
-    pub(crate) fn random(&mut self) -> f64 {
-        let bits = self.getrandbits(53).to_u64().expect("53 bits fit a u64");
-        bits as f64 / (1u64 << 53) as f64
     }
 }
