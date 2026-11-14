@@ -546,22 +546,10 @@ impl VmValue {
                     value.validate_storage_payload()?;
                 }
             }
+            // Keys were checked at the VM boundary (`external_value`): only
+            // strings that are not codec tags reach here.
             Self::Dict(entries) => {
-                for (key, value) in entries {
-                    if matches!(key,Self::String(name) if crate::set_member_codec::is_reserved_tag(name))
-                    {
-                        return Err(VmExecutionError::new(
-                            "stored dictionaries cannot use reserved codec tags",
-                        ));
-                    }
-                    if !matches!(
-                        key,
-                        Self::None | Self::Bool(_) | Self::Int(_) | Self::String(_)
-                    ) {
-                        return Err(VmExecutionError::new(
-                            "stored dictionary keys must be str, int, float, bool or None",
-                        ));
-                    }
+                for (_, value) in entries {
                     value.validate_storage_payload()?;
                 }
             }
@@ -1037,6 +1025,23 @@ impl fmt::Display for VmExecutionError {
 #[cfg(test)]
 mod tests {
     use super::{VmDecimal, VmValue};
+
+    #[test]
+    fn stored_dictionaries_take_only_plain_string_keys() {
+        let wire = "V2 wire dictionaries require string keys and cannot use reserved codec tags";
+        for key in [
+            VmValue::Int(1.into()),
+            VmValue::None,
+            VmValue::Bool(true),
+            VmValue::Tuple(vec![VmValue::Int(1.into())]),
+            VmValue::String("__fixed__".into()),
+        ] {
+            let stored = VmValue::List(vec![VmValue::Dict(vec![(key, VmValue::None)])]);
+            assert_eq!(stored.storage_value().unwrap_err().to_string(), wire);
+        }
+        let plain = VmValue::Dict(vec![(VmValue::String("a".into()), VmValue::None)]);
+        assert_eq!(plain.storage_value().unwrap(), plain);
+    }
 
     #[test]
     fn decimal_python_repr_is_the_plain_decimal_text() {
