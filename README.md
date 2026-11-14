@@ -193,3 +193,19 @@ and `tests/integration/` paths explicitly.
 - [docs/EXECUTION_BACKLOG.md](docs/EXECUTION_BACKLOG.md) — execution-engine follow-ups
 - [docs/SHIELDED_STATE_REDESIGN_V2.md](docs/SHIELDED_STATE_REDESIGN_V2.md) — shielded-state model
 - [docs/ZK_PRIVACY_OPTIMIZATION_PLAN.md](docs/ZK_PRIVACY_OPTIMIZATION_PLAN.md) — zk privacy roadmap
+
+## License
+
+`src/contracting`, published as `xian-tech-contracting`, derives from Lamden's
+contracting and is licensed under the GNU General Public License, version 3
+only (`GPL-3.0-only`). The repository as a whole is GPL-3.0-only as well; see
+[LICENSE](LICENSE). Copyright the Lamden authors and Xian Technology.
+
+The packages under [`packages/`](packages/README.md) are Xian's own work and
+are licensed MIT, each with its own `LICENSE` file: `xian-runtime-types`,
+`xian-accounts`, `xian-numeric`, `xian-compiler-core`, `xian-fastpath-core`,
+`xian-zk` and `xian-vm-core`. `xian-vm-core` is `MIT AND OLDAP-2.8` because it
+vendors LMDB under the OpenLDAP Public License. None of these packages depends
+on `xian-tech-contracting` at runtime
+(`tests/unit/test_mit_packages_independent.py` checks this), so the MIT SDKs
+built on them, such as `xian-py` through `xian-tech-runtime-types`, stay MIT.

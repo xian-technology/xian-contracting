@@ -44,3 +44,13 @@ featureless copies of their libraries into the VM's Cargo target directory.
 Build their Python packages with their own target directories (or install the
 VM with `--no-deps`); a shared target directory can install the featureless
 library (`ImportError: ... PyInit__native`).
+
+## License
+
+Every package in this folder is licensed MIT and carries its own `LICENSE`
+file; `xian-vm-core` is `MIT AND OLDAP-2.8` because it vendors LMDB (the LMDB
+license and copyright files ship under `xian-vm-core/vendor/lmdb/`). The
+repository root and `src/contracting` (`xian-tech-contracting`) are
+GPL-3.0-only. An MIT package must not depend on or import `contracting` at
+runtime (dependency groups and tests may); `tests/unit/test_mit_packages_independent.py`
+enforces this.
