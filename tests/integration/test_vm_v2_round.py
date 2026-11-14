@@ -14,7 +14,7 @@ import random
 from decimal import ROUND_HALF_EVEN, Context, Decimal, localcontext
 
 import pytest
-from xian_runtime_types.decimal import ContractingDecimal
+from xian_runtime_types.decimal import ContractingDecimal, DecimalOverflowError
 
 from tests.integration.test_vm_v2_numeric_boundaries import call
 
@@ -168,6 +168,31 @@ def test_round_matches_cpython_on_ints_and_decimals():
         assert result.status_code == 0, result.result
         for (pair, expected), actual in zip(chunk, result.result, strict=True):
             assert same(actual, expected), (pair, expected, actual)
+
+
+def sdk_round(value, digits):
+    """The SDK's round of a decimal pair (``ContractingDecimal.__round__``)."""
+    number = ContractingDecimal(value)
+    return round(number) if digits == "absent" else round(number, digits)
+
+
+def test_the_sdk_rounds_every_decimal_pair_as_the_vm_does():
+    decimal_cases = [(pair, e) for pair, e in matrix() if isinstance(pair[0], str)]
+    in_range_cases = [(pair, e) for pair, e in decimal_cases if in_range(e)]
+    assert len(in_range_cases) > 5000
+    for start in range(0, len(in_range_cases), 1500):
+        chunk = in_range_cases[start : start + 1500]
+        result = call(SOURCE, kwargs={"pairs": [pair for pair, _ in chunk]})
+        assert result.status_code == 0, result.result
+        for (pair, expected), chain in zip(chunk, result.result, strict=True):
+            sdk = sdk_round(*pair)
+            assert type(sdk) is type(chain) and sdk == chain, (pair, sdk, chain)
+            assert same(sdk, expected), (pair, sdk, expected)
+    outside = [pair for pair, expected in decimal_cases if not in_range(expected)]
+    assert len(outside) > 30
+    for pair in outside:
+        with pytest.raises(DecimalOverflowError):
+            sdk_round(*pair)
 
 
 @pytest.mark.parametrize(

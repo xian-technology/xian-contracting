@@ -240,6 +240,43 @@ class TestDecimal(TestCase):
                 round(Decimal(s), 10), round(ContractingDecimal(s), 10)
             )
 
+    def test_round_follows_the_vm_rules(self):
+        # The chain's round(): an int for round(x), a ContractingDecimal for
+        # round(x, n), half to even, independent of the ambient context.
+        cd = ContractingDecimal
+        previous = decimal.getcontext().copy()
+        try:
+            decimal.setcontext(decimal.Context(prec=5))
+            for value, expected in [("2.5", 2), ("3.5", 4), ("-2.5", -2), ("0.5", 0)]:
+                rounded = round(cd(value))
+                self.assertIs(type(rounded), int)
+                self.assertEqual(rounded, expected)
+            self.assertIs(type(round(cd("2.5"), None)), int)
+            for value, places, expected in [
+                ("1.005", 2, "1"),
+                ("-1.015", 2, "-1.02"),
+                ("1234.5678", -2, "1200"),
+                ("125", -1, "120"),
+                ("135", -1, "140"),
+                ("1.5", 31, "1.5"),
+                ("1.5", 10**40, "1.5"),
+                ("9" * 61 + ".25", 1, "9" * 61 + ".2"),
+                ("12345678901234567890123456789012.5", 0, "12345678901234567890123456789012"),
+                ("5" + "0" * 60, -(10**40), "0"),
+            ]:
+                rounded = round(cd(value), places)
+                self.assertIs(type(rounded), cd, (value, places))
+                self.assertEqual(rounded, cd(expected), (value, places))
+            self.assertEqual(round(cd("9" * 61 + ".5")), 10**61)
+            with self.assertRaises(DecimalOverflowError):
+                round(cd("9" * 61 + ".5"), 0)
+            with self.assertRaises(TypeError):
+                round(cd("1.5"), True)
+            with self.assertRaises(TypeError):
+                round(cd("1.5"), cd("1"))
+        finally:
+            decimal.setcontext(previous)
+
     def test_contracting_decimal_arithmetic_ignores_ambient_context(self):
         previous = decimal.getcontext().copy()
         try:

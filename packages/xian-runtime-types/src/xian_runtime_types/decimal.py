@@ -278,7 +278,33 @@ class ContractingDecimal:
         return float(str(self))
 
     def __round__(self, n=None):
-        return round(self._d, n)
+        """``round()`` as a V2 contract rounds: half to even, exact, without
+        the ambient decimal context. ``round(x)`` is an int; ``round(x, n)``
+        a ContractingDecimal (``n`` may be negative; past 30 places it
+        changes nothing); ``n`` is an int or None (a bool is not an int). A
+        result outside the decimal range raises ``DecimalOverflowError``."""
+        if n is None:
+            return _round_half_even(self._scaled, SCALE)
+        if type(n) is not int:
+            raise TypeError("round() ndigits must be an int or None")
+        exponent = MAX_LOWER_PRECISION - n
+        if exponent <= 0:
+            return self
+        unit = 10 ** min(exponent, _ROUNDED_AWAY)
+        return self._from_scaled(_round_half_even(self._scaled, unit) * unit)
+
+
+# Every scaled decimal is below 10**91 (and every V2 int below 10**155), so
+# rounding to a power of ten at or above 10**156 gives 0, as in the VM.
+_ROUNDED_AWAY = 156
+
+
+def _round_half_even(scaled: int, unit: int) -> int:
+    """``scaled / unit`` rounded half to even."""
+    quotient, remainder = divmod(abs(scaled), unit)
+    if 2 * remainder > unit or (2 * remainder == unit and quotient % 2):
+        quotient += 1
+    return -quotient if scaled < 0 else quotient
 
 
 def _pow_scaled(base_scaled: int, exponent_scaled: int) -> int:
