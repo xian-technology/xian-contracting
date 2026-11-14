@@ -69,7 +69,7 @@ impl Balance {
         }
     }
 
-    /// The balance as a `ContractingDecimal` operand (`_coerce_scaled`).
+    /// The balance as a decimal operand (an int becomes its exact decimal).
     fn fixed(&self) -> Paid<VmDecimal> {
         match self {
             Self::Int(value) => fixed_int(value),
