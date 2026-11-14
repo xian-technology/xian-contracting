@@ -205,7 +205,6 @@ impl VmInstance {
         if let Some(item) = args.first() {
             charge_scan(receiver, item, host)?;
         }
-        charge_receiver_copy(receiver);
         let result =
             support::set_kinds::method(set_items(receiver), method, args, &mut |source| {
                 self.collect_iterable(source, host)
@@ -223,14 +222,6 @@ impl VmInstance {
     }
 }
 
-/// `xvm-gas-6` prices one copy of a referenced receiver's members ahead of
-/// a basic method's own work (revision 14 copied the receiver once more for
-/// a raw-Decimal normalization check that V2 never needs).
-fn charge_receiver_copy(receiver: &VmValue) {
-    if let VmValue::Reference(reference) = receiver {
-        reference.with_value(|value| crate::work_meter::note(crate::work_meter::copied(value)));
-    }
-}
 fn set_items(receiver: &VmValue) -> Vec<VmValue> {
     let VmValue::BuiltinSet(items) = receiver.snapshot() else {
         unreachable!("builtin set receiver")
@@ -338,32 +329,44 @@ mod tests {
         vm.call_builtin_set_method(receiver.clone(), method, args, &mut NoopHost)
     }
 
-    /// Element work units a basic method charges on a referenced receiver.
-    fn basic_method_units(method: &str, args: Vec<VmValue>) -> u64 {
-        #[derive(Default)]
-        struct Units(u64);
-        impl VmHost for Units {
-            fn charge_execution_cost(&mut self, cost: u64) -> Result<()> {
-                self.0 += cost;
-                Ok(())
-            }
+    #[derive(Default)]
+    struct Charges(Vec<u64>);
+    impl VmHost for Charges {
+        fn charge_execution_cost(&mut self, cost: u64) -> Result<()> {
+            self.0.push(cost);
+            Ok(())
         }
+    }
+
+    /// The direct charges and the element work units of a basic method on a
+    /// referenced three-member receiver.
+    fn basic_method_costs(method: &str, args: Vec<VmValue>) -> (Vec<u64>, u64) {
         let mut vm = instance();
         let target = receiver(&vm, &[1, 2, 3]);
         let _isolated = crate::work_meter::Isolation::enter();
-        invoke(&mut vm, &target, method, args).unwrap();
-        let mut units = Units::default();
-        crate::work_meter::flush(&mut units).unwrap();
-        units.0 / crate::work_meter::VM_GAS_ELEMENT_WORK
+        let mut direct = Charges::default();
+        vm.call_builtin_set_method(target, method, args, &mut direct)
+            .unwrap();
+        let mut work = Charges::default();
+        crate::work_meter::flush(&mut work).unwrap();
+        let units = work.0.iter().sum::<u64>() / crate::work_meter::VM_GAS_ELEMENT_WORK;
+        (direct.0, units)
+    }
+
+    fn basic_method_units(method: &str, args: Vec<VmValue>) -> u64 {
+        basic_method_costs(method, args).1
     }
 
     #[test]
-    fn basic_methods_charge_one_receiver_copy_before_their_own_work() {
-        // `xvm-gas-6` prices one copy of the receiver's three members ahead
-        // of the method's own copies.
-        assert_eq!(basic_method_units("copy", vec![]), 3 + 3);
-        assert_eq!(basic_method_units("clear", vec![]), 3 + 3);
-        assert_eq!(basic_method_units("discard", vec![vm_int(2)]), 3 + 9);
+    fn basic_methods_charge_exactly_one_receiver_copy() {
+        // Revision 14: a basic method copies the receiver's three members
+        // once; `discard` adds its own scan and rewrite of the set.
+        assert_eq!(basic_method_units("copy", vec![]), 3);
+        assert_eq!(basic_method_units("clear", vec![]), 3);
+        assert_eq!(basic_method_units("discard", vec![vm_int(2)]), 3 + 6);
+        // The dispatch charge counts the receiver's members.
+        let (direct, _) = basic_method_costs("copy", vec![]);
+        assert_eq!(direct, vec![VM_GAS_LOOP_ITERATION + 3]);
     }
 
     #[test]
