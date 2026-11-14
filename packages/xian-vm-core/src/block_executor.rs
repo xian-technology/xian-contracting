@@ -26,14 +26,13 @@ use crate::block_state::lock;
 use crate::bundle_executor::{validate_bundle_module, BundleExecutor, ExecutionOutcome};
 use crate::lmdb_env::storage_key_error;
 use crate::metering::VM_TRANSACTION_BASE_CHI as TRANSACTION_BASE_CHI;
-use crate::python_decimal::PyDecimal;
 use crate::settlement::{self, Balance, InvalidBalance, Reservation, Settled, Stop};
 use crate::state_view::StateView;
 use crate::stored_value_encoder::encode_stored_value;
 use crate::tx_rewards::{chain_chi_rate, tx_reward_outputs, RewardState, TxRewards, CHI_RATE_KEY};
 use crate::{
-    ValidatedModuleIr, VmBudget, VmEvent, VmException, VmExecutionContext, VmExecutionStats,
-    VmMeterConfig, VmValue,
+    ValidatedModuleIr, VmBudget, VmDecimal, VmEvent, VmException, VmExecutionContext,
+    VmExecutionStats, VmMeterConfig, VmValue,
 };
 use num_bigint::BigInt;
 use num_traits::Zero;
@@ -161,7 +160,7 @@ impl From<Stop> for PrepareStop {
 }
 
 /// A transaction's writes after its fee, and the chi whose fee was paid.
-type SettledWrites = (BTreeMap<String, VmValue>, PyDecimal);
+type SettledWrites = (BTreeMap<String, VmValue>, VmDecimal);
 
 /// What the VM part of a transaction produced, before settlement.
 struct Execution {
@@ -654,7 +653,7 @@ impl BlockExecutor {
                 .unwrap_or(None),
         };
         let writes = match charge {
-            None => (BTreeMap::new(), PyDecimal::int(0)),
+            None => (BTreeMap::new(), VmDecimal::zero()),
             Some(charge) => (
                 BTreeMap::from([(balance_key.to_owned(), charge.balance)]),
                 charge.paid_chi,
@@ -684,7 +683,7 @@ impl BlockExecutor {
                 Err(invalid) => return Ok(Err(invalid)),
             }
         }
-        Ok(Ok((writes, PyDecimal::int(execution.chi_used.clone()))))
+        Ok(settlement::fixed_int(&execution.chi_used).map(|chi| (writes, chi)))
     }
 
     /// The sender's balance after an estimated success: the fee metered

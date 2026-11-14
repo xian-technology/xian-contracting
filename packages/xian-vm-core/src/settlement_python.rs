@@ -2,7 +2,6 @@
 //! hooks the fee and reward corpus tests drive with explicit inputs.
 use super::{bigint_to_py, py_to_vm, vm_to_py};
 use crate::lmdb_python::LmdbStorageError;
-use crate::python_decimal::PyDecimal;
 use crate::settlement::{self, Balance, Paid, Settled, Stop};
 use crate::tx_rewards::{
     tx_reward_outputs, valid_chi_rate, RewardRecord, RewardState, TxRewards, CHI_RATE_KEY,
@@ -30,10 +29,11 @@ fn int_arg(value: Bound<'_, PyAny>) -> PyResult<BigInt> {
 
 /// The chi whose fee is paid out: an int, or a `ContractingDecimal` (a
 /// failed transaction that paid its whole balance).
-fn chi_arg(value: Bound<'_, PyAny>) -> PyResult<PyDecimal> {
+fn chi_arg(value: Bound<'_, PyAny>) -> PyResult<VmDecimal> {
     match to_vm(value)? {
-        VmValue::Int(value) => Ok(PyDecimal::int(value)),
-        VmValue::Decimal(value) => Ok(PyDecimal::fixed(&value)),
+        VmValue::Int(value) => settlement::fixed_int(&value)
+            .map_err(|_| PyValueError::new_err("chi outside the decimal range")),
+        VmValue::Decimal(value) => Ok(value),
         other => Err(PyValueError::new_err(format!(
             "expected an int or a decimal, got {}",
             other.type_name()

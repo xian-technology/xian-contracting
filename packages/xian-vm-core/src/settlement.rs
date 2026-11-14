@@ -1,11 +1,10 @@
-//! Fee reservation, refunds and metering of a transaction, as
-//! `xian.execution_engine` and `xian.processor` compute them in Python.
+//! Fee reservation, refunds and metering of a transaction (the rules the
+//! retired Python execution engine defined).
 //!
 //! Balances and amounts are `ContractingDecimal` values (30 fractional
 //! digits; division truncates toward zero; 91 digits at most). A sender
 //! balance that is not a number (or that leaves the representable range) is
 //! `InvalidBalance`: such a sender cannot pay (revision 14).
-use crate::python_decimal::PyDecimal;
 use crate::{VmDecimal, VmValue};
 use num_bigint::BigInt;
 use num_traits::{Signed, Zero};
@@ -138,8 +137,8 @@ pub(crate) fn refund(
 pub(crate) struct FailureCharge {
     /// The sender's balance after the fee.
     pub(crate) balance: VmValue,
-    /// The chi whose fee was paid, as `decimal.Decimal`.
-    pub(crate) paid_chi: PyDecimal,
+    /// The chi whose fee was paid.
+    pub(crate) paid_chi: VmDecimal,
 }
 
 /// `vm_failure_charge`: the fee is `chi_used / rate`; a balance that cannot
@@ -163,19 +162,15 @@ pub(crate) fn failure_charge(
     } else {
         FailureCharge {
             balance: VmValue::Decimal(remaining),
-            paid_chi: PyDecimal::int(chi_used.clone()),
+            paid_chi: fixed_int(chi_used)?,
         }
     }))
 }
 
 /// `balance * rate` of a non-negative balance: priced in chi (an integer
 /// balance stays an integer).
-fn whole_balance_chi(balance: &Balance, rate: &BigInt) -> Paid<PyDecimal> {
-    Ok(match balance {
-        _ if balance.scaled().is_zero() => PyDecimal::int(0),
-        Balance::Int(value) => PyDecimal::int(value * rate),
-        Balance::Fixed(value) => PyDecimal::fixed(&checked(value.mul(&fixed_int(rate)?))?),
-    })
+fn whole_balance_chi(balance: &Balance, rate: &BigInt) -> Paid<VmDecimal> {
+    checked(balance.fixed()?.mul(&fixed_int(rate)?))
 }
 
 /// `failed_transaction_chi`: chi charged for a failed metered transaction,

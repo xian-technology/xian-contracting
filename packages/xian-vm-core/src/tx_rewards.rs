@@ -1,22 +1,29 @@
-//! A transaction's fee rewards: shares in Python `decimal.Decimal` arithmetic
-//! at the default 28-digit context (the rule the retired Python reward split
-//! defined, pinned by the golden reward corpus), each converted to
-//! `ContractingDecimal` and divided by the chain chi rate.
+//! A transaction's fee rewards, in `ContractingDecimal` arithmetic (30
+//! fractional digits; every product and quotient truncated toward zero):
+//! shares of the paid chi, each divided by the chain chi rate.
+//!
+//! Conservation (revision 14): the shares never sum to more than the paid
+//! chi, and none is negative, so the tokens paid out never exceed the fee
+//! the sender was charged (`chi / rate`). What is not paid out (the burn
+//! share and the truncation dust) is burned. A proportional share is
+//! `amount * weight / total weight` with one truncation; the last
+//! participant of a split takes what is left; the foundation share is
+//! rounded down to 8 places. A split whose paid ratios (validators,
+//! foundation, developers) are negative or sum to more than 1 pays no
+//! rewards.
 //!
 //! Revision 14: a transaction's rewards are paid in full or not at all. A
 //! reward input of a type it may not hold (the split, the foundation owner,
-//! the validators and their terms, a developer), a computation the decimal
-//! context cannot represent, or a recipient whose balance key LMDB cannot
+//! the validators and their terms, a developer), an amount outside the
+//! decimal range, or a recipient whose balance key LMDB cannot
 //! store means no rewards for that transaction: its fee is burned, as the
 //! burn share is. The transaction itself is unaffected, so the governance
 //! transaction that repairs the configuration still runs.
 use crate::lmdb_env::storage_key_error;
-use crate::python_decimal::{DecimalSignal, PyDecimal};
-use crate::settlement::{checked_add, fixed_int, InvalidBalance, Settled, Stop};
+use crate::settlement::{checked, checked_add, fixed_int, InvalidBalance, Settled, Stop};
 use crate::{VmDecimal, VmValue};
 use num_bigint::BigInt;
 use num_traits::{Signed, Zero};
-use std::cmp::Ordering;
 
 /// Reads state as the node's client does (`get_var`, unmarked).
 pub(crate) trait RewardState {
@@ -34,12 +41,6 @@ pub(crate) enum Unpaid {
 impl From<Stop> for Unpaid {
     fn from(stop: Stop) -> Self {
         Self::Fault(stop)
-    }
-}
-
-impl From<DecimalSignal> for Unpaid {
-    fn from(_: DecimalSignal) -> Self {
-        Self::Invalid
     }
 }
 
@@ -125,22 +126,40 @@ fn credit(credits: &mut Credits, key: &str, amount: &VmDecimal) -> Reward<()> {
 }
 
 /// A reward input as a decimal, for the value types a reward input can hold.
-fn as_decimal(value: &VmValue) -> Reward<PyDecimal> {
+fn as_decimal(value: &VmValue) -> Reward<VmDecimal> {
     match value {
-        VmValue::Int(value) => Ok(PyDecimal::int(value.clone())),
-        VmValue::Decimal(value) => Ok(PyDecimal::fixed(value)),
+        VmValue::Int(value) => Ok(fixed_int(value)?),
+        VmValue::Decimal(value) => Ok(value.clone()),
         _ => invalid(),
     }
+}
+
+/// `ContractingDecimal(n)` of a small constant.
+fn whole(value: u32) -> VmDecimal {
+    fixed_int(&BigInt::from(value)).expect("a small integer is a decimal")
+}
+
+fn sub(left: &VmDecimal, right: &VmDecimal) -> Reward<VmDecimal> {
+    Ok(checked(left.sub(right))?)
+}
+
+/// `amount * weight / base`, truncated once (the product is exact). Every
+/// operand is non-negative and `base` positive, so the share is at most
+/// `amount` whenever `weight <= base`.
+fn proportional(amount: &VmDecimal, weight: &VmDecimal, base: &VmDecimal) -> Reward<VmDecimal> {
+    Ok(checked(VmDecimal::from_scaled(
+        &amount.scaled * &weight.scaled / &base.scaled,
+    ))?)
 }
 
 fn present(value: Option<VmValue>) -> Option<VmValue> {
     value.filter(|value| !matches!(value, VmValue::None))
 }
 
-/// Python truthiness of a state value the port covers.
+/// Python truthiness of a present state value the port covers (callers
+/// filter `None` with `present`).
 fn truthy(value: &VmValue) -> Reward<bool> {
     Ok(match value {
-        VmValue::None => false,
         VmValue::Bool(value) => *value,
         VmValue::Int(value) => !value.is_zero(),
         VmValue::Decimal(value) => !value.is_zero(),
@@ -177,42 +196,153 @@ fn key_or(value: Option<VmValue>, default: &str) -> Reward<String> {
 }
 
 /// A non-negative amount: missing is 0, negative is 0.
-fn non_negative(value: Option<VmValue>) -> Reward<PyDecimal> {
+fn non_negative(value: Option<VmValue>) -> Reward<VmDecimal> {
     let Some(value) = present(value) else {
-        return Ok(PyDecimal::int(0));
+        return Ok(VmDecimal::zero());
     };
     let value = as_decimal(&value)?;
-    Ok(if value.sign()? == Ordering::Less {
-        PyDecimal::int(0)
+    Ok(if value.scaled.is_negative() {
+        VmDecimal::zero()
     } else {
         value
     })
 }
 
-/// `0 + w1 + w2 + ...`, as Python's `sum` adds.
-fn sum<T>(weights: &[(T, PyDecimal)]) -> Reward<PyDecimal> {
-    let mut total = PyDecimal::int(0);
+/// A validator's staking terms (with a positive stake).
+struct Stake {
+    commission_bps: VmDecimal,
+    self_bond: VmDecimal,
+    stake_base: VmDecimal,
+    weights: Vec<((String, String), VmDecimal)>,
+}
+
+/// Credits `validator`'s reward to its operator (commission and self bond)
+/// and its delegators (the last takes what is left), and records them.
+fn credit_stake(
+    (own, records): (&mut Credits, &mut Vec<RewardRecord>),
+    validator: &str,
+    operator_key: &str,
+    total_reward: &VmDecimal,
+    stake: &Stake,
+) -> Reward<()> {
+    let (operator_total, remainder) = operator_share(
+        total_reward,
+        &stake.commission_bps,
+        &stake.self_bond,
+        &stake.stake_base,
+    )?;
+    if operator_total.scaled.is_positive() {
+        credit_operator((own, records), validator, operator_key, &operator_total)?;
+    }
+    let shares = split(
+        total_reward,
+        &stake.weights,
+        &remainder,
+        &stake.stake_base,
+        operator_total,
+    )?;
+    credit_delegators(validator, &stake.weights, shares, own, records)
+}
+
+/// Credits the operator's share of `validator`'s reward and records it.
+fn credit_operator(
+    (own, records): (&mut Credits, &mut Vec<RewardRecord>),
+    validator: &str,
+    operator_key: &str,
+    amount: &VmDecimal,
+) -> Reward<()> {
+    credit(own, operator_key, amount)?;
+    records.push(validator_record(
+        RewardKind::Validator,
+        validator,
+        operator_key,
+        None,
+        amount,
+    ));
+    Ok(())
+}
+
+/// Credits each delegator's share of `validator`'s reward and records it.
+fn credit_delegators(
+    validator: &str,
+    weights: &[((String, String), VmDecimal)],
+    shares: Vec<VmDecimal>,
+    own: &mut Credits,
+    records: &mut Vec<RewardRecord>,
+) -> Reward<()> {
+    for (((delegator, reward_key), _), amount) in weights.iter().zip(shares) {
+        credit(own, reward_key, &amount)?;
+        records.push(validator_record(
+            RewardKind::Delegator,
+            validator,
+            reward_key,
+            Some(delegator),
+            &amount,
+        ));
+    }
+    Ok(())
+}
+
+/// A reward record of `validator`'s share.
+fn validator_record(
+    kind: RewardKind,
+    validator: &str,
+    recipient: &str,
+    delegator: Option<&str>,
+    value: &VmDecimal,
+) -> RewardRecord {
+    RewardRecord {
+        kind,
+        recipient_key: recipient.to_owned(),
+        source_contract: None,
+        validator_key: Some(validator.to_owned()),
+        delegator_key: delegator.map(str::to_owned),
+        value: value.clone(),
+    }
+}
+
+/// The operator's share of a validator's `total_reward` (its commission and
+/// its self bond's part of the rest) and the rest, which the stake shares.
+fn operator_share(
+    total_reward: &VmDecimal,
+    commission_bps: &VmDecimal,
+    self_bond: &VmDecimal,
+    stake_base: &VmDecimal,
+) -> Reward<(VmDecimal, VmDecimal)> {
+    let commission = proportional(total_reward, commission_bps, &whole(10_000))?;
+    let remainder = sub(total_reward, &commission)?;
+    if !self_bond.scaled.is_positive() {
+        return Ok((commission, remainder));
+    }
+    let bonded = proportional(&remainder, self_bond, stake_base)?;
+    Ok((checked_add(&commission, &bonded)?, remainder))
+}
+
+/// `w1 + w2 + ...`.
+fn sum<T>(weights: &[(T, VmDecimal)]) -> Reward<VmDecimal> {
+    let mut total = VmDecimal::zero();
     for (_, weight) in weights {
-        total = total.add(weight)?;
+        total = checked_add(&total, weight)?;
     }
     Ok(total)
 }
 
-/// `share`s of `total` by weight; the last takes what is left.
+/// `share`s of `total` by weight (`scale * weight / base`); the last takes
+/// what is left of `total` after `allocated` and the others.
 fn split<T>(
-    total: &PyDecimal,
-    weights: &[(T, PyDecimal)],
-    scale: &PyDecimal,
-    base: &PyDecimal,
-    mut allocated: PyDecimal,
-) -> Reward<Vec<PyDecimal>> {
+    total: &VmDecimal,
+    weights: &[(T, VmDecimal)],
+    scale: &VmDecimal,
+    base: &VmDecimal,
+    mut allocated: VmDecimal,
+) -> Reward<Vec<VmDecimal>> {
     let mut shares = Vec::with_capacity(weights.len());
     for (index, (_, weight)) in weights.iter().enumerate() {
         if index + 1 == weights.len() {
-            shares.push(total.sub(&allocated)?);
+            shares.push(sub(total, &allocated)?);
         } else {
-            let share = scale.mul(weight)?.div(base)?;
-            allocated = allocated.add(&share)?;
+            let share = proportional(scale, weight, base)?;
+            allocated = checked_add(&allocated, &share)?;
             shares.push(share);
         }
     }
@@ -235,19 +365,14 @@ impl Rewards<'_> {
 
     /// The operator's reward key, commission (basis points, capped at
     /// 10000) and self bond of `validator`.
-    fn operator_terms(&mut self, validator: &str) -> Reward<(String, PyDecimal, PyDecimal)> {
+    fn operator_terms(&mut self, validator: &str) -> Reward<(String, VmDecimal, VmDecimal)> {
         let operator_key = key_or(
             self.var("validators", "reward_keys", &[validator])?,
             validator,
         )?;
         let commission_bps =
             non_negative(self.var("validators", "commission_bps", &[validator])?)?;
-        let cap = PyDecimal::int(10_000);
-        let commission_bps = if commission_bps.compare(&cap)? == Ordering::Greater {
-            cap
-        } else {
-            commission_bps
-        };
+        let commission_bps = commission_bps.min(whole(10_000));
         let self_bond = non_negative(self.var("validators", "self_bond", &[validator])?)?;
         Ok((operator_key, commission_bps, self_bond))
     }
@@ -257,27 +382,38 @@ impl Rewards<'_> {
     fn delegations(
         &mut self,
         validator: &str,
-    ) -> Reward<(Vec<((String, String), PyDecimal)>, PyDecimal)> {
+    ) -> Reward<(Vec<((String, String), VmDecimal)>, VmDecimal)> {
         let mut weights = Vec::new();
-        let mut total = PyDecimal::int(0);
         for delegator in names(self.var("validators", "delegator_lists", &[validator])?)? {
-            let delegation =
-                non_negative(self.var("validators", "delegations", &[&delegator, validator])?)?;
-            if delegation.sign()? != Ordering::Greater {
-                continue;
+            if let Some(weight) = self.delegation(delegator, validator)? {
+                weights.push(weight);
             }
-            total = total.add(&delegation)?;
-            let reward_key = key_or(
-                self.var(
-                    "validators",
-                    "delegator_reward_keys",
-                    &[&delegator, validator],
-                )?,
-                &delegator,
-            )?;
-            weights.push(((delegator, reward_key), delegation));
         }
+        let total = sum(&weights)?;
         Ok((weights, total))
+    }
+
+    /// A positive delegation to `validator` as `((delegator, reward key),
+    /// amount)`.
+    fn delegation(
+        &mut self,
+        delegator: String,
+        validator: &str,
+    ) -> Reward<Option<((String, String), VmDecimal)>> {
+        let delegation =
+            non_negative(self.var("validators", "delegations", &[&delegator, validator])?)?;
+        if !delegation.scaled.is_positive() {
+            return Ok(None);
+        }
+        let reward_key = key_or(
+            self.var(
+                "validators",
+                "delegator_reward_keys",
+                &[&delegator, validator],
+            )?,
+            &delegator,
+        )?;
+        Ok(Some(((delegator, reward_key), delegation)))
     }
 
     /// `build_single_validator_reward_outputs`: credits `mapping` and
@@ -285,58 +421,25 @@ impl Rewards<'_> {
     fn single_validator(
         &mut self,
         validator: &str,
-        total_reward: &PyDecimal,
+        total_reward: &VmDecimal,
         mapping: &mut Credits,
         records: &mut Vec<RewardRecord>,
     ) -> Reward<()> {
         let (operator_key, commission_bps, self_bond) = self.operator_terms(validator)?;
         let (weights, total_delegated) = self.delegations(validator)?;
-        let record =
-            |kind, recipient: &str, delegator: Option<&str>, value: &VmDecimal| RewardRecord {
-                kind,
-                recipient_key: recipient.to_owned(),
-                source_contract: None,
-                validator_key: Some(validator.to_owned()),
-                delegator_key: delegator.map(str::to_owned),
-                value: value.clone(),
-            };
-        let stake_base = self_bond.add(&total_delegated)?;
+        let stake_base = checked_add(&self_bond, &total_delegated)?;
         let mut own = Credits::new();
-        if stake_base.sign()? != Ordering::Greater {
-            let amount = total_reward.to_fixed()?;
-            records.push(record(RewardKind::Validator, &operator_key, None, &amount));
-            own.push((operator_key, amount));
-            return merge(mapping, &own);
-        }
-        let commission = total_reward
-            .mul(&commission_bps)?
-            .div(&PyDecimal::int(10_000))?;
-        let remainder = total_reward.sub(&commission)?;
-        let mut operator_total = commission;
-        if self_bond.sign()? == Ordering::Greater {
-            operator_total = operator_total.add(&remainder.mul(&self_bond)?.div(&stake_base)?)?;
-        }
-        if operator_total.sign()? == Ordering::Greater {
-            let amount = operator_total.to_fixed()?;
-            credit(&mut own, &operator_key, &amount)?;
-            records.push(record(RewardKind::Validator, &operator_key, None, &amount));
-        }
-        let shares = split(
-            total_reward,
-            &weights,
-            &remainder,
-            &stake_base,
-            operator_total,
-        )?;
-        for (((delegator, reward_key), _), share) in weights.iter().zip(shares) {
-            let amount = share.to_fixed()?;
-            credit(&mut own, reward_key, &amount)?;
-            records.push(record(
-                RewardKind::Delegator,
-                reward_key,
-                Some(delegator),
-                &amount,
-            ));
+        let paid = (&mut own, &mut *records);
+        if stake_base.scaled.is_positive() {
+            let stake = Stake {
+                commission_bps,
+                self_bond,
+                stake_base,
+                weights,
+            };
+            credit_stake(paid, validator, &operator_key, total_reward, &stake)?;
+        } else {
+            credit_operator(paid, validator, &operator_key, total_reward)?;
         }
         merge(mapping, &own)
     }
@@ -345,11 +448,11 @@ impl Rewards<'_> {
     /// built for its overflow checks, as Python builds it).
     fn validator_set(
         &mut self,
-        total: &PyDecimal,
-        ratio: &PyDecimal,
-        redirected: &PyDecimal,
+        total: &VmDecimal,
+        ratio: &VmDecimal,
+        redirected: &VmDecimal,
     ) -> Reward<Vec<RewardRecord>> {
-        let validator_total = total.mul(ratio)?.add(redirected)?;
+        let validator_total = checked_add(&checked(total.mul(ratio))?, redirected)?;
         let weighted = self.weighted_validators()?;
         let mut records = Vec::new();
         if weighted.is_empty() {
@@ -361,7 +464,7 @@ impl Rewards<'_> {
             &weighted,
             &validator_total,
             &total_weight,
-            PyDecimal::int(0),
+            VmDecimal::zero(),
         )?;
         let mut mapping = Credits::new();
         for ((validator, _), share) in weighted.iter().zip(shares) {
@@ -372,18 +475,18 @@ impl Rewards<'_> {
 
     /// The active validators with their power (a missing or non-positive
     /// power counts as 1).
-    fn weighted_validators(&mut self) -> Reward<Vec<(String, PyDecimal)>> {
+    fn weighted_validators(&mut self) -> Reward<Vec<(String, VmDecimal)>> {
         let validators = names(self.var("validators", "active_validators", &[])?)?;
         let mut weighted = Vec::with_capacity(validators.len());
         for validator in validators {
             let power = match present(self.var("validators", "powers", &[&validator])?) {
-                None => PyDecimal::int(1),
+                None => whole(1),
                 Some(value) => {
                     let power = as_decimal(&value)?;
-                    if power.sign()? == Ordering::Greater {
+                    if power.scaled.is_positive() {
                         power
                     } else {
-                        PyDecimal::int(1)
+                        whole(1)
                     }
                 }
             };
@@ -404,24 +507,24 @@ impl Rewards<'_> {
     /// redirected to validators (all of it without `pay_developers`).
     fn developers(
         &mut self,
-        total: &PyDecimal,
+        total: &VmDecimal,
         contract: &str,
-        ratio: &PyDecimal,
+        ratio: &VmDecimal,
         contract_costs: &[(String, BigInt)],
         pay_developers: bool,
-    ) -> Reward<(Credits, Vec<RewardRecord>, PyDecimal)> {
-        let developer_total = total.mul(ratio)?;
+    ) -> Reward<(Credits, Vec<RewardRecord>, VmDecimal)> {
+        let developer_total = checked(total.mul(ratio))?;
         if !pay_developers {
             return Ok((Credits::new(), Vec::new(), developer_total));
         }
-        let weights = developer_weights(contract, contract_costs);
+        let weights = developer_weights(contract, contract_costs)?;
         let total_weight = sum(&weights)?;
         let shares = split(
             &developer_total,
             &weights,
             &developer_total,
             &total_weight,
-            PyDecimal::int(0),
+            VmDecimal::zero(),
         )?;
         self.developer_shares(&weights, shares)
     }
@@ -430,19 +533,18 @@ impl Rewards<'_> {
     /// redirected to validators when it has none (or the system one).
     fn developer_shares(
         &mut self,
-        weights: &[(String, PyDecimal)],
-        shares: Vec<PyDecimal>,
-    ) -> Reward<(Credits, Vec<RewardRecord>, PyDecimal)> {
+        weights: &[(String, VmDecimal)],
+        shares: Vec<VmDecimal>,
+    ) -> Reward<(Credits, Vec<RewardRecord>, VmDecimal)> {
         let mut credits = Credits::new();
         let mut records = Vec::new();
-        let mut redirected = PyDecimal::int(0);
-        for ((source, _), share) in weights.iter().zip(shares) {
+        let mut redirected = VmDecimal::zero();
+        for ((source, _), amount) in weights.iter().zip(shares) {
             let recipient = self.developer(source)?;
             if recipient.is_empty() || recipient == "sys" {
-                redirected = redirected.add(&share)?;
+                redirected = checked_add(&redirected, &amount)?;
                 continue;
             }
-            let amount = share.to_fixed()?;
             credit(&mut credits, &recipient, &amount)?;
             records.push(RewardRecord {
                 kind: RewardKind::Developer,
@@ -462,16 +564,18 @@ impl Rewards<'_> {
 fn developer_weights(
     contract: &str,
     contract_costs: &[(String, BigInt)],
-) -> Vec<(String, PyDecimal)> {
-    let weights: Vec<_> = contract_costs
+) -> Reward<Vec<(String, VmDecimal)>> {
+    let mut weights = Vec::new();
+    for (source, weight) in contract_costs
         .iter()
         .filter(|(_, weight)| weight.is_positive())
-        .map(|(source, weight)| (source.clone(), PyDecimal::int(weight.clone())))
-        .collect();
-    if weights.is_empty() {
-        return vec![(contract.to_owned(), PyDecimal::int(1))];
+    {
+        weights.push((source.clone(), fixed_int(weight)?));
     }
-    weights
+    if weights.is_empty() {
+        return Ok(vec![(contract.to_owned(), whole(1))]);
+    }
+    Ok(weights)
 }
 
 /// The state key of the chain's chi rate (chi per native token).
@@ -621,7 +725,7 @@ impl Payout {
 /// An invalid reward input pays nothing (the fee is burned).
 pub(crate) fn tx_reward_outputs(
     state: &mut dyn RewardState,
-    total: &PyDecimal,
+    total: &VmDecimal,
     contract: &str,
     contract_costs: &[(String, BigInt)],
     pay_developers: bool,
@@ -635,7 +739,7 @@ pub(crate) fn tx_reward_outputs(
 
 fn paid_rewards(
     state: &mut dyn RewardState,
-    total: &PyDecimal,
+    total: &VmDecimal,
     contract: &str,
     contract_costs: &[(String, BigInt)],
     pay_developers: bool,
@@ -662,35 +766,45 @@ fn paid_rewards(
     Ok(payout.finish())
 }
 
-/// The validator, foundation and developer ratios of the split. The burn
-/// share is never paid: it is the part no one is credited.
-fn paid_ratios(split: &[VmValue]) -> Reward<[PyDecimal; 3]> {
-    Ok([
+/// The validator, foundation and developer ratios of the split: each
+/// non-negative, together at most 1 (else no rewards: they could pay out
+/// more than the fee). The burn share is never paid: it is the part no one
+/// is credited, with the truncation dust.
+fn paid_ratios(split: &[VmValue]) -> Reward<[VmDecimal; 3]> {
+    let ratios = [
         as_decimal(&split[0])?,
         as_decimal(&split[2])?,
         as_decimal(&split[3])?,
-    ])
+    ];
+    let paid = sum(&ratios.clone().map(|ratio| ((), ratio)))?;
+    if ratios.iter().any(|ratio| ratio.scaled.is_negative()) || paid > whole(1) {
+        return invalid();
+    }
+    Ok(ratios)
 }
 
-/// `calculate_participant_reward(foundation_ratio, 1, total)`.
-fn foundation_share(ratio: &PyDecimal, total: &PyDecimal) -> Reward<VmDecimal> {
-    Ok(ratio
-        .div(&PyDecimal::int(1))?
-        .mul(total)?
-        .round(8)?
-        .to_fixed()?)
+/// Places the foundation share keeps (rounded down, never up).
+const FOUNDATION_PLACES: u32 = 8;
+
+/// `total * ratio`, rounded down to 8 places.
+fn foundation_share(ratio: &VmDecimal, total: &VmDecimal) -> Reward<VmDecimal> {
+    let share = checked(total.mul(ratio))?;
+    let unit = BigInt::from(10u8).pow(30 - FOUNDATION_PLACES);
+    Ok(checked(VmDecimal::from_scaled(
+        &share.scaled - &share.scaled % unit,
+    ))?)
 }
 
 /// The reward split, the chain chi rate and the foundation owner, as
 /// `_build_tx_reward_outputs` reads them; `None` when no reward is paid.
 fn reward_terms(
     rewards: &mut Rewards<'_>,
-    total: &PyDecimal,
+    total: &VmDecimal,
 ) -> Reward<Option<(Vec<VmValue>, BigInt, String)>> {
     let Some(split) = reward_split(rewards.var("rewards", "S", &["value"])?)? else {
         return Ok(None);
     };
-    if total.sign()? != Ordering::Greater {
+    if !total.scaled.is_positive() {
         return Ok(None);
     }
     let Some(rate) = rewards
@@ -709,9 +823,11 @@ fn reward_terms(
 #[cfg(test)]
 mod tests {
     //! The pinned corpus of xian-abci (tests/unit/test_reward_output_corpus.py
-    //! and test_fee_settlement_corpus.py, seed 20261113), with the outputs of
-    //! its Python reference, as wire JSON. xian-abci checks the same cases
-    //! through the Python bindings; this runs them in Rust.
+    //! and test_fee_settlement_corpus.py, seed 20261113), with its outputs as
+    //! wire JSON (frozen from the retired Python reference, the rewards
+    //! restated for revision 14's ContractingDecimal arithmetic). xian-abci
+    //! checks the same cases through the Python bindings; this runs them in
+    //! Rust.
     use super::*;
     use crate::settlement::{self, Balance, InvalidBalance};
     use crate::stored_value::decode_stored_value;
@@ -821,7 +937,7 @@ mod tests {
                 .collect();
             let total = match &case["total_chi"] {
                 Value::String(text) => as_decimal(&decode(text)).unwrap(),
-                number => PyDecimal::int(int(number)),
+                number => fixed_int(&int(number)).unwrap(),
             };
             let rewards = tx_reward_outputs(
                 &mut state,
@@ -837,6 +953,162 @@ mod tests {
                 "{key} case {index}"
             );
         }
+    }
+
+    /// xorshift64*: a fixed generator, so a failing case reproduces.
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            self.0.wrapping_mul(0x2545_f491_4f6c_dd1d)
+        }
+        fn below(&mut self, upper: u64) -> u64 {
+            self.next() % upper
+        }
+        fn pick<'a, T>(&mut self, items: &'a [T]) -> &'a T {
+            &items[self.below(items.len() as u64) as usize]
+        }
+        /// A number a reward input may hold: an int or a decimal of up to 30
+        /// places, small to wide, now and then zero or negative.
+        fn number(&mut self) -> VmValue {
+            let width = *self.pick(&[3u64, 12, 40, 60]);
+            let digits = 1 + self.below(width);
+            let mut scaled = BigInt::zero();
+            for _ in 0..digits {
+                scaled = scaled * 10u8 + self.below(10);
+            }
+            let scaled = if self.below(12) == 0 { -scaled } else { scaled };
+            if self.below(2) == 0 {
+                VmValue::Int(scaled / BigInt::from(10u8).pow(30))
+            } else {
+                VmValue::Decimal(VmDecimal::from_scaled(scaled).unwrap())
+            }
+        }
+        /// Four split ratios: mostly in [0, 1] with a sum of at most 1
+        /// (sometimes exactly 1 with no burn), now and then out of range.
+        fn split(&mut self) -> VmValue {
+            let parts: Vec<BigInt> = (0..4)
+                .map(|_| BigInt::from(self.below(1_000_000)))
+                .collect();
+            let sum: BigInt = parts.iter().sum::<BigInt>() + 1u8;
+            let scale = BigInt::from(10u8).pow(30);
+            let mut ratios: Vec<BigInt> = parts.iter().map(|part| part * &scale / &sum).collect();
+            match self.below(6) {
+                0 => {
+                    let rest = &scale - &ratios[0] - &ratios[2];
+                    ratios[1] = BigInt::zero();
+                    ratios[3] = rest;
+                }
+                1 => {
+                    let index = self.below(4) as usize;
+                    ratios[index] *= 3u8;
+                }
+                2 => {
+                    let index = self.below(4) as usize;
+                    ratios[index] *= -1;
+                }
+                _ => {}
+            }
+            VmValue::List(
+                ratios
+                    .into_iter()
+                    .map(|ratio| VmValue::Decimal(VmDecimal::from_scaled(ratio).unwrap()))
+                    .collect(),
+            )
+        }
+    }
+
+    fn random_state(rng: &mut Rng, index: u64) -> HashMap<String, VmValue> {
+        let mut state = HashMap::new();
+        let rate = *rng.pick(&[1u64, 3, 7, 20, 2000, 999_983]);
+        state.insert("rewards.S:value".to_owned(), rng.split());
+        state.insert("chi_cost.S:value".to_owned(), VmValue::Int(rate.into()));
+        state.insert("foundation.owner".to_owned(), text("foundation"));
+        let validators: Vec<String> = (0..rng.below(5)).map(|n| format!("v{index}_{n}")).collect();
+        for validator in &validators {
+            state.insert(format!("validators.powers:{validator}"), rng.number());
+            let bps = *rng.pick(&[0i64, 1, 500, 3333, 10_000, 12_000, -5]);
+            state.insert(
+                format!("validators.commission_bps:{validator}"),
+                VmValue::Int(bps.into()),
+            );
+            state.insert(format!("validators.self_bond:{validator}"), rng.number());
+            let delegators: Vec<String> = (0..rng.below(4)).map(|n| format!("d{n}")).collect();
+            for delegator in &delegators {
+                state.insert(
+                    format!("validators.delegations:{delegator}:{validator}"),
+                    rng.number(),
+                );
+            }
+            state.insert(
+                format!("validators.delegator_lists:{validator}"),
+                VmValue::List(delegators.iter().map(|name| text(name)).collect()),
+            );
+        }
+        state.insert(
+            "validators.active_validators".to_owned(),
+            VmValue::List(validators.iter().map(|name| text(name)).collect()),
+        );
+        for contract in ["con_a", "con_b"] {
+            let developer = rng.pick(&["", "sys", "dev_a", "dev_b"]).to_owned();
+            state.insert(format!("{contract}.__developer__"), text(&developer));
+        }
+        state
+    }
+
+    #[test]
+    fn falsy_validator_lists_are_empty_and_other_values_invalid() {
+        let zero = VmValue::Decimal(VmDecimal::zero());
+        for falsy in [VmValue::Bool(false), VmValue::Int(0.into()), zero, text("")] {
+            assert_eq!(names(Some(falsy)).unwrap(), Vec::<String>::new());
+        }
+        let one = VmValue::Decimal(fixed_int(&BigInt::from(1)).unwrap());
+        for truthy in [VmValue::Bool(true), VmValue::Int(1.into()), one, text("v")] {
+            assert!(matches!(names(Some(truthy)), Err(Unpaid::Invalid)));
+        }
+        assert!(matches!(
+            truthy(&VmValue::Bytes(vec![])),
+            Err(Unpaid::Invalid)
+        ));
+    }
+
+    /// Every paid transaction pays out at most its fee: the shares, priced
+    /// at the chi rate, never sum to more than `chi / rate` (what the sender
+    /// was charged), and no share is negative. What is not paid is burned.
+    #[test]
+    fn rewards_never_pay_out_more_than_the_charged_fee() {
+        let mut rng = Rng(0x5eed_2026_1114);
+        let mut paid_cases = 0;
+        for index in 0..4000 {
+            let mut state = random_state(&mut rng, index);
+            let rate = match state["chi_cost.S:value"] {
+                VmValue::Int(ref rate) => rate.clone(),
+                _ => unreachable!(),
+            };
+            let total_scaled = BigInt::from(1 + rng.below(10_000_000_000))
+                * BigInt::from(10u8).pow(rng.below(31) as u32);
+            let total = VmDecimal::from_scaled(total_scaled).unwrap();
+            let costs = vec![
+                ("con_a".to_owned(), BigInt::from(rng.below(5000))),
+                ("con_b".to_owned(), BigInt::from(rng.below(5000))),
+            ];
+            let rewards =
+                tx_reward_outputs(&mut state, &total, "con_a", &costs, rng.below(2) == 0).unwrap();
+            if rewards.rewards.is_none() {
+                continue;
+            }
+            paid_cases += 1;
+            let fee = total.div(&fixed_int(&rate).unwrap()).unwrap();
+            let mut paid = VmDecimal::zero();
+            for (key, amount) in &rewards.deltas {
+                assert!(!amount.scaled.is_negative(), "case {index}: {key} {amount}");
+                paid = paid.add(amount).unwrap();
+            }
+            assert!(paid <= fee, "case {index}: paid {paid} > fee {fee}");
+        }
+        assert!(paid_cases > 2000, "{paid_cases}");
     }
 
     #[test]

@@ -32,8 +32,6 @@ mod block_host;
 mod block_state;
 #[cfg(any(feature = "python-extension", test))]
 mod bundle_executor;
-#[cfg(any(feature = "python-extension", test))]
-mod decimal_backend;
 mod decimal_format;
 mod interpreter;
 pub mod lmdb_env;
@@ -42,8 +40,6 @@ mod metering;
 mod module_cache;
 #[cfg(any(feature = "python-extension", test))]
 mod panic_guard;
-#[cfg(any(feature = "python-extension", test))]
-mod python_decimal;
 mod set_member_codec;
 #[cfg(any(feature = "python-extension", test))]
 mod settlement;

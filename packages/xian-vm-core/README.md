@@ -280,7 +280,11 @@ The crate ships a small PyO3/maturin surface for integration work:
 - `validate_module_ir(...)` / `validate_module_ir_json(...)`
 - `decode_and_validate_transaction(raw, chain_id)`: transaction admission
 - `BlockExecutor`: a block's transactions from their wire bytes, with fees,
-  rewards and receipts
+  rewards and receipts. Fees and rewards use `ContractingDecimal` arithmetic
+  (`settlement.rs`, `tx_rewards.rs`): the fee is `chi_used / chi_rate`, every
+  share is truncated, the payouts never exceed the fee and the rest (burn
+  share and dust) is burned; a split whose paid ratios are negative or exceed
+  one pays no rewards
 - `execute_tx(environment, overlay, ...)`: one call by the block executor's
   rules over any `BlockState` (pass `overlay.snapshot()` to drop the
   effects); the simulator, contract views, genesis deploys and the local
