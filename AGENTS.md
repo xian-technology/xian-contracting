@@ -28,8 +28,10 @@
   and `execute_tx`). Keep V1 compilation, IR validation and stored-value
   encoding for migration and archival tooling (xian-migration, `xian-cli
   contract build-artifacts --vm-profile xian_vm_v1`, xian-linter); V1 execution
-  and historical replay use the pinned older release. Do not add a Python
-  execution host, a CPython executor or a V1 execution path.
+  and historical replay use the pinned older release. The interpreter refuses
+  non-V2 modules and has no V1 numeric rules. Do not add a Python execution
+  host, a CPython executor, a V1 execution path or profile-dependent
+  interpreter branches.
 
 ## Validation
 - Preferred setup: `uv sync --group dev`

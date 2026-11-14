@@ -26,9 +26,10 @@ runtime/VM work. They are not node operation scripts.
 ## Notes
 
 - Most scripts expect to run from the repository root through `uv run`.
-- Historical V1 parity fixtures are retained as evidence. The retired Python
-  fixture generator is available from the pinned pre-retirement Git revision;
-  see [historical regeneration](../tests/compatibility/historical/README.md).
+- The historical V1 parity fixtures were removed with the interpreter's V1
+  execution (they remain in Git history). The retired Python fixture generator
+  is available from the pinned pre-retirement Git revision; see
+  [historical regeneration](../tests/compatibility/historical/README.md).
   The current VM must not generate its own expected parity results.
 - Do not put node lifecycle, genesis, or operator workflow scripts here; those
   belong in `xian-stack`, `xian-cli`, or `xian-abci`.

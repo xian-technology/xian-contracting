@@ -22,10 +22,12 @@ historical evidence.
 ## Retired parity-fixture generator
 
 The maintained `scripts/generate_vm_parity_fixtures.py` was a Python-engine
-oracle. Its output fixtures under `packages/xian-vm-core/tests/fixtures/` are
-retained unchanged; native tests verify them independently. Rewriting the
-generator to call the native VM would make the VM generate its own expected
-results.
+oracle. Its output fixtures were `xian_vm_v1` IR with the Python engine's
+results. Current code executes only `xian_vm_v2`, so the fixtures and their
+native test (`packages/xian-vm-core/tests/fixtures/`, `tests/parity_fixtures.rs`)
+were removed with the interpreter's V1 execution; they remain in Git history up
+to `cca0ab2e`. Rewriting the generator to call the native VM would make the VM
+generate its own expected results.
 
 The exact generator remains in the pre-retirement Git revision above, with
 SHA-256 `ef4d2f9bcc174ceb271cc305b9ebf38c697572c4f8d0a3d30cbf379202886413`.
