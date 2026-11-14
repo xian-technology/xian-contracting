@@ -136,7 +136,17 @@ def _refused_call(error: Exception) -> TxRun:
 
 
 def coerce_call_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
-    """Keyword arguments of an external call, as the VM receives them."""
+    """Keyword arguments of an external call, as the VM receives them.
+
+    They pass through the network's numeric wire rules
+    (``normalize_wire_numbers`` then ``decode_wire_numbers``), the same
+    encoding a signed transaction carries. This is an off-chain convenience
+    for Python callers: an exact ``decimal.Decimal`` becomes a
+    ``ContractingDecimal`` (one that needs more than 30 places, or is not
+    finite, is refused), and a binary ``float`` is refused. A
+    ``decimal.Decimal`` itself never reaches the VM, whose boundary refuses
+    it (one number model: int and ContractingDecimal).
+    """
     return decode_wire_numbers(normalize_wire_numbers(kwargs))
 
 
