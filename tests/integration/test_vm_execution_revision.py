@@ -15,7 +15,7 @@ def test_native_execution_policy_defaults_to_v2_and_allows_explicit_replay():
     assert info["vm_profile"] == "xian_vm_v2"
     assert info["execution_revision"] == "xvm-execution-14"
     assert info["set_codec"] == "xian-set-1"
-    assert info["tx_admission_revision"] == "xian-fastpath-admission-2"
+    assert info["tx_admission_revision"] == "xian-fastpath-admission-3"
     assert info["supported_bytecode_versions"] == ["xvm-2"]
     assert info["supported_gas_schedules"] == ["xvm-gas-6"]
     assert info["max_tx_chi"] == 1_000_000

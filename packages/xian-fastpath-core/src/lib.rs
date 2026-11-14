@@ -21,7 +21,9 @@ pub use rules::validate_transaction_static;
 /// Transaction-admission rule revision. Bump it whenever the set of admitted
 /// transactions changes; nodes fence on it at startup.
 /// Revision 2: sender and signature must be canonical lowercase hex.
-pub const ADMISSION_REVISION: &str = "xian-fastpath-admission-2";
+/// Revision 3: the document holds exactly `metadata` and `payload` (unsigned
+/// keys beside them changed the transaction hash and the block bytes).
+pub const ADMISSION_REVISION: &str = "xian-fastpath-admission-3";
 
 /// Why a transaction is not admitted; the text reaches receipts and logs.
 #[derive(Debug, Clone, PartialEq, Eq)]

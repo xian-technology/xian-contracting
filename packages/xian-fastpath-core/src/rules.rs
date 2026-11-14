@@ -5,6 +5,7 @@ use ed25519_dalek::{Signature, VerifyingKey};
 use serde_json::{Map, Value};
 use std::collections::HashSet;
 
+const DOCUMENT_KEYS: [&str; 2] = ["metadata", "payload"];
 const METADATA_KEYS: [&str; 1] = ["signature"];
 /// The payload fields; all of them are signed.
 const PAYLOAD_KEYS: [&str; 7] = [
@@ -47,7 +48,8 @@ pub fn validate_transaction_static(document: &Value, chain_id: &str) -> Result<(
     require_submission_name(&fields)
 }
 
-/// The metadata and payload objects; metadata holds exactly the signature.
+/// The metadata and payload objects, and nothing beside them; metadata holds
+/// exactly the signature.
 fn sections(document: &Value) -> Result<(&Object, &Object)> {
     let document = object(Some(document), MALFORMED)?;
     let metadata = object(document.get("metadata"), "Metadata is missing")?;
@@ -56,6 +58,7 @@ fn sections(document: &Value) -> Result<(&Object, &Object)> {
     }
     exact_keys(metadata, &METADATA_KEYS)?;
     let payload = object(document.get("payload"), "Payload is missing")?;
+    exact_keys(document, &DOCUMENT_KEYS)?;
     Ok((metadata, payload))
 }
 

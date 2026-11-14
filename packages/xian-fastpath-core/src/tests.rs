@@ -37,8 +37,8 @@ fn refusal(document: &Value) -> String {
 }
 
 #[test]
-fn admission_revision_identifies_canonical_hex_rules() {
-    assert_eq!(ADMISSION_REVISION, "xian-fastpath-admission-2");
+fn admission_revision_identifies_the_exact_document_keys_rule() {
+    assert_eq!(ADMISSION_REVISION, "xian-fastpath-admission-3");
 }
 
 #[test]
@@ -247,4 +247,19 @@ fn canonical_json_sorts_keys_and_drops_whitespace() {
         canonical_json(&value).unwrap(),
         "{\"a\":{\"x\":\"\\n\",\"y\":-2},\"b\":[1,\"é\",null,true]}"
     );
+}
+
+#[test]
+fn the_document_holds_exactly_metadata_and_payload() {
+    // Keys beside them are not signed: they changed the transaction hash and
+    // the bytes a block carries without the sender's consent.
+    for extra in ["zzz", "aaa", "b_meta"] {
+        let mut document = signed(payload());
+        document[extra] = json!(1);
+        assert_eq!(
+            refusal(&document),
+            "Transaction has unexpected or missing keys",
+            "{extra}"
+        );
+    }
 }
