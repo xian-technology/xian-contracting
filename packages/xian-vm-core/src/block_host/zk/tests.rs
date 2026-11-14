@@ -52,11 +52,7 @@ fn host<'a>(fixture: &Fixture, modules: &'a Modules) -> BlockHost<'a> {
     BlockHost::new(
         fixture.view.clone(),
         modules,
-        HostCharges::new(
-            VmBudget::new(10_000_000, crate::XIAN_VM_V2_PROFILE),
-            true,
-            "con_zk",
-        ),
+        HostCharges::new(VmBudget::new(10_000_000), true, "con_zk"),
         TxInputs {
             context: Default::default(),
             zk_enabled_without_state: true,

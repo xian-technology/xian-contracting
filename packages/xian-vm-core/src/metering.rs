@@ -13,20 +13,9 @@ const VM_TRANSACTION_BYTES_COST_PER_BYTE: u64 = 1;
 const VM_RETURN_VALUE_COST_PER_BYTE: u64 = 1;
 pub(crate) const VM_TRANSACTION_BASE_CHI: u64 = 5;
 const VM_TRANSACTION_BASE_CHI_RAW: u64 = VM_TRANSACTION_BASE_CHI * 1_000;
-/// Absolute chi ceiling of one V2 transaction (`xvm-execution-11`). Node fee
+/// Absolute chi ceiling of one transaction (`xvm-execution-11`). Node fee
 /// policies cap transactions at or below it; execution never exceeds it.
 pub const XIAN_VM_MAX_TRANSACTION_CHI: u64 = 1_000_000;
-/// Archival V1 keeps the ceiling it executed with.
-pub const XIAN_VM_V1_MAX_TRANSACTION_CHI: u64 = 50_000_000;
-
-/// Chi ceiling of one transaction executed under `vm_profile`.
-pub fn max_transaction_chi(vm_profile: &str) -> u64 {
-    if vm_profile == crate::XIAN_VM_V1_PROFILE {
-        XIAN_VM_V1_MAX_TRANSACTION_CHI
-    } else {
-        XIAN_VM_MAX_TRANSACTION_CHI
-    }
-}
 const VM_WRITE_MAX_BYTES: usize = 1024 * 128;
 
 /// Raw chi for each entry a whole-hash scan (`all`, `clear`, `clone_from`)
@@ -78,25 +67,19 @@ struct ContractMeterFrame {
 pub(crate) struct VmBudget {
     raw_cost: Arc<AtomicU64>,
     limit: u64,
-    base_chi: u64,
     pub(crate) execution_stack: crate::execution_stack::ExecutionStack,
 }
 
 impl VmBudget {
-    /// A zero budget means the profile's ceiling; larger budgets are capped.
-    pub(crate) fn new(chi_budget_raw: u64, vm_profile: &str) -> Self {
-        let ceiling = max_transaction_chi(vm_profile) * 1_000;
+    /// A zero budget means the ceiling; larger budgets are capped.
+    pub(crate) fn new(chi_budget_raw: u64) -> Self {
+        let ceiling = XIAN_VM_MAX_TRANSACTION_CHI * 1_000;
         Self {
             raw_cost: Arc::new(AtomicU64::new(0)),
             execution_stack: crate::execution_stack::ExecutionStack::default(),
             limit: match chi_budget_raw {
                 0 => ceiling,
                 budget => budget.min(ceiling),
-            },
-            base_chi: if vm_profile == crate::XIAN_VM_V1_PROFILE {
-                0
-            } else {
-                VM_TRANSACTION_BASE_CHI
             },
         }
     }
@@ -105,14 +88,11 @@ impl VmBudget {
         self.limit
     }
 
-    /// Whether `raw_cost` of work leaves the budget: V2 compares the chi it
-    /// makes with the base charge (`raw / 1000 + base`, as the chi used is
-    /// computed) to the budget's chi; V1 compares the raw work alone.
+    /// Whether `raw_cost` of work leaves the budget: the chi it makes with
+    /// the base charge (`raw / 1000 + base`, as the chi used is computed)
+    /// compared to the budget's chi.
     fn exceeded(&self, raw_cost: u64) -> bool {
-        if self.base_chi == 0 {
-            return raw_cost > self.limit;
-        }
-        raw_cost / 1_000 + self.base_chi > self.limit / 1_000
+        raw_cost / 1_000 + VM_TRANSACTION_BASE_CHI > self.limit / 1_000
     }
 
     pub(crate) fn charge(&self, cost: u64) -> Result<(), VmExecutionError> {
@@ -144,7 +124,7 @@ pub(crate) struct VmMeter {
 impl VmMeter {
     #[cfg(test)]
     pub(crate) fn new(config: VmMeterConfig) -> Self {
-        let budget = VmBudget::new(config.chi_budget_raw, crate::XIAN_VM_V2_PROFILE);
+        let budget = VmBudget::new(config.chi_budget_raw);
         Self::with_budget(config, budget)
     }
 
@@ -520,40 +500,31 @@ mod tests {
     }
 
     #[test]
-    fn zero_and_oversized_budgets_enforce_the_profile_ceiling() {
-        for (profile, ceiling) in [
-            (crate::XIAN_VM_V2_PROFILE, 1_000_000),
-            (crate::XIAN_VM_V1_PROFILE, 50_000_000),
-        ] {
-            assert_eq!(super::max_transaction_chi(profile), ceiling);
-            // V2 work may cost what makes the chi used (with the base) the
-            // ceiling; V1 work the ceiling itself.
-            let work = if profile == crate::XIAN_VM_V2_PROFILE {
-                (ceiling - VM_TRANSACTION_BASE_CHI) * 1_000 + 999
-            } else {
-                ceiling * 1_000
-            };
-            for supplied in [0, ceiling * 2_000] {
-                let budget = VmBudget::new(supplied, profile);
-                assert_eq!(budget.limit(), ceiling * 1_000);
-                assert!(budget.charge(work).is_ok());
-                assert!(budget.charge(1).is_err());
-            }
+    fn zero_and_oversized_budgets_enforce_the_ceiling() {
+        let ceiling = 1_000_000;
+        assert_eq!(super::XIAN_VM_MAX_TRANSACTION_CHI, ceiling);
+        // Work may cost what makes the chi used (with the base) the ceiling.
+        let work = (ceiling - VM_TRANSACTION_BASE_CHI) * 1_000 + 999;
+        for supplied in [0, ceiling * 2_000] {
+            let budget = VmBudget::new(supplied);
+            assert_eq!(budget.limit(), ceiling * 1_000);
+            assert!(budget.charge(work).is_ok());
+            assert!(budget.charge(1).is_err());
         }
     }
 
     #[test]
     fn the_v2_base_chi_counts_against_the_supplied_chi() {
         // 20 chi supplied: the chi used (raw / 1000 + 5) may reach 20.
-        let budget = VmBudget::new(20_000, crate::XIAN_VM_V2_PROFILE);
+        let budget = VmBudget::new(20_000);
         assert!(budget.charge(14_000).is_ok());
         assert!(budget.charge(1_999).is_ok());
         assert_eq!(budget.charge(1).unwrap_err().to_string(), "Out of chi.");
         // Below the base charge no work fits.
-        let tiny = VmBudget::new(5_000, crate::XIAN_VM_V2_PROFILE);
+        let tiny = VmBudget::new(5_000);
         assert!(tiny.charge(999).is_ok());
         assert!(tiny.charge(1).is_err());
-        let none = VmBudget::new(4_000, crate::XIAN_VM_V2_PROFILE);
+        let none = VmBudget::new(4_000);
         assert!(none.charge(1).is_err());
     }
 
@@ -579,7 +550,7 @@ mod tests {
 
     #[test]
     fn nested_meters_and_host_costs_share_one_budget() {
-        let budget = VmBudget::new(25_000, crate::XIAN_VM_V2_PROFILE);
+        let budget = VmBudget::new(25_000);
         let config = VmMeterConfig {
             enabled: true,
             chi_budget_raw: 25_000,
@@ -598,7 +569,7 @@ mod tests {
 
     #[test]
     fn budget_overflow_is_rejected() {
-        let budget = VmBudget::new(0, crate::XIAN_VM_V2_PROFILE);
+        let budget = VmBudget::new(0);
         assert!(budget.charge(u64::MAX).is_err());
         assert_eq!(
             budget.charge(1).unwrap_err().to_string(),

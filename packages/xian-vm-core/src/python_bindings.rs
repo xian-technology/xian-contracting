@@ -480,7 +480,7 @@ fn runtime_info_json(vm_profile: &str) -> PyResult<String> {
         "supported_bytecode_versions": policy.bytecode,
         "supported_gas_schedules": policy.gas,
         "execution_revision": policy.revision,
-        "max_tx_chi": crate::max_transaction_chi(vm_profile),
+        "max_tx_chi": crate::XIAN_VM_MAX_TRANSACTION_CHI,
         "set_codec": XIAN_VM_SET_CODEC,
         "tx_admission_revision": xian_fastpath_core::ADMISSION_REVISION,
     }))

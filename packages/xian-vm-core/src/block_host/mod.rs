@@ -188,16 +188,12 @@ mod services {
             }
         }
 
-        fn module(
-            &mut self,
-            module: &str,
-            profile: &str,
-        ) -> Result<Option<ValidatedModuleIr>, VmExecutionError> {
+        fn module(&mut self, module: &str) -> Result<Option<ValidatedModuleIr>, VmExecutionError> {
             let Ir::Text(cached) = self.module_ir(module)? else {
                 return Ok(None);
             };
             let validated = cached.validated(module).map_err(VmExecutionError::new)?;
-            validate_bundle_module(&validated, module, profile)?;
+            validate_bundle_module(&validated, module)?;
             Ok(Some(validated))
         }
 

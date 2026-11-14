@@ -12,7 +12,7 @@ use crate::lmdb_python::PyLmdbEnvironment;
 use crate::settlement::Stop;
 use crate::state_view::StateView;
 use crate::zk_cache::{self, RegisteredKey, RegisteredProof};
-use crate::{VmBudget, VmValue, XIAN_VM_V2_PROFILE};
+use crate::{VmBudget, VmValue};
 use pyo3::create_exception;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -259,7 +259,7 @@ fn _zk_syscalls_debug(
             .iter()
             .map(|value| py_to_vm(value).map_err(|error| PyValueError::new_err(error.to_string())))
             .collect::<PyResult<Vec<VmValue>>>()?;
-        let charges = HostCharges::new(VmBudget::new(0, XIAN_VM_V2_PROFILE), false, "");
+        let charges = HostCharges::new(VmBudget::new(0), false, "");
         let inputs = TxInputs {
             context: Default::default(),
             zk_enabled_without_state: true,

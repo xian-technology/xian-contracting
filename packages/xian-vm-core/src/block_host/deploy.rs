@@ -210,8 +210,7 @@ impl BlockHost<'_> {
         };
         let kwargs = self.constructor_kwargs(&deployment.constructor_args)?;
         let context = self.constructor_context(artifacts, deployment, actors)?;
-        validate_bundle_module(&artifacts.module, &artifacts.name, XIAN_VM_V2_PROFILE)
-            .map_err(host_runtime_error)?;
+        validate_bundle_module(&artifacts.module, &artifacts.name).map_err(host_runtime_error)?;
         self.constructing.insert(
             artifacts.name.clone(),
             Ir::of(Some(VmValue::String(artifacts.ir.clone()))),
@@ -237,13 +236,7 @@ impl BlockHost<'_> {
         };
         let budget = self.charges.budget();
         let bundle = HashMap::from([(artifacts.name.clone(), artifacts.module.clone())]);
-        let mut executor = BundleExecutor::with_modules(
-            &mut *self,
-            bundle,
-            config,
-            Some(budget),
-            XIAN_VM_V2_PROFILE,
-        );
+        let mut executor = BundleExecutor::with_modules(&mut *self, bundle, config, Some(budget));
         executor.execute_entry(&artifacts.name, construct, Vec::new(), kwargs, context)
     }
 

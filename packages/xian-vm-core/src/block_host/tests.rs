@@ -44,7 +44,7 @@ fn inputs() -> TxInputs {
 }
 
 fn budget(raw: u64) -> VmBudget {
-    VmBudget::new(raw, crate::XIAN_VM_V2_PROFILE)
+    VmBudget::new(raw)
 }
 
 fn scan(host: &mut BlockHost<'_>, prefix: &str) -> Vec<(String, VmValue)> {

@@ -23,14 +23,13 @@ pub(crate) fn not_owner() -> VmExecutionError {
 pub(crate) trait HostServices {
     /// The IR JSON text of `module`, or `None` when it has none.
     fn module_ir_json(&mut self, module: &str) -> Result<Option<String>, VmExecutionError>;
-    /// `module` validated for `profile`, or `None` when it has no IR.
+    /// `module` validated as a bundle module, or `None` when it has no IR.
     fn module(
         &mut self,
         module: &str,
-        profile: &str,
     ) -> Result<Option<crate::ValidatedModuleIr>, VmExecutionError> {
         self.module_ir_json(module)?
-            .map(|ir_json| load_bundle_module(module, &ir_json, profile))
+            .map(|ir_json| load_bundle_module(module, &ir_json))
             .transpose()
     }
     /// A variable not in the executor's state; `None` when missing.
@@ -84,9 +83,8 @@ impl<H: HostServices + ?Sized> HostServices for &mut H {
     fn module(
         &mut self,
         module: &str,
-        profile: &str,
     ) -> Result<Option<crate::ValidatedModuleIr>, VmExecutionError> {
-        (**self).module(module, profile)
+        (**self).module(module)
     }
 
     fn read_variable(
@@ -156,16 +154,14 @@ pub(crate) struct BundleExecutor<H> {
     events: Vec<VmEvent>,
     meter: crate::VmMeter,
     contract_call_count: u64,
-    vm_profile: String,
 }
 
+/// A bundle module is a V2 module named as it is called.
 pub(crate) fn validate_bundle_module(
     module: &crate::ModuleIr,
     name: &str,
-    profile: &str,
 ) -> Result<(), VmExecutionError> {
-    if module.vm_profile != profile || (profile == XIAN_VM_V2_PROFILE && module.module_name != name)
-    {
+    if module.vm_profile != XIAN_VM_V2_PROFILE || module.module_name != name {
         return Err(VmExecutionError::new(
             "bundle module name or execution profile mismatch",
         ));
@@ -176,11 +172,10 @@ pub(crate) fn validate_bundle_module(
 pub(crate) fn load_bundle_module(
     name: &str,
     module_ir_json: &str,
-    profile: &str,
 ) -> Result<crate::ValidatedModuleIr, VmExecutionError> {
     let module = shared_module(name, module_ir_json)
         .map_err(|error| VmExecutionError::new(error.to_string()))?;
-    validate_bundle_module(&module, name, profile)?;
+    validate_bundle_module(&module, name)?;
     Ok(module)
 }
 
@@ -191,10 +186,8 @@ impl<H: HostServices> BundleExecutor<H> {
         modules: HashMap<String, crate::ValidatedModuleIr>,
         meter_config: VmMeterConfig,
         budget: Option<crate::VmBudget>,
-        vm_profile: &str,
     ) -> Self {
-        let budget =
-            budget.unwrap_or_else(|| crate::VmBudget::new(meter_config.chi_budget_raw, vm_profile));
+        let budget = budget.unwrap_or_else(|| crate::VmBudget::new(meter_config.chi_budget_raw));
         Self {
             heap: crate::heap::VmHeap::with_execution_stack(budget.execution_stack.clone()),
             host,
@@ -208,7 +201,6 @@ impl<H: HostServices> BundleExecutor<H> {
             events: Vec::new(),
             meter: crate::VmMeter::with_budget(meter_config, budget),
             contract_call_count: 0,
-            vm_profile: vm_profile.to_owned(),
         }
     }
 
@@ -299,7 +291,7 @@ impl<H: HostServices> BundleExecutor<H> {
         if self.modules.contains_key(module_name) {
             return Ok(());
         }
-        let Some(module) = self.host.module(module_name, &self.vm_profile)? else {
+        let Some(module) = self.host.module(module_name)? else {
             return Err(VmExecutionError::new(format!(
                 "native VM could not load module '{module_name}'"
             )));

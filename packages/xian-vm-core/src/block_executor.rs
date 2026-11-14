@@ -33,7 +33,7 @@ use crate::stored_value_encoder::encode_stored_value;
 use crate::tx_rewards::{chain_chi_rate, tx_reward_outputs, RewardState, TxRewards, CHI_RATE_KEY};
 use crate::{
     ValidatedModuleIr, VmBudget, VmEvent, VmException, VmExecutionContext, VmExecutionStats,
-    VmMeterConfig, VmValue, XIAN_VM_V2_PROFILE,
+    VmMeterConfig, VmValue,
 };
 use num_bigint::BigInt;
 use num_traits::Zero;
@@ -477,7 +477,7 @@ impl BlockExecutor {
                 let entry = prepared
                     .remove(contract)
                     .expect("the entry module was prepared");
-                Ok(validate_bundle_module(&entry, contract, XIAN_VM_V2_PROFILE)
+                Ok(validate_bundle_module(&entry, contract)
                     .map(|()| entry)
                     .map_err(|_| invalid_ir(contract)))
             }
@@ -551,7 +551,7 @@ impl BlockExecutor {
         context: VmExecutionContext,
         budget_raw: u64,
     ) -> Settled<(ExecutionOutcome, HostWrites)> {
-        let budget = VmBudget::new(budget_raw, XIAN_VM_V2_PROFILE);
+        let budget = VmBudget::new(budget_raw);
         let limit = budget.limit();
         let charges = HostCharges::new(budget.clone(), self.policy.meter_execution, &tx.contract);
         let inputs = TxInputs {
@@ -565,8 +565,7 @@ impl BlockExecutor {
             chi_budget_raw: budget_raw,
             transaction_size_bytes: tx.size_bytes,
         };
-        let mut executor =
-            BundleExecutor::with_modules(host, bundle, config, Some(budget), XIAN_VM_V2_PROFILE);
+        let mut executor = BundleExecutor::with_modules(host, bundle, config, Some(budget));
         let mut outcome = executor.execute_entry(
             &tx.contract,
             &tx.function,
