@@ -8,6 +8,7 @@ version = "0.2.0"
 description = "Native Groth16 BN254 verification primitives for the Xian stack"
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Xian Network", email = "info@xian.org" }]
 requires-python = ">=3.14"
 classifiers = [
