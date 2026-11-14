@@ -115,9 +115,15 @@ F-string output is limited to 128 KiB in UTF-8 bytes across the complete result,
 
 Each transaction permits at most 128 active interpreter frames. Function entry, recursive expression and block evaluation, comprehension generators, assignment traversal and lazy iterator advancement share this bound across contracts, module initialization and constructors. The bound also applies without chi metering. Exceeding it returns an execution error and rolls back transaction effects; frames unwind so later executions can proceed.
 
+The VM has one number model: `int` and `decimal` (ContractingDecimal). It holds
+no binary floats and no raw `decimal.Decimal` values; its Python boundary refuses
+both ("binary float and raw Decimal are unavailable in xian_vm_v2").
+
 V2 integers have a maximum magnitude of 512 bits. Fixed decimals have 30 fractional places and magnitude below `10**61`. Fractional literals carry exact decimal text. Numeric `/` returns a decimal, truncating toward zero at the smallest representable unit. Decimal multiplication uses the same rule. Integer `//` rounds down and `%` follows the divisor's sign. Integer exponentiation requires a nonnegative integer exponent. Boolean values are distinct from numbers.
 
-`quantize(value, places, mode)` supports 0 through 30 places with `toward_zero`, `floor`, `ceil` and `half_even`. `sqrt(value)` returns the floor of the square root on the decimal grid. `mul_div_floor(a, b, d)` and `mul_div_ceil(a, b, d)` use an exact intermediate integer product and require a positive divisor. The bounded numeric formatter truncates discarded decimal places toward zero. Apply `quantize` first to select a different display rounding mode. Native binary floats and raw Python Decimal intermediates are rejected. Fixed decimal values and large integers use exact tagged JSON at the network boundary.
+`quantize(value, places, mode)` supports 0 through 30 places with `toward_zero`, `floor`, `ceil` and `half_even`. `sqrt(value)` returns the floor of the square root on the decimal grid. `round(x)` and `round(x, n)` follow Python: `round(decimal)` is an int rounded half to even (as `Decimal.__round__`); `round(decimal, n)` is a decimal rounded half to even to `n` places (`n` may be negative; past 30 places it changes nothing); `round(int)` is the int and `round(int, n)` an int (negative `n` rounds to tens, hundreds, ... half to even). A bool is neither number, `n` must be an int or `None`, arguments are positional, a result outside the V2 ranges fails, and the work is bounded for any `n`; `round` costs one numeric operation, like `quantize`.
+
+`random.random()` returns a decimal in `[0, 1)` on the 30-place grid: `randbelow(10**30) / 10**30`, drawn from the transaction's SHA3 random stream exactly as `randrange(10**30)` draws, and charged like the other random syscalls. Python's `random()` returns a 53-bit binary float; Xian's returns an exact 30-digit decimal, usable wherever a decimal is. `mul_div_floor(a, b, d)` and `mul_div_ceil(a, b, d)` use an exact intermediate integer product and require a positive divisor. The bounded numeric formatter truncates discarded decimal places toward zero. Apply `quantize` first to select a different display rounding mode. Fixed decimal values and large integers use exact tagged JSON at the network boundary.
 
 ## Node storage
 

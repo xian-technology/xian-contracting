@@ -94,7 +94,9 @@ all 53 public Decimal methods reachable through the historical raw results,
 formatting, calls and storage. Method-name coverage does not establish every
 argument/context combination or complete Python Decimal compatibility.
 
-Raw Decimal arithmetic uses vendored libmpdec 4.0.0 with an explicit 91-digit,
+These raw Decimal and binary-float observations are the historical V1
+runtime's; the current VM has neither (one number model: int and decimal).
+Raw Decimal arithmetic used vendored libmpdec 4.0.0 with an explicit 91-digit,
 ROUND_DOWN, Emin=-100, Emax=100 context. Exact construction preserves digits
 outside arithmetic precision until an operation applies its context. Custom
 context objects are not admitted; supported context parameters accept None.
