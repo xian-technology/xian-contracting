@@ -2,8 +2,7 @@
 
 A contract call must never make the host draw, hash or collect in proportion
 to an argument it was not charged for: one such transaction would stall every
-validator. The VM refuses these calls before any host work, for every host
-(the Rust block host and Python's NativeVmHost), so both paths fail alike.
+validator. The VM refuses these calls before any host work.
 The timing bounds are generous for CI and still far below the unbounded work.
 """
 

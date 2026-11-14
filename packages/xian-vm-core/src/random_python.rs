@@ -1,5 +1,5 @@
-//! Parity hook: the block host's random syscalls on their own, for the
-//! differential tests against `contracting.stdlib.bridge.random`.
+//! Test hook: the block host's random syscalls on their own, for the tests
+//! that pin them to the frozen outcomes of the retired Python random bridge.
 use super::{context_from_py, exception_to_py, py_to_vm};
 use crate::block_host::random::{call, TxRandom};
 use crate::VmValue;

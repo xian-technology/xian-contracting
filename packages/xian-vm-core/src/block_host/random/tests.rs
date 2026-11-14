@@ -1,6 +1,7 @@
-//! The random syscalls against values `contracting.stdlib.bridge.random`
-//! produces (generated with the Python bridge; the full differential fuzz is
-//! `tests/unit/test_native_vm_random_parity.py` in xian-contracting).
+//! The random syscalls against values the retired Python random bridge
+//! produced (generated with it before its deletion; the frozen fuzz digests
+//! are checked by `tests/unit/test_native_vm_random_parity.py` in
+//! xian-contracting).
 use super::*;
 use num_bigint::BigUint;
 

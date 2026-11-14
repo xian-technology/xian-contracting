@@ -1,6 +1,6 @@
-//! `DeterministicRandom` (`contracting.stdlib.bridge.random`): the SHA3-256
-//! digests of `"<seed material>|<counter>"` for counter 0, 1, 2, ...,
-//! consumed in order as one byte stream.
+//! The deterministic random stream, as the retired Python bridge defined it:
+//! the SHA3-256 digests of `"<seed material>|<counter>"` for counter 0, 1, 2,
+//! ..., consumed in order as one byte stream.
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 use sha3::{Digest, Sha3_256};

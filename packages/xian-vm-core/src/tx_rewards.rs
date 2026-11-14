@@ -1,7 +1,7 @@
-//! A transaction's fee rewards, as `xian.rewards.RewardsHandler.
-//! build_tx_reward_outputs` computes them: shares in `decimal.Decimal` at the
-//! default 28-digit context, each converted to `ContractingDecimal` and
-//! divided by the chain chi rate.
+//! A transaction's fee rewards: shares in Python `decimal.Decimal` arithmetic
+//! at the default 28-digit context (the rule the retired Python reward split
+//! defined, pinned by the golden reward corpus), each converted to
+//! `ContractingDecimal` and divided by the chain chi rate.
 //!
 //! Revision 14: a transaction's rewards are paid in full or not at all. A
 //! reward input of a type it may not hold (the split, the foundation owner,
@@ -124,7 +124,7 @@ fn credit(credits: &mut Credits, key: &str, amount: &VmDecimal) -> Reward<()> {
     Ok(())
 }
 
-/// `RewardsHandler._as_decimal` for the value types the port covers.
+/// A reward input as a decimal, for the value types a reward input can hold.
 fn as_decimal(value: &VmValue) -> Reward<PyDecimal> {
     match value {
         VmValue::Int(value) => Ok(PyDecimal::int(value.clone())),

@@ -71,8 +71,8 @@ fn record_to_py<'py>(py: Python<'py>, record: &RewardRecord) -> PyResult<Bound<'
     Ok(dict)
 }
 
-/// `(rewards, deltas, records)` as `RewardsHandler.build_tx_reward_outputs`
-/// returns them.
+/// A transaction's fee rewards as `(rewards, deltas, records)`, the shape the
+/// node's receipt building reads.
 pub(super) fn rewards_to_py(py: Python<'_>, outputs: &TxRewards) -> PyResult<Py<PyAny>> {
     let rewards = match &outputs.rewards {
         None => py.None(),
