@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 from xian_runtime_types.decimal import ContractingDecimal
-from xian_vm_core import HandedBack, TxRun, execute_tx
+from xian_vm_core import TxRun, execute_tx
 
 from contracting.local import ContractingClient
 from contracting.runtime_features import set_driver_runtime_features
@@ -181,14 +181,17 @@ def test_a_submission_without_source_fails_but_is_prepared(driver):
     assert str(run.result) == "xian_vm_v2 requires source code for submission.submit_contract"
 
 
-def test_a_call_left_to_python_stages_nothing(driver):
+def test_an_owner_rejection_is_a_failed_run_with_the_base_chi(driver):
     run = _run(driver, contract="con_owned", function="ping", kwargs={}, estimate=True)
 
-    assert run == HandedBack("caller is not the owner")
-    assert len(driver.committed_storage()[1]) == 0
+    assert (run.status_code, run.chi_used, run.unprepared) == (1, 5, False)
+    assert str(run.result) == "Caller is not the owner!"
+    assert not any(key.startswith("con_owned.") for key in run.writes)
 
 
-def test_arguments_the_vm_boundary_refuses_are_left_to_python(driver):
+def test_arguments_the_vm_boundary_refuses_fail_before_execution(driver):
     run = _run(driver, kwargs={"key": "a", "value": 1.5})
 
-    assert run == HandedBack("inputs did not convert")
+    assert (run.status_code, run.chi_used, run.writes, run.events) == (1, 0, {}, [])
+    assert isinstance(run.result, Exception)
+    assert len(driver.committed_storage()[1]) == 0

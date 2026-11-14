@@ -692,13 +692,6 @@ class TxRun:
     unprepared: bool
 
 
-@dataclass(frozen=True, slots=True)
-class HandedBack:
-    """A call the Rust executor leaves to the Python path; nothing was staged."""
-
-    reason: str
-
-
 def execute_tx(
     environment,
     overlay,
@@ -715,19 +708,20 @@ def execute_tx(
     protected_keys=(),
     zk_enabled_without_state: bool = True,
     estimate: bool = False,
-) -> TxRun | HandedBack:
+) -> TxRun:
     """Run one call with the code a block runs, over ``environment`` (LMDB)
     and ``overlay`` (a ``BlockState``), staging its effects into ``overlay``.
 
     Pass ``overlay.snapshot()`` to drop them afterwards. ``context`` is
     ``execute_contract``'s context dictionary; ``estimate`` settles the fee
     as a dry run does (no budget reservation). A call whose arguments the VM
-    boundary refuses, or that the executor leaves to Python, is ``HandedBack``.
+    boundary refuses fails before execution (status 1, the refusal as its
+    result, no chi, nothing staged).
     """
     try:
         coerced_kwargs = coerce_call_kwargs(kwargs)
-    except Exception:  # noqa: BLE001 - the Python path reports it
-        return HandedBack("inputs did not convert")
+    except Exception as exc:  # noqa: BLE001 - the refusal is the call's result
+        return _refused_call(exc)
     outcome, reason = _execute_tx(
         environment,
         overlay,
@@ -745,7 +739,7 @@ def execute_tx(
         estimate=estimate,
     )
     if outcome is None:
-        return HandedBack(reason)
+        return _refused_call(ValueError(reason))
     return TxRun(
         status_code=outcome["status"],
         result=native_error_result(
@@ -756,6 +750,19 @@ def execute_tx(
         chi_used=outcome["chi_used"],
         contract_costs=outcome["contract_costs"],
         unprepared=outcome["unprepared"],
+    )
+
+
+def _refused_call(error: Exception) -> TxRun:
+    """A call whose inputs the VM does not take: it fails before execution."""
+    return TxRun(
+        status_code=1,
+        result=error,
+        writes={},
+        events=[],
+        chi_used=0,
+        contract_costs={},
+        unprepared=False,
     )
 
 
@@ -916,7 +923,6 @@ __all__ = [
     "StateRootTree",
     "VmIrValidationError",
     "VmRuntimeExecutionError",
-    "HandedBack",
     "TxRun",
     "coerce_call_kwargs",
     "decode_and_validate_transaction",

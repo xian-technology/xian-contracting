@@ -10,7 +10,6 @@ from xian_runtime_types.time import Datetime
 
 from contracting import constants
 from contracting.execution.errors import classify_execution_error
-from contracting.execution.runtime import rt
 from contracting.runtime_features import RUNTIME_FEATURE_ZK, runtime_feature_without_state
 
 
@@ -53,7 +52,7 @@ class NativeExecutor:
         transaction_size_bytes=0,
         chi_cost=constants.CHI_PER_T,
     ):
-        from xian_vm_core import HandedBack, execute_tx
+        from xian_vm_core import execute_tx
 
         driver = self.driver if driver is None else driver
         context = _execution_context(
@@ -77,81 +76,15 @@ class NativeExecutor:
             transaction_size_bytes=max(int(transaction_size_bytes), 0),
             zk_enabled_without_state=runtime_feature_without_state(driver, RUNTIME_FEATURE_ZK),
         )
-        if isinstance(run, HandedBack):
-            output = self._execute_on_python_host(
-                driver,
-                contract_name=contract_name,
-                function_name=function_name,
-                kwargs=kwargs,
-                context=context,
-                metering=self.metering if metering is None else metering,
-                chi=chi,
-                transaction_size_bytes=transaction_size_bytes,
-            )
-        else:
-            output = {
-                "status_code": run.status_code,
-                "result": _failure(run.result) if run.status_code else run.result,
-                "writes": run.writes,
-                "chi_used": run.chi_used,
-                "events": run.events,
-                "contract_costs": run.contract_costs,
-            }
+        output = {
+            "status_code": run.status_code,
+            "result": _failure(run.result) if run.status_code else run.result,
+            "writes": run.writes,
+            "chi_used": run.chi_used,
+            "events": run.events,
+            "contract_costs": run.contract_costs,
+        }
         if output["status_code"] == 0 and auto_commit:
             driver.commit()
         error = output["result"] if output["status_code"] else None
         return {**output, "error_class": classify_execution_error(error)}
-
-    @staticmethod
-    def _execute_on_python_host(
-        driver,
-        *,
-        contract_name,
-        function_name,
-        kwargs,
-        context,
-        metering,
-        chi,
-        transaction_size_bytes,
-    ):
-        """A call the Rust executor leaves to Python: ``execute_contract``
-        with the Python host; a success's writes are staged here."""
-        from xian_vm_core import NativeExecutionResult, execute_contract
-
-        # The Python host bridge installs transaction context for the native VM.
-        with rt.execution_lock:
-            context = {**context, "owner": driver.get_owner(contract_name)}
-            try:
-                result = execute_contract(
-                    driver=driver,
-                    contract_name=contract_name,
-                    function_name=function_name,
-                    context=context,
-                    kwargs=kwargs,
-                    meter=metering,
-                    chi_budget_raw=max(int(chi), 0) * 1000,
-                    transaction_size_bytes=max(int(transaction_size_bytes), 0),
-                    vm_profile=driver.vm_profile,
-                )
-            except Exception as exc:
-                # Argument conversion and the host bridge can fail before VM entry.
-                result = NativeExecutionResult(
-                    status_code=1,
-                    result=exc,
-                    writes={},
-                    events=[],
-                    snapshots=[],
-                    raw_cost=0,
-                    chi_used=0,
-                    contract_costs={},
-                )
-            if result.status_code == 0:
-                driver.apply_writes(result.writes)
-            return {
-                "status_code": result.status_code,
-                "result": _failure(result.result) if result.status_code else result.result,
-                "writes": result.writes,
-                "chi_used": result.chi_used,
-                "events": result.events,
-                "contract_costs": result.contract_costs,
-            }

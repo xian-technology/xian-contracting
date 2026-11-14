@@ -70,14 +70,3 @@ def test_a_failed_call_raises_its_exception_and_keeps_no_writes(client):
     with pytest.raises(AssertionError, match="forced"):
         contract.fail()
     assert client.get_var("con_counter", "count") == 0
-
-
-def test_a_call_left_to_python_keeps_the_python_result(client, monkeypatch):
-    monkeypatch.setattr(
-        xian_vm_core, "execute_tx", lambda *_args, **_kwargs: xian_vm_core.HandedBack("probe")
-    )
-
-    output = _execute(client, "bump", by=2)
-
-    assert (output["status_code"], output["result"]) == (0, 2)
-    assert client.get_var("con_counter", "count") == 2

@@ -35,8 +35,7 @@ fn kwargs_from_py(kwargs: &Bound<'_, PyDict>) -> Result<Vec<(String, VmValue)>, 
         .collect()
 }
 
-/// The transaction, or `None` where `execute_contract` would not have
-/// converted its inputs (left to the Python path).
+/// The transaction, or `None` for inputs the VM does not take.
 #[allow(clippy::too_many_arguments)]
 fn prepared(
     sender: String,
@@ -120,8 +119,8 @@ fn outcome_to_py(py: Python<'_>, outcome: &TxOutcome) -> PyResult<Py<PyAny>> {
 /// from state); `estimate` settles the fee as a dry run (no reservation).
 /// Returns `(outcome, None)` with the outcome as a dictionary (`status`,
 /// `result`, `exception`, `writes` in receipt order, `events`, `chi_used`,
-/// `contract_costs`, `unprepared`), or `(None, reason)` when the run is left
-/// to the Python path (nothing is staged then). A storage fault raises
+/// `contract_costs`, `unprepared`), or `(None, reason)` for inputs the VM
+/// does not take (nothing is staged then). A storage fault raises
 /// `LmdbStorageError`; a panic raises `RuntimeError`.
 #[pyfunction]
 #[pyo3(signature = (
@@ -168,7 +167,7 @@ pub(super) fn execute_tx(
         chi_budget,
         transaction_size_bytes,
     ) else {
-        return Ok((None, Some("inputs did not convert".to_owned())));
+        return Ok((None, Some("call inputs the VM does not take".to_owned())));
     };
     let policy = BlockPolicy {
         meter_execution,

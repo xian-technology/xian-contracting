@@ -479,7 +479,14 @@ fn developer_weights(
 /// any other rate, as admission and the Python path do: a broken chain, not
 /// a price to guess.
 pub(crate) fn chain_chi_rate(value: Option<VmValue>) -> Settled<BigInt> {
-    valid_chi_rate(value).ok_or_else(|| Stop::Fault("chain state has no valid chi rate".to_owned()))
+    let shown = value
+        .as_ref()
+        .map_or_else(|| "None".to_owned(), VmValue::python_repr);
+    valid_chi_rate(value).ok_or_else(|| {
+        Stop::Fault(format!(
+            "chain state has no valid chi rate (chi_cost.S:value = {shown})"
+        ))
+    })
 }
 
 fn valid_chi_rate(value: Option<VmValue>) -> Option<BigInt> {
