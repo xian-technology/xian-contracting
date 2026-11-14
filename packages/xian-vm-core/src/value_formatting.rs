@@ -100,7 +100,6 @@ fn parse(text: &str) -> Result<Spec> {
 
 pub(super) fn format_work_cost(value: &VmValue, text: &str) -> Result<u64> {
     let size = RenderCost::default().value(value, 0)? as u64;
-    value.note_snapshot();
     let spec = parse(text)?;
     let extra = (spec.width.saturating_add(spec.precision.unwrap_or(0)) as u64).saturating_mul(4);
     Ok(size.saturating_mul(4).saturating_add(extra))
@@ -209,11 +208,9 @@ fn conversion_string(value: &VmValue, conversion: char) -> Result<String> {
 }
 
 fn string(value: &VmValue) -> Result<String> {
-    value.note_snapshot();
     super::builtin_dispatch::public_string(value, 0)
 }
 fn representation(value: &VmValue) -> Result<String> {
-    value.note_snapshot();
     crate::rendering::render_repr(value)
 }
 fn ascii_repr(text: &str) -> Result<String> {
@@ -485,6 +482,56 @@ mod tests {
             )]))
             .unwrap();
         assert!(format_work_cost(&proxy, "").unwrap() < 1000);
+    }
+
+    struct Host(u64);
+    impl crate::VmHost for Host {
+        fn charge_execution_cost(&mut self, cost: u64) -> Result<()> {
+            self.0 += cost;
+            Ok(())
+        }
+    }
+
+    /// Element work units `work` notes.
+    fn units(work: impl FnOnce()) -> u64 {
+        let _isolated = crate::work_meter::Isolation::enter();
+        work();
+        let mut host = Host(0);
+        crate::work_meter::flush(&mut host).unwrap();
+        host.0 / crate::work_meter::VM_GAS_ELEMENT_WORK
+    }
+
+    /// Formatting a referenced value charges no extra copy of it (revision
+    /// 14; the copy belonged to a removed check for binary floats): its
+    /// conversions cost one resolution by the renderer, its format cost
+    /// notes no element work.
+    #[test]
+    fn formatting_a_referenced_value_charges_no_extra_copy() {
+        let items = VmValue::List((0..200).map(|n| VmValue::Int(n.into())).collect());
+        let heap = crate::heap::VmHeap::default();
+        let referenced = heap.capture(items.clone()).unwrap();
+        assert!(matches!(referenced, VmValue::Reference(_)));
+        for conversion in [Some('s'), Some('r'), Some('a')] {
+            let plain = units(|| {
+                convert(&items, conversion).unwrap();
+            });
+            let shared = units(|| {
+                convert(&referenced, conversion).unwrap();
+            });
+            // The renderer resolves the reference once (one copy of its 200
+            // members); the second copy, charged for a removed float check,
+            // is gone (400 before).
+            assert_eq!(shared - plain, 200, "{conversion:?}");
+        }
+        for spec in ["", ">5"] {
+            let plain = units(|| {
+                format_work_cost(&items, spec).unwrap();
+            });
+            let shared = units(|| {
+                format_work_cost(&referenced, spec).unwrap();
+            });
+            assert_eq!((shared, plain), (0, 0), "{spec:?}");
+        }
     }
 
     #[test]

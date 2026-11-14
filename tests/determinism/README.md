@@ -8,7 +8,8 @@ allowed-surface corpus, reproducibly generated integer, alias, ordering,
 Unicode, time, random-stream and sequence programs with explicit expected
 results and failures, all 42 V2 numeric conformance vectors (signed division,
 wide intermediates, rounding, `round()`, square root, overflow and rollback),
-four `random.random()` decimal draws, and six V2
+four `random.random()` decimal draws, twelve formattings of referenced values
+(f-string conversions and `format()` of a list, dict and nested list), and six V2
 writes at the 511-byte storage key limit (the largest key LMDB stores,
 committed and reopened, and one byte more, which fails). Every case uses the
 native compiler/VM, metering, fresh storage and fixed contract context.

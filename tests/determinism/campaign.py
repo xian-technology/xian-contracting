@@ -215,6 +215,7 @@ def run_process(workload, output, scenario):
 
 def collect_cases(seed, generated):
     from tests.determinism.cases import generated_cases
+    from tests.determinism.formatting_cases import formatting_cases
     from tests.determinism.numeric_cases import numeric_cases, random_decimal_cases
     from tests.determinism.storage_key_cases import storage_key_cases
     from tests.surface.catalog import load_v2_cases
@@ -224,6 +225,7 @@ def collect_cases(seed, generated):
         + generated_cases(seed=seed, count=generated)
         + numeric_cases()
         + random_decimal_cases()
+        + formatting_cases()
         + storage_key_cases(),
         key=lambda case: case["id"],
     )

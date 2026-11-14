@@ -457,15 +457,6 @@ impl VmValue {
         }
     }
 
-    /// The element work [`Self::snapshot`] charges (one copy of a referenced
-    /// object) without the copy. Revision-14 metering keeps it where a
-    /// resolution only fed a check for binary floats or raw Decimals.
-    pub(crate) fn note_snapshot(&self) {
-        if let Self::Reference(reference) = self {
-            reference.with_value(|value| crate::work_meter::note(crate::work_meter::copied(value)));
-        }
-    }
-
     /// Resolve one object without copying the objects held in its container.
     pub(crate) fn snapshot(&self) -> Self {
         match self {
