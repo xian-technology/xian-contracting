@@ -53,7 +53,6 @@ impl Writer {
         self.visit(depth)?;
         match value {
             VmValue::List(items) | VmValue::Tuple(items) => self.list(items, depth),
-            VmValue::DecimalTuple(tuple) => self.list(&tuple.as_values(), depth),
             VmValue::Dict(entries) => self.dict(entries, depth),
             other => self.scalar(other),
         }
@@ -126,7 +125,6 @@ impl Writer {
     fn tagged(&mut self, value: &VmValue) -> Result<()> {
         match value {
             VmValue::Decimal(decimal) => self.tag_text("__fixed__", &decimal.to_string()),
-            VmValue::RawDecimal(raw) => self.tag_text("__fixed__", &raw.to_fixed()?.to_string()),
             VmValue::Bytes(bytes) => self.tag_text("__bytes__", &hex::encode(bytes)),
             VmValue::ByteArray(bytes) => self.tag_text("__bytearray__", &hex::encode(bytes)),
             VmValue::DateTime(time) => self.tag_integers(
@@ -151,7 +149,6 @@ impl Writer {
             VmValue::Set(_) | VmValue::FrozenSet(_) => {
                 write_json(&mut self.out, &encode_set_value(value)?);
             }
-            VmValue::Float(_) => return Err(refused("binary float is not a contract number")),
             other => {
                 return Err(refused(format!(
                     "unsupported storage value '{}'",
@@ -288,8 +285,7 @@ mod tests {
     }
 
     #[test]
-    fn floats_and_runtime_objects_are_refused() {
-        assert!(encode_stored_value(&VmValue::Float(1.5)).is_err());
+    fn runtime_objects_are_refused() {
         assert!(encode_stored_value(&VmValue::Builtin("len".into())).is_err());
     }
 

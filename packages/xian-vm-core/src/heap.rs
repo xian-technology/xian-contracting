@@ -161,7 +161,7 @@ impl VmReference {
         &self,
         key: VmValue,
         item: VmValue,
-        hash: Option<u64>,
+        hash: u64,
     ) -> Result<(), VmExecutionError> {
         let growth = dict_entry_bytes();
         let mut usage = self.0.usage.borrow_mut();
@@ -179,11 +179,7 @@ impl VmReference {
     }
 
     /// Remove the dictionary entry at `position`, whose key hashes to `hash`.
-    pub(crate) fn remove_dict_entry(
-        &self,
-        position: usize,
-        hash: Option<u64>,
-    ) -> (VmValue, VmValue) {
+    pub(crate) fn remove_dict_entry(&self, position: usize, hash: u64) -> (VmValue, VmValue) {
         crate::dict_index::DictIndex::removed(&mut self.0.dict_index.borrow_mut(), position, hash);
         if let Some(slots) = self.0.dict_slots.borrow_mut().as_mut() {
             slots.positions.remove(position);
@@ -344,14 +340,6 @@ fn immutable_depth(value: &VmValue) -> usize {
         VmValue::Tuple(items) | VmValue::FrozenSet(items) => {
             1 + items.iter().map(immutable_depth).max().unwrap_or(0)
         }
-        VmValue::DecimalTuple(tuple) => {
-            1 + tuple
-                .fields()
-                .iter()
-                .map(immutable_depth)
-                .max()
-                .unwrap_or(0)
-        }
         VmValue::BoundMethod(bound) => 1 + immutable_depth(&bound.receiver),
         VmValue::MappingProxy(value) => 1 + immutable_depth(value),
         VmValue::Exception(exception) => {
@@ -375,13 +363,11 @@ fn shallow_bytes(value: &VmValue) -> usize {
         | VmValue::BuiltinSet(v)
         | VmValue::FrozenSet(v) => v.len() * std::mem::size_of::<VmValue>(),
         VmValue::Dict(v) => v.len() * dict_entry_bytes(),
-        VmValue::DecimalTuple(v) => v.allocation_bytes(),
         VmValue::ContractHandle(v) => v.module.len() + v.origin.len(),
         VmValue::String(v) => v.len(),
         VmValue::Bytes(v) | VmValue::ByteArray(v) => v.len(),
         VmValue::Int(v) => v.bits().div_ceil(8) as usize,
         VmValue::Decimal(v) => v.scaled.bits().div_ceil(8) as usize,
-        VmValue::RawDecimal(v) => v.coefficient.bits().div_ceil(8) as usize,
         VmValue::Iterator(v) => v.allocation_bytes(),
         VmValue::Range(v) => v.allocation_bytes(),
         VmValue::View(_) => std::mem::size_of::<crate::VmDictView>(),
@@ -410,7 +396,6 @@ fn map_children(
     Ok(match value {
         VmValue::List(v) => VmValue::List(map_items(v, &mut map)?),
         VmValue::Tuple(v) => VmValue::Tuple(map_items(v, &mut map)?),
-        VmValue::DecimalTuple(v) => VmValue::DecimalTuple(v.map_fields(map)?),
         VmValue::Set(v) => VmValue::Set(map_items(v, &mut map)?),
         VmValue::BuiltinSet(v) => VmValue::BuiltinSet(map_items(v, &mut map)?),
         VmValue::FrozenSet(v) => VmValue::FrozenSet(map_items(v, &mut map)?),
@@ -469,6 +454,15 @@ impl VmValue {
         match self {
             Self::Reference(reference) => reference.with_value(read),
             other => read(other),
+        }
+    }
+
+    /// The element work [`Self::snapshot`] charges (one copy of a referenced
+    /// object) without the copy. Revision-14 metering keeps it where a
+    /// resolution only fed a check for binary floats or raw Decimals.
+    pub(crate) fn note_snapshot(&self) {
+        if let Self::Reference(reference) = self {
+            reference.with_value(|value| crate::work_meter::note(crate::work_meter::copied(value)));
         }
     }
 
@@ -599,7 +593,7 @@ mod tests {
         let expected = || dict.with_value(shallow_bytes);
         let (_, before) = accounted();
         for key in 0..3 {
-            dict.push_dict_entry(crate::vm_int(key), VmValue::None, Some(key as u64))
+            dict.push_dict_entry(crate::vm_int(key), VmValue::None, key as u64)
                 .unwrap();
         }
         assert_eq!(
@@ -613,7 +607,7 @@ mod tests {
             expected(),
             shallow_bytes(&VmValue::Dict(vec![])) + 3 * dict_entry_bytes()
         );
-        let removed = dict.remove_dict_entry(1, Some(1));
+        let removed = dict.remove_dict_entry(1, 1);
         assert_eq!(removed, (crate::vm_int(1), VmValue::None));
         assert_eq!(accounted().0, expected());
         assert_eq!(
@@ -630,7 +624,7 @@ mod tests {
         // A full heap refuses the entry without changing the dictionary.
         heap.0.usage.borrow_mut().bytes = MAX_HEAP_BYTES;
         assert!(dict
-            .push_dict_entry(crate::vm_int(9), VmValue::None, Some(9))
+            .push_dict_entry(crate::vm_int(9), VmValue::None, 9)
             .is_err());
         assert_eq!(dict.with_value(crate::work_meter::members), 2);
     }
@@ -851,7 +845,6 @@ impl ContractValueVisitor {
             | VmValue::BuiltinSet(items)
             | VmValue::FrozenSet(items) => self.items(items, depth),
             VmValue::Exception(exception) => self.items(&exception.args, depth),
-            VmValue::DecimalTuple(tuple) => self.items(&tuple.as_values(), depth),
             VmValue::View(view) => self.visit(&view.source, depth + 1),
             VmValue::Iterator(iterator) => {
                 iterator.visit_children(&mut |value| self.visit(value, depth + 1))

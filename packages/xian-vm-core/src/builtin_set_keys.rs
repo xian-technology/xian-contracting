@@ -41,7 +41,6 @@ impl KeyValidator {
     fn contents(&mut self, value: &VmValue, domain: Domain, depth: usize) -> Result<bool> {
         match value {
             VmValue::Tuple(items) => self.children(items, domain, depth),
-            VmValue::DecimalTuple(tuple) => self.children(tuple.fields(), domain, depth),
             // ContractingFrozenSet hashes itself even when its members (fixed
             // Decimal and time wrappers) are individually unhashable in Python.
             VmValue::FrozenSet(items) => self.children(items, Domain::Wrapper, depth),
@@ -64,10 +63,8 @@ fn classify_leaf(value: &VmValue, domain: Domain) -> Result<bool> {
         VmValue::None
         | VmValue::Bool(_)
         | VmValue::Int(_)
-        | VmValue::Float(_)
         | VmValue::String(_)
         | VmValue::Bytes(_) => Ok(false),
-        VmValue::RawDecimal(decimal) if !decimal.is_snan() => Ok(false),
         VmValue::Decimal(_) | VmValue::DateTime(_) | VmValue::TimeDelta(_)
             if matches!(domain, Domain::Wrapper) =>
         {
@@ -245,31 +242,22 @@ mod tests {
             .is_err());
     }
     #[test]
-    fn eligible_legacy_key_order_and_signaling_nan_rejection_are_unchanged() {
+    fn eligible_key_order_is_unchanged() {
         let expected = vec![
             VmValue::None,
             VmValue::Bool(true),
             vm_int(2),
-            VmValue::Float(1.25),
             VmValue::String("x".into()),
             VmValue::Bytes(vec![120]),
             VmValue::Tuple(vec![vm_int(3)]),
             VmValue::FrozenSet(vec![VmValue::Decimal(
                 VmDecimal::from_str_literal("1").unwrap(),
             )]),
-            VmValue::RawDecimal(crate::VmRawDecimal::parse("4.75").unwrap()),
             VmValue::FunctionRef("callback".into()),
         ];
         assert_eq!(
             normalize(expected.iter().rev().cloned().collect()).unwrap(),
             expected
         );
-        let signaling = VmValue::RawDecimal(crate::VmRawDecimal::parse("sNaN").unwrap());
-        assert!(ensure_hashable(&signaling).is_err());
-        assert!(ensure_hashable(&VmValue::Tuple(vec![
-            VmValue::Builtin("len".into()),
-            signaling
-        ]))
-        .is_err());
     }
 }

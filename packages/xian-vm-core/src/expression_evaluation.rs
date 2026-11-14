@@ -358,14 +358,6 @@ impl VmInstance {
             "decimal" => {
                 numeric_v2::exact_decimal(required_string(object, "value")?).map(VmValue::Decimal)
             }
-            "float" => {
-                let literal = if let Some(literal) = optional_string(object, "literal") {
-                    literal.to_owned()
-                } else {
-                    required_f64(object, "value")?.to_string()
-                };
-                Ok(VmValue::Decimal(VmDecimal::from_str_literal(&literal)?))
-            }
             "str" => Ok(VmValue::String(
                 required_string(object, "value")?.to_owned(),
             )),

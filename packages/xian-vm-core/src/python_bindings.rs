@@ -207,11 +207,6 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
         VmValue::None => Ok(py.None()),
         VmValue::Bool(value) => Ok((*value).into_pyobject(py)?.to_owned().into_any().unbind()),
         VmValue::Int(value) => bigint_to_py(py, value),
-        VmValue::Float(value) => Ok(value.into_pyobject(py)?.into_any().unbind()),
-        VmValue::RawDecimal(value) => Ok(PyModule::import(py, "decimal")?
-            .getattr("Decimal")?
-            .call1((value.to_string(),))?
-            .unbind()),
         VmValue::Decimal(value) => {
             let module = PyModule::import(py, "xian_runtime_types.decimal")?;
             Ok(module
@@ -261,17 +256,6 @@ fn vm_to_py(py: Python<'_>, value: &VmValue) -> PyResult<Py<PyAny>> {
                 list.append(vm_to_py(py, item)?)?;
             }
             Ok(list.into_any().unbind())
-        }
-        VmValue::DecimalTuple(value) => {
-            let fields = value
-                .as_values()
-                .iter()
-                .map(|item| vm_to_py(py, item))
-                .collect::<PyResult<Vec<_>>>()?;
-            Ok(PyModule::import(py, "decimal")?
-                .getattr("DecimalTuple")?
-                .call1(PyTuple::new(py, fields)?)?
-                .unbind())
         }
         VmValue::Tuple(values) => {
             let converted = values

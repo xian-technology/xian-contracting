@@ -100,12 +100,9 @@ fn parse(text: &str) -> Result<Spec> {
 
 pub(super) fn format_work_cost(value: &VmValue, text: &str) -> Result<u64> {
     let size = RenderCost::default().value(value, 0)? as u64;
-    let extra = if let VmValue::RawDecimal(_) = value.snapshot() {
-        crate::VmRawDecimal::format_work_cost(text)?
-    } else {
-        let spec = parse(text)?;
-        (spec.width.saturating_add(spec.precision.unwrap_or(0)) as u64).saturating_mul(4)
-    };
+    value.note_snapshot();
+    let spec = parse(text)?;
+    let extra = (spec.width.saturating_add(spec.precision.unwrap_or(0)) as u64).saturating_mul(4);
     Ok(size.saturating_mul(4).saturating_add(extra))
 }
 
@@ -140,7 +137,6 @@ impl RenderCost {
             VmValue::Dict(values) => self.sequence(values.iter().flat_map(|(k, v)| [k, v]), depth),
             VmValue::Exception(value) => self.sequence(value.args.iter(), depth),
             VmValue::MappingProxy(mapping) => self.value(mapping, depth + 1),
-            VmValue::DecimalTuple(tuple) => self.sequence(tuple.as_values().iter(), depth),
             _ => Ok(scalar_render_cost(value)),
         }
     }
@@ -166,11 +162,6 @@ fn scalar_render_cost(value: &VmValue) -> usize {
         VmValue::String(text) => text.len().saturating_mul(10) + 2,
         VmValue::Bytes(bytes) | VmValue::ByteArray(bytes) => bytes.len().saturating_mul(4) + 16,
         VmValue::Int(number) => (number.bits() as usize).div_ceil(3) + 1,
-        VmValue::RawDecimal(number) => {
-            (number.coefficient.bits() as usize).div_ceil(3)
-                + number.exponent.unsigned_abs() as usize
-                + 16
-        }
         _ => 64,
     }
 }
@@ -180,14 +171,13 @@ pub(super) fn format_value(value: &VmValue, text: &str) -> Result<String> {
         return string(value);
     }
     let value = value.snapshot();
-    if let VmValue::RawDecimal(value) = &value {
-        return value.format(text);
-    }
     let spec = parse(text)?;
     match &value {
-        VmValue::Decimal(n) => return crate::VmRawDecimal::parse(&n.to_string())?.format(text),
+        VmValue::Decimal(n) => {
+            return crate::decimal_format::FormatDecimal::of_decimal(n)?.format(text)
+        }
         VmValue::Int(n) if spec.kind.is_some_and(|ch| "eEfFgG%".contains(ch)) => {
-            return crate::VmRawDecimal::from_integer(n.clone())?.format(text);
+            return crate::decimal_format::FormatDecimal::of_integer(n.clone())?.format(text);
         }
         VmValue::Bool(_) => return Err(error()),
         _ => {}
@@ -199,7 +189,6 @@ fn format_scalar(value: &VmValue, spec: &Spec) -> Result<String> {
         VmValue::String(value) => string_format(value, spec),
         VmValue::Int(value) => integer_format(value, spec),
         VmValue::Bool(value) => integer_format(&BigInt::from(u8::from(*value)), spec),
-        VmValue::Float(value) => float_format(*value, spec),
         _ => Err(error()),
     }
 }
@@ -220,15 +209,11 @@ fn conversion_string(value: &VmValue, conversion: char) -> Result<String> {
 }
 
 fn string(value: &VmValue) -> Result<String> {
-    if let VmValue::Float(number) = value.snapshot() {
-        return float_shortest(number);
-    }
+    value.note_snapshot();
     super::builtin_dispatch::public_string(value, 0)
 }
 fn representation(value: &VmValue) -> Result<String> {
-    if let VmValue::Float(number) = value.snapshot() {
-        return float_shortest(number);
-    }
+    value.note_snapshot();
     crate::rendering::render_repr(value)
 }
 fn ascii_repr(text: &str) -> Result<String> {
@@ -317,10 +302,6 @@ fn sign(negative: bool, spec: &Spec) -> &'static str {
     }
 }
 fn integer_format(value: &BigInt, spec: &Spec) -> Result<String> {
-    if spec.kind.is_some_and(|ch| "eEfFgG%".contains(ch)) {
-        let float = value.to_f64().filter(|n| n.is_finite()).ok_or_else(error)?;
-        return float_format(float, spec);
-    }
     if spec.precision.is_some() || spec.positive_zero {
         return Err(error());
     }
@@ -423,118 +404,6 @@ fn group_end(body: &str, size: usize) -> usize {
     }
 }
 
-fn float_shortest(value: f64) -> Result<String> {
-    Ok(crate::values::python_float_repr(value))
-}
-fn normalize_exponent(text: String, uppercase: bool) -> Result<String> {
-    let Some((body, exponent)) = text.split_once(['e', 'E']) else {
-        return Ok(if uppercase {
-            text.to_ascii_uppercase()
-        } else {
-            text
-        });
-    };
-    let exponent: i32 = exponent.parse().map_err(|_| error())?;
-    Ok(format!(
-        "{body}{}{exponent:+03}",
-        if uppercase { 'E' } else { 'e' }
-    ))
-}
-fn float_format(value: f64, spec: &Spec) -> Result<String> {
-    if !matches!(
-        spec.kind,
-        None | Some('e' | 'E' | 'f' | 'F' | 'g' | 'G' | 'n' | '%')
-    ) || (spec.kind == Some('n') && spec.grouping.is_some())
-    {
-        return Err(error());
-    }
-    let mut body = float_magnitude(value.abs(), spec)?;
-    let negative =
-        value.is_sign_negative() && !value.is_nan() && !(spec.positive_zero && rounded_zero(&body));
-    if spec.kind.is_some_and(char::is_uppercase) {
-        body.make_ascii_uppercase();
-    }
-    numeric_pad(body, sign(negative, spec).to_owned(), spec, 3)
-}
-fn rounded_zero(body: &str) -> bool {
-    let mantissa = body.split(['e', 'E', '%']).next().unwrap_or(body);
-    mantissa.chars().any(|ch| ch == '0') && mantissa.chars().all(|ch| ch == '0' || ch == '.')
-}
-fn float_magnitude(mut value: f64, spec: &Spec) -> Result<String> {
-    let kind = spec.kind.unwrap_or('\0');
-    if kind == '%' {
-        value *= 100.0;
-    }
-    if !value.is_finite() {
-        return Ok(format!(
-            "{}{}",
-            if value.is_nan() { "nan" } else { "inf" },
-            if kind == '%' { "%" } else { "" }
-        ));
-    }
-    let precision = spec.precision.unwrap_or(6);
-    if precision.saturating_add(320) > LIMIT {
-        return Err(limit());
-    }
-    let body = finite_float(value, precision, spec)?;
-    let mut body = alternate_point(body, spec.alternate);
-    if kind == '%' {
-        body.push('%');
-    }
-    Ok(body)
-}
-fn finite_float(value: f64, precision: usize, spec: &Spec) -> Result<String> {
-    match spec.kind {
-        Some('f' | 'F' | '%') => Ok(format!("{value:.precision$}")),
-        Some('e' | 'E') => {
-            normalize_exponent(format!("{value:.precision$e}"), spec.kind == Some('E'))
-        }
-        None if spec.precision.is_none() => float_shortest(value),
-        _ => general_float(value, precision, spec),
-    }
-}
-
-fn general_float(value: f64, precision: usize, spec: &Spec) -> Result<String> {
-    let precision = precision.max(1);
-    let scientific = format!("{value:.places$e}", places = precision - 1);
-    let (_, exponent) = scientific.split_once('e').ok_or_else(error)?;
-    let exponent: i32 = exponent.parse().map_err(|_| error())?;
-    let threshold = precision as i32 - i32::from(spec.kind.is_none());
-    let mut body = if exponent < -4 || exponent >= threshold {
-        normalize_exponent(scientific, false)?
-    } else {
-        format!(
-            "{value:.places$}",
-            places = (precision as i32 - exponent - 1).max(0) as usize
-        )
-    };
-    if !spec.alternate {
-        body = strip_fraction_zeros(body);
-    }
-    if spec.kind.is_none() && !body.contains(['e', 'E', '.']) {
-        body.push_str(".0");
-    }
-    Ok(body)
-}
-fn strip_fraction_zeros(mut text: String) -> String {
-    let end = text.find(['e', 'E']).unwrap_or(text.len());
-    if text[..end].contains('.') {
-        let trimmed = text[..end]
-            .trim_end_matches('0')
-            .trim_end_matches('.')
-            .len();
-        text.replace_range(trimmed..end, "");
-    }
-    text
-}
-fn alternate_point(mut text: String, alternate: bool) -> String {
-    let end = text.find(['e', 'E']).unwrap_or(text.len());
-    if alternate && !text[..end].contains('.') {
-        text.insert(end, '.');
-    }
-    text
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -546,7 +415,8 @@ mod tests {
         for vector in fixture["vectors"].as_array().unwrap() {
             let text = vector["value"].as_str().unwrap();
             let value = match vector["kind"].as_str().unwrap() {
-                "float" => VmValue::Float(f64::from_bits(u64::from_str_radix(text, 16).unwrap())),
+                // Binary floats are Python's; V2 values have none.
+                "float" => continue,
                 "int" => VmValue::Int(text.parse().unwrap()),
                 _ => VmValue::String(text.into()),
             };
@@ -571,7 +441,8 @@ mod tests {
         for spec in ["+s", "=10", ",s", "#s", "猫>131072"] {
             assert!(format_value(&string, spec).is_err(), "{spec}");
         }
-        assert!(format_value(&VmValue::Float(1.), ".131072f").is_err());
+        let one = VmValue::Decimal(crate::VmDecimal::from_str_literal("1").unwrap());
+        assert!(format_value(&one, ".131072f").is_err());
         assert_eq!(format_value(&integer, "131072d").unwrap().len(), LIMIT);
         assert!(format_work_cost(&integer, "131073d").is_err());
     }
@@ -584,7 +455,7 @@ mod tests {
     }
 
     #[test]
-    fn rendering_cost_tracks_proxy_and_decimal_tuple_contents() {
+    fn rendering_cost_tracks_proxy_contents() {
         let proxy = |size| {
             VmValue::MappingProxy(Box::new(VmValue::Dict(
                 (0..size)
@@ -600,20 +471,6 @@ mod tests {
         assert!(
             format_work_cost(&proxy(100), "").unwrap()
                 > format_work_cost(&proxy(1), "").unwrap() * 50
-        );
-        let tuple = |size| {
-            VmValue::DecimalTuple(
-                crate::VmDecimalTuple::new(
-                    false,
-                    vec![1; size],
-                    crate::VmDecimalExponent::Finite(0),
-                )
-                .unwrap(),
-            )
-        };
-        assert!(
-            format_work_cost(&tuple(1000), "").unwrap()
-                > format_work_cost(&tuple(10), "").unwrap() * 20
         );
         let heap = crate::heap::VmHeap::default();
         let value = heap.capture(VmValue::Dict(vec![])).unwrap();
@@ -640,13 +497,6 @@ mod tests {
         assert_eq!(
             convert(&text, Some('a')).unwrap().as_string().unwrap(),
             "'\\xe9\\u200b\\U0010ffff'"
-        );
-        assert_eq!(
-            convert(&VmValue::Float(1e-7), Some('r'))
-                .unwrap()
-                .as_string()
-                .unwrap(),
-            "1e-07"
         );
         assert!(convert(&text, Some('x')).is_err());
         let expanded = VmValue::String("\0".repeat(LIMIT / 4));

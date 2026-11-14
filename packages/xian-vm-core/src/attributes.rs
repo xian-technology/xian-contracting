@@ -144,7 +144,6 @@ fn binary_or_float_class(value: &VmValue) -> Option<&'static str> {
     value.with_resolved(|resolved| match resolved {
         VmValue::Bytes(_) => Some("builtins.bytes"),
         VmValue::ByteArray(_) => Some("builtins.bytearray"),
-        VmValue::Float(_) => Some("float"),
         _ => None,
     })
 }

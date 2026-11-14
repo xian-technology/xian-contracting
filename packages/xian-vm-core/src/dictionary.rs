@@ -19,7 +19,6 @@ fn check_resolved_key(key: &VmValue) -> Result<(), VmExecutionError> {
         VmValue::None
         | VmValue::Bool(_)
         | VmValue::Int(_)
-        | VmValue::Float(_)
         | VmValue::String(_)
         | VmValue::Bytes(_)
         | VmValue::FrozenSet(_)
@@ -32,8 +31,6 @@ fn check_resolved_key(key: &VmValue) -> Result<(), VmExecutionError> {
         | VmValue::InterfaceSubject(_)
         | VmValue::InterfaceDescriptor(_)
         | VmValue::TypeMarker(_) => Ok(()),
-        VmValue::RawDecimal(value) if !value.is_snan() => Ok(()),
-        VmValue::DecimalTuple(value) => value.as_values().iter().try_for_each(check_key),
         VmValue::Tuple(items) => items.iter().try_for_each(check_key),
         other => Err(VmExecutionError::new(format!(
             "unhashable type: '{}'",
@@ -93,23 +90,19 @@ pub(in crate::interpreter) fn dict_pop(
     Ok(key_position(entries, key)?.map(|index| entries.remove(index).1))
 }
 
-/// Position of `key` among `entries`: through `index` (built first when
-/// missing) for a key with a hash, else by scanning.
+/// Position of `key`, whose hash is `hash`, among `entries`, through `index`
+/// (built first when missing).
 fn find(
     entries: &[(VmValue, VmValue)],
     index: &mut Option<DictIndex>,
     key: &VmValue,
-    hash: Option<u64>,
+    hash: u64,
 ) -> Result<Option<usize>, VmExecutionError> {
-    if let Some(hash) = hash {
-        if index.is_none() {
-            *index = DictIndex::build(entries)?;
-        }
-        if let Some(index) = index {
-            return index.find(entries, hash, |stored| vm_values_equal(stored, key));
-        }
+    if index.is_none() {
+        *index = Some(DictIndex::build(entries)?);
     }
-    equal_position(entries.iter().map(|(stored, _)| stored), key)
+    let index = index.as_ref().expect("built above");
+    index.find(entries, hash, |stored| vm_values_equal(stored, key))
 }
 
 /// A V2 dictionary on the heap; its operations use the hash index.
@@ -127,7 +120,7 @@ pub(in crate::interpreter) fn indexed_dict(receiver: &VmValue) -> Option<&VmRefe
 fn object_position(
     dict: &VmReference,
     key: &VmValue,
-) -> Result<(Option<usize>, Option<u64>), VmExecutionError> {
+) -> Result<(Option<usize>, u64), VmExecutionError> {
     check_key(key)?;
     let hash = key_hash(key)?;
     let position = dict.with_dict_index(|entries, index| find(entries, index, key, hash))?;
@@ -202,7 +195,7 @@ const SHIFTED_ENTRIES_PER_UNIT: usize = 16;
 fn remove(
     dict: &VmReference,
     position: usize,
-    hash: Option<u64>,
+    hash: u64,
 ) -> Result<(VmValue, VmValue), VmExecutionError> {
     let shifted = dict.with_dict_index(|entries, _| entries.len() - position - 1);
     crate::work_meter::count((shifted / SHIFTED_ENTRIES_PER_UNIT) as u64)?;
@@ -346,8 +339,8 @@ mod tests {
             for right in &keys {
                 let _work = crate::work_meter::Isolation::enter();
                 check_key(left).unwrap();
-                let left_hash = key_hash(left).unwrap().expect("V2 key has a hash");
-                let right_hash = key_hash(right).unwrap().expect("V2 key has a hash");
+                let left_hash = key_hash(left).unwrap();
+                let right_hash = key_hash(right).unwrap();
                 if vm_values_equal(left, right).unwrap() {
                     equal_pairs += 1;
                     assert_eq!(left_hash, right_hash, "{left:?} == {right:?}");
@@ -396,15 +389,6 @@ mod tests {
             hash(&VmValue::String("a".into())),
             hash(&VmValue::Bytes(b"a".to_vec()))
         );
-        // Values V2 cannot hold have no hash; their dictionary keeps scanning.
-        for exotic in [
-            VmValue::Float(1.0),
-            VmValue::Float(f64::NAN),
-            VmValue::RawDecimal(crate::VmRawDecimal::parse("1").unwrap()),
-            VmValue::Tuple(vec![vm_int(1), VmValue::Float(f64::INFINITY)]),
-        ] {
-            assert_eq!(hash(&exotic), None);
-        }
     }
 
     /// One random dictionary operation: (kind, key, value).
@@ -499,45 +483,6 @@ mod tests {
     }
 
     #[test]
-    fn a_key_without_hash_keeps_the_dictionary_scanning() {
-        let _work = crate::work_meter::Isolation::enter();
-        let heap = VmHeap::default();
-        let VmValue::Reference(dict) = heap.capture(VmValue::Dict(vec![])).unwrap() else {
-            unreachable!()
-        };
-        dict_object_set(&dict, vm_int(1), vm_int(10), usize::MAX).unwrap();
-        dict_object_set(&dict, VmValue::Float(1.5), vm_int(15), usize::MAX).unwrap();
-        dict_object_set(&dict, VmValue::String("a".into()), vm_int(20), usize::MAX).unwrap();
-        // 1 == 1.0, found through the scan; the first key is kept.
-        dict_object_set(&dict, VmValue::Float(1.0), vm_int(11), usize::MAX).unwrap();
-        assert_eq!(
-            dict_object_get(&dict, &VmValue::Float(1.5)).unwrap(),
-            Some(vm_int(15))
-        );
-        assert_eq!(
-            dict_object_get(&dict, &VmValue::String("a".into())).unwrap(),
-            Some(vm_int(20))
-        );
-        assert_eq!(
-            dict_object_pop(&dict, &VmValue::Float(1.5)).unwrap(),
-            Some(vm_int(15))
-        );
-        // With the float gone the index is rebuilt and used again.
-        assert_eq!(
-            dict_object_get(&dict, &vm_int(1)).unwrap(),
-            Some(vm_int(11))
-        );
-        assert!(dict.with_dict_index(|_, index| index.is_some()));
-        assert_eq!(
-            dict.value(),
-            VmValue::Dict(vec![
-                (vm_int(1), vm_int(11)),
-                (VmValue::String("a".into()), vm_int(20))
-            ])
-        );
-    }
-
-    #[test]
     fn indexed_operations_keep_key_errors_and_limits() {
         let _work = crate::work_meter::Isolation::enter();
         let heap = VmHeap::default();
@@ -606,32 +551,5 @@ mod tests {
             assert!(dict_pop(&mut entries, &key).is_err());
             assert_eq!(entries.len(), 1);
         }
-    }
-
-    #[test]
-    fn numeric_equality_does_not_round_integer_keys() {
-        use std::cmp::Ordering;
-        for (integer, float, expected) in [
-            (9007199254740993_i64, 9007199254740992.0, Ordering::Greater),
-            (9007199254740992, 9007199254740992.0, Ordering::Equal),
-            (-9007199254740993, -9007199254740992.0, Ordering::Less),
-            (1, 1.5, Ordering::Less),
-            (-1, -1.5, Ordering::Greater),
-            (0, -0.0, Ordering::Equal),
-        ] {
-            let left = vm_int(integer);
-            let right = VmValue::Float(float);
-            assert_eq!(
-                vm_values_equal(&left, &right).unwrap(),
-                expected == Ordering::Equal
-            );
-            assert_eq!(compare_vm_values(&left, &right).unwrap(), expected);
-            assert_eq!(
-                compare_vm_values(&right, &left).unwrap(),
-                expected.reverse()
-            );
-        }
-        let huge = VmValue::Int(BigInt::from(1) << 2048);
-        assert!(!vm_values_equal(&huge, &VmValue::Float(f64::MAX)).unwrap());
     }
 }

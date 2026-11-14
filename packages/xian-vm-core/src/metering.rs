@@ -331,13 +331,6 @@ fn vm_value_to_json(value: &VmValue) -> Result<Value, VmExecutionError> {
                 Value::Object(object)
             }
         }
-        VmValue::Float(value) => Value::Number(
-            serde_json::Number::from_f64(*value)
-                .ok_or_else(|| VmExecutionError::new("cannot encode non-finite float"))?,
-        ),
-        VmValue::RawDecimal(value) => {
-            return vm_value_to_json(&VmValue::Decimal(value.to_fixed()?))
-        }
         VmValue::Decimal(value) => {
             let mut object = Map::new();
             object.insert("__fixed__".to_owned(), Value::String(value.to_string()));
@@ -388,9 +381,6 @@ fn vm_value_to_json(value: &VmValue) -> Result<Value, VmExecutionError> {
         VmValue::Set(_) | VmValue::FrozenSet(_) => {
             crate::set_member_codec::encode_set_value(value)?
         }
-        VmValue::DecimalTuple(value) => {
-            return vm_value_to_json(&VmValue::Tuple(value.as_values()))
-        }
         VmValue::List(values) | VmValue::Tuple(values) => Value::Array(
             values
                 .iter()
@@ -426,7 +416,6 @@ fn vm_json_object_key(value: &VmValue) -> Result<String, VmExecutionError> {
         }
         VmValue::None => "null".to_owned(),
         VmValue::Int(value) => value.to_string(),
-        VmValue::Float(value) => value.to_string(),
         VmValue::Decimal(value) => value.to_string(),
         VmValue::DateTime(value) => value.to_string(),
         VmValue::TimeDelta(value) => value.to_string(),
@@ -449,15 +438,15 @@ mod tests {
 
     #[test]
     fn set_metering_uses_lossless_typed_members_and_utf8_bytes() {
-        use crate::{VmRawDecimal, VmValue};
+        use crate::{VmDecimal, VmValue};
         let value = VmValue::Set(vec![VmValue::Tuple(vec![
             VmValue::String("雪".into()),
-            VmValue::RawDecimal(VmRawDecimal::parse("1.2300").unwrap()),
+            VmValue::Decimal(VmDecimal::from_str_literal("1.23").unwrap()),
         ])]);
         let encoded = super::encode_vm_value(&value).unwrap();
         let expected = serde_json::json!({"__set__": {
             "codec": "xian-set-1",
-            "items": [["tuple", [["str", "雪"], ["raw_decimal", 0, "12300", -4]]]]
+            "items": [["tuple", [["str", "雪"], ["fixed", "1230000000000000000000000000000"]]]]
         }});
         assert_eq!(encoded, serde_json::to_vec(&expected).unwrap());
         assert!(encoded

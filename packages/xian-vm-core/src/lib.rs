@@ -32,21 +32,19 @@ mod block_host;
 mod block_state;
 #[cfg(any(feature = "python-extension", test))]
 mod bundle_executor;
+#[cfg(any(feature = "python-extension", test))]
 mod decimal_backend;
-mod decimal_methods;
-mod decimal_tuple;
+mod decimal_format;
 mod interpreter;
 pub mod lmdb_env;
 mod metering;
 #[cfg(any(feature = "python-extension", test))]
 mod module_cache;
-mod raw_decimal;
-mod set_member_codec;
-pub use decimal_tuple::{VmDecimalExponent, VmDecimalTuple};
 #[cfg(any(feature = "python-extension", test))]
 mod panic_guard;
 #[cfg(any(feature = "python-extension", test))]
 mod python_decimal;
+mod set_member_codec;
 #[cfg(any(feature = "python-extension", test))]
 mod settlement;
 pub mod state_root;
@@ -69,7 +67,6 @@ mod values;
 mod work_meter;
 #[cfg(any(feature = "python-extension", test))]
 mod zk_cache;
-pub use raw_decimal::VmRawDecimal;
 
 pub const XIAN_IR_V1: &str = "xian_ir_v1";
 pub const XIAN_VM_V2_PROFILE: &str = "xian_vm_v2";

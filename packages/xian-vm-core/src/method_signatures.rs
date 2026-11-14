@@ -196,10 +196,9 @@ fn scalar_value_signature(receiver: &VmValue, method: &str) -> Option<Signature>
         VmValue::Bytes(_) | VmValue::ByteArray(_) => {
             binary_signature(method, matches!(receiver, VmValue::ByteArray(_)))
         }
-        VmValue::Int(_) | VmValue::Bool(_) | VmValue::Float(_) | VmValue::Range(_) => {
+        VmValue::Int(_) | VmValue::Bool(_) | VmValue::Range(_) => {
             scalar_signature(receiver, method)
         }
-        VmValue::RawDecimal(_) => crate::decimal_methods::supports(method).then_some(Custom),
         VmValue::DateTime(_) if method == "strptime" => Some(strptime_signature()),
         _ => None,
     }
@@ -207,9 +206,7 @@ fn scalar_value_signature(receiver: &VmValue, method: &str) -> Option<Signature>
 fn collection_signature(receiver: &VmValue, method: &str) -> Option<Signature> {
     match receiver {
         VmValue::List(_) => list_signature(method),
-        VmValue::Tuple(_) | VmValue::DecimalTuple(_) => {
-            positionals(method, &[(&["count"], 1, 1), (&["index"], 1, 3)])
-        }
+        VmValue::Tuple(_) => positionals(method, &[(&["count"], 1, 1), (&["index"], 1, 3)]),
         VmValue::Dict(_) => dict_signature(method),
         VmValue::BuiltinSet(_) => builtin_set_signature(method),
         VmValue::Set(_) | VmValue::FrozenSet(_) => {
@@ -463,17 +460,6 @@ fn set_signature(method: &str, mutable: bool) -> Option<Signature> {
 fn scalar_signature(receiver: &VmValue, method: &str) -> Option<Signature> {
     match receiver {
         VmValue::Range(_) => positionals(method, &[(&["count", "index"], 1, 1)]),
-        VmValue::Float(_) => positionals(
-            method,
-            &[
-                (
-                    &["is_integer", "hex", "as_integer_ratio", "conjugate"],
-                    0,
-                    0,
-                ),
-                (&["fromhex"], 1, 1),
-            ],
-        ),
         _ => integer_signature(method),
     }
 }
@@ -506,7 +492,6 @@ fn class_signature(name: &str, method: &str) -> Option<Signature> {
         ("bytes" | "bytearray", "maketrans") => Some(Pos(2, 2)),
         ("dict", "fromkeys") => Some(Pos(1, 2)),
         ("int" | "bool", "from_bytes") => scalar_signature(&vm_int(0), method),
-        ("float", "fromhex") => Some(Pos(1, 1)),
         ("datetime.datetime", "strptime") => Some(strptime_signature()),
         _ => representative(name)
             .filter(|value| signature(value, method).is_some())
@@ -777,10 +762,7 @@ pub(super) fn unbound_class(receiver: &VmValue, method: &str) -> Option<&'static
     };
     if matches!(
         (name.as_str(), method),
-        ("str", "maketrans")
-            | ("dict", "fromkeys")
-            | ("int" | "bool", "from_bytes")
-            | ("float", "fromhex")
+        ("str", "maketrans") | ("dict", "fromkeys") | ("int" | "bool", "from_bytes")
     ) {
         return None;
     }
@@ -790,7 +772,6 @@ pub(super) fn unbound_class(receiver: &VmValue, method: &str) -> Option<&'static
         "tuple" => "tuple",
         "dict" => "dict",
         "int" | "bool" => "int",
-        "float" => "float",
         _ => return None,
     };
     let sample = representative(kind)?;
@@ -803,7 +784,6 @@ fn representative(name: &str) -> Option<VmValue> {
         "tuple" => VmValue::Tuple(vec![]),
         "dict" => VmValue::Dict(vec![]),
         "int" | "bool" => vm_int(0),
-        "float" => VmValue::Float(0.0),
         _ => return None,
     })
 }

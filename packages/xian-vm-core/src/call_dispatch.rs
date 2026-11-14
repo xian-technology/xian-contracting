@@ -325,12 +325,6 @@ impl VmInstance {
             }
             return crate::scalar_methods::call(&receiver, method, args);
         }
-        if resolves_to!(receiver, VmValue::RawDecimal(_)) {
-            host.charge_execution_cost(crate::decimal_methods::work_cost(
-                method, &receiver, &args, &kwargs,
-            ))?;
-            return crate::decimal_methods::call(receiver, method, args, kwargs);
-        }
         if method == "strptime"
             && (resolves_to!(receiver, VmValue::DateTime(_))
                 || resolves_to!(receiver, VmValue::TypeMarker(ref name) if name == "datetime.datetime"))

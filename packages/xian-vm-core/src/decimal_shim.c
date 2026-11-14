@@ -206,25 +206,6 @@ done:
     return rc;
 }
 
-/* The VM's historical Decimal: 91 digits, exponents within +-100. */
-int xian_decimal_calculate(const char *name, const char *const *text,
-                           size_t count, int rounding, char **output)
-{
-    mpd_context_t context;
-
-    *output = NULL;
-    if (rounding < 0 || rounding >= MPD_ROUND_TRUNC) return XIAN_DECIMAL_ARGUMENT;
-    mpd_defaultcontext(&context);
-    context.prec = 91;
-    context.emin = -100;
-    context.emax = 100;
-    context.round = rounding;
-    context.clamp = 0;
-    context.allcr = 1;
-    context.traps = context.status = context.newtrap = 0;
-    return calculate_in(find_operation(name), text, count, &context, output);
-}
-
 /* CPython's default decimal context (decimal.DefaultContext): 28 digits,
  * ROUND_HALF_EVEN, exponents within +-999999. Its traps (InvalidOperation,
  * DivisionByZero, Overflow) are the statuses calculate_in reports as errors. */

@@ -1,6 +1,149 @@
-//! Decimal's numeric formatting keeps quantum; output allocation is bounded.
-use super::*;
+//! `format(number, spec)` with a Decimal presentation, as Python's
+//! `format(Decimal(text), spec)` renders it: a decimal (from its text, so the
+//! quantum is the text's) or an int with a float presentation type. The value
+//! is finite and exact (`coefficient * 10**exponent`); rescaling truncates;
+//! output allocation is bounded.
+use crate::{VmDecimal, VmExecutionError};
+use num_bigint::BigInt;
+use num_traits::{Signed, Zero};
+use std::fmt;
+use std::str::FromStr;
+
+type Result<T> = std::result::Result<T, VmExecutionError>;
 const LIMIT: usize = 128 * 1024;
+const EXACT_LIMIT: usize = 128 * 1024;
+
+/// A finite decimal `coefficient * 10**exponent`; the coefficient holds the sign.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct FormatDecimal {
+    coefficient: BigInt,
+    exponent: i32,
+}
+
+fn error() -> VmExecutionError {
+    VmExecutionError::new("invalid decimal operation or range")
+}
+fn ten(power: u32) -> BigInt {
+    BigInt::from(10u8).pow(power)
+}
+fn digits(value: &BigInt) -> i32 {
+    value.abs().to_str_radix(10).len() as i32
+}
+
+impl FormatDecimal {
+    /// A decimal as `Decimal(str(value))` holds it.
+    pub(crate) fn of_decimal(value: &VmDecimal) -> Result<Self> {
+        Self::parse(&value.to_string())
+    }
+
+    pub(crate) fn of_integer(value: BigInt) -> Result<Self> {
+        if value.bits() > crate::interpreter::MAX_INTEGER_BITS
+            || digits(&value) as usize > EXACT_LIMIT - 1
+        {
+            return Err(error());
+        }
+        Ok(Self {
+            coefficient: value,
+            exponent: 0,
+        })
+    }
+
+    fn parse(text: &str) -> Result<Self> {
+        if text.is_empty() || text.len() > EXACT_LIMIT || !text.is_ascii() {
+            return Err(error());
+        }
+        Self::parse_finite(text)
+    }
+
+    fn parse_finite(text: &str) -> Result<Self> {
+        let (mantissa, exp) = text.split_once(['e', 'E']).unwrap_or((text, "0"));
+        let exp: i32 = exp.parse().map_err(|_| error())?;
+        let unsigned_mantissa = mantissa.strip_prefix(['-', '+']).unwrap_or(mantissa);
+        if unsigned_mantissa.matches('.').count() > 1
+            || !unsigned_mantissa
+                .bytes()
+                .all(|c| c.is_ascii_digit() || c == b'.')
+        {
+            return Err(error());
+        }
+        let places = mantissa
+            .split_once('.')
+            .map_or(0, |(_, part)| part.len() as i32);
+        let coefficient = BigInt::from_str(&mantissa.replace('.', "")).map_err(|_| error())?;
+        let exponent = exp.checked_sub(places).ok_or_else(error)?;
+        if exponent.unsigned_abs() > EXACT_LIMIT as u32
+            || coefficient.bits() > crate::interpreter::MAX_INTEGER_BITS
+        {
+            return Err(error());
+        }
+        Ok(Self {
+            coefficient,
+            exponent,
+        })
+    }
+
+    fn is_zero(&self) -> bool {
+        self.coefficient.is_zero()
+    }
+    fn negative(&self) -> bool {
+        self.coefficient.is_negative()
+    }
+    fn adjusted(&self) -> i32 {
+        self.exponent + digits(&self.coefficient) - 1
+    }
+    fn rescale(&self, exponent: i32) -> BigInt {
+        let shift = self.exponent - exponent;
+        if shift >= 0 {
+            &self.coefficient * ten(shift as u32)
+        } else if -shift >= digits(&self.coefficient) {
+            BigInt::zero()
+        } else {
+            &self.coefficient / ten((-shift) as u32)
+        }
+    }
+}
+
+/// `str(Decimal)`: scientific notation for positive exponents and small
+/// adjusted exponents, fixed point otherwise.
+impl fmt::Display for FormatDecimal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.negative() {
+            f.write_str("-")?;
+        }
+        let digits = self.coefficient.abs().to_str_radix(10);
+        if self.exponent > 0 || self.adjusted() < -6 {
+            self.fmt_scientific(f, &digits)
+        } else {
+            self.fmt_fixed(f, &digits)
+        }
+    }
+}
+
+impl FormatDecimal {
+    fn fmt_scientific(&self, f: &mut fmt::Formatter<'_>, digits: &str) -> fmt::Result {
+        f.write_str(&digits[..1])?;
+        if digits.len() > 1 {
+            write!(f, ".{}", &digits[1..])?;
+        }
+        write!(f, "E{:+}", self.adjusted())
+    }
+
+    fn fmt_fixed(&self, f: &mut fmt::Formatter<'_>, digits: &str) -> fmt::Result {
+        let point = digits.len() as i32 + self.exponent;
+        if point <= 0 {
+            write!(f, "0.{}{}", "0".repeat((-point) as usize), digits)
+        } else if point < digits.len() as i32 {
+            write!(
+                f,
+                "{}.{}",
+                &digits[..point as usize],
+                &digits[point as usize..]
+            )
+        } else {
+            f.write_str(digits)
+        }
+    }
+}
 
 struct Spec {
     fill: char,
@@ -11,7 +154,6 @@ struct Spec {
     kind: char,
     grouping: bool,
     positive_zero: bool,
-    zero_padding: bool,
 }
 
 fn number(chars: &[char], position: &mut usize) -> Result<Option<usize>> {
@@ -42,7 +184,6 @@ fn parse(text: &str) -> Result<Spec> {
         kind: 'G',
         grouping: false,
         positive_zero: false,
-        zero_padding: false,
     };
     let mut i = 0;
     parse_prefix(&chars, &mut i, &mut spec);
@@ -91,7 +232,6 @@ fn parse_prefix(chars: &[char], i: &mut usize, spec: &mut Spec) {
         *i += 1;
     }
     if chars.get(*i) == Some(&'0') {
-        spec.zero_padding = true;
         spec.fill = '0';
         spec.align = '=';
         *i += 1;
@@ -115,7 +255,7 @@ fn fixed(coefficient: &BigInt, exponent: i32) -> String {
     }
 }
 
-fn scientific(value: &VmRawDecimal, precision: Option<usize>, uppercase: bool) -> String {
+fn scientific(value: &FormatDecimal, precision: Option<usize>, uppercase: bool) -> String {
     let places = precision.unwrap_or((digits(&value.coefficient) - 1) as usize);
     let exponent = if value.is_zero() {
         value.exponent + places as i32
@@ -139,15 +279,10 @@ fn scientific(value: &VmRawDecimal, precision: Option<usize>, uppercase: bool) -
     )
 }
 
-fn magnitude(value: &VmRawDecimal, spec: &Spec) -> Result<String> {
-    if !value.is_finite() {
-        let text = value.to_string().trim_start_matches('-').to_string();
-        return Ok(if spec.kind == '%' { text + "%" } else { text });
-    }
+fn magnitude(value: &FormatDecimal, spec: &Spec) -> Result<String> {
     bound_output(value, spec)?;
     let mut value = value.clone();
     value.coefficient = value.coefficient.abs();
-    value.negative_zero = false;
     if spec.kind == '%' {
         value.exponent += 2;
     }
@@ -168,7 +303,7 @@ fn magnitude(value: &VmRawDecimal, spec: &Spec) -> Result<String> {
     })
 }
 
-fn general(value: &mut VmRawDecimal, spec: &Spec) -> String {
+fn general(value: &mut FormatDecimal, spec: &Spec) -> String {
     if let Some(precision) = spec.precision {
         let discarded = digits(&value.coefficient) - (precision.max(1) as i32);
         if discarded > 0 {
@@ -185,7 +320,7 @@ fn general(value: &mut VmRawDecimal, spec: &Spec) -> String {
     }
 }
 
-fn bound_output(value: &VmRawDecimal, spec: &Spec) -> Result<()> {
+fn bound_output(value: &FormatDecimal, spec: &Spec) -> Result<()> {
     // Bound output expansion before rescaling or allocating a padded coefficient.
     let places = spec
         .precision
@@ -213,7 +348,7 @@ fn group(text: &str) -> String {
     output
 }
 
-fn sign(value: &VmRawDecimal, spec: &Spec, body: &str) -> &'static str {
+fn sign(value: &FormatDecimal, spec: &Spec, body: &str) -> &'static str {
     let zero = body
         .split(['e', 'E', '%'])
         .next()
@@ -267,16 +402,12 @@ fn pad(body: &str, sign: &str, spec: &Spec) -> Result<String> {
     })
 }
 
-impl VmRawDecimal {
+impl FormatDecimal {
     pub(crate) fn format(&self, spec: &str) -> Result<String> {
-        let mut spec = parse(spec)?;
-        if !self.is_finite() && spec.zero_padding {
-            spec.fill = ' ';
-            spec.align = '>';
-        }
+        let spec = parse(spec)?;
         let mut body = magnitude(self, &spec)?;
         let sign = sign(self, &spec, &body);
-        if spec.grouping && self.is_finite() {
+        if spec.grouping {
             body = group_padding(body, sign, &spec);
             body = group(&body);
         }
@@ -284,7 +415,51 @@ impl VmRawDecimal {
     }
 }
 
-pub(super) fn work_cost(text: &str) -> Result<u64> {
-    let spec = parse(text)?;
-    Ok((spec.width.max(spec.precision.unwrap_or(0)) as u64).saturating_mul(4))
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn decimal(text: &str) -> FormatDecimal {
+        FormatDecimal::parse(text).unwrap()
+    }
+
+    #[test]
+    fn values_and_formatting_resources_are_bounded() {
+        for text in ["1E999999999999", "1E-131073", "1.2.3", "Infinity", "NaN"] {
+            assert!(FormatDecimal::parse(text).is_err(), "{text}");
+        }
+        assert!(decimal("1E131072").format("f").is_err());
+        assert!(FormatDecimal::of_integer(
+            BigInt::from(1) << crate::interpreter::MAX_INTEGER_BITS as usize
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn decimals_keep_the_quantum_of_their_text() {
+        let hundred = FormatDecimal::of_decimal(&VmDecimal::from_str_literal("100").unwrap());
+        assert_eq!(hundred.unwrap().format("").unwrap(), "100");
+        assert_eq!(decimal("1E+2").format("").unwrap(), "1E+2");
+        assert_eq!(decimal("0.0000001").to_string(), "1E-7");
+        assert_eq!(
+            FormatDecimal::of_integer(BigInt::from(-25))
+                .unwrap()
+                .format(".1e")
+                .unwrap(),
+            "-2.5e+1"
+        );
+    }
+
+    #[test]
+    fn formatting_bounds_and_grouping() {
+        let value = decimal("-0.001");
+        assert_eq!(value.format("z.2f").unwrap(), "0.00");
+        assert_eq!(value.format("010,.2f").unwrap(), "-00,000.00");
+        assert_eq!(value.format("^15.2f").unwrap(), "     -0.00     ");
+        assert!(value.format("131073f").is_err());
+        assert!(value.format(".131072f").is_err());
+        assert!(value.format("#.0f").is_err());
+        assert!(value.format(".f").is_err());
+        assert!(value.format(",n").is_err());
+    }
 }

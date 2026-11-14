@@ -561,10 +561,7 @@ fn check_typed_value(
             }
         }
         "float" => {
-            if matches!(
-                value,
-                VmValue::Int(_) | VmValue::Float(_) | VmValue::Decimal(_)
-            ) {
+            if matches!(value, VmValue::Int(_) | VmValue::Decimal(_)) {
                 Ok(())
             } else {
                 Err(typecheck_error(label, annotation, value))

@@ -140,7 +140,6 @@ impl VmInstance {
             return Err(VmExecutionError::new("len() expects one argument"));
         }
         match &args[0] {
-            VmValue::DecimalTuple(_) => Ok(vm_int(3)),
             VmValue::String(value) => Ok(vm_int(value.chars().count())),
             VmValue::Bytes(value) | VmValue::ByteArray(value) => Ok(vm_int(value.len())),
             VmValue::List(values)
@@ -313,8 +312,6 @@ impl VmInstance {
         match &args[0] {
             VmValue::Bool(value) => Ok(vm_int(if *value { 1 } else { 0 })),
             VmValue::Int(value) => Ok(VmValue::Int(value.abs())),
-            VmValue::Float(value) => Ok(VmValue::Float(value.abs())),
-            VmValue::RawDecimal(value) => Ok(VmValue::RawDecimal(value.unary("abs")?)),
             VmValue::Decimal(value) => Ok(VmValue::Decimal(VmDecimal::from_scaled(
                 if value.scaled.sign() == Sign::Minus {
                     -value.scaled.clone()

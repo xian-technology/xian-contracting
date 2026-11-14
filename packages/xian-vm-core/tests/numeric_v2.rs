@@ -72,7 +72,6 @@ fn signs_types_and_integer_bounds() {
     assert_eq!(execute("floordiv", int(-7), int(3)).unwrap(), int(-3));
     assert_eq!(execute("mod", int(-7), int(3)).unwrap(), int(2));
     assert!(execute("add", VmValue::Bool(true), int(1)).is_err());
-    assert!(execute("div", VmValue::Float(1.0), int(1)).is_err());
     assert!(execute("mod", dec("2.5"), int(2)).is_err());
     assert!(execute("pow", int(2), int(512)).is_err());
     assert!(execute("pow", int(2), int(-1)).is_err());

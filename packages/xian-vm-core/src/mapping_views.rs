@@ -341,7 +341,6 @@ impl WorkWalker {
             VmValue::Bytes(bytes) | VmValue::ByteArray(bytes) => bytes.len() as u64,
             VmValue::Int(number) => number.bits().div_ceil(8),
             VmValue::Decimal(number) => number.scaled.bits().div_ceil(8),
-            VmValue::RawDecimal(number) => number.coefficient.bits().div_ceil(8),
             VmValue::List(items) | VmValue::Tuple(items) => self.items(items, depth),
             VmValue::Set(items) | VmValue::BuiltinSet(items) | VmValue::FrozenSet(items) => {
                 self.items(items, depth).saturating_mul(items.len() as u64)

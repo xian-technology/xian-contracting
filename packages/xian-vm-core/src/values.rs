@@ -1,28 +1,9 @@
-use crate::VmRawDecimal;
 use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, Timelike};
 use num_bigint::{BigInt, Sign};
 use num_traits::{Signed, ToPrimitive, Zero};
 use std::fmt;
 use std::str::FromStr;
 use std::sync::OnceLock;
-
-/// Python's shortest binary64 display uses a signed, at-least-two-digit exponent.
-pub(crate) fn python_float_repr(value: f64) -> String {
-    if value.is_nan() {
-        return "nan".to_owned();
-    }
-    let rendered = format!("{value:?}");
-    let Some((mantissa, exponent)) = rendered.split_once('e') else {
-        return rendered;
-    };
-    let (sign, digits) = if let Some(digits) = exponent.strip_prefix('-') {
-        ('-', digits)
-    } else {
-        ('+', exponent.trim_start_matches('+'))
-    };
-    let padding = if digits.len() < 2 { "0" } else { "" };
-    format!("{mantissa}e{sign}{padding}{digits}")
-}
 
 const DECIMAL_SCALE: u32 = 30;
 const DECIMAL_MAX_SCALED_DIGITS: u32 = 91;
@@ -117,9 +98,7 @@ impl VmDecimal {
         let value = &value.snapshot();
         match value {
             VmValue::Decimal(value) => Ok(value.clone()),
-            VmValue::RawDecimal(value) => value.to_fixed(),
             VmValue::Int(value) => Self::from_str_literal(&value.to_string()),
-            VmValue::Float(value) => Self::from_str_literal(&value.to_string()),
             VmValue::Bool(value) => Self::from_str_literal(if *value { "1" } else { "0" }),
             VmValue::String(value) => Self::from_str_literal(value),
             other => Err(VmExecutionError::new(format!(
@@ -273,25 +252,6 @@ pub(crate) fn bigint_to_usize(value: &BigInt, context: &str) -> Result<usize, Vm
     }
     value.to_usize().ok_or_else(|| {
         VmExecutionError::new(format!("{context} exceeds the supported usize range"))
-    })
-}
-
-pub(crate) fn bigint_to_f64(value: &BigInt, context: &str) -> Result<f64, VmExecutionError> {
-    value.to_f64().ok_or_else(|| {
-        VmExecutionError::new(format!("{context} exceeds the supported float range"))
-    })
-}
-
-pub(crate) fn f64_to_bigint_trunc(value: f64, context: &str) -> Result<BigInt, VmExecutionError> {
-    if !value.is_finite() {
-        return Err(VmExecutionError::new(format!(
-            "{context} must be finite for integer conversion"
-        )));
-    }
-    BigInt::from_str(&format!("{:.0}", value.trunc())).map_err(|_| {
-        VmExecutionError::new(format!(
-            "{context} cannot be converted to an integer without overflow"
-        ))
     })
 }
 
@@ -534,9 +494,7 @@ pub enum VmValue {
     None,
     Bool(bool),
     Int(BigInt),
-    Float(f64),
     Decimal(VmDecimal),
-    RawDecimal(VmRawDecimal),
     DateTime(VmDateTime),
     TimeDelta(VmTimeDelta),
     String(String),
@@ -548,7 +506,6 @@ pub enum VmValue {
     FrozenSet(Vec<VmValue>),
     List(Vec<VmValue>),
     Tuple(Vec<VmValue>),
-    DecimalTuple(crate::VmDecimalTuple),
     Dict(Vec<(VmValue, VmValue)>),
     ContractHandle(VmContractHandle),
     DeploymentHandle,
@@ -576,17 +533,11 @@ impl VmValue {
         // Persistence eligibility cannot depend on whether chi metering is on.
         crate::set_member_codec::validate_set_normalization_work(&detached)?;
         detached.validate_storage_payload()?;
-        match detached {
-            Self::RawDecimal(value) => Ok(Self::Decimal(value.to_fixed()?)),
-            value => Ok(value),
-        }
+        Ok(detached)
     }
 
     fn validate_storage_payload(&self) -> Result<(), VmExecutionError> {
         match self {
-            Self::RawDecimal(value) => {
-                value.to_fixed()?;
-            }
             Self::Set(_) | Self::FrozenSet(_) => {
                 crate::set_member_codec::encode_set_value(self)?;
             }
@@ -605,11 +556,7 @@ impl VmValue {
                     }
                     if !matches!(
                         key,
-                        Self::None
-                            | Self::Bool(_)
-                            | Self::Int(_)
-                            | Self::Float(_)
-                            | Self::String(_)
+                        Self::None | Self::Bool(_) | Self::Int(_) | Self::String(_)
                     ) {
                         return Err(VmExecutionError::new(
                             "stored dictionary keys must be str, int, float, bool or None",
@@ -634,10 +581,8 @@ impl VmValue {
             Self::None => false,
             Self::Bool(value) => *value,
             Self::Int(value) => !value.is_zero(),
-            Self::Float(value) => *value != 0.0,
             Self::Decimal(value) => !value.is_zero(),
-            Self::RawDecimal(value) => !value.is_zero(),
-            Self::DateTime(_) | Self::DecimalTuple(_) => true,
+            Self::DateTime(_) => true,
             Self::TimeDelta(value) => value.seconds() != 0,
             Self::String(value) => !value.is_empty(),
             Self::Bytes(value) | Self::ByteArray(value) => !value.is_empty(),
@@ -677,10 +622,7 @@ impl VmValue {
             Self::Bool(true) => "True".to_owned(),
             Self::Bool(false) => "False".to_owned(),
             Self::Int(value) => value.to_string(),
-            Self::Float(value) => python_float_repr(*value),
             Self::Decimal(value) => value.python_repr(),
-            Self::RawDecimal(value) => value.to_string(),
-            Self::DecimalTuple(_) => self.python_repr(),
             Self::DateTime(value) => value.to_string(),
             Self::TimeDelta(value) => value.to_string(),
             Self::String(value) => value.clone(),
@@ -811,9 +753,7 @@ impl VmValue {
             Self::None => "none",
             Self::Bool(_) => "bool",
             Self::Int(_) => "int",
-            Self::Float(_) => "float",
             Self::Decimal(_) => "decimal",
-            Self::RawDecimal(_) => "Decimal",
             Self::DateTime(_) => "datetime",
             Self::TimeDelta(_) => "timedelta",
             Self::String(_) => "str",
@@ -823,7 +763,6 @@ impl VmValue {
             Self::FrozenSet(_) => "frozenset",
             Self::List(_) => "list",
             Self::Tuple(_) => "tuple",
-            Self::DecimalTuple(_) => "DecimalTuple",
             Self::Dict(_) => "dict",
             Self::DeploymentHandle => "Contract",
             Self::ContractHandle(_) => "contract_handle",

@@ -48,9 +48,7 @@ pub(super) fn convertible(value: &VmValue) -> bool {
         VmValue::None
         | VmValue::Bool(_)
         | VmValue::Int(_)
-        | VmValue::Float(_)
         | VmValue::Decimal(_)
-        | VmValue::RawDecimal(_)
         | VmValue::DateTime(_)
         | VmValue::TimeDelta(_)
         | VmValue::String(_)

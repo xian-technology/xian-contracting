@@ -42,9 +42,6 @@ pub(in crate::interpreter) fn call_native_method_collected(
         VmValue::Tuple(values) if matches!(method, "count" | "index") => {
             call_list_method(values, method, args, collect)
         }
-        VmValue::DecimalTuple(value) if matches!(method, "count" | "index") => {
-            call_list_method(value.as_values(), method, args, collect)
-        }
         VmValue::List(values) => call_list_method(values, method, args, collect),
         VmValue::String(value) => call_string_method(value, method, args, collect),
         VmValue::Builtin(name)

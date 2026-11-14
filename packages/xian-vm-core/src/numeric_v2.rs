@@ -9,9 +9,6 @@ pub(super) const OP_GAS: u64 = 96;
 pub(crate) fn validate_leaf(value: &VmValue) -> Result<(), VmExecutionError> {
     match value {
         VmValue::Int(value) if value.bits() > INTEGER_BITS => Err(limit()),
-        VmValue::Float(_) | VmValue::RawDecimal(_) | VmValue::DecimalTuple(_) => Err(
-            VmExecutionError::new("binary float and raw Decimal are unavailable in xian_vm_v2"),
-        ),
         _ => Ok(()),
     }
 }

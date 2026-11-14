@@ -1,6 +1,5 @@
 //! Lossless xian-set-1 member grammar. Ordinary value encodings are unchanged.
 use crate::{VmExecutionError, VmValue};
-use num_traits::Signed;
 use serde_json::{json, Value};
 
 type Result<T> = std::result::Result<T, VmExecutionError>;
@@ -9,7 +8,6 @@ pub(crate) const MAX_DEPTH: usize = 64;
 pub(crate) const MAX_NODES: usize = 131072;
 pub(crate) const MAX_BYTES: usize = 8 * 1024 * 1024;
 pub(crate) const MAX_NORMALIZATION_WORK: usize = 8388608;
-const MAX_RAW: usize = 131072;
 
 pub(crate) fn is_reserved_tag(name: &str) -> bool {
     matches!(
@@ -96,40 +94,7 @@ impl Budget {
                 }
                 self.text("int", &value.to_string())
             }
-            VmValue::Float(value) if value.is_finite() => {
-                self.text("float", &format!("{:016x}", value.to_bits()))
-            }
-            VmValue::Float(_) => Err(VmExecutionError::new(
-                "set codec requires finite numeric members",
-            )),
             VmValue::Decimal(value) => self.text("fixed", &value.scaled.to_string()),
-            VmValue::RawDecimal(value) => {
-                if !value.is_finite() {
-                    return Err(VmExecutionError::new(
-                        "set codec requires finite numeric members",
-                    ));
-                }
-                if value.exponent.unsigned_abs() as usize > MAX_RAW
-                    || value.coefficient.bits() > crate::interpreter::MAX_INTEGER_BITS
-                {
-                    return Err(limit());
-                }
-                if value.to_string().len() > MAX_RAW {
-                    return Err(VmExecutionError::new(
-                        "set codec raw decimal text limit exceeded",
-                    ));
-                }
-                let digits = value.coefficient.abs().to_str_radix(10);
-                if digits.len() > MAX_RAW {
-                    return Err(limit());
-                }
-                self.scalar(json!([
-                    "raw_decimal",
-                    u8::from(value.is_negative()),
-                    digits,
-                    value.exponent
-                ]))
-            }
             VmValue::String(value) => self.text("str", value),
             VmValue::Bytes(value) => {
                 if value.len() > MAX_BYTES / 2 {
@@ -221,17 +186,15 @@ pub(crate) fn encode_set_value(value: &VmValue) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{VmDecimal, VmRawDecimal};
+    use crate::VmDecimal;
     #[test]
-    fn typed_members_preserve_float_bits_raw_quantum_and_fixed_scale() {
-        let value = VmValue::Set(vec![
-            VmValue::Float(-0.0),
-            VmValue::RawDecimal(VmRawDecimal::parse("1.2300").unwrap()),
-            VmValue::Decimal(VmDecimal::from_vm_value(&VmValue::String("1.25".into())).unwrap()),
-        ]);
+    fn typed_members_keep_the_fixed_scale() {
+        let value = VmValue::Set(vec![VmValue::Decimal(
+            VmDecimal::from_vm_value(&VmValue::String("1.25".into())).unwrap(),
+        )]);
         assert_eq!(
             encode_set_value(&value).unwrap(),
-            json!({"__set__":{"codec":"xian-set-1","items":[["float","8000000000000000"],["raw_decimal",0,"12300",-4],["fixed","1250000000000000000000000000000"]]}})
+            json!({"__set__":{"codec":"xian-set-1","items":[["fixed","1250000000000000000000000000000"]]}})
         );
     }
     #[test]
@@ -246,8 +209,7 @@ mod tests {
         );
     }
     #[test]
-    fn resource_and_finiteness_limits_are_independent_of_metering() {
-        assert!(encode_set_value(&VmValue::Set(vec![VmValue::Float(f64::NAN)])).is_err());
+    fn resource_limits_are_independent_of_metering() {
         assert!(encode_set_value(&VmValue::Set(vec![VmValue::Int(1.into()); 2897])).is_err());
         let mut member = VmValue::None;
         for _ in 0..63 {
@@ -264,7 +226,7 @@ mod tests {
 #[cfg(test)]
 mod shared_wire_tests {
     use super::*;
-    use crate::{VmDateTime, VmDecimal, VmRawDecimal, VmTimeDelta};
+    use crate::{VmDateTime, VmDecimal, VmTimeDelta};
     use num_bigint::BigInt;
 
     #[test]
@@ -275,27 +237,27 @@ mod shared_wire_tests {
         .unwrap();
         for case in fixtures.as_array().unwrap() {
             let name = case["id"].as_str().unwrap();
+            // The shared goldens also hold binary floats and raw Decimals
+            // (the Python codec's archival V1 members), which V2 values lack.
+            if matches!(
+                name,
+                "negative_zero" | "raw" | "raw_negative_zero" | "tuple"
+            ) {
+                continue;
+            }
             let member = match name {
                 "none" => VmValue::None,
                 "bool" => VmValue::Bool(true),
                 "int" => VmValue::Int(BigInt::from(1) << 90usize),
-                "negative_zero" => VmValue::Float(-0.0),
                 "fixed" => VmValue::Decimal(
                     VmDecimal::from_vm_value(&VmValue::String("1.25".into())).unwrap(),
                 ),
-                "raw" => VmValue::RawDecimal(VmRawDecimal::parse("1.2300").unwrap()),
-                "raw_negative_zero" => VmValue::RawDecimal(VmRawDecimal::parse("-0.00").unwrap()),
                 "unicode" => VmValue::String("雪😀\n".into()),
                 "bytes" => VmValue::Bytes(vec![0, 255]),
                 "datetime" => {
                     VmValue::DateTime(VmDateTime::new(2026, 1, 2, 3, 4, 5, 123456).unwrap())
                 }
                 "timedelta" => VmValue::TimeDelta(VmTimeDelta::from_raw_seconds(-90001).unwrap()),
-                "tuple" => VmValue::Tuple(vec![
-                    VmValue::Int(1.into()),
-                    VmValue::String("a".into()),
-                    VmValue::RawDecimal(VmRawDecimal::parse("2.00").unwrap()),
-                ]),
                 "nested_frozen" => VmValue::FrozenSet(vec![VmValue::Tuple(vec![
                     VmValue::Int(1.into()),
                     VmValue::Int(2.into()),
@@ -323,16 +285,6 @@ mod shared_wire_tests {
         budget.normalization_work = MAX_NORMALIZATION_WORK - 9;
         budget.normalize(3).unwrap();
         assert!(budget.normalize(1).is_err());
-    }
-    #[test]
-    fn raw_text_limit_covers_sign_and_quantum_overhead() {
-        let mut raw = VmRawDecimal::parse(&"9".repeat(MAX_RAW)).unwrap();
-        assert!(encode_set_value(&VmValue::Set(vec![VmValue::RawDecimal(raw.clone())])).is_ok());
-        raw.coefficient = -raw.coefficient;
-        assert!(encode_set_value(&VmValue::Set(vec![VmValue::RawDecimal(raw.clone())])).is_err());
-        raw.coefficient = -raw.coefficient;
-        raw.exponent = -1;
-        assert!(encode_set_value(&VmValue::Set(vec![VmValue::RawDecimal(raw)])).is_err());
     }
 }
 

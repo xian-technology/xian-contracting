@@ -8,9 +8,7 @@
 //! equality is a containment test between sets of equal size, so a frozenset
 //! hashes by its size alone. Callables, handles and descriptors are equal
 //! only to themselves or to an equal object of their own kind and share one
-//! hash per kind. Binary floats and raw Decimals (and their tuples) do not
-//! exist in V2 values; a key holding one has no hash and its dictionary keeps the
-//! linear scan.
+//! hash per kind. Every hashable V2 key has a hash.
 //!
 //! The hash function is fixed (FNV-1a over a tagged encoding), so collisions,
 //! and with them the number of compared entries, are the same on every node.
@@ -28,42 +26,35 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 pub(crate) const INDEX_BYTES_PER_ENTRY: usize =
     std::mem::size_of::<(u64, Bucket)>() + std::mem::size_of::<u64>();
 
-/// Hash of a dictionary key under V2 equality; `None` for keys V2 cannot hold.
-/// Counts one unit of element work per visited key node and one per 8
-/// hashed payload bytes.
-pub(crate) fn key_hash(key: &VmValue) -> Result<Option<u64>, VmExecutionError> {
+/// Hash of a dictionary key under V2 equality. Counts one unit of element
+/// work per visited key node and one per 8 hashed payload bytes.
+pub(crate) fn key_hash(key: &VmValue) -> Result<u64, VmExecutionError> {
     let mut hasher = KeyHasher(FNV_OFFSET);
-    Ok(hasher.add(key)?.then_some(hasher.0))
+    hasher.add(key)?;
+    Ok(hasher.0)
 }
 
 struct KeyHasher(u64);
 
 impl KeyHasher {
-    fn add(&mut self, key: &VmValue) -> Result<bool, VmExecutionError> {
+    fn add(&mut self, key: &VmValue) -> Result<(), VmExecutionError> {
         crate::work_meter::count(1)?;
         key.with_resolved(|key| match key {
             VmValue::Tuple(items) => self.items(items),
             VmValue::FrozenSet(items) => {
                 self.length(6, items.len());
-                Ok(true)
+                Ok(())
             }
-            VmValue::Float(_) | VmValue::RawDecimal(_) | VmValue::DecimalTuple(_) => Ok(false),
             scalar => {
                 let (tag, payload) = encoding(scalar);
-                self.payload(tag, &payload)?;
-                Ok(true)
+                self.payload(tag, &payload)
             }
         })
     }
 
-    fn items(&mut self, items: &[VmValue]) -> Result<bool, VmExecutionError> {
+    fn items(&mut self, items: &[VmValue]) -> Result<(), VmExecutionError> {
         self.length(5, items.len());
-        for item in items {
-            if !self.add(item)? {
-                return Ok(false);
-            }
-        }
-        Ok(true)
+        items.iter().try_for_each(|item| self.add(item))
     }
 
     fn length(&mut self, tag: u8, length: usize) {
@@ -85,7 +76,7 @@ impl KeyHasher {
     }
 }
 
-/// Tag and payload of a key that is neither a container nor a V1-only number.
+/// Tag and payload of a key that is not a container.
 /// Equal keys share both: integers by value (V2 never equates a bool with a
 /// number), text, bytes and names by content.
 fn encoding(value: &VmValue) -> (u8, Cow<'_, [u8]>) {
@@ -167,16 +158,13 @@ pub(crate) struct DictIndex {
 }
 
 impl DictIndex {
-    /// Index every entry; `None` when a key has no hash.
-    pub(crate) fn build(entries: &[(VmValue, VmValue)]) -> Result<Option<Self>, VmExecutionError> {
+    /// Index every entry.
+    pub(crate) fn build(entries: &[(VmValue, VmValue)]) -> Result<Self, VmExecutionError> {
         let mut index = Self::default();
         for (key, _) in entries {
-            let Some(hash) = key_hash(key)? else {
-                return Ok(None);
-            };
-            index.push(hash)?;
+            index.push(key_hash(key)?)?;
         }
-        Ok(Some(index))
+        Ok(index)
     }
 
     /// Position of the first entry with `hash` whose key `matches`, trying
@@ -227,27 +215,73 @@ impl DictIndex {
         }
     }
 
-    /// Keep `index` in step with an entry appended with key hash `hash`; a
-    /// key without a hash drops the index.
-    pub(crate) fn pushed(
-        index: &mut Option<Self>,
-        hash: Option<u64>,
-    ) -> Result<(), VmExecutionError> {
-        match (index.as_mut(), hash) {
-            (Some(built), Some(hash)) => built.push(hash),
-            (_, None) => {
-                *index = None;
-                Ok(())
-            }
-            (None, Some(_)) => Ok(()),
+    /// Keep a built `index` in step with an entry appended with key hash `hash`.
+    pub(crate) fn pushed(index: &mut Option<Self>, hash: u64) -> Result<(), VmExecutionError> {
+        match index.as_mut() {
+            Some(built) => built.push(hash),
+            None => Ok(()),
         }
     }
 
-    /// Keep `index` in step with removing the entry at `position`.
-    pub(crate) fn removed(index: &mut Option<Self>, position: usize, hash: Option<u64>) {
-        match (index.as_mut(), hash) {
-            (Some(built), Some(hash)) => built.remove(position, hash),
-            _ => *index = None,
+    /// Keep a built `index` in step with removing the entry at `position`.
+    pub(crate) fn removed(index: &mut Option<Self>, position: usize, hash: u64) {
+        if let Some(built) = index.as_mut() {
+            built.remove(position, hash);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::work_meter::{flush, Isolation, VM_GAS_ELEMENT_WORK};
+
+    struct Host(u64);
+    impl crate::VmHost for Host {
+        fn charge_execution_cost(&mut self, cost: u64) -> Result<(), VmExecutionError> {
+            self.0 += cost;
+            Ok(())
+        }
+    }
+
+    /// Element work units `work` counts.
+    fn units(work: impl FnOnce()) -> u64 {
+        let _isolated = Isolation::enter();
+        work();
+        let mut host = Host(0);
+        flush(&mut host).unwrap();
+        host.0 / VM_GAS_ELEMENT_WORK
+    }
+
+    fn int(value: i64) -> VmValue {
+        VmValue::Int(value.into())
+    }
+
+    #[test]
+    fn hashing_and_indexing_count_one_unit_per_key_node_and_entry() {
+        assert_eq!(
+            units(|| {
+                key_hash(&int(7)).unwrap();
+            }),
+            1
+        );
+        let pair = VmValue::Tuple(vec![int(1), int(2)]);
+        assert_eq!(
+            units(|| {
+                key_hash(&pair).unwrap();
+            }),
+            3
+        );
+        // 64 payload bytes add 8 units of searched work.
+        let text = VmValue::String("x".repeat(64));
+        assert_eq!(
+            units(|| {
+                key_hash(&text).unwrap();
+            }),
+            9
+        );
+        let entries = vec![(int(1), int(0)), (int(2), int(0)), (pair, int(0))];
+        // Each key's hash (1, 1, 3) and one unit per indexed entry.
+        assert_eq!(units(|| drop(DictIndex::build(&entries).unwrap())), 8);
     }
 }

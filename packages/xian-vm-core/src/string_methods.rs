@@ -434,7 +434,6 @@ fn lookup_translation(table: &VmValue, ch: char) -> Result<Option<VmValue>> {
         VmValue::Dict(entries) => dictionary::dict_get(entries, &vm_int(code)),
         VmValue::List(values) | VmValue::Tuple(values) => Ok(values.get(code).cloned()),
         VmValue::Range(range) => Ok(range.get(&BigInt::from(code))),
-        VmValue::DecimalTuple(value) => Ok(value.as_values().get(code).cloned()),
         VmValue::String(text) => Ok(text.chars().nth(code).map(|ch| string(ch.to_string()))),
         VmValue::Bytes(bytes) | VmValue::ByteArray(bytes) => {
             Ok(bytes.get(code).map(|value| vm_int(*value)))

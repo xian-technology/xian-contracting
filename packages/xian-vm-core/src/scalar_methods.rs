@@ -1,11 +1,9 @@
 //! Bounded Python 3.12 scalar attributes and methods; dispatch binds keywords.
 use crate::interpreter::{MAX_BINARY_ALLOCATION_BYTES, MAX_INTEGER_BITS};
-use crate::{VmDecimal, VmExecutionError, VmRange, VmRawDecimal, VmValue};
+use crate::{VmDecimal, VmExecutionError, VmRange, VmValue};
 use num_bigint::{BigInt, Sign};
-use num_traits::{FromPrimitive, Signed, ToPrimitive, Zero};
+use num_traits::{Signed, ToPrimitive, Zero};
 
-#[path = "scalar_float.rs"]
-mod float;
 type Result<T> = std::result::Result<T, VmExecutionError>;
 
 pub(crate) fn supports(value: &VmValue, method: &str) -> bool {
@@ -27,14 +25,9 @@ pub(crate) fn supports(value: &VmValue, method: &str) -> bool {
                 | "to_bytes"
                 | "from_bytes"
         ),
-        VmValue::Float(_) => matches!(
-            method,
-            "is_integer" | "hex" | "fromhex" | "as_integer_ratio" | "conjugate"
-        ),
-        VmValue::Builtin(name) | VmValue::TypeMarker(name) => matches!(
-            (name.as_str(), method),
-            ("int", "from_bytes") | ("float", "fromhex")
-        ),
+        VmValue::Builtin(name) | VmValue::TypeMarker(name) => {
+            name == "int" && method == "from_bytes"
+        }
         _ => false,
     }
 }
@@ -47,7 +40,6 @@ fn is_scalar_receiver(value: &VmValue) -> bool {
         VmValue::Range(_)
             | VmValue::Int(_)
             | VmValue::Bool(_)
-            | VmValue::Float(_)
             | VmValue::Builtin(_)
             | VmValue::TypeMarker(_)
     )
@@ -59,7 +51,7 @@ pub(crate) fn attribute(value: &VmValue, name: &str) -> Option<Result<VmValue>> 
     }
     if matches!(
         (value.snapshot(), name),
-        (VmValue::Int(_), "real" | "numerator") | (VmValue::Float(_), "real")
+        (VmValue::Int(_), "real" | "numerator")
     ) {
         return Some(Ok(value.clone()));
     }
@@ -71,11 +63,6 @@ pub(crate) fn attribute(value: &VmValue, name: &str) -> Option<Result<VmValue>> 
             _ => return None,
         },
         VmValue::Int(number) => integer_attribute(number, name)?,
-        VmValue::Float(number) => match name {
-            "real" => VmValue::Float(number),
-            "imag" => VmValue::Float(0.0),
-            _ => return None,
-        },
         _ => return None,
     };
     Some(Ok(attribute))
@@ -93,7 +80,7 @@ fn integer_attribute(number: BigInt, name: &str) -> Option<VmValue> {
 pub(crate) fn call(value: &VmValue, method: &str, args: Vec<VmValue>) -> Result<VmValue> {
     if args.is_empty() {
         match (value.snapshot(), method) {
-            (VmValue::Int(_) | VmValue::Float(_), "conjugate") => return Ok(value.clone()),
+            (VmValue::Int(_), "conjugate") => return Ok(value.clone()),
             (VmValue::Int(_), "as_integer_ratio") => {
                 return Ok(VmValue::Tuple(vec![
                     value.clone(),
@@ -106,13 +93,9 @@ pub(crate) fn call(value: &VmValue, method: &str, args: Vec<VmValue>) -> Result<
     if method == "from_bytes" && supports(value, method) {
         return from_bytes(&args).map(VmValue::Int);
     }
-    if method == "fromhex" && supports(value, method) {
-        return float::from_hex(&args);
-    }
     match value.snapshot() {
         VmValue::Range(range) => range_method(&range, method, &args),
         VmValue::Int(number) => integer_method(number, method, &args),
-        VmValue::Float(number) => float::call(number, method, &args),
         _ => Err(VmExecutionError::new("unsupported scalar method")),
     }
 }
@@ -260,21 +243,9 @@ fn byte_input(value: &VmValue) -> Result<Vec<u8>> {
 fn exact_integer(value: &VmValue) -> Result<Option<BigInt>> {
     Ok(match value.snapshot() {
         VmValue::Int(number) => Some(number),
-        VmValue::Float(number) if number.is_finite() && number.fract() == 0.0 => {
-            BigInt::from_f64(number)
-        }
         VmValue::Decimal(number) => {
             let integer = number.to_bigint();
             (VmDecimal::from_vm_value(&VmValue::Int(integer.clone()))? == number).then_some(integer)
-        }
-        VmValue::RawDecimal(number) if number.is_snan() => {
-            return Err(VmExecutionError::new("invalid decimal operation"))
-        }
-        VmValue::RawDecimal(number) if number.is_finite() => {
-            let integer = number.integer()?;
-            (number.compare(&VmRawDecimal::from_integer(integer.clone())?)?
-                == std::cmp::Ordering::Equal)
-                .then_some(integer)
         }
         _ => None,
     })
@@ -333,11 +304,6 @@ fn size(value: &VmValue) -> u64 {
         VmValue::Reference(reference) => reference.with_value(size),
         VmValue::Int(number) => number.bits().div_ceil(8),
         VmValue::Decimal(number) => number.scaled.bits().div_ceil(8),
-        VmValue::RawDecimal(number) => number
-            .coefficient
-            .bits()
-            .div_ceil(8)
-            .saturating_add(number.exponent.max(0) as u64),
         VmValue::Range(range) => range.allocation_bytes() as u64,
         VmValue::Bytes(bytes) | VmValue::ByteArray(bytes) => bytes.len() as u64,
         VmValue::String(text) => text.len() as u64,

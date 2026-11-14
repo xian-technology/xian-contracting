@@ -1,6 +1,7 @@
 """V2 numeric rules at the VM boundary, in callbacks and across imports."""
 
 import tempfile
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -128,3 +129,37 @@ def probe():
     assert [type(item) for item in members[:2]] == [bool, int]
     nested = list(members[2])
     assert [type(pair[0]) for pair in nested] == [bool, int]
+
+
+NON_V2_NUMBERS = {
+    "float": 0.25,
+    "nan": float("nan"),
+    "Decimal": Decimal("1.5"),
+    "DecimalTuple": Decimal("1.5").as_tuple(),
+    "nested_float": [1, 0.5],
+    "nested_Decimal": {"a": Decimal("2")},
+}
+
+
+@pytest.mark.parametrize("value", NON_V2_NUMBERS.values(), ids=NON_V2_NUMBERS)
+def test_binary_floats_and_raw_decimals_are_refused_at_the_rust_boundary(value):
+    # The VM has one number model (int and ContractingDecimal): its Python
+    # boundary (py_to_vm) refuses float, decimal.Decimal and DecimalTuple.
+    from xian_vm_core import BlockState
+
+    with pytest.raises(
+        ValueError, match="^binary float and raw Decimal are unavailable in xian_vm_v2$"
+    ):
+        BlockState().write_value("con_x.v", value)
+
+
+def test_call_arguments_are_coerced_to_contract_numbers_before_the_boundary():
+    # execute_tx's coerce_call_kwargs (the SDK's numeric wire rules) refuses
+    # binary floats and turns an exact decimal.Decimal into a decimal.
+    source = "@export\ndef probe(x: Any):\n    return x"
+    refused = call(source, kwargs={"x": [1, 0.5]})
+    assert (refused.status_code, refused.chi_used) == (1, 0)
+    assert str(refused.result) == "binary float is not a contract number"
+    coerced = call(source, kwargs={"x": Decimal("1.5")})
+    assert coerced.status_code == 0
+    assert type(coerced.result) is ContractingDecimal and str(coerced.result) == "1.5"

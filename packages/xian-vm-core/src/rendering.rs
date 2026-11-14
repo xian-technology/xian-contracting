@@ -68,22 +68,11 @@ impl Renderer {
             return self.sequence(items, open, close, depth);
         }
         match value {
-            VmValue::RawDecimal(value) if nested => self.push(&format!("Decimal('{value}')")),
             VmValue::String(text) if nested => self.push(&quoted(text)?),
             VmValue::Dict(entries) => self.dictionary(entries, depth),
             VmValue::MappingProxy(mapping) => {
                 self.push("mappingproxy(")?;
                 self.value(mapping, true, depth + 1)?;
-                self.push(")")
-            }
-            VmValue::DecimalTuple(tuple) => {
-                let fields = tuple.as_values();
-                self.push("DecimalTuple(sign=")?;
-                self.value(&fields[0], true, depth + 1)?;
-                self.push(", digits=")?;
-                self.value(&fields[1], true, depth + 1)?;
-                self.push(", exponent=")?;
-                self.value(&fields[2], true, depth + 1)?;
                 self.push(")")
             }
             VmValue::Exception(exception) => {
