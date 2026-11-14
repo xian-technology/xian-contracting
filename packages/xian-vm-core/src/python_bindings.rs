@@ -339,7 +339,7 @@ fn py_hash_entries_to_vm(
         .collect()
 }
 
-fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
+pub(crate) fn py_to_vm(value: Bound<'_, PyAny>) -> Result<VmValue, VmExecutionError> {
     if value.is_none() {
         return Ok(VmValue::None);
     }

@@ -3,8 +3,13 @@
 //! The state is shared with VM executions through an `Arc`; Python objects are
 //! created only after its lock is released.
 use crate::block_state::{BlockState, BlockStateError, Stored};
+use crate::interpreter::numeric_v2;
 use crate::lmdb_python::PyLmdbEnvironment;
-use pyo3::exceptions::PyRuntimeError;
+use crate::python_bindings::py_to_vm;
+use crate::set_member_codec::validate_set_normalization_work;
+use crate::stored_value_encoder::encode_stored_value;
+use crate::XIAN_VM_V2_PROFILE;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -15,6 +20,24 @@ fn to_py(error: BlockStateError) -> PyErr {
 
 fn stored_to_py(py: Python<'_>, value: &Stored) -> Option<Py<PyBytes>> {
     value.as_ref().map(|bytes| PyBytes::new(py, bytes).unbind())
+}
+
+/// The V2 stored bytes of a Python value: the VM boundary conversion, the
+/// aggregate set normalization budget, then the stored-value writer (what
+/// `encode(value, vm_profile="xian_vm_v2")` writes). `None` stages a deletion; a value V2 cannot store raises
+/// `ValueError`.
+fn stored_bytes(value: &Bound<'_, PyAny>) -> PyResult<Stored> {
+    if value.is_none() {
+        return Ok(None);
+    }
+    let _scope = numeric_v2::Scope::enter(XIAN_VM_V2_PROFILE);
+    py_to_vm(value.clone())
+        .and_then(|value| {
+            validate_set_normalization_work(&value)?;
+            encode_stored_value(&value)
+        })
+        .map(|bytes| Some(Arc::from(bytes)))
+        .map_err(|error| PyValueError::new_err(error.to_string()))
 }
 
 /// Pending writes of the current block as stored values, with one discarding
@@ -64,6 +87,29 @@ impl PyBlockState {
     #[pyo3(signature = (key, value))]
     fn write(&self, key: &str, value: Option<&[u8]>) {
         self.lock().write(key, value.map(Arc::from));
+    }
+
+    /// Stage the V2 stored bytes of the Python value `value` for `key`
+    /// (`None` stages a deletion); a value V2 cannot store raises
+    /// `ValueError` and stages nothing.
+    fn write_value(&self, key: &str, value: &Bound<'_, PyAny>) -> PyResult<()> {
+        let stored = stored_bytes(value)?;
+        self.lock().write(key, stored);
+        Ok(())
+    }
+
+    /// `write_value` for every `(key, value)`, all or nothing: every value
+    /// is encoded before any is staged.
+    fn write_values(&self, items: Vec<(String, Bound<'_, PyAny>)>) -> PyResult<()> {
+        let encoded = items
+            .iter()
+            .map(|(key, value)| Ok((key, stored_bytes(value)?)))
+            .collect::<PyResult<Vec<_>>>()?;
+        let mut state = self.lock();
+        for (key, stored) in encoded {
+            state.write(key, stored);
+        }
+        Ok(())
     }
 
     /// `(key, value)` entries under `prefix`, in key order.

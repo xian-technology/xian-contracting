@@ -71,11 +71,13 @@ def test_profile_driver_persists_canonical_numbers_and_rejects_bad_batches(tmp_p
     from contracting.storage.driver import Driver
 
     with Driver(storage_home=tmp_path, vm_profile=PROFILE) as driver:
-        driver.set("ledger.balance", Decimal("1e-29"))
+        driver.set("ledger.balance", ContractingDecimal("1e-29"))
         driver.set("ledger.large", 2**53)
         driver.commit()
-        with pytest.raises(TypeError):
-            driver.apply_writes({"ledger.good": 1, "ledger.bad": [0.25]})
+        # V2 stores contract numbers only: no binary float, no raw Decimal.
+        for bad in ([0.25], Decimal("1e-29")):
+            with pytest.raises(ValueError, match="binary float and raw Decimal"):
+                driver.apply_writes({"ledger.good": 1, "ledger.bad": bad})
         assert driver.find("ledger.good") is None
         env = driver._store._env
         assert env.get(b"ledger.balance") == b'{"__fixed__":"0.00000000000000000000000000001"}'

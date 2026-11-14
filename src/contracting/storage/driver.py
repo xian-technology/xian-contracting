@@ -182,17 +182,26 @@ class Driver:
     def _decode(self, key: str, raw: bytes | None):
         return None if raw is None else self._store.decode(key, raw)
 
-    def _stored(self, value) -> bytes | None:
-        """The stored bytes of `value` (validated); None stages a deletion.
+    def _stage(self, items: list[tuple[str, object]]) -> None:
+        """Stage the stored bytes of each value, all or nothing; None stages a
+        deletion.
 
-        V2 encoding validates and normalizes the value in the same pass, and
-        decoding those bytes gives the typed value ``_typed_value`` would.
+        V2 bytes are written in Rust (``BlockState.write_values``: the VM
+        boundary conversion and the stored-value writer, the bytes
+        ``encode`` writes); decoding them gives the typed value
+        ``_typed_value`` would. V1 (archival) keeps the Python encoder.
         """
+        if self.vm_profile == XIAN_VM_V2_PROFILE:
+            self._pending.write_values(items)
+            return
+        encoded = [(key, self._stored_v1(value)) for key, value in items]
+        for key, raw in encoded:
+            self._pending.write(key, raw)
+
+    def _stored_v1(self, value) -> bytes | None:
         if value is None:
             return None
-        if self.vm_profile != XIAN_VM_V2_PROFILE:
-            value = self._typed_value(value)
-        return encode(value, vm_profile=self.vm_profile).encode("utf-8")
+        return encode(self._typed_value(value), vm_profile=self.vm_profile).encode("utf-8")
 
     @contextmanager
     def discarding_changes(self):
@@ -220,7 +229,7 @@ class Driver:
         is_txn_write: bool = False,
     ):
         validate_storage_key(key)
-        self._pending.write(key, self._stored(value))
+        self._stage([(key, value)])
         if is_txn_write:
             if self._undo is not None:
                 self._undo.remember(key)
@@ -238,9 +247,7 @@ class Driver:
         # Stage all or nothing: every key and value is checked first.
         for key in writes:
             validate_storage_key(key)
-        encoded = [(key, self._stored(value)) for key, value in writes.items()]
-        for key, raw in encoded:
-            self._pending.write(key, raw)
+        self._stage(list(writes.items()))
 
     def find(self, key: str):
         # Every value is decoded fresh, so callers never share a live value.
