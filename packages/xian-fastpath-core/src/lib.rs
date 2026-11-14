@@ -54,6 +54,8 @@ pub type Result<T> = std::result::Result<T, AdmissionError>;
 pub struct DecodedTransaction {
     /// The whole JSON document.
     pub document: Value,
+    /// Its canonical JSON text (the wire bytes decoded).
+    pub text: String,
     /// The canonical JSON text of its `payload`.
     pub payload_json: String,
 }
@@ -72,6 +74,7 @@ pub fn decode_transaction(raw: &[u8]) -> Result<DecodedTransaction> {
     let payload_json = canonical_json(payload)?;
     Ok(DecodedTransaction {
         document,
+        text,
         payload_json,
     })
 }

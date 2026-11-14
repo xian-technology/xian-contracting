@@ -1,12 +1,14 @@
 //! Python access to the Rust block executor: the node adds a block's
 //! transactions and runs them from an index until one needs the Python path.
 use super::settlement_python::rewards_to_py;
-use super::{bigint_to_py, context_from_py, event_to_py, exception_to_py, py_to_vm, vm_to_py};
+use super::transaction_inputs_python::block_meta_from_py;
+use super::{bigint_to_py, event_to_py, exception_to_py, vm_to_py};
 use crate::block_executor::{BlockExecutor, BlockPolicy, PreparedTx, TxOutcome};
 use crate::block_state_python::PyBlockState;
 use crate::lmdb_python::{LmdbStorageError, PyLmdbEnvironment};
 use crate::settlement::Stop;
 use crate::state_view::StateView;
+use crate::transaction_inputs::{prepared_tx, BlockMeta};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
@@ -31,37 +33,9 @@ impl<T> Unshared<T> {
 #[pyclass(name = "BlockExecutor", module = "xian_vm_core", unsendable)]
 pub(super) struct PyBlockExecutor {
     executor: BlockExecutor,
+    block_meta: BlockMeta,
     /// `None` for a transaction whose inputs did not convert.
     txs: Vec<Option<PreparedTx>>,
-}
-
-fn prepared(
-    sender: String,
-    contract: String,
-    function: String,
-    kwargs: Option<&Bound<'_, PyDict>>,
-    context: &Bound<'_, PyAny>,
-    chi_budget: &Bound<'_, PyAny>,
-    size_bytes: usize,
-) -> Option<PreparedTx> {
-    let kwargs = kwargs?;
-    let mut converted = Vec::with_capacity(kwargs.len());
-    for (key, value) in kwargs.iter() {
-        converted.push((key.extract::<String>().ok()?, py_to_vm(value).ok()?));
-    }
-    let chi_budget = match py_to_vm(chi_budget.clone()).ok()? {
-        crate::VmValue::Int(value) => value,
-        _ => return None,
-    };
-    Some(PreparedTx {
-        sender,
-        contract,
-        function,
-        kwargs: converted,
-        context: context_from_py(context).ok()?,
-        chi_budget,
-        size_bytes,
-    })
 }
 
 /// `items` converted one by one into a Python list.
@@ -124,6 +98,7 @@ impl PyBlockExecutor {
         distribute_fee_rewards,
         protected_keys,
         zk_enabled_without_state,
+        block_meta,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -134,7 +109,8 @@ impl PyBlockExecutor {
         distribute_fee_rewards: bool,
         protected_keys: Vec<String>,
         zk_enabled_without_state: bool,
-    ) -> Self {
+        block_meta: &Bound<'_, PyDict>,
+    ) -> PyResult<Self> {
         let view = StateView::new(environment.env().clone(), overlay.shared());
         let policy = BlockPolicy {
             meter_execution,
@@ -143,35 +119,18 @@ impl PyBlockExecutor {
             protected_keys,
             zk_enabled_without_state,
         };
-        Self {
+        Ok(Self {
             executor: BlockExecutor::new(view, policy),
+            block_meta: block_meta_from_py(block_meta)?,
             txs: Vec::new(),
-        }
+        })
     }
 
-    /// Add a transaction: `kwargs` and `context` as the Python path
-    /// hands them to the VM (`context` without the owner). `None` kwargs (or
-    /// inputs that do not convert) leave the transaction to Python.
-    #[allow(clippy::too_many_arguments)]
-    fn add(
-        &mut self,
-        sender: String,
-        contract: String,
-        function: String,
-        kwargs: Option<Bound<'_, PyDict>>,
-        context: Bound<'_, PyAny>,
-        chi_budget: Bound<'_, PyAny>,
-        size_bytes: usize,
-    ) {
-        self.txs.push(prepared(
-            sender,
-            contract,
-            function,
-            kwargs.as_ref(),
-            &context,
-            &chi_budget,
-            size_bytes,
-        ));
+    /// Add an admitted transaction by its wire bytes; Rust reads its call,
+    /// arguments and context (`transaction_inputs`). One whose inputs the
+    /// Python path would not have converted is left to Python.
+    fn add(&mut self, raw: &[u8]) {
+        self.txs.push(prepared_tx(raw, &self.block_meta));
     }
 
     fn __len__(&self) -> usize {

@@ -62,18 +62,8 @@ pub(crate) struct BlockPolicy {
     pub(crate) protected_keys: Vec<String>,
 }
 
-/// One transaction's inputs, converted as the Python path converts them.
-pub(crate) struct PreparedTx {
-    pub(crate) sender: String,
-    pub(crate) contract: String,
-    pub(crate) function: String,
-    pub(crate) kwargs: Vec<(String, VmValue)>,
-    /// signer, caller, this, entry, submission name and block context; the
-    /// owner is read here.
-    pub(crate) context: VmExecutionContext,
-    pub(crate) chi_budget: BigInt,
-    pub(crate) size_bytes: usize,
-}
+/// One transaction's inputs, read from its wire bytes.
+pub(crate) use crate::transaction_inputs::PreparedTx;
 
 /// What the receipt of an executed transaction is built from.
 pub(crate) struct TxOutcome {

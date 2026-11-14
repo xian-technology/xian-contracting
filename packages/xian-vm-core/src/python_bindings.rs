@@ -10,6 +10,8 @@ mod random_python;
 mod settlement_python;
 #[path = "transaction_admission_python.rs"]
 mod transaction_admission_python;
+#[path = "transaction_inputs_python.rs"]
+mod transaction_inputs_python;
 #[path = "zk_python.rs"]
 mod zk_python;
 use crate::XIAN_VM_V2_PROFILE;
@@ -1081,6 +1083,10 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     random_python::register(module)?;
     transaction_admission_python::register(module)?;
     zk_python::register(py, module)?;
+    module.add_function(wrap_pyfunction!(
+        transaction_inputs_python::_transaction_inputs_debug,
+        module
+    )?)?;
     crate::state_root_python::register(module)?;
     Ok(())
 }

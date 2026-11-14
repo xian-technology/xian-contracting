@@ -61,6 +61,8 @@ mod stored_value_encoder;
 #[cfg(any(feature = "python-extension", test))]
 mod transaction_admission;
 #[cfg(any(feature = "python-extension", test))]
+mod transaction_inputs;
+#[cfg(any(feature = "python-extension", test))]
 mod tx_rewards;
 mod values;
 mod work_meter;
