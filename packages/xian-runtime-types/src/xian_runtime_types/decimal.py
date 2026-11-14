@@ -1,38 +1,44 @@
+# Original Xian implementation, written from the Xian VM's decimal rules.
+# Copyright (c) 2026 Xian Technology. Licensed under the MIT License.
+"""Exact fixed-point decimals with the Xian VM's number model.
+
+A ``ContractingDecimal`` is one integer, ``scaled = value * 10**30``, exactly
+as the VM's ``VmDecimal`` is: 30 fractional digits, magnitude below 10**61,
+results truncated toward zero, no ambient ``decimal`` context involved.
+"""
+
 from __future__ import annotations
 
 import math
 import re
-from decimal import (
-    ROUND_DOWN,
-    Context,
-    Decimal,
-    DivisionByZero,
-    InvalidOperation,
-)
+from decimal import ROUND_DOWN, Context, Decimal, DivisionByZero, InvalidOperation
 
 MAX_UPPER_PRECISION = 61
 MAX_LOWER_PRECISION = 30
 MAX_SCALED_DIGITS = MAX_UPPER_PRECISION + MAX_LOWER_PRECISION
 SCALE = 10**MAX_LOWER_PRECISION
 MAX_SCALED = 10**MAX_SCALED_DIGITS - 1
+CONTEXT = Context(prec=MAX_SCALED_DIGITS, rounding=ROUND_DOWN, Emin=-100, Emax=100)
 
-CONTEXT = Context(
-    prec=MAX_SCALED_DIGITS,
-    rounding=ROUND_DOWN,
-    Emin=-100,
-    Emax=100,
-)
+# round(x, n) never needs a unit above 10**156: the VM shares this bound with
+# 512-bit ints, and every decimal rounds to zero well before it.
+_ROUNDING_DIGITS_CAP = 156
+_HALF = SCALE // 2
+# canonical_fixed shares the VM's integer bound for integer input.
+_INTEGER_BITS = 512
+_EXPONENT_DIGITS_CAP = 30
+_SPELLING = re.compile(r"([+-]?)(?:([0-9]+)(?:\.([0-9]*))?|\.([0-9]+))([eE][+-]?[0-9]+)?")
 
 
 def make_min_decimal_str(prec):
-    return "0." + "0" * (prec - 1) + "1"
+    """The smallest positive decimal with ``prec`` fractional digits, as text."""
+    return "0." + "1".rjust(max(prec, 1), "0")
 
 
 def make_max_decimal_str(upper_prec, lower_prec=0):
-    whole = "9" * upper_prec
-    if lower_prec <= 0:
-        return whole
-    return f"{whole}.{'9' * lower_prec}"
+    """The largest decimal with the given digit counts, as text."""
+    fraction = "." + "9" * lower_prec if lower_prec > 0 else ""
+    return "9" * upper_prec + fraction
 
 
 MAX_DECIMAL = Decimal(make_max_decimal_str(MAX_UPPER_PRECISION, MAX_LOWER_PRECISION))
@@ -40,300 +46,339 @@ MIN_DECIMAL = Decimal(make_min_decimal_str(MAX_LOWER_PRECISION))
 
 
 class DecimalOverflowError(OverflowError):
-    pass
+    """A decimal outside the supported range (|value| >= 10**61)."""
 
 
-_FIXED_INPUT = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
+def _overflow(source) -> DecimalOverflowError:
+    return DecimalOverflowError(f"Value {source} exceeds the supported decimal range.")
 
 
-def canonical_fixed(value: Decimal | str | int | ContractingDecimal) -> str:
-    """Canonical, lossless plain-decimal text for a V2 typed value."""
-    if isinstance(value, ContractingDecimal):
-        value = value._d
-    elif type(value) is str:
-        if not _FIXED_INPUT.fullmatch(value):
-            raise ValueError("invalid decimal spelling")
-        if not re.search(r"[1-9]", value.partition("e")[0].partition("E")[0]):
-            return "0"
-        try:
-            value = Decimal(value)
-        except InvalidOperation as exc:
-            raise ValueError("invalid decimal exponent") from exc
-    elif type(value) is int:
-        if value.bit_length() > 512:
-            raise OverflowError("integer exceeds 512 bits")
-        value = Decimal(value)
-    elif not isinstance(value, Decimal):
-        raise TypeError("decimal input requires decimal text, an exact decimal or an integer")
-    if not value.is_finite():
-        raise ValueError("decimal must be finite")
-    if value.is_zero():
-        return "0"
-    if value.adjusted() >= MAX_UPPER_PRECISION:
-        raise DecimalOverflowError("decimal exceeds the supported range")
-    sign, digits, exponent = value.as_tuple()
-    discard = max(0, -MAX_LOWER_PRECISION - exponent)
-    if discard:
-        if discard >= len(digits) or any(digits[-discard:]):
-            raise ValueError("decimal is not exactly representable at scale 30")
-        value = Decimal((sign, digits[:-discard], exponent + discard))
-    plain = format(value, "f")
-    return plain.rstrip("0").rstrip(".") if "." in plain else plain
+def _checked(scaled: int) -> int:
+    """A computed scaled result, if it is inside the range."""
+    if abs(scaled) > MAX_SCALED:
+        raise _overflow(f"scaled integer {scaled}")
+    return scaled
 
 
-def _coerce_decimal(value) -> Decimal:
-    if isinstance(value, Decimal):
-        return value
-    if isinstance(value, ContractingDecimal):
-        return value._d
-    if isinstance(value, bool):
-        return Decimal(str(value))
-    if isinstance(value, (float, int)):
-        return Decimal(str(value))
-    return Decimal(value)
-
-
-def _div_trunc(numerator: int, denominator: int) -> int:
-    if denominator == 0:
-        raise DivisionByZero
+def _truncating_div(numerator: int, denominator: int) -> int:
     quotient = abs(numerator) // abs(denominator)
-    if (numerator < 0) ^ (denominator < 0):
-        return -quotient
-    return quotient
+    return quotient if (numerator < 0) == (denominator < 0) else -quotient
 
 
 def _decimal_to_scaled(value: Decimal) -> int:
+    """Truncate an exact ``Decimal`` to the 30-digit grid (``VmDecimal::from_str_literal``)."""
     if not value.is_finite():
-        raise DecimalOverflowError(f"Value {value} exceeds the supported decimal range.")
-
+        raise _overflow(value)
     sign, digits, exponent = value.as_tuple()
-    if not any(digits):
+    coefficient = int("".join(map(str, digits)))
+    if not coefficient:
         return 0
-    if value.adjusted() >= MAX_UPPER_PRECISION:
-        raise DecimalOverflowError(f"Value {value} exceeds the supported decimal range.")
-
-    coefficient = "".join(str(digit) for digit in digits)
+    if len(digits) + exponent > MAX_UPPER_PRECISION:
+        raise _overflow(value)
     shift = exponent + MAX_LOWER_PRECISION
     if shift >= 0:
-        scaled = int(coefficient) * (10**shift)
+        magnitude = coefficient * 10**shift
+    elif -shift > len(digits):
+        magnitude = 0
     else:
-        keep_digits = len(coefficient) + shift
-        if keep_digits <= 0:
-            return 0
-        scaled = int(coefficient[:keep_digits])
-    if sign:
-        scaled = -scaled
-    return _check_scaled(scaled, value)
+        magnitude = coefficient // 10**-shift
+    return -magnitude if sign else magnitude
 
 
-def _scaled_to_decimal(scaled: int) -> Decimal:
-    if scaled == 0:
-        return Decimal("0")
-
-    sign = 1 if scaled < 0 else 0
-    digits = tuple(int(digit) for digit in str(abs(scaled)))
-    value = Decimal((sign, digits, -MAX_LOWER_PRECISION))
-    return value.normalize(context=CONTEXT)
+def _int_to_scaled(number: int) -> int:
+    if abs(number) > MAX_SCALED // SCALE:
+        raise _overflow(Decimal(number))
+    return number * SCALE
 
 
-def _check_scaled(scaled: int, source=None) -> int:
-    if abs(scaled) > MAX_SCALED:
-        value = source if source is not None else f"scaled integer {scaled}"
-        raise DecimalOverflowError(f"Value {value} exceeds the supported decimal range.")
-    return 0 if scaled == 0 else scaled
-
-
-def _coerce_scaled(value) -> int:
+def _to_scaled(value) -> int:
+    """The scaled value of an operand: exact for ints, text for floats and bools."""
     if isinstance(value, ContractingDecimal):
         return value._scaled
-    return _decimal_to_scaled(_coerce_decimal(value))
+    if isinstance(value, (bool, float)):
+        value = str(value)
+    elif isinstance(value, int):
+        return _int_to_scaled(value)
+    if not isinstance(value, Decimal):
+        value = Decimal(value)
+    return _decimal_to_scaled(value)
 
 
-def fix_precision(x: Decimal):
-    try:
-        scaled = _decimal_to_scaled(_coerce_decimal(x))
-        return _scaled_to_decimal(scaled)
-    except (InvalidOperation, ValueError) as exc:
-        raise DecimalOverflowError(f"Value {x} exceeds the supported decimal range.") from exc
+def _scaled_text(scaled: int) -> str:
+    """The VM's text for a decimal: plain digits, no exponent, no trailing zeros."""
+    digits = str(abs(scaled)).rjust(MAX_LOWER_PRECISION + 1, "0")
+    whole, fraction = digits[:-MAX_LOWER_PRECISION], digits[-MAX_LOWER_PRECISION:].rstrip("0")
+    text = f"{whole}.{fraction}" if fraction else whole
+    return "-" + text if scaled < 0 else text
 
 
-class ContractingDecimal:
-    __slots__ = ("_scaled", "_d")
-
-    @classmethod
-    def _from_scaled(cls, scaled: int):
-        scaled = _check_scaled(scaled)
-        value = cls.__new__(cls)
-        value._scaled = scaled
-        value._d = _scaled_to_decimal(scaled)
-        return value
-
-    def _get_other(self, other):
-        if isinstance(other, ContractingDecimal):
-            return other._d
-        elif isinstance(other, (float, int)) and not isinstance(other, bool):
-            return fix_precision(Decimal(str(other)))
-        return other
-
-    def __init__(self, a):
-        self._scaled = _coerce_scaled(a)
-        self._d = _scaled_to_decimal(self._scaled)
-
-    def __bool__(self):
-        return self._scaled != 0
-
-    def __eq__(self, other):
-        return self._d == self._get_other(other)
-
-    def __lt__(self, other):
-        return self._d < self._get_other(other)
-
-    def __le__(self, other):
-        return self._d <= self._get_other(other)
-
-    def __gt__(self, other):
-        return self._d > self._get_other(other)
-
-    def __ge__(self, other):
-        return self._d >= self._get_other(other)
-
-    def __str__(self):
-        # Same text as a V2 contract's str(decimal): plain fixed point, no exponent,
-        # no trailing fractional zeros.
-        return canonical_fixed(self)
-
-    __repr__ = __str__
-
-    def __format__(self, spec):
-        # Same as V2 format(decimal, spec): apply the spec to the plain value.
-        text = str(self)
-        return format(Decimal(text), spec) if spec else text
-
-    def __neg__(self):
-        return self._from_scaled(-self._scaled)
-
-    def __pos__(self):
-        return self
-
-    def __abs__(self):
-        return self._from_scaled(abs(self._scaled))
-
-    def __add__(self, other):
-        return self._from_scaled(self._scaled + _coerce_scaled(other))
-
-    def __radd__(self, other):
-        return self._from_scaled(_coerce_scaled(other) + self._scaled)
-
-    def __sub__(self, other):
-        return self._from_scaled(self._scaled - _coerce_scaled(other))
-
-    def __rsub__(self, other):
-        return self._from_scaled(_coerce_scaled(other) - self._scaled)
-
-    def __mul__(self, other):
-        return self._from_scaled(_div_trunc(self._scaled * _coerce_scaled(other), SCALE))
-
-    def __rmul__(self, other):
-        return self._from_scaled(_div_trunc(_coerce_scaled(other) * self._scaled, SCALE))
-
-    def __truediv__(self, other):
-        other_scaled = _coerce_scaled(other)
-        return self._from_scaled(_div_trunc(self._scaled * SCALE, other_scaled))
-
-    def __rtruediv__(self, other):
-        return self._from_scaled(_div_trunc(_coerce_scaled(other) * SCALE, self._scaled))
-
-    def __mod__(self, other):
-        other_scaled = _coerce_scaled(other)
-        if other_scaled == 0:
-            raise DivisionByZero
-        quotient = _div_trunc(self._scaled, other_scaled)
-        return self._from_scaled(self._scaled - quotient * other_scaled)
-
-    def __rmod__(self, other):
-        other_scaled = _coerce_scaled(other)
-        if self._scaled == 0:
-            raise DivisionByZero
-        quotient = _div_trunc(other_scaled, self._scaled)
-        return self._from_scaled(other_scaled - quotient * self._scaled)
-
-    def __floordiv__(self, other):
-        quotient = _div_trunc(self._scaled, _coerce_scaled(other))
-        return self._from_scaled(quotient * SCALE)
-
-    def __rfloordiv__(self, other):
-        quotient = _div_trunc(_coerce_scaled(other), self._scaled)
-        return self._from_scaled(quotient * SCALE)
-
-    def __pow__(self, other):
-        return self._from_scaled(_pow_scaled(self._scaled, _coerce_scaled(other)))
-
-    def __rpow__(self, other):
-        return self._from_scaled(_pow_scaled(_coerce_scaled(other), self._scaled))
-
-    def __int__(self):
-        return _div_trunc(self._scaled, SCALE)
-
-    def __float__(self):
-        return float(str(self))
-
-    def __round__(self, n=None):
-        """``round()`` as a V2 contract rounds: half to even, exact, without
-        the ambient decimal context. ``round(x)`` is an int; ``round(x, n)``
-        a ContractingDecimal (``n`` may be negative; past 30 places it
-        changes nothing); ``n`` is an int or None (a bool is not an int). A
-        result outside the decimal range raises ``DecimalOverflowError``."""
-        if n is None:
-            return _round_half_even(self._scaled, SCALE)
-        if type(n) is not int:
-            raise TypeError("round() ndigits must be an int or None")
-        exponent = MAX_LOWER_PRECISION - n
-        if exponent <= 0:
-            return self
-        unit = 10 ** min(exponent, _ROUNDED_AWAY)
-        return self._from_scaled(_round_half_even(self._scaled, unit) * unit)
-
-
-# Every scaled decimal is below 10**91 (and every V2 int below 10**155), so
-# rounding to a power of ten at or above 10**156 gives 0, as in the VM.
-_ROUNDED_AWAY = 156
+def _scaled_decimal(scaled: int) -> Decimal:
+    """The value as a normalized ``Decimal`` (``1000`` is ``Decimal('1E+3')``)."""
+    if not scaled:
+        return Decimal(0)
+    digits = str(abs(scaled))
+    significant = digits.rstrip("0")
+    exponent = len(digits) - len(significant) - MAX_LOWER_PRECISION
+    return Decimal((int(scaled < 0), tuple(map(int, significant)), exponent))
 
 
 def _round_half_even(scaled: int, unit: int) -> int:
-    """``scaled / unit`` rounded half to even."""
+    """``scaled / unit`` rounded to the nearest integer, ties to even."""
     quotient, remainder = divmod(abs(scaled), unit)
     if 2 * remainder > unit or (2 * remainder == unit and quotient % 2):
         quotient += 1
     return -quotient if scaled < 0 else quotient
 
 
-def _pow_scaled(base_scaled: int, exponent_scaled: int) -> int:
-    if exponent_scaled == 0:
-        return SCALE
-    if exponent_scaled == SCALE // 2:
-        if base_scaled < 0:
-            raise InvalidOperation
-        return math.isqrt(base_scaled * SCALE)
-    if exponent_scaled % SCALE != 0:
-        raise InvalidOperation
+def _nonzero(divisor: int) -> int:
+    if not divisor:
+        raise DivisionByZero()
+    return divisor
 
-    exponent = exponent_scaled // SCALE
-    if exponent < 0:
-        if base_scaled == 0:
-            raise DecimalOverflowError("Value Infinity exceeds the supported decimal range.")
-        return _div_trunc(SCALE * SCALE, _pow_scaled(base_scaled, -exponent * SCALE))
 
+def _add(left: int, right: int) -> int:
+    return left + right
+
+
+def _sub(left: int, right: int) -> int:
+    return left - right
+
+
+def _mul(left: int, right: int) -> int:
+    return _truncating_div(left * right, SCALE)
+
+
+def _truediv(left: int, right: int) -> int:
+    return _truncating_div(left * SCALE, _nonzero(right))
+
+
+def _floordiv(left: int, right: int) -> int:
+    return _truncating_div(left, _nonzero(right)) * SCALE
+
+
+def _mod(left: int, right: int) -> int:
+    return left - right * _truncating_div(left, _nonzero(right))
+
+
+def _power(base: int, exponent: int) -> int:
+    """``base ** exponent`` for ``exponent >= 0``, squaring with truncating products."""
     result = SCALE
-    base = base_scaled
     while exponent:
         if exponent & 1:
-            result = _div_trunc(result * base, SCALE)
-            _check_scaled(result)
+            result = _checked(_mul(result, base))
         exponent >>= 1
         if exponent:
-            base = _div_trunc(base * base, SCALE)
-            _check_scaled(base)
-    return _check_scaled(result)
+            base = _checked(_mul(base, base))
+    return result
 
 
-exports = {"decimal": ContractingDecimal}
+def _sqrt(base: int) -> int:
+    """The square root rounded down, as the VM's ``sqrt`` helper computes it."""
+    if base < 0:
+        raise InvalidOperation()
+    return math.isqrt(base * SCALE)
+
+
+def _pow(base: int, exponent: int) -> int:
+    """Legacy ``**``: integral exponents or one half; a negative one inverts the power."""
+    if exponent == _HALF:
+        return _sqrt(base)
+    if exponent % SCALE:
+        raise InvalidOperation()
+    exponent //= SCALE
+    if exponent >= 0:
+        return _power(base, exponent)
+    if not base:
+        raise _overflow("Infinity")
+    return _truncating_div(SCALE * SCALE, _nonzero(_power(base, -exponent)))
+
+
+def _comparable(other):
+    """``other`` on the scaled grid when it is a number compared exactly, else None."""
+    if isinstance(other, ContractingDecimal):
+        return other._scaled
+    if isinstance(other, float):
+        return _to_scaled(other)
+    if isinstance(other, int) and not isinstance(other, bool):
+        return other * SCALE
+    return None
+
+
+def _comparison(compare):
+    def method(self, other):
+        right = _comparable(other)
+        if right is None:
+            return compare(self._d, other)
+        return compare(self._scaled, right)
+
+    return method
+
+
+def _arithmetic(name, operation):
+    def forward(self, other):
+        return type(self)._from_scaled(operation(self._scaled, _to_scaled(other)))
+
+    def reflected(self, other):
+        return type(self)._from_scaled(operation(_to_scaled(other), self._scaled))
+
+    for method, dunder in ((forward, f"__{name}__"), (reflected, f"__r{name}__")):
+        method.__name__ = dunder
+        method.__qualname__ = f"ContractingDecimal.{dunder}"
+    return forward, reflected
+
+
+class ContractingDecimal:
+    """A decimal on the VM's 30-digit grid, held as one scaled integer."""
+
+    __slots__ = ("_scaled",)
+    __hash__ = None
+
+    def __init__(self, a):
+        self._scaled = _to_scaled(a)
+
+    @classmethod
+    def _from_scaled(cls, scaled: int):
+        value = cls.__new__(cls)
+        value._scaled = _checked(scaled)
+        return value
+
+    @property
+    def _d(self) -> Decimal:
+        return _scaled_decimal(self._scaled)
+
+    def __str__(self):
+        return _scaled_text(self._scaled)
+
+    __repr__ = __str__
+
+    def __format__(self, spec):
+        text = str(self)
+        return format(Decimal(text), spec) if spec else text
+
+    def __bool__(self):
+        return self._scaled != 0
+
+    def __int__(self):
+        return _truncating_div(self._scaled, SCALE)
+
+    def __float__(self):
+        return float(str(self))
+
+    def __neg__(self):
+        return type(self)._from_scaled(-self._scaled)
+
+    def __pos__(self):
+        return type(self)._from_scaled(self._scaled)
+
+    def __abs__(self):
+        return type(self)._from_scaled(abs(self._scaled))
+
+    def __round__(self, n=None):
+        """``round()`` as a V2 contract rounds: ties to even, exact, context free.
+
+        ``round(x)`` is an int; ``round(x, n)`` a ContractingDecimal (``n`` may
+        be negative; past 30 places nothing changes). ``n`` is an int or None
+        (a bool is not an int). A result outside the range raises
+        ``DecimalOverflowError``.
+        """
+        if n is None:
+            return _round_half_even(self._scaled, SCALE)
+        if isinstance(n, bool) or not isinstance(n, int):
+            raise TypeError("round() ndigits must be an int or None")
+        dropped = MAX_LOWER_PRECISION - n
+        if dropped <= 0:
+            return type(self)._from_scaled(self._scaled)
+        unit = 10 ** min(dropped, _ROUNDING_DIGITS_CAP)
+        return type(self)._from_scaled(_round_half_even(self._scaled, unit) * unit)
+
+    __eq__ = _comparison(lambda left, right: left == right)
+    __ne__ = _comparison(lambda left, right: left != right)
+    __lt__ = _comparison(lambda left, right: left < right)
+    __le__ = _comparison(lambda left, right: left <= right)
+    __gt__ = _comparison(lambda left, right: left > right)
+    __ge__ = _comparison(lambda left, right: left >= right)
+
+    __add__, __radd__ = _arithmetic("add", _add)
+    __sub__, __rsub__ = _arithmetic("sub", _sub)
+    __mul__, __rmul__ = _arithmetic("mul", _mul)
+    __truediv__, __rtruediv__ = _arithmetic("truediv", _truediv)
+    __floordiv__, __rfloordiv__ = _arithmetic("floordiv", _floordiv)
+    __mod__, __rmod__ = _arithmetic("mod", _mod)
+    __pow__, __rpow__ = _arithmetic("pow", _pow)
+
+
+def fix_precision(x) -> Decimal:
+    """``x`` truncated to 30 fractional digits, range checked, as a normalized Decimal.
+
+    Input that is not a number (``"abc"``, a bool, a list) counts as out of range.
+    """
+    try:
+        scaled = _to_scaled(x)
+    except (InvalidOperation, ValueError):
+        raise _overflow(x) from None
+    return _scaled_decimal(scaled)
+
+
+def canonical_fixed(value: Decimal | str | int | ContractingDecimal) -> str:
+    """Canonical, lossless plain-decimal text for a V2 typed value."""
+    if isinstance(value, ContractingDecimal):
+        return str(value)
+    return _scaled_text(_exact_scaled(*_exact_parts(value)))
+
+
+def _exact_parts(value) -> tuple[bool, str, int]:
+    """``(negative, digits, exponent)`` of exact numeric input, without rounding."""
+    if isinstance(value, str):
+        return _spelled_parts(value)
+    if isinstance(value, int) and not isinstance(value, bool):
+        if value.bit_length() > _INTEGER_BITS:
+            raise OverflowError("integer exceeds 512 bits")
+        return value < 0, str(abs(value)), 0
+    if not isinstance(value, Decimal):
+        raise TypeError("decimal input requires decimal text, an exact decimal or an integer")
+    if not value.is_finite():
+        raise ValueError("decimal must be finite")
+    sign, digits, exponent = value.as_tuple()
+    return bool(sign), "".join(map(str, digits)), exponent
+
+
+def _spelled_parts(text: str) -> tuple[bool, str, int]:
+    """Parse the strict wire grammar (``xian_numeric::canonical_decimal``)."""
+    match = _SPELLING.fullmatch(text)
+    if match is None:
+        raise ValueError("invalid decimal spelling")
+    sign, whole, fraction, bare_fraction, exponent_text = match.groups()
+    fraction = fraction or bare_fraction or ""
+    exponent = _clamped_exponent(exponent_text) - len(fraction)
+    return sign == "-", (whole or "") + fraction, exponent
+
+
+def _clamped_exponent(text: str | None) -> int:
+    """The exponent of ``e<digits>``; beyond 30 digits only its sign can matter."""
+    if not text:
+        return 0
+    digits = text[1:].lstrip("+-").lstrip("0")
+    magnitude = (
+        10**_EXPONENT_DIGITS_CAP if len(digits) > _EXPONENT_DIGITS_CAP else int(digits or "0")
+    )
+    return -magnitude if "-" in text else magnitude
+
+
+def _exact_scaled(negative: bool, digits: str, exponent: int) -> int:
+    """The scaled value of an exact number that must fit the grid without rounding."""
+    stripped = digits.rstrip("0")
+    exponent += len(digits) - len(stripped)
+    significant = stripped.lstrip("0")
+    if not significant:
+        return 0
+    if len(significant) + exponent > MAX_UPPER_PRECISION:
+        raise DecimalOverflowError("decimal exceeds the supported range")
+    if -exponent > MAX_LOWER_PRECISION:
+        raise ValueError("decimal is not exactly representable at scale 30")
+    magnitude = int(significant) * 10 ** (exponent + MAX_LOWER_PRECISION)
+    return -magnitude if negative else magnitude
+
+
+exports = {
+    "decimal": ContractingDecimal,
+}
