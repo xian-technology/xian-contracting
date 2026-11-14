@@ -628,6 +628,46 @@ pub(super) fn public_string(value: &VmValue, depth: usize) -> Result<String, VmE
 }
 
 #[cfg(test)]
+mod modular_pow_tests {
+    use super::*;
+
+    fn int(value: i64) -> VmValue {
+        VmValue::Int(value.into())
+    }
+
+    fn error(base: &VmValue, exponent: &VmValue, modulus: &VmValue) -> String {
+        modular_pow(base, exponent, modulus)
+            .unwrap_err()
+            .to_string()
+    }
+
+    #[test]
+    fn modular_pow_takes_bounded_integers_only() {
+        assert_eq!(modular_pow(&int(3), &int(4), &int(5)).unwrap(), int(1));
+        assert_eq!(modular_pow(&int(3), &int(0), &int(5)).unwrap(), int(1));
+        assert_eq!(
+            error(&int(3), &VmValue::Bool(true), &int(5)),
+            "modular pow requires integers"
+        );
+        assert_eq!(
+            error(&int(3), &int(-1), &int(5)),
+            "pow() 3rd argument not allowed unless all arguments are integers"
+        );
+        assert_eq!(
+            error(&int(3), &int(2), &int(0)),
+            "pow() 3rd argument cannot be 0"
+        );
+        let bits = |n: u64| VmValue::Int((BigInt::from(1u8) << (n - 1) as usize) + 1);
+        let largest = bits(MAX_MODULAR_POW_EXPONENT_BITS);
+        assert_eq!(modular_pow(&int(3), &largest, &int(1)).unwrap(), int(0));
+        assert!(
+            error(&int(3), &bits(MAX_MODULAR_POW_EXPONENT_BITS + 1), &int(5))
+                .contains("modular exponentiation exponent exceeds")
+        );
+    }
+}
+
+#[cfg(test)]
 mod public_string_tests {
     use super::*;
 

@@ -25,10 +25,7 @@ fn append(output: &mut String, text: &str) -> Result<()> {
     Ok(())
 }
 pub(in crate::interpreter) fn index_integer(value: &VmValue) -> Result<BigInt> {
-    match value.snapshot() {
-        VmValue::Int(value) => Ok(value),
-        _ => Err(error("string index argument must be an integer")),
-    }
+    value.integer_or("string index argument must be an integer")
 }
 pub(in crate::interpreter) fn index_size(value: &VmValue) -> Result<i64> {
     index_integer(value)?

@@ -258,6 +258,13 @@ enum IrProfile {
 }
 
 impl IrProfile {
+    fn constant_types(self) -> &'static [&'static str] {
+        match self {
+            Self::V2 => &["none", "bool", "int", "decimal", "str", "bytes"],
+            Self::V1 => &["none", "bool", "int", "float", "str", "bytes"],
+        }
+    }
+
     fn of(vm_profile: &str) -> Result<Self, IrValidationError> {
         match vm_profile {
             XIAN_VM_V1_PROFILE => Ok(Self::V1),
@@ -661,6 +668,62 @@ fn validate_target(target: &Value, profile: IrProfile) -> Result<(), IrValidatio
     }
 }
 
+/// A literal's payload by its value type: V2 has decimal literals and bounds
+/// int literals; archival V1 has float literals instead of decimal ones.
+fn validate_constant(
+    object: &Map<String, Value>,
+    profile: IrProfile,
+) -> Result<(), IrValidationError> {
+    let value_type = expect_string_field(object, "value_type")?;
+    ensure_allowed(
+        "expression.constant.value_type",
+        value_type,
+        profile.constant_types(),
+    )?;
+    match value_type {
+        "int" if profile == IrProfile::V2 => {
+            validate_v2_int_constant(expect_value_field(object, "value")?)
+        }
+        "decimal" => validate_decimal_constant(expect_string_field(object, "value")?),
+        "float" => ensure_non_empty(
+            "expression.constant.literal",
+            expect_string_field(object, "literal")?,
+        ),
+        "bytes" => ensure_hex_string(
+            "expression.constant.value",
+            expect_string_field(object, "value")?,
+        ),
+        _ => Ok(()),
+    }
+}
+
+fn validate_v2_int_constant(payload: &Value) -> Result<(), IrValidationError> {
+    let text = match payload {
+        Value::String(text) => std::borrow::Cow::Borrowed(text.as_str()),
+        Value::Number(number) => std::borrow::Cow::Owned(number.to_string()),
+        _ => return Err(IrValidationError::new("int constant requires an integer")),
+    };
+    if text.len() > 156
+        || text.parse::<num_bigint::BigInt>().map_or(true, |n| {
+            n.bits() > xian_numeric::INTEGER_BITS || n.to_string() != text
+        })
+    {
+        return Err(IrValidationError::new(
+            "invalid or out-of-range V2 int constant",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_decimal_constant(value: &str) -> Result<(), IrValidationError> {
+    if xian_numeric::canonical_decimal(value).as_deref() != Ok(value) {
+        return Err(IrValidationError::new(
+            "decimal constant must have canonical exact value",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_expression(expression: &Value, profile: IrProfile) -> Result<(), IrValidationError> {
     let object = expect_object(expression, "expression")?;
     let node = expect_string_field(object, "node")?;
@@ -668,54 +731,7 @@ fn validate_expression(expression: &Value, profile: IrProfile) -> Result<(), IrV
 
     match node {
         "name" => ensure_non_empty("expression.name.id", expect_string_field(object, "id")?),
-        "constant" => {
-            ensure_allowed(
-                "expression.constant.value_type",
-                expect_string_field(object, "value_type")?,
-                match profile {
-                    IrProfile::V2 => &["none", "bool", "int", "decimal", "str", "bytes"],
-                    IrProfile::V1 => &["none", "bool", "int", "float", "str", "bytes"],
-                },
-            )?;
-            if profile == IrProfile::V2 && object["value_type"] == "int" {
-                let payload = expect_value_field(object, "value")?;
-                let text = match payload {
-                    Value::String(text) => std::borrow::Cow::Borrowed(text.as_str()),
-                    Value::Number(number) => std::borrow::Cow::Owned(number.to_string()),
-                    _ => return Err(IrValidationError::new("int constant requires an integer")),
-                };
-                if text.len() > 156
-                    || text.parse::<num_bigint::BigInt>().map_or(true, |n| {
-                        n.bits() > xian_numeric::INTEGER_BITS || n.to_string() != text
-                    })
-                {
-                    return Err(IrValidationError::new(
-                        "invalid or out-of-range V2 int constant",
-                    ));
-                }
-            }
-            if object.get("value_type").and_then(Value::as_str) == Some("decimal") {
-                let value = expect_string_field(object, "value")?;
-                if xian_numeric::canonical_decimal(value).as_deref() != Ok(value) {
-                    return Err(IrValidationError::new(
-                        "decimal constant must have canonical exact value",
-                    ));
-                }
-            }
-            if object.get("value_type").and_then(Value::as_str) == Some("float") {
-                ensure_non_empty(
-                    "expression.constant.literal",
-                    expect_string_field(object, "literal")?,
-                )?;
-            }
-            if object.get("value_type").and_then(Value::as_str) == Some("bytes") {
-                ensure_hex_string(
-                    "expression.constant.value",
-                    expect_string_field(object, "value")?,
-                )?;
-            }
-            Ok(())
-        }
+        "constant" => validate_constant(object, profile),
         "list" | "tuple" => {
             for value in expect_array_field(object, "elements")? {
                 validate_expanded_expression(value, profile)?;
@@ -1232,6 +1248,96 @@ mod tests {
 
         assert_eq!(parsed.module_name, "sample_token");
         assert_eq!(parsed.functions.len(), 1);
+    }
+
+    fn constant_module(profile: &str, constant: Value) -> ModuleIr {
+        let span = json!({"line": 1, "col": 0, "end_line": 1, "end_col": 1});
+        let mut constant = constant;
+        constant["node"] = json!("constant");
+        constant["span"] = span.clone();
+        serde_json::from_value(json!({
+            "ir_version": "xian_ir_v1",
+            "vm_profile": profile,
+            "host_catalog_version": "xian_vm_v1_host_v1",
+            "module_name": "con_constants",
+            "source_hash": "0".repeat(64),
+            "docstring": null,
+            "imports": [],
+            "global_declarations": [],
+            "functions": [{
+                "node": "function", "span": span, "name": "probe", "visibility": "export",
+                "decorator": null, "docstring": null, "parameters": [], "returns": null,
+                "body": [{"node": "return", "span": span, "value": constant}]
+            }],
+            "module_body": [],
+            "host_dependencies": []
+        }))
+        .expect("module should deserialize")
+    }
+
+    fn constant_error(profile: &str, constant: Value) -> Option<String> {
+        validate_module_ir(&constant_module(profile, constant))
+            .err()
+            .map(|error| error.to_string())
+    }
+
+    #[test]
+    fn constants_follow_the_profile_rules() {
+        let v1 = "xian_vm_v1";
+        let v2 = "xian_vm_v2";
+        let float = json!({"value_type": "float", "value": 1.5, "literal": "1.5"});
+        let decimal = json!({"value_type": "decimal", "value": "1.5"});
+        let big = json!({"value_type": "int", "value": "1".repeat(157)});
+        assert_eq!(constant_error(v1, float.clone()), None);
+        assert_eq!(constant_error(v1, big.clone()), None);
+        assert_eq!(constant_error(v2, decimal.clone()), None);
+        assert!(constant_error(v1, decimal)
+            .unwrap()
+            .contains("expression.constant.value_type"));
+        assert!(constant_error(v2, float)
+            .unwrap()
+            .contains("expression.constant.value_type"));
+        let v2_int =
+            |value: Value| constant_error(v2, json!({"value_type": "int", "value": value}));
+        assert_eq!(v2_int(json!(42)), None);
+        assert_eq!(v2_int(json!("-7")), None);
+        // The widest V2 ints: 512 bits, 156 characters with the sign.
+        let largest = (num_bigint::BigInt::from(1u8) << 512usize) - 1;
+        assert_eq!(v2_int(json!(format!("-{largest}"))), None);
+        let over = format!("{}", &largest + 1);
+        for invalid in [
+            json!("1".repeat(157)),
+            json!("007"),
+            json!("2e3"),
+            json!(over),
+        ] {
+            assert_eq!(
+                v2_int(invalid).as_deref(),
+                Some("invalid or out-of-range V2 int constant")
+            );
+        }
+        assert_eq!(
+            v2_int(json!(true)).as_deref(),
+            Some("int constant requires an integer")
+        );
+        assert_eq!(
+            constant_error(v2, json!({"value_type": "decimal", "value": "1.50"})).as_deref(),
+            Some("decimal constant must have canonical exact value")
+        );
+        assert!(constant_error(v2, json!({"value_type": "bytes", "value": "zz"})).is_some());
+        assert_eq!(
+            constant_error(v2, json!({"value_type": "bytes", "value": "00ff"})),
+            None
+        );
+        assert!(constant_error(
+            v1,
+            json!({"value_type": "float", "value": 1.0, "literal": ""})
+        )
+        .is_some());
+        assert_eq!(
+            constant_error("xian_vm_v3", json!({"value_type": "none", "value": null})).as_deref(),
+            Some("unsupported vm_profile 'xian_vm_v3'")
+        );
     }
 
     #[test]

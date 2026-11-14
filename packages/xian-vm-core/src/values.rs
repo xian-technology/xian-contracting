@@ -763,6 +763,14 @@ impl VmValue {
         }
     }
 
+    /// The integer this value holds (through a reference), or `message`.
+    pub(crate) fn integer_or(&self, message: &str) -> Result<BigInt, VmExecutionError> {
+        match self.snapshot() {
+            Self::Int(value) => Ok(value),
+            _ => Err(VmExecutionError::new(message)),
+        }
+    }
+
     pub(crate) fn as_bigint(&self) -> Result<BigInt, VmExecutionError> {
         match self {
             Self::Reference(value) => value.with_value(|value| value.as_bigint()),

@@ -16,10 +16,7 @@ fn arity(args: &[VmValue], minimum: usize, maximum: usize) -> Result<()> {
     }
 }
 fn integer(value: &VmValue) -> Result<BigInt> {
-    match value.snapshot() {
-        VmValue::Int(v) => Ok(v),
-        _ => Err(error("binary method requires an integer")),
-    }
+    value.integer_or("binary method requires an integer")
 }
 fn signed64(value: &VmValue) -> Result<i64> {
     integer(value)?

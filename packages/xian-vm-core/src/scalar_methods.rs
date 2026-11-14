@@ -147,10 +147,7 @@ fn integer_method(number: BigInt, method: &str, args: &[VmValue]) -> Result<VmVa
 }
 
 fn index_integer(value: &VmValue) -> Result<BigInt> {
-    match value.snapshot() {
-        VmValue::Int(number) => Ok(number),
-        _ => Err(VmExecutionError::new("an integer is required")),
-    }
+    value.integer_or("an integer is required")
 }
 
 fn byte_order(args: &[VmValue], index: usize) -> Result<bool> {
