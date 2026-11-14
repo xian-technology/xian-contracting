@@ -4,7 +4,7 @@
 //! (submission only; the VM checks that before the host sees them).
 use super::charges::{host_runtime_error, HOST_WRITE_COST_PER_BYTE};
 
-use super::modules::{exports, runnable, Ir};
+use super::modules::{exports, runnable, uses_zk, Ir};
 use super::{host_text, text, BlockHost, DEVELOPER_KEY, IR_KEY, OWNER_KEY, SOURCE_KEY};
 use crate::settlement::Stop;
 use crate::stored_value_encoder::encode_stored_value;
@@ -131,7 +131,8 @@ impl BlockHost<'_> {
         Ok(self.get(&format!("{contract}.{SOURCE_KEY}"))?.is_some())
     }
 
-    /// `NativeVmHost._contract_has_export`.
+    /// `NativeVmHost._contract_has_export`: the module summary refuses a
+    /// module that uses zk host syscalls while the chain's zk feature is off.
     fn contract_has_export(
         &mut self,
         contract: &str,
@@ -140,11 +141,15 @@ impl BlockHost<'_> {
         let Ir::Text(module) = self.module_ir(contract)? else {
             return Ok(false);
         };
-        match runnable(contract, &module) {
-            Ok(module) => Ok(exports(&module, export)),
-            Err(Stop::Handback(reason)) => self.back(reason),
-            Err(stop) => Err(self.halt(stop)),
+        let module = match runnable(contract, &module) {
+            Ok(module) => module,
+            Err(Stop::Handback(reason)) => return self.back(reason),
+            Err(stop) => return Err(self.halt(stop)),
+        };
+        if uses_zk(&module) {
+            self.require_zk(contract)?;
         }
+        Ok(exports(&module, export))
     }
 
     /// A contract metadata variable (`NativeVmHost._contract_var`).

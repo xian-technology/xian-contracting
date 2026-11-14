@@ -211,52 +211,27 @@ class TestZkStdlib(TestCase):
         self.assertFalse(zk.has_verifying_key("demo"))
         self.assertFalse(zk.has_verifying_key("missing"))
 
-    def test_verify_groth16_reuses_prepared_key_cache(self):
-        prepared_calls = []
-        verify_calls = []
-
+    def _registered_demo_key(self):
         zk.rt.env["__Driver"] = FakeDriver(
             {
-                (
-                    constants.ZK_REGISTRY_CONTRACT_NAME,
-                    "verifying_keys",
-                    ("demo", "scheme"),
-                ): "groth16",
-                (
-                    constants.ZK_REGISTRY_CONTRACT_NAME,
-                    "verifying_keys",
-                    ("demo", "curve"),
-                ): "bn254",
-                (
-                    constants.ZK_REGISTRY_CONTRACT_NAME,
-                    "verifying_keys",
-                    ("demo", "vk_hex"),
-                ): "0x1234",
-                (
-                    constants.ZK_REGISTRY_CONTRACT_NAME,
-                    "verifying_keys",
-                    ("demo", "vk_hash"),
-                ): "vk-hash",
-                (
-                    constants.ZK_REGISTRY_CONTRACT_NAME,
-                    "verifying_keys",
-                    ("demo", "active"),
-                ): True,
+                (constants.ZK_REGISTRY_CONTRACT_NAME, "verifying_keys", ("demo", field)): value
+                for field, value in {
+                    "scheme": "groth16",
+                    "curve": "bn254",
+                    "vk_hex": "0x1234",
+                    "vk_hash": "vk-hash",
+                    "active": True,
+                }.items()
             }
         )
 
-        def prepare(vk_hex):
-            prepared_calls.append(vk_hex)
-            return {"prepared": vk_hex}
-
-        def verify(prepared, proof_hex, public_inputs):
-            verify_calls.append((prepared, proof_hex, tuple(public_inputs)))
-            return True
-
+    def test_verify_groth16_verifies_the_registered_key_through_the_node_cache(self):
+        # The node's proof caches live in the VM (vm-core `zk_cache`): the
+        # bridge passes the key's id, hash and bytes with the proof.
+        self._registered_demo_key()
+        verify = Mock(return_value=True)
         bindings = {
-            "prepare_groth16_bn254_vk": prepare,
-            "verify_groth16_bn254_prepared": verify,
-            "verify_groth16_bn254": lambda *_args: True,
+            "verify_registered": verify,
             "ZkEncodingError": FakeEncodingError,
             "ZkVerifierError": FakeVerifierError,
         }
@@ -265,175 +240,44 @@ class TestZkStdlib(TestCase):
             "contracting.stdlib.bridge.zk._native_verifier_bindings",
             return_value=bindings,
         ):
-            self.assertTrue(
-                zk.verify_groth16(
-                    "demo",
-                    "0xabcd",
-                    ["0x" + "00" * 32],
-                )
-            )
-            self.assertTrue(
-                zk.verify_groth16(
-                    "demo",
-                    "0xabcd",
-                    ["0x" + "00" * 32],
-                )
-            )
+            self.assertTrue(zk.verify_groth16("demo", "0xabcd", ["0x" + "00" * 32]))
+            verify.side_effect = FakeVerifierError("verification failed")
+            with self.assertRaisesRegex(AssertionError, "verification failed"):
+                zk.verify_groth16("demo", "0xabcd", ["0x" + "00" * 32])
 
-        self.assertEqual(prepared_calls, ["0x1234"])
-        self.assertEqual(len(verify_calls), 1)
+        verify.assert_called_with("demo", "vk-hash", "0x1234", "0xabcd", ["0x" + "00" * 32])
 
-    def test_warm_verified_proofs_primes_verify_cache(self):
-        mapping = {
-            (
-                constants.ZK_REGISTRY_CONTRACT_NAME,
-                "verifying_keys",
-                ("demo", "scheme"),
-            ): "groth16",
-            (
-                constants.ZK_REGISTRY_CONTRACT_NAME,
-                "verifying_keys",
-                ("demo", "curve"),
-            ): "bn254",
-            (
-                constants.ZK_REGISTRY_CONTRACT_NAME,
-                "verifying_keys",
-                ("demo", "vk_hex"),
-            ): "0x1234",
-            (
-                constants.ZK_REGISTRY_CONTRACT_NAME,
-                "verifying_keys",
-                ("demo", "vk_hash"),
-            ): "vk-hash",
-            (
-                constants.ZK_REGISTRY_CONTRACT_NAME,
-                "verifying_keys",
-                ("demo", "active"),
-            ): True,
-        }
-        zk.rt.env["__Driver"] = FakeDriver(mapping)
-        prepare_calls = []
-        verify_calls = []
-
+    def test_warm_verified_proofs_passes_every_checked_request_to_the_node_cache(self):
+        self._registered_demo_key()
+        warm = Mock(return_value=[True, False])
         bindings = {
-            "prepare_groth16_bn254_vk": lambda vk_hex: prepare_calls.append(vk_hex),
-            "verify_groth16_bn254_prepared": lambda *_args: verify_calls.append(
-                _args
-            ),
-            "verify_groth16_bn254_grouped_json": lambda _payload: "[true]",
-            "verify_groth16_bn254": lambda *_args: True,
+            "warm_registered": warm,
             "ZkEncodingError": FakeEncodingError,
             "ZkVerifierError": FakeVerifierError,
         }
+        requests = [
+            {"vk_id": "demo", "proof_hex": proof, "public_inputs": ["0x" + "00" * 32]}
+            for proof in ("0xabcd", "0xef01")
+        ]
 
         with patch(
             "contracting.stdlib.bridge.zk._native_verifier_bindings",
             return_value=bindings,
         ):
-            warmed = zk.warm_verified_proofs(
-                [
-                    {
-                        "vk_id": "demo",
-                        "proof_hex": "0xabcd",
-                        "public_inputs": ["0x" + "00" * 32],
-                    }
-                ]
-            )
-            verified = zk.verify_groth16(
-                "demo",
-                "0xabcd",
-                ["0x" + "00" * 32],
-            )
+            self.assertEqual(zk.warm_verified_proofs(requests), [True, False])
+            with self.assertRaisesRegex(AssertionError, "requests\\[1\\] must be a dict!"):
+                zk.warm_verified_proofs([requests[0], "x"])
+            warm.side_effect = FakeEncodingError("invalid proof bytes")
+            with self.assertRaisesRegex(AssertionError, "invalid proof bytes"):
+                zk.warm_verified_proofs(requests)
 
-        self.assertEqual(warmed, [True])
-        self.assertTrue(verified)
-        self.assertEqual(prepare_calls, [])
-        self.assertEqual(verify_calls, [])
-
-    def test_verify_groth16_reprepares_when_vk_hash_changes(self):
-        mapping = {
-            (
-                constants.ZK_REGISTRY_CONTRACT_NAME,
-                "verifying_keys",
-                ("demo", "scheme"),
-            ): "groth16",
-            (
-                constants.ZK_REGISTRY_CONTRACT_NAME,
-                "verifying_keys",
-                ("demo", "curve"),
-            ): "bn254",
-            (
-                constants.ZK_REGISTRY_CONTRACT_NAME,
-                "verifying_keys",
-                ("demo", "vk_hex"),
-            ): "0x1234",
-            (
-                constants.ZK_REGISTRY_CONTRACT_NAME,
-                "verifying_keys",
-                ("demo", "vk_hash"),
-            ): "vk-hash-1",
-            (
-                constants.ZK_REGISTRY_CONTRACT_NAME,
-                "verifying_keys",
-                ("demo", "active"),
-            ): True,
-        }
-        zk.rt.env["__Driver"] = FakeDriver(mapping)
-
-        prepared_calls = []
-        verify_calls = []
-
-        def prepare(vk_hex):
-            prepared_calls.append(vk_hex)
-            return {"prepared": vk_hex}
-
-        def verify(prepared, proof_hex, public_inputs):
-            verify_calls.append((prepared, proof_hex, tuple(public_inputs)))
-            return True
-
-        bindings = {
-            "prepare_groth16_bn254_vk": prepare,
-            "verify_groth16_bn254_prepared": verify,
-            "verify_groth16_bn254": lambda *_args: True,
-            "ZkEncodingError": FakeEncodingError,
-            "ZkVerifierError": FakeVerifierError,
-        }
-
-        with patch(
-            "contracting.stdlib.bridge.zk._native_verifier_bindings",
-            return_value=bindings,
-        ):
-            self.assertTrue(
-                zk.verify_groth16(
-                    "demo",
-                    "0xabcd",
-                    ["0x" + "00" * 32],
-                )
-            )
-            mapping[
-                (
-                    constants.ZK_REGISTRY_CONTRACT_NAME,
-                    "verifying_keys",
-                    ("demo", "vk_hex"),
-                )
-            ] = "0x5678"
-            mapping[
-                (
-                    constants.ZK_REGISTRY_CONTRACT_NAME,
-                    "verifying_keys",
-                    ("demo", "vk_hash"),
-                )
-            ] = "vk-hash-2"
-            self.assertTrue(
-                zk.verify_groth16(
-                    "demo",
-                    "0xabcd",
-                    ["0x" + "00" * 32],
-                )
-            )
-
-        self.assertEqual(prepared_calls, ["0x1234", "0x5678"])
-        self.assertEqual(len(verify_calls), 2)
+        warm.assert_called_with(
+            [
+                ("demo", "vk-hash", "0x1234", "0xabcd", ["0x" + "00" * 32]),
+                ("demo", "vk-hash", "0x1234", "0xef01", ["0x" + "00" * 32]),
+            ]
+        )
+        self.assertEqual(warm.call_count, 2)
 
     def test_shielded_note_append_commitments_uses_native_helper(self):
         append = Mock(return_value=(

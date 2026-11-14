@@ -6,16 +6,19 @@
 //! By concern: `modules` holds the contracts' IR as the node prepares it,
 //! `metadata` the contract metadata reads and changes, `deploy` contract
 //! deployment, `random` the random syscalls and their per-transaction
-//! state, `writes` what one transaction's host syscalls stage, `charges`
-//! what they cost. The zk host syscalls are still handed back.
+//! state, `zk` the zk syscalls (`features` the chain's zk runtime feature),
+//! `writes` what one transaction's host syscalls stage, `charges` what they
+//! cost.
 #![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
 
 mod charges;
 mod deploy;
+pub(crate) mod features;
 mod metadata;
 pub(crate) mod modules;
 pub(crate) mod random;
 mod writes;
+pub(crate) mod zk;
 
 pub(crate) use charges::HostCharges;
 pub(crate) use modules::{Ir, Modules};
@@ -178,7 +181,7 @@ impl<'a> BlockHost<'a> {
 
 mod services {
     use super::random::{self, Refusal};
-    use super::{deploy, metadata, BlockHost, Ir, OWNER_KEY};
+    use super::{deploy, metadata, zk, BlockHost, Ir, OWNER_KEY};
     use crate::bundle_executor::{validate_bundle_module, HostServices};
     use crate::interpreter::vm_variable_storage_key;
     use crate::{ValidatedModuleIr, VmExecutionError, VmValue};
@@ -280,6 +283,7 @@ mod services {
             if let Some(result) = metadata::read(self, syscall_id, &args, &kwargs)
                 .or_else(|| metadata::change(self, syscall_id, &args, &kwargs))
                 .or_else(|| deploy::deploy(self, syscall_id, &args, &kwargs))
+                .or_else(|| zk::call(self, syscall_id, &args, &kwargs))
             {
                 return result;
             }

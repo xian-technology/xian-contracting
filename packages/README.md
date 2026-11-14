@@ -29,9 +29,18 @@ flowchart LR
   SDK["xian-py"] --> Accounts["xian-accounts"]
   Compiler --> Numeric["xian-numeric"]
   VM --> Numeric
+  VM --> Compiler
+  VM -->|links the verifier| ZK
 ```
 
 ## Notes
 
 Keep these packages small and purpose-built. Shared code belongs here only when
 it has a clear runtime/node boundary and an independent package surface.
+
+`xian-vm-core` links the `xian-compiler-core` and `xian-zk` crates. Both are
+also Python extensions (`cdylib` and `rlib`), so building the VM writes
+featureless copies of their libraries into the VM's Cargo target directory.
+Build their Python packages with their own target directories (or install the
+VM with `--no-deps`); a shared target directory can install the featureless
+library (`ImportError: ... PyInit__native`).

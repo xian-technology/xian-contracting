@@ -76,14 +76,12 @@ impl Modules {
 }
 
 /// The module `name` as the node prepares it; a module the Python path
-/// would refuse or that uses zk host syscalls is left to Python.
+/// would refuse is left to Python. Whether the chain lets a module that uses
+/// zk host syscalls run is the caller's check (`features`).
 pub(crate) fn runnable(name: &str, cached: &CachedModule) -> Settled<ValidatedModuleIr> {
     let module = cached.validated(name).map_err(Stop::Handback)?;
     if module.vm_profile != XIAN_VM_V2_PROFILE {
         return handback("module does not target xian_vm_v2");
-    }
-    if uses_zk(&module) {
-        return handback("module uses zk host syscalls");
     }
     Ok(module)
 }

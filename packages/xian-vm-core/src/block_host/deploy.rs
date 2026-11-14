@@ -8,7 +8,7 @@
 //! here is handed back.
 use super::charges::host_runtime_error;
 use super::modules::{uses_zk, Ir};
-use super::{fault, BlockHost, DEVELOPER_KEY, IR_KEY, OWNER_KEY, SOURCE_KEY};
+use super::{BlockHost, DEVELOPER_KEY, IR_KEY, OWNER_KEY, SOURCE_KEY};
 use crate::bundle_executor::{validate_bundle_module, BundleExecutor, ExecutionOutcome};
 use crate::module_cache::shared_module;
 use crate::set_member_codec::is_reserved_tag;
@@ -16,7 +16,6 @@ use crate::{
     ValidatedModuleIr, VmEvent, VmException, VmExecutionContext, VmExecutionError, VmMeterConfig,
     VmValue, XIAN_VM_V2_PROFILE,
 };
-use num_bigint::BigInt;
 use std::collections::{BTreeMap, HashMap};
 use xian_compiler_core::{
     compiler_error_message, lower_source_to_ir_json, normalize_source, CompileOptions,
@@ -32,8 +31,6 @@ const MAX_CONTRACT_NAME_LENGTH: usize = 64;
 const TIME_KEY: &str = "__submitted__";
 const DEPLOYER_KEY: &str = "__deployer__";
 const INITIATOR_KEY: &str = "__initiator__";
-/// `runtime_feature_state_key("zk")`.
-const ZK_FEATURE_KEY: &str = "__runtime_features.zk";
 /// The nesting a constructor argument may have to pass the Python host's
 /// wire round trip unchanged (its traversal limit is 128).
 const MAX_ARGUMENT_DEPTH: usize = 64;
@@ -153,10 +150,8 @@ impl BlockHost<'_> {
     ) -> Result<ValidatedModuleIr, VmExecutionError> {
         let module = shared_module(name, ir)
             .map_err(|error| VmExecutionError::new(format!("VmIrValidationError: {error}")))?;
-        if uses_zk(&module) && !self.zk_enabled()? {
-            return Err(host_runtime_error(format!(
-                "contract '{name}' uses zk host syscalls, but the chain zk runtime feature is disabled"
-            )));
+        if uses_zk(&module) {
+            self.require_zk(name)?;
         }
         Ok(module)
     }
@@ -188,28 +183,6 @@ impl BlockHost<'_> {
             ));
         }
         Ok(name.clone())
-    }
-
-    /// `runtime_feature_enabled(driver, "zk")`: the chain state's value
-    /// (the block overlay and LMDB, not this transaction's host writes),
-    /// else the node's.
-    fn zk_enabled(&mut self) -> Result<bool, VmExecutionError> {
-        let value = match self.view.get(ZK_FEATURE_KEY) {
-            Ok(value) => value,
-            Err(error) => return Err(self.halt(fault(error))),
-        };
-        match value {
-            None | Some(VmValue::None) => Ok(self.tx.zk_enabled_without_state),
-            Some(value) => match runtime_feature_value(&value) {
-                Some(Ok(enabled)) => Ok(enabled),
-                Some(Err(())) => Err(VmExecutionError::described(
-                    "ValueError",
-                    "ValueError: runtime feature 'zk' must be a boolean",
-                    "runtime feature 'zk' must be a boolean",
-                )),
-                None => self.back("runtime feature text the port does not read"),
-            },
-        }
     }
 
     /// The developer, deployer and initiator (the transaction's caller and
@@ -465,34 +438,6 @@ fn safe_contract_name(name: &str) -> bool {
     let mut chars = name.chars();
     chars.next().is_some_and(|first| first.is_ascii_lowercase())
         && chars.all(|char| char.is_ascii_lowercase() || char.is_ascii_digit() || char == '_')
-}
-
-/// `_coerce_runtime_feature_value`: `Some(Ok(enabled))`, `Some(Err(()))`
-/// for a value it refuses, `None` for text whose Python `strip()` and
-/// `lower()` this port does not reproduce (non-ASCII).
-pub(super) fn runtime_feature_value(value: &VmValue) -> Option<Result<bool, ()>> {
-    match value {
-        VmValue::Bool(enabled) => Some(Ok(*enabled)),
-        VmValue::String(text) => feature_text(text),
-        VmValue::Int(number) if *number == BigInt::from(0) => Some(Ok(false)),
-        VmValue::Int(number) if *number == BigInt::from(1) => Some(Ok(true)),
-        _ => Some(Err(())),
-    }
-}
-
-/// A runtime feature given as text, after Python's `strip().lower()`.
-fn feature_text(text: &str) -> Option<Result<bool, ()>> {
-    if !text.is_ascii() {
-        return None;
-    }
-    let normalized = text
-        .trim_matches(|char: char| " \t\n\r\x0b\x0c\x1c\x1d\x1e\x1f".contains(char))
-        .to_ascii_lowercase();
-    Some(match normalized.as_str() {
-        "true" | "1" | "yes" | "on" => Ok(true),
-        "false" | "0" | "no" | "off" => Ok(false),
-        _ => Err(()),
-    })
 }
 
 /// Whether `normalize_wire_numbers` then `decode_wire_numbers` gives

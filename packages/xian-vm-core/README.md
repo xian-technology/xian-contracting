@@ -181,8 +181,14 @@ transaction outcome.
 - Python-style subscript slicing for `list`, `tuple`, and `str`, including
   the `value[2:]` helper pattern used in the shielded contracts
 - sequence repetition for `list`, `tuple`, and `str`
-- host-delegated `zk.*` syscalls, which remain explicit runtime boundary calls
-  instead of Rust-local protocol logic
+- the `zk.*` syscalls: this crate links `xian-zk` (every node verifies zk
+  proofs). The block host serves them in Rust with the Python bridge's checks
+  and texts, reads verifying keys from `zk_registry` in chain state, and
+  verifies through the node's proof caches (`zk_cache`: prepared keys and
+  verified results of registered keys), which the Python host and the node's
+  proof pre-verification (`zk_warm_registered`) share. Contract preparation,
+  `has_export` and deployments refuse a contract using zk while the chain's
+  zk runtime feature is off, as ordinary failures.
 
 It is a bounded execution slice, not the full executor.
 

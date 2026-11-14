@@ -34,8 +34,9 @@ VM with Python 3.14:
 uv sync
 ```
 
-The base installation includes the native VM, compiler and runtime types. Add
-the `zk` extra for the optional zk helpers.
+The base installation includes the native VM, compiler and runtime types. The
+VM links the zk verifier, so every installation verifies zk proofs; add the
+`zk` extra for the `xian_zk` prover and shielded-note tooling.
 
 Compile artifacts for the fresh-genesis profile:
 

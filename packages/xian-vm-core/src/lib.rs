@@ -64,6 +64,8 @@ mod transaction_admission;
 mod tx_rewards;
 mod values;
 mod work_meter;
+#[cfg(any(feature = "python-extension", test))]
+mod zk_cache;
 pub use raw_decimal::VmRawDecimal;
 
 pub const XIAN_IR_V1: &str = "xian_ir_v1";

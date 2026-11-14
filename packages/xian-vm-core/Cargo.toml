@@ -24,6 +24,9 @@ xian-numeric = { path = "../xian-numeric" }
 xian-compiler-core = { path = "../xian-compiler-core" }
 # Transaction wire decoding and the static admission rules.
 xian-fastpath-core = { path = "../xian-fastpath-core" }
+# Every node verifies zk proofs: the block host serves the zk syscalls.
+# Its library is named `_native` (the Python module); this crate calls it `xian_zk`.
+xian_zk = { package = "xian-zk", path = "../xian-zk" }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
 hex = "0.4"
@@ -42,5 +45,3 @@ sha3 = "0.12"
 cc = "1.2"
 pyo3-build-config = "0.29.0"
 
-[dev-dependencies]
-xian_zk = { package = "xian-zk", path = "../xian-zk" }

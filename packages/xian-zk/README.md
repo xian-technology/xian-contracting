@@ -12,8 +12,10 @@ workspace.
 ## Current Scope
 - Groth16 verification
 - BN254
-- Python bindings for runtime integration
-- A pure Rust verifier core for cargo-level testing and fixtures
+- Python bindings for tooling (the runtime verifies through `xian-tech-vm-core`,
+  which links this crate)
+- A pure Rust verifier core, linked into `xian-vm-core` and used for
+  cargo-level testing and fixtures
 - Shielded-note proving circuits and proof generation helpers
 - Shielded scheduler-update authorization circuit and proof helpers
 - Deterministic dev bundle generation for local shielded-note workflows

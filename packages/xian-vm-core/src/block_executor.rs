@@ -9,13 +9,15 @@
 //!
 //! A transaction the port does not cover stops with `Stop::Handback` before
 //! any of its effects reach the overlay; the node then runs it through the
-//! Python path, in block order. That covers contracts using zk host
-//! syscalls, the random calls `block_host::random` leaves to Python,
-//! preparation and entry rejections, and any value the Python checks could
-//! refuse. The VM's host (`block_host`) reads the overlay and LMDB, hash
-//! scans included, and serves the contract metadata syscalls, deployments
-//! and random. A storage fault stops with `Stop::Fault`.
-use crate::block_host::modules::{exports, runnable};
+//! Python path, in block order. That covers the random and zk calls
+//! `block_host` leaves to Python, preparation and entry rejections (except a
+//! contract the chain's zk runtime feature refuses), and any value the
+//! Python checks could refuse. The VM's host (`block_host`) reads the
+//! overlay and LMDB, hash scans included, and serves the contract metadata
+//! syscalls, deployments, random and zk. A storage fault stops with
+//! `Stop::Fault`.
+use crate::block_host::features::{zk_disabled, zk_enabled, Unread};
+use crate::block_host::modules::{exports, runnable, uses_zk};
 use crate::block_host::{
     fault, text, BlockHost, HostCharges, HostWrites, Ir, Modules, TxInputs, OWNER_KEY,
 };
@@ -41,6 +43,8 @@ use std::sync::Arc;
 const INSUFFICIENT_BALANCE: &str = "Sender does not have enough chi for the submitted budget.";
 /// `vm_contract_source_error("submission", "submit_contract")`.
 const MISSING_SOURCE: &str = "xian_vm_v2 requires source code for submission.submit_contract";
+/// `canonical_failure`'s text for a failure outside the VM's own errors.
+const HOST_FAILURE: &str = "Transaction failed in the host runtime.";
 
 /// The chain fee policy of the block (`xian.fee_policy.TxFeePolicy`).
 #[derive(Clone, Debug)]
@@ -96,6 +100,25 @@ struct ViewRewardState<'a>(&'a StateView);
 impl RewardState for ViewRewardState<'_> {
     fn get(&mut self, key: &str) -> Settled<Option<VmValue>> {
         self.0.get(key).map_err(fault)
+    }
+}
+
+/// A contract that cannot run in current chain state: the exception
+/// `_prepared_contract_failure` records for it.
+struct Unprepared {
+    name: &'static str,
+    message: String,
+}
+
+/// Why a contract's preparation stopped.
+enum PrepareStop {
+    Stop(Stop),
+    Unprepared(Unprepared),
+}
+
+impl From<Stop> for PrepareStop {
+    fn from(stop: Stop) -> Self {
+        Self::Stop(stop)
     }
 }
 
@@ -245,13 +268,29 @@ impl BlockExecutor {
             Ok(reservation) => reservation,
             Err(unpaid) => return Ok(unpaid),
         };
-        let entry = self.prepare(&tx.contract)?;
-        if missing_source(tx) {
-            return Ok(Execution::failed(reservation, "ValueError", MISSING_SOURCE));
-        }
+        let entry = match self.entry(tx)? {
+            Ok(entry) => entry,
+            Err(Unprepared { name, message }) => {
+                return Ok(Execution::failed(reservation, name, &message));
+            }
+        };
         let context = self.entry_context(tx, &entry)?;
         let (outcome, host_writes) = self.run_vm(tx, entry, context)?;
         Ok(execution_of(outcome, host_writes, reservation))
+    }
+
+    /// The prepared entry module, or why the transaction fails without
+    /// running: a contract the chain does not let run, or a submission
+    /// without source code.
+    fn entry(&self, tx: &PreparedTx) -> Settled<Result<ValidatedModuleIr, Unprepared>> {
+        let entry = self.prepare(&tx.contract)?;
+        if entry.is_ok() && missing_source(tx) {
+            return Ok(Err(Unprepared {
+                name: "ValueError",
+                message: MISSING_SOURCE.to_owned(),
+            }));
+        }
+        Ok(entry)
     }
 
     /// The reservation of a charged transaction (`None` without fees), or
@@ -326,13 +365,17 @@ impl BlockExecutor {
     }
 
     /// `_prepare_vm_contract_bundle`: the import graph of `contract` must
-    /// be acyclic and every module in it runnable; returns the entry module.
-    fn prepare(&self, contract: &str) -> Settled<ValidatedModuleIr> {
+    /// be acyclic and every module in it runnable; returns the entry module,
+    /// or why the chain does not let the contract run.
+    fn prepare(&self, contract: &str) -> Settled<Result<ValidatedModuleIr, Unprepared>> {
         let mut prepared = BTreeMap::new();
-        self.prepare_module(contract, &mut Vec::new(), &mut prepared)?;
-        Ok(prepared
-            .remove(contract)
-            .expect("the entry module was prepared"))
+        match self.prepare_module(contract, &mut Vec::new(), &mut prepared) {
+            Ok(()) => Ok(Ok(prepared
+                .remove(contract)
+                .expect("the entry module was prepared"))),
+            Err(PrepareStop::Unprepared(unprepared)) => Ok(Err(unprepared)),
+            Err(PrepareStop::Stop(stop)) => Err(stop),
+        }
     }
 
     fn prepare_module(
@@ -340,17 +383,20 @@ impl BlockExecutor {
         name: &str,
         stack: &mut Vec<String>,
         prepared: &mut BTreeMap<String, ValidatedModuleIr>,
-    ) -> Settled<()> {
+    ) -> Result<(), PrepareStop> {
         if stack.iter().any(|entry| entry == name) {
-            return handback("import graph contains a cycle");
+            return Err(Stop::Handback("import graph contains a cycle".to_owned()).into());
         }
         if prepared.contains_key(name) {
             return Ok(());
         }
         let Ir::Text(cached) = self.ir(name)? else {
-            return handback("contract has no persisted IR");
+            return Err(Stop::Handback("contract has no persisted IR".to_owned()).into());
         };
         let module = runnable(name, &cached)?;
+        if uses_zk(&module) {
+            self.require_zk(name)?;
+        }
         let imports: std::collections::BTreeSet<String> = module
             .imports
             .iter()
@@ -364,6 +410,21 @@ impl BlockExecutor {
         stack.pop();
         prepared.insert(name.to_owned(), module);
         Ok(())
+    }
+
+    /// `_reject_disabled_zk_feature` for `name`, which uses zk host
+    /// syscalls: a disabled feature is a `ContractPreparationError`, a value
+    /// the feature check refuses a failure in the host runtime.
+    fn require_zk(&self, name: &str) -> Result<(), PrepareStop> {
+        let unprepared = |name, message| Err(PrepareStop::Unprepared(Unprepared { name, message }));
+        match zk_enabled(&self.view, self.policy.zk_enabled_without_state).map_err(fault)? {
+            Ok(true) => Ok(()),
+            Ok(false) => unprepared("ValueError", zk_disabled(name)),
+            Err(Unread::Refused) => unprepared("RuntimeError", HOST_FAILURE.to_owned()),
+            Err(Unread::Untranslated) => {
+                Err(Stop::Handback("runtime feature text the port does not read".to_owned()).into())
+            }
+        }
     }
 
     fn run_vm(

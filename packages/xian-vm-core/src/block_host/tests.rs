@@ -435,16 +435,16 @@ fn constructor_arguments_the_wire_round_trip_would_change_are_handed_back() {
 
 #[test]
 fn the_zk_feature_reads_as_python_coerces_it() {
-    use deploy::runtime_feature_value as value;
+    use features::{feature_value as value, Unread};
     for (input, expected) in [
-        (VmValue::Bool(true), Some(Ok(true))),
-        (text(" On\x1c"), Some(Ok(true))),
-        (text("no"), Some(Ok(false))),
-        (int(0), Some(Ok(false))),
-        (int(1), Some(Ok(true))),
-        (int(2), Some(Err(()))),
-        (text("maybe"), Some(Err(()))),
-        (text("\u{a0}true"), None),
+        (VmValue::Bool(true), Ok(true)),
+        (text(" On\x1c"), Ok(true)),
+        (text("no"), Ok(false)),
+        (int(0), Ok(false)),
+        (int(1), Ok(true)),
+        (int(2), Err(Unread::Refused)),
+        (text("maybe"), Err(Unread::Refused)),
+        (text("\u{a0}true"), Err(Unread::Untranslated)),
     ] {
         assert_eq!(value(&input), expected, "{input:?}");
     }

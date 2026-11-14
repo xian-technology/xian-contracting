@@ -2,58 +2,80 @@ import json
 from functools import lru_cache
 from types import ModuleType
 
-from cachetools import LRUCache
-
 from contracting import constants
 from contracting.execution.runtime import rt
+
+_UNAVAILABLE = (
+    "Native zk verifier is not installed in this runtime. "
+    "Install xian-tech-vm-core, which links it."
+)
 
 
 @lru_cache(maxsize=1)
 def _native_verifier_bindings():
+    # The VM links the zk verifier, so this runtime and the Rust block
+    # executor verify with one library and share the node's proof caches.
     try:
-        from xian_zk._native import (
+        from xian_vm_core._native import (
             ZkEncodingError,
             ZkVerifierError,
-            prepare_groth16_bn254_vk,
-            shielded_command_binding,
-            shielded_command_execution_tag,
-            shielded_command_nullifier_digest,
-            shielded_command_public_inputs,
-            shielded_deposit_public_inputs,
-            shielded_note_append_tree_state_json,
-            shielded_output_payload_hash,
-            shielded_output_payload_hashes,
-            shielded_transfer_public_inputs,
-            shielded_withdraw_public_inputs,
-            verify_groth16_bn254,
-            verify_groth16_bn254_grouped_json,
-            verify_groth16_bn254_prepared,
+            zk_clear_prepared_vk_cache,
+            zk_clear_verified_proof_cache,
+            zk_shielded_command_binding,
+            zk_shielded_command_execution_tag,
+            zk_shielded_command_nullifier_digest,
+            zk_shielded_command_public_inputs,
+            zk_shielded_deposit_public_inputs,
+            zk_shielded_note_append_tree_state_json,
+            zk_shielded_output_payload_hash,
+            zk_shielded_output_payload_hashes,
+            zk_shielded_transfer_public_inputs,
+            zk_shielded_withdraw_public_inputs,
+            zk_verify_groth16_bn254,
+            zk_verify_registered,
+            zk_warm_registered,
         )
     except ImportError:
         return None
 
     return {
-        "prepare_groth16_bn254_vk": prepare_groth16_bn254_vk,
-        "shielded_command_public_inputs": shielded_command_public_inputs,
-        "shielded_command_binding": shielded_command_binding,
-        "shielded_command_execution_tag": shielded_command_execution_tag,
-        "shielded_command_nullifier_digest": shielded_command_nullifier_digest,
-        "shielded_deposit_public_inputs": shielded_deposit_public_inputs,
-        "shielded_note_append_tree_state_json": shielded_note_append_tree_state_json,
-        "shielded_output_payload_hashes": shielded_output_payload_hashes,
-        "shielded_output_payload_hash": shielded_output_payload_hash,
-        "shielded_transfer_public_inputs": shielded_transfer_public_inputs,
-        "shielded_withdraw_public_inputs": shielded_withdraw_public_inputs,
-        "verify_groth16_bn254_grouped_json": verify_groth16_bn254_grouped_json,
-        "verify_groth16_bn254": verify_groth16_bn254,
-        "verify_groth16_bn254_prepared": verify_groth16_bn254_prepared,
+        "clear_prepared_vk_cache": zk_clear_prepared_vk_cache,
+        "clear_verified_proof_cache": zk_clear_verified_proof_cache,
+        "shielded_command_public_inputs": zk_shielded_command_public_inputs,
+        "shielded_command_binding": zk_shielded_command_binding,
+        "shielded_command_execution_tag": zk_shielded_command_execution_tag,
+        "shielded_command_nullifier_digest": zk_shielded_command_nullifier_digest,
+        "shielded_deposit_public_inputs": zk_shielded_deposit_public_inputs,
+        "shielded_note_append_tree_state_json": zk_shielded_note_append_tree_state_json,
+        "shielded_output_payload_hashes": zk_shielded_output_payload_hashes,
+        "shielded_output_payload_hash": zk_shielded_output_payload_hash,
+        "shielded_transfer_public_inputs": zk_shielded_transfer_public_inputs,
+        "shielded_withdraw_public_inputs": zk_shielded_withdraw_public_inputs,
+        "verify_groth16_bn254": zk_verify_groth16_bn254,
+        "verify_registered": zk_verify_registered,
+        "warm_registered": zk_warm_registered,
         "ZkEncodingError": ZkEncodingError,
         "ZkVerifierError": ZkVerifierError,
     }
 
 
-PREPARED_VK_CACHE = LRUCache(maxsize=128)
-VERIFIED_PROOF_CACHE = LRUCache(maxsize=2048)
+def _native_bindings():
+    bindings = _native_verifier_bindings()
+    assert bindings is not None, _UNAVAILABLE
+    return bindings
+
+
+def _native(name: str, *args):
+    """A native zk call; a verifier failure is an AssertionError (the shielded
+    helpers' own ValueError passes through)."""
+    bindings = _native_bindings()
+    try:
+        return bindings[name](*args)
+    except (
+        bindings["ZkEncodingError"],
+        bindings["ZkVerifierError"],
+    ) as exc:
+        raise AssertionError(str(exc)) from exc
 
 
 def _validate_hex_payload(name: str, value: str, max_chars: int):
@@ -141,31 +163,6 @@ def _registered_vk_record(vk_id: str):
     return record
 
 
-def _prepared_vk(bindings, vk_id: str, vk_hex: str, vk_hash: str):
-    cache_key = (vk_id, vk_hash)
-    prepared = PREPARED_VK_CACHE.get(cache_key)
-    if prepared is None:
-        try:
-            prepared = bindings["prepare_groth16_bn254_vk"](vk_hex)
-        except (
-            bindings["ZkEncodingError"],
-            bindings["ZkVerifierError"],
-        ) as exc:
-            raise AssertionError(str(exc)) from exc
-        PREPARED_VK_CACHE[cache_key] = prepared
-    return prepared
-
-
-def _verified_proof_cache_key(
-    *,
-    vk_id: str,
-    vk_hash: str,
-    proof_hex: str,
-    public_inputs: list[str],
-) -> tuple[str, str, str, tuple[str, ...]]:
-    return (vk_id, vk_hash, proof_hex, tuple(public_inputs))
-
-
 def is_available():
     return _native_verifier_bindings() is not None
 
@@ -227,23 +224,12 @@ def verify_groth16_bn254(vk_hex: str, proof_hex: str, public_inputs: list[str]):
     )
     _validate_public_inputs(public_inputs)
 
-    bindings = _native_verifier_bindings()
-    assert bindings is not None, (
-        "Native zk verifier is not installed in this runtime. "
-        "Install xian-contracting[zk] or xian-zk."
+    return _native(
+        "verify_groth16_bn254",
+        vk_hex,
+        proof_hex,
+        public_inputs,
     )
-
-    try:
-        return bindings["verify_groth16_bn254"](
-            vk_hex,
-            proof_hex,
-            public_inputs,
-        )
-    except (
-        bindings["ZkEncodingError"],
-        bindings["ZkVerifierError"],
-    ) as exc:
-        raise AssertionError(str(exc)) from exc
 
 
 def verify_groth16(vk_id: str, proof_hex: str, public_inputs: list[str]):
@@ -255,66 +241,39 @@ def verify_groth16(vk_id: str, proof_hex: str, public_inputs: list[str]):
     )
     _validate_public_inputs(public_inputs)
 
-    bindings = _native_verifier_bindings()
-    assert bindings is not None, (
-        "Native zk verifier is not installed in this runtime. "
-        "Install xian-contracting[zk] or xian-zk."
-    )
-
+    _native_bindings()
     record = _registered_vk_record(vk_id)
-    cache_key = _verified_proof_cache_key(
-        vk_id=vk_id,
-        vk_hash=record["vk_hash"],
-        proof_hex=proof_hex,
-        public_inputs=public_inputs,
-    )
-    cached = VERIFIED_PROOF_CACHE.get(cache_key)
-    if cached is not None:
-        return cached
-
-    prepared = _prepared_vk(
-        bindings,
+    # A result the node verified before (this block's pre-verification
+    # included) comes from the node's proof cache.
+    return _native(
+        "verify_registered",
         vk_id,
-        record["vk_hex"],
         record["vk_hash"],
+        record["vk_hex"],
+        proof_hex,
+        public_inputs,
     )
 
-    try:
-        result = bindings["verify_groth16_bn254_prepared"](
-            prepared,
-            proof_hex,
-            public_inputs,
-        )
-        VERIFIED_PROOF_CACHE[cache_key] = result
-        return result
-    except (
-        bindings["ZkEncodingError"],
-        bindings["ZkVerifierError"],
-    ) as exc:
-        raise AssertionError(str(exc)) from exc
+
+def _clear_cache(name: str) -> None:
+    bindings = _native_verifier_bindings()
+    if bindings is not None:
+        bindings[name]()
 
 
 def clear_prepared_vk_cache():
-    PREPARED_VK_CACHE.clear()
+    _clear_cache("clear_prepared_vk_cache")
 
 
 def clear_verified_proof_cache():
-    VERIFIED_PROOF_CACHE.clear()
+    _clear_cache("clear_verified_proof_cache")
 
 
 def warm_verified_proofs(requests: list[dict]) -> list[bool]:
     assert isinstance(requests, list), "requests must be a list!"
 
-    bindings = _native_verifier_bindings()
-    assert bindings is not None, (
-        "Native zk verifier is not installed in this runtime. "
-        "Install xian-contracting[zk] or xian-zk."
-    )
-
-    pending_native_items = []
-    pending_cache_keys = []
-    results: list[bool | None] = [None] * len(requests)
-
+    _native_bindings()
+    proofs = []
     for index, request in enumerate(requests):
         assert isinstance(request, dict), f"requests[{index}] must be a dict!"
         vk_id = request.get("vk_id")
@@ -329,55 +288,11 @@ def warm_verified_proofs(requests: list[dict]) -> list[bool]:
         _validate_public_inputs(public_inputs)
 
         record = _registered_vk_record(vk_id)
-        cache_key = _verified_proof_cache_key(
-            vk_id=vk_id,
-            vk_hash=record["vk_hash"],
-            proof_hex=proof_hex,
-            public_inputs=public_inputs,
-        )
-        cached = VERIFIED_PROOF_CACHE.get(cache_key)
-        if cached is not None:
-            results[index] = cached
-            continue
+        proofs.append((vk_id, record["vk_hash"], record["vk_hex"], proof_hex, public_inputs))
 
-        pending_native_items.append(
-            {
-                "vk_hex": record["vk_hex"],
-                "proof_hex": proof_hex,
-                "public_inputs": public_inputs,
-            }
-        )
-        pending_cache_keys.append((index, cache_key))
-
-    if pending_native_items:
-        try:
-            encoded = bindings["verify_groth16_bn254_grouped_json"](
-                json.dumps(pending_native_items, separators=(",", ":"))
-            )
-        except (
-            bindings["ZkEncodingError"],
-            bindings["ZkVerifierError"],
-        ) as exc:
-            raise AssertionError(str(exc)) from exc
-
-        try:
-            native_results = json.loads(encoded)
-        except json.JSONDecodeError as exc:
-            raise AssertionError("Native grouped zk verification returned invalid JSON") from exc
-        assert isinstance(native_results, list) and len(native_results) == len(
-            pending_cache_keys
-        ), "Native grouped zk verification returned invalid results!"
-
-        for native_result, (index, cache_key) in zip(
-            native_results, pending_cache_keys, strict=True
-        ):
-            assert isinstance(native_result, bool), (
-                "Native grouped zk verification returned invalid result item!"
-            )
-            VERIFIED_PROOF_CACHE[cache_key] = native_result
-            results[index] = native_result
-
-    return [bool(result) for result in results]
+    # The proofs not in the node's proof cache are verified together and
+    # their results cached.
+    return list(_native("warm_registered", proofs))
 
 
 def shielded_note_append_commitments(
@@ -400,23 +315,12 @@ def shielded_note_append_commitments(
         maximum=constants.MAX_ZK_PUBLIC_INPUTS,
     )
 
-    bindings = _native_verifier_bindings()
-    assert bindings is not None, (
-        "Native zk bindings are not installed in this runtime. "
-        "Install xian-contracting[zk] or xian-zk."
+    encoded = _native(
+        "shielded_note_append_tree_state_json",
+        note_count,
+        filled_subtrees,
+        commitments,
     )
-
-    try:
-        encoded = bindings["shielded_note_append_tree_state_json"](
-            note_count,
-            filled_subtrees,
-            commitments,
-        )
-    except (
-        bindings["ZkEncodingError"],
-        bindings["ZkVerifierError"],
-    ) as exc:
-        raise AssertionError(str(exc)) from exc
 
     try:
         decoded = json.loads(encoded)
@@ -434,19 +338,7 @@ def shielded_command_nullifier_digest(input_nullifiers: list[str]):
         maximum=constants.MAX_ZK_PUBLIC_INPUTS,
     )
 
-    bindings = _native_verifier_bindings()
-    assert bindings is not None, (
-        "Native zk bindings are not installed in this runtime. "
-        "Install xian-contracting[zk] or xian-zk."
-    )
-
-    try:
-        return bindings["shielded_command_nullifier_digest"](input_nullifiers)
-    except (
-        bindings["ZkEncodingError"],
-        bindings["ZkVerifierError"],
-    ) as exc:
-        raise AssertionError(str(exc)) from exc
+    return _native("shielded_command_nullifier_digest", input_nullifiers)
 
 
 def shielded_command_binding(
@@ -481,30 +373,19 @@ def shielded_command_binding(
         "public_amount must be a non-negative integer!"
     )
 
-    bindings = _native_verifier_bindings()
-    assert bindings is not None, (
-        "Native zk bindings are not installed in this runtime. "
-        "Install xian-contracting[zk] or xian-zk."
+    return _native(
+        "shielded_command_binding",
+        nullifier_digest,
+        target_digest,
+        payload_digest,
+        relayer_digest,
+        expiry_digest,
+        chain_digest,
+        entrypoint_digest,
+        version_digest,
+        fee,
+        public_amount,
     )
-
-    try:
-        return bindings["shielded_command_binding"](
-            nullifier_digest,
-            target_digest,
-            payload_digest,
-            relayer_digest,
-            expiry_digest,
-            chain_digest,
-            entrypoint_digest,
-            version_digest,
-            fee,
-            public_amount,
-        )
-    except (
-        bindings["ZkEncodingError"],
-        bindings["ZkVerifierError"],
-    ) as exc:
-        raise AssertionError(str(exc)) from exc
 
 
 def shielded_command_execution_tag(
@@ -518,22 +399,11 @@ def shielded_command_execution_tag(
         maximum=2,
     )
 
-    bindings = _native_verifier_bindings()
-    assert bindings is not None, (
-        "Native zk bindings are not installed in this runtime. "
-        "Install xian-contracting[zk] or xian-zk."
+    return _native(
+        "shielded_command_execution_tag",
+        nullifier_digest,
+        command_binding,
     )
-
-    try:
-        return bindings["shielded_command_execution_tag"](
-            nullifier_digest,
-            command_binding,
-        )
-    except (
-        bindings["ZkEncodingError"],
-        bindings["ZkVerifierError"],
-    ) as exc:
-        raise AssertionError(str(exc)) from exc
 
 
 def shielded_output_payload_hash(payload_hex: str):
@@ -546,19 +416,7 @@ def shielded_output_payload_hash(payload_hex: str):
         constants.MAX_ZK_PROOF_HEX_CHARS * 4,
     )
 
-    bindings = _native_verifier_bindings()
-    assert bindings is not None, (
-        "Native zk bindings are not installed in this runtime. "
-        "Install xian-contracting[zk] or xian-zk."
-    )
-
-    try:
-        return bindings["shielded_output_payload_hash"](payload_hex)
-    except (
-        bindings["ZkEncodingError"],
-        bindings["ZkVerifierError"],
-    ) as exc:
-        raise AssertionError(str(exc)) from exc
+    return _native("shielded_output_payload_hash", payload_hex)
 
 
 def shielded_output_payload_hashes(payload_hexes: list[str]) -> list[str]:
@@ -576,19 +434,7 @@ def shielded_output_payload_hashes(payload_hexes: list[str]) -> list[str]:
         )
         normalized.append(payload_hex)
 
-    bindings = _native_verifier_bindings()
-    assert bindings is not None, (
-        "Native zk bindings are not installed in this runtime. "
-        "Install xian-contracting[zk] or xian-zk."
-    )
-
-    try:
-        result = bindings["shielded_output_payload_hashes"](normalized)
-    except (
-        bindings["ZkEncodingError"],
-        bindings["ZkVerifierError"],
-    ) as exc:
-        raise AssertionError(str(exc)) from exc
+    result = _native("shielded_output_payload_hashes", normalized)
 
     _validate_field_values(
         "payload_hashes",
@@ -625,25 +471,14 @@ def shielded_deposit_public_inputs(
     assert len(payload_hashes) == len(commitments), "payload_hashes length must match commitments!"
     _validate_hex_payload("old_root", old_root, 66)
 
-    bindings = _native_verifier_bindings()
-    assert bindings is not None, (
-        "Native zk bindings are not installed in this runtime. "
-        "Install xian-contracting[zk] or xian-zk."
+    return _native(
+        "shielded_deposit_public_inputs",
+        contract_name,
+        old_root,
+        amount,
+        commitments,
+        payload_hashes,
     )
-
-    try:
-        return bindings["shielded_deposit_public_inputs"](
-            contract_name,
-            old_root,
-            amount,
-            commitments,
-            payload_hashes,
-        )
-    except (
-        bindings["ZkEncodingError"],
-        bindings["ZkVerifierError"],
-    ) as exc:
-        raise AssertionError(str(exc)) from exc
 
 
 def shielded_transfer_public_inputs(
@@ -677,25 +512,14 @@ def shielded_transfer_public_inputs(
     )
     assert len(payload_hashes) == len(commitments), "payload_hashes length must match commitments!"
 
-    bindings = _native_verifier_bindings()
-    assert bindings is not None, (
-        "Native zk bindings are not installed in this runtime. "
-        "Install xian-contracting[zk] or xian-zk."
+    return _native(
+        "shielded_transfer_public_inputs",
+        contract_name,
+        old_root,
+        input_nullifiers,
+        commitments,
+        payload_hashes,
     )
-
-    try:
-        return bindings["shielded_transfer_public_inputs"](
-            contract_name,
-            old_root,
-            input_nullifiers,
-            commitments,
-            payload_hashes,
-        )
-    except (
-        bindings["ZkEncodingError"],
-        bindings["ZkVerifierError"],
-    ) as exc:
-        raise AssertionError(str(exc)) from exc
 
 
 def shielded_withdraw_public_inputs(
@@ -733,27 +557,16 @@ def shielded_withdraw_public_inputs(
     )
     assert len(payload_hashes) == len(commitments), "payload_hashes length must match commitments!"
 
-    bindings = _native_verifier_bindings()
-    assert bindings is not None, (
-        "Native zk bindings are not installed in this runtime. "
-        "Install xian-contracting[zk] or xian-zk."
+    return _native(
+        "shielded_withdraw_public_inputs",
+        contract_name,
+        old_root,
+        amount,
+        recipient,
+        input_nullifiers,
+        commitments,
+        payload_hashes,
     )
-
-    try:
-        return bindings["shielded_withdraw_public_inputs"](
-            contract_name,
-            old_root,
-            amount,
-            recipient,
-            input_nullifiers,
-            commitments,
-            payload_hashes,
-        )
-    except (
-        bindings["ZkEncodingError"],
-        bindings["ZkVerifierError"],
-    ) as exc:
-        raise AssertionError(str(exc)) from exc
 
 
 def shielded_command_public_inputs(
@@ -801,29 +614,18 @@ def shielded_command_public_inputs(
     )
     assert len(payload_hashes) == len(commitments), "payload_hashes length must match commitments!"
 
-    bindings = _native_verifier_bindings()
-    assert bindings is not None, (
-        "Native zk bindings are not installed in this runtime. "
-        "Install xian-contracting[zk] or xian-zk."
+    return _native(
+        "shielded_command_public_inputs",
+        contract_name,
+        old_root,
+        command_binding,
+        execution_tag,
+        fee,
+        public_amount,
+        input_nullifiers,
+        commitments,
+        payload_hashes,
     )
-
-    try:
-        return bindings["shielded_command_public_inputs"](
-            contract_name,
-            old_root,
-            command_binding,
-            execution_tag,
-            fee,
-            public_amount,
-            input_nullifiers,
-            commitments,
-            payload_hashes,
-        )
-    except (
-        bindings["ZkEncodingError"],
-        bindings["ZkVerifierError"],
-    ) as exc:
-        raise AssertionError(str(exc)) from exc
 
 
 zk_module = ModuleType("zk")

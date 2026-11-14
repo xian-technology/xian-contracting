@@ -10,6 +10,8 @@ mod random_python;
 mod settlement_python;
 #[path = "transaction_admission_python.rs"]
 mod transaction_admission_python;
+#[path = "zk_python.rs"]
+mod zk_python;
 use crate::XIAN_VM_V2_PROFILE;
 use crate::{
     parse_module_ir, VmDateTime, VmDecimal, VmExecutionContext, VmExecutionError, VmMeterConfig,
@@ -1078,6 +1080,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     block_executor_python::register(module)?;
     random_python::register(module)?;
     transaction_admission_python::register(module)?;
+    zk_python::register(py, module)?;
     crate::state_root_python::register(module)?;
     Ok(())
 }
