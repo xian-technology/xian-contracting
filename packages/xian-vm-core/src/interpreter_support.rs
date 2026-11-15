@@ -2088,32 +2088,37 @@ pub(super) fn zk_warm_metering_cost(requests: &VmValue) -> u64 {
 }
 
 fn zk_warm_request_metering_cost(request: &VmValue) -> u64 {
-    let entries: &[(VmValue, VmValue)] = match request {
-        VmValue::Dict(entries) => entries,
-        _ => &[],
-    };
-    let field = |name: &str| {
-        entries
-            .iter()
-            .rev()
-            .find(|(key, _)| matches!(key, VmValue::String(key) if key == name))
-            .map(|(_, value)| value)
-    };
-    let text = |name: &str| match field(name) {
-        Some(VmValue::String(value)) => value.as_str(),
-        _ => "",
-    };
-    let public_inputs = match field("public_inputs") {
+    let public_inputs: Vec<String> = match request_field(request, "public_inputs") {
         Some(VmValue::List(values)) => values
             .iter()
-            .map(|value| match value {
-                VmValue::String(value) => value.clone(),
-                _ => String::new(),
-            })
+            .map(|value| text_or_empty(Some(value)).to_owned())
             .collect(),
         _ => Vec::new(),
     };
-    zk_registry_metering_cost(text("vk_id"), text("proof_hex"), &public_inputs)
+    zk_registry_metering_cost(
+        text_or_empty(request_field(request, "vk_id")),
+        text_or_empty(request_field(request, "proof_hex")),
+        &public_inputs,
+    )
+}
+
+/// `request.get(name)` of a dict request (its last entry under `name`).
+fn request_field<'a>(request: &'a VmValue, name: &str) -> Option<&'a VmValue> {
+    let VmValue::Dict(entries) = request else {
+        return None;
+    };
+    entries
+        .iter()
+        .rev()
+        .find(|(key, _)| matches!(key, VmValue::String(key) if key == name))
+        .map(|(_, value)| value)
+}
+
+fn text_or_empty(value: Option<&VmValue>) -> &str {
+    match value {
+        Some(VmValue::String(text)) => text,
+        _ => "",
+    }
 }
 
 pub(super) fn resolve_contract_import_arg(
@@ -2542,5 +2547,73 @@ mod storage_key_tests {
             "Storage key is too long (512 bytes). Max is 511."
         );
         assert_eq!(host.0, vec![largest]);
+    }
+}
+
+#[cfg(test)]
+mod zk_metering_tests {
+    use super::*;
+
+    fn text(value: &str) -> VmValue {
+        VmValue::String(value.to_owned())
+    }
+
+    fn request(entries: Vec<(&str, VmValue)>) -> VmValue {
+        VmValue::Dict(
+            entries
+                .into_iter()
+                .map(|(key, value)| (text(key), value))
+                .collect(),
+        )
+    }
+
+    fn warm_cost(requests: Vec<VmValue>) -> u64 {
+        let args = [VmValue::List(requests)];
+        explicit_syscall_metering_cost("zk.warm_verified_proofs", &args, &[])
+            .unwrap()
+            .unwrap()
+    }
+
+    #[test]
+    fn each_warmed_proof_costs_what_verify_groth16_charges() {
+        let field = format!("0x{}", "01".repeat(32));
+        let inputs = VmValue::List(vec![text(&field), text(&field)]);
+        let full = request(vec![
+            ("vk_id", text("demo")),
+            ("proof_hex", text("0xabcd")),
+            ("public_inputs", inputs.clone()),
+        ]);
+        let verify_args = [text("demo"), text("0xabcd"), inputs];
+        let verify = explicit_syscall_metering_cost("zk.verify_groth16", &verify_args, &[])
+            .unwrap()
+            .unwrap();
+        // 750 chi, 50 per input and 25 raw per byte of id, proof and inputs.
+        assert_eq!(verify, 750_000 + 2 * 50_000 + (4 + 2 + 2 * 32) * 25);
+        assert_eq!(warm_cost(vec![full.clone()]), verify);
+        assert_eq!(warm_cost(vec![full.clone(), full]), 2 * verify);
+        // A request the host refuses still pays the verification base
+        // before the refusal; fields that are not text count as empty.
+        let base = 750_000;
+        assert_eq!(warm_cost(vec![text("x")]), base);
+        let odd = request(vec![
+            ("vk_id", VmValue::Int(5.into())),
+            ("public_inputs", VmValue::List(vec![VmValue::None])),
+        ]);
+        assert_eq!(warm_cost(vec![odd]), base + 50_000);
+        assert_eq!(warm_cost(vec![]), 0);
+        // Hex that is not 0x-prefixed or not whole bytes counts no bytes.
+        let unpriced = request(vec![("proof_hex", text("0xabc")), ("vk_id", text(""))]);
+        assert_eq!(warm_cost(vec![unpriced]), base);
+        let raw_args = [
+            text("0x1234"),
+            text("abcd"),
+            VmValue::List(vec![text(&field)]),
+        ];
+        let raw = explicit_syscall_metering_cost("zk.verify_groth16_bn254", &raw_args, &[]);
+        assert_eq!(raw.unwrap(), Some(750_000 + 50_000 + (2 + 32) * 50));
+        let not_a_list = [text("requests")];
+        let refused = explicit_syscall_metering_cost("zk.warm_verified_proofs", &not_a_list, &[]);
+        assert_eq!(refused.unwrap(), Some(0));
+        assert!(explicit_syscall_metering_cost("zk.warm_verified_proofs", &[], &[]).is_err());
     }
 }
