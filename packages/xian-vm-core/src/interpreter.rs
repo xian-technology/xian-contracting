@@ -1492,9 +1492,9 @@ impl VmInstance {
         args: Vec<VmValue>,
         kwargs: Vec<(String, VmValue)>,
     ) -> Result<VmValue, VmExecutionError> {
-        if host_callables::callback_needs_dispatch_charge(&callee) {
-            host.charge_execution_cost(VM_GAS_CALL_DISPATCH)?;
-        }
+        // A builtin calling `callee` (map, filter, a sort key, ...) pays the
+        // dispatch a call written in the contract pays.
+        host.charge_execution_cost(VM_GAS_CALL_DISPATCH)?;
         self.call_expression_callable_value(host, callee, args, kwargs)
     }
     fn call_expression_callable_value(
@@ -2711,7 +2711,7 @@ mod tests {
     }
 
     #[test]
-    fn host_callable_classes_and_legacy_callbacks_preserve_metering() {
+    fn every_callback_pays_the_call_dispatch_first() {
         #[derive(Default)]
         struct CallbackHost {
             costs: Vec<u64>,
@@ -2774,7 +2774,8 @@ mod tests {
                     .unwrap(),
                 expected
             );
-            assert!(host.costs.is_empty());
+            // Builtins and method callbacks pay the dispatch as well.
+            assert_eq!(host.costs, [5000]);
         }
         let mut host = CallbackHost::default();
         let hour = instance

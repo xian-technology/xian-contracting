@@ -892,29 +892,6 @@ fn is_host_module(name: &str) -> bool {
     )
 }
 
-pub(super) fn callback_needs_dispatch_charge(value: &VmValue) -> bool {
-    match value.snapshot() {
-        VmValue::HostCallable(_) => true,
-        VmValue::TypeMarker(name) => VmHostCallable::named(&name).is_some(),
-        VmValue::BoundMethod(bound) => bound_callback_needs_dispatch_charge(&bound),
-        _ => false,
-    }
-}
-
-fn bound_callback_needs_dispatch_charge(bound: &VmBoundMethod) -> bool {
-    match bound.receiver.snapshot() {
-        VmValue::DeploymentHandle
-        | VmValue::ContractHandle(_)
-        | VmValue::InterfaceDescriptor(_) => true,
-        VmValue::Builtin(name) => matches!(
-            name.as_str(),
-            "Contract" | "importlib.Func" | "importlib.Var"
-        ),
-        VmValue::TypeMarker(name) => name == "datetime.datetime" && bound.method == "strptime",
-        _ => false,
-    }
-}
-
 /// Only the Var constructor has an internal type-descriptor slot. All other
 /// host inputs must obey normal capability boundaries before Python conversion.
 pub(super) fn host_arguments(
