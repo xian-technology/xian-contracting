@@ -40,28 +40,23 @@ pub fn lower_source_to_ir_json_js(
     lower_source_to_ir_json(module_name, source, &options).map_err(diagnostics_error)
 }
 
-#[wasm_bindgen(js_name = compileContractArtifactJson)]
-pub fn compile_contract_artifact_json(
-    module_name: &str,
-    source: &str,
-    options_json: Option<String>,
-) -> Result<String, JsValue> {
-    let options = parse_options(options_json)?;
-    let artifact =
-        compile_contract_artifact(module_name, source, &options).map_err(diagnostics_error)?;
-    serde_json::to_string(&artifact).map_err(|error| JsValue::from_str(&error.to_string()))
+/// One export per compile entrypoint whose result is returned as JSON.
+macro_rules! compile_json_exports {
+    ($($js_name:literal => $name:ident($compile:path);)+) => {$(
+        #[wasm_bindgen(js_name = $js_name)]
+        pub fn $name(
+            module_name: &str,
+            source: &str,
+            options_json: Option<String>,
+        ) -> Result<String, JsValue> {
+            compiled_json(module_name, source, options_json, $compile)
+        }
+    )+};
 }
 
-#[wasm_bindgen(js_name = compileContractSourceJson)]
-pub fn compile_contract_source_json(
-    module_name: &str,
-    source: &str,
-    options_json: Option<String>,
-) -> Result<String, JsValue> {
-    let options = parse_options(options_json)?;
-    let compiled =
-        compile_contract_source(module_name, source, &options).map_err(diagnostics_error)?;
-    serde_json::to_string(&compiled).map_err(|error| JsValue::from_str(&error.to_string()))
+compile_json_exports! {
+    "compileContractArtifactJson" => compile_contract_artifact_json(compile_contract_artifact);
+    "compileContractSourceJson" => compile_contract_source_json(compile_contract_source);
 }
 
 #[wasm_bindgen(js_name = validateContractArtifactJson)]
@@ -97,6 +92,18 @@ pub fn compiler_version_json() -> Result<String, JsValue> {
 pub fn host_surface_json() -> Result<String, JsValue> {
     serde_json::to_string(&describe_vm_host_surface())
         .map_err(|error| JsValue::from_str(&error.to_string()))
+}
+
+/// Run one compile entrypoint and return its result as JSON.
+fn compiled_json<T: serde::Serialize>(
+    module_name: &str,
+    source: &str,
+    options_json: Option<String>,
+    compile: fn(&str, &str, &CompileOptions) -> Result<T, Vec<CompilerDiagnostic>>,
+) -> Result<String, JsValue> {
+    let options = parse_options(options_json)?;
+    let value = compile(module_name, source, &options).map_err(diagnostics_error)?;
+    serde_json::to_string(&value).map_err(|error| JsValue::from_str(&error.to_string()))
 }
 
 fn parse_options(options_json: Option<String>) -> Result<CompileOptions, JsValue> {

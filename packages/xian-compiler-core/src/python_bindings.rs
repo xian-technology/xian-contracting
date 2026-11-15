@@ -10,6 +10,7 @@ use crate::constants::{
     CONTRACT_ARTIFACT_FORMAT_V1, DEFAULT_VM_PROFILE, SUPPORTED_VM_PROFILES, XIAN_VM_V1_PROFILE,
     XIAN_VM_V2_PROFILE,
 };
+use crate::diagnostic::CompilerDiagnostic;
 use crate::ir::{
     compile_contract_artifact, compile_contract_source, describe_vm_host_surface,
     lower_source_to_ir_json,
@@ -49,28 +50,19 @@ fn lower_source_to_ir_json_py(
     lower_source_to_ir_json(module_name, source, &options).map_err(compiler_error)
 }
 
-#[pyfunction(signature=(module_name, source, *, options_json=None))]
-fn compile_contract_artifact_json(
-    module_name: &str,
-    source: &str,
-    options_json: Option<&str>,
-) -> PyResult<String> {
-    let options = parse_options(options_json)?;
-    let artifact =
-        compile_contract_artifact(module_name, source, &options).map_err(compiler_error)?;
-    serde_json::to_string(&artifact).map_err(|error| PyValueError::new_err(error.to_string()))
+/// One function per compile entrypoint whose result is returned as JSON.
+macro_rules! compile_json_functions {
+    ($($name:ident($compile:path);)+) => {$(
+        #[pyfunction(signature=(module_name, source, *, options_json=None))]
+        fn $name(module_name: &str, source: &str, options_json: Option<&str>) -> PyResult<String> {
+            compiled_json(module_name, source, options_json, $compile)
+        }
+    )+};
 }
 
-#[pyfunction(signature=(module_name, source, *, options_json=None))]
-fn compile_contract_source_json(
-    module_name: &str,
-    source: &str,
-    options_json: Option<&str>,
-) -> PyResult<String> {
-    let options = parse_options(options_json)?;
-    let compiled =
-        compile_contract_source(module_name, source, &options).map_err(compiler_error)?;
-    serde_json::to_string(&compiled).map_err(|error| PyValueError::new_err(error.to_string()))
+compile_json_functions! {
+    compile_contract_artifact_json(compile_contract_artifact);
+    compile_contract_source_json(compile_contract_source);
 }
 
 #[pyfunction(signature=(expected_module_name, artifact_json, *, input_source=None, vm_profile=None))]
@@ -125,6 +117,18 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
+/// Run one compile entrypoint and return its result as JSON.
+fn compiled_json<T: serde::Serialize>(
+    module_name: &str,
+    source: &str,
+    options_json: Option<&str>,
+    compile: fn(&str, &str, &CompileOptions) -> Result<T, Vec<CompilerDiagnostic>>,
+) -> PyResult<String> {
+    let options = parse_options(options_json)?;
+    let value = compile(module_name, source, &options).map_err(compiler_error)?;
+    serde_json::to_string(&value).map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
 fn parse_options(options_json: Option<&str>) -> PyResult<CompileOptions> {
     match options_json {
         Some(raw) if !raw.trim().is_empty() => serde_json::from_str(raw)
@@ -133,6 +137,6 @@ fn parse_options(options_json: Option<&str>) -> PyResult<CompileOptions> {
     }
 }
 
-fn compiler_error(diagnostics: Vec<crate::diagnostic::CompilerDiagnostic>) -> PyErr {
+fn compiler_error(diagnostics: Vec<CompilerDiagnostic>) -> PyErr {
     CompilerError::new_err(crate::diagnostic::compiler_error_message(&diagnostics))
 }
