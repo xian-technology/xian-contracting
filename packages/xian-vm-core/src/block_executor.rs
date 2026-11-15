@@ -72,18 +72,31 @@ pub(crate) struct BlockPolicy {
 }
 
 /// How a transaction's fee is settled.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum FeeMode {
     /// A transaction with a submitted budget: the budget is reserved from
     /// the sender's balance before execution and a success is refunded
     /// against it (`execute_vm_transaction`).
     Reserved,
-    /// A dry run (the simulator; decision 2 of the single-engine plan): no
-    /// budget is reserved, so a small balance still gets an estimate, and
-    /// the fee is metered from the balance the run leaves, success or
-    /// failure (`reserve_fee_budget=False`, `apply_metering_on_success_only=False`).
-    /// In the receipt, a fee write the run did not already make comes last.
-    Estimated,
+    /// A dry run (the simulator) of a transaction that will supply
+    /// `supplied` chi (its estimate). When the sender can pay that budget it
+    /// is reserved and refunded as execution does, so the run sees the
+    /// balance execution sees: a written balance's stored size is metered.
+    /// Otherwise (decision 2 of the single-engine plan) nothing is reserved,
+    /// so a small balance still gets an estimate, and the fee is metered from
+    /// the balance the run leaves. In the receipt, a fee write the run did
+    /// not already make comes last.
+    Estimated { supplied: BigInt },
+}
+
+impl FeeMode {
+    /// The chi `tx` supplies: its budget, or the one a dry run estimates.
+    fn supplied<'a>(&'a self, tx: &'a PreparedTx) -> &'a BigInt {
+        match self {
+            Self::Reserved => &tx.chi_budget,
+            Self::Estimated { supplied } => supplied,
+        }
+    }
 }
 
 /// One transaction's inputs, read from its wire bytes.
@@ -355,7 +368,6 @@ impl BlockExecutor {
         rate: Option<&BigInt>,
         balance_key: &str,
     ) -> Settled<Execution> {
-        let rate = rate.filter(|_| self.fee_mode == FeeMode::Reserved);
         let reservation = match self.reservation(tx, rate, balance_key)? {
             Ok(reservation) => reservation,
             Err(unpaid) => return Ok(unpaid),
@@ -419,14 +431,19 @@ impl BlockExecutor {
         let Some(rate) = rate else {
             return Ok(Ok(None));
         };
-        Ok(match self.reserve(tx, rate, balance_key)? {
-            Ok(Some(reservation)) => Ok(Some(reservation)),
-            Ok(None) => Err(Execution::failed(
+        let reserved = self.reserve(self.fee_mode.supplied(tx), rate, balance_key)?;
+        Ok(match (reserved, &self.fee_mode) {
+            (Ok(Some(reservation)), _) => Ok(Some(reservation)),
+            // A dry run does not require the sender to pay its budget.
+            (_, FeeMode::Estimated { .. }) => Ok(None),
+            (Ok(None), FeeMode::Reserved) => Err(Execution::failed(
                 None,
                 "AssertionError",
                 INSUFFICIENT_BALANCE,
             )),
-            Err(InvalidBalance) => Err(Execution::failed(None, "AssertionError", INVALID_BALANCE)),
+            (Err(InvalidBalance), FeeMode::Reserved) => {
+                Err(Execution::failed(None, "AssertionError", INVALID_BALANCE))
+            }
         })
     }
 
@@ -434,12 +451,12 @@ impl BlockExecutor {
     /// balance and the spendable rest staged; `None` when it cannot pay.
     fn reserve(
         &self,
-        tx: &PreparedTx,
+        budget: &BigInt,
         rate: &BigInt,
         balance_key: &str,
     ) -> Settled<Result<Option<Reservation>, InvalidBalance>> {
         let reservation = Balance::of(self.get(balance_key)?.as_ref())
-            .and_then(|balance| settlement::reserve(&balance, &tx.chi_budget, rate));
+            .and_then(|balance| settlement::reserve(&balance, budget, rate));
         let Ok(Some(reservation)) = reservation else {
             return Ok(reservation);
         };
@@ -691,9 +708,10 @@ impl BlockExecutor {
     ) -> Settled<Result<SettledWrites, InvalidBalance>> {
         let mut writes = execution.writes.clone();
         if let Some(rate) = rate {
-            let balance = match self.fee_mode {
-                FeeMode::Reserved => refunded_balance(execution, rate, balance_key).map(Some),
-                FeeMode::Estimated => self.metered_balance(execution, rate, balance_key)?,
+            let balance = match execution.reservation {
+                Some(_) => refunded_balance(execution, rate, balance_key).map(Some),
+                // Only a dry run succeeds without a reservation.
+                None => self.metered_balance(execution, rate, balance_key)?,
             };
             match balance {
                 Ok(Some(balance)) => {
@@ -733,7 +751,7 @@ impl BlockExecutor {
         execution: &Execution,
         balance_key: &str,
     ) -> Vec<(String, VmValue)> {
-        let appended = self.fee_mode == FeeMode::Estimated
+        let appended = matches!(self.fee_mode, FeeMode::Estimated { .. })
             && execution.status == 0
             && !execution.writes.contains_key(balance_key);
         let fee = appended.then(|| writes.remove_entry(balance_key)).flatten();

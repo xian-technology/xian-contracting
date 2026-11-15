@@ -110,11 +110,24 @@ fn outcome_to_py(py: Python<'_>, outcome: &TxOutcome) -> PyResult<Py<PyAny>> {
     Ok(dict.into_any().unbind())
 }
 
+const NOT_AN_ESTIMATE_SUPPLY: &str = "an estimate's chi_supplied must be an integer";
+
+/// How the call's fee is settled: a dry run (`FeeMode::Estimated`) when it
+/// names the chi its transaction will supply, `None` when that is no int.
+fn fee_mode(estimate_chi_supplied: Option<&Bound<'_, PyAny>>) -> Option<FeeMode> {
+    match estimate_chi_supplied.map(|supplied| py_to_vm(supplied.clone())) {
+        None => Some(FeeMode::Reserved),
+        Some(Ok(VmValue::Int(supplied))) => Some(FeeMode::Estimated { supplied }),
+        Some(_) => None,
+    }
+}
+
 /// Run one call by the block executor's rules over `environment` and
 /// `overlay` with the GIL released, staging its writes into `overlay`.
 ///
 /// `context` is the call's VM context dictionary (the owner is read from
-/// state); `estimate` settles the fee as a dry run (no reservation).
+/// state); `estimate_chi_supplied` (the chi the transaction will supply)
+/// makes the call a dry run (`FeeMode::Estimated`).
 /// Returns `(outcome, None)` with the outcome as a dictionary (`status`,
 /// `result`, `exception`, `writes` in receipt order, `events`, `chi_used`,
 /// `contract_costs`, `unprepared`), or `(None, reason)` for inputs the VM
@@ -136,7 +149,7 @@ fn outcome_to_py(py: Python<'_>, outcome: &TxOutcome) -> PyResult<Py<PyAny>> {
     charge_fees,
     protected_keys,
     zk_enabled_without_state,
-    estimate = false,
+    estimate_chi_supplied = None,
 ))]
 #[allow(clippy::too_many_arguments)]
 pub(super) fn execute_tx(
@@ -154,7 +167,7 @@ pub(super) fn execute_tx(
     charge_fees: bool,
     protected_keys: Vec<String>,
     zk_enabled_without_state: bool,
-    estimate: bool,
+    estimate_chi_supplied: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<(Option<Py<PyAny>>, Option<String>)> {
     let Some(tx) = prepared(
         sender,
@@ -174,10 +187,8 @@ pub(super) fn execute_tx(
         protected_keys,
         zk_enabled_without_state,
     };
-    let fee_mode = if estimate {
-        FeeMode::Estimated
-    } else {
-        FeeMode::Reserved
+    let Some(fee_mode) = fee_mode(estimate_chi_supplied) else {
+        return Ok((None, Some(NOT_AN_ESTIMATE_SUPPLY.to_owned())));
     };
     let view = StateView::new(environment.store(), overlay.shared());
     let executor = BlockExecutor::settling(view, policy, fee_mode);

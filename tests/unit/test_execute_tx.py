@@ -2,8 +2,10 @@
 
 The simulator, contract views, genesis deploys and the local client run a
 single call with the code a block runs. What differs is only how the fee is
-settled (a block transaction reserves its budget, a dry run does not) and
-which overlay receives the effects (the caller's own, or a fork it drops).
+settled (a block transaction reserves its budget; a dry run of a transaction
+supplying ``estimate_chi_supplied`` reserves and settles that supply as the
+block would, but only when the sender can pay it) and which overlay receives
+the effects (the caller's own, or a fork it drops).
 """
 
 from pathlib import Path
@@ -97,7 +99,9 @@ def test_a_block_transaction_reserves_its_budget(driver):
 
 
 def test_an_estimate_reports_the_chi_without_reserving_the_budget(driver):
-    run = _run(driver, estimate=True)
+    # 1 token pays 20 chi: the sender cannot pay the supply, still gets an
+    # estimate, and the fee is metered from the balance the run leaves.
+    run = _run(driver, estimate_chi_supplied=1_000)
 
     assert run.status_code == 0
     assert run.result == 2
@@ -112,17 +116,23 @@ def test_only_an_estimate_lists_a_fee_write_its_run_did_not_make_last(driver):
     driver.set(BALANCE_KEY, ContractingDecimal("1000"))
 
     estimate = _run(
-        driver, driver.committed_storage()[1].snapshot(), contract="zz_probe", estimate=True
+        driver,
+        driver.committed_storage()[1].snapshot(),
+        contract="zz_probe",
+        estimate_chi_supplied=1_000,
     )
     block = _run(driver, driver.committed_storage()[1].snapshot(), contract="zz_probe")
 
     assert list(estimate.writes) == ["zz_probe.values:a", BALANCE_KEY]
     assert list(block.writes) == [BALANCE_KEY, "zz_probe.values:a"]
+    # A sender who can pay the supply is settled as the block settles it
+    # (reservation and refund).
     assert estimate.writes[BALANCE_KEY] == block.writes[BALANCE_KEY]
+    assert estimate.chi_used == block.chi_used
 
 
 def test_an_estimated_failure_pays_its_fee_and_keeps_no_effects(driver):
-    run = _run(driver, function="zap", kwargs={"key": "a"}, estimate=True)
+    run = _run(driver, function="zap", kwargs={"key": "a"}, estimate_chi_supplied=1_000)
 
     assert run.status_code == 1
     assert isinstance(run.result, AssertionError)
@@ -159,7 +169,7 @@ def test_a_contract_the_chain_does_not_let_run_is_unprepared(driver):
         function="get",
         kwargs={},
         zk_enabled_without_state=False,
-        estimate=True,
+        estimate_chi_supplied=1_000,
     )
 
     assert (run.status_code, run.unprepared) == (1, True)
@@ -173,7 +183,7 @@ def test_a_submission_without_source_fails_but_is_prepared(driver):
         contract="submission",
         function="submit_contract",
         kwargs={"name": "con_x"},
-        estimate=True,
+        estimate_chi_supplied=1_000,
     )
 
     assert isinstance(run, TxRun)
@@ -182,7 +192,9 @@ def test_a_submission_without_source_fails_but_is_prepared(driver):
 
 
 def test_an_owner_rejection_is_a_failed_run_with_the_base_chi(driver):
-    run = _run(driver, contract="con_owned", function="ping", kwargs={}, estimate=True)
+    run = _run(
+        driver, contract="con_owned", function="ping", kwargs={}, estimate_chi_supplied=1_000
+    )
 
     assert (run.status_code, run.chi_used, run.unprepared) == (1, 5, False)
     assert str(run.result) == "Caller is not the owner!"
@@ -195,3 +207,11 @@ def test_arguments_the_vm_boundary_refuses_fail_before_execution(driver):
     assert (run.status_code, run.chi_used, run.writes, run.events) == (1, 0, {}, [])
     assert isinstance(run.result, Exception)
     assert len(driver.committed_storage()[1]) == 0
+
+
+@pytest.mark.parametrize("supplied", [1.5, "1000", True])
+def test_an_estimate_supply_that_is_no_int_is_refused(driver, supplied):
+    run = _run(driver, estimate_chi_supplied=supplied)
+
+    assert (run.status_code, run.chi_used, run.writes) == (1, 0, {})
+    assert "an estimate's chi_supplied must be an integer" in str(run.result)

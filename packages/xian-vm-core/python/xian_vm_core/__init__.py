@@ -74,7 +74,7 @@ def execute_tx(
     transaction_size_bytes: int = 0,
     protected_keys=(),
     zk_enabled_without_state: bool = True,
-    estimate: bool = False,
+    estimate_chi_supplied: int | None = None,
 ) -> TxRun:
     """Run one call with the code a block runs, over ``environment`` (LMDB)
     and ``overlay`` (a ``BlockState``), staging its effects into ``overlay``.
@@ -82,8 +82,11 @@ def execute_tx(
     Pass ``overlay.snapshot()`` to drop them afterwards. ``context`` is the
     call's VM context (``signer``, ``caller``, ``this``, ``entry``,
     ``submission_name``, ``now``, ``block_num``, ``block_hash``,
-    ``chain_id``, ``__input_hash``); ``estimate`` settles the fee
-    as a dry run does (no budget reservation). A call whose arguments the VM
+    ``chain_id``, ``__input_hash``). ``estimate_chi_supplied`` makes the
+    call a dry run of a transaction supplying that much chi: its budget is
+    reserved (and refunded) as in execution when the sender can pay it,
+    otherwise nothing is reserved and the fee is metered from the balance
+    the run leaves. A call whose arguments the VM
     boundary refuses fails before execution (status 1, the refusal as its
     result, no chi, nothing staged).
     """
@@ -105,7 +108,7 @@ def execute_tx(
         charge_fees=charge_fees,
         protected_keys=list(protected_keys),
         zk_enabled_without_state=zk_enabled_without_state,
-        estimate=estimate,
+        estimate_chi_supplied=estimate_chi_supplied,
     )
     if outcome is None:
         return _refused_call(ValueError(reason))
