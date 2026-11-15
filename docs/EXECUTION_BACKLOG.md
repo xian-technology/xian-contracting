@@ -16,10 +16,16 @@ pinned archived packages, rather than a maintained Python contract executor.
 
 Return values are part of execution output and should not be free.
 
-Current rule:
+Current rule (execution revision 14): the receipt carries the entry's return
+value as it carries the state writes, so a return value is priced and capped
+like a write:
 
-- meter the encoded return payload size
-- reject return values larger than `MAX_RETURN_VALUE_SIZE`
+- meter the encoded return payload at the write price (25 raw units per byte)
+- reject return values of `VM_WRITE_MAX_BYTES` (128 KiB) or more
+
+Without the price, a 500k chi block could carry about 500 MB of receipts that
+every node builds, sends to CometBFT and stores (one 105 MB receipt stalled a
+localnet block for about 14 s).
 
 This should remain deterministic and versioned as part of the execution policy.
 

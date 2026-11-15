@@ -10,13 +10,17 @@ use std::sync::Arc;
 const VM_READ_COST_PER_BYTE: u64 = 2;
 const VM_WRITE_COST_PER_BYTE: u64 = 25;
 const VM_TRANSACTION_BYTES_COST_PER_BYTE: u64 = 1;
-const VM_RETURN_VALUE_COST_PER_BYTE: u64 = 1;
 pub(crate) const VM_TRANSACTION_BASE_CHI: u64 = 5;
 const VM_TRANSACTION_BASE_CHI_RAW: u64 = VM_TRANSACTION_BASE_CHI * 1_000;
 /// Absolute chi ceiling of one transaction (`xvm-execution-11`). Node fee
 /// policies cap transactions at or below it; execution never exceeds it.
 pub const XIAN_VM_MAX_TRANSACTION_CHI: u64 = 1_000_000;
 const VM_WRITE_MAX_BYTES: usize = 1024 * 128;
+/// The receipt carries the entry's return value as it carries the state
+/// writes (revision 14): a return value is priced and capped like a write,
+/// so no block's receipts outgrow what its chi pays for.
+const VM_RETURN_VALUE_COST_PER_BYTE: u64 = VM_WRITE_COST_PER_BYTE;
+const VM_RETURN_VALUE_MAX_BYTES: usize = VM_WRITE_MAX_BYTES;
 
 /// Raw chi for each entry a whole-hash scan (`all`, `clear`, `clone_from`)
 /// visits, on top of the per-byte read charge (`xvm-gas-5`). Scanning one
@@ -203,6 +207,11 @@ impl VmMeter {
             return Ok(());
         }
         let encoded = encode_vm_value(value)?;
+        if encoded.len() >= VM_RETURN_VALUE_MAX_BYTES {
+            return Err(VmExecutionError::new(
+                "You have exceeded the maximum return value size per transaction!",
+            ));
+        }
         self.charge((encoded.len() as u64) * VM_RETURN_VALUE_COST_PER_BYTE)
     }
 
@@ -554,6 +563,32 @@ mod tests {
         assert!(parent.charge(1).is_err());
         assert_eq!(parent.raw_cost, 10_001);
         assert_eq!(child.raw_cost, 10_000);
+    }
+
+    #[test]
+    fn a_return_value_is_priced_and_capped_like_a_write() {
+        let meter = || {
+            VmMeter::new(VmMeterConfig {
+                enabled: true,
+                chi_budget_raw: 0,
+                transaction_size_bytes: 0,
+            })
+        };
+        // The receipt carries the return value as the state carries a write.
+        let value = crate::VmValue::String("r".repeat(1_000));
+        let mut returned = meter();
+        returned.charge_return_value(&value).unwrap();
+        assert_eq!(returned.raw_cost, 1_002 * super::VM_WRITE_COST_PER_BYTE);
+        let oversized = crate::VmValue::String("r".repeat(super::VM_WRITE_MAX_BYTES));
+        let mut refused = meter();
+        assert_eq!(
+            refused
+                .charge_return_value(&oversized)
+                .unwrap_err()
+                .to_string(),
+            "You have exceeded the maximum return value size per transaction!"
+        );
+        assert_eq!(refused.raw_cost, 0);
     }
 
     #[test]
