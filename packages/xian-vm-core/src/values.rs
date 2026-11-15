@@ -714,14 +714,18 @@ impl VmValue {
     }
 
     pub(crate) fn as_string(&self) -> Result<String, VmExecutionError> {
-        match self {
-            Self::Reference(value) => value.with_value(|value| value.as_string()),
-            Self::String(value) => Ok(value.clone()),
-            _ => Err(VmExecutionError::new(format!(
+        self.with_text(str::to_owned)
+    }
+
+    /// Read the text this value resolves to in place, without copying it.
+    pub(crate) fn with_text<T>(&self, read: impl FnOnce(&str) -> T) -> Result<T, VmExecutionError> {
+        self.with_resolved(|value| match value {
+            Self::String(text) => Ok(read(text)),
+            other => Err(VmExecutionError::new(format!(
                 "expected string value, got {}",
-                self.type_name()
+                other.type_name()
             ))),
-        }
+        })
     }
 
     pub(crate) fn as_contract_handle(&self) -> Result<VmContractHandle, VmExecutionError> {

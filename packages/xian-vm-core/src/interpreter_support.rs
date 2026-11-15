@@ -1987,7 +1987,7 @@ fn zk_argument_cost(syscall_id: &str, args: &[VmValue]) -> Result<u64, VmExecuti
         // One raw chi per payload byte, for each payload of the list.
         "zk.shielded_output_payload_hashes" => Ok(hex_items(&args[0]).1),
         // zk.shielded_output_payload_hash: one raw chi per payload byte.
-        _ => text_measure(&args[0], hex_payload_bytes),
+        _ => args[0].with_text(hex_payload_bytes),
     }
 }
 
@@ -1998,8 +1998,8 @@ fn verification_cost(
     key_bytes: fn(&str) -> u64,
     per_byte: u64,
 ) -> Result<u64, VmExecutionError> {
-    let key = text_measure(&args[0], key_bytes)?;
-    let proof = text_measure(&args[1], hex_payload_bytes)?;
+    let key = args[0].with_text(key_bytes)?;
+    let proof = args[1].with_text(hex_payload_bytes)?;
     let (inputs, input_bytes) = text_list(&args[2], "public_inputs")?;
     Ok(verification_charge(
         inputs,
@@ -2024,20 +2024,6 @@ fn per_item_cost(
     Ok(base + text_list(value, label)?.0 * each)
 }
 
-/// `measure` of the text `value` resolves to, read in place.
-fn text_measure(
-    value: &VmValue,
-    measure: impl FnOnce(&str) -> u64,
-) -> Result<u64, VmExecutionError> {
-    value.with_resolved(|value| match value {
-        VmValue::String(text) => Ok(measure(text)),
-        other => Err(VmExecutionError::new(format!(
-            "expected string value, got {}",
-            other.type_name()
-        ))),
-    })
-}
-
 /// The texts of the list or tuple `value`: how many, and their hex payload
 /// bytes.
 fn text_list(value: &VmValue, label: &str) -> Result<(u64, u64), VmExecutionError> {
@@ -2045,7 +2031,7 @@ fn text_list(value: &VmValue, label: &str) -> Result<(u64, u64), VmExecutionErro
         items
             .iter()
             .try_fold((0, 0), |(count, bytes): (u64, u64), item| {
-                let item_bytes = text_measure(item, hex_payload_bytes).ok()?;
+                let item_bytes = item.with_text(hex_payload_bytes).ok()?;
                 Some((count + 1, bytes.saturating_add(item_bytes)))
             })
     };
@@ -2066,7 +2052,7 @@ fn hex_items(value: &VmValue) -> (u64, u64) {
             items.len() as u64,
             items
                 .iter()
-                .map(|item| text_measure(item, hex_payload_bytes).unwrap_or(0))
+                .map(|item| item.with_text(hex_payload_bytes).unwrap_or(0))
                 .fold(0, u64::saturating_add),
         ),
         _ => (0, 0),
@@ -2097,8 +2083,7 @@ pub(super) fn zk_warm_metering_cost(requests: &VmValue) -> u64 {
 fn zk_warm_request_metering_cost(request: &VmValue) -> u64 {
     request.with_resolved(|request| {
         let text = |name, measure: fn(&str) -> u64| {
-            request_field(request, name)
-                .map_or(0, |value| text_measure(value, measure).unwrap_or(0))
+            request_field(request, name).map_or(0, |value| value.with_text(measure).unwrap_or(0))
         };
         let key = text("vk_id", |vk_id| vk_id.len() as u64);
         let proof = text("proof_hex", hex_payload_bytes);

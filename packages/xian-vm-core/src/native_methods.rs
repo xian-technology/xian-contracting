@@ -253,16 +253,24 @@ fn join_text(
     let [items] = args else {
         return Err(VmExecutionError::new("str.join() expects one argument"));
     };
-    let rendered = collect(items)?
-        .into_iter()
-        .map(|item| item.as_string())
-        .collect::<Result<Vec<_>, _>>()?;
-    let joined = rendered.iter().map(String::len).sum::<usize>()
-        + separator
-            .len()
-            .saturating_mul(rendered.len().saturating_sub(1));
+    // The items may be many references to one large text: measure them in
+    // place and count the work before building the one joined copy.
+    let items = collect(items)?;
+    let separators = separator
+        .len()
+        .saturating_mul(items.len().saturating_sub(1));
+    let joined = items.iter().try_fold(separators, |total, item| {
+        item.with_text(|text| total.saturating_add(text.len()))
+    })?;
     crate::work_meter::count(crate::work_meter::searched(joined))?;
-    Ok(rendered.join(separator))
+    let mut text = String::with_capacity(joined);
+    for (index, item) in items.iter().enumerate() {
+        if index > 0 {
+            text.push_str(separator);
+        }
+        item.with_text(|item| text.push_str(item))?;
+    }
+    Ok(text)
 }
 
 fn split_text(value: &str, args: &[VmValue]) -> Result<VmValue, VmExecutionError> {
