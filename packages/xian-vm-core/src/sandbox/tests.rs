@@ -434,3 +434,90 @@ fn a_paid_call_pays_half_of_the_chi_it_left_unused() {
         assert_eq!(balance, Some(balance_after(charged)));
     }
 }
+
+/// A chain whose contracts `con_c0 .. con_c{length - 1}` each import the
+/// one before; deployed by a factory in one transaction.
+fn import_chain(length: usize) -> Sandbox {
+    let chain = chain();
+    let factory = "@export\ndef build(n: int):\n    sub = importlib.import_module('submission')\n    for i in range(n):\n        code = '@export\\ndef f():\\n    return 1\\n'\n        if i > 0:\n            code = 'import con_c' + str(i - 1) + '\\n' + code\n        sub.submit_contract(name='con_c' + str(i), code=code)\n    return n\n";
+    let deployed = parsed(
+        &chain
+            .deploy(
+                &json!({"sender": "alice", "name": "con_factory", "source": factory,
+                        "constructor_args": {}, "environment": environment()})
+                .to_string(),
+            )
+            .unwrap(),
+    );
+    assert_eq!(deployed["status"], 0, "{deployed}");
+    let built = parsed(
+        &chain
+            .call(
+                &json!({"sender": "alice", "contract": "con_factory", "function": "build",
+                        "kwargs": {"n": length}, "environment": environment()})
+                .to_string(),
+            )
+            .unwrap(),
+    );
+    assert_eq!(built["status"], 0, "{built}");
+    chain
+}
+
+fn call_top(chain: &Sandbox, top: usize) -> Value {
+    parsed(
+        &chain
+            .call(
+                &json!({"sender": "alice", "contract": format!("con_c{top}"), "function": "f",
+                        "kwargs": {}, "environment": environment()})
+                .to_string(),
+            )
+            .unwrap(),
+    )
+}
+
+#[test]
+fn an_import_graph_deeper_than_the_execution_depth_cannot_run() {
+    // Preparation walks the static import graph recursively before any
+    // chi is charged: a chain of a few thousand contracts would overflow
+    // the validators' stack. The graph may be as deep as a call may be.
+    let limit = crate::execution_stack::MAX_EXECUTION_DEPTH;
+    let chain = import_chain(limit + 1);
+    assert_eq!(call_top(&chain, limit - 1)["status"], 0);
+    let refused = call_top(&chain, limit);
+    assert_eq!(refused["status"], 1);
+    assert_eq!(
+        refused["error"],
+        format!("xian_vm_v2 import graph is deeper than {limit} contracts: con_c{limit}")
+    );
+}
+
+#[test]
+fn an_import_cycle_cannot_run() {
+    let chain = chain();
+    for (name, imported) in [("con_x", "con_y"), ("con_y", "con_x")] {
+        let source = format!("import {imported}\n@export\ndef f():\n    return 1\n");
+        let deployed = parsed(
+            &chain
+                .deploy(
+                    &json!({"sender": "alice", "name": name, "source": source,
+                            "constructor_args": {}, "environment": environment()})
+                    .to_string(),
+                )
+                .unwrap(),
+        );
+        assert_eq!(deployed["status"], 0, "{deployed}");
+    }
+    let refused = parsed(
+        &chain
+            .call(
+                &json!({"sender": "alice", "contract": "con_x", "function": "f",
+                        "kwargs": {}, "environment": environment()})
+                .to_string(),
+            )
+            .unwrap(),
+    );
+    assert_eq!(
+        refused["error"],
+        "xian_vm_v2 import graph contains a cycle: con_x -> con_y -> con_x"
+    );
+}

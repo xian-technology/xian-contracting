@@ -27,6 +27,7 @@ use crate::block_host::{
 use crate::block_state::lock;
 use crate::bundle_executor::{validate_bundle_module, BundleExecutor, ExecutionOutcome};
 use crate::committed_store::storage_key_error;
+use crate::execution_stack::MAX_EXECUTION_DEPTH;
 use crate::metering::VM_TRANSACTION_BASE_CHI as TRANSACTION_BASE_CHI;
 use crate::settlement::{self, Balance, InvalidBalance, Reservation, Settled, Stop};
 use crate::state_view::StateView;
@@ -44,6 +45,23 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 const INSUFFICIENT_BALANCE: &str = "Sender does not have enough chi for the submitted budget.";
+/// Why `name`, imported below the modules on `stack` (the entry first),
+/// ends the walk: an import cycle, or a level deeper than a call may go.
+/// The walk recurses once per level before any chi is charged, so its
+/// depth must never approach the validators' stack.
+fn import_path_error(name: &str, stack: &[String]) -> Option<String> {
+    if stack.iter().any(|entry| entry == name) {
+        let path = [stack, &[name.to_owned()]].concat().join(" -> ");
+        return Some(format!("xian_vm_v2 import graph contains a cycle: {path}"));
+    }
+    (stack.len() >= MAX_EXECUTION_DEPTH).then(|| {
+        format!(
+            "xian_vm_v2 import graph is deeper than {MAX_EXECUTION_DEPTH} contracts: {}",
+            stack[0]
+        )
+    })
+}
+
 /// `vm_contract_source_error("submission", "submit_contract")`.
 const MISSING_SOURCE: &str = "xian_vm_v2 requires source code for submission.submit_contract";
 /// `canonical_failure`'s text for a failure outside the VM's own errors.
@@ -525,11 +543,8 @@ impl BlockExecutor {
         stack: &mut Vec<String>,
         prepared: &mut BTreeMap<String, ValidatedModuleIr>,
     ) -> Result<(), PrepareStop> {
-        if stack.iter().any(|entry| entry == name) {
-            let path = [stack.as_slice(), &[name.to_owned()]].concat().join(" -> ");
-            return Err(PrepareStop::Unprepared(Unprepared::prepare_error(format!(
-                "xian_vm_v2 import graph contains a cycle: {path}"
-            ))));
+        if let Some(refused) = import_path_error(name, stack) {
+            return Err(PrepareStop::Unprepared(Unprepared::prepare_error(refused)));
         }
         if prepared.contains_key(name) {
             return Ok(());
