@@ -1,0 +1,699 @@
+{
+ "create": {
+  "environment": {
+   "now": {
+    "__time__": [
+     2026,
+     11,
+     15,
+     12,
+     0,
+     0,
+     0
+    ]
+   },
+   "block_num": 7,
+   "block_hash": "abababababababababababababababababababababababababababababababab",
+   "chain_id": "xian-sandbox-1"
+  }
+ },
+ "steps": [
+  {
+   "deploy": {
+    "sender": "alice",
+    "name": "con_token",
+    "source_file": "con_token.py",
+    "constructor_args": {
+     "symbol": "XTK",
+     "supply": {
+      "__big_int__": "123456789012345678901234567890"
+     }
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "deploy": {
+    "sender": "bob",
+    "name": "con_token",
+    "source_file": "con_token.py",
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "deploy": {
+    "sender": "bob",
+    "name": "con_broken",
+    "source_file": "con_broken.py",
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "deploy": {
+    "sender": "bob",
+    "name": "not_con",
+    "source_file": "con_token.py",
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "transfer",
+    "kwargs": {
+     "to": "bob",
+     "amount": {
+      "__fixed__": "1.5"
+     }
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "bob",
+    "contract": "con_token",
+    "function": "transfer",
+    "kwargs": {
+     "to": "carol",
+     "amount": {
+      "__fixed__": "0.000000000000000000000000000001"
+     }
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "bob",
+    "contract": "con_token",
+    "function": "transfer",
+    "kwargs": {
+     "to": "carol",
+     "amount": {
+      "__fixed__": "99"
+     }
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "transfer",
+    "kwargs": {
+     "to": "carol",
+     "amount": {
+      "__fixed__": "-1"
+     }
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "add",
+    "kwargs": {
+     "a": {
+      "__fixed__": "0.1"
+     },
+     "b": {
+      "__fixed__": "0.2"
+     }
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "add",
+    "kwargs": {
+     "a": {
+      "__fixed__": "123456789012345678901234567890.123456789012345678901234567891"
+     },
+     "b": 1
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "power",
+    "kwargs": {
+     "base": 3,
+     "exponent": 200
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "power",
+    "kwargs": {
+     "base": -2,
+     "exponent": 63
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "describe",
+    "kwargs": {
+     "values": {
+      "z": 1,
+      "a": [
+       true,
+       null,
+       "é"
+      ],
+      "m": {
+       "__bytes__": "00ff"
+      }
+     },
+     "when": {
+      "__time__": [
+       2024,
+       2,
+       29,
+       23,
+       59,
+       59,
+       999999
+      ]
+     },
+     "span": {
+      "__delta__": [
+       1,
+       1
+      ]
+     }
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       5,
+       250000
+      ]
+     },
+     "block_num": {
+      "__big_int__": "9007199254740993"
+     },
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "distinct",
+    "kwargs": {
+     "items": [
+      3,
+      1,
+      2,
+      3,
+      "b",
+      "a"
+     ]
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "remember",
+    "kwargs": {
+     "key": "nothing"
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "remember",
+    "kwargs": {
+     "key": "symbol",
+     "value": null
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "spin",
+    "kwargs": {
+     "count": 1000000
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    },
+    "chi_budget": 40
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "spin",
+    "kwargs": {
+     "count": 2000
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    },
+    "metering": false
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "spin",
+    "kwargs": {
+     "count": 2000
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "transfer",
+    "kwargs": {
+     "to": "dave",
+     "amount": 7
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    },
+    "commit": false
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "missing",
+    "kwargs": {},
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_token",
+    "function": "balance_of",
+    "kwargs": {
+     "account": "bob"
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "con_nowhere",
+    "function": "f",
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  },
+  {
+   "call": {
+    "sender": "alice",
+    "contract": "submission",
+    "function": "change_owner",
+    "kwargs": {
+     "contract": "con_token",
+     "new_owner": "erin"
+    },
+    "environment": {
+     "now": {
+      "__time__": [
+       2026,
+       11,
+       15,
+       12,
+       0,
+       0,
+       0
+      ]
+     },
+     "block_num": 7,
+     "block_hash": "abababababababababababababababababababababababababababababababab",
+     "chain_id": "xian-sandbox-1"
+    }
+   }
+  }
+ ]
+}

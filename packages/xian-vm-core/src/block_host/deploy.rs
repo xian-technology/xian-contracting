@@ -10,7 +10,9 @@
 //! arguments are not plain values fails with the host failure alone.
 use super::charges::host_runtime_error;
 use super::modules::{uses_zk, Ir};
-use super::{BlockHost, DEVELOPER_KEY, IR_KEY, OWNER_KEY, SOURCE_KEY};
+use super::{
+    BlockHost, DEPLOYER_KEY, DEVELOPER_KEY, INITIATOR_KEY, IR_KEY, OWNER_KEY, SOURCE_KEY, TIME_KEY,
+};
 use crate::bundle_executor::{validate_bundle_module, BundleExecutor, ExecutionOutcome};
 use crate::module_cache::shared_module;
 use crate::{
@@ -29,9 +31,6 @@ const DEPLOYMENT_BASE_COST: u64 = 5_000;
 const DEPLOYMENT_COST_PER_SOURCE_BYTE: u64 = 1;
 /// `contracting.names.MAX_CONTRACT_NAME_LENGTH`.
 const MAX_CONTRACT_NAME_LENGTH: usize = 64;
-const TIME_KEY: &str = "__submitted__";
-const DEPLOYER_KEY: &str = "__deployer__";
-const INITIATOR_KEY: &str = "__initiator__";
 /// `contract.deploy`'s arguments.
 struct Deployment {
     name: VmValue,
@@ -374,7 +373,7 @@ fn source_code(code: &VmValue) -> Result<&str, VmExecutionError> {
 
 /// `compile_contract_source`: the normalized source (linted) and its IR
 /// (compiled from that source without the lint).
-fn compile(name: &str, code: &str) -> Result<(String, String), VmExecutionError> {
+pub(crate) fn compile(name: &str, code: &str) -> Result<(String, String), VmExecutionError> {
     let linted = CompileOptions {
         vm_profile: XIAN_VM_V2_PROFILE.to_owned(),
         lint: true,

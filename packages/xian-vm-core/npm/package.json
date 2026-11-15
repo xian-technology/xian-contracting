@@ -1,0 +1,34 @@
+{
+  "name": "@xian-tech/vm",
+  "version": "0.1.3",
+  "private": true,
+  "description": "The Xian VM (xian-vm-core) as WebAssembly: an in-memory chain that deploys and calls contracts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/xian_vm_core.d.ts",
+      "import": "./dist/xian_vm_core.js"
+    },
+    "./types": {
+      "types": "./types.d.ts"
+    }
+  },
+  "types": "./dist/xian_vm_core.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xian-technology/xian-contracting"
+  },
+  "homepage": "https://github.com/xian-technology/xian-contracting",
+  "files": [
+    "dist",
+    "types.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node scripts/build-wasm.mjs && node scripts/ensure-publishable-dist.mjs",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "prepack": "npm run build"
+  },
+  "license": "MIT"
+}

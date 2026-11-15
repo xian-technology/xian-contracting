@@ -19,6 +19,8 @@
 //! store means no rewards for that transaction: its fee is burned, as the
 //! burn share is. The transaction itself is unaffected, so the governance
 //! transaction that repairs the configuration still runs.
+// The browser build runs single transactions: block-only parts are unused there.
+#![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
 use crate::committed_store::storage_key_error;
 use crate::settlement::{checked, checked_add, fixed_int, InvalidBalance, Settled, Stop};
 use crate::{VmDecimal, VmValue};

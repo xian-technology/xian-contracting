@@ -13,6 +13,8 @@
 //!
 //! `None` means bytes admission refuses (the node runs only admitted
 //! transactions).
+// The browser build runs single transactions: block-only parts are unused there.
+#![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
 use crate::stored_value::decode_stored_value;
 use crate::{VmDateTime, VmExecutionContext, VmValue};
 use chrono::{DateTime, Datelike, Timelike};
@@ -106,7 +108,7 @@ fn integer(value: &Value) -> Option<BigInt> {
 }
 
 /// The keyword arguments as the VM receives them, in their JSON key order.
-fn call_kwargs(kwargs: &Value) -> Option<Vec<(String, VmValue)>> {
+pub(crate) fn call_kwargs(kwargs: &Value) -> Option<Vec<(String, VmValue)>> {
     let json = canonical_json(kwargs).ok()?;
     let VmValue::Dict(entries) = decode_stored_value(json.as_bytes()).ok()? else {
         return None;
@@ -139,7 +141,7 @@ fn context(meta: &BlockMeta, call: &Call, signature: &str) -> Option<VmExecution
 /// The `name` argument of a call to the submission contract, when it is
 /// text (revision 14: a name of another type is no submission name; the
 /// deployment then refuses it).
-fn submission_name(contract: &str, kwargs: &[(String, VmValue)]) -> Option<String> {
+pub(crate) fn submission_name(contract: &str, kwargs: &[(String, VmValue)]) -> Option<String> {
     if contract != "submission" {
         return None;
     }

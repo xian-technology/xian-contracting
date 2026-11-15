@@ -44,6 +44,8 @@ mod metering;
 mod module_cache;
 #[cfg(any(feature = "engine", test))]
 mod panic_guard;
+#[cfg(any(feature = "wasm", test))]
+mod sandbox;
 mod set_member_codec;
 #[cfg(any(feature = "engine", test))]
 mod settlement;
@@ -57,7 +59,7 @@ mod storage_scan;
 mod stored_value;
 #[cfg(any(feature = "engine", test))]
 mod stored_value_encoder;
-#[cfg(any(feature = "engine", test))]
+#[cfg(any(feature = "python-extension", test))]
 mod transaction_admission;
 #[cfg(any(feature = "engine", test))]
 mod transaction_inputs;
@@ -90,6 +92,8 @@ mod lmdb_python;
 mod python_bindings;
 #[cfg(feature = "python-extension")]
 mod state_root_python;
+#[cfg(feature = "wasm")]
+mod wasm_bindings;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Span {

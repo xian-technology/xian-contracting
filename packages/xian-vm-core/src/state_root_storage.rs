@@ -1,6 +1,8 @@
 //! The state root of committed storage: every hashed key with the exact bytes
 //! the store holds for it, read from one snapshot. Values are not decoded; a
 //! leaf commits to the stored bytes themselves (see `state_root.rs`).
+// The browser build runs single transactions: block-only parts are unused there.
+#![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
 use crate::committed_store::CommittedStore;
 use crate::state_root::{leaf_hash, StateRootTree, TreeBuilder};
 

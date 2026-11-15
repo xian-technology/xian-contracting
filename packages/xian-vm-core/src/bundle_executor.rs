@@ -1,6 +1,6 @@
 //! A VM bundle execution: module loading and instantiation, cross-contract
 //! calls, storage overlay, events and metering, over a `HostServices` host.
-#![cfg_attr(not(feature = "engine"), allow(dead_code))]
+#![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
 use crate::interpreter::{vm_hash_storage_key, vm_variable_storage_key};
 use crate::module_cache::shared_module;
 use crate::XIAN_VM_V2_PROFILE;

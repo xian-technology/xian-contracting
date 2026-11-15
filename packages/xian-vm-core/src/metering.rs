@@ -1,4 +1,4 @@
-#![cfg_attr(not(feature = "engine"), allow(dead_code))]
+#![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
 
 use crate::{VmExecutionError, VmValue};
 use num_traits::ToPrimitive;

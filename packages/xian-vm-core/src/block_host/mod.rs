@@ -8,10 +8,12 @@
 //! state, `zk` the zk syscalls (`features` the chain's zk runtime feature),
 //! `writes` what one transaction's host syscalls stage, `charges` what they
 //! cost.
-#![cfg_attr(not(feature = "engine"), allow(dead_code))]
+#![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
 
 mod charges;
 mod deploy;
+#[cfg(any(feature = "wasm", test))]
+pub(crate) use deploy::compile;
 pub(crate) mod features;
 mod metadata;
 pub(crate) mod modules;
@@ -34,6 +36,9 @@ pub(crate) const IR_KEY: &str = "__xian_ir_v1__";
 pub(crate) const SOURCE_KEY: &str = "__source__";
 pub(crate) const OWNER_KEY: &str = "__owner__";
 pub(crate) const DEVELOPER_KEY: &str = "__developer__";
+pub(crate) const TIME_KEY: &str = "__submitted__";
+pub(crate) const DEPLOYER_KEY: &str = "__deployer__";
+pub(crate) const INITIATOR_KEY: &str = "__initiator__";
 
 pub(crate) fn fault(error: String) -> Stop {
     Stop::Fault(error)

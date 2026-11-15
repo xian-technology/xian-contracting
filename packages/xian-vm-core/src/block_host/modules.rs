@@ -1,4 +1,6 @@
 //! The contracts' IR as the node prepares it, read once per run.
+// The browser build runs single transactions: block-only parts are unused there.
+#![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
 use super::IR_KEY;
 use crate::module_cache::shared_module;
 use crate::state_view::StateView;

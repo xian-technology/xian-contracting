@@ -8,6 +8,8 @@
 //!
 //! The state opens at most one discarding scope: every change made inside it is
 //! undone when it closes, at a cost that follows what the scope touched.
+// The browser build runs single transactions: block-only parts are unused there.
+#![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
 use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 #[cfg(any(feature = "engine", test))]

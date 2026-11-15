@@ -17,6 +17,8 @@
 //! syscall. Only a host fault (unreadable state, or a chain chi rate the
 //! node refuses to price with) stops a transaction (`Stop::Fault`): the
 //! node halts.
+// The browser build runs single transactions: block-only parts are unused there.
+#![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
 use crate::block_host::features::{zk_disabled, zk_enabled, Unread};
 use crate::block_host::modules::{exports, runnable, uses_zk};
 use crate::block_host::{
