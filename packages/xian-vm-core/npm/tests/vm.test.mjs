@@ -114,3 +114,54 @@ test("helpers: canonical decimals and runtime info", () => {
   assert.throws(() => canonicalDecimal("abc"));
   assert.equal(JSON.parse(runtimeInfo()).execution_revision, "xvm-execution-14");
 });
+
+const ZK_SOURCE = `
+@export
+def verify(vk_hex: str, proof_hex: str, inputs: list):
+    return zk.verify_groth16_bn254(vk_hex, proof_hex, inputs)
+
+@export
+def verify_registered(proof_hex: str, inputs: list):
+    return zk.verify_groth16("demo", proof_hex, inputs)
+
+@export
+def warm(proof_hex: str, n: int):
+    requests = []
+    for i in range(n):
+        digits = hex(i + 7)[2:]
+        field = "0x" + "0" * (64 - len(digits)) + digits
+        requests.append({"vk_id": "demo", "proof_hex": proof_hex, "public_inputs": [field]})
+    return len(zk.warm_verified_proofs(requests))
+`;
+
+test("zk proofs verify in the WebAssembly build as on a node", async () => {
+  const demo = JSON.parse(
+    await readFile(new URL("../../../xian-zk/tests/fixtures/groth16_bn254_demo.json", import.meta.url), "utf8"),
+  );
+  const chain = new VmChain(JSON.stringify({ environment }));
+  const registry = { vk_hex: demo.vk_hex, scheme: "groth16", curve: "bn254", vk_hash: "h", active: true };
+  for (const [field, value] of Object.entries(registry)) {
+    chain.setValue(`zk_registry.verifying_keys:demo:${field}`, JSON.stringify(value));
+  }
+  const deployed = JSON.parse(
+    chain.deploy(JSON.stringify({ sender: "alice", name: "con_zk", source: ZK_SOURCE, environment })),
+  );
+  assert.equal(deployed.status, 0, deployed.error);
+  const zk = (fn, kwargs) =>
+    JSON.parse(chain.call(JSON.stringify({ sender: "alice", contract: "con_zk", function: fn, kwargs, environment })));
+  const inputs = demo.public_inputs;
+  assert.equal(zk("verify", { vk_hex: demo.vk_hex, proof_hex: demo.proof_hex, inputs }).result, "true");
+  assert.equal(zk("verify_registered", { proof_hex: demo.proof_hex, inputs }).result, "true");
+  const tampered = ["0x" + "00".repeat(31) + "01"];
+  assert.equal(zk("verify_registered", { proof_hex: demo.proof_hex, inputs: tampered }).result, "false");
+  // A statement with more inputs than the key is refused, not truncated.
+  const extra = zk("verify_registered", { proof_hex: demo.proof_hex, inputs: [...inputs, inputs[0]] });
+  assert.equal(extra.status, 1);
+  assert.equal(extra.error, "public input count does not match the verifying key");
+  // Warming charges each proof as zk.verify_groth16 does.
+  const one = zk("warm", { proof_hex: demo.proof_hex, n: 1 });
+  const four = zk("warm", { proof_hex: demo.proof_hex, n: 4 });
+  assert.equal(four.status, 0, four.error);
+  assert.ok(four.chi_used - one.chi_used >= 3 * 750, `${one.chi_used} -> ${four.chi_used}`);
+  chain.free();
+});
