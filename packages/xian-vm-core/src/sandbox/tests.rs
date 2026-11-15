@@ -636,6 +636,32 @@ fn a_boundary_copy_is_paid_before_it_is_made() {
 }
 
 #[test]
+fn a_set_member_key_is_paid_before_it_is_copied() {
+    // A set orders its members by a key that copies every text of the
+    // member. A tuple of 8000 references to one 16 KiB text costs a few
+    // hundred chi; its key copies 125 MiB. The copy stops at the budget
+    // instead of being made first and refused afterwards.
+    let chain = deployed_source(
+        "@export\ndef keyed(kind: str, n: int):\n    member = tuple(['ab' * 8192] * n)\n    if kind == 'set':\n        return len(set([member]))\n    if kind == 'frozenset':\n        return len(frozenset([member]))\n    s = set()\n    s.add(member)\n    return len(s)\n",
+    );
+    for kind in ["set", "frozenset", "add"] {
+        let outcome = parsed(
+            &chain
+                .call(
+                    &json!({"sender": "alice", "contract": "con_probe", "function": "keyed",
+                            "kwargs": {"kind": kind, "n": 8_000}, "environment": environment(),
+                            "chi_budget": 5_000})
+                    .to_string(),
+                )
+                .unwrap(),
+        );
+        assert_eq!(outcome["status"], 1, "{kind}: {outcome}");
+        assert_eq!(outcome["error"], "Out of chi.", "{kind}");
+        assert_eq!(outcome["chi_used"], 5_000, "{kind}");
+    }
+}
+
+#[test]
 fn iterating_a_text_holds_no_copy_of_its_characters() {
     // A string iterator held one heap object per character, and the heap
     // keeps every iterator until the transaction ends: 32 joins of a

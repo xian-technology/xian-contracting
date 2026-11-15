@@ -238,12 +238,42 @@ fn set_insertion_position<K: Ord>(
     Ok(values.len())
 }
 
+/// The ordering key of a set member. A key copies the member's texts and
+/// bytes, so each node's copy is counted against the budget before it is
+/// made: one member can reference one large text many times.
 fn vm_set_key(value: &VmValue) -> Result<VmSetKey, VmExecutionError> {
-    let value = &value.snapshot();
+    value.with_resolved(|value| {
+        crate::work_meter::count(crate::work_meter::copied(value))?;
+        resolved_set_key(value)
+    })
+}
+
+fn resolved_set_key(value: &VmValue) -> Result<VmSetKey, VmExecutionError> {
+    match value {
+        VmValue::Tuple(values) => Ok(VmSetKey::Tuple(member_set_keys(values)?)),
+        VmValue::FrozenSet(values) => Ok(VmSetKey::FrozenSet(member_set_keys(values)?)),
+        scalar => scalar_set_key(scalar),
+    }
+}
+
+fn member_set_keys(values: &[VmValue]) -> Result<Vec<VmSetKey>, VmExecutionError> {
+    values.iter().map(vm_set_key).collect()
+}
+
+fn scalar_set_key(value: &VmValue) -> Result<VmSetKey, VmExecutionError> {
     match value {
         VmValue::None => Ok(VmSetKey::None),
         VmValue::Bool(value) => Ok(VmSetKey::Bool(*value)),
         VmValue::Int(value) => Ok(VmSetKey::Int(value.clone())),
+        VmValue::String(value) => Ok(VmSetKey::String(value.clone())),
+        VmValue::Bytes(value) => Ok(VmSetKey::Bytes(value.clone())),
+        other => wrapper_set_key(other),
+    }
+}
+
+/// Keys of the fixed Decimal and time values a frozenset wrapper holds.
+fn wrapper_set_key(value: &VmValue) -> Result<VmSetKey, VmExecutionError> {
+    match value {
         VmValue::Decimal(value) => Ok(VmSetKey::Decimal(value.scaled.clone())),
         VmValue::DateTime(value) => Ok(VmSetKey::DateTime((
             value.year(),
@@ -255,20 +285,6 @@ fn vm_set_key(value: &VmValue) -> Result<VmSetKey, VmExecutionError> {
             value.microsecond(),
         ))),
         VmValue::TimeDelta(value) => Ok(VmSetKey::TimeDelta(value.seconds())),
-        VmValue::String(value) => Ok(VmSetKey::String(value.clone())),
-        VmValue::Bytes(value) => Ok(VmSetKey::Bytes(value.clone())),
-        VmValue::Tuple(values) => Ok(VmSetKey::Tuple(
-            values
-                .iter()
-                .map(vm_set_key)
-                .collect::<Result<Vec<_>, _>>()?,
-        )),
-        VmValue::FrozenSet(values) => Ok(VmSetKey::FrozenSet(
-            values
-                .iter()
-                .map(vm_set_key)
-                .collect::<Result<Vec<_>, _>>()?,
-        )),
         other => Err(VmExecutionError::new(format!(
             "unhashable type: '{}'",
             other.type_name()
