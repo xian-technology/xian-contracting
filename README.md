@@ -71,7 +71,9 @@ Use a fresh V2 storage directory for local tests.
 
 Local clients use the canonical compiler and do not accept a `compiler=`
 override. Use `compile_contract_source` or `build_contract_artifacts` from
-`contracting.artifacts` to compile offline. V1 compilation, IR validation and
+`contracting.artifacts` to compile offline; both delegate to the Rust compiler
+core, so tools that only compile can call `xian_compiler_core` (package
+`xian-tech-compiler-core`) directly. V1 compilation, IR validation and
 stored-value encoding remain for migration and archival tooling; current code
 does not execute V1 contracts (historical V1 execution uses the pinned older
 release). Every contract call runs in the Rust VM; the Python package does not

@@ -6,9 +6,15 @@ WASM bindings for `xian-compiler-core`.
 npm run build
 ```
 
-The generated package exposes JSON-string APIs for diagnostics, normalization,
-IR lowering, artifact compilation, artifact validation, compiler version
-metadata, and the Xian VM host catalog.
+The generated package exposes JSON-string APIs for diagnostics
+(`diagnoseContractJson`), normalization (`normalizeSource`), IR lowering
+(`lowerSourceToIrJson`), artifact compilation (`compileContractArtifactJson`),
+the deploy pair of normalized source and canonical IR
+(`compileContractSourceJson`), artifact validation
+(`validateContractArtifactJson(moduleName, artifactJson, inputSource?,
+vmProfile?)`), compiler version metadata (`compilerVersionJson`), and the Xian
+VM host catalog (`hostSurfaceJson`). They run the same Rust code as the Python
+package `xian-tech-compiler-core`, so artifacts are byte-identical across both.
 
 Primary browser/JS entrypoint:
 

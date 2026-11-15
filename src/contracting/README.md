@@ -6,7 +6,9 @@ harness, manages contract storage, and exposes the contract-side stdlib bridge.
 
 ## Contents
 
-- `artifacts/`: public source compiler, artifact builder, and validator
+- `artifacts/`: public source compiler, artifact builder, and validator; each
+  call delegates to the Rust compiler core (`xian_compiler_core`) after checking
+  its host catalog against this runtime's host bindings
 - `compiler/`: public compiler import surface
 - `local/`: `ContractingClient` facade used by tests, tools, and local callers
 - `compilation/`: linter, compiler internals, conformance checks, and

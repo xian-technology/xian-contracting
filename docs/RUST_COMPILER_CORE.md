@@ -27,11 +27,12 @@ tags.
   - `hashes.source_sha256`
   - `hashes.vm_ir_sha256`
 - Give every public surface the same compiler behavior:
-  - `contracting.artifacts.compile_contract_source(...)`
-  - `contracting.artifacts.build_contract_artifacts(...)`
+  - `xian_compiler_core` (Python) and `@xian-tech/compiler` (WASM)
+  - `contracting.artifacts.compile_contract_source(...)` and
+    `build_contract_artifacts(...)` (thin delegations)
   - node-side `source -> IR` deployment admission
-  - `xian contract build-artifacts ...`
-  - `xian-ide-web` lint/diagnostics
+  - `xian contract build-artifacts ...` and `xian-linter`
+  - `xian-ide-web` and `xian-playground-web` lint/diagnostics
 - Keep compiler output reproducible across operating systems, CPU
   architectures, Python versions, Node versions, and browsers.
 - Retire the Python compiler from public and consensus surfaces after the Rust
@@ -49,8 +50,21 @@ tags.
 ## Current State
 
 The current production compiler path is the Rust `xian-compiler-core` package
-under `packages/xian-compiler-core/`, with Python bindings consumed by
-`contracting.artifacts`.
+under `packages/xian-compiler-core/`. Its Python binding (`xian_compiler_core`)
+is called directly by xian-linter and `xian contract build-artifacts`, and
+through `contracting.artifacts` by the contract runtime; its WASM build
+(`@xian-tech/compiler`) by the browser apps and xian-js.
+
+The crate owns everything between source and artifact: normalization, the
+deploy pair (`compile_contract_source`: normalized source plus canonical IR,
+which vm-core's deploy path and the contracting driver use), artifact assembly
+and hashing, artifact validation including the expected execution profile, and
+the profile constants. `contracting.artifacts` only adds a check that the native
+host catalog matches the contract runtime's host bindings. Python and WASM
+artifacts are byte-identical because both bindings serialize the same Rust
+value. Structural IR validation stays in vm-core
+(`xian_vm_core.validate_module_ir_json`), the VM's own admission rules; the
+compiler does not duplicate them.
 
 Current behavior:
 
@@ -115,7 +129,8 @@ Recommended first layout inside `xian-contracting`:
     source/IR/hash validation.
   - No filesystem, network, wall-clock time, randomness, or host callbacks.
 - `packages/xian-vm-core/`
-  - Continues to own VM execution and artifact/IR structural validation.
+  - Continues to own VM execution and IR structural validation; artifact
+    validation belongs to the compiler core.
   - May share schema constants with compiler core. If sharing grows, extract a
     tiny `xian-contract-schema` crate instead of creating circular ownership.
 - `packages/xian-compiler-core/python/`
@@ -209,14 +224,21 @@ parsing exception strings.
 
 ### Python
 
-`xian-tech-contracting` remains the public Python import surface:
+Compile-only tools import the binding directly:
 
 ```python
-from contracting.artifacts import compile_contract_source, build_contract_artifacts
+import xian_compiler_core
+
+artifact = xian_compiler_core.compile_contract_artifact("con_counter", source)
+pair = xian_compiler_core.compile_contract_source("con_counter", source)
+xian_compiler_core.validate_contract_artifact(
+    "con_counter", artifact, vm_profile=xian_compiler_core.DEFAULT_VM_PROFILE
+)
 ```
 
-`xian-tech-contracting` delegates source compilation and artifact builds to the
-Rust binding. `xian-py deploy_contract(...)` and `submit_contract(...)` submit
+`contracting.artifacts` (`compile_contract_source`, `build_contract_artifacts`,
+`validate_contract_artifacts`, `diagnose_contract_source`) keeps the same
+operations for runtime code and delegates each call to the binding. `xian-py deploy_contract(...)` and `submit_contract(...)` submit
 source directly; validators compile and persist canonical IR.
 
 ### JavaScript
@@ -250,7 +272,9 @@ inspection, not a network deployment payload.
 
 ### CLI
 
-`xian contract build-artifacts` remains the offline artifact builder.
+`xian contract build-artifacts` remains the offline artifact builder. It calls
+`xian_compiler_core.compile_contract_artifact` directly; the CLI still installs
+`xian-tech-contracting` through `xian-tech-abci` for node init and genesis.
 
 `xian client tx submit-source` is the signed network submitter.
 
