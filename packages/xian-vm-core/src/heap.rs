@@ -734,6 +734,33 @@ mod tests {
     }
 
     #[test]
+    fn execution_local_values_are_refused_at_the_boundary() {
+        let refusal = |value: VmValue| value.detached().unwrap_err().to_string();
+        assert_eq!(
+            refusal(VmValue::BuiltinSet(vec![])),
+            "builtin sets cannot cross the VM boundary; convert with set() first"
+        );
+        assert_eq!(
+            refusal(VmValue::MappingProxy(Box::new(VmValue::Dict(vec![])))),
+            "mapping proxies cannot cross the VM boundary; copy them first"
+        );
+        assert_eq!(
+            refusal(VmValue::DeploymentHandle),
+            "deployment handles cannot cross the VM boundary"
+        );
+        assert_eq!(
+            refusal(VmValue::Range(crate::VmRange {
+                start: 0.into(),
+                stop: 3.into(),
+                step: 1.into(),
+            })),
+            "iterators and ranges cannot cross the VM boundary; materialize them first"
+        );
+        // Callables are the one execution-local kind that may cross.
+        assert!(VmValue::Builtin("len".into()).detached().is_ok());
+    }
+
+    #[test]
     fn exceptions_detach_nested_arguments() {
         let heap = VmHeap::default();
         let exception = VmValue::Exception(crate::VmException {
