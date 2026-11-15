@@ -2,6 +2,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::artifact::{validate_contract_artifact, ContractArtifact};
 use crate::compiler::{compiler_version, diagnose_contract, CompileOptions};
+use crate::diagnostic::{compiler_error_message, CompilerDiagnostic};
 use crate::ir::{
     compile_contract_artifact, compile_contract_source, describe_vm_host_surface,
     lower_source_to_ir_json,
@@ -100,11 +101,6 @@ fn parse_options(options_json: Option<String>) -> Result<CompileOptions, JsValue
     }
 }
 
-fn diagnostics_error(diagnostics: Vec<crate::diagnostic::CompilerDiagnostic>) -> JsValue {
-    let message = diagnostics
-        .first()
-        .map(|diagnostic| format!("{}: {}", diagnostic.code, diagnostic.message))
-        .unwrap_or_else(|| "compiler failed".to_string());
-    let payload = serde_json::to_string(&diagnostics).unwrap_or_else(|_| message.clone());
-    JsValue::from_str(&format!("{message}\n{payload}"))
+fn diagnostics_error(diagnostics: Vec<CompilerDiagnostic>) -> JsValue {
+    JsValue::from_str(&compiler_error_message(&diagnostics))
 }
