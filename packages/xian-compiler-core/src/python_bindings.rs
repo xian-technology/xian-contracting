@@ -6,7 +6,10 @@ use serde_json::json;
 
 use crate::artifact::{validate_contract_artifact, ContractArtifact};
 use crate::compiler::{compiler_version, diagnose_contract, CompileOptions};
-use crate::ir::{compile_contract_artifact, describe_vm_host_surface, lower_source_to_ir_json};
+use crate::ir::{
+    compile_contract_artifact, compile_contract_source, describe_vm_host_surface,
+    lower_source_to_ir_json,
+};
 use crate::normalize::normalize_source;
 
 create_exception!(xian_compiler_core, CompilerError, PyValueError);
@@ -54,6 +57,18 @@ fn compile_contract_artifact_json(
     serde_json::to_string(&artifact).map_err(|error| PyValueError::new_err(error.to_string()))
 }
 
+#[pyfunction(signature=(module_name, source, *, options_json=None))]
+fn compile_contract_source_json(
+    module_name: &str,
+    source: &str,
+    options_json: Option<&str>,
+) -> PyResult<String> {
+    let options = parse_options(options_json)?;
+    let compiled =
+        compile_contract_source(module_name, source, &options).map_err(compiler_error)?;
+    serde_json::to_string(&compiled).map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
 #[pyfunction(signature=(expected_module_name, artifact_json, *, input_source=None))]
 fn validate_contract_artifact_json(
     expected_module_name: &str,
@@ -90,6 +105,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(normalize_source_text, module)?)?;
     module.add_function(wrap_pyfunction!(lower_source_to_ir_json_py, module)?)?;
     module.add_function(wrap_pyfunction!(compile_contract_artifact_json, module)?)?;
+    module.add_function(wrap_pyfunction!(compile_contract_source_json, module)?)?;
     module.add_function(wrap_pyfunction!(validate_contract_artifact_json, module)?)?;
     module.add_function(wrap_pyfunction!(compiler_version_json, module)?)?;
     module.add_function(wrap_pyfunction!(host_surface_json, module)?)?;

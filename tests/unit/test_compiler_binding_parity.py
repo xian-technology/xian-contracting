@@ -34,12 +34,23 @@ def test_python_binding_matches_shared_compiler_fixture(fixture_path: Path) -> N
             vm_profile=fixture["vm_profile"],
         )
         assert artifact == fixture["artifact"]
+        assert xian_compiler_core.compile_contract_source(
+            fixture["module_name"],
+            fixture["input_source"],
+            vm_profile=fixture["vm_profile"],
+        ) == {"source": artifact["source"], "vm_ir_json": artifact["vm_ir_json"]}
     else:
         with pytest.raises(xian_compiler_core.CompilerError):
             xian_compiler_core.compile_contract_artifact(
                 fixture["module_name"],
                 fixture["input_source"],
                 lint=True,
+                vm_profile=fixture["vm_profile"],
+            )
+        with pytest.raises(xian_compiler_core.CompilerError, match=fixture["diagnostics"][0]["code"]):
+            xian_compiler_core.compile_contract_source(
+                fixture["module_name"],
+                fixture["input_source"],
                 vm_profile=fixture["vm_profile"],
             )
 

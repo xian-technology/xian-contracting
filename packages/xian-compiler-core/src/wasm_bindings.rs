@@ -2,7 +2,10 @@ use wasm_bindgen::prelude::*;
 
 use crate::artifact::{validate_contract_artifact, ContractArtifact};
 use crate::compiler::{compiler_version, diagnose_contract, CompileOptions};
-use crate::ir::{compile_contract_artifact, describe_vm_host_surface, lower_source_to_ir_json};
+use crate::ir::{
+    compile_contract_artifact, compile_contract_source, describe_vm_host_surface,
+    lower_source_to_ir_json,
+};
 use crate::normalize::normalize_source;
 
 #[wasm_bindgen(js_name = diagnoseContractJson)]
@@ -46,6 +49,18 @@ pub fn compile_contract_artifact_json(
     let artifact =
         compile_contract_artifact(module_name, source, &options).map_err(diagnostics_error)?;
     serde_json::to_string(&artifact).map_err(|error| JsValue::from_str(&error.to_string()))
+}
+
+#[wasm_bindgen(js_name = compileContractSourceJson)]
+pub fn compile_contract_source_json(
+    module_name: &str,
+    source: &str,
+    options_json: Option<String>,
+) -> Result<String, JsValue> {
+    let options = parse_options(options_json)?;
+    let compiled =
+        compile_contract_source(module_name, source, &options).map_err(diagnostics_error)?;
+    serde_json::to_string(&compiled).map_err(|error| JsValue::from_str(&error.to_string()))
 }
 
 #[wasm_bindgen(js_name = validateContractArtifactJson)]

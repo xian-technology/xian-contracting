@@ -6,6 +6,7 @@ from typing import Any
 from ._native import (
     CompilerError,
     compile_contract_artifact_json,
+    compile_contract_source_json,
     compiler_version_json,
     diagnose_contract_json,
     host_surface_json,
@@ -119,6 +120,23 @@ def compile_contract_artifact(
     )
 
 
+def compile_contract_source(
+    module_name: str,
+    source: str,
+    *,
+    vm_profile: str | None = None,
+    lint: bool = True,
+) -> dict[str, str]:
+    """Return the normalized source and canonical IR a node deploys for ``source``."""
+    return json.loads(
+        compile_contract_source_json(
+            module_name,
+            source,
+            options_json=_options_json(vm_profile=vm_profile, lint=lint),
+        )
+    )
+
+
 def validate_contract_artifact(
     module_name: str,
     artifact: dict[str, Any],
@@ -137,6 +155,7 @@ def validate_contract_artifact(
 __all__ = [
     "CompilerError",
     "compile_contract_artifact",
+    "compile_contract_source",
     "compiler_version",
     "describe_vm_host_surface",
     "diagnose_contract",

@@ -11,7 +11,7 @@ use crate::frontend::parse_source;
 use crate::limits::{validate_ir_json_limits, MAX_CONTRACT_HANDLE_INFERENCE_PASSES};
 use crate::lint::lint_syntax;
 use crate::normalize::{
-    format_expression as format_syntax_expression, format_float, normalize_syntax,
+    format_expression as format_syntax_expression, format_float, normalize_source, normalize_syntax,
 };
 use crate::source::SourceUnit;
 use crate::syntax::{
@@ -416,6 +416,33 @@ pub fn compile_contract_artifact(
             "xian.artifact.invalid",
             error.to_string(),
         )]
+    })
+}
+
+/// A contract as a node deploys submitted source: the normalized (linted)
+/// source and the canonical IR lowered from that source. For accepted source
+/// it is the artifact's `source` and `vm_ir_json`.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CompiledSource {
+    pub source: String,
+    pub vm_ir_json: String,
+}
+
+pub fn compile_contract_source(
+    module_name: &str,
+    source: &str,
+    options: &CompileOptions,
+) -> Result<CompiledSource, Vec<CompilerDiagnostic>> {
+    let normalized_source = normalize_source(module_name, source, options)?;
+    let canonical = CompileOptions {
+        lint: false,
+        ..options.clone()
+    };
+    let vm_ir_json = lower_source_to_ir_json(module_name, &normalized_source, &canonical)?;
+    Ok(CompiledSource {
+        source: normalized_source,
+        vm_ir_json,
     })
 }
 

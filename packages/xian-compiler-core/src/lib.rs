@@ -34,8 +34,9 @@ pub use fixture::{
 };
 pub use frontend::{parse_diagnostics, parse_source, ParsedModule};
 pub use ir::{
-    compile_contract_artifact, describe_vm_host_surface, lower_source_to_ir,
-    lower_source_to_ir_json, lower_syntax_to_ir, HostBinding, IrLoweringError, HOST_BINDINGS,
+    compile_contract_artifact, compile_contract_source, describe_vm_host_surface,
+    lower_source_to_ir, lower_source_to_ir_json, lower_syntax_to_ir, CompiledSource, HostBinding,
+    IrLoweringError, HOST_BINDINGS,
 };
 pub use limits::{
     compiler_limits, CompilerLimits, MAX_LOGICAL_LINE_TOKENS, MAX_SOURCE_BYTES, MAX_SYNTAX_DEPTH,

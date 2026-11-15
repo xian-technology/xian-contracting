@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   compileContractArtifactJson,
+  compileContractSourceJson,
   compilerVersionJson,
   diagnoseContractJson,
 } from "../dist/xian_compiler_core.js";
@@ -42,6 +43,16 @@ for (const { name, fixture } of await compilerFixtures()) {
         ),
       );
       assert.deepEqual(artifact, fixture.artifact);
+      assert.deepEqual(
+        JSON.parse(
+          compileContractSourceJson(
+            fixture.module_name,
+            fixture.input_source,
+            JSON.stringify({ vm_profile: fixture.vm_profile }),
+          ),
+        ),
+        { source: fixture.artifact.source, vm_ir_json: fixture.artifact.vm_ir_json },
+      );
     } else {
       assert.throws(() =>
         compileContractArtifactJson(
@@ -49,6 +60,15 @@ for (const { name, fixture } of await compilerFixtures()) {
           fixture.input_source,
           JSON.stringify({ lint: true, vm_profile: fixture.vm_profile }),
         ),
+      );
+      assert.throws(
+        () =>
+          compileContractSourceJson(
+            fixture.module_name,
+            fixture.input_source,
+            JSON.stringify({ vm_profile: fixture.vm_profile }),
+          ),
+        (error) => String(error).startsWith(`${fixture.diagnostics[0].code}: `),
       );
     }
   });
