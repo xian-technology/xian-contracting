@@ -43,31 +43,40 @@ pub(crate) fn validate_source_limits(source: &str) -> Result<(), CompilerDiagnos
             format!("contract source exceeds the maximum of {MAX_SOURCE_BYTES} UTF-8 bytes"),
         ));
     }
-
-    let mut total_tokens = 0usize;
-    let mut logical_line_tokens = 0usize;
-    let mut delimiter_depth = 0usize;
-    let mut indentation_depth = 0usize;
-
+    let mut budget = LexicalBudget::default();
     for token in lex(source, Mode::Module) {
-        let (token, _) = match token {
-            Ok(token) => token,
-            Err(_) => break,
+        let Ok((token, _)) = token else {
+            break;
         };
-        if token == Tok::EndOfFile {
-            continue;
+        if token != Tok::EndOfFile {
+            budget.observe(&token)?;
         }
+    }
+    Ok(())
+}
 
-        total_tokens = total_tokens.saturating_add(1);
-        if total_tokens > MAX_TOKENS {
+/// The token counts and nesting depths of the source read so far.
+#[derive(Default)]
+struct LexicalBudget {
+    total_tokens: usize,
+    logical_line_tokens: usize,
+    delimiter_depth: usize,
+    indentation_depth: usize,
+}
+
+impl LexicalBudget {
+    fn observe(&mut self, token: &Tok) -> Result<(), CompilerDiagnostic> {
+        self.total_tokens = self.total_tokens.saturating_add(1);
+        if self.total_tokens > MAX_TOKENS {
             return Err(limit_error(
                 "xian.limit.tokens",
                 format!("contract source exceeds the maximum of {MAX_TOKENS} lexical tokens"),
             ));
         }
-
-        logical_line_tokens = logical_line_tokens.saturating_add(logical_line_weight(&token));
-        if logical_line_tokens > MAX_LOGICAL_LINE_TOKENS {
+        self.logical_line_tokens = self
+            .logical_line_tokens
+            .saturating_add(logical_line_weight(token));
+        if self.logical_line_tokens > MAX_LOGICAL_LINE_TOKENS {
             return Err(limit_error(
                 "xian.limit.logical_line_tokens",
                 format!(
@@ -75,32 +84,36 @@ pub(crate) fn validate_source_limits(source: &str) -> Result<(), CompilerDiagnos
                 ),
             ));
         }
-
-        match token {
-            Tok::Lpar | Tok::Lsqb | Tok::Lbrace => {
-                delimiter_depth = delimiter_depth.saturating_add(1);
-                if delimiter_depth > MAX_SYNTAX_DEPTH {
-                    return Err(syntax_depth_error());
-                }
-            }
-            Tok::Rpar | Tok::Rsqb | Tok::Rbrace => {
-                delimiter_depth = delimiter_depth.saturating_sub(1);
-            }
-            Tok::Indent => {
-                indentation_depth = indentation_depth.saturating_add(1);
-                if indentation_depth > MAX_SYNTAX_DEPTH {
-                    return Err(syntax_depth_error());
-                }
-            }
-            Tok::Dedent => {
-                indentation_depth = indentation_depth.saturating_sub(1);
-            }
-            Tok::Newline => logical_line_tokens = 0,
-            _ => {}
-        }
+        self.track_nesting(token)
     }
 
-    Ok(())
+    fn track_nesting(&mut self, token: &Tok) -> Result<(), CompilerDiagnostic> {
+        let depth = match token {
+            Tok::Lpar | Tok::Lsqb | Tok::Lbrace => deeper(&mut self.delimiter_depth),
+            Tok::Indent => deeper(&mut self.indentation_depth),
+            Tok::Rpar | Tok::Rsqb | Tok::Rbrace => shallower(&mut self.delimiter_depth),
+            Tok::Dedent => shallower(&mut self.indentation_depth),
+            Tok::Newline => {
+                self.logical_line_tokens = 0;
+                0
+            }
+            _ => 0,
+        };
+        if depth > MAX_SYNTAX_DEPTH {
+            return Err(syntax_depth_error());
+        }
+        Ok(())
+    }
+}
+
+fn deeper(depth: &mut usize) -> usize {
+    *depth = depth.saturating_add(1);
+    *depth
+}
+
+fn shallower(depth: &mut usize) -> usize {
+    *depth = depth.saturating_sub(1);
+    0
 }
 
 /// The tokens a lexical token stands for on its logical line. The parser
