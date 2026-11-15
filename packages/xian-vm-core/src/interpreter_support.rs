@@ -2381,56 +2381,66 @@ pub(super) fn shuffle_shared(
     kwargs: &[(String, VmValue)],
     host: &mut dyn VmHost,
 ) -> Result<VmValue, VmExecutionError> {
-    if args.len() != 1 || !kwargs.is_empty() {
-        return Err(VmExecutionError::new(
-            "random.shuffle() expects one argument",
-        ));
-    }
-    let VmValue::Reference(reference) = &args[0] else {
-        return Err(VmExecutionError::new(
-            "random.shuffle() requires a mutable sequence",
-        ));
-    };
+    let reference = shuffle_receiver(args, kwargs)?;
     let original = reference.value();
-    let values = match &original {
-        VmValue::List(values) => values.clone(),
-        VmValue::ByteArray(bytes) => bytes.iter().map(|byte| vm_int(*byte)).collect(),
-        _ => {
-            return Err(VmExecutionError::new(
-                "random.shuffle() requires a mutable sequence",
-            ))
-        }
-    };
-    if let Some(cost) = explicit_syscall_metering_cost("random.shuffle", args, kwargs)? {
-        host.charge_execution_cost(cost)?;
-    }
-    let indexes = VmValue::List((0..values.len()).map(vm_int).collect());
-    let shuffled = host.handle_syscall("random.shuffle", vec![indexes], vec![])?;
-    let order = iterate_value(&shuffled)?;
-    let result = order
+    let items = shuffle_items(&original)?;
+    let indexes = VmValue::List((0..items.len()).map(vm_int).collect());
+    let order = iterate_value(&host.handle_syscall("random.shuffle", vec![indexes], vec![])?)?;
+    let shuffled = order
         .iter()
-        .map(|index| {
-            let index = index
-                .as_bigint()?
-                .to_usize()
-                .ok_or_else(|| VmExecutionError::new("invalid shuffle index"))?;
-            values
-                .get(index)
-                .cloned()
-                .ok_or_else(|| VmExecutionError::new("invalid shuffle index"))
-        })
+        .map(|index| shuffled_item(&items, index))
         .collect::<Result<Vec<_>, _>>()?;
-    let updated = match original {
+    reference.replace(repacked(&original, shuffled)?)?;
+    Ok(VmValue::None)
+}
+
+/// The shuffled items as a sequence of the original's type.
+fn repacked(original: &VmValue, items: Vec<VmValue>) -> Result<VmValue, VmExecutionError> {
+    Ok(match original {
         VmValue::ByteArray(_) => VmValue::ByteArray(
-            result
+            items
                 .iter()
                 .map(byte_from_value)
                 .collect::<Result<_, _>>()?,
         ),
-        _ => VmValue::List(result),
-    };
-    reference.replace(updated)?;
-    Ok(VmValue::None)
+        _ => VmValue::List(items),
+    })
+}
+
+fn shuffle_receiver<'a>(
+    args: &'a [VmValue],
+    kwargs: &[(String, VmValue)],
+) -> Result<&'a crate::VmReference, VmExecutionError> {
+    match (args, kwargs.is_empty()) {
+        ([VmValue::Reference(reference)], true) => Ok(reference),
+        ([_], true) => Err(not_shufflable()),
+        _ => Err(VmExecutionError::new(
+            "random.shuffle() expects one argument",
+        )),
+    }
+}
+
+/// The items whose positions the host shuffles.
+fn shuffle_items(sequence: &VmValue) -> Result<Vec<VmValue>, VmExecutionError> {
+    match sequence {
+        VmValue::List(values) => Ok(values.clone()),
+        // One integer per byte, as a list's copy holds one per item.
+        VmValue::ByteArray(bytes) => {
+            crate::work_meter::count(bytes.len() as u64)?;
+            Ok(bytes.iter().map(|byte| vm_int(*byte)).collect())
+        }
+        _ => Err(not_shufflable()),
+    }
+}
+
+fn shuffled_item(items: &[VmValue], index: &VmValue) -> Result<VmValue, VmExecutionError> {
+    let invalid = || VmExecutionError::new("invalid shuffle index");
+    let index = index.as_bigint()?.to_usize().ok_or_else(invalid)?;
+    items.get(index).cloned().ok_or_else(invalid)
+}
+
+fn not_shufflable() -> VmExecutionError {
+    VmExecutionError::new("random.shuffle() requires a mutable sequence")
 }
 
 /// Ask the deterministic host to select positions, keeping selected objects shared.

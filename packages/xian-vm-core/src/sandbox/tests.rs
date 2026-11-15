@@ -521,3 +521,52 @@ fn an_import_cycle_cannot_run() {
         "xian_vm_v2 import graph contains a cycle: con_x -> con_y -> con_x"
     );
 }
+
+/// A chain holding `source` as `con_probe`.
+fn deployed_source(source: &str) -> Sandbox {
+    let chain = chain();
+    let deployed = parsed(
+        &chain
+            .deploy(
+                &json!({"sender": "alice", "name": "con_probe", "source": source,
+                        "constructor_args": {}, "environment": environment()})
+                .to_string(),
+            )
+            .unwrap(),
+    );
+    assert_eq!(deployed["status"], 0, "{deployed}");
+    chain
+}
+
+fn chi_of(chain: &Sandbox, function: &str, kwargs: Value) -> u64 {
+    let outcome = parsed(
+        &chain
+            .call(
+                &json!({"sender": "alice", "contract": "con_probe", "function": function,
+                        "kwargs": kwargs, "environment": environment()})
+                .to_string(),
+            )
+            .unwrap(),
+    );
+    assert_eq!(outcome["status"], 0, "{outcome}");
+    outcome["chi_used"].as_u64().unwrap()
+}
+
+#[test]
+fn shuffling_a_bytearray_pays_for_each_position() {
+    // The shuffle expands the payload into one integer per byte, shuffles
+    // their positions in the host and packs them back: work per byte,
+    // which was charged only per 64 bytes of copied payload.
+    let chain = deployed_source(
+        "@export\ndef mix(n: int):\n    random.seed()\n    data = bytearray(n)\n    random.shuffle(data)\n    return len(data)\n",
+    );
+    let extra = 64_000u64;
+    let small = chi_of(&chain, "mix", json!({"n": 64}));
+    let large = chi_of(&chain, "mix", json!({"n": 64 + extra}));
+    // One element-work unit (24 raw chi) per extra position at least.
+    assert!(
+        (large - small) * 1_000 >= extra * 24,
+        "{extra} more bytes cost only {} chi",
+        large - small
+    );
+}
