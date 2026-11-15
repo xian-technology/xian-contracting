@@ -22,7 +22,9 @@ pub use rules::validate_transaction_static;
 /// transactions changes; nodes fence on it at startup.
 /// Revision 2: sender and signature must be canonical lowercase hex.
 /// Revision 3: the document holds exactly `metadata` and `payload` (unsigned
-/// keys beside them changed the transaction hash and the block bytes).
+/// keys beside them changed the transaction hash and the block bytes), and the
+/// wire hex must be lowercase (uppercase digits gave one signed document many
+/// transaction hashes).
 pub const ADMISSION_REVISION: &str = "xian-fastpath-admission-3";
 
 /// Why a transaction is not admitted; the text reaches receipts and logs.
@@ -79,10 +81,15 @@ pub fn decode_transaction(raw: &[u8]) -> Result<DecodedTransaction> {
     })
 }
 
-/// The JSON text inside the hex wire encoding.
+/// The JSON text inside the hex wire encoding. Only lowercase hex is read:
+/// CometBFT names a transaction by the hash of its wire bytes, so one signed
+/// document has exactly one spelling.
 fn wire_text(raw: &[u8]) -> Result<String> {
     let hex_text =
         std::str::from_utf8(raw).map_err(|error| AdmissionError::new(error.to_string()))?;
+    if hex_text.bytes().any(|byte| byte.is_ascii_uppercase()) {
+        return Err(AdmissionError::new("Transaction bytes are not canonical"));
+    }
     let bytes = hex::decode(hex_text).map_err(|error| AdmissionError::new(error.to_string()))?;
     String::from_utf8(bytes).map_err(|error| AdmissionError::new(error.utf8_error().to_string()))
 }

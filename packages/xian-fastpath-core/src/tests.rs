@@ -81,6 +81,23 @@ fn only_the_canonical_spelling_decodes() {
     );
 }
 
+#[test]
+fn only_lowercase_wire_hex_decodes() {
+    // CometBFT identifies a transaction by the hash of these bytes: one
+    // signed document must have exactly one wire spelling, or anyone can
+    // relay a copy under another hash.
+    let lower = wire(&signed(payload()));
+    assert!(decode_transaction(&lower).is_ok());
+    let upper = lower.to_ascii_uppercase();
+    let mut mixed = lower.clone();
+    let letter = mixed.iter().position(u8::is_ascii_alphabetic).unwrap();
+    mixed[letter] = mixed[letter].to_ascii_uppercase();
+    for spelling in [upper, mixed] {
+        let refused = decode_transaction(&spelling).unwrap_err();
+        assert_eq!(refused.message(), "Transaction bytes are not canonical");
+    }
+}
+
 fn nested_wire(levels: usize) -> Vec<u8> {
     // The document, its payload and kwargs, then lists.
     let mut nested = json!("leaf");
