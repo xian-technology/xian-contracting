@@ -71,6 +71,25 @@ pub fn validate_contract_artifact(
     input_source: Option<&str>,
     expected_vm_profile: Option<&str>,
 ) -> Result<ValidatedArtifact, ValidationError> {
+    validate_artifact_target(artifact, expected_module_name, expected_vm_profile)?;
+    validate_artifact_hashes(artifact, input_source)?;
+    let vm_ir = parse_vm_ir_json(&artifact.vm_ir_json)?;
+    validate_ir_identity(&vm_ir, artifact)?;
+    validate_canonical_compiler_output(artifact)?;
+
+    Ok(ValidatedArtifact {
+        module_name: artifact.module_name.clone(),
+        source: artifact.source.clone(),
+        vm_ir,
+    })
+}
+
+/// The artifact's format, profile, module and non-empty payloads.
+fn validate_artifact_target(
+    artifact: &ContractArtifact,
+    expected_module_name: &str,
+    expected_vm_profile: Option<&str>,
+) -> Result<(), ValidationError> {
     ensure_eq(
         "artifact.format",
         &artifact.format,
@@ -90,8 +109,14 @@ pub fn validate_contract_artifact(
         expected_module_name,
     )?;
     ensure_non_empty("artifact.source", &artifact.source)?;
-    ensure_non_empty("artifact.vm_ir_json", &artifact.vm_ir_json)?;
+    ensure_non_empty("artifact.vm_ir_json", &artifact.vm_ir_json)
+}
 
+/// The recorded hashes against the source, the IR and the given input source.
+fn validate_artifact_hashes(
+    artifact: &ContractArtifact,
+    input_source: Option<&str>,
+) -> Result<(), ValidationError> {
     ensure_eq(
         "artifact.hashes.source_sha256",
         &artifact.hashes.source_sha256,
@@ -102,28 +127,17 @@ pub fn validate_contract_artifact(
         &artifact.hashes.vm_ir_sha256,
         &sha256_hex(&artifact.vm_ir_json),
     )?;
-    if let Some(input_source) = input_source {
-        ensure_eq(
+    match input_source {
+        Some(input_source) => ensure_eq(
             "artifact.hashes.input_source_sha256",
             &artifact.hashes.input_source_sha256,
             &sha256_hex(input_source),
-        )?;
-    } else {
-        ensure_sha256_hex(
+        ),
+        None => ensure_sha256_hex(
             "artifact.hashes.input_source_sha256",
             &artifact.hashes.input_source_sha256,
-        )?;
+        ),
     }
-
-    let vm_ir = parse_vm_ir_json(&artifact.vm_ir_json)?;
-    validate_ir_identity(&vm_ir, artifact)?;
-    validate_canonical_compiler_output(artifact)?;
-
-    Ok(ValidatedArtifact {
-        module_name: artifact.module_name.clone(),
-        source: artifact.source.clone(),
-        vm_ir,
-    })
 }
 
 fn validate_canonical_compiler_output(artifact: &ContractArtifact) -> Result<(), ValidationError> {
