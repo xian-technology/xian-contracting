@@ -570,3 +570,35 @@ fn shuffling_a_bytearray_pays_for_each_position() {
         large - small
     );
 }
+
+#[test]
+fn repeating_an_empty_sequence_is_empty_at_any_count() {
+    // Python: [] * 2**64 == []. The count was converted to a machine word
+    // first, so counts of 2**64 and more failed natively and counts of
+    // 2**32 and more failed in the 32-bit browser build.
+    let chain = deployed_source(
+        "@export\ndef rep(k: int):\n    n = 2 ** k\n    return [len([] * n), len(n * ()), len('' * n), len(b'' * n), len(bytearray() * n)]\n\n@export\ndef big(k: int):\n    return len([1] * 2 ** k)\n",
+    );
+    let call = |function: &str, k: u32| {
+        parsed(
+            &chain
+                .call(
+                    &json!({"sender": "alice", "contract": "con_probe", "function": function,
+                            "kwargs": {"k": k}, "environment": environment()})
+                    .to_string(),
+                )
+                .unwrap(),
+        )
+    };
+    for k in [33, 64, 200] {
+        let outcome = call("rep", k);
+        assert_eq!(outcome["status"], 0, "{outcome}");
+        assert_eq!(outcome["result"], "[0,0,0,0,0]");
+    }
+    for k in [33, 64] {
+        assert_eq!(
+            call("big", k)["error"],
+            "sequence repetition exceeds the maximum allowed allocation size"
+        );
+    }
+}

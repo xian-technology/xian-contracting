@@ -93,21 +93,8 @@ fn slice_bytes_like(
 }
 
 fn repeat_bytes_like(bytes: &[u8], count: &BigInt) -> Result<Vec<u8>, VmExecutionError> {
-    if count.sign() == Sign::Minus {
-        return Ok(Vec::new());
-    }
-    let count = bigint_to_usize(count, "repeat count")?;
-    let total_len = bytes.len().saturating_mul(count);
-    if total_len > MAX_BINARY_ALLOCATION_BYTES {
-        return Err(VmExecutionError::new(
-            "binary repetition exceeds the maximum allowed allocation size",
-        ));
-    }
-    let mut repeated = Vec::with_capacity(bytes.len().saturating_mul(count));
-    for _ in 0..count {
-        repeated.extend_from_slice(bytes);
-    }
-    Ok(repeated)
+    let count = repeat_count(bytes.len(), count, MAX_BINARY_ALLOCATION_BYTES, "binary")?;
+    Ok(bytes.repeat(count))
 }
 
 pub(super) fn integer_limit_error(kind: &str) -> VmExecutionError {
@@ -927,35 +914,40 @@ pub(super) fn repeat_values(
     values: &[VmValue],
     count: &BigInt,
 ) -> Result<Vec<VmValue>, VmExecutionError> {
-    if count.sign() == Sign::Minus {
-        return Ok(Vec::new());
-    }
-    let count = bigint_to_usize(count, "sequence repeat count")?;
-    let total_len = values.len().saturating_mul(count);
-    if total_len > MAX_SEQUENCE_LENGTH {
-        return Err(VmExecutionError::new(
-            "sequence repetition exceeds the maximum allowed allocation size",
-        ));
-    }
-    let mut repeated = Vec::with_capacity(values.len().saturating_mul(count));
+    let count = repeat_count(values.len(), count, MAX_SEQUENCE_LENGTH, "sequence")?;
+    let mut repeated = Vec::with_capacity(values.len() * count);
     for _ in 0..count {
-        repeated.extend(values.iter().cloned());
+        repeated.extend_from_slice(values);
     }
     Ok(repeated)
 }
 
 pub(super) fn repeat_string(value: &str, count: &BigInt) -> Result<String, VmExecutionError> {
-    if count.sign() == Sign::Minus {
-        return Ok(String::new());
-    }
-    let count = bigint_to_usize(count, "string repeat count")?;
-    let total_len = value.len().saturating_mul(count);
-    if total_len > MAX_BINARY_ALLOCATION_BYTES {
-        return Err(VmExecutionError::new(
-            "string repetition exceeds the maximum allowed allocation size",
-        ));
-    }
+    let count = repeat_count(value.len(), count, MAX_BINARY_ALLOCATION_BYTES, "string")?;
     Ok(value.repeat(count))
+}
+
+/// How often a sequence of `length` items repeats `count` times: none for
+/// an empty sequence or a count below one (Python: `[] * 2**100 == []`),
+/// else `count` when the result holds at most `limit` items. Decided on
+/// the exact count, so the outcome does not depend on the machine word.
+fn repeat_count(
+    length: usize,
+    count: &BigInt,
+    limit: usize,
+    what: &str,
+) -> Result<usize, VmExecutionError> {
+    if length == 0 || count.sign() != Sign::Plus {
+        return Ok(0);
+    }
+    if count * length > BigInt::from(limit) {
+        return Err(VmExecutionError::new(format!(
+            "{what} repetition exceeds the maximum allowed allocation size"
+        )));
+    }
+    Ok(count
+        .to_usize()
+        .expect("a count within the allocation limit"))
 }
 
 #[cfg(test)]
