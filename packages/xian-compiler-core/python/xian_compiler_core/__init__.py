@@ -25,19 +25,9 @@ from ._native import (
 )
 
 
-def _options_json(
-    *,
-    vm_profile: str | None = None,
-    lint: bool = True,
-) -> str:
-    options: dict[str, Any] = {"lint": lint}
-    if vm_profile is not None:
-        options["vm_profile"] = vm_profile
-    return json.dumps(
-        options,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
+def _options_json(vm_profile: str | None) -> str:
+    options: dict[str, Any] = {} if vm_profile is None else {"vm_profile": vm_profile}
+    return json.dumps(options, separators=(",", ":"), sort_keys=True)
 
 
 def compiler_version() -> dict[str, Any]:
@@ -53,13 +43,12 @@ def diagnose_contract(
     source: str,
     *,
     vm_profile: str | None = None,
-    lint: bool = True,
 ) -> list[dict[str, Any]]:
     return json.loads(
         diagnose_contract_json(
             module_name,
             source,
-            options_json=_options_json(vm_profile=vm_profile, lint=lint),
+            options_json=_options_json(vm_profile),
         )
     )
 
@@ -69,12 +58,11 @@ def normalize_source(
     source: str,
     *,
     vm_profile: str | None = None,
-    lint: bool = True,
 ) -> str:
     return _normalize_source(
         module_name,
         source,
-        options_json=_options_json(vm_profile=vm_profile, lint=lint),
+        options_json=_options_json(vm_profile),
     )
 
 
@@ -83,12 +71,11 @@ def lower_source_to_ir_json(
     source: str,
     *,
     vm_profile: str | None = None,
-    lint: bool = True,
 ) -> str:
     return _lower_source_to_ir_json(
         module_name,
         source,
-        options_json=_options_json(vm_profile=vm_profile, lint=lint),
+        options_json=_options_json(vm_profile),
     )
 
 
@@ -97,14 +84,12 @@ def lower_source_to_ir(
     source: str,
     *,
     vm_profile: str | None = None,
-    lint: bool = True,
 ) -> dict[str, Any]:
     return json.loads(
         lower_source_to_ir_json(
             module_name,
             source,
             vm_profile=vm_profile,
-            lint=lint,
         )
     )
 
@@ -114,13 +99,12 @@ def compile_contract_artifact(
     source: str,
     *,
     vm_profile: str | None = None,
-    lint: bool = True,
 ) -> dict[str, Any]:
     return json.loads(
         compile_contract_artifact_json(
             module_name,
             source,
-            options_json=_options_json(vm_profile=vm_profile, lint=lint),
+            options_json=_options_json(vm_profile),
         )
     )
 
@@ -130,14 +114,13 @@ def compile_contract_source(
     source: str,
     *,
     vm_profile: str | None = None,
-    lint: bool = True,
 ) -> dict[str, str]:
     """Return the normalized source and canonical IR a node deploys for ``source``."""
     return json.loads(
         compile_contract_source_json(
             module_name,
             source,
-            options_json=_options_json(vm_profile=vm_profile, lint=lint),
+            options_json=_options_json(vm_profile),
         )
     )
 

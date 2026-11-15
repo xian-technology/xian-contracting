@@ -25,7 +25,7 @@ const artifacts = JSON.parse(
   compileContractArtifactJson(
     "con_counter",
     source,
-    JSON.stringify({ lint: true })
+    JSON.stringify({ vm_profile: "xian_vm_v2" })
   )
 );
 ```

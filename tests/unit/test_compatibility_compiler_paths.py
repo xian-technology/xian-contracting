@@ -16,7 +16,7 @@ CASES = [
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case["id"])
 def test_compatibility_grammar_artifacts_match(case):
     args = dict(
-        module_name="con_grammar", source=case["source"], lint=True, vm_profile="xian_vm_v1"
+        module_name="con_grammar", source=case["source"], vm_profile="xian_vm_v1"
     )
     expected = compile_with_python(**args)
     actual = compile_with_rust(**args)

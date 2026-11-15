@@ -194,8 +194,10 @@ compiler_version() -> version metadata
 Options:
 
 - `vm_profile`: defaults to `xian_vm_v2`. Select `xian_vm_v1` explicitly for V1 fixtures.
-- `lint`: default `true`.
 - `diagnostic_format`: default stable machine-readable diagnostics.
+
+There is no lint switch: lint rules are part of admission and always run. An
+unknown option (for example `lint`) is rejected.
 
 Limits are not caller-configurable. They are consensus defaults published in
 compiler version metadata so tooling can report the validator boundary without
@@ -250,8 +252,7 @@ import { buildContractArtifacts } from "@xian-tech/compiler";
 
 const artifacts = await buildContractArtifacts({
   moduleName: "con_counter",
-  source,
-  lint: true
+  source
 });
 ```
 

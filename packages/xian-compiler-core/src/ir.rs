@@ -435,11 +435,7 @@ pub fn compile_contract_source(
     options: &CompileOptions,
 ) -> Result<CompiledSource, Vec<CompilerDiagnostic>> {
     let normalized_source = normalize_source(module_name, source, options)?;
-    let canonical = CompileOptions {
-        lint: false,
-        ..options.clone()
-    };
-    let vm_ir_json = lower_source_to_ir_json(module_name, &normalized_source, &canonical)?;
+    let vm_ir_json = lower_source_to_ir_json(module_name, &normalized_source, options)?;
     Ok(CompiledSource {
         source: normalized_source,
         vm_ir_json,

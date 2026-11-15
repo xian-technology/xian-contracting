@@ -375,7 +375,6 @@ fn source_code(code: &VmValue) -> Result<&str, VmExecutionError> {
 pub(crate) fn compile(name: &str, code: &str) -> Result<(String, String), VmExecutionError> {
     let options = CompileOptions {
         vm_profile: XIAN_VM_V2_PROFILE.to_owned(),
-        lint: true,
     };
     let compiled = compile_contract_source(name, code, &options).map_err(compiler_failure)?;
     Ok((compiled.source, compiled.vm_ir_json))

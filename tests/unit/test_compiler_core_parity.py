@@ -12,8 +12,6 @@ def test_compiler_core_matches_python_reference_contract_corpus() -> None:
         [
             sys.executable,
             "scripts/audit_compiler_core_parity.py",
-            "--lint-mode",
-            "both",
             "--fail-on-mismatch",
         ],
         cwd=REPO_ROOT,

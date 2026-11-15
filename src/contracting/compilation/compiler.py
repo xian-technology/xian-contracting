@@ -19,7 +19,7 @@ class ContractingCompiler:
             import xian_compiler_core
 
             return xian_compiler_core.normalize_source(
-                self.module_name, source, vm_profile=XIAN_VM_V2_PROFILE, lint=lint
+                self.module_name, source, vm_profile=XIAN_VM_V2_PROFILE
             )
         tree = ast.parse(source)
 
@@ -51,7 +51,7 @@ class ContractingCompiler:
 
             return json.loads(
                 xian_compiler_core.lower_source_to_ir_json(
-                    self.module_name, source, vm_profile=XIAN_VM_V2_PROFILE, lint=lint
+                    self.module_name, source, vm_profile=XIAN_VM_V2_PROFILE
                 )
             )
         tree = ast.parse(source)

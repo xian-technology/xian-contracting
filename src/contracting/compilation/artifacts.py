@@ -28,18 +28,12 @@ def diagnose_contract_source(
     *,
     module_name: str,
     source: str,
-    lint: bool = True,
     vm_profile: str = DEFAULT_VM_PROFILE,
 ) -> list[dict[str, object]]:
     """Return authoritative Rust compiler diagnostics for contract source."""
 
     _assert_native_compiler_host_surface_current()
-    return xian_compiler_core.diagnose_contract(
-        module_name,
-        source,
-        lint=lint,
-        vm_profile=vm_profile,
-    )
+    return xian_compiler_core.diagnose_contract(module_name, source, vm_profile=vm_profile)
 
 
 _STALE_CATALOG = (
@@ -96,37 +90,17 @@ def build_contract_artifacts(
     *,
     module_name: str,
     source: str,
-    lint: bool = True,
     vm_profile: str = DEFAULT_VM_PROFILE,
-    compact: bool = False,
 ) -> dict[str, object]:
-    """Compile ``source`` into its deployment artifact.
-
-    ``compact`` is accepted so released callers keep working; artifacts have a
-    single canonical form and it does not change the result.
-    """
-    del compact
+    """Compile ``source`` into its deployment artifact."""
     _assert_native_compiler_host_surface_current()
-    return xian_compiler_core.compile_contract_artifact(
-        module_name,
-        source,
-        lint=lint,
-        vm_profile=vm_profile,
-    )
+    return xian_compiler_core.compile_contract_artifact(module_name, source, vm_profile=vm_profile)
 
 
 @lru_cache(maxsize=256)
-def _compile_contract_source(
-    module_name: str,
-    source: str,
-    lint: bool,
-    vm_profile: str,
-) -> tuple[str, str]:
+def _compile_contract_source(module_name: str, source: str, vm_profile: str) -> tuple[str, str]:
     compiled = xian_compiler_core.compile_contract_source(
-        module_name,
-        source,
-        lint=lint,
-        vm_profile=vm_profile,
+        module_name, source, vm_profile=vm_profile
     )
     return compiled["source"], compiled["vm_ir_json"]
 
@@ -135,7 +109,6 @@ def compile_contract_source(
     *,
     module_name: str,
     source: str,
-    lint: bool = True,
     vm_profile: str = DEFAULT_VM_PROFILE,
 ) -> dict[str, str]:
     """Return the normalized source and canonical IR a node deploys for source."""
@@ -145,7 +118,7 @@ def compile_contract_source(
     if not isinstance(source, str) or source == "":
         raise ValueError("contract source must be a non-empty string.")
 
-    canonical_source, vm_ir_json = _compile_contract_source(module_name, source, lint, vm_profile)
+    canonical_source, vm_ir_json = _compile_contract_source(module_name, source, vm_profile)
     return {
         "source": canonical_source,
         "vm_ir_json": vm_ir_json,

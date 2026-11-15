@@ -21,7 +21,6 @@ def get():
     fixture = build_compiler_fixture(
         module_name="con_counter",
         source=source,
-        lint=False,
     )
 
     assert fixture["schema"] == COMPILER_FIXTURE_SCHEMA_V1
@@ -39,7 +38,6 @@ def test_build_compiler_fixture_records_rejection() -> None:
     fixture = build_compiler_fixture(
         module_name="con_bad",
         source="def broken(:\n",
-        lint=False,
     )
 
     assert fixture["expected"] == {"accepted": False}

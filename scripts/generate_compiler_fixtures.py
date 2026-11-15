@@ -40,11 +40,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="VM profile to compile for",
     )
     parser.add_argument(
-        "--no-lint",
-        action="store_true",
-        help="skip lint checks while generating fixtures",
-    )
-    parser.add_argument(
         "--fail-on-rejected",
         action="store_true",
         help="exit with code 1 if any generated fixture is rejected",
@@ -65,7 +60,6 @@ def main(argv: list[str] | None = None) -> int:
         fixture = build_compiler_fixture_from_path(
             source_path,
             vm_profile=args.profile,
-            lint=not args.no_lint,
         )
         output_path = output_dir / f"{fixture['name']}.json"
         write_compiler_fixture(output_path, fixture)

@@ -15,14 +15,12 @@ use crate::limits::{compiler_limits, CompilerLimits};
 #[serde(default, deny_unknown_fields)]
 pub struct CompileOptions {
     pub vm_profile: String,
-    pub lint: bool,
 }
 
 impl Default for CompileOptions {
     fn default() -> Self {
         Self {
             vm_profile: DEFAULT_VM_PROFILE.to_owned(),
-            lint: true,
         }
     }
 }
@@ -108,6 +106,19 @@ mod tests {
         assert_eq!(
             diagnostics[0].code,
             "xian.syntax.unsupported_statement.class_def"
+        );
+    }
+
+    #[test]
+    fn compile_options_reject_unknown_fields_such_as_lint() {
+        let error = serde_json::from_str::<CompileOptions>(r#"{"lint":true}"#)
+            .expect_err("lint is not a compile option");
+        assert!(error.to_string().contains("unknown field `lint`"));
+        assert_eq!(
+            serde_json::from_str::<CompileOptions>(r#"{"vm_profile":"xian_vm_v1"}"#)
+                .expect("vm_profile is the only option")
+                .vm_profile,
+            "xian_vm_v1"
         );
     }
 

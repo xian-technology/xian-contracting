@@ -1261,20 +1261,11 @@ mod tests {
     }
 
     #[test]
-    fn diagnose_contract_enforces_profile_checks_when_lint_disabled() {
+    fn diagnose_contract_always_lints() {
         let source = "@export\ndef ping(value):\n    return value\n";
 
-        let linted = diagnose_contract("con_lint", source, &CompileOptions::default());
-        let unlinted = diagnose_contract(
-            "con_lint",
-            source,
-            &CompileOptions {
-                lint: false,
-                ..CompileOptions::default()
-            },
-        );
+        let diagnostics = diagnose_contract("con_lint", source, &CompileOptions::default());
 
-        assert_eq!(linted[0].code, "xian.lint.E017");
-        assert_eq!(unlinted[0].code, "xian.lint.E017");
+        assert_eq!(diagnostics[0].code, "xian.lint.E017");
     }
 }

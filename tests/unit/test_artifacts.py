@@ -29,12 +29,14 @@ def test_validate_contract_artifacts_accepts_canonical_bundle() -> None:
     assert validated["vm_ir_json"] == artifacts["vm_ir_json"]
 
 
-def test_build_contract_artifacts_accepts_the_compatibility_compact_flag() -> None:
-    source = "@export\ndef ping():\n    return 'pong'\n"
-    for compact in (False, True):
-        assert build_contract_artifacts(
-            module_name="con_probe", source=source, vm_profile="xian_vm_v1", compact=compact
-        ) == build_contract_artifacts(module_name="con_probe", source=source, vm_profile="xian_vm_v1")
+@pytest.mark.parametrize("option", ["compact", "lint"])
+def test_build_contract_artifacts_has_no_compact_or_lint_option(option: str) -> None:
+    with pytest.raises(TypeError, match=option):
+        build_contract_artifacts(
+            module_name="con_probe",
+            source="@export\ndef ping():\n    return 'pong'\n",
+            **{option: True},
+        )
 
 
 def _probe_artifacts(vm_profile: str = "xian_vm_v1") -> dict:

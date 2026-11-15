@@ -30,7 +30,7 @@ for (const { name, fixture } of await compilerFixtures()) {
       diagnoseContractJson(
         fixture.module_name,
         fixture.input_source,
-        JSON.stringify({ lint: true, vm_profile: fixture.vm_profile }),
+        JSON.stringify({ vm_profile: fixture.vm_profile }),
       ),
     );
     assert.deepEqual(diagnostics, fixture.diagnostics);
@@ -40,7 +40,7 @@ for (const { name, fixture } of await compilerFixtures()) {
         compileContractArtifactJson(
           fixture.module_name,
           fixture.input_source,
-          JSON.stringify({ lint: true, vm_profile: fixture.vm_profile }),
+          JSON.stringify({ vm_profile: fixture.vm_profile }),
         ),
       );
       assert.deepEqual(artifact, fixture.artifact);
@@ -76,7 +76,7 @@ for (const { name, fixture } of await compilerFixtures()) {
         compileContractArtifactJson(
           fixture.module_name,
           fixture.input_source,
-          JSON.stringify({ lint: true, vm_profile: fixture.vm_profile }),
+          JSON.stringify({ vm_profile: fixture.vm_profile }),
         ),
       );
       assert.throws(
@@ -134,4 +134,15 @@ test("WASM binding enforces syntax node limit", () => {
 test("WASM binding enforces syntax depth limit", () => {
   const source = `@export\ndef value():\n    return ${"not ".repeat(limits.max_syntax_depth)}True\n`;
   assert.equal(diagnosticCode(source), "xian.limit.syntax_depth");
+});
+
+test("WASM compile options reject the removed lint field", () => {
+  const source = "@export\ndef ping():\n    return 1\n";
+  assert.doesNotThrow(() => compileContractArtifactJson("con_ping", source, "{}"));
+  for (const call of [diagnoseContractJson, compileContractArtifactJson, compileContractSourceJson]) {
+    assert.throws(
+      () => call("con_ping", source, JSON.stringify({ lint: true })),
+      (error) => String(error).includes("unknown field `lint`"),
+    );
+  }
 });

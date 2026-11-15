@@ -997,28 +997,13 @@ mod tests {
     }
 
     #[test]
-    fn normalize_source_runs_lint_by_default() {
+    fn normalize_source_always_runs_lint() {
         let error = normalize_source(
             "con_bad",
             "def helper():\n    return 1\n",
             &CompileOptions::default(),
         )
         .expect_err("lint should reject missing export");
-
-        assert_eq!(error[0].code, "xian.lint.E013");
-    }
-
-    #[test]
-    fn normalize_source_enforces_profile_checks_when_lint_disabled() {
-        let error = normalize_source(
-            "con_helper",
-            "a=1\nb=2\n\ndef helper():\n return a+b\n",
-            &CompileOptions {
-                lint: false,
-                ..CompileOptions::default()
-            },
-        )
-        .expect_err("profile compatibility should reject missing export");
 
         assert_eq!(error[0].code, "xian.lint.E013");
     }

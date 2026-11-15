@@ -36,10 +36,10 @@ Rust, Python and WASM default to the fresh-chain profile `xian_vm_v2`. V2 reads 
   model used by later lint/normalize/lower stages
 - `lint_syntax(...)`: semantic lint rules over `SyntaxModule`
 - `normalize_syntax(...)`: deterministic formatter over the Xian syntax tree
-- `normalize_source(...)`: parse, optionally lint, and return canonical source
+- `normalize_source(...)`: parse, lint, and return canonical source
 - `lower_syntax_to_ir(...)`: lower a validated syntax tree into structural
   `xian_ir_v1`
-- `lower_source_to_ir(...)`: normalize, parse, optionally lint, and lower source
+- `lower_source_to_ir(...)`: normalize, parse, lint, and lower source
   into structural `xian_ir_v1`
 - `lower_source_to_ir_json(...)`: return canonical JSON for the lowered IR
 - `compile_contract_artifact(...)`: normalize, lower, and build a hash-checked
@@ -83,8 +83,9 @@ xian-playground-web and xian-js use the WASM package. Structural IR validation
 stays in vm-core (`xian_vm_core.validate_module_ir_json`), the VM's own
 admission rules; the linter calls it on the compiled IR.
 
-The `lint` option is accepted by every entrypoint but the compiler always runs
-its lint rules.
+Every entrypoint always runs the lint rules; they are part of admission. The
+only compile option is `vm_profile`, and unknown options (such as `lint`) are
+rejected.
 
 Fixtures are refreshed through the authoritative Python binding with:
 

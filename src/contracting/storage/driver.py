@@ -379,7 +379,7 @@ class Driver:
             from contracting.artifacts import compile_contract_source
 
             compiled = compile_contract_source(
-                module_name=name, source=source, lint=lint, vm_profile=self.vm_profile
+                module_name=name, source=source, vm_profile=self.vm_profile
             )
             normalized_source, vm_ir_json = compiled["source"], compiled["vm_ir_json"]
         else:

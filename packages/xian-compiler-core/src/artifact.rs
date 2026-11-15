@@ -142,7 +142,6 @@ fn validate_artifact_hashes(
 
 fn validate_canonical_compiler_output(artifact: &ContractArtifact) -> Result<(), ValidationError> {
     let options = CompileOptions {
-        lint: false,
         vm_profile: artifact.vm_profile.clone(),
     };
     let canonical_vm_ir_json =
@@ -232,15 +231,9 @@ mod tests {
     #[test]
     fn validate_contract_artifact_rejects_hash_mismatch() {
         let source = "@export\ndef read():\n    return 1\n";
-        let mut artifact = compile_contract_artifact(
-            "con_counter",
-            source,
-            &CompileOptions {
-                lint: false,
-                ..CompileOptions::default()
-            },
-        )
-        .expect("artifact should build");
+        let mut artifact =
+            compile_contract_artifact("con_counter", source, &CompileOptions::default())
+                .expect("artifact should build");
         artifact.hashes.source_sha256 = "bad".to_string();
 
         let error = validate_contract_artifact(&artifact, "con_counter", Some(source), None)

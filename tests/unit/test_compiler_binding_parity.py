@@ -21,7 +21,6 @@ def test_python_binding_matches_shared_compiler_fixture(fixture_path: Path) -> N
     diagnostics = xian_compiler_core.diagnose_contract(
         fixture["module_name"],
         fixture["input_source"],
-        lint=True,
         vm_profile=fixture["vm_profile"],
     )
     assert diagnostics == fixture["diagnostics"]
@@ -30,7 +29,6 @@ def test_python_binding_matches_shared_compiler_fixture(fixture_path: Path) -> N
         artifact = xian_compiler_core.compile_contract_artifact(
             fixture["module_name"],
             fixture["input_source"],
-            lint=True,
             vm_profile=fixture["vm_profile"],
         )
         assert artifact == fixture["artifact"]
@@ -59,7 +57,6 @@ def test_python_binding_matches_shared_compiler_fixture(fixture_path: Path) -> N
             xian_compiler_core.compile_contract_artifact(
                 fixture["module_name"],
                 fixture["input_source"],
-                lint=True,
                 vm_profile=fixture["vm_profile"],
             )
         with pytest.raises(xian_compiler_core.CompilerError, match=fixture["diagnostics"][0]["code"]):
@@ -132,3 +129,20 @@ def test_python_binding_exports_the_compiler_profile_constants():
     assert xian_compiler_core.XIAN_VM_V2_PROFILE == "xian_vm_v2"
     assert xian_compiler_core.DEFAULT_VM_PROFILE == version["vm_profile"] == "xian_vm_v2"
     assert xian_compiler_core.CONTRACT_ARTIFACT_FORMAT_V1 == version["artifact_format"]
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        xian_compiler_core.diagnose_contract,
+        xian_compiler_core.normalize_source,
+        xian_compiler_core.lower_source_to_ir_json,
+        xian_compiler_core.compile_contract_artifact,
+        xian_compiler_core.compile_contract_source,
+    ],
+)
+def test_python_binding_has_no_lint_option(call):
+    source = "@export\ndef ping():\n    return 1\n"
+    call("con_ping", source)
+    with pytest.raises(TypeError, match="lint"):
+        call("con_ping", source, lint=True)

@@ -30,7 +30,6 @@ fn compile_contract_source_returns_the_artifact_source_and_ir_of_every_fixture()
     for (path, fixture) in checked_in_fixtures() {
         let options = CompileOptions {
             vm_profile: fixture.vm_profile.clone(),
-            lint: true,
         };
         let compiled =
             compile_contract_source(&fixture.module_name, &fixture.input_source, &options);
@@ -73,7 +72,6 @@ fn checked_in_compiler_fixtures_are_structurally_valid() {
 
         let options = CompileOptions {
             vm_profile: fixture.vm_profile.clone(),
-            lint: true,
         };
         let diagnostics = diagnose_contract(&fixture.module_name, &fixture.input_source, &options);
         if fixture.expected.accepted {

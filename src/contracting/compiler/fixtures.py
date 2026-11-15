@@ -31,7 +31,6 @@ def build_compiler_fixture(
     name: str | None = None,
     source_path: str | None = None,
     vm_profile: str = DEFAULT_VM_PROFILE,
-    lint: bool = True,
 ) -> dict[str, Any]:
     fixture: dict[str, Any] = {
         "schema": COMPILER_FIXTURE_SCHEMA_V1,
@@ -52,7 +51,6 @@ def build_compiler_fixture(
     diagnostics = diagnose_contract_source(
         module_name=module_name,
         source=source,
-        lint=lint,
         vm_profile=vm_profile,
     )
     if diagnostics:
@@ -64,7 +62,6 @@ def build_compiler_fixture(
         artifacts = build_contract_artifacts(
             module_name=module_name,
             source=source,
-            lint=lint,
             vm_profile=vm_profile,
         )
     except Exception as exc:
@@ -88,7 +85,6 @@ def build_compiler_fixture_from_path(
     path: Path,
     *,
     vm_profile: str = DEFAULT_VM_PROFILE,
-    lint: bool = True,
 ) -> dict[str, Any]:
     path = path.resolve()
     try:
@@ -102,7 +98,6 @@ def build_compiler_fixture_from_path(
         name=fixture_name_for_module(module_name),
         source_path=display_path,
         vm_profile=vm_profile,
-        lint=lint,
     )
 
 

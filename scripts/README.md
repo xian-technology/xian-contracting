@@ -14,8 +14,7 @@ runtime/VM work. They are not node operation scripts.
 - `audit_vm_ir_lowering.py`: lowers contract sources to the current VM IR and
   reports lowering failures plus host dependency counts.
 - `audit_compiler_core_parity.py`: compares Rust compiler-core artifacts
-  against the Python reference compiler across authored contracts and lint
-  modes.
+  against the Python reference compiler across authored contracts.
 - `generate_compiler_fixtures.py`: records authoritative Rust compiler source,
   normalization, artifact, IR, hash, and rejection behavior through the Python
   binding as `xian.compiler_fixture.v1` JSON.

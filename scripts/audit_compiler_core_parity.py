@@ -99,14 +99,13 @@ def compile_with_python(
     *,
     module_name: str,
     source: str,
-    lint: bool,
     vm_profile: str,
 ) -> CompileResult:
     try:
         compiler = ContractingCompiler(module_name=module_name)
         normalized_source = compiler.normalize_source(
             source,
-            lint=lint,
+            lint=True,
             vm_profile=vm_profile,
         )
         vm_ir_json = compiler.lower_to_ir_json(
@@ -141,14 +140,12 @@ def compile_with_rust(
     *,
     module_name: str,
     source: str,
-    lint: bool,
     vm_profile: str,
 ) -> CompileResult:
     try:
         artifact = xian_compiler_core.compile_contract_artifact(
             module_name,
             source,
-            lint=lint,
             vm_profile=vm_profile,
         )
         return CompileResult(ok=True, artifact=artifact)
@@ -186,65 +183,47 @@ def relative_path(path: Path) -> str:
         return str(path)
 
 
-def audit_source(
-    path: Path,
-    *,
-    lint_modes: tuple[bool, ...],
-    vm_profile: str,
-) -> list[dict[str, Any]]:
+def audit_source(path: Path, *, vm_profile: str) -> dict[str, Any]:
     source = path.read_text(encoding="utf-8")
     module_name = infer_module_name(path)
-    records: list[dict[str, Any]] = []
-
-    for lint in lint_modes:
-        python_result = compile_with_python(
-            module_name=module_name,
-            source=source,
-            lint=lint,
-            vm_profile=vm_profile,
-        )
-        rust_result = compile_with_rust(
-            module_name=module_name,
-            source=source,
-            lint=lint,
-            vm_profile=vm_profile,
-        )
-        record: dict[str, Any] = {
-            "path": relative_path(path),
-            "module_name": module_name,
-            "lint": lint,
-            "python_ok": python_result.ok,
-            "rust_ok": rust_result.ok,
-            "status": "matched",
-        }
-        if python_result.ok and rust_result.ok:
-            assert python_result.artifact is not None
-            assert rust_result.artifact is not None
-            mismatches = compare_artifacts(
-                python_result.artifact,
-                rust_result.artifact,
-            )
-            if mismatches:
-                record["status"] = "mismatch"
-                record["mismatches"] = mismatches
-            records.append(record)
-            continue
-
-        if python_result.ok != rust_result.ok:
+    python_result = compile_with_python(
+        module_name=module_name,
+        source=source,
+        vm_profile=vm_profile,
+    )
+    rust_result = compile_with_rust(
+        module_name=module_name,
+        source=source,
+        vm_profile=vm_profile,
+    )
+    record: dict[str, Any] = {
+        "path": relative_path(path),
+        "module_name": module_name,
+        "python_ok": python_result.ok,
+        "rust_ok": rust_result.ok,
+        "status": "matched",
+    }
+    if python_result.ok and rust_result.ok:
+        assert python_result.artifact is not None
+        assert rust_result.artifact is not None
+        mismatches = compare_artifacts(python_result.artifact, rust_result.artifact)
+        if mismatches:
             record["status"] = "mismatch"
-            record["python_error_type"] = python_result.error_type
-            record["python_error_message"] = python_result.error_message
-            record["rust_error_type"] = rust_result.error_type
-            record["rust_error_message"] = rust_result.error_message
-            records.append(record)
-            continue
+            record["mismatches"] = mismatches
+        return record
 
-        record["status"] = "both_rejected"
+    if python_result.ok != rust_result.ok:
+        record["status"] = "mismatch"
         record["python_error_type"] = python_result.error_type
+        record["python_error_message"] = python_result.error_message
         record["rust_error_type"] = rust_result.error_type
-        records.append(record)
+        record["rust_error_message"] = rust_result.error_message
+        return record
 
-    return records
+    record["status"] = "both_rejected"
+    record["python_error_type"] = python_result.error_type
+    record["rust_error_type"] = rust_result.error_type
+    return record
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -256,12 +235,6 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="*",
         type=Path,
         help="contract source files or directories to audit",
-    )
-    parser.add_argument(
-        "--lint-mode",
-        choices=("both", "lint", "no-lint"),
-        default="both",
-        help="which compiler lint setting to compare",
     )
     parser.add_argument(
         "--profile",
@@ -285,18 +258,12 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     roots = args.paths or list(DEFAULT_ROOTS)
     source_paths = discover_contract_sources(roots)
-    lint_modes = {
-        "both": (False, True),
-        "lint": (True,),
-        "no-lint": (False,),
-    }[args.lint_mode]
 
     records: list[dict[str, Any]] = []
     for source_path in source_paths:
-        records.extend(
+        records.append(
             audit_source(
                 source_path,
-                lint_modes=lint_modes,
                 vm_profile=args.profile,
             )
         )

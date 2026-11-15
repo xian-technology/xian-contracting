@@ -4,7 +4,6 @@ use xian_compiler_core::{compile_contract_artifact, validate_contract_artifact, 
 fn options() -> CompileOptions {
     CompileOptions {
         vm_profile: "xian_vm_v2".into(),
-        lint: true,
     }
 }
 
