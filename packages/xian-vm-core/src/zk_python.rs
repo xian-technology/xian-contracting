@@ -34,16 +34,12 @@ fn helper_error(error: Box<dyn Error>) -> PyErr {
     PyValueError::new_err(error.to_string())
 }
 
-/// A proof of a registered key: id, hash, key bytes, proof and inputs.
-type Registered = (String, String, String, String, Vec<String>);
+/// A proof of a registered key: the key's bytes, the proof and the inputs.
+type Registered = (String, String, Vec<String>);
 
-fn registered((vk_id, vk_hash, vk_hex, proof_hex, public_inputs): Registered) -> RegisteredProof {
+fn registered((vk_hex, proof_hex, public_inputs): Registered) -> RegisteredProof {
     RegisteredProof {
-        key: RegisteredKey {
-            vk_id,
-            vk_hash,
-            vk_hex,
-        },
+        key: RegisteredKey::new(vk_hex),
         proof_hex,
         public_inputs,
     }
@@ -56,19 +52,6 @@ fn zk_verify_groth16_bn254(
     public_inputs: Vec<String>,
 ) -> PyResult<bool> {
     xian_zk::verify_groth16_bn254(vk_hex, proof_hex, &public_inputs).map_err(verifier_error)
-}
-
-/// A proof against a registered key, through the node's proof caches.
-#[pyfunction]
-fn zk_verify_registered(
-    vk_id: String,
-    vk_hash: String,
-    vk_hex: String,
-    proof_hex: String,
-    public_inputs: Vec<String>,
-) -> PyResult<bool> {
-    let proof = registered((vk_id, vk_hash, vk_hex, proof_hex, public_inputs));
-    zk_cache::verify_registered(&proof).map_err(verifier_error)
 }
 
 /// Proofs against registered keys verified into the node's proof cache.
@@ -294,7 +277,6 @@ pub(super) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     module.add("ZkVerifierError", py.get_type::<ZkVerifierError>())?;
     let functions = [
         wrap_pyfunction!(zk_verify_groth16_bn254, module),
-        wrap_pyfunction!(zk_verify_registered, module),
         wrap_pyfunction!(zk_warm_registered, module),
         wrap_pyfunction!(zk_clear_prepared_vk_cache, module),
         wrap_pyfunction!(zk_clear_verified_proof_cache, module),

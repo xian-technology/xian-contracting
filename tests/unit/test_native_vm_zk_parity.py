@@ -268,8 +268,6 @@ def test_a_key_registered_in_the_block_overlay_verifies(driver):
 
 
 def test_warming_fills_the_cache_the_executor_verifies_from(driver):
-    # The cache key holds the key's id and hash, not its bytes: a proof
-    # warmed under a key verifies from the cache after the bytes changed.
     zk_bridge.clear_verified_proof_cache()
     request = {
         "vk_id": "demo",
@@ -277,9 +275,20 @@ def test_warming_fills_the_cache_the_executor_verifies_from(driver):
         "public_inputs": DEMO["public_inputs"],
     }
     assert zk_bridge.warm_verified_proofs([request], driver=driver) == [True]
-    driver.set("zk_registry.verifying_keys:demo:vk_hex", "0x1234")
     calls = [("zk.verify_groth16", ["demo", DEMO["proof_hex"], DEMO["public_inputs"]])]
     assert rust_outcomes(driver, calls) == [("ok", "Bool(true)")]
+
+
+def test_a_result_follows_the_key_bytes_whatever_a_node_cached(driver):
+    # A state patch that changes a key's bytes but not its id or hash: every
+    # node verifies against the new bytes, whether or not it cached a result
+    # or a prepared key under the old ones.
     zk_bridge.clear_verified_proof_cache()
-    refused = rust_outcomes(driver, calls)[0]
-    assert refused[1].startswith("AssertionError: invalid verifying key bytes"), refused
+    zk_bridge.clear_prepared_vk_cache()
+    calls = [("zk.verify_groth16", ["demo", DEMO["proof_hex"], DEMO["public_inputs"]])]
+    assert rust_outcomes(driver, calls) == [("ok", "Bool(true)")]
+    driver.set("zk_registry.verifying_keys:demo:vk_hex", "0x1234")
+    for clear in (lambda: None, zk_bridge.clear_verified_proof_cache):
+        clear()
+        refused = rust_outcomes(driver, calls)[0]
+        assert refused[1].startswith("AssertionError: invalid verifying key bytes"), refused

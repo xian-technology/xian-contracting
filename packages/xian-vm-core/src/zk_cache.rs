@@ -1,9 +1,11 @@
 //! The node's zk proof caches: prepared verifying keys and the verified
 //! results of proofs against registered keys (`zk.verify_groth16`), shared
 //! by the block host and the node's proof pre-verification
-//! (`warm`). They only save work: a cached result is the result verifying
-//! the same proof against the same registered key returns, so no outcome
-//! depends on what a node has cached.
+//! (`warm`). They only save work: both key on the verifying key's bytes
+//! (their digest), so a cached result is the result verifying the same
+//! proof against the same bytes returns, and no outcome depends on what a
+//! node has cached, even after the registry's bytes for a key id changed.
+use sha3::{Digest, Sha3_256};
 use std::collections::{BTreeMap, HashMap};
 use std::hash::Hash;
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard, PoisonError};
@@ -16,12 +18,22 @@ use xian_zk::{
 const PREPARED_KEYS: usize = 128;
 const VERIFIED_PROOFS: usize = 2048;
 
-/// A verifying key as `zk_registry` holds it: its id, hash and bytes.
+/// The SHA3-256 digest of a verifying key's hex bytes: the caches' name for
+/// those bytes.
+type KeyDigest = [u8; 32];
+
+/// A registered verifying key's bytes as `zk_registry` holds them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RegisteredKey {
-    pub(crate) vk_id: String,
-    pub(crate) vk_hash: String,
-    pub(crate) vk_hex: String,
+    vk_hex: String,
+    digest: KeyDigest,
+}
+
+impl RegisteredKey {
+    pub(crate) fn new(vk_hex: String) -> Self {
+        let digest = Sha3_256::digest(vk_hex.as_bytes()).into();
+        Self { vk_hex, digest }
+    }
 }
 
 /// A proof of a registered key with its public inputs.
@@ -33,19 +45,18 @@ pub(crate) struct RegisteredProof {
 }
 
 impl RegisteredProof {
-    /// A proof's cache key: the key's id and hash (not its bytes), the
-    /// proof and the inputs.
+    /// A proof's cache key: the key's bytes (their digest), the proof and
+    /// the inputs.
     fn cache_key(&self) -> ProofKey {
         (
-            self.key.vk_id.clone(),
-            self.key.vk_hash.clone(),
+            self.key.digest,
             self.proof_hex.clone(),
             self.public_inputs.clone(),
         )
     }
 }
 
-type ProofKey = (String, String, String, Vec<String>);
+type ProofKey = (KeyDigest, String, Vec<String>);
 
 /// A least-recently-used map (`cachetools.LRUCache`): a read refreshes an
 /// entry; a new entry evicts the least recently used one when full.
@@ -104,7 +115,7 @@ impl<K: Clone + Eq + Hash, V: Clone> Lru<K, V> {
     }
 }
 
-type PreparedKeys = Lru<(String, String), Arc<PreparedGroth16Bn254Key>>;
+type PreparedKeys = Lru<KeyDigest, Arc<PreparedGroth16Bn254Key>>;
 
 static PREPARED: LazyLock<Mutex<PreparedKeys>> =
     LazyLock::new(|| Mutex::new(Lru::new(PREPARED_KEYS)));
@@ -117,8 +128,8 @@ fn locked<T>(cache: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 /// `zk.verify_groth16` after its checks: the cached result, else the proof
-/// verified with the key's prepared form (prepared once per key id and
-/// hash) and its result cached.
+/// verified with the key's prepared form (prepared once per key bytes) and
+/// its result cached.
 pub(crate) fn verify_registered(proof: &RegisteredProof) -> Result<bool, VerifierError> {
     let cache_key = proof.cache_key();
     if let Some(verified) = locked(&VERIFIED).get(&cache_key) {
@@ -132,12 +143,11 @@ pub(crate) fn verify_registered(proof: &RegisteredProof) -> Result<bool, Verifie
 }
 
 fn prepared_key(key: &RegisteredKey) -> Result<Arc<PreparedGroth16Bn254Key>, VerifierError> {
-    let cache_key = (key.vk_id.clone(), key.vk_hash.clone());
-    if let Some(prepared) = locked(&PREPARED).get(&cache_key) {
+    if let Some(prepared) = locked(&PREPARED).get(&key.digest) {
         return Ok(prepared);
     }
     let prepared = Arc::new(prepare_groth16_bn254_vk(&key.vk_hex)?);
-    locked(&PREPARED).put(cache_key, prepared.clone());
+    locked(&PREPARED).put(key.digest, prepared.clone());
     Ok(prepared)
 }
 
@@ -194,46 +204,29 @@ mod tests {
     use super::*;
     use xian_zk::build_demo_vector;
 
-    fn proof(vk_hash: &str, vk_hex: &str, proof_hex: &str, inputs: &[String]) -> RegisteredProof {
+    fn proof(vk_hex: &str, proof_hex: &str, inputs: &[String]) -> RegisteredProof {
         RegisteredProof {
-            key: RegisteredKey {
-                vk_id: "cache-test".to_owned(),
-                vk_hash: vk_hash.to_owned(),
-                vk_hex: vk_hex.to_owned(),
-            },
+            key: RegisteredKey::new(vk_hex.to_owned()),
             proof_hex: proof_hex.to_owned(),
             public_inputs: inputs.to_vec(),
         }
     }
 
     #[test]
-    fn keys_are_prepared_and_proofs_cached_by_key_id_and_hash() {
+    fn results_follow_the_key_bytes() {
         let demo = build_demo_vector().unwrap();
         let wrong = vec![format!("0x{}", "00".repeat(31) + "05")];
-        let real = |hash, inputs: &[String]| proof(hash, &demo.vk_hex, &demo.proof_hex, inputs);
-        let garbage = |hash, inputs: &[String]| proof(hash, "0x1234", &demo.proof_hex, inputs);
+        let real = |inputs: &[String]| proof(&demo.vk_hex, &demo.proof_hex, inputs);
+        let garbage = |inputs: &[String]| proof("0x1234", &demo.proof_hex, inputs);
+        assert_eq!(verify_registered(&real(&demo.public_inputs)), Ok(true));
+        assert_eq!(warm(&[real(&demo.public_inputs)]), Ok(vec![true]));
+        // The same proof and inputs over other key bytes: those bytes are
+        // verified, whatever is cached for the first ones.
+        assert!(verify_registered(&garbage(&demo.public_inputs)).is_err());
+        assert!(warm(&[garbage(&demo.public_inputs)]).is_err());
+        assert_eq!(verify_registered(&real(&wrong)), Ok(false));
         assert_eq!(
-            verify_registered(&real("h1", &demo.public_inputs)),
-            Ok(true)
-        );
-        // Another hash is another key: prepared from its own bytes.
-        assert!(verify_registered(&garbage("h2", &demo.public_inputs)).is_err());
-        // The same id and hash: the cached result, then the prepared key.
-        assert_eq!(
-            verify_registered(&garbage("h1", &demo.public_inputs)),
-            Ok(true)
-        );
-        assert_eq!(verify_registered(&garbage("h1", &wrong)), Ok(false));
-        assert_eq!(
-            warm(&[garbage("h1", &demo.public_inputs), garbage("h1", &wrong)]),
-            Ok(vec![true, false])
-        );
-        clear_verified();
-        clear_prepared();
-        assert!(verify_registered(&garbage("h1", &wrong)).is_err());
-        assert!(warm(&[garbage("h1", &wrong)]).is_err());
-        assert_eq!(
-            warm(&[real("h3", &wrong), real("h3", &demo.public_inputs)]),
+            warm(&[real(&wrong), real(&demo.public_inputs)]),
             Ok(vec![false, true])
         );
     }

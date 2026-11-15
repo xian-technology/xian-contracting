@@ -270,14 +270,14 @@ fn v2_returnable(value: &VmValue) -> bool {
     }
 }
 
-/// The hash of a usable registry entry, or why it is not one, in the
-/// order the Python checks refuse it.
-fn usable_hash(
+/// Why a registry entry is not usable, in the order the Python checks
+/// refuse it. Its hash must be present; the proof caches key on the bytes.
+fn usable(
     scheme: &Option<VmValue>,
     curve: &Option<VmValue>,
     active: &Option<VmValue>,
-    vk_hash: Option<VmValue>,
-) -> Result<String, &'static str> {
+    vk_hash: &Option<VmValue>,
+) -> Result<(), &'static str> {
     let is_text = |value: &Option<VmValue>, expected: &str| matches!(value, Some(VmValue::String(text)) if text == expected);
     if !is_text(scheme, "groth16") {
         return Err("must use Groth16!");
@@ -289,7 +289,7 @@ fn usable_hash(
         return Err("is inactive!");
     }
     match vk_hash {
-        Some(VmValue::String(hash)) if !hash.is_empty() => Ok(hash),
+        Some(VmValue::String(hash)) if !hash.is_empty() => Ok(()),
         _ => Err("is missing vk_hash!"),
     }
 }
@@ -326,14 +326,10 @@ impl BlockHost<'_> {
         let curve = self.registry_field(vk_id, "curve")?;
         let vk_hash = self.registry_field(vk_id, "vk_hash")?;
         let active = self.registry_field(vk_id, "active")?;
-        let vk_hash = usable_hash(&scheme, &curve, &active, vk_hash)
+        usable(&scheme, &curve, &active, &vk_hash)
             .map_err(|refusal| assertion(format!("Verifying key '{vk_id}' {refusal}")))?;
         let vk_hex = hex("registered vk_hex", &vk_hex, MAX_VK_HEX_CHARS)?.to_owned();
-        Ok(RegisteredKey {
-            vk_id: vk_id.to_owned(),
-            vk_hash,
-            vk_hex,
-        })
+        Ok(RegisteredKey::new(vk_hex))
     }
 
     /// One `warm_verified_proofs` request checked, with its key read.

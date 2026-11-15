@@ -189,7 +189,7 @@ def warm_verified_proofs(requests: list[dict], *, driver) -> list[bool]:
         _validate_public_inputs(public_inputs)
 
         record = _registered_vk_record(driver, vk_id)
-        proofs.append((vk_id, record["vk_hash"], record["vk_hex"], proof_hex, public_inputs))
+        proofs.append((record["vk_hex"], proof_hex, public_inputs))
 
     # The proofs not in the node's proof cache are verified together and
     # their results cached.
