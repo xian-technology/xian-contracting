@@ -52,9 +52,12 @@ cargo check --manifest-path packages/xian-compiler-core/Cargo.toml --features py
 cargo check --manifest-path packages/xian-compiler-core/Cargo.toml --features wasm
 cargo check --manifest-path packages/xian-zk/Cargo.toml --features python-extension
 cargo check --manifest-path packages/xian-vm-core/Cargo.toml --features python-extension
+cargo check --manifest-path packages/xian-vm-core/Cargo.toml --target wasm32-unknown-unknown \
+  --no-default-features --features wasm
 cargo test --manifest-path packages/xian-vm-core/Cargo.toml
 cargo test --manifest-path packages/xian-zk/Cargo.toml --no-default-features
 npm --prefix packages/xian-compiler-core/npm test
+npm --prefix packages/xian-vm-core/npm test
 
 (
   cd packages/xian-zk

@@ -147,6 +147,34 @@ stored value the reader rejects is a host fault (`LmdbStorageError`), never a
 transaction outcome. Tooling that hashes or stores values outside execution
 uses `stored_value_bytes(value)`, the bytes `BlockState.write_value` stores.
 
+## Committed stores and builds
+
+Execution reads committed state through one trait, `CommittedStore`
+(`src/committed_store.rs`): the stored bytes at a key, and an ordered scan from
+one snapshot. Keys are ordered by their bytes (LMDB's `memcmp` order). Two
+backends implement it: the node's `LmdbEnv` and `MemoryStore`
+(`src/memory_store.rs`, a `BTreeMap` over key bytes) for the browser build and
+tests. Writes are staged in the block overlay either way; its `commit` hands
+them to the backend's own writer. The 511-byte key bound is a consensus rule
+of the engine, not of a backend.
+
+Cargo features:
+
+- `lmdb` (default): the vendored LMDB (a C build) and `lmdb_env`;
+- `engine`: the block executor, block host and state view;
+- `python-extension` = `engine` + `lmdb` + PyO3 (the node's wheel, unchanged);
+- `wasm` = `engine` + wasm-bindgen, built with `--no-default-features` (no C
+  code, no Python): the `@xian-tech/vm` npm package in `npm/`. It exposes a
+  chain in memory (`src/sandbox/`) that runs transactions with the code
+  `execute_tx` runs and commits them into a `MemoryStore`.
+
+The scenario in `tests/vectors/sandbox` pins that both backends agree: its
+transcript (`transcript.txt`, every outcome, the exported store and the state
+root) is written by the LMDB backend (contracting
+`tests/integration/test_vm_sandbox_parity.py`) and reproduced byte for byte by
+the in-memory store in Rust (`sandbox::tests`) and by the WebAssembly build
+under Node (`npm/tests/vm.test.mjs`).
+
 ## Execution coverage
 
 - local function calls and builtin calls such as `len`, `range`, `str`, and

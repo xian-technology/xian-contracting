@@ -145,3 +145,44 @@ jobs:
       # any family priced an order of magnitude too low.
       - name: Check metering calibration
         run: uv run --no-sync python scripts/metering_calibration.py --max-ratio 8
+
+  validate-wasm:
+    runs-on: ubuntu-latest
+    # The WebAssembly packages: the compiler and the VM (the node's engine
+    # over an in-memory store). A normal run takes a few minutes.
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@1.100.0
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: |
+          if ! command -v wasm-pack >/dev/null 2>&1; then
+            cargo install wasm-pack --version 0.14.0 --locked
+          fi
+          wasm-pack --version
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Check VM core WASM binding crate
+        run: cargo check --manifest-path packages/xian-vm-core/Cargo.toml --target wasm32-unknown-unknown --no-default-features --features wasm
+
+      - name: Build and test the compiler npm package
+        run: npm --prefix packages/xian-compiler-core/npm test
+
+      - name: Build and test the VM npm package
+        run: npm --prefix packages/xian-vm-core/npm test
+
+      - name: Report the VM package size
+        run: |
+          wasm=packages/xian-vm-core/npm/dist/xian_vm_core_bg.wasm
+          echo "xian_vm_core_bg.wasm: $(wc -c < "$wasm") bytes, $(gzip -9 -c "$wasm" | wc -c) gzipped"

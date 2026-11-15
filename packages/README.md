@@ -14,7 +14,9 @@ small, purpose-built packages instead of growing one monolithic runtime.
 - `xian-fastpath-core/`: Rust crate with transaction wire decoding and the static
   admission rules; `xian-vm-core` links it and exposes admission to the node
 - `xian-vm-core/`: native `xian_ir_v1` validation (V1 and V2) and the V2
-  execution engine (blocks and single calls), published as `xian-tech-vm-core`
+  execution engine (blocks and single calls), published as `xian-tech-vm-core`;
+  its `npm/` folder builds the engine as WebAssembly (`@xian-tech/vm`, an
+  in-memory chain for browsers)
 - `xian-zk/`: native Groth16 BN254 verification and shielded-note proving
   toolkit, published as `xian-tech-zk`
 
