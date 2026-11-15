@@ -1965,7 +1965,7 @@ pub(super) fn explicit_syscall_metering_cost(
                 &vk_hex,
                 &proof_hex,
                 &public_inputs,
-            )?))
+            )))
         }
         "zk.verify_groth16" => {
             if !kwargs.is_empty() || args.len() != 3 {
@@ -1980,7 +1980,15 @@ pub(super) fn explicit_syscall_metering_cost(
                 &vk_id,
                 &proof_hex,
                 &public_inputs,
-            )?))
+            )))
+        }
+        "zk.warm_verified_proofs" => {
+            if !kwargs.is_empty() || args.len() != 1 {
+                return Err(VmExecutionError::new(
+                    "zk.warm_verified_proofs() expects one positional argument",
+                ));
+            }
+            Ok(Some(zk_warm_metering_cost(&args[0])))
         }
         "zk.shielded_note_append_commitments" => {
             if args.len() != 3 || !kwargs.is_empty() {
@@ -2012,7 +2020,7 @@ pub(super) fn explicit_syscall_metering_cost(
             if payload_hex.is_empty() {
                 return Ok(Some(0));
             }
-            Ok(Some(hex_payload_bytes(&payload_hex)?))
+            Ok(Some(hex_payload_bytes(&payload_hex)))
         }
         _ => Ok(None),
     }
@@ -2034,46 +2042,78 @@ pub(super) fn as_string_list(
     }
 }
 
-pub(super) fn hex_payload_bytes(value: &str) -> Result<u64, VmExecutionError> {
-    let Some(payload) = value.strip_prefix("0x") else {
-        return Ok(0);
-    };
-    if payload.len() % 2 != 0 {
-        return Ok(0);
+pub(super) fn hex_payload_bytes(value: &str) -> u64 {
+    match value.strip_prefix("0x") {
+        Some(payload) if payload.len() % 2 == 0 => (payload.len() / 2) as u64,
+        _ => 0,
     }
-    Ok((payload.len() / 2) as u64)
+}
+
+fn hex_list_bytes(values: &[String]) -> u64 {
+    values.iter().map(|value| hex_payload_bytes(value)).sum()
 }
 
 pub(super) fn zk_payload_metering_cost(
     vk_hex: &str,
     proof_hex: &str,
     public_inputs: &[String],
-) -> Result<u64, VmExecutionError> {
-    let payload_bytes = hex_payload_bytes(vk_hex)?
-        + hex_payload_bytes(proof_hex)?
-        + public_inputs
-            .iter()
-            .map(|value| hex_payload_bytes(value))
-            .collect::<Result<Vec<_>, _>>()?
-            .iter()
-            .sum::<u64>();
-    Ok(750_000 + (public_inputs.len() as u64 * 50_000) + (payload_bytes * 50))
+) -> u64 {
+    let payload_bytes =
+        hex_payload_bytes(vk_hex) + hex_payload_bytes(proof_hex) + hex_list_bytes(public_inputs);
+    750_000 + (public_inputs.len() as u64 * 50_000) + (payload_bytes * 50)
 }
 
 pub(super) fn zk_registry_metering_cost(
     vk_id: &str,
     proof_hex: &str,
     public_inputs: &[String],
-) -> Result<u64, VmExecutionError> {
-    let payload_bytes = vk_id.len() as u64
-        + hex_payload_bytes(proof_hex)?
-        + public_inputs
+) -> u64 {
+    let payload_bytes =
+        vk_id.len() as u64 + hex_payload_bytes(proof_hex) + hex_list_bytes(public_inputs);
+    500_000 + 250_000 + (public_inputs.len() as u64 * 50_000) + (payload_bytes * 25)
+}
+
+/// `zk.warm_verified_proofs(requests)`: each request may cost the host a
+/// verification, so each is charged as `zk.verify_groth16` charges its
+/// arguments (a field that is not text counts as empty; the host refuses the
+/// request after the charge).
+pub(super) fn zk_warm_metering_cost(requests: &VmValue) -> u64 {
+    let VmValue::List(requests) = requests else {
+        return 0;
+    };
+    requests
+        .iter()
+        .map(zk_warm_request_metering_cost)
+        .fold(0, u64::saturating_add)
+}
+
+fn zk_warm_request_metering_cost(request: &VmValue) -> u64 {
+    let entries: &[(VmValue, VmValue)] = match request {
+        VmValue::Dict(entries) => entries,
+        _ => &[],
+    };
+    let field = |name: &str| {
+        entries
             .iter()
-            .map(|value| hex_payload_bytes(value))
-            .collect::<Result<Vec<_>, _>>()?
+            .rev()
+            .find(|(key, _)| matches!(key, VmValue::String(key) if key == name))
+            .map(|(_, value)| value)
+    };
+    let text = |name: &str| match field(name) {
+        Some(VmValue::String(value)) => value.as_str(),
+        _ => "",
+    };
+    let public_inputs = match field("public_inputs") {
+        Some(VmValue::List(values)) => values
             .iter()
-            .sum::<u64>();
-    Ok(500_000 + 250_000 + (public_inputs.len() as u64 * 50_000) + (payload_bytes * 25))
+            .map(|value| match value {
+                VmValue::String(value) => value.clone(),
+                _ => String::new(),
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+    zk_registry_metering_cost(text("vk_id"), text("proof_hex"), &public_inputs)
 }
 
 pub(super) fn resolve_contract_import_arg(
