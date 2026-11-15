@@ -436,10 +436,10 @@ fn a_paid_call_pays_half_of_the_chi_it_left_unused() {
 }
 
 /// A chain whose contracts `con_c0 .. con_c{length - 1}` each import the
-/// one before; deployed by a factory in one transaction.
+/// one before; deployed by a factory.
 fn import_chain(length: usize) -> Sandbox {
     let chain = chain();
-    let factory = "@export\ndef build(n: int):\n    sub = importlib.import_module('submission')\n    for i in range(n):\n        code = '@export\\ndef f():\\n    return 1\\n'\n        if i > 0:\n            code = 'import con_c' + str(i - 1) + '\\n' + code\n        sub.submit_contract(name='con_c' + str(i), code=code)\n    return n\n";
+    let factory = "@export\ndef build(start: int, n: int):\n    sub = importlib.import_module('submission')\n    for i in range(start, start + n):\n        code = '@export\\ndef f():\\n    return 1\\n'\n        if i > 0:\n            code = 'import con_c' + str(i - 1) + '\\n' + code\n        sub.submit_contract(name='con_c' + str(i), code=code)\n    return n\n";
     let deployed = parsed(
         &chain
             .deploy(
@@ -450,16 +450,20 @@ fn import_chain(length: usize) -> Sandbox {
             .unwrap(),
     );
     assert_eq!(deployed["status"], 0, "{deployed}");
-    let built = parsed(
-        &chain
-            .call(
-                &json!({"sender": "alice", "contract": "con_factory", "function": "build",
-                        "kwargs": {"n": length}, "environment": environment()})
-                .to_string(),
-            )
-            .unwrap(),
-    );
-    assert_eq!(built["status"], 0, "{built}");
+    // A deployment costs 15,000 chi: at most 50 fit one transaction.
+    for start in (0..length).step_by(50) {
+        let batch = (length - start).min(50);
+        let built = parsed(
+            &chain
+                .call(
+                    &json!({"sender": "alice", "contract": "con_factory", "function": "build",
+                            "kwargs": {"start": start, "n": batch}, "environment": environment()})
+                    .to_string(),
+                )
+                .unwrap(),
+        );
+        assert_eq!(built["status"], 0, "{built}");
+    }
     chain
 }
 
