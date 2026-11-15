@@ -1946,84 +1946,75 @@ pub(super) fn split_foreign_storage_key(key: &str) -> Result<(String, String), V
     Ok((contract.to_owned(), binding.to_owned()))
 }
 
+/// The charge of a zk syscall before the host runs it (`None` for a
+/// syscall without one), after checking its call shape.
 pub(super) fn explicit_syscall_metering_cost(
     syscall_id: &str,
     args: &[VmValue],
     kwargs: &[(String, VmValue)],
 ) -> Result<Option<u64>, VmExecutionError> {
+    let arity = match syscall_id {
+        "zk.verify_groth16_bn254" | "zk.verify_groth16" | "zk.shielded_note_append_commitments" => {
+            3
+        }
+        "zk.warm_verified_proofs"
+        | "zk.shielded_command_nullifier_digest"
+        | "zk.shielded_output_payload_hash" => 1,
+        "zk.shielded_command_binding" => return Ok(Some(100_000)),
+        "zk.shielded_command_execution_tag" => return Ok(Some(50_000)),
+        _ => return Ok(None),
+    };
+    if !kwargs.is_empty() || args.len() != arity {
+        return Err(arity_error(syscall_id, arity));
+    }
+    zk_argument_cost(syscall_id, args).map(Some)
+}
+
+fn arity_error(syscall_id: &str, arity: usize) -> VmExecutionError {
+    let expected = match arity {
+        1 => "one positional argument",
+        _ => "three positional arguments",
+    };
+    VmExecutionError::new(format!("{syscall_id}() expects {expected}"))
+}
+
+/// The charge of a zk syscall whose call shape was checked.
+fn zk_argument_cost(syscall_id: &str, args: &[VmValue]) -> Result<u64, VmExecutionError> {
     match syscall_id {
-        "zk.verify_groth16_bn254" => {
-            if !kwargs.is_empty() || args.len() != 3 {
-                return Err(VmExecutionError::new(
-                    "zk.verify_groth16_bn254() expects three positional arguments",
-                ));
-            }
-            let vk_hex = args[0].as_string()?;
-            let proof_hex = args[1].as_string()?;
-            let public_inputs = as_string_list(&args[2], "public_inputs")?;
-            Ok(Some(zk_payload_metering_cost(
-                &vk_hex,
-                &proof_hex,
-                &public_inputs,
-            )))
-        }
-        "zk.verify_groth16" => {
-            if !kwargs.is_empty() || args.len() != 3 {
-                return Err(VmExecutionError::new(
-                    "zk.verify_groth16() expects three positional arguments",
-                ));
-            }
-            let vk_id = args[0].as_string()?;
-            let proof_hex = args[1].as_string()?;
-            let public_inputs = as_string_list(&args[2], "public_inputs")?;
-            Ok(Some(zk_registry_metering_cost(
-                &vk_id,
-                &proof_hex,
-                &public_inputs,
-            )))
-        }
-        "zk.warm_verified_proofs" => {
-            if !kwargs.is_empty() || args.len() != 1 {
-                return Err(VmExecutionError::new(
-                    "zk.warm_verified_proofs() expects one positional argument",
-                ));
-            }
-            Ok(Some(zk_warm_metering_cost(&args[0])))
-        }
+        "zk.verify_groth16_bn254" => verification_cost(args, zk_payload_metering_cost),
+        "zk.verify_groth16" => verification_cost(args, zk_registry_metering_cost),
+        "zk.warm_verified_proofs" => Ok(zk_warm_metering_cost(&args[0])),
         "zk.shielded_note_append_commitments" => {
-            if args.len() != 3 || !kwargs.is_empty() {
-                return Err(VmExecutionError::new(
-                    "zk.shielded_note_append_commitments() expects three positional arguments",
-                ));
-            }
-            let commitments = as_string_list(&args[2], "commitments")?;
-            Ok(Some(250_000 + (commitments.len() as u64 * 500_000)))
+            per_item_cost(&args[2], "commitments", 250_000, 500_000)
         }
         "zk.shielded_command_nullifier_digest" => {
-            if args.len() != 1 || !kwargs.is_empty() {
-                return Err(VmExecutionError::new(
-                    "zk.shielded_command_nullifier_digest() expects one positional argument",
-                ));
-            }
-            let input_nullifiers = as_string_list(&args[0], "input_nullifiers")?;
-            Ok(Some(100_000 + (input_nullifiers.len() as u64 * 50_000)))
+            per_item_cost(&args[0], "input_nullifiers", 100_000, 50_000)
         }
-        "zk.shielded_command_binding" => Ok(Some(100_000)),
-        "zk.shielded_command_execution_tag" => Ok(Some(50_000)),
-        "zk.shielded_output_payload_hash" => {
-            if args.len() != 1 || !kwargs.is_empty() {
-                return Err(VmExecutionError::new(
-                    "zk.shielded_output_payload_hash() expects one positional argument",
-                ));
-            }
-            let payload_hex = args[0].as_string()?;
-            if payload_hex.is_empty() {
-                return Ok(Some(0));
-            }
-            Ok(Some(hex_payload_bytes(&payload_hex)))
-        }
-        _ => Ok(None),
+        // zk.shielded_output_payload_hash: one raw chi per payload byte.
+        _ => Ok(hex_payload_bytes(&args[0].as_string()?)),
     }
+}
+
+/// A verification's charge from its key (id or bytes), proof and inputs.
+fn verification_cost(
+    args: &[VmValue],
+    cost: fn(&str, &str, &[String]) -> u64,
+) -> Result<u64, VmExecutionError> {
+    Ok(cost(
+        &args[0].as_string()?,
+        &args[1].as_string()?,
+        &as_string_list(&args[2], "public_inputs")?,
+    ))
+}
+
+/// `base` plus `each` per string of the list `value`.
+fn per_item_cost(
+    value: &VmValue,
+    label: &str,
+    base: u64,
+    each: u64,
+) -> Result<u64, VmExecutionError> {
+    Ok(base + as_string_list(value, label)?.len() as u64 * each)
 }
 
 pub(super) fn as_string_list(
@@ -2615,5 +2606,56 @@ mod zk_metering_tests {
         let refused = explicit_syscall_metering_cost("zk.warm_verified_proofs", &not_a_list, &[]);
         assert_eq!(refused.unwrap(), Some(0));
         assert!(explicit_syscall_metering_cost("zk.warm_verified_proofs", &[], &[]).is_err());
+    }
+
+    #[test]
+    fn the_other_zk_charges_follow_their_arguments() {
+        let cost = |id: &str, args: &[VmValue]| explicit_syscall_metering_cost(id, args, &[]);
+        let fields = |n: usize| VmValue::List(vec![text("0x01"); n]);
+        let append = [VmValue::Int(0.into()), fields(1), fields(3)];
+        assert_eq!(
+            cost("zk.shielded_note_append_commitments", &append).unwrap(),
+            Some(1_750_000)
+        );
+        let digest = [fields(2)];
+        assert_eq!(
+            cost("zk.shielded_command_nullifier_digest", &digest).unwrap(),
+            Some(200_000)
+        );
+        assert_eq!(
+            cost("zk.shielded_output_payload_hash", &[text("0xabcd")]).unwrap(),
+            Some(2)
+        );
+        assert_eq!(
+            cost("zk.shielded_output_payload_hash", &[text("")]).unwrap(),
+            Some(0)
+        );
+        assert_eq!(
+            cost("zk.shielded_command_binding", &[]).unwrap(),
+            Some(100_000)
+        );
+        assert_eq!(
+            cost("zk.shielded_command_execution_tag", &[]).unwrap(),
+            Some(50_000)
+        );
+        assert_eq!(cost("zk.is_available", &[]).unwrap(), None);
+        let three = cost("zk.verify_groth16", &[text("a")]).unwrap_err();
+        assert_eq!(
+            three.to_string(),
+            "zk.verify_groth16() expects three positional arguments"
+        );
+        let one = cost("zk.shielded_output_payload_hash", &[]).unwrap_err();
+        assert_eq!(
+            one.to_string(),
+            "zk.shielded_output_payload_hash() expects one positional argument"
+        );
+        let keyword = [("payload_hex".to_owned(), text("0x"))];
+        let by_name = explicit_syscall_metering_cost(
+            "zk.shielded_output_payload_hash",
+            &[text("0x")],
+            &keyword,
+        );
+        assert!(by_name.is_err());
+        assert!(cost("zk.shielded_command_nullifier_digest", &[text("x")]).is_err());
     }
 }
