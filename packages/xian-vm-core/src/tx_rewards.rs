@@ -12,6 +12,13 @@
 //! foundation, developers) are negative or sum to more than 1 pays no
 //! rewards.
 //!
+//! Delegators are paid lazily (reward per share): each active validator's
+//! allotment goes to its operator (commission and the self bond's part) and
+//! to its delegation pool, whose tokens are credited to the `validators`
+//! contract with the rate per pool share (`reward_per_share`); the contract
+//! pays each delegator when it touches its delegation. The work per
+//! transaction grows with the active validators, never with delegators.
+//!
 //! Revision 14: a transaction's rewards are paid in full or not at all. A
 //! reward input of a type it may not hold (the split, the foundation owner,
 //! the validators and their terms, a developer), an amount outside the
@@ -61,7 +68,8 @@ fn invalid<T>() -> Reward<T> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RewardKind {
     Validator,
-    Delegator,
+    /// A validator's delegation pool (credited to `validators`).
+    DelegatorPool,
     Foundation,
     Developer,
 }
@@ -70,7 +78,7 @@ impl RewardKind {
     pub(crate) fn name(self) -> &'static str {
         match self {
             Self::Validator => "validator_reward",
-            Self::Delegator => "delegator_reward",
+            Self::DelegatorPool => "delegator_pool_reward",
             Self::Foundation => "foundation_reward",
             Self::Developer => "developer_reward",
         }
@@ -83,7 +91,6 @@ pub(crate) struct RewardRecord {
     pub(crate) recipient_key: String,
     pub(crate) source_contract: Option<String>,
     pub(crate) validator_key: Option<String>,
-    pub(crate) delegator_key: Option<String>,
     pub(crate) value: VmDecimal,
 }
 
@@ -110,13 +117,6 @@ impl TxRewards {
             records,
         }
     }
-}
-
-fn merge(credits: &mut Credits, other: &Credits) -> Reward<()> {
-    for (key, amount) in other {
-        credit(credits, key, amount)?;
-    }
-    Ok(())
 }
 
 fn credit(credits: &mut Credits, key: &str, amount: &VmDecimal) -> Reward<()> {
@@ -210,79 +210,62 @@ fn non_negative(value: Option<VmValue>) -> Reward<VmDecimal> {
     })
 }
 
-/// A validator's staking terms (with a positive stake).
-struct Stake {
+/// The account whose `currency` balance holds the delegation pools' reward
+/// tokens (the `validators` contract, which pays delegators out).
+pub(crate) const POOL_ACCOUNT: &str = "validators";
+
+/// The contract whose state the validator part of the split reads.
+pub(crate) const VALIDATORS_CONTRACT: &str = "validators";
+
+/// The highest commission, in basis points (all of the allotment).
+const MAX_COMMISSION_BPS: u32 = 10_000;
+
+/// A validator's commission and delegation pool, as the split reads them.
+struct PoolTerms {
     commission_bps: VmDecimal,
     self_bond: VmDecimal,
-    stake_base: VmDecimal,
-    weights: Vec<((String, String), VmDecimal)>,
+    /// The tokens of the delegation pool (`total_delegated`).
+    delegated: VmDecimal,
+    /// The shares those tokens are owned by (`total_shares`).
+    shares: VmDecimal,
 }
 
-/// Credits `validator`'s reward to its operator (commission and self bond)
-/// and its delegators (the last takes what is left), and records them.
-fn credit_stake(
-    (own, records): (&mut Credits, &mut Vec<RewardRecord>),
-    validator: &str,
-    operator_key: &str,
-    total_reward: &VmDecimal,
-    stake: &Stake,
-) -> Reward<()> {
-    let (operator_total, remainder) = operator_share(
-        total_reward,
-        &stake.commission_bps,
-        &stake.self_bond,
-        &stake.stake_base,
-    )?;
-    if operator_total.scaled.is_positive() {
-        credit_operator((own, records), validator, operator_key, &operator_total)?;
-    }
-    let shares = split(
-        total_reward,
-        &stake.weights,
-        &remainder,
-        &stake.stake_base,
-        operator_total,
-    )?;
-    credit_delegators(validator, &stake.weights, shares, own, records)
+/// One active validator's allotment (in chi), split between its operator
+/// and its delegation pool.
+struct ValidatorShare {
+    validator: String,
+    operator_key: String,
+    operator: VmDecimal,
+    pool: VmDecimal,
+    shares: VmDecimal,
+    /// A validator without stake credits its operator even with nothing.
+    unstaked: bool,
 }
 
-/// Credits the operator's share of `validator`'s reward and records it.
-fn credit_operator(
-    (own, records): (&mut Credits, &mut Vec<RewardRecord>),
-    validator: &str,
-    operator_key: &str,
-    amount: &VmDecimal,
-) -> Reward<()> {
-    credit(own, operator_key, amount)?;
-    records.push(validator_record(
-        RewardKind::Validator,
+/// `total` split by `terms`: the commission and the self bond's part of the
+/// rest go to the operator, the delegations' part to the pool. A pool
+/// without tokens or shares earns nothing.
+fn validator_share(
+    validator: String,
+    operator_key: String,
+    total: &VmDecimal,
+    terms: PoolTerms,
+) -> Reward<ValidatorShare> {
+    let stake_base = checked_add(&terms.self_bond, &terms.delegated)?;
+    let pool = if terms.delegated.scaled.is_positive() && terms.shares.scaled.is_positive() {
+        let commission = proportional(total, &terms.commission_bps, &whole(MAX_COMMISSION_BPS))?;
+        proportional(&sub(total, &commission)?, &terms.delegated, &stake_base)?
+    } else {
+        VmDecimal::zero()
+    };
+    Ok(ValidatorShare {
         validator,
         operator_key,
-        None,
-        amount,
-    ));
-    Ok(())
-}
-
-/// Credits each delegator's share of `validator`'s reward and records it.
-fn credit_delegators(
-    validator: &str,
-    weights: &[((String, String), VmDecimal)],
-    shares: Vec<VmDecimal>,
-    own: &mut Credits,
-    records: &mut Vec<RewardRecord>,
-) -> Reward<()> {
-    for (((delegator, reward_key), _), amount) in weights.iter().zip(shares) {
-        credit(own, reward_key, &amount)?;
-        records.push(validator_record(
-            RewardKind::Delegator,
-            validator,
-            reward_key,
-            Some(delegator),
-            &amount,
-        ));
-    }
-    Ok(())
+        operator: sub(total, &pool)?,
+        pool,
+        shares: terms.shares,
+        unstaked: !stake_base.scaled.is_positive(),
+    })
 }
 
 /// A reward record of `validator`'s share.
@@ -290,7 +273,6 @@ fn validator_record(
     kind: RewardKind,
     validator: &str,
     recipient: &str,
-    delegator: Option<&str>,
     value: &VmDecimal,
 ) -> RewardRecord {
     RewardRecord {
@@ -298,26 +280,17 @@ fn validator_record(
         recipient_key: recipient.to_owned(),
         source_contract: None,
         validator_key: Some(validator.to_owned()),
-        delegator_key: delegator.map(str::to_owned),
         value: value.clone(),
     }
 }
 
-/// The operator's share of a validator's `total_reward` (its commission and
-/// its self bond's part of the rest) and the rest, which the stake shares.
-fn operator_share(
-    total_reward: &VmDecimal,
-    commission_bps: &VmDecimal,
-    self_bond: &VmDecimal,
-    stake_base: &VmDecimal,
-) -> Reward<(VmDecimal, VmDecimal)> {
-    let commission = proportional(total_reward, commission_bps, &whole(10_000))?;
-    let remainder = sub(total_reward, &commission)?;
-    if !self_bond.scaled.is_positive() {
-        return Ok((commission, remainder));
+/// `value` within `[0, cap]`.
+fn bounded(value: VmDecimal, cap: VmDecimal) -> VmDecimal {
+    if value.scaled.is_negative() {
+        VmDecimal::zero()
+    } else {
+        value.min(cap)
     }
-    let bonded = proportional(&remainder, self_bond, stake_base)?;
-    Ok((checked_add(&commission, &bonded)?, remainder))
 }
 
 /// `w1 + w2 + ...`.
@@ -365,114 +338,79 @@ impl Rewards<'_> {
         Ok(self.state.get(&key)?)
     }
 
-    /// The operator's reward key, commission (basis points, capped at
-    /// 10000) and self bond of `validator`.
-    fn operator_terms(&mut self, validator: &str) -> Reward<(String, VmDecimal, VmDecimal)> {
-        let operator_key = key_or(
-            self.var("validators", "reward_keys", &[validator])?,
-            validator,
-        )?;
-        let commission_bps =
-            non_negative(self.var("validators", "commission_bps", &[validator])?)?;
-        let commission_bps = commission_bps.min(whole(10_000));
-        let self_bond = non_negative(self.var("validators", "self_bond", &[validator])?)?;
-        Ok((operator_key, commission_bps, self_bond))
+    fn validator_var(&mut self, variable: &str, validator: &str) -> Reward<Option<VmValue>> {
+        self.var(VALIDATORS_CONTRACT, variable, &[validator])
     }
 
-    /// The positive delegations to `validator` as `((delegator, reward key),
-    /// amount)`, and their total.
-    fn delegations(
-        &mut self,
-        validator: &str,
-    ) -> Reward<(Vec<((String, String), VmDecimal)>, VmDecimal)> {
-        let mut weights = Vec::new();
-        for delegator in names(self.var("validators", "delegator_lists", &[validator])?)? {
-            if let Some(weight) = self.delegation(delegator, validator)? {
-                weights.push(weight);
-            }
-        }
-        let total = sum(&weights)?;
-        Ok((weights, total))
+    /// The policy's commission cap (`config["max_commission_bps"]`; missing
+    /// is 10000), within `[0, 10000]`: `effective_commission_bps`'s bound.
+    fn max_commission(&mut self) -> Reward<VmDecimal> {
+        let cap = match present(self.validator_var("config", "max_commission_bps")?) {
+            None => whole(MAX_COMMISSION_BPS),
+            Some(value) => as_decimal(&value)?,
+        };
+        Ok(bounded(cap, whole(MAX_COMMISSION_BPS)))
     }
 
-    /// A positive delegation to `validator` as `((delegator, reward key),
-    /// amount)`.
-    fn delegation(
-        &mut self,
-        delegator: String,
-        validator: &str,
-    ) -> Reward<Option<((String, String), VmDecimal)>> {
-        let delegation =
-            non_negative(self.var("validators", "delegations", &[&delegator, validator])?)?;
-        if !delegation.scaled.is_positive() {
-            return Ok(None);
-        }
-        let reward_key = key_or(
-            self.var(
-                "validators",
-                "delegator_reward_keys",
-                &[&delegator, validator],
-            )?,
-            &delegator,
-        )?;
-        Ok(Some(((delegator, reward_key), delegation)))
+    /// `validator`'s commission (`effective_commission_bps`) and pool.
+    fn pool_terms(&mut self, validator: &str, max_commission: &VmDecimal) -> Reward<PoolTerms> {
+        let commission_bps = non_negative(self.validator_var("commission_bps", validator)?)?;
+        Ok(PoolTerms {
+            commission_bps: commission_bps.min(max_commission.clone()),
+            self_bond: non_negative(self.validator_var("self_bond", validator)?)?,
+            delegated: non_negative(self.validator_var("total_delegated", validator)?)?,
+            shares: non_negative(self.validator_var("total_shares", validator)?)?,
+        })
     }
 
-    /// `build_single_validator_reward_outputs`: credits `mapping` and
-    /// appends the records.
+    /// `validator`'s allotment `total` split between its operator and pool.
     fn single_validator(
         &mut self,
-        validator: &str,
-        total_reward: &VmDecimal,
-        mapping: &mut Credits,
-        records: &mut Vec<RewardRecord>,
-    ) -> Reward<()> {
-        let (operator_key, commission_bps, self_bond) = self.operator_terms(validator)?;
-        let (weights, total_delegated) = self.delegations(validator)?;
-        let stake_base = checked_add(&self_bond, &total_delegated)?;
-        let mut own = Credits::new();
-        let paid = (&mut own, &mut *records);
-        if stake_base.scaled.is_positive() {
-            let stake = Stake {
-                commission_bps,
-                self_bond,
-                stake_base,
-                weights,
-            };
-            credit_stake(paid, validator, &operator_key, total_reward, &stake)?;
-        } else {
-            credit_operator(paid, validator, &operator_key, total_reward)?;
-        }
-        merge(mapping, &own)
+        validator: String,
+        total: &VmDecimal,
+        max_commission: &VmDecimal,
+    ) -> Reward<ValidatorShare> {
+        let operator_key = key_or(self.validator_var("reward_keys", &validator)?, &validator)?;
+        let terms = self.pool_terms(&validator, max_commission)?;
+        validator_share(validator, operator_key, total, terms)
     }
 
-    /// `build_validator_set_reward_outputs`: records only (the mapping is
-    /// built for its overflow checks, as Python builds it).
+    /// The validator total (its ratio of `total` and the redirected developer
+    /// share) split across the active validators by power, the last taking
+    /// the rest, and each share split between operator and pool.
     fn validator_set(
         &mut self,
         total: &VmDecimal,
         ratio: &VmDecimal,
         redirected: &VmDecimal,
-    ) -> Reward<Vec<RewardRecord>> {
+    ) -> Reward<Vec<ValidatorShare>> {
         let validator_total = checked_add(&checked(total.mul(ratio))?, redirected)?;
         let weighted = self.weighted_validators()?;
-        let mut records = Vec::new();
         if weighted.is_empty() {
-            return Ok(records);
+            return Ok(Vec::new());
         }
-        let total_weight = sum(&weighted)?;
         let shares = split(
             &validator_total,
             &weighted,
             &validator_total,
-            &total_weight,
+            &sum(&weighted)?,
             VmDecimal::zero(),
         )?;
-        let mut mapping = Credits::new();
-        for ((validator, _), share) in weighted.iter().zip(shares) {
-            self.single_validator(validator, &share, &mut mapping, &mut records)?;
+        self.split_validators(weighted, shares)
+    }
+
+    /// Each validator's allotment split between its operator and pool.
+    fn split_validators(
+        &mut self,
+        weighted: Vec<(String, VmDecimal)>,
+        shares: Vec<VmDecimal>,
+    ) -> Reward<Vec<ValidatorShare>> {
+        let max_commission = self.max_commission()?;
+        let mut paid = Vec::with_capacity(weighted.len());
+        for ((validator, _), share) in weighted.into_iter().zip(shares) {
+            paid.push(self.single_validator(validator, &share, &max_commission)?);
         }
-        Ok(records)
+        Ok(paid)
     }
 
     /// The active validators with their power (a missing or non-positive
@@ -553,7 +491,6 @@ impl Rewards<'_> {
                 recipient_key: recipient,
                 source_contract: Some(source.clone()),
                 validator_key: None,
-                delegator_key: None,
                 value: amount,
             });
         }
@@ -629,7 +566,7 @@ impl Payout {
     fn new(rate: BigInt) -> Self {
         let kinds = [
             RewardKind::Validator,
-            RewardKind::Delegator,
+            RewardKind::DelegatorPool,
             RewardKind::Foundation,
             RewardKind::Developer,
         ];
@@ -648,36 +585,94 @@ impl Payout {
         )?)
     }
 
-    fn pay(&mut self, kind: RewardKind, recipient: &str, amount: &VmDecimal) -> Reward<()> {
-        let key = format!("currency.balances:{recipient}");
+    /// Adds `amount` to the value at storage `key`.
+    fn add_delta(&mut self, key: String, amount: &VmDecimal) -> Reward<()> {
         if storage_key_error(&key).is_some() {
             return invalid();
         }
+        credit(&mut self.deltas, &key, amount)
+    }
+
+    fn pay(&mut self, kind: RewardKind, recipient: &str, amount: &VmDecimal) -> Reward<()> {
         let bucket = self
             .buckets
             .iter_mut()
             .find(|(candidate, _)| *candidate == kind)
             .expect("every kind has a bucket");
         credit(&mut bucket.1, recipient, amount)?;
-        credit(&mut self.deltas, &key, amount)
+        self.add_delta(format!("currency.balances:{recipient}"), amount)
     }
 
     /// Pays `record` and keeps it, with its amount in tokens.
     fn pay_record(&mut self, record: RewardRecord) -> Reward<()> {
         let amount = self.tokens(&record.value)?;
-        self.pay(record.kind, &record.recipient_key, &amount)?;
-        self.records.push(RewardRecord {
+        self.pay_tokens(RewardRecord {
             value: amount,
             ..record
-        });
+        })
+    }
+
+    /// Pays `record`, whose amount is in tokens, and keeps it.
+    fn pay_tokens(&mut self, record: RewardRecord) -> Reward<()> {
+        self.pay(record.kind, &record.recipient_key, &record.value)?;
+        self.records.push(record);
         Ok(())
     }
 
-    fn pay_records(&mut self, records: Vec<RewardRecord>) -> Reward<()> {
-        for record in records {
-            self.pay_record(record)?;
+    fn pay_validators(&mut self, shares: Vec<ValidatorShare>) -> Reward<()> {
+        for share in shares {
+            self.pay_validator(share)?;
         }
         Ok(())
+    }
+
+    /// Pays a validator's operator and credits its pool.
+    fn pay_validator(&mut self, share: ValidatorShare) -> Reward<()> {
+        let (operator, pool, per_share) = self.priced(&share)?;
+        if share.unstaked || share.operator.scaled.is_positive() || operator.scaled.is_positive() {
+            let record = validator_record(
+                RewardKind::Validator,
+                &share.validator,
+                &share.operator_key,
+                &operator,
+            );
+            self.pay_tokens(record)?;
+        }
+        if pool.scaled.is_positive() {
+            self.credit_pool(&share.validator, pool, &per_share)?;
+        }
+        Ok(())
+    }
+
+    /// `share` in tokens: the operator's amount, the pool's, and the pool's
+    /// rate per share. A pool amount too small for any share goes to the
+    /// operator.
+    fn priced(&self, share: &ValidatorShare) -> Reward<(VmDecimal, VmDecimal, VmDecimal)> {
+        let operator = self.tokens(&share.operator)?;
+        let pool = self.tokens(&share.pool)?;
+        if !pool.scaled.is_positive() {
+            return Ok((operator, pool, VmDecimal::zero()));
+        }
+        let per_share = checked(pool.div(&share.shares))?;
+        if per_share.is_zero() {
+            return Ok((checked_add(&operator, &pool)?, VmDecimal::zero(), per_share));
+        }
+        Ok((operator, pool, per_share))
+    }
+
+    /// Credits a pool's tokens to `validators` and `reward_pool`, and their
+    /// rate per share to `reward_per_share`.
+    fn credit_pool(
+        &mut self,
+        validator: &str,
+        pool: VmDecimal,
+        per_share: &VmDecimal,
+    ) -> Reward<()> {
+        let pool_key = |variable: &str| format!("{VALIDATORS_CONTRACT}.{variable}:{validator}");
+        let record = validator_record(RewardKind::DelegatorPool, validator, POOL_ACCOUNT, &pool);
+        self.pay_tokens(record)?;
+        self.add_delta(pool_key("reward_per_share"), per_share)?;
+        self.add_delta(pool_key("reward_pool"), &pool)
     }
 
     /// The foundation's share, when it has one.
@@ -690,7 +685,6 @@ impl Payout {
             recipient_key: owner,
             source_contract: None,
             validator_key: None,
-            delegator_key: None,
             value: reward,
         })
     }
@@ -759,11 +753,11 @@ fn paid_rewards(
         contract_costs,
         pay_developers,
     )?;
-    let validator_records = rewards.validator_set(total, &validator_ratio, &redirected)?;
+    let validator_shares = rewards.validator_set(total, &validator_ratio, &redirected)?;
 
     let mut payout = Payout::new(rate);
     payout.pay_foundation(foundation_owner, foundation_reward)?;
-    payout.pay_records(validator_records)?;
+    payout.pay_validators(validator_shares)?;
     payout.pay_developers(&developer_credits, developer_records)?;
     Ok(payout.finish())
 }
@@ -884,9 +878,6 @@ mod tests {
         ];
         if record.validator_key.is_some() {
             entries.push(("validator_key", optional(&record.validator_key)));
-        }
-        if record.delegator_key.is_some() {
-            entries.push(("delegator_key", optional(&record.delegator_key)));
         }
         dict(entries)
     }
@@ -1037,18 +1028,17 @@ mod tests {
                 VmValue::Int(bps.into()),
             );
             state.insert(format!("validators.self_bond:{validator}"), rng.number());
-            let delegators: Vec<String> = (0..rng.below(4)).map(|n| format!("d{n}")).collect();
-            for delegator in &delegators {
-                state.insert(
-                    format!("validators.delegations:{delegator}:{validator}"),
-                    rng.number(),
-                );
-            }
             state.insert(
-                format!("validators.delegator_lists:{validator}"),
-                VmValue::List(delegators.iter().map(|name| text(name)).collect()),
+                format!("validators.total_delegated:{validator}"),
+                rng.number(),
             );
+            state.insert(format!("validators.total_shares:{validator}"), rng.number());
         }
+        let cap = *rng.pick(&[0i64, 500, 10_000, 20_000]);
+        state.insert(
+            "validators.config:max_commission_bps".to_owned(),
+            VmValue::Int(cap.into()),
+        );
         state.insert(
             "validators.active_validators".to_owned(),
             VmValue::List(validators.iter().map(|name| text(name)).collect()),
@@ -1058,6 +1048,227 @@ mod tests {
             state.insert(format!("{contract}.__developer__"), text(&developer));
         }
         state
+    }
+
+    fn dec(text: &str) -> VmDecimal {
+        VmDecimal::from_str_literal(text).unwrap()
+    }
+
+    fn decimal(text: &str) -> VmValue {
+        VmValue::Decimal(dec(text))
+    }
+
+    const POOLED: &str = "pooled";
+
+    /// One active validator: commission 10%, self bond 25, a pool of 75
+    /// tokens over 50 shares; the whole fee to validators at rate 1.
+    fn pool_state() -> HashMap<String, VmValue> {
+        HashMap::from([
+            (
+                "rewards.S:value".to_owned(),
+                VmValue::List(vec![decimal("1"), decimal("0"), decimal("0"), decimal("0")]),
+            ),
+            ("chi_cost.S:value".to_owned(), VmValue::Int(1.into())),
+            ("foundation.owner".to_owned(), text("foundation")),
+            (
+                "validators.active_validators".to_owned(),
+                VmValue::List(vec![text(POOLED)]),
+            ),
+            (format!("validators.reward_keys:{POOLED}"), text("operator")),
+            (
+                format!("validators.commission_bps:{POOLED}"),
+                VmValue::Int(1000.into()),
+            ),
+            (format!("validators.self_bond:{POOLED}"), decimal("25")),
+            (
+                format!("validators.total_delegated:{POOLED}"),
+                decimal("75"),
+            ),
+            (format!("validators.total_shares:{POOLED}"), decimal("50")),
+        ])
+    }
+
+    fn deltas(state: &mut HashMap<String, VmValue>, total: &str) -> Vec<(String, String)> {
+        let rewards = tx_reward_outputs(state, &dec(total), "con_a", &[], true).unwrap();
+        rewards
+            .deltas
+            .iter()
+            .map(|(key, value)| (key.clone(), value.to_string()))
+            .collect()
+    }
+
+    fn pairs(entries: &[(&str, &str)]) -> Vec<(String, String)> {
+        entries
+            .iter()
+            .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
+            .collect()
+    }
+
+    /// The delegators' part of a validator's allotment goes to its pool: the
+    /// tokens to the `validators` balance and the pool, the per-share rate
+    /// to the accumulator; the operator takes its commission and its self
+    /// bond's part.
+    #[test]
+    fn the_delegators_part_goes_to_the_validators_pool() {
+        assert_eq!(
+            deltas(&mut pool_state(), "100"),
+            pairs(&[
+                ("currency.balances:operator", "32.5"),
+                ("currency.balances:validators", "67.5"),
+                ("validators.reward_per_share:pooled", "1.35"),
+                ("validators.reward_pool:pooled", "67.5"),
+            ])
+        );
+    }
+
+    /// The receipt names the pool, not the delegators.
+    #[test]
+    fn the_receipt_records_the_pool_per_validator() {
+        let rewards =
+            tx_reward_outputs(&mut pool_state(), &dec("100"), "con_a", &[], true).unwrap();
+        let kinds: Vec<(&str, &str, Option<&str>, String)> = rewards
+            .records
+            .iter()
+            .map(|record| {
+                (
+                    record.kind.name(),
+                    record.recipient_key.as_str(),
+                    record.validator_key.as_deref(),
+                    record.value.to_string(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            kinds,
+            vec![
+                (
+                    "validator_reward",
+                    "operator",
+                    Some(POOLED),
+                    "32.5".to_owned()
+                ),
+                (
+                    "delegator_pool_reward",
+                    "validators",
+                    Some(POOLED),
+                    "67.5".to_owned()
+                ),
+            ]
+        );
+    }
+
+    /// A validator paid more than the policy maximum is paid at the maximum.
+    #[test]
+    fn commission_is_capped_by_the_policy_maximum() {
+        let mut state = pool_state();
+        state.insert(
+            format!("validators.commission_bps:{POOLED}"),
+            VmValue::Int(5000.into()),
+        );
+        state.insert(
+            "validators.config:max_commission_bps".to_owned(),
+            VmValue::Int(1000.into()),
+        );
+        assert_eq!(
+            deltas(&mut state, "100")[0],
+            pairs(&[("currency.balances:operator", "32.5")])[0]
+        );
+    }
+
+    /// Pool dust too small for any share goes to the operator.
+    #[test]
+    fn pool_dust_no_share_can_claim_goes_to_the_operator() {
+        let mut state = pool_state();
+        state.insert(
+            format!("validators.total_shares:{POOLED}"),
+            decimal("100000000000000000000000000000000"),
+        );
+        assert_eq!(
+            deltas(&mut state, "0.00000000000000000000000001"),
+            pairs(&[("currency.balances:operator", "0.00000000000000000000000001")])
+        );
+    }
+
+    /// A pool without tokens or without shares earns nothing: its part goes
+    /// to the operator.
+    #[test]
+    fn an_empty_or_fully_slashed_pool_earns_nothing() {
+        for (delegated, shares) in [("0", "50"), ("75", "0")] {
+            let mut state = pool_state();
+            state.insert(
+                format!("validators.total_delegated:{POOLED}"),
+                decimal(delegated),
+            );
+            state.insert(format!("validators.total_shares:{POOLED}"), decimal(shares));
+            let operator = if delegated == "0" { "100" } else { "100" };
+            assert_eq!(
+                deltas(&mut state, "100"),
+                pairs(&[("currency.balances:operator", operator)])
+            );
+        }
+    }
+
+    /// Records the keys the fee path reads.
+    struct Reads {
+        state: HashMap<String, VmValue>,
+        keys: Vec<String>,
+    }
+
+    impl RewardState for Reads {
+        fn get(&mut self, key: &str) -> Settled<Option<VmValue>> {
+            self.keys.push(key.to_owned());
+            Ok(self.state.get(key).cloned())
+        }
+    }
+
+    /// The fee path's work does not depend on delegators: it reads no
+    /// delegator state, and its reads and writes are the same with 0 or
+    /// 1000 delegators.
+    #[test]
+    fn the_fee_path_reads_no_delegator_state() {
+        let mut runs = Vec::new();
+        for delegators in [0, 1000] {
+            let mut state = pool_state();
+            let names: Vec<VmValue> = (0..delegators).map(|n| text(&format!("d{n}"))).collect();
+            for name in &names {
+                let VmValue::String(name) = name else {
+                    unreachable!()
+                };
+                state.insert(
+                    format!("validators.delegations:{name}:{POOLED}"),
+                    decimal("1"),
+                );
+                state.insert(
+                    format!("validators.delegation_shares:{name}:{POOLED}"),
+                    decimal("1"),
+                );
+            }
+            state.insert(
+                format!("validators.delegator_lists:{POOLED}"),
+                VmValue::List(names),
+            );
+            let mut reads = Reads {
+                state,
+                keys: Vec::new(),
+            };
+            let rewards = tx_reward_outputs(&mut reads, &dec("100"), "con_a", &[], true).unwrap();
+            let per_delegator = [
+                "delegations",
+                "delegator",
+                "delegation_shares",
+                "reward_debt",
+            ];
+            assert!(
+                reads
+                    .keys
+                    .iter()
+                    .all(|key| per_delegator.iter().all(|name| !key.contains(name))),
+                "{:?}",
+                reads.keys
+            );
+            runs.push((reads.keys, rewards.deltas.len(), rewards.records.len()));
+        }
+        assert_eq!(runs[0], runs[1]);
     }
 
     #[test]
@@ -1106,11 +1317,53 @@ mod tests {
             let mut paid = VmDecimal::zero();
             for (key, amount) in &rewards.deltas {
                 assert!(!amount.scaled.is_negative(), "case {index}: {key} {amount}");
-                paid = paid.add(amount).unwrap();
+                if key.starts_with("currency.balances:") {
+                    paid = paid.add(amount).unwrap();
+                }
             }
             assert!(paid <= fee, "case {index}: paid {paid} > fee {fee}");
+            assert_pools_are_claimable(&state, &rewards.deltas, index);
         }
         assert!(paid_cases > 2000, "{paid_cases}");
+    }
+
+    /// The pools' tokens reach the `validators` balance, and no pool's
+    /// shares can claim more than it was credited: `rate * shares <= pool`.
+    fn assert_pools_are_claimable(state: &HashMap<String, VmValue>, deltas: &Credits, index: u64) {
+        let delta = |key: &str| {
+            deltas
+                .iter()
+                .find(|(name, _)| name == key)
+                .map(|(_, value)| value.clone())
+        };
+        let mut pooled = VmDecimal::zero();
+        for (key, pool) in deltas
+            .iter()
+            .filter(|(key, _)| key.starts_with("validators.reward_pool:"))
+        {
+            let validator = &key["validators.reward_pool:".len()..];
+            let rate = delta(&format!("validators.reward_per_share:{validator}")).unwrap();
+            let VmValue::Decimal(shares) =
+                as_decimal(&state[&format!("validators.total_shares:{validator}")])
+                    .map(VmValue::Decimal)
+                    .unwrap()
+            else {
+                unreachable!()
+            };
+            let claimable = &rate.scaled * &shares.scaled;
+            assert!(rate.scaled.is_positive(), "case {index}: {key}");
+            assert!(
+                claimable <= &pool.scaled * decimal_scale(),
+                "case {index}: {key}"
+            );
+            pooled = pooled.add(pool).unwrap();
+        }
+        let credited = delta("currency.balances:validators").unwrap_or_else(VmDecimal::zero);
+        assert_eq!(credited, pooled, "case {index}");
+    }
+
+    fn decimal_scale() -> BigInt {
+        BigInt::from(10u8).pow(30)
     }
 
     #[test]

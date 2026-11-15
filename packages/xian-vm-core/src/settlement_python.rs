@@ -65,9 +65,6 @@ fn record_to_py<'py>(py: Python<'py>, record: &RewardRecord) -> PyResult<Bound<'
     if let Some(validator) = &record.validator_key {
         dict.set_item("validator_key", validator)?;
     }
-    if let Some(delegator) = &record.delegator_key {
-        dict.set_item("delegator_key", delegator)?;
-    }
     Ok(dict)
 }
 
