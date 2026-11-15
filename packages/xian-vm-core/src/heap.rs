@@ -525,6 +525,18 @@ fn detach(
             ));
         }
     }
+    refuse_execution_local(value)?;
+    let result = map_children(value.snapshot(), |item| {
+        detach(&item, path, depth + 1, size)
+    });
+    if let Some(id) = id {
+        path.remove(&id);
+    }
+    result
+}
+
+/// Refuse a value that only means something inside this execution.
+fn refuse_execution_local(value: &VmValue) -> Result<(), VmExecutionError> {
     if resolves_to!(value, VmValue::BuiltinSet(_)) {
         return Err(VmExecutionError::new(
             "builtin sets cannot cross the VM boundary; convert with set() first",
@@ -560,13 +572,7 @@ fn detach(
             "iterators and ranges cannot cross the VM boundary; materialize them first",
         ));
     }
-    let result = map_children(value.snapshot(), |item| {
-        detach(&item, path, depth + 1, size)
-    });
-    if let Some(id) = id {
-        path.remove(&id);
-    }
-    result
+    Ok(())
 }
 
 #[cfg(test)]
@@ -704,6 +710,27 @@ mod tests {
             beyond.detached().unwrap_err().to_string(),
             "VM value traversal limit exceeded"
         );
+    }
+
+    #[test]
+    fn a_detached_copy_may_reach_each_bound_but_not_pass_it() {
+        let refused = |result: Result<(), VmExecutionError>| {
+            result.unwrap_err().to_string() == "VM value traversal limit exceeded"
+        };
+        let mut deep = DetachedSize::default();
+        assert!(deep.add(&VmValue::None, MAX_VALUE_DEPTH).is_ok());
+        assert!(refused(deep.add(&VmValue::None, MAX_VALUE_DEPTH + 1)));
+        let mut wide = DetachedSize::default();
+        for _ in 0..MAX_VALUE_NODES {
+            wide.add(&VmValue::None, 0).unwrap();
+        }
+        assert!(refused(wide.add(&VmValue::None, 0)));
+        let mut large = DetachedSize::default();
+        let base = shallow_bytes(&VmValue::None);
+        let text = VmValue::String("x".repeat(MAX_HEAP_BYTES - 2 * base));
+        large.add(&text, 0).unwrap();
+        assert!(large.add(&VmValue::None, 0).is_ok());
+        assert!(refused(large.add(&VmValue::Bool(true), 0)));
     }
 
     #[test]

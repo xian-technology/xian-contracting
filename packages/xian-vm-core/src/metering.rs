@@ -579,7 +579,10 @@ mod tests {
         let mut returned = meter();
         returned.charge_return_value(&value).unwrap();
         assert_eq!(returned.raw_cost, 1_002 * super::VM_WRITE_COST_PER_BYTE);
-        let oversized = crate::VmValue::String("r".repeat(super::VM_WRITE_MAX_BYTES));
+        // The cap counts the encoded bytes (the text and its two quotes).
+        let largest = crate::VmValue::String("r".repeat(super::VM_WRITE_MAX_BYTES - 3));
+        assert!(meter().charge_return_value(&largest).is_ok());
+        let oversized = crate::VmValue::String("r".repeat(super::VM_WRITE_MAX_BYTES - 2));
         let mut refused = meter();
         assert_eq!(
             refused
