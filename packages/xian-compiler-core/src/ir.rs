@@ -1,14 +1,22 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Number, Value};
+use serde_json::{Number, Value};
 
 use crate::artifact::{build_contract_artifact, ContractArtifact};
 use crate::compiler::CompileOptions;
 use crate::constants::{validate_profile, XIAN_IR_V1, XIAN_VM_HOST_CATALOG_V1};
 use crate::diagnostic::{CompilerDiagnostic, SourceRange};
 use crate::frontend::parse_source;
-use crate::limits::{validate_ir_json_limits, MAX_CONTRACT_HANDLE_INFERENCE_PASSES};
+use crate::handle_inference::{
+    infer_contract_handles, sweep_bindings, FunctionHandleFacts, HandleArgument, HandleSource,
+    InferenceError, Readiness,
+};
+use crate::limits::{
+    compile_work_message, ir_json_bytes_message, validate_ir_json_limits, WorkBudget, WorkExceeded,
+    COMPILE_WORK_CODE, IR_JSON_BYTES_CODE, MAX_CONTRACT_HANDLE_INFERENCE_PASSES, MAX_IR_JSON_BYTES,
+};
 use crate::lint::lint_syntax;
 use crate::normalize::{
     format_expression as format_syntax_expression, format_float, normalize_source, normalize_syntax,
@@ -20,6 +28,56 @@ use crate::syntax::{
     SyntaxExpressionContext, SyntaxImportAlias, SyntaxKeyword, SyntaxModule, SyntaxParameter,
     SyntaxParameterKind, SyntaxStatement, SyntaxUnaryOperator,
 };
+
+/// A JSON object of IR fields. Unlike `json!`, which serializes each field
+/// value again (copying every nested subtree once per nesting level, work
+/// times the depth), the field values move in.
+macro_rules! ir_object {
+    ($($key:literal : $value:expr),* $(,)?) => {{
+        let mut fields = serde_json::Map::new();
+        $( fields.insert($key.to_owned(), IrField::into_field($value)); )*
+        Value::Object(fields)
+    }};
+}
+
+/// An IR field value: a lowered `Value` moves in, anything else is
+/// serialized as `json!` serializes it.
+trait IrField {
+    fn into_field(self) -> Value;
+}
+
+impl IrField for Value {
+    fn into_field(self) -> Value {
+        self
+    }
+}
+
+macro_rules! serialized_ir_fields {
+    ($($field:ty),* $(,)?) => {$(
+        impl IrField for $field {
+            fn into_field(self) -> Value {
+                serde_json::to_value(self).expect("IR fields serialize")
+            }
+        }
+    )*};
+}
+
+serialized_ir_fields!(
+    &str,
+    &String,
+    String,
+    &bool,
+    bool,
+    u32,
+    usize,
+    i64,
+    &Option<String>,
+    Option<&str>,
+    Option<String>,
+    Vec<Value>,
+    Vec<&str>,
+    Option<Value>,
+);
 
 const STORAGE_CONSTRUCTORS: &[(&str, &str)] = &[
     ("Variable", "storage.variable.new"),
@@ -372,10 +430,10 @@ pub const HOST_BINDINGS: &[HostBinding] = &[
 ];
 
 pub fn describe_vm_host_surface() -> Value {
-    json!({
+    ir_object!(
         "catalog_version": XIAN_VM_HOST_CATALOG_V1,
         "bindings": HOST_BINDINGS.iter().map(host_binding_value).collect::<Vec<_>>(),
-    })
+    )
 }
 
 pub fn lower_source_to_ir(
@@ -383,10 +441,7 @@ pub fn lower_source_to_ir(
     source: &str,
     options: &CompileOptions,
 ) -> Result<Value, Vec<CompilerDiagnostic>> {
-    let (_, syntax) = normalize_and_build_syntax(module_name, source, options)?;
-    let ir = lower_syntax_to_ir(&syntax, &options.vm_profile)
-        .map_err(|error| vec![error.into_diagnostic()])?;
-    validate_ir_json_limits(&to_python_canonical_json(&ir)).map_err(|error| vec![error])?;
+    let (ir, _) = lower_source_to_checked_ir(module_name, source, options)?;
     Ok(ir)
 }
 
@@ -395,10 +450,21 @@ pub fn lower_source_to_ir_json(
     source: &str,
     options: &CompileOptions,
 ) -> Result<String, Vec<CompilerDiagnostic>> {
-    let ir = lower_source_to_ir(module_name, source, options)?;
+    lower_source_to_checked_ir(module_name, source, options).map(|(_, payload)| payload)
+}
+
+/// The IR of `source` and its canonical JSON, within the IR size limit.
+fn lower_source_to_checked_ir(
+    module_name: &str,
+    source: &str,
+    options: &CompileOptions,
+) -> Result<(Value, String), Vec<CompilerDiagnostic>> {
+    let (_, syntax) = normalize_and_build_syntax(module_name, source, options)?;
+    let ir = lower_syntax_to_ir(&syntax, &options.vm_profile)
+        .map_err(|error| vec![error.into_diagnostic()])?;
     let payload = to_python_canonical_json(&ir);
     validate_ir_json_limits(&payload).map_err(|error| vec![error])?;
-    Ok(payload)
+    Ok((ir, payload))
 }
 
 pub fn compile_contract_artifact(
@@ -442,41 +508,65 @@ pub fn compile_contract_source(
     })
 }
 
+/// `json.dumps(value, sort_keys=True, ensure_ascii=False)` with Python's
+/// float text, written into one buffer.
 fn to_python_canonical_json(value: &Value) -> String {
+    let mut output = String::new();
+    write_python_canonical_json(value, &mut output);
+    output
+}
+
+fn write_python_canonical_json(value: &Value, output: &mut String) {
     match value {
-        Value::Null => "null".to_string(),
-        Value::Bool(value) => value.to_string(),
-        Value::Number(value) => match value.as_f64() {
-            Some(float) if value.is_f64() => format_float(float),
-            _ => value.to_string(),
-        },
-        Value::String(value) => {
-            serde_json::to_string(value).expect("serializing JSON string should not fail")
-        }
+        Value::Null => output.push_str("null"),
+        Value::Bool(value) => output.push_str(if *value { "true" } else { "false" }),
+        Value::Number(value) => write_number(value, output),
+        Value::String(value) => write_json_string(value, output),
         Value::Array(values) => {
-            let rendered = values
-                .iter()
-                .map(to_python_canonical_json)
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("[{rendered}]")
+            write_separated(output, ('[', ']'), values, write_python_canonical_json);
         }
         Value::Object(values) => {
-            let mut keys = values.keys().collect::<Vec<_>>();
-            keys.sort();
-            let rendered = keys
-                .into_iter()
-                .map(|key| {
-                    let rendered_key =
-                        serde_json::to_string(key).expect("serializing JSON key should not fail");
-                    let rendered_value = to_python_canonical_json(&values[key]);
-                    format!("{rendered_key}: {rendered_value}")
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("{{{rendered}}}")
+            let mut entries = values.iter().collect::<Vec<_>>();
+            entries.sort_by_key(|(key, _)| *key);
+            write_separated(output, ('{', '}'), &entries, write_entry);
         }
     }
+}
+
+/// A float as Python writes it; an integer as is.
+fn write_number(value: &Number, output: &mut String) {
+    match value.as_f64() {
+        Some(float) if value.is_f64() => output.push_str(&format_float(float)),
+        _ => output.push_str(&value.to_string()),
+    }
+}
+
+fn write_entry((key, value): &(&String, &Value), output: &mut String) {
+    write_json_string(key, output);
+    output.push_str(": ");
+    write_python_canonical_json(value, output);
+}
+
+/// `items` between `open` and `close`, separated by `", "`.
+fn write_separated<T>(
+    output: &mut String,
+    (open, close): (char, char),
+    items: &[T],
+    write: impl Fn(&T, &mut String),
+) {
+    output.push(open);
+    for (index, item) in items.iter().enumerate() {
+        if index > 0 {
+            output.push_str(", ");
+        }
+        write(item, output);
+    }
+    output.push(close);
+}
+
+fn write_json_string(value: &str, output: &mut String) {
+    output
+        .push_str(&serde_json::to_string(value).expect("serializing JSON string should not fail"));
 }
 
 pub fn lower_syntax_to_ir(
@@ -529,6 +619,7 @@ fn normalize_and_build_syntax(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IrLoweringError {
+    pub code: &'static str,
     pub message: String,
     pub range: Option<SourceRange>,
 }
@@ -536,18 +627,53 @@ pub struct IrLoweringError {
 impl IrLoweringError {
     fn new(message: impl Into<String>, range: Option<SourceRange>) -> Self {
         Self {
+            code: "xian.ir.lowering_error",
             message: message.into(),
             range,
         }
     }
 
+    /// A compiler limit the lowering reached.
+    fn limit(code: &'static str, message: String) -> Self {
+        Self {
+            code,
+            message,
+            range: None,
+        }
+    }
+
     fn into_diagnostic(self) -> CompilerDiagnostic {
-        let diagnostic = CompilerDiagnostic::error("xian.ir.lowering_error", self.message);
+        let diagnostic = CompilerDiagnostic::error(self.code, self.message);
         if let Some(range) = self.range {
             diagnostic.with_range(range)
         } else {
             diagnostic
         }
+    }
+}
+
+impl From<WorkExceeded> for IrLoweringError {
+    fn from(_: WorkExceeded) -> Self {
+        Self::limit(COMPILE_WORK_CODE, compile_work_message())
+    }
+}
+
+/// A module's lowered parts, in source order.
+#[derive(Default)]
+struct LoweredModule {
+    imports: Vec<Value>,
+    global_declarations: Vec<Value>,
+    functions: Vec<Value>,
+    module_body: Vec<Value>,
+}
+
+/// Whether a module assignment to `targets` declares a global: one name not
+/// declared before. Later ordinary assignments are executable initialization
+/// steps, ordered by source span.
+fn declares_global(targets: &[SyntaxExpression], declared: &mut HashSet<String>) -> bool {
+    match targets {
+        [target] => name_id(target).is_some_and(|name| declared.insert(name.to_owned())),
+        _ => false,
     }
 }
 
@@ -564,6 +690,9 @@ struct IrLowerer<'a> {
     contract_handle_factories: HashSet<String>,
     contract_handle_parameters: HashMap<String, HashSet<String>>,
     local_contract_handles: HashMap<String, SyntaxExpression>,
+    work: WorkBudget,
+    /// The IR bytes of the handle sources lowered at each use so far.
+    handle_source_bytes: usize,
 }
 
 impl<'a> IrLowerer<'a> {
@@ -581,12 +710,33 @@ impl<'a> IrLowerer<'a> {
             contract_handle_factories: HashSet::new(),
             contract_handle_parameters: HashMap::new(),
             local_contract_handles: HashMap::new(),
+            work: WorkBudget::default(),
+            handle_source_bytes: 0,
         }
     }
 
-    fn lower(mut self) -> Result<Value, IrLoweringError> {
+    fn lower(&mut self) -> Result<Value, IrLoweringError> {
         let (docstring, body) = split_docstring(&self.module.body);
-        self.inspect_module_bindings(body);
+        self.analyze_module(body)?;
+        let lowered = self.lower_module_body(body)?;
+        Ok(ir_object!(
+            "ir_version": XIAN_IR_V1,
+            "vm_profile": self.vm_profile,
+            "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
+            "module_name": &self.module.module_name,
+            "source_hash": &self.module.source_sha256,
+            "docstring": docstring,
+            "imports": lowered.imports,
+            "global_declarations": lowered.global_declarations,
+            "functions": lowered.functions,
+            "module_body": lowered.module_body,
+            "host_dependencies": self.host_dependencies.values().map(host_binding_value).collect::<Vec<_>>(),
+        ))
+    }
+
+    /// The module's bindings, checked unique, and its contract handles.
+    fn analyze_module(&mut self, body: &'a [SyntaxStatement]) -> Result<(), IrLoweringError> {
+        self.inspect_module_bindings(body)?;
         let fixed_bindings = self
             .storage_bindings
             .keys()
@@ -597,59 +747,46 @@ impl<'a> IrLowerer<'a> {
         validate_unique_module_bindings(body, &fixed_bindings)?;
         let functions = body
             .iter()
-            .filter_map(|statement| match statement {
-                SyntaxStatement::FunctionDef { .. } => Some(statement),
-                _ => None,
-            })
+            .filter(|statement| matches!(statement, SyntaxStatement::FunctionDef { .. }))
             .collect::<Vec<_>>();
-        self.refresh_contract_handle_inference(&functions)?;
-
-        let mut imports = Vec::new();
-        let mut global_declarations = Vec::new();
-        let mut lowered_functions = Vec::new();
-        let mut module_body = Vec::new();
-        let mut declared = HashSet::new();
-
-        for statement in body {
-            match statement {
-                SyntaxStatement::Import { .. } => imports.extend(self.lower_import(statement)?),
-                SyntaxStatement::Assign { targets, .. } => {
-                    let name = targets.first().and_then(name_id);
-                    if targets.len() != 1
-                        || name.is_none()
-                        || name.is_some_and(|name| !declared.insert(name.to_owned()))
-                    {
-                        // Declarations stay unique. Later ordinary assignments are
-                        // executable initialization steps, ordered by source span.
-                        module_body.push(self.lower_statement(statement)?);
-                    } else {
-                        global_declarations.push(self.lower_global_declaration(statement)?);
-                    }
-                }
-                SyntaxStatement::FunctionDef { .. } => {
-                    lowered_functions.push(self.lower_function(statement)?);
-                }
-                _ => module_body.push(self.lower_statement(statement)?),
-            }
-        }
-
-        Ok(json!({
-            "ir_version": XIAN_IR_V1,
-            "vm_profile": self.vm_profile,
-            "host_catalog_version": XIAN_VM_HOST_CATALOG_V1,
-            "module_name": self.module.module_name,
-            "source_hash": self.module.source_sha256,
-            "docstring": docstring,
-            "imports": imports,
-            "global_declarations": global_declarations,
-            "functions": lowered_functions,
-            "module_body": module_body,
-            "host_dependencies": self.host_dependencies.values().map(host_binding_value).collect::<Vec<_>>(),
-        }))
+        self.refresh_contract_handle_inference(&functions)
     }
 
-    fn inspect_module_bindings(&mut self, body: &[SyntaxStatement]) {
-        self.discover_host_module_aliases(body);
+    fn lower_module_body(
+        &mut self,
+        body: &[SyntaxStatement],
+    ) -> Result<LoweredModule, IrLoweringError> {
+        let mut lowered = LoweredModule::default();
+        let mut declared = HashSet::new();
+        for statement in body {
+            self.lower_module_statement(statement, &mut lowered, &mut declared)?;
+        }
+        Ok(lowered)
+    }
+
+    fn lower_module_statement(
+        &mut self,
+        statement: &SyntaxStatement,
+        lowered: &mut LoweredModule,
+        declared: &mut HashSet<String>,
+    ) -> Result<(), IrLoweringError> {
+        match statement {
+            SyntaxStatement::Import { .. } => lowered.imports.extend(self.lower_import(statement)?),
+            SyntaxStatement::Assign { targets, .. } if declares_global(targets, declared) => {
+                let declaration = self.lower_global_declaration(statement)?;
+                lowered.global_declarations.push(declaration);
+            }
+            SyntaxStatement::FunctionDef { .. } => {
+                let function = self.lower_function(statement)?;
+                lowered.functions.push(function);
+            }
+            _ => lowered.module_body.push(self.lower_statement(statement)?),
+        }
+        Ok(())
+    }
+
+    fn inspect_module_bindings(&mut self, body: &[SyntaxStatement]) -> Result<(), IrLoweringError> {
+        self.discover_host_module_aliases(body)?;
         for statement in body {
             match statement {
                 SyntaxStatement::Import { names, .. } => {
@@ -691,146 +828,54 @@ impl<'a> IrLowerer<'a> {
                 _ => {}
             }
         }
+        Ok(())
     }
 
-    fn discover_host_module_aliases(&mut self, body: &[SyntaxStatement]) {
-        let pending = body
+    /// Module names bound to host modules (`h = hashlib`, `g = h`) and the
+    /// module each stands for, as repeated in-order sweeps over the module's
+    /// single-name assignments bind them.
+    fn discover_host_module_aliases(
+        &mut self,
+        body: &[SyntaxStatement],
+    ) -> Result<(), IrLoweringError> {
+        let assignments = body
             .iter()
             .filter_map(|statement| match statement {
                 SyntaxStatement::Assign { targets, value, .. } if targets.len() == 1 => {
-                    name_id(&targets[0]).map(|target| (target.to_string(), value.clone()))
+                    name_id(&targets[0]).map(|target| (target, name_id(value)))
                 }
                 _ => None,
             })
             .collect::<Vec<_>>();
-
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for (target, value) in &pending {
-                if self.host_module_aliases.contains_key(target) {
-                    continue;
-                }
-                let Some(value_name) = name_id(value) else {
-                    continue;
+        let entries = assignments
+            .iter()
+            .map(|&(target, value)| {
+                let readiness = match value {
+                    Some(value) if HOST_MODULE_BINDINGS.contains(&value) => Readiness::Now,
+                    Some(value) => Readiness::After(value),
+                    None => Readiness::Never,
                 };
-                let canonical = self
-                    .host_module_aliases
-                    .get(value_name)
-                    .map(String::as_str)
-                    .unwrap_or(value_name);
-                if HOST_MODULE_BINDINGS.contains(&canonical) {
-                    self.host_module_aliases
-                        .insert(target.clone(), canonical.to_string());
-                    changed = true;
-                }
-            }
+                (target, readiness)
+            })
+            .collect::<Vec<_>>();
+        for index in sweep_bindings(&entries, &HashSet::new(), &mut self.work)? {
+            let (target, Some(value)) = assignments[index] else {
+                continue;
+            };
+            let module = self
+                .host_module_aliases
+                .get(value)
+                .cloned()
+                .unwrap_or_else(|| value.to_owned());
+            self.host_module_aliases.insert(target.to_owned(), module);
         }
+        Ok(())
     }
 
     fn refresh_contract_handle_inference(
         &mut self,
-        functions: &[&SyntaxStatement],
+        functions: &[&'a SyntaxStatement],
     ) -> Result<(), IrLoweringError> {
-        let mut factories = HashSet::new();
-        let mut parameters: HashMap<String, HashSet<String>> = HashMap::new();
-        let mut passes = 0usize;
-
-        loop {
-            passes = passes.saturating_add(1);
-            if passes > MAX_CONTRACT_HANDLE_INFERENCE_PASSES {
-                return Err(IrLoweringError::new(
-                    format!(
-                        "contract handle inference exceeded the maximum of {MAX_CONTRACT_HANDLE_INFERENCE_PASSES} passes"
-                    ),
-                    None,
-                ));
-            }
-            let next_factories = self.discover_contract_handle_factories(functions, &parameters);
-            let next_parameters =
-                self.discover_contract_handle_parameters(functions, &next_factories, &parameters);
-
-            if next_factories == factories && next_parameters == parameters {
-                self.contract_handle_factories = next_factories;
-                self.contract_handle_parameters = next_parameters;
-                return Ok(());
-            }
-
-            factories = next_factories;
-            parameters = next_parameters;
-        }
-    }
-
-    fn discover_contract_handle_factories(
-        &self,
-        functions: &[&SyntaxStatement],
-        parameter_handles: &HashMap<String, HashSet<String>>,
-    ) -> HashSet<String> {
-        let mut discovered = HashSet::new();
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for function in functions {
-                let SyntaxStatement::FunctionDef { name, .. } = function else {
-                    continue;
-                };
-                if discovered.contains(name) {
-                    continue;
-                }
-                if self.function_returns_contract_handle(function, &discovered, parameter_handles) {
-                    discovered.insert(name.clone());
-                    changed = true;
-                }
-            }
-        }
-        discovered
-    }
-
-    fn function_returns_contract_handle(
-        &self,
-        function: &SyntaxStatement,
-        known_factories: &HashSet<String>,
-        parameter_handles: &HashMap<String, HashSet<String>>,
-    ) -> bool {
-        let SyntaxStatement::FunctionDef {
-            name,
-            parameters,
-            body,
-            ..
-        } = function
-        else {
-            return false;
-        };
-        let local_names = collect_function_local_bindings(parameters, body);
-        let initial_bindings = parameter_handles
-            .get(name)
-            .map(|handles| self.parameter_contract_handle_bindings(function, handles))
-            .unwrap_or_default();
-        let local_bindings = self.collect_local_contract_handle_bindings(
-            body,
-            known_factories,
-            initial_bindings,
-            &local_names,
-        );
-        let mut returns = Vec::new();
-        collect_return_values(body, &mut returns);
-        !returns.is_empty()
-            && returns.iter().all(|value| {
-                self.expression_is_contract_handle(
-                    value,
-                    &local_bindings,
-                    known_factories,
-                    &local_names,
-                )
-            })
-    }
-
-    fn discover_contract_handle_parameters(
-        &self,
-        functions: &[&SyntaxStatement],
-        known_factories: &HashSet<String>,
-        initial: &HashMap<String, HashSet<String>>,
-    ) -> HashMap<String, HashSet<String>> {
         let functions_by_name = functions
             .iter()
             .filter_map(|function| match function {
@@ -838,91 +883,112 @@ impl<'a> IrLowerer<'a> {
                 _ => None,
             })
             .collect::<HashMap<_, _>>();
-        let mut discovered = initial.clone();
-        let mut changed = true;
+        let facts = functions
+            .iter()
+            .map(|function| self.function_handle_facts(function, &functions_by_name))
+            .collect::<Vec<_>>();
+        let handles = infer_contract_handles(&facts, &mut self.work).map_err(|error| match error {
+            InferenceError::TooManyPasses => IrLoweringError::new(
+                format!(
+                    "contract handle inference exceeded the maximum of {MAX_CONTRACT_HANDLE_INFERENCE_PASSES} passes"
+                ),
+                None,
+            ),
+            InferenceError::Work(exceeded) => exceeded.into(),
+        })?;
+        self.contract_handle_factories = handles.factories;
+        self.contract_handle_parameters = handles.parameters;
+        Ok(())
+    }
 
-        while changed {
-            changed = false;
-            let mut evidence: HashMap<String, HashMap<String, Vec<bool>>> = HashMap::new();
-
-            for caller in functions {
-                let SyntaxStatement::FunctionDef {
-                    name: caller_name,
-                    parameters,
-                    body,
-                    ..
-                } = caller
-                else {
-                    continue;
-                };
-                let caller_local_names = collect_function_local_bindings(parameters, body);
-                let initial_bindings = discovered
-                    .get(caller_name)
-                    .map(|handles| self.parameter_contract_handle_bindings(caller, handles))
-                    .unwrap_or_default();
-                let caller_bindings = self.collect_local_contract_handle_bindings(
-                    body,
-                    known_factories,
-                    initial_bindings,
-                    &caller_local_names,
-                );
-                let mut calls = Vec::new();
-                collect_call_expressions(body, &mut calls);
-
-                for call in calls {
-                    let SyntaxExpression::Call {
-                        func,
-                        args,
-                        keywords,
-                        ..
-                    } = call
-                    else {
-                        continue;
-                    };
-                    let Some(callee_name) = name_id(func) else {
-                        continue;
-                    };
-                    let Some(callee) = functions_by_name.get(callee_name) else {
-                        continue;
-                    };
-
-                    for (parameter_name, argument) in
-                        call_parameter_arguments(callee, args, keywords)
-                    {
-                        let is_handle = self.expression_is_contract_handle(
-                            argument,
-                            &caller_bindings,
-                            known_factories,
-                            &caller_local_names,
-                        );
-                        evidence
-                            .entry(callee_name.to_string())
-                            .or_default()
-                            .entry(parameter_name)
-                            .or_default()
-                            .push(is_handle);
-                    }
-                }
-            }
-
-            for (function_name, parameters) in evidence {
-                let current = discovered.entry(function_name).or_default();
-                for (parameter_name, values) in parameters {
-                    if !values.is_empty()
-                        && values.iter().all(|is_handle| *is_handle)
-                        && !current.contains(&parameter_name)
-                    {
-                        current.insert(parameter_name);
-                        changed = true;
-                    }
-                }
+    /// The returns, single-name assignments and module-function call
+    /// arguments of `function`, each as the handle it may be.
+    fn function_handle_facts(
+        &self,
+        function: &'a SyntaxStatement,
+        functions_by_name: &HashMap<&str, &'a SyntaxStatement>,
+    ) -> FunctionHandleFacts<'a> {
+        let SyntaxStatement::FunctionDef {
+            name,
+            parameters,
+            body,
+            ..
+        } = function
+        else {
+            return FunctionHandleFacts::default();
+        };
+        let local_names = collect_function_local_bindings(parameters, body);
+        let source = |expression| self.handle_source(expression, &local_names);
+        let mut returns = Vec::new();
+        collect_return_values(body, &mut returns);
+        let mut assignments = Vec::new();
+        collect_named_assignments(body, &mut assignments);
+        let mut calls = Vec::new();
+        collect_call_expressions(body, &mut calls);
+        let mut arguments = Vec::new();
+        for call in calls {
+            let SyntaxExpression::Call {
+                func,
+                args,
+                keywords,
+                ..
+            } = call
+            else {
+                continue;
+            };
+            let Some(callee_name) = name_id(func) else {
+                continue;
+            };
+            let Some(callee) = functions_by_name.get(callee_name) else {
+                continue;
+            };
+            for (parameter, argument) in call_parameter_arguments(callee, args, keywords) {
+                arguments.push(HandleArgument {
+                    callee: callee_name,
+                    parameter,
+                    source: source(argument),
+                });
             }
         }
+        FunctionHandleFacts {
+            name,
+            parameters: parameters
+                .iter()
+                .map(|parameter| parameter.name.as_str())
+                .collect(),
+            returns: returns.into_iter().map(source).collect(),
+            assignments: assignments
+                .into_iter()
+                .map(|(target, value)| (target, source(value)))
+                .collect(),
+            arguments,
+        }
+    }
 
-        discovered
-            .into_iter()
-            .filter(|(_, values)| !values.is_empty())
-            .collect()
+    /// When `expression`, in a function with `local_names`, is a handle.
+    fn handle_source<'e>(
+        &self,
+        expression: &'e SyntaxExpression,
+        local_names: &HashSet<String>,
+    ) -> HandleSource<'e> {
+        if let Some(name) = name_id(expression) {
+            if local_names.contains(name) {
+                return HandleSource::Local(name);
+            }
+            if self.static_import_bindings.contains(name) && !self.global_bindings.contains(name) {
+                return HandleSource::Always;
+            }
+            return HandleSource::Never;
+        }
+        if let SyntaxExpression::Call { func, .. } = expression {
+            if self.is_importlib_import_call_in_scope(expression, local_names) {
+                return HandleSource::Always;
+            }
+            if let Some(name) = name_id(func) {
+                return HandleSource::Factory(name);
+            }
+        }
+        HandleSource::Never
     }
 
     fn parameter_contract_handle_bindings(
@@ -950,62 +1016,42 @@ impl<'a> IrLowerer<'a> {
             .collect()
     }
 
-    fn collect_local_contract_handle_bindings(
-        &self,
+    /// The function's locals that hold a handle, each with the expression
+    /// that bound it: the handle parameters, then the first ready assignment
+    /// of repeated in-order sweeps over the function's assignments.
+    fn local_contract_handles(
+        &mut self,
         body: &[SyntaxStatement],
-        known_factories: &HashSet<String>,
-        initial_bindings: HashMap<String, SyntaxExpression>,
+        mut bindings: HashMap<String, SyntaxExpression>,
         local_names: &HashSet<String>,
-    ) -> HashMap<String, SyntaxExpression> {
-        let mut bindings = initial_bindings;
-        let mut pending = Vec::new();
-        collect_named_assignments(body, &mut pending);
-
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for (name, value) in &pending {
-                if bindings.contains_key(name) {
-                    continue;
-                }
-                if self.expression_is_contract_handle(
-                    value,
-                    &bindings,
-                    known_factories,
-                    local_names,
-                ) {
-                    bindings.insert(name.clone(), value.clone());
-                    changed = true;
-                }
-            }
+    ) -> Result<HashMap<String, SyntaxExpression>, IrLoweringError> {
+        let mut assignments = Vec::new();
+        collect_named_assignments(body, &mut assignments);
+        let entries = assignments
+            .iter()
+            .map(|(target, value)| {
+                let readiness = match self.handle_source(value, local_names) {
+                    HandleSource::Always => Readiness::Now,
+                    HandleSource::Factory(name)
+                        if self.contract_handle_factories.contains(name) =>
+                    {
+                        Readiness::Now
+                    }
+                    HandleSource::Local(name) => Readiness::After(name),
+                    HandleSource::Factory(_) | HandleSource::Never => Readiness::Never,
+                };
+                (*target, readiness)
+            })
+            .collect::<Vec<_>>();
+        let order = {
+            let bound = bindings.keys().map(String::as_str).collect();
+            sweep_bindings(&entries, &bound, &mut self.work)?
+        };
+        for index in order {
+            let (target, value) = assignments[index];
+            bindings.insert(target.to_owned(), value.clone());
         }
-        bindings
-    }
-
-    fn expression_is_contract_handle(
-        &self,
-        expression: &SyntaxExpression,
-        local_bindings: &HashMap<String, SyntaxExpression>,
-        known_factories: &HashSet<String>,
-        local_names: &HashSet<String>,
-    ) -> bool {
-        if let Some(name) = name_id(expression) {
-            if local_bindings.contains_key(name) {
-                return true;
-            }
-            return self.static_import_bindings.contains(name)
-                && !local_names.contains(name)
-                && !self.global_bindings.contains(name);
-        }
-        if let SyntaxExpression::Call { func, .. } = expression {
-            if self.is_importlib_import_call_in_scope(expression, local_names) {
-                return true;
-            }
-            if let Some(name) = name_id(func) {
-                return known_factories.contains(name);
-            }
-        }
-        false
+        Ok(bindings)
     }
 
     fn is_importlib_import_call_in_scope(
@@ -1042,20 +1088,20 @@ impl<'a> IrLowerer<'a> {
     ) -> Result<Option<Value>, IrLoweringError> {
         if let Some(name) = name_id(expression) {
             if self.static_import_bindings.contains(name) && !self.is_host_shadowed(name) {
-                return Ok(Some(json!({
+                return Ok(Some(ir_object!(
                     "kind": "static_import",
                     "binding": name,
                     "span": span_value(expression_span(expression)),
-                })));
+                )));
             }
             if allow_local {
                 if let Some(source_expression) = self.local_contract_handles.get(name).cloned() {
-                    return Ok(Some(json!({
+                    return Ok(Some(ir_object!(
                         "kind": "local_handle",
                         "binding": name,
-                        "source": self.lower_expression(&source_expression)?,
+                        "source": self.lower_handle_source(&source_expression)?,
                         "span": span_value(expression_span(expression)),
-                    })));
+                    )));
                 }
             }
             return Ok(None);
@@ -1063,24 +1109,40 @@ impl<'a> IrLowerer<'a> {
 
         if let SyntaxExpression::Call { func, .. } = expression {
             if self.is_importlib_import_call(expression) {
-                return Ok(Some(json!({
+                return Ok(Some(ir_object!(
                     "kind": "dynamic_import",
                     "source": self.lower_expression(expression)?,
                     "span": span_value(expression_span(expression)),
-                })));
+                )));
             }
             if let Some(name) = name_id(func) {
                 if self.contract_handle_factories.contains(name) {
-                    return Ok(Some(json!({
+                    return Ok(Some(ir_object!(
                         "kind": "factory_call",
                         "factory": name,
                         "source": self.lower_expression(expression)?,
                         "span": span_value(expression_span(expression)),
-                    })));
+                    )));
                 }
             }
         }
         Ok(None)
+    }
+
+    /// A local handle's source, lowered again at each use of the handle.
+    /// Every copy is part of the IR, so once the copies alone exceed the IR
+    /// limit the IR does too: refused as it would be when finished, before
+    /// the copies grow with uses x source size.
+    fn lower_handle_source(&mut self, source: &SyntaxExpression) -> Result<Value, IrLoweringError> {
+        let lowered = self.lower_expression(source)?;
+        self.handle_source_bytes += to_python_canonical_json(&lowered).len();
+        if self.handle_source_bytes > MAX_IR_JSON_BYTES {
+            return Err(IrLoweringError::limit(
+                IR_JSON_BYTES_CODE,
+                ir_json_bytes_message(),
+            ));
+        }
+        Ok(lowered)
     }
 
     fn canonical_dotted_path(&self, expression: &SyntaxExpression) -> Option<String> {
@@ -1141,12 +1203,12 @@ impl<'a> IrLowerer<'a> {
     }
 
     fn lower_import_alias(&self, alias: &SyntaxImportAlias, span: SourceRange) -> Value {
-        json!({
+        ir_object!(
             "node": "import",
             "span": span_value(span),
-            "module": alias.name,
-            "alias": alias.alias,
-        })
+            "module": &alias.name,
+            "alias": &alias.alias,
+        )
     }
 
     fn lower_global_declaration(
@@ -1185,7 +1247,7 @@ impl<'a> IrLowerer<'a> {
             if let Some(callee_path) = dotted_path(func) {
                 if let Some(syscall_id) = storage_constructor_syscall(&callee_path) {
                     self.record_host_dependency(func);
-                    return Ok(json!({
+                    return Ok(ir_object!(
                         "node": "storage_decl",
                         "span": span_value(*span),
                         "name": target,
@@ -1193,30 +1255,30 @@ impl<'a> IrLowerer<'a> {
                         "syscall_id": syscall_id,
                         "args": self.lower_expanded_expressions(args)?,
                         "keywords": self.lower_keywords(keywords)?,
-                    }));
+                    ));
                 }
                 if callee_path == EVENT_CONSTRUCTOR {
                     self.record_host_dependency(func);
                     self.event_bindings.insert(target.to_string());
                     let (event_name, params) = self.extract_log_event_parts(value)?;
-                    return Ok(json!({
+                    return Ok(ir_object!(
                         "node": "event_decl",
                         "span": span_value(*span),
                         "name": target,
                         "syscall_id": "event.log.new",
                         "event_name": event_name,
                         "params": self.lower_expression(params)?,
-                    }));
+                    ));
                 }
             }
         }
 
-        Ok(json!({
+        Ok(ir_object!(
             "node": "binding_decl",
             "span": span_value(*span),
             "name": target,
             "value": self.lower_expression(value)?,
-        }))
+        ))
     }
 
     fn extract_log_event_parts<'b>(
@@ -1289,12 +1351,7 @@ impl<'a> IrLowerer<'a> {
             .map(|handles| self.parameter_contract_handle_bindings(statement, handles))
             .unwrap_or_default();
         let local_bindings = collect_function_local_bindings(parameters, body);
-        let local_handles = self.collect_local_contract_handle_bindings(
-            body,
-            &self.contract_handle_factories,
-            initial_handles,
-            &local_bindings,
-        );
+        let local_handles = self.local_contract_handles(body, initial_handles, &local_bindings)?;
         let previous_local_handles =
             std::mem::replace(&mut self.local_contract_handles, local_handles);
         self.local_binding_stack.push(local_bindings);
@@ -1305,7 +1362,7 @@ impl<'a> IrLowerer<'a> {
         self.local_binding_stack.pop();
         self.local_contract_handles = previous_local_handles;
 
-        Ok(json!({
+        Ok(ir_object!(
             "node": "function",
             "span": span_value(*span),
             "name": name,
@@ -1315,7 +1372,7 @@ impl<'a> IrLowerer<'a> {
             "parameters": self.lower_parameters(parameters)?,
             "returns": self.lower_annotation(returns.as_ref()),
             "body": lowered_body?,
-        }))
+        ))
     }
 
     fn lower_decorator(
@@ -1335,13 +1392,13 @@ impl<'a> IrLowerer<'a> {
         if let Some(name) = name_id(decorator) {
             return Ok(LoweredDecorator {
                 visibility: name.to_string(),
-                decorator: json!({
+                decorator: ir_object!(
                     "node": "decorator",
                     "span": span_value(expression_span(decorator)),
                     "name": name,
-                    "args": [],
-                    "keywords": [],
-                }),
+                    "args": Vec::<Value>::new(),
+                    "keywords": Vec::<Value>::new(),
+                ),
             });
         }
         if let SyntaxExpression::Call {
@@ -1354,13 +1411,13 @@ impl<'a> IrLowerer<'a> {
             if let Some(name) = name_id(func) {
                 return Ok(LoweredDecorator {
                     visibility: name.to_string(),
-                    decorator: json!({
+                    decorator: ir_object!(
                         "node": "decorator",
                         "span": span_value(expression_span(decorator)),
                         "name": name,
                         "args": self.lower_expanded_expressions(args)?,
                         "keywords": self.lower_keywords(keywords)?,
-                    }),
+                    ),
                 });
             }
         }
@@ -1388,8 +1445,8 @@ impl<'a> IrLowerer<'a> {
                 Some(parameter.span),
             ));
         }
-        Ok(json!({
-            "name": parameter.name,
+        Ok(ir_object!(
+            "name": &parameter.name,
             "kind": parameter_kind_name(parameter.kind),
             "annotation": self.lower_annotation(parameter.annotation.as_ref()),
             "default": match &parameter.default {
@@ -1397,7 +1454,7 @@ impl<'a> IrLowerer<'a> {
                 None => Value::Null,
             },
             "span": span_value(parameter.span),
-        }))
+        ))
     }
 
     fn lower_annotation(&mut self, annotation: Option<&SyntaxExpression>) -> Value {
@@ -1410,17 +1467,17 @@ impl<'a> IrLowerer<'a> {
 
     fn lower_keyword(&mut self, keyword: &SyntaxKeyword) -> Result<Value, IrLoweringError> {
         match &keyword.arg {
-            Some(arg) => Ok(json!({
+            Some(arg) => Ok(ir_object!(
                 "node": "keyword",
                 "span": span_value(keyword.span),
                 "arg": arg,
                 "value": self.lower_expression(&keyword.value)?,
-            })),
-            None => Ok(json!({
+            )),
+            None => Ok(ir_object!(
                 "node": "keyword_unpack",
                 "span": span_value(keyword.span),
                 "value": self.lower_expression(&keyword.value)?,
-            })),
+            )),
         }
     }
 
@@ -1456,7 +1513,7 @@ impl<'a> IrLowerer<'a> {
                                 if let Some(read_syscall_id) = storage_meta.read_syscall_id {
                                     self.record_host_dependency_id(read_syscall_id);
                                 }
-                                return Ok(json!({
+                                return Ok(ir_object!(
                                     "node": "storage_set",
                                     "span": span_value(*span),
                                     "binding": storage_meta.binding,
@@ -1464,17 +1521,17 @@ impl<'a> IrLowerer<'a> {
                                     "syscall_id": write_syscall_id,
                                     "key": self.lower_subscript_slice(slice)?,
                                     "value": self.lower_expression(value)?,
-                                }));
+                                ));
                             }
                         }
                     }
                 }
-                Ok(json!({
+                Ok(ir_object!(
                     "node": "assign",
                     "span": span_value(*span),
                     "targets": targets.iter().map(|target| self.lower_target(target)).collect::<Result<Vec<_>, _>>()?,
                     "value": self.lower_expression(value)?,
-                }))
+                ))
             }
             SyntaxStatement::AugAssign {
                 span,
@@ -1494,7 +1551,7 @@ impl<'a> IrLowerer<'a> {
                             if let Some(read_syscall_id) = storage_meta.read_syscall_id {
                                 self.record_host_dependency_id(read_syscall_id);
                             }
-                            return Ok(json!({
+                            return Ok(ir_object!(
                                 "node": "storage_mutate",
                                 "span": span_value(*span),
                                 "binding": storage_meta.binding,
@@ -1504,74 +1561,74 @@ impl<'a> IrLowerer<'a> {
                                 "key": self.lower_subscript_slice(slice)?,
                                 "operator": binary_operator_name(*operator),
                                 "value": self.lower_expression(value)?,
-                            }));
+                            ));
                         }
                     }
                 }
-                Ok(json!({
+                Ok(ir_object!(
                     "node": "aug_assign",
                     "span": span_value(*span),
                     "operator": binary_operator_name(*operator),
                     "target": self.lower_target(target)?,
                     "value": self.lower_expression(value)?,
-                }))
+                ))
             }
-            SyntaxStatement::Return { span, value } => Ok(json!({
+            SyntaxStatement::Return { span, value } => Ok(ir_object!(
                 "node": "return",
                 "span": span_value(*span),
                 "value": match value {
                     Some(value) => self.lower_expression(value)?,
                     None => Value::Null,
                 },
-            })),
-            SyntaxStatement::Expr { span, value } => Ok(json!({
+            )),
+            SyntaxStatement::Expr { span, value } => Ok(ir_object!(
                 "node": "expr",
                 "span": span_value(*span),
                 "value": self.lower_expression(value)?,
-            })),
+            )),
             SyntaxStatement::If {
                 span,
                 test,
                 body,
                 orelse,
-            } => Ok(json!({
+            } => Ok(ir_object!(
                 "node": "if",
                 "span": span_value(*span),
                 "test": self.lower_expression(test)?,
                 "body": self.lower_statement_list(body)?,
                 "orelse": self.lower_statement_list(orelse)?,
-            })),
+            )),
             SyntaxStatement::For {
                 span,
                 target,
                 iter,
                 body,
                 orelse,
-            } => Ok(json!({
+            } => Ok(ir_object!(
                 "node": "for",
                 "span": span_value(*span),
                 "target": self.lower_target(target)?,
                 "iter": self.lower_expression(iter)?,
                 "body": self.lower_statement_list(body)?,
                 "orelse": self.lower_statement_list(orelse)?,
-            })),
+            )),
             SyntaxStatement::While {
                 span,
                 test,
                 body,
                 orelse,
-            } => Ok(json!({
+            } => Ok(ir_object!(
                 "node": "while",
                 "span": span_value(*span),
                 "test": self.lower_expression(test)?,
                 "body": self.lower_statement_list(body)?,
                 "orelse": self.lower_statement_list(orelse)?,
-            })),
+            )),
             SyntaxStatement::Assert {
                 span,
                 test,
                 message,
-            } => Ok(json!({
+            } => Ok(ir_object!(
                 "node": "assert",
                 "span": span_value(*span),
                 "test": self.lower_expression(test)?,
@@ -1579,12 +1636,12 @@ impl<'a> IrLowerer<'a> {
                     Some(message) => self.lower_expression(message)?,
                     None => Value::Null,
                 },
-            })),
+            )),
             SyntaxStatement::Raise {
                 span,
                 exception,
                 cause,
-            } => Ok(json!({
+            } => Ok(ir_object!(
                 "node": "raise",
                 "span": span_value(*span),
                 "exception": match exception {
@@ -1595,19 +1652,19 @@ impl<'a> IrLowerer<'a> {
                     Some(cause) => self.lower_expression(cause)?,
                     None => Value::Null,
                 },
-            })),
-            SyntaxStatement::Break { span } => Ok(json!({
+            )),
+            SyntaxStatement::Break { span } => Ok(ir_object!(
                 "node": "break",
                 "span": span_value(*span),
-            })),
-            SyntaxStatement::Continue { span } => Ok(json!({
+            )),
+            SyntaxStatement::Continue { span } => Ok(ir_object!(
                 "node": "continue",
                 "span": span_value(*span),
-            })),
-            SyntaxStatement::Pass { span } => Ok(json!({
+            )),
+            SyntaxStatement::Pass { span } => Ok(ir_object!(
                 "node": "pass",
                 "span": span_value(*span),
-            })),
+            )),
             SyntaxStatement::Import { .. } | SyntaxStatement::FunctionDef { .. } => {
                 Err(self
                     .unsupported_statement(statement, "unsupported statement position in Xian IR"))
@@ -1634,7 +1691,7 @@ impl<'a> IrLowerer<'a> {
             SyntaxExpression::Starred { span, value, .. } => {
                 if starred { return Err(IrLoweringError::new("multiple starred assignment targets", Some(*span))); }
                 starred = true;
-                Ok(json!({"node":"starred_target", "span":span_value(*span), "value":self.lower_target(value)?}))
+                Ok(ir_object!("node":"starred_target", "span":span_value(*span), "value":self.lower_target(value)?))
             }
             other => self.lower_target(other),
         }).collect()
@@ -1646,46 +1703,46 @@ impl<'a> IrLowerer<'a> {
                 "starred target requires a list or tuple target",
                 Some(*span),
             )),
-            SyntaxExpression::Tuple { span, elements, .. } => Ok(json!({
+            SyntaxExpression::Tuple { span, elements, .. } => Ok(ir_object!(
                 "node": "tuple_target",
                 "span": span_value(*span),
                 "elements": self.lower_sequence_targets(elements)?,
-            })),
-            SyntaxExpression::List { span, elements, .. } => Ok(json!({
+            )),
+            SyntaxExpression::List { span, elements, .. } => Ok(ir_object!(
                 "node": "list_target",
                 "span": span_value(*span),
                 "elements": self.lower_sequence_targets(elements)?,
-            })),
+            )),
             SyntaxExpression::Name { span, id, .. } => {
                 let host = self.record_host_dependency(expression);
-                Ok(json!({
+                Ok(ir_object!(
                     "node": "name",
                     "span": span_value(*span),
                     "id": id,
                     "host_binding_id": host.map(|spec| spec.id),
-                }))
+                ))
             }
             SyntaxExpression::Attribute {
                 span, value, attr, ..
             } => {
                 let host = self.record_host_dependency(expression);
-                Ok(json!({
+                Ok(ir_object!(
                     "node": "attribute",
                     "span": span_value(*span),
                     "value": self.lower_expression(value)?,
                     "attr": attr,
                     "path": dotted_path(expression),
                     "host_binding_id": host.map(|spec| spec.id),
-                }))
+                ))
             }
             SyntaxExpression::Subscript {
                 span, value, slice, ..
-            } => Ok(json!({
+            } => Ok(ir_object!(
                 "node": "subscript",
                 "span": span_value(*span),
                 "value": self.lower_expression(value)?,
                 "slice": self.lower_subscript_slice(slice)?,
-            })),
+            )),
             _ => Err(IrLoweringError::new(
                 format!(
                     "unsupported assignment target '{}' in Xian IR",
@@ -1703,23 +1760,23 @@ impl<'a> IrLowerer<'a> {
         match expression {
             SyntaxExpression::Name { span, id, .. } => {
                 let host = self.record_host_dependency(expression);
-                Ok(json!({
+                Ok(ir_object!(
                     "node": "name",
                     "span": span_value(*span),
                     "id": id,
                     "host_binding_id": host.map(|spec| spec.id),
-                }))
+                ))
             }
             SyntaxExpression::Starred { span, .. } => Err(IrLoweringError::new(
                 "starred expression requires a call or collection",
                 Some(*span),
             )),
             SyntaxExpression::Constant { span, value } => Ok(lower_constant(*span, value)),
-            SyntaxExpression::List { span, elements, .. } => Ok(json!({
+            SyntaxExpression::List { span, elements, .. } => Ok(ir_object!(
                 "node": "list",
                 "span": span_value(*span),
                 "elements": self.lower_expanded_expressions(elements)?,
-            })),
+            )),
             SyntaxExpression::ListComp {
                 span,
                 element,
@@ -1731,28 +1788,28 @@ impl<'a> IrLowerer<'a> {
                 value,
                 generators,
             } => self.lower_comprehension(*span, None, Some((key, value)), generators),
-            SyntaxExpression::Tuple { span, elements, .. } => Ok(json!({
+            SyntaxExpression::Tuple { span, elements, .. } => Ok(ir_object!(
                 "node": "tuple",
                 "span": span_value(*span),
                 "elements": self.lower_expanded_expressions(elements)?,
-            })),
-            SyntaxExpression::Dict { span, entries } => Ok(json!({
+            )),
+            SyntaxExpression::Dict { span, entries } => Ok(ir_object!(
                 "node": "dict",
                 "span": span_value(*span),
                 "entries": self.lower_dict_entries(entries)?,
-            })),
+            )),
             SyntaxExpression::Attribute {
                 span, value, attr, ..
             } => {
                 let host = self.record_host_dependency(expression);
-                Ok(json!({
+                Ok(ir_object!(
                     "node": "attribute",
                     "span": span_value(*span),
                     "value": self.lower_expression(value)?,
                     "attr": attr,
                     "path": dotted_path(expression),
                     "host_binding_id": host.map(|spec| spec.id),
-                }))
+                ))
             }
             SyntaxExpression::Subscript {
                 span, value, slice, ..
@@ -1760,29 +1817,29 @@ impl<'a> IrLowerer<'a> {
                 if let Some(storage_meta) = self.storage_subscript_metadata(value) {
                     if let Some(read_syscall_id) = storage_meta.read_syscall_id {
                         self.record_host_dependency_id(read_syscall_id);
-                        return Ok(json!({
+                        return Ok(ir_object!(
                             "node": "storage_get",
                             "span": span_value(*span),
                             "binding": storage_meta.binding,
                             "storage_type": storage_meta.storage_type,
                             "syscall_id": read_syscall_id,
                             "key": self.lower_subscript_slice(slice)?,
-                        }));
+                        ));
                     }
                 }
-                Ok(json!({
+                Ok(ir_object!(
                     "node": "subscript",
                     "span": span_value(*span),
                     "value": self.lower_expression(value)?,
                     "slice": self.lower_subscript_slice(slice)?,
-                }))
+                ))
             }
             SyntaxExpression::Slice {
                 span,
                 lower,
                 upper,
                 step,
-            } => Ok(json!({
+            } => Ok(ir_object!(
                 "node": "slice",
                 "span": span_value(*span),
                 "lower": match lower {
@@ -1797,7 +1854,7 @@ impl<'a> IrLowerer<'a> {
                     Some(step) => self.lower_expression(step)?,
                     None => Value::Null,
                 },
-            })),
+            )),
             SyntaxExpression::Call {
                 span,
                 func,
@@ -1809,74 +1866,74 @@ impl<'a> IrLowerer<'a> {
                 left,
                 operators,
                 comparators,
-            } => Ok(json!({
+            } => Ok(ir_object!(
                 "node": "compare",
                 "span": span_value(*span),
                 "left": self.lower_expression(left)?,
                 "operators": operators.iter().copied().map(compare_operator_name).collect::<Vec<_>>(),
                 "comparators": self.lower_expression_list(comparators)?,
-            })),
+            )),
             SyntaxExpression::BoolOp {
                 span,
                 operator,
                 values,
-            } => Ok(json!({
+            } => Ok(ir_object!(
                 "node": "bool_op",
                 "span": span_value(*span),
                 "operator": bool_operator_name(*operator),
                 "values": self.lower_expression_list(values)?,
-            })),
+            )),
             SyntaxExpression::BinOp {
                 span,
                 operator,
                 left,
                 right,
-            } => Ok(json!({
+            } => Ok(ir_object!(
                 "node": "bin_op",
                 "span": span_value(*span),
                 "operator": binary_operator_name(*operator),
                 "left": self.lower_expression(left)?,
                 "right": self.lower_expression(right)?,
-            })),
+            )),
             SyntaxExpression::UnaryOp {
                 span,
                 operator,
                 operand,
-            } => Ok(json!({
+            } => Ok(ir_object!(
                 "node": "unary_op",
                 "span": span_value(*span),
                 "operator": unary_operator_name(*operator),
                 "operand": self.lower_expression(operand)?,
-            })),
+            )),
             SyntaxExpression::IfExpr {
                 span,
                 test,
                 body,
                 orelse,
-            } => Ok(json!({
+            } => Ok(ir_object!(
                 "node": "if_expr",
                 "span": span_value(*span),
                 "test": self.lower_expression(test)?,
                 "body": self.lower_expression(body)?,
                 "orelse": self.lower_expression(orelse)?,
-            })),
-            SyntaxExpression::FString { span, values } => Ok(json!({
+            )),
+            SyntaxExpression::FString { span, values } => Ok(ir_object!(
                 "node": "f_string",
                 "span": span_value(*span),
                 "values": self.lower_expression_list(values)?,
-            })),
+            )),
             SyntaxExpression::FormattedValue {
                 span,
                 value,
                 conversion,
                 format_spec,
-            } => Ok(json!({
+            } => Ok(ir_object!(
                 "node": "formatted_value",
                 "span": span_value(*span),
                 "value": self.lower_expression(value)?,
                 "conversion": conversion.map(|value| value.to_string()),
                 "format_spec": format_spec.as_ref().map(|spec| self.lower_expression(spec)).transpose()?,
-            })),
+            )),
         }
     }
 
@@ -1891,7 +1948,7 @@ impl<'a> IrLowerer<'a> {
             if let Some((binding, storage_type)) = self.storage_metadata_for_name(value) {
                 if let Some(syscall_id) = storage_method_syscall(&storage_type, attr) {
                     self.record_host_dependency_id(syscall_id);
-                    return Ok(json!({
+                    return Ok(ir_object!(
                         "node": "call",
                         "span": span_value(span),
                         "func": self.lower_expression(func)?,
@@ -1901,13 +1958,13 @@ impl<'a> IrLowerer<'a> {
                         "receiver_binding": binding,
                         "receiver_type": storage_type,
                         "method": attr,
-                    }));
+                    ));
                 }
             }
 
             if let Some(contract_target) = self.contract_target_for_expression(value, true)? {
                 self.record_host_dependency_id(CONTRACT_EXPORT_SYSCALL);
-                return Ok(json!({
+                return Ok(ir_object!(
                     "node": "call",
                     "span": span_value(span),
                     "func": self.lower_expression(func)?,
@@ -1916,7 +1973,7 @@ impl<'a> IrLowerer<'a> {
                     "syscall_id": CONTRACT_EXPORT_SYSCALL,
                     "contract_target": contract_target,
                     "function_name": attr,
-                }));
+                ));
             }
         }
 
@@ -1942,7 +1999,7 @@ impl<'a> IrLowerer<'a> {
             .filter(|spec| spec.kind == "syscall")
             .map(|spec| spec.id)
             .or_else(|| event_emit.map(|spec| spec.id));
-        Ok(json!({
+        Ok(ir_object!(
             "node": "call",
             "span": span_value(span),
             "func": self.lower_expression(func)?,
@@ -1950,7 +2007,7 @@ impl<'a> IrLowerer<'a> {
             "keywords": self.lower_keywords(keywords)?,
             "syscall_id": syscall_id,
             "event_binding": event_emit.and_then(|_| name_id(func).map(str::to_string)),
-        }))
+        ))
     }
 
     fn lower_expanded_expressions(
@@ -1958,7 +2015,7 @@ impl<'a> IrLowerer<'a> {
         expressions: &[SyntaxExpression],
     ) -> Result<Vec<Value>, IrLoweringError> {
         expressions.iter().map(|expression| match expression {
-            SyntaxExpression::Starred { span, value, .. } => Ok(json!({"node":"starred", "span":span_value(*span), "value":self.lower_expression(value)?})),
+            SyntaxExpression::Starred { span, value, .. } => Ok(ir_object!("node":"starred", "span":span_value(*span), "value":self.lower_expression(value)?)),
             other => self.lower_expression(other),
         }).collect()
     }
@@ -1980,13 +2037,13 @@ impl<'a> IrLowerer<'a> {
         entries
             .iter()
             .map(|entry| match &entry.key {
-                Some(key) => Ok(json!({
+                Some(key) => Ok(ir_object!(
                     "key": self.lower_expression(key)?,
                     "value": self.lower_expression(&entry.value)?,
-                })),
-                None => Ok(json!({
+                )),
+                None => Ok(ir_object!(
                     "unpack": self.lower_expression(&entry.value)?,
-                })),
+                )),
             })
             .collect()
     }
@@ -2011,12 +2068,12 @@ impl<'a> IrLowerer<'a> {
             let generators = self.lower_comprehension_generators(generators, first_iter)?;
             if let Some(element) = element {
                 return Ok(
-                    json!({"node": "list_comp", "span": span_value(span), "element": self.lower_expression(element)?, "generators": generators}),
+                    ir_object!("node": "list_comp", "span": span_value(span), "element": self.lower_expression(element)?, "generators": generators),
                 );
             }
             let (key, value) = pair.expect("dictionary comprehension pair");
             Ok(
-                json!({"node": "dict_comp", "span": span_value(span), "key": self.lower_expression(key)?, "value": self.lower_expression(value)?, "generators": generators}),
+                ir_object!("node": "dict_comp", "span": span_value(span), "key": self.lower_expression(key)?, "value": self.lower_expression(value)?, "generators": generators),
             )
         })();
         self.local_binding_stack.pop();
@@ -2038,11 +2095,11 @@ impl<'a> IrLowerer<'a> {
                         Some(generator.span),
                     ));
                 }
-                Ok(json!({
+                Ok(ir_object!(
                     "target": self.lower_target(&generator.target)?,
                     "iter": if index == 0 { first_iter.clone() } else { self.lower_expression(&generator.iter)? },
                     "ifs": self.lower_expression_list(&generator.ifs)?,
-                }))
+                ))
             })
             .collect()
     }
@@ -2271,15 +2328,15 @@ fn collect_return_values<'a>(
     }
 }
 
-fn collect_named_assignments(
-    statements: &[SyntaxStatement],
-    output: &mut Vec<(String, SyntaxExpression)>,
+fn collect_named_assignments<'a>(
+    statements: &'a [SyntaxStatement],
+    output: &mut Vec<(&'a str, &'a SyntaxExpression)>,
 ) {
     for statement in statements {
         match statement {
             SyntaxStatement::Assign { targets, value, .. } if targets.len() == 1 => {
                 if let Some(name) = name_id(&targets[0]) {
-                    output.push((name.to_string(), value.clone()));
+                    output.push((name, value));
                 }
             }
             SyntaxStatement::FunctionDef { .. } => {}
@@ -2490,74 +2547,86 @@ fn collect_calls_from_comprehensions<'a>(
 }
 
 fn call_parameter_arguments<'a>(
-    callee: &SyntaxStatement,
+    callee: &'a SyntaxStatement,
     args: &'a [SyntaxExpression],
     keywords: &'a [SyntaxKeyword],
-) -> Vec<(String, &'a SyntaxExpression)> {
+) -> Vec<(&'a str, &'a SyntaxExpression)> {
     let SyntaxStatement::FunctionDef { parameters, .. } = callee else {
         return Vec::new();
     };
-    let positional = parameters
-        .iter()
-        .filter(|parameter| {
-            matches!(
-                parameter.kind,
-                SyntaxParameterKind::PositionalOnly | SyntaxParameterKind::PositionalOrKeyword
-            )
-        })
-        .collect::<Vec<_>>();
+    let positional = parameters.iter().filter(|parameter| {
+        matches!(
+            parameter.kind,
+            SyntaxParameterKind::PositionalOnly | SyntaxParameterKind::PositionalOrKeyword
+        )
+    });
     let named_parameters = parameters
         .iter()
         .map(|parameter| parameter.name.as_str())
         .collect::<HashSet<_>>();
 
-    let mut output = Vec::new();
-    for (index, argument) in args.iter().enumerate() {
-        if let Some(parameter) = positional.get(index) {
-            output.push((parameter.name.clone(), argument));
-        }
-    }
+    let mut output = positional
+        .zip(args)
+        .map(|(parameter, argument)| (parameter.name.as_str(), argument))
+        .collect::<Vec<_>>();
     for keyword in keywords {
-        let Some(arg) = &keyword.arg else {
-            continue;
-        };
-        if named_parameters.contains(arg.as_str()) {
-            output.push((arg.clone(), &keyword.value));
+        if let Some(arg) = keyword
+            .arg
+            .as_deref()
+            .filter(|arg| named_parameters.contains(arg))
+        {
+            output.push((arg, &keyword.value));
         }
     }
     output
 }
 
 fn host_binding_value(binding: &HostBinding) -> Value {
-    json!({
+    ir_object!(
         "binding": binding.binding,
         "id": binding.id,
         "kind": binding.kind,
         "category": binding.category,
-    })
+    )
 }
 
 fn resolve_host_binding(path: &str) -> Option<HostBinding> {
-    HOST_BINDINGS
-        .iter()
-        .copied()
-        .find(|binding| binding.binding == path)
+    host_binding_index().by_binding.get(path).copied()
 }
 
 fn resolve_host_binding_id(identifier: &str) -> Option<HostBinding> {
-    HOST_BINDINGS
-        .iter()
-        .copied()
-        .find(|binding| binding.id == identifier)
+    host_binding_index().by_id.get(identifier).copied()
+}
+
+/// The host bindings by binding path and by id, the first of each (as a
+/// scan of `HOST_BINDINGS` finds it), built once.
+struct HostBindingIndex {
+    by_binding: HashMap<&'static str, HostBinding>,
+    by_id: HashMap<&'static str, HostBinding>,
+}
+
+fn host_binding_index() -> &'static HostBindingIndex {
+    static INDEX: OnceLock<HostBindingIndex> = OnceLock::new();
+    INDEX.get_or_init(|| {
+        let mut index = HostBindingIndex {
+            by_binding: HashMap::new(),
+            by_id: HashMap::new(),
+        };
+        for binding in HOST_BINDINGS {
+            index.by_binding.entry(binding.binding).or_insert(*binding);
+            index.by_id.entry(binding.id).or_insert(*binding);
+        }
+        index
+    })
 }
 
 fn span_value(span: SourceRange) -> Value {
-    json!({
+    ir_object!(
         "line": span.start_line,
         "col": span.start_column,
         "end_line": span.end_line,
         "end_col": span.end_column,
-    })
+    )
 }
 
 fn statement_span(statement: &SyntaxStatement) -> SourceRange {
@@ -2620,15 +2689,25 @@ fn root_name(expression: &SyntaxExpression) -> Option<&str> {
     }
 }
 
+/// `a.b.c` of a name and its attributes, built once (not once per level).
 fn dotted_path(expression: &SyntaxExpression) -> Option<String> {
-    match expression {
-        SyntaxExpression::Name { id, .. } => Some(id.clone()),
-        SyntaxExpression::Attribute { value, attr, .. } => {
-            let base = dotted_path(value)?;
-            Some(format!("{base}.{attr}"))
+    let mut parts = Vec::new();
+    let mut current = expression;
+    loop {
+        match current {
+            SyntaxExpression::Name { id, .. } => {
+                parts.push(id.as_str());
+                break;
+            }
+            SyntaxExpression::Attribute { value, attr, .. } => {
+                parts.push(attr.as_str());
+                current = value;
+            }
+            _ => return None,
         }
-        _ => None,
     }
+    parts.reverse();
+    Some(parts.join("."))
 }
 
 fn storage_constructor_syscall(callee_path: &str) -> Option<&'static str> {
@@ -2659,61 +2738,61 @@ fn storage_subscript_write_syscall(storage_type: &str) -> Option<&'static str> {
 
 fn lower_constant(span: SourceRange, constant: &SyntaxConstant) -> Value {
     match constant {
-        SyntaxConstant::None => json!({
+        SyntaxConstant::None => ir_object!(
             "node": "constant",
             "span": span_value(span),
             "value_type": "none",
             "value": Value::Null,
-        }),
-        SyntaxConstant::Bool(value) => json!({
+        ),
+        SyntaxConstant::Bool(value) => ir_object!(
             "node": "constant",
             "span": span_value(span),
             "value_type": "bool",
             "value": value,
-        }),
+        ),
         SyntaxConstant::Int(value) => {
             let value = value
                 .parse::<i64>()
                 .map(Value::from)
                 .unwrap_or_else(|_| Value::String(value.clone()));
-            json!({
+            ir_object!(
                 "node": "constant",
                 "span": span_value(span),
                 "value_type": "int",
                 "value": value,
-            })
+            )
         }
-        SyntaxConstant::Decimal(value) => json!({
+        SyntaxConstant::Decimal(value) => ir_object!(
             "node": "constant",
             "span": span_value(span),
             "value_type": "decimal",
             "value": value,
-        }),
-        SyntaxConstant::Float(value) => json!({
+        ),
+        SyntaxConstant::Float(value) => ir_object!(
             "node": "constant",
             "span": span_value(span),
             "value_type": "float",
             "value": Number::from_f64(*value).map(Value::Number).unwrap_or(Value::Null),
             "literal": format_float(*value),
-        }),
-        SyntaxConstant::Str(value) => json!({
+        ),
+        SyntaxConstant::Str(value) => ir_object!(
             "node": "constant",
             "span": span_value(span),
             "value_type": "str",
             "value": value,
-        }),
-        SyntaxConstant::Bytes(value) => json!({
+        ),
+        SyntaxConstant::Bytes(value) => ir_object!(
             "node": "constant",
             "span": span_value(span),
             "value_type": "bytes",
             "value": value,
-        }),
-        SyntaxConstant::Tuple(values) => json!({
+        ),
+        SyntaxConstant::Tuple(values) => ir_object!(
             "node": "constant",
             "span": span_value(span),
             "value_type": "tuple",
-            "value": values.iter().map(|value| lower_constant_without_span(value)).collect::<Vec<_>>(),
-        }),
+            "value": values.iter().map(lower_constant_without_span).collect::<Vec<_>>(),
+        ),
     }
 }
 
@@ -2725,7 +2804,7 @@ fn lower_constant_without_span(constant: &SyntaxConstant) -> Value {
             .parse::<i64>()
             .map(Value::from)
             .unwrap_or_else(|_| Value::String(value.clone())),
-        SyntaxConstant::Decimal(value) => json!({"__fixed__": value}),
+        SyntaxConstant::Decimal(value) => ir_object!("__fixed__": value),
         SyntaxConstant::Float(value) => Number::from_f64(*value)
             .map(Value::Number)
             .unwrap_or(Value::Null),
@@ -2828,8 +2907,111 @@ mod tests {
     use crate::compiler::CompileOptions;
     use crate::ir::{
         compile_contract_artifact, describe_vm_host_surface, lower_source_to_ir,
-        lower_source_to_ir_json,
+        lower_source_to_ir_json, normalize_and_build_syntax, IrLowerer,
     };
+    use crate::limits::{MAX_COMPILE_WORK, MAX_SOURCE_BYTES};
+
+    /// The work units lowering `source` spends, when it compiles.
+    fn compile_work(source: &str) -> Option<usize> {
+        let options = CompileOptions::default();
+        let (_, syntax) = normalize_and_build_syntax("con_work", source, &options).ok()?;
+        let mut lowerer = IrLowerer::new(&syntax, &options.vm_profile);
+        lowerer.lower().ok()?;
+        Some(MAX_COMPILE_WORK - lowerer.work.remaining())
+    }
+
+    fn alias_chain(links: usize) -> String {
+        let chain: String = (2..=links)
+            .rev()
+            .map(|index| format!(" a{index}=a{}\n", index - 1))
+            .collect();
+        format!(
+            "import con_token\n@export\ndef go():\n{chain} a1=con_token\n return a{links}.f()\n"
+        )
+    }
+
+    fn mutual(count: usize) -> String {
+        let functions: String = (0..count)
+            .map(|index| {
+                format!(
+                    "def f{index}(h,g):\n if g:\n  return f{}(g,h)\n return f{}(h,h)\n",
+                    (index + 1) % count,
+                    (index + count - 1) % count
+                )
+            })
+            .collect();
+        format!("import con_token\n{functions}@export\ndef go():\n return f0(con_token,con_token).f()\n")
+    }
+
+    fn module_aliases(count: usize) -> String {
+        let aliases: String = (1..=count)
+            .rev()
+            .map(|index| format!("m{index}=m{}\n", index - 1))
+            .collect();
+        format!("{aliases}m0=hashlib\n@export\ndef go():\n return 1\n")
+    }
+
+    fn many_locals(count: usize) -> String {
+        let body: String = (2..=40)
+            .rev()
+            .map(|index| format!(" a{index}=a{}\n", index - 1))
+            .collect();
+        let functions: String = (0..count)
+            .map(|index| format!("def f{index}(h):\n{body} a1=h\n return a40\n"))
+            .collect();
+        format!("import con_token\n{functions}@export\ndef go():\n return f0(con_token).f()\n")
+    }
+
+    /// The largest `make(n)` that compiles.
+    fn largest(make: fn(usize) -> String) -> (String, usize) {
+        let (mut low, mut high) = (1, 2);
+        while make(high).len() <= MAX_SOURCE_BYTES && compile_work(&make(high)).is_some() {
+            (low, high) = (high, high * 2);
+        }
+        while high - low > 1 {
+            let middle = (low + high) / 2;
+            if make(middle).len() <= MAX_SOURCE_BYTES && compile_work(&make(middle)).is_some() {
+                low = middle;
+            } else {
+                high = middle;
+            }
+        }
+        let source = make(low);
+        let work = compile_work(&source).expect("compiles");
+        (source, work)
+    }
+
+    #[test]
+    fn lowering_past_the_work_budget_is_refused_as_a_compile_limit() {
+        let options = CompileOptions::default();
+        let (_, syntax) =
+            normalize_and_build_syntax("con_work", &alias_chain(3), &options).expect("parses");
+        let mut lowerer = IrLowerer::new(&syntax, &options.vm_profile);
+        lowerer.work = crate::limits::WorkBudget::with_limit(3);
+        let diagnostic = lowerer.lower().expect_err("over budget").into_diagnostic();
+        assert_eq!(diagnostic.code, "xian.limit.compile_work");
+        assert_eq!(
+            diagnostic.message,
+            "contract compilation exceeds the maximum of 1000000 work units"
+        );
+    }
+
+    #[test]
+    fn the_largest_pathological_contracts_spend_a_fraction_of_the_work_ceiling() {
+        for make in [alias_chain, mutual, module_aliases, many_locals] {
+            let (source, work) = largest(make);
+            assert!(
+                work * 4 < MAX_COMPILE_WORK,
+                "{work} units for {} bytes",
+                source.len()
+            );
+            assert!(
+                work < 16 * source.len(),
+                "{work} units for {} bytes",
+                source.len()
+            );
+        }
+    }
 
     #[test]
     fn lower_source_matches_checked_in_fixture_ir() {

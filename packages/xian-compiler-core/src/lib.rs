@@ -5,6 +5,7 @@ pub mod diagnostic;
 pub mod error;
 pub mod fixture;
 pub mod frontend;
+mod handle_inference;
 pub mod hashing;
 pub mod ir;
 pub mod limits;

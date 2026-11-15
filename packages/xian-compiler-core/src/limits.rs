@@ -12,6 +12,15 @@ pub const MAX_TOKENS: usize = 100_000;
 pub const MAX_LOGICAL_LINE_TOKENS: usize = 4_096;
 pub const MAX_IR_JSON_BYTES: usize = 1_048_576;
 pub const MAX_CONTRACT_HANDLE_INFERENCE_PASSES: usize = 512;
+/// The work units one compilation may spend on its whole-program analyses
+/// (module aliases, contract-handle inference, local handle bindings): one
+/// unit per input, settled fact, followed edge or queued binding. That work
+/// is linear in the program (a few units per syntax node; the largest
+/// pathological contracts that compile spend under 60,000), so no admissible
+/// source comes near this ceiling; it stops any superlinear work a future
+/// analysis could add. Counted, not timed: the same on every platform and in
+/// the native and WebAssembly builds.
+pub const MAX_COMPILE_WORK: usize = 20 * MAX_SYNTAX_NODES;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub struct CompilerLimits {
@@ -22,6 +31,7 @@ pub struct CompilerLimits {
     pub max_logical_line_tokens: usize,
     pub max_ir_json_bytes: usize,
     pub max_contract_handle_inference_passes: usize,
+    pub max_compile_work: usize,
 }
 
 pub const fn compiler_limits() -> CompilerLimits {
@@ -33,6 +43,7 @@ pub const fn compiler_limits() -> CompilerLimits {
         max_logical_line_tokens: MAX_LOGICAL_LINE_TOKENS,
         max_ir_json_bytes: MAX_IR_JSON_BYTES,
         max_contract_handle_inference_passes: MAX_CONTRACT_HANDLE_INFERENCE_PASSES,
+        max_compile_work: MAX_COMPILE_WORK,
     }
 }
 
@@ -152,12 +163,53 @@ pub(crate) fn validate_syntax_limits(suite: &[ast::Stmt]) -> Result<(), Compiler
 
 pub(crate) fn validate_ir_json_limits(payload: &str) -> Result<(), CompilerDiagnostic> {
     if payload.len() > MAX_IR_JSON_BYTES {
-        return Err(limit_error(
-            "xian.limit.ir_json_bytes",
-            format!("contract IR exceeds the maximum of {MAX_IR_JSON_BYTES} UTF-8 bytes"),
-        ));
+        return Err(limit_error(IR_JSON_BYTES_CODE, ir_json_bytes_message()));
     }
     Ok(())
+}
+
+pub(crate) const IR_JSON_BYTES_CODE: &str = "xian.limit.ir_json_bytes";
+
+pub(crate) fn ir_json_bytes_message() -> String {
+    format!("contract IR exceeds the maximum of {MAX_IR_JSON_BYTES} UTF-8 bytes")
+}
+
+pub(crate) const COMPILE_WORK_CODE: &str = "xian.limit.compile_work";
+
+pub(crate) fn compile_work_message() -> String {
+    format!("contract compilation exceeds the maximum of {MAX_COMPILE_WORK} work units")
+}
+
+/// The work units a compilation has left.
+#[derive(Debug)]
+pub(crate) struct WorkBudget {
+    remaining: usize,
+}
+
+/// A compilation ran out of work units.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct WorkExceeded;
+
+impl Default for WorkBudget {
+    fn default() -> Self {
+        Self::with_limit(MAX_COMPILE_WORK)
+    }
+}
+
+impl WorkBudget {
+    pub(crate) fn with_limit(limit: usize) -> Self {
+        Self { remaining: limit }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn remaining(&self) -> usize {
+        self.remaining
+    }
+
+    pub(crate) fn spend(&mut self, units: usize) -> Result<(), WorkExceeded> {
+        self.remaining = self.remaining.checked_sub(units).ok_or(WorkExceeded)?;
+        Ok(())
+    }
 }
 
 fn syntax_depth_error() -> CompilerDiagnostic {
@@ -294,8 +346,9 @@ mod tests {
     use crate::source::SourceUnit;
 
     use super::{
-        validate_ir_json_limits, validate_source_limits, MAX_IR_JSON_BYTES,
-        MAX_LOGICAL_LINE_TOKENS, MAX_SOURCE_BYTES, MAX_SYNTAX_DEPTH, MAX_SYNTAX_NODES, MAX_TOKENS,
+        validate_ir_json_limits, validate_source_limits, WorkBudget, WorkExceeded,
+        MAX_COMPILE_WORK, MAX_IR_JSON_BYTES, MAX_LOGICAL_LINE_TOKENS, MAX_SOURCE_BYTES,
+        MAX_SYNTAX_DEPTH, MAX_SYNTAX_NODES, MAX_TOKENS,
     };
 
     fn diagnostic_code(source: &str) -> String {
@@ -380,5 +433,14 @@ mod tests {
         let error = validate_ir_json_limits(&"x".repeat(MAX_IR_JSON_BYTES + 1))
             .expect_err("oversized IR JSON should fail");
         assert_eq!(error.code, "xian.limit.ir_json_bytes");
+    }
+
+    #[test]
+    fn work_budget_refuses_the_unit_past_its_limit() {
+        let mut work = WorkBudget::default();
+        assert_eq!(work.spend(MAX_COMPILE_WORK - 1), Ok(()));
+        assert_eq!(work.spend(1), Ok(()));
+        assert_eq!(work.spend(1), Err(WorkExceeded));
+        assert_eq!(WorkBudget::with_limit(3).spend(4), Err(WorkExceeded));
     }
 }
