@@ -162,9 +162,26 @@ pub fn verify_groth16_bn254_prepared(
     proof_hex: &str,
     public_inputs: &[String],
 ) -> Result<bool, VerifierError> {
+    verify_with_prepared_vk(&prepared.prepared_vk, proof_hex, public_inputs)
+}
+
+/// A proof verified against a prepared key. ark-groth16 pairs the inputs
+/// with the key's input bases without checking their number: an input
+/// beyond them would be ignored and a missing one read as zero, so a
+/// statement with a different number of inputs is refused first.
+fn verify_with_prepared_vk(
+    prepared_vk: &PreparedVerifyingKey<Bn254>,
+    proof_hex: &str,
+    public_inputs: &[String],
+) -> Result<bool, VerifierError> {
     let proof = decode_proof(proof_hex)?;
     let inputs = parse_public_inputs(public_inputs)?;
-    Groth16::<Bn254>::verify_with_processed_vk(&prepared.prepared_vk, &inputs, &proof)
+    if inputs.len() + 1 != prepared_vk.vk.gamma_abc_g1.len() {
+        return Err(verification_error(
+            "public input count does not match the verifying key",
+        ));
+    }
+    Groth16::<Bn254>::verify_with_processed_vk(prepared_vk, &inputs, &proof)
         .map_err(|error| verification_error(format!("verification failed: {error}")))
 }
 
@@ -184,11 +201,11 @@ pub fn verify_groth16_bn254_grouped(
                 .get(&item.vk_hex)
                 .expect("prepared cache must contain inserted verifying key")
         };
-        let proof = decode_proof(&item.proof_hex)?;
-        let inputs = parse_public_inputs(&item.public_inputs)?;
-        let result = Groth16::<Bn254>::verify_with_processed_vk(prepared, &inputs, &proof)
-            .map_err(|error| verification_error(format!("verification failed: {error}")))?;
-        results.push(result);
+        results.push(verify_with_prepared_vk(
+            prepared,
+            &item.proof_hex,
+            &item.public_inputs,
+        )?);
     }
 
     Ok(results)
@@ -262,6 +279,61 @@ mod tests {
             verify_groth16_bn254_prepared(&prepared, &vector.proof_hex, &vector.public_inputs)
                 .expect("verification should not error");
         assert!(result);
+    }
+
+    /// A proof of `0 * 0 = 0`: its one public input is zero.
+    fn zero_statement_vector() -> DemoVector {
+        let mut rng = StdRng::seed_from_u64(7);
+        let (pk, vk) =
+            Groth16::<Bn254>::circuit_specific_setup(SquareCircuit { x: None, y: None }, &mut rng)
+                .unwrap();
+        let circuit = SquareCircuit {
+            x: Some(Fr::from(0_u64)),
+            y: Some(Fr::from(0_u64)),
+        };
+        let proof = Groth16::<Bn254>::prove(&pk, circuit, &mut rng).unwrap();
+        DemoVector {
+            vk_hex: serialize_compressed_hex(&vk).unwrap(),
+            proof_hex: serialize_compressed_hex(&proof).unwrap(),
+            public_inputs: vec![fr_to_hex(Fr::from(0_u64))],
+        }
+    }
+
+    fn assert_wrong_input_count<T: std::fmt::Debug + PartialEq>(result: Result<T, VerifierError>) {
+        assert_eq!(
+            result,
+            Err(verification_error(
+                "public input count does not match the verifying key"
+            ))
+        );
+    }
+
+    #[test]
+    fn public_inputs_beyond_the_verifying_key_are_refused() {
+        let vector = build_demo_vector().unwrap();
+        let mut inputs = vector.public_inputs.clone();
+        inputs.push(fr_to_hex(Fr::from(9_u64)));
+        assert_wrong_input_count(verify_groth16_bn254(
+            &vector.vk_hex,
+            &vector.proof_hex,
+            &inputs,
+        ));
+        let item = Groth16Bn254BatchItem {
+            vk_hex: vector.vk_hex.clone(),
+            proof_hex: vector.proof_hex.clone(),
+            public_inputs: inputs,
+        };
+        assert_wrong_input_count(verify_groth16_bn254_grouped(&[item]));
+    }
+
+    #[test]
+    fn missing_public_inputs_are_refused_not_read_as_zero() {
+        let vector = zero_statement_vector();
+        assert_eq!(
+            verify_groth16_bn254(&vector.vk_hex, &vector.proof_hex, &vector.public_inputs),
+            Ok(true)
+        );
+        assert_wrong_input_count(verify_groth16_bn254(&vector.vk_hex, &vector.proof_hex, &[]));
     }
 
     #[test]
