@@ -1,7 +1,8 @@
 //! The node's current state as Rust reads it: the block overlay first, then
-//! the committed LMDB environment, decoded with the stored-value reader.
+//! the committed store (the node's LMDB environment, or memory), decoded with
+//! the stored-value reader.
 use crate::block_state::{lock, BlockState};
-use crate::lmdb_env::{LmdbEnv, LmdbError};
+use crate::committed_store::CommittedStore;
 use crate::stored_value::decode_stored_value;
 use crate::VmValue;
 use std::iter::Peekable;
@@ -10,13 +11,13 @@ use std::vec::IntoIter;
 
 #[derive(Clone)]
 pub(crate) struct StateView {
-    env: LmdbEnv,
+    store: Arc<dyn CommittedStore>,
     overlay: Arc<Mutex<BlockState>>,
 }
 
 impl StateView {
-    pub(crate) fn new(env: LmdbEnv, overlay: Arc<Mutex<BlockState>>) -> Self {
-        Self { env, overlay }
+    pub(crate) fn new(store: Arc<dyn CommittedStore>, overlay: Arc<Mutex<BlockState>>) -> Self {
+        Self { store, overlay }
     }
 
     pub(crate) fn overlay(&self) -> &Arc<Mutex<BlockState>> {
@@ -30,10 +31,15 @@ impl StateView {
         let pending = lock(&self.overlay).lookup(key).cloned();
         let stored = match pending {
             Some(entry) => entry.as_deref().map(decode_stored_value),
-            None => self
-                .env
-                .read(|txn| Ok(txn.get(key.as_bytes())?.map(decode_stored_value)))
-                .map_err(|error| format!("reading {key:?}: {error}"))?,
+            None => {
+                let mut stored = None;
+                self.store
+                    .read(key.as_bytes(), &mut |value| {
+                        stored = value.map(decode_stored_value);
+                    })
+                    .map_err(|error| format!("reading {key:?}: {error}"))?;
+                stored
+            }
         };
         stored
             .transpose()
@@ -41,9 +47,9 @@ impl StateView {
     }
 
     /// The entries under `prefix` as `Driver.iter_items` yields them, in key
-    /// order: the overlay's pending entries over the LMDB entries, a pending
-    /// deletion hiding the stored entry. Pending values are decoded first,
-    /// stored ones as the scan reaches them, all from one LMDB snapshot;
+    /// order: the overlay's pending entries over the committed entries, a
+    /// pending deletion hiding the stored entry. Pending values are decoded
+    /// first, stored ones as the scan reaches them, all from one snapshot;
     /// `visit` returns false to stop the scan.
     /// A read or decode failure is a host fault, described by the error.
     pub(crate) fn visit_prefix(
@@ -52,19 +58,16 @@ impl StateView {
         visit: &mut dyn FnMut(String, VmValue) -> bool,
     ) -> Result<(), String> {
         let mut merge = OverlayMerge::new(self.pending_under(prefix)?, visit);
-        self.env
-            .read(|txn| {
-                txn.scan_from(prefix.as_bytes(), |key, stored| {
-                    if !key.starts_with(prefix.as_bytes()) {
-                        return Ok(false);
-                    }
-                    let key = std::str::from_utf8(key)
-                        .map_err(|error| LmdbError::Other(format!("stored key: {error}")))?;
-                    merge.stored(key, || {
-                        decode_stored_value(stored).map_err(|error| {
-                            LmdbError::Other(format!("corrupt stored value at {key:?}: {error}"))
-                        })
-                    })
+        self.store
+            .scan_from(prefix.as_bytes(), &mut |key, stored| {
+                if !key.starts_with(prefix.as_bytes()) {
+                    return Ok(false);
+                }
+                let key =
+                    std::str::from_utf8(key).map_err(|error| format!("stored key: {error}"))?;
+                merge.stored(key, || {
+                    decode_stored_value(stored)
+                        .map_err(|error| format!("corrupt stored value at {key:?}: {error}"))
                 })
             })
             .map_err(|error| format!("scanning {prefix:?}: {error}"))?;
@@ -153,7 +156,8 @@ impl<'v> OverlayMerge<'v> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::lmdb_env::OpenOptions;
+    use crate::lmdb_env::{LmdbEnv, OpenOptions};
+    use crate::memory_store::MemoryStore;
     use crate::stored_value_encoder::encode_stored_value;
 
     fn text(value: &str) -> VmValue {
@@ -164,46 +168,64 @@ pub(crate) mod tests {
         Arc::from(encode_stored_value(&text(value)).unwrap())
     }
 
-    /// A state view over a fresh LMDB environment holding `stored` and an
+    /// Where a fixture keeps its committed entries.
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) enum Backend {
+        Lmdb,
+        Memory,
+    }
+
+    pub(crate) const BACKENDS: [Backend; 2] = [Backend::Lmdb, Backend::Memory];
+
+    /// A state view over a fresh committed store holding `stored` and an
     /// overlay holding `pending` (`None`: a pending deletion).
     pub(crate) struct Fixture {
         pub(crate) view: StateView,
-        dir: std::path::PathBuf,
+        lmdb: Option<(LmdbEnv, std::path::PathBuf)>,
     }
 
     impl Fixture {
+        /// The fixture over LMDB, the node's store.
         pub(crate) fn new(
             name: &str,
             stored: &[(&str, &[u8])],
             pending: &[(&str, Option<&str>)],
         ) -> Self {
-            let dir =
-                std::env::temp_dir().join(format!("xian-state-view-{name}-{}", std::process::id()));
-            let _ = std::fs::remove_dir_all(&dir);
-            std::fs::create_dir_all(&dir).unwrap();
-            let options = OpenOptions {
-                map_size: 1 << 20,
-                max_dbs: 1,
-                readahead: true,
-                writemap: false,
-                sync: false,
-                metasync: false,
-                readonly: false,
-                lock: true,
-            };
-            let env = LmdbEnv::open(&dir, options).unwrap();
-            env.write(|txn| {
-                stored
-                    .iter()
-                    .try_for_each(|(key, value)| txn.put(key.as_bytes(), value))
-            })
-            .unwrap();
+            Self::over(Backend::Lmdb, name, stored, pending)
+        }
+
+        pub(crate) fn over(
+            backend: Backend,
+            name: &str,
+            stored: &[(&str, &[u8])],
+            pending: &[(&str, Option<&str>)],
+        ) -> Self {
             let mut overlay = BlockState::default();
             for (key, value) in pending {
                 overlay.write(key, value.map(encoded));
             }
-            let view = StateView::new(env, Arc::new(Mutex::new(overlay)));
-            Self { view, dir }
+            let overlay = Arc::new(Mutex::new(overlay));
+            match backend {
+                Backend::Lmdb => {
+                    let (env, dir) = lmdb_store(name, stored);
+                    let view = StateView::new(Arc::new(env.clone()), overlay);
+                    Self {
+                        view,
+                        lmdb: Some((env, dir)),
+                    }
+                }
+                Backend::Memory => {
+                    let store = MemoryStore::from_entries(
+                        stored
+                            .iter()
+                            .map(|(key, value)| (key.as_bytes().to_vec(), Arc::from(*value))),
+                    );
+                    Self {
+                        view: StateView::new(Arc::new(store), overlay),
+                        lmdb: None,
+                    }
+                }
+            }
         }
 
         /// The first `limit` entries under `prefix`.
@@ -217,10 +239,37 @@ pub(crate) mod tests {
         }
     }
 
+    fn lmdb_store(name: &str, stored: &[(&str, &[u8])]) -> (LmdbEnv, std::path::PathBuf) {
+        let dir =
+            std::env::temp_dir().join(format!("xian-state-view-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let options = OpenOptions {
+            map_size: 1 << 20,
+            max_dbs: 1,
+            readahead: true,
+            writemap: false,
+            sync: false,
+            metasync: false,
+            readonly: false,
+            lock: true,
+        };
+        let env = LmdbEnv::open(&dir, options).unwrap();
+        env.write(|txn| {
+            stored
+                .iter()
+                .try_for_each(|(key, value)| txn.put(key.as_bytes(), value))
+        })
+        .unwrap();
+        (env, dir)
+    }
+
     impl Drop for Fixture {
         fn drop(&mut self) {
-            self.view.env.close();
-            let _ = std::fs::remove_dir_all(&self.dir);
+            if let Some((env, dir)) = self.lmdb.take() {
+                env.close();
+                let _ = std::fs::remove_dir_all(&dir);
+            }
         }
     }
 
@@ -231,13 +280,14 @@ pub(crate) mod tests {
             .collect()
     }
 
-    fn hash_fixture(name: &str) -> Fixture {
+    fn hash_fixture(backend: Backend, name: &str) -> Fixture {
         let stored = ["g.h:z", "h:a", "h:b", "h:d", "i:a"].map(|key| (key, encoded(key)));
         let stored: Vec<(&str, &[u8])> = stored
             .iter()
             .map(|(key, value)| (*key, &value[..]))
             .collect();
-        Fixture::new(
+        Fixture::over(
+            backend,
             name,
             &stored,
             &[
@@ -252,7 +302,13 @@ pub(crate) mod tests {
 
     #[test]
     fn pending_entries_replace_or_hide_stored_ones_in_key_order() {
-        let fixture = hash_fixture("merge");
+        for backend in BACKENDS {
+            pending_entries_replace_or_hide_stored_ones(backend);
+        }
+    }
+
+    fn pending_entries_replace_or_hide_stored_ones(backend: Backend) {
+        let fixture = hash_fixture(backend, "merge");
         assert_eq!(
             fixture.scan("h:", usize::MAX).unwrap(),
             entries(&[
@@ -280,29 +336,51 @@ pub(crate) mod tests {
 
     #[test]
     fn the_visitor_stops_the_scan() {
-        let fixture = hash_fixture("stop");
-        for limit in 1..=4 {
-            let seen = fixture.scan("h:", limit).unwrap();
-            assert_eq!(seen.len(), limit);
+        for backend in BACKENDS {
+            let fixture = hash_fixture(backend, "stop");
+            for limit in 1..=4 {
+                let seen = fixture.scan("h:", limit).unwrap();
+                assert_eq!(seen.len(), limit);
+            }
+            // Stopping on a pending entry before a stored key ends the scan.
+            let seen = fixture.scan("h:", 3).unwrap();
+            assert_eq!(seen.last().unwrap().0, "h:c");
         }
-        // Stopping on a pending entry before a stored key ends the scan.
-        let seen = fixture.scan("h:", 3).unwrap();
-        assert_eq!(seen.last().unwrap().0, "h:c");
     }
 
     #[test]
     fn reads_see_pending_entries_over_stored_ones() {
-        let fixture = hash_fixture("get");
-        assert_eq!(fixture.view.get("h:a").unwrap(), Some(text("h:a")));
-        assert_eq!(fixture.view.get("h:b").unwrap(), Some(text("pending b")));
-        assert_eq!(fixture.view.get("h:d").unwrap(), None);
-        assert_eq!(fixture.view.get("h:x").unwrap(), None);
+        for backend in BACKENDS {
+            let fixture = hash_fixture(backend, "get");
+            assert_eq!(fixture.view.get("h:a").unwrap(), Some(text("h:a")));
+            assert_eq!(fixture.view.get("h:b").unwrap(), Some(text("pending b")));
+            assert_eq!(fixture.view.get("h:d").unwrap(), None);
+            assert_eq!(fixture.view.get("h:x").unwrap(), None);
+        }
     }
 
     #[test]
     fn a_corrupt_value_in_the_scanned_range_is_a_fault() {
-        let fixture = Fixture::new("corrupt", &[("h:a", b"\xff")], &[]);
-        let error = fixture.scan("h:", usize::MAX).unwrap_err();
-        assert!(error.contains("corrupt stored value at \"h:a\""), "{error}");
+        for backend in BACKENDS {
+            let fixture = Fixture::over(backend, "corrupt", &[("h:a", b"\xff")], &[]);
+            let error = fixture.scan("h:", usize::MAX).unwrap_err();
+            assert!(error.contains("corrupt stored value at \"h:a\""), "{error}");
+            let error = fixture.view.get("h:a").unwrap_err();
+            assert!(error.contains("corrupt stored value at \"h:a\""), "{error}");
+        }
+    }
+
+    #[test]
+    fn a_store_failure_is_a_fault_naming_the_read() {
+        let fixture = hash_fixture(Backend::Lmdb, "closed");
+        fixture.lmdb.as_ref().unwrap().0.close();
+        assert_eq!(
+            fixture.view.get("h:x").unwrap_err(),
+            "reading \"h:x\": LMDB environment is closed"
+        );
+        assert_eq!(
+            fixture.scan("i:", usize::MAX).unwrap_err(),
+            "scanning \"i:\": LMDB environment is closed"
+        );
     }
 }

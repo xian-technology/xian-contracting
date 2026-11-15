@@ -19,7 +19,7 @@
 //! store means no rewards for that transaction: its fee is burned, as the
 //! burn share is. The transaction itself is unaffected, so the governance
 //! transaction that repairs the configuration still runs.
-use crate::lmdb_env::storage_key_error;
+use crate::committed_store::storage_key_error;
 use crate::settlement::{checked, checked_add, fixed_int, InvalidBalance, Settled, Stop};
 use crate::{VmDecimal, VmValue};
 use num_bigint::BigInt;

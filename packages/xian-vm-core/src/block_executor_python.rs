@@ -109,7 +109,7 @@ impl PyBlockExecutor {
         zk_enabled_without_state: bool,
         block_meta: &Bound<'_, PyDict>,
     ) -> PyResult<Self> {
-        let view = StateView::new(environment.env().clone(), overlay.shared());
+        let view = StateView::new(environment.store(), overlay.shared());
         let policy = BlockPolicy {
             meter_execution,
             charge_fees,

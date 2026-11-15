@@ -8,7 +8,7 @@
 //! state, `zk` the zk syscalls (`features` the chain's zk runtime feature),
 //! `writes` what one transaction's host syscalls stage, `charges` what they
 //! cost.
-#![cfg_attr(not(feature = "python-extension"), allow(dead_code))]
+#![cfg_attr(not(feature = "engine"), allow(dead_code))]
 
 mod charges;
 mod deploy;

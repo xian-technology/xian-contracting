@@ -35,6 +35,11 @@ impl PyLmdbEnvironment {
     pub(crate) fn env(&self) -> &LmdbEnv {
         &self.env
     }
+
+    /// The environment as the engine's committed store.
+    pub(crate) fn store(&self) -> std::sync::Arc<dyn crate::committed_store::CommittedStore> {
+        std::sync::Arc::new(self.env.clone())
+    }
 }
 
 #[pymethods]

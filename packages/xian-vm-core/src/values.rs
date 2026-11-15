@@ -140,22 +140,22 @@ impl VmDecimal {
     }
 
     /// Fee settlement and reward arithmetic (the interpreter uses `numeric_v2`).
-    #[cfg(any(feature = "python-extension", test))]
+    #[cfg(any(feature = "engine", test))]
     pub(crate) fn add(&self, other: &Self) -> Result<Self, VmExecutionError> {
         Self::from_scaled(&self.scaled + &other.scaled)
     }
 
-    #[cfg(any(feature = "python-extension", test))]
+    #[cfg(any(feature = "engine", test))]
     pub(crate) fn sub(&self, other: &Self) -> Result<Self, VmExecutionError> {
         Self::from_scaled(&self.scaled - &other.scaled)
     }
 
-    #[cfg(any(feature = "python-extension", test))]
+    #[cfg(any(feature = "engine", test))]
     pub(crate) fn mul(&self, other: &Self) -> Result<Self, VmExecutionError> {
         Self::from_scaled((&self.scaled * &other.scaled) / decimal_scale_factor())
     }
 
-    #[cfg(any(feature = "python-extension", test))]
+    #[cfg(any(feature = "engine", test))]
     pub(crate) fn div(&self, other: &Self) -> Result<Self, VmExecutionError> {
         if other.is_zero() {
             return Err(VmExecutionError::new("division by zero"));

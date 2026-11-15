@@ -130,7 +130,7 @@ mod string_format;
 mod support;
 #[path = "value_formatting.rs"]
 mod value_formatting;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 pub(crate) use support::normalize_set_items as normalize_set_members;
 pub(crate) use support::python_is_printable;
 #[path = "syscall_dispatch.rs"]
@@ -151,12 +151,12 @@ fn vm_trace_enabled(flag: &str) -> bool {
     env::var_os(flag).is_some()
 }
 
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 pub(crate) fn vm_variable_storage_key(contract: &str, binding: &str) -> String {
     variable_storage_key(contract, binding)
 }
 
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 pub(crate) fn vm_hash_storage_key(
     contract: &str,
     binding: &str,

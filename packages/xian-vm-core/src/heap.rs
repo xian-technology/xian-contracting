@@ -240,7 +240,7 @@ impl Drop for HeapStorage {
 pub(crate) struct VmHeap(Rc<HeapStorage>);
 
 impl VmHeap {
-    #[cfg(any(feature = "python-extension", test))]
+    #[cfg(any(feature = "engine", test))]
     pub(crate) fn with_execution_stack(
         execution_stack: crate::execution_stack::ExecutionStack,
     ) -> Self {

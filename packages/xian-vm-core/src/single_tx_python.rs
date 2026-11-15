@@ -179,7 +179,7 @@ pub(super) fn execute_tx(
     } else {
         FeeMode::Reserved
     };
-    let view = StateView::new(environment.env().clone(), overlay.shared());
+    let view = StateView::new(environment.store(), overlay.shared());
     let executor = BlockExecutor::settling(view, policy, fee_mode);
     let work = Unshared((&executor, &tx));
     let run = py

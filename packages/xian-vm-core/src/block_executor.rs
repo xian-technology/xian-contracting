@@ -24,7 +24,7 @@ use crate::block_host::{
 };
 use crate::block_state::lock;
 use crate::bundle_executor::{validate_bundle_module, BundleExecutor, ExecutionOutcome};
-use crate::lmdb_env::storage_key_error;
+use crate::committed_store::storage_key_error;
 use crate::metering::VM_TRANSACTION_BASE_CHI as TRANSACTION_BASE_CHI;
 use crate::settlement::{self, Balance, InvalidBalance, Reservation, Settled, Stop};
 use crate::state_view::StateView;

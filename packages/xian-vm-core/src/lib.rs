@@ -24,44 +24,48 @@ pub use iteration::{VmDictView, VmIterator, VmRange};
 mod rendering;
 mod scalar_methods;
 pub use heap::VmReference;
-#[cfg(feature = "python-extension")]
+#[cfg(any(feature = "engine", test))]
 mod block_executor;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 mod block_host;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 mod block_state;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 mod bundle_executor;
+mod committed_store;
 mod decimal_format;
 mod interpreter;
+#[cfg(feature = "lmdb")]
 pub mod lmdb_env;
+#[cfg(any(feature = "wasm", test))]
+mod memory_store;
 mod metering;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 mod module_cache;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 mod panic_guard;
 mod set_member_codec;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 mod settlement;
 pub mod state_root;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 mod state_root_storage;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 mod state_view;
 mod storage_scan;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 mod stored_value;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 mod stored_value_encoder;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 mod transaction_admission;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 mod transaction_inputs;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 mod tx_rewards;
 mod values;
 mod work_meter;
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 mod zk_cache;
 
 pub const XIAN_IR_V1: &str = "xian_ir_v1";

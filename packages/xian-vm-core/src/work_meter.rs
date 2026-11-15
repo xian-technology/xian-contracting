@@ -125,17 +125,17 @@ impl Drop for Isolation {
 
 /// Host work that is not part of the metered VM (decoding stored values):
 /// nothing is counted until the guard drops.
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 pub(crate) struct Unmetered(bool);
 
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 impl Unmetered {
     pub(crate) fn enter() -> Self {
         Self(UNMETERED.replace(true))
     }
 }
 
-#[cfg(any(feature = "python-extension", test))]
+#[cfg(any(feature = "engine", test))]
 impl Drop for Unmetered {
     fn drop(&mut self) {
         UNMETERED.set(self.0);

@@ -129,26 +129,7 @@ mod ffi {
     }
 }
 
-/// The longest storage key, in UTF-8 bytes: LMDB 0.9's `MDB_MAXKEYSIZE`.
-///
-/// LMDB refuses a longer key only when the block commits, after every node
-/// already agreed on the block's state root, so the chain would halt. Storage
-/// keys are therefore a consensus rule fixed at this value: V2 fails the
-/// transaction that forms a longer key, and the storage layer refuses to stage
-/// one. It is a constant rather than a value read from the backend because a
-/// rule must not move with the store (LMDB 1.0 derives its limit from the page
-/// size); a test pins that the vendored LMDB stores exactly this many bytes.
-pub const MAX_STORAGE_KEY_BYTES: usize = 511;
-
-/// Why `key` cannot be stored, or `None` when it can.
-pub fn storage_key_error(key: &str) -> Option<String> {
-    (key.len() > MAX_STORAGE_KEY_BYTES).then(|| {
-        format!(
-            "Storage key is too long ({} bytes). Max is {MAX_STORAGE_KEY_BYTES}.",
-            key.len()
-        )
-    })
-}
+pub use crate::committed_store::{storage_key_error, MAX_STORAGE_KEY_BYTES};
 
 /// A key and value borrowed from the map for one transaction.
 type Entry<'t> = (&'t [u8], &'t [u8]);
@@ -627,6 +608,32 @@ unsafe fn cursor_step<'t>(
     match ffi::mdb_cursor_get(cursor, &mut key, &mut data, op) {
         ffi::MDB_NOTFOUND => Ok(None),
         code => check(code, "mdb_cursor_get").map(|_| Some((bytes_of(&key), bytes_of(&data)))),
+    }
+}
+
+/// The node's committed store: every read runs in its own read transaction,
+/// a scan in one snapshot.
+#[cfg(any(feature = "engine", test))]
+impl crate::committed_store::CommittedStore for LmdbEnv {
+    fn read(&self, key: &[u8], read: &mut dyn FnMut(Option<&[u8]>)) -> Result<(), String> {
+        LmdbEnv::read(self, |txn| {
+            read(txn.get(key)?);
+            Ok(())
+        })
+        .map_err(|error| error.to_string())
+    }
+
+    fn scan_from(
+        &self,
+        start: &[u8],
+        visit: &mut dyn FnMut(&[u8], &[u8]) -> Result<bool, String>,
+    ) -> Result<(), String> {
+        LmdbEnv::read(self, |txn| {
+            txn.scan_from(start, |key, value| {
+                visit(key, value).map_err(LmdbError::Other)
+            })
+        })
+        .map_err(|error| error.to_string())
     }
 }
 

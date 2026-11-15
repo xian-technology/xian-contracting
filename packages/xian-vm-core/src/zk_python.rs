@@ -251,7 +251,7 @@ fn _zk_syscalls_debug(
     overlay: PyRef<'_, PyBlockState>,
     calls: Vec<(String, Bound<'_, PyList>)>,
 ) -> PyResult<Vec<Py<PyAny>>> {
-    let view = StateView::new(environment.env().clone(), overlay.shared());
+    let view = StateView::new(environment.store(), overlay.shared());
     let modules = Modules::default();
     let mut outcomes = Vec::with_capacity(calls.len());
     for (syscall_id, args) in calls {

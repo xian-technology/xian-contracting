@@ -1,6 +1,7 @@
-use std::path::Path;
-
+#[cfg(feature = "lmdb")]
 fn build_lmdb() {
+    use std::path::Path;
+
     let vendor = Path::new("vendor/lmdb");
     cc::Build::new()
         .include(vendor)
@@ -14,6 +15,7 @@ fn build_lmdb() {
 }
 
 fn main() {
+    #[cfg(feature = "lmdb")]
     build_lmdb();
     #[cfg(feature = "python-extension")]
     pyo3_build_config::add_extension_module_link_args();

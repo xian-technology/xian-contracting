@@ -1,5 +1,5 @@
 //! Python access to the consensus state root (xian-abci's `xian.state_root`).
-use crate::lmdb_python::{lmdb_error_to_py, PyLmdbEnvironment};
+use crate::lmdb_python::{LmdbStorageError, PyLmdbEnvironment};
 use crate::state_root::{leaf_hash, DuplicateKey, Hash, StateRootTree};
 use crate::state_root_storage::{storage_state_root, HashedKeys, StorageRootError};
 use pyo3::exceptions::PyValueError;
@@ -58,7 +58,8 @@ impl PyStateRootTree {
         let hashed = HashedKeys::new(node_keys, node_prefixes);
         match py.detach(move || storage_state_root(&env, &hashed)) {
             Ok(tree) => Ok(Self { tree }),
-            Err(StorageRootError::Lmdb(error)) => Err(lmdb_error_to_py(error)),
+            // A read fails with no other error than the storage error.
+            Err(StorageRootError::Store(text)) => Err(LmdbStorageError::new_err(text)),
             Err(StorageRootError::KeyNotText(key)) => Err(PyValueError::new_err(format!(
                 "stored state key is not UTF-8: {}",
                 String::from_utf8_lossy(&key)

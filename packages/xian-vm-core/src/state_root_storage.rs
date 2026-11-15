@@ -1,7 +1,7 @@
 //! The state root of committed storage: every hashed key with the exact bytes
-//! LMDB holds for it, read from one snapshot. Values are not decoded; a leaf
-//! commits to the stored bytes themselves (see `state_root.rs`).
-use crate::lmdb_env::{LmdbEnv, LmdbError};
+//! the store holds for it, read from one snapshot. Values are not decoded; a
+//! leaf commits to the stored bytes themselves (see `state_root.rs`).
+use crate::committed_store::CommittedStore;
 use crate::state_root::{leaf_hash, StateRootTree, TreeBuilder};
 
 /// A stored JSON `null`: the key reads as absent, as the driver reads it.
@@ -33,27 +33,22 @@ impl HashedKeys {
 }
 
 #[derive(Debug)]
-pub enum StorageRootError {
-    Lmdb(LmdbError),
+pub(crate) enum StorageRootError {
+    /// The store failed (its failure text).
+    Store(String),
     /// A stored key that is not UTF-8 text (the node only writes text keys).
     KeyNotText(Vec<u8>),
 }
 
-impl From<LmdbError> for StorageRootError {
-    fn from(error: LmdbError) -> Self {
-        Self::Lmdb(error)
-    }
-}
-
-/// The tree of every hashed entry committed in `env`, from one read snapshot.
-pub fn storage_state_root(
-    env: &LmdbEnv,
+/// The tree of every hashed entry committed in `store`, from one snapshot.
+pub(crate) fn storage_state_root(
+    store: &dyn CommittedStore,
     hashed: &HashedKeys,
 ) -> Result<StateRootTree, StorageRootError> {
     let mut builder = TreeBuilder::default();
     let mut not_text = None;
-    env.read(|txn| {
-        txn.scan_from(b"", |key, stored| {
+    store
+        .scan_from(b"", &mut |key, stored| {
             let Ok(text) = std::str::from_utf8(key) else {
                 not_text = Some(key.to_vec());
                 return Ok(false);
@@ -61,11 +56,11 @@ pub fn storage_state_root(
             if stored != ABSENT && hashed.contains(text) {
                 builder
                     .push(text.to_owned(), leaf_hash(text, stored))
-                    .expect("LMDB yields keys in ascending byte order");
+                    .expect("stores yield keys in ascending byte order");
             }
             Ok(true)
         })
-    })?;
+        .map_err(StorageRootError::Store)?;
     match not_text {
         Some(key) => Err(StorageRootError::KeyNotText(key)),
         None => Ok(builder.finish()),
@@ -75,7 +70,9 @@ pub fn storage_state_root(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lmdb_env::OpenOptions;
+    use crate::lmdb_env::{LmdbEnv, OpenOptions};
+    use crate::memory_store::MemoryStore;
+    use std::sync::Arc;
 
     fn hashed_keys() -> HashedKeys {
         HashedKeys::new(
@@ -155,6 +152,13 @@ mod tests {
         );
         assert_eq!(tree.root_hash(), expected.root_hash());
         assert_eq!(tree.len(), 5);
+        let memory = MemoryStore::from_entries(
+            entries
+                .iter()
+                .map(|(key, value)| (key.to_vec(), Arc::from(*value))),
+        );
+        let in_memory = storage_state_root(&memory, &hashed_keys()).unwrap();
+        assert_eq!(in_memory.root_hash(), expected.root_hash());
     }
 
     #[test]
@@ -172,7 +176,7 @@ mod tests {
         env.close();
         assert!(matches!(
             storage_state_root(&env, &hashed_keys()),
-            Err(StorageRootError::Lmdb(LmdbError::Closed))
+            Err(StorageRootError::Store(text)) if text == "LMDB environment is closed"
         ));
     }
 

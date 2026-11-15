@@ -1846,7 +1846,7 @@ pub(super) fn normalize_hash_key(value: &VmValue) -> Result<String, VmExecutionE
         other => storage_key_part(other)?,
     };
 
-    let max_size = crate::lmdb_env::MAX_STORAGE_KEY_BYTES;
+    let max_size = crate::committed_store::MAX_STORAGE_KEY_BYTES;
     if normalized.len() > max_size {
         return Err(VmExecutionError::new(format!(
             "Key is too long ({}). Max is {max_size}.",
@@ -1864,7 +1864,7 @@ pub(super) fn record_storage_write(
     key: &str,
     value: &VmValue,
 ) -> Result<(), VmExecutionError> {
-    if let Some(message) = crate::lmdb_env::storage_key_error(key) {
+    if let Some(message) = crate::committed_store::storage_key_error(key) {
         return Err(VmExecutionError::new(message));
     }
     host.record_storage_write(key, value)?;
@@ -2492,7 +2492,7 @@ mod storage_key_tests {
 
     #[test]
     fn v2_fails_a_write_whose_key_the_store_cannot_hold_before_the_host_sees_it() {
-        let largest = "k".repeat(crate::lmdb_env::MAX_STORAGE_KEY_BYTES);
+        let largest = "k".repeat(crate::committed_store::MAX_STORAGE_KEY_BYTES);
         let over = format!("{largest}k");
         let mut host = WriteLog::default();
         record_storage_write(&mut host, &largest, &VmValue::None).unwrap();
