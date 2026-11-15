@@ -4,6 +4,8 @@ import pytest
 
 from contracting.artifacts import (
     build_contract_artifacts,
+    compile_contract_source,
+    diagnose_contract_source,
     validate_contract_artifacts,
 )
 from contracting.compilation import artifacts as artifacts_module
@@ -162,3 +164,74 @@ def test_build_contract_artifacts_rejects_stale_native_host_surface(
             )
     finally:
         artifacts_module._assert_native_compiler_host_surface_current.cache_clear()
+
+
+def test_compile_contract_source_returns_the_artifact_source_and_ir() -> None:
+    source = "@export\ndef ping():\n    return 'pong'\n"
+    artifacts = _probe_artifacts("xian_vm_v2")
+
+    compiled = compile_contract_source(module_name="con_probe", source=source)
+
+    assert compiled == {"source": artifacts["source"], "vm_ir_json": artifacts["vm_ir_json"]}
+
+
+def test_compile_contract_source_rejects_empty_source() -> None:
+    with pytest.raises(ValueError, match="non-empty string"):
+        compile_contract_source(module_name="con_probe", source="")
+
+
+def test_compile_contract_source_reports_compiler_errors() -> None:
+    with pytest.raises(ValueError, match="xian.syntax.unsupported_expression.lambda"):
+        compile_contract_source(module_name="con_probe", source="f = lambda: 1\n")
+
+
+def test_diagnose_contract_source_returns_compiler_diagnostics() -> None:
+    diagnostics = diagnose_contract_source(module_name="con_probe", source="f = lambda: 1\n")
+
+    assert [diagnostic["code"] for diagnostic in diagnostics] == [
+        "xian.syntax.unsupported_expression.lambda"
+    ]
+    accepted = "@export\ndef ping():\n    return 'pong'\n"
+    assert diagnose_contract_source(module_name="con_probe", source=accepted) == []
+
+
+def _stale_surface_error(monkeypatch, surface: dict) -> str:
+    monkeypatch.setattr(
+        artifacts_module.xian_compiler_core, "describe_vm_host_surface", lambda: surface
+    )
+    artifacts_module._assert_native_compiler_host_surface_current.cache_clear()
+    try:
+        with pytest.raises(RuntimeError) as error:
+            diagnose_contract_source(module_name="con_probe", source="x = 1\n")
+    finally:
+        artifacts_module._assert_native_compiler_host_surface_current.cache_clear()
+    return str(error.value)
+
+
+def test_host_surface_guard_names_a_stale_catalog_version(monkeypatch) -> None:
+    surface = artifacts_module.xian_compiler_core.describe_vm_host_surface()
+    message = _stale_surface_error(monkeypatch, dict(surface, catalog_version="old_catalog"))
+
+    assert message == (
+        "xian_compiler_core host catalog is stale relative to "
+        "contracting.compilation.ir; rebuild xian-tech-compiler-core. "
+        "Expected catalog_version='xian_vm_v1_host_v1', got 'old_catalog'."
+    )
+
+
+def test_host_surface_guard_lists_missing_and_mismatched_bindings(monkeypatch) -> None:
+    surface = artifacts_module.xian_compiler_core.describe_vm_host_surface()
+    bindings = []
+    for binding in surface["bindings"]:
+        if binding["binding"] == "hashlib.sha3_text":
+            continue
+        if binding["binding"] == "hashlib.sha256_text":
+            binding = dict(binding, kind="value", category="other")
+        bindings.append(binding)
+    message = _stale_surface_error(monkeypatch, dict(surface, bindings=bindings))
+
+    assert message.endswith(
+        "missing bindings: hashlib.sha3_text "
+        "mismatched bindings: hashlib.sha256_text.kind: expected 'syscall', got 'value'; "
+        "hashlib.sha256_text.category: expected 'hashing', got 'other'"
+    )

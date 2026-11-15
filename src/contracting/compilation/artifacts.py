@@ -42,47 +42,54 @@ def diagnose_contract_source(
     )
 
 
+_STALE_CATALOG = (
+    "xian_compiler_core host catalog is stale relative to "
+    "contracting.compilation.ir; rebuild xian-tech-compiler-core. "
+)
+
+
 @lru_cache(maxsize=1)
 def _assert_native_compiler_host_surface_current() -> None:
     surface = xian_compiler_core.describe_vm_host_surface()
     catalog_version = surface.get("catalog_version")
     if catalog_version != XIAN_VM_HOST_CATALOG_V1:
         raise RuntimeError(
-            "xian_compiler_core host catalog is stale relative to "
-            "contracting.compilation.ir; rebuild xian-tech-compiler-core. "
-            f"Expected catalog_version={XIAN_VM_HOST_CATALOG_V1!r}, "
+            _STALE_CATALOG + f"Expected catalog_version={XIAN_VM_HOST_CATALOG_V1!r}, "
             f"got {catalog_version!r}."
         )
+    problems = _host_binding_problems(_native_bindings_by_name(surface))
+    if problems:
+        raise RuntimeError(_STALE_CATALOG + " ".join(problems))
 
-    native_bindings = {
-        spec.get("binding"): spec
+
+def _native_bindings_by_name(surface: dict) -> dict[str, dict]:
+    return {
+        spec["binding"]: spec
         for spec in surface.get("bindings", [])
         if isinstance(spec, dict) and isinstance(spec.get("binding"), str)
     }
-    missing = []
-    mismatched = []
-    for expected in HOST_BINDINGS:
-        binding = expected["binding"]
-        actual = native_bindings.get(binding)
-        if actual is None:
-            missing.append(binding)
-            continue
-        for field in ("id", "kind", "category"):
-            if actual.get(field) != expected[field]:
-                mismatched.append(
-                    f"{binding}.{field}: expected {expected[field]!r}, got {actual.get(field)!r}"
-                )
 
-    if missing or mismatched:
-        details = []
-        if missing:
-            details.append("missing bindings: " + ", ".join(sorted(missing)))
-        if mismatched:
-            details.append("mismatched bindings: " + "; ".join(mismatched))
-        raise RuntimeError(
-            "xian_compiler_core host catalog is stale relative to "
-            "contracting.compilation.ir; rebuild xian-tech-compiler-core. " + " ".join(details)
-        )
+
+def _host_binding_problems(native_bindings: dict[str, dict]) -> list[str]:
+    """Describe how the native host catalog differs from this runtime's HOST_BINDINGS."""
+    missing = sorted(
+        expected["binding"]
+        for expected in HOST_BINDINGS
+        if expected["binding"] not in native_bindings
+    )
+    mismatched = [
+        f"{expected['binding']}.{field}: expected {expected[field]!r}, got {actual.get(field)!r}"
+        for expected in HOST_BINDINGS
+        if (actual := native_bindings.get(expected["binding"])) is not None
+        for field in ("id", "kind", "category")
+        if actual.get(field) != expected[field]
+    ]
+    problems = []
+    if missing:
+        problems.append("missing bindings: " + ", ".join(missing))
+    if mismatched:
+        problems.append("mismatched bindings: " + "; ".join(mismatched))
+    return problems
 
 
 def build_contract_artifacts(
