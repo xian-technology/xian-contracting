@@ -371,12 +371,12 @@ fn validate_lazy_arguments(name: &str, count: usize, kwargs: &[(String, VmValue)
         valid_zip_keywords(kwargs)
     } else {
         let allowed = match name {
-            "map" => 2..=usize::MAX,
-            "filter" => 2..=2,
-            "reversed" => 1..=1,
-            _ => 1..=0,
+            "map" => Some(2..=usize::MAX),
+            "filter" => Some(2..=2),
+            "reversed" => Some(1..=1),
+            _ => None,
         };
-        allowed.contains(&count) && kwargs.is_empty()
+        allowed.is_some_and(|counts| counts.contains(&count)) && kwargs.is_empty()
     };
     if valid {
         return Ok(());
