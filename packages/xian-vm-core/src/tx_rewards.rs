@@ -1431,10 +1431,11 @@ mod tests {
                 )
             }
         };
-        let (metered, paid) = match settlement::failure_charge(&start, &chi_used, &rate)? {
-            None => (text("unchanged"), text("0")),
-            Some(charge) => (charge.balance, text(&charge.paid_chi.to_string())),
-        };
+        let (metered, paid) =
+            match settlement::failure_charge(&start, &chi_used, &BigInt::zero(), &rate)? {
+                None => (text("unchanged"), text("0")),
+                Some(charge) => (charge.balance, text(&charge.paid_chi.to_string())),
+            };
         Ok(dict(vec![
             ("reserved", reserved),
             ("refunded", refunded),

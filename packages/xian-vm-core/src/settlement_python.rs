@@ -8,6 +8,7 @@ use crate::tx_rewards::{
 };
 use crate::{VmDecimal, VmValue};
 use num_bigint::BigInt;
+use num_traits::Zero;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -262,8 +263,9 @@ pub(super) fn _fee_metered_debug(
 ) -> PyResult<Py<PyAny>> {
     let balance = to_vm(balance)?;
     let (chi_used, rate) = (int_arg(chi_used)?, int_arg(rate)?);
-    let outcome = Balance::of(Some(&balance))
-        .and_then(|balance| settlement::failure_charge(&balance, &chi_used, &rate));
+    let outcome = Balance::of(Some(&balance)).and_then(|balance| {
+        settlement::failure_charge(&balance, &chi_used, &BigInt::zero(), &rate)
+    });
     paid_to_py(
         py,
         outcome,

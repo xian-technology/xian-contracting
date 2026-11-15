@@ -141,29 +141,34 @@ pub(crate) struct FailureCharge {
     pub(crate) paid_chi: VmDecimal,
 }
 
-/// `vm_failure_charge`: the fee is `chi_used / rate`; a balance that cannot
-/// cover it is taken whole (the integer 0 remains) and pays its own worth
-/// in chi. `None` (no write) when nothing was used, and (revision 14) for a
-/// negative balance: a failure charge never raises a balance to 0.
+/// `vm_failure_charge`: the fee is `(chi_used + unused_charge) / rate`; a
+/// balance that cannot cover it is taken whole (the integer 0 remains) and
+/// pays its own worth in chi. `None` (no write) when nothing was used, and
+/// (revision 14) for a negative balance: a failure charge never raises a
+/// balance to 0. The paid chi that earns rewards stops at `chi_used`: the
+/// unused-chi charge is burned.
 pub(crate) fn failure_charge(
     balance: &Balance,
     chi_used: &BigInt,
+    unused_charge: &BigInt,
     rate: &BigInt,
 ) -> Paid<Option<FailureCharge>> {
     if !chi_used.is_positive() || balance.scaled().is_negative() {
         return Ok(None);
     }
-    let remaining = balance.minus(&chi_to_tokens(chi_used, rate)?)?;
-    Ok(Some(if remaining.scaled.is_negative() {
-        FailureCharge {
-            balance: VmValue::Int(BigInt::zero()),
-            paid_chi: whole_balance_chi(balance, rate)?,
-        }
+    let charged = chi_used + unused_charge;
+    let remaining = balance.minus(&chi_to_tokens(&charged, rate)?)?;
+    let (balance, paid_chi) = if remaining.scaled.is_negative() {
+        (
+            VmValue::Int(BigInt::zero()),
+            whole_balance_chi(balance, rate)?,
+        )
     } else {
-        FailureCharge {
-            balance: VmValue::Decimal(remaining),
-            paid_chi: fixed_int(chi_used)?,
-        }
+        (VmValue::Decimal(remaining), fixed_int(&charged)?)
+    };
+    Ok(Some(FailureCharge {
+        balance,
+        paid_chi: paid_chi.min(fixed_int(chi_used)?),
     }))
 }
 
@@ -171,6 +176,24 @@ pub(crate) fn failure_charge(
 /// balance stays an integer).
 fn whole_balance_chi(balance: &Balance, rate: &BigInt) -> Paid<VmDecimal> {
     checked(balance.fixed()?.mul(&fixed_int(rate)?))
+}
+
+/// The share (in percent) of its unused budget a transaction whose budget
+/// was reserved is charged (revision 14). Block capacity counts the chi
+/// supplied, the only cost known before execution; without this charge a
+/// sender could fill a block with budgets it never uses and pay only for
+/// the chi it used, keeping every other transaction out of the block.
+pub(crate) const UNUSED_CHI_CHARGE_PERCENT: u8 = 10;
+
+/// The chi charged on top of `chi_used` for the budget left unused:
+/// `UNUSED_CHI_CHARGE_PERCENT` of it, rounded down (so a margin under
+/// 10 chi is free). It is burned: rewards are paid on the chi used.
+pub(crate) fn unused_chi_charge(budget: &BigInt, chi_used: &BigInt) -> BigInt {
+    let unused = budget - chi_used;
+    if !unused.is_positive() {
+        return BigInt::zero();
+    }
+    unused * UNUSED_CHI_CHARGE_PERCENT / 100u8
 }
 
 /// `failed_transaction_chi`: chi charged for a failed metered transaction,
@@ -228,9 +251,14 @@ mod tests {
     }
 
     fn charge(balance: Balance, chi_used: i64) -> Option<(VmValue, String)> {
-        failure_charge(&balance, &BigInt::from(chi_used), &BigInt::from(20))
-            .unwrap()
-            .map(|charge| (charge.balance, charge.paid_chi.to_string()))
+        failure_charge(
+            &balance,
+            &BigInt::from(chi_used),
+            &BigInt::zero(),
+            &BigInt::from(20),
+        )
+        .unwrap()
+        .map(|charge| (charge.balance, charge.paid_chi.to_string()))
     }
 
     #[test]
@@ -304,5 +332,43 @@ mod tests {
             failed_transaction_chi(&BigInt::from(30), &BigInt::from(-1), 5),
             BigInt::zero()
         );
+    }
+
+    #[test]
+    fn a_tenth_of_the_unused_budget_is_charged_rounded_down() {
+        let charge =
+            |budget: i64, used: i64| unused_chi_charge(&BigInt::from(budget), &BigInt::from(used));
+        assert_eq!(charge(166_666, 255), BigInt::from(16_641));
+        assert_eq!(charge(1_000, 5), BigInt::from(99));
+        // The SDK's 2-chi margin, and any margin under 10 chi, is free.
+        assert_eq!(charge(257, 255), BigInt::zero());
+        assert_eq!(charge(264, 255), BigInt::zero());
+        assert_eq!(charge(265, 255), BigInt::from(1));
+        // Nothing is unused when the budget ran out (or was never positive).
+        assert_eq!(charge(1_000, 1_000), BigInt::zero());
+        assert_eq!(charge(0, 0), BigInt::zero());
+        assert_eq!(charge(-1, 0), BigInt::zero());
+    }
+
+    #[test]
+    fn a_failure_pays_its_unused_charge_but_earns_rewards_on_its_chi_used() {
+        let rate = BigInt::from(20);
+        // 5 + 99 chi at 20 chi per token is 5.2 tokens; rewards on the 5 chi used.
+        assert_eq!(
+            charge_of(Balance::Int(BigInt::from(10)), &rate),
+            (VmValue::Decimal(fixed("4.8")), "5".to_owned())
+        );
+        // A balance worth 2 chi pays them all, and earns rewards on them.
+        assert_eq!(
+            charge_of(Balance::Fixed(fixed("0.1")), &rate),
+            (VmValue::Int(BigInt::zero()), "2".to_owned())
+        );
+    }
+
+    fn charge_of(balance: Balance, rate: &BigInt) -> (VmValue, String) {
+        let charge = failure_charge(&balance, &BigInt::from(5), &BigInt::from(99), rate)
+            .unwrap()
+            .unwrap();
+        (charge.balance, charge.paid_chi.to_string())
     }
 }

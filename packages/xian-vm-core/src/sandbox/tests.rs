@@ -393,3 +393,44 @@ fn the_scenario_matches_the_lmdb_backend_byte_for_byte() {
     let golden = std::fs::read_to_string(directory.join("transcript.txt")).unwrap();
     assert_eq!(transcript, golden);
 }
+
+/// A paid call of `transfer(amount)` with a 10,000-chi budget at 100 chi per
+/// token: its receipt and the sender's native balance afterwards, next to
+/// the chi the same call uses (a free dry run).
+fn paid_transfer(amount: u64) -> (u64, Value, Option<String>) {
+    let chain = deployed();
+    chain.set_value("chi_cost.S:value", Some("100")).unwrap();
+    chain
+        .set_value("currency.balances:alice", Some("1000"))
+        .unwrap();
+    let kwargs = json!({"amount": amount, "to": "bob"});
+    let budget = json!({"chi_budget": 10_000});
+    let mut dry = budget.clone();
+    dry["commit"] = json!(false);
+    let used = call_with(&chain, "transfer", kwargs.clone(), dry)["chi_used"]
+        .as_u64()
+        .unwrap();
+    let mut paid = budget;
+    paid["charge_fees"] = json!(true);
+    let outcome = call_with(&chain, "transfer", kwargs, paid);
+    (used, outcome, chain.get("currency.balances:alice"))
+}
+
+/// `1000 - chi / 100` as the stored decimal.
+fn balance_after(chi: u64) -> String {
+    let cents = 100_000 - chi;
+    let text = format!("{}.{:02}", cents / 100, cents % 100);
+    let text = text.trim_end_matches('0').trim_end_matches('.');
+    format!(r#"{{"__fixed__":"{text}"}}"#)
+}
+
+#[test]
+fn a_paid_call_pays_a_tenth_of_the_chi_it_left_unused() {
+    for (amount, status) in [(5, 0), (5_000, 1)] {
+        let (used, outcome, balance) = paid_transfer(amount);
+        assert_eq!(outcome["status"], status, "{outcome}");
+        let charged = used + (10_000 - used) / 10;
+        assert_eq!(outcome["chi_used"], charged, "{outcome}");
+        assert_eq!(balance, Some(balance_after(charged)));
+    }
+}

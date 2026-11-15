@@ -80,12 +80,12 @@ pub(crate) enum FeeMode {
     Reserved,
     /// A dry run (the simulator) of a transaction that will supply
     /// `supplied` chi (its estimate). When the sender can pay that budget it
-    /// is reserved and refunded as execution does, so the run sees the
-    /// balance execution sees: a written balance's stored size is metered.
-    /// Otherwise (decision 2 of the single-engine plan) nothing is reserved,
-    /// so a small balance still gets an estimate, and the fee is metered from
-    /// the balance the run leaves. In the receipt, a fee write the run did
-    /// not already make comes last.
+    /// is reserved and settled as execution does (refund, unused-chi charge),
+    /// so the run sees the balance execution sees: a written balance's stored
+    /// size is metered. Otherwise (decision 2 of the single-engine plan)
+    /// nothing is reserved, so a small balance still gets an estimate, and
+    /// the fee is metered from the balance the run leaves. In the receipt, a
+    /// fee write the run did not already make comes last.
     Estimated { supplied: BigInt },
 }
 
@@ -619,8 +619,9 @@ impl BlockExecutor {
         rate: Option<&BigInt>,
         balance_key: &str,
     ) -> Settled<TxOutcome> {
+        let unused_charge = self.unused_charge(tx, &execution, rate);
         let (execution, (mut writes, paid_chi)) =
-            self.settled_writes(execution, rate, balance_key)?;
+            self.settled_writes(execution, &unused_charge, rate, balance_key)?;
         let output_writes = if execution.status == 0 {
             writes.len()
         } else {
@@ -653,7 +654,7 @@ impl BlockExecutor {
             exception: execution.exception,
             writes,
             events: execution.events,
-            chi_used: execution.chi_used,
+            chi_used: execution.chi_used + unused_charge,
             rewards,
             chi_rate: rate.cloned(),
             output_writes,
@@ -662,17 +663,36 @@ impl BlockExecutor {
         })
     }
 
+    /// The unused-chi charge (`settlement::unused_chi_charge`) on the chi
+    /// `tx` supplied; none without fees, nor for a dry run whose sender
+    /// cannot pay its supply (nothing was reserved: decision 2).
+    fn unused_charge(
+        &self,
+        tx: &PreparedTx,
+        execution: &Execution,
+        rate: Option<&BigInt>,
+    ) -> BigInt {
+        let unreserved_estimate =
+            matches!(self.fee_mode, FeeMode::Estimated { .. }) && execution.reservation.is_none();
+        if rate.is_none() || unreserved_estimate {
+            return BigInt::zero();
+        }
+        settlement::unused_chi_charge(self.fee_mode.supplied(tx), &execution.chi_used)
+    }
+
     /// `determine_writes_from_output`: a success's writes with its refunded
     /// fee and its chi used, or a failure's fee charge alone (nothing when
-    /// no fee is charged) and the chi it paid.
+    /// no fee is charged) and the chi it paid; the fee includes
+    /// `unused_charge`, the paid chi (which earns rewards) does not.
     fn settled_writes(
         &self,
         execution: Execution,
+        unused_charge: &BigInt,
         rate: Option<&BigInt>,
         balance_key: &str,
     ) -> Settled<(Execution, SettledWrites)> {
         let execution = if execution.status == 0 {
-            match self.success_writes(&execution, rate, balance_key)? {
+            match self.success_writes(&execution, unused_charge, rate, balance_key)? {
                 Ok(writes) => return Ok((execution, writes)),
                 // What execution left at the sender's balance cannot be
                 // refunded: the transaction fails with its chi.
@@ -686,7 +706,9 @@ impl BlockExecutor {
             // Metered from the balance before the transaction; a balance
             // that is not a number pays nothing.
             Some(rate) => Balance::of(self.get(balance_key)?.as_ref())
-                .and_then(|balance| settlement::failure_charge(&balance, &execution.chi_used, rate))
+                .and_then(|balance| {
+                    settlement::failure_charge(&balance, &execution.chi_used, unused_charge, rate)
+                })
                 .unwrap_or(None),
         };
         let writes = match charge {
@@ -703,13 +725,14 @@ impl BlockExecutor {
     fn success_writes(
         &self,
         execution: &Execution,
+        unused_charge: &BigInt,
         rate: Option<&BigInt>,
         balance_key: &str,
     ) -> Settled<Result<SettledWrites, InvalidBalance>> {
         let mut writes = execution.writes.clone();
         if let Some(rate) = rate {
             let balance = match execution.reservation {
-                Some(_) => refunded_balance(execution, rate, balance_key).map(Some),
+                Some(_) => refunded_balance(execution, unused_charge, rate, balance_key).map(Some),
                 // Only a dry run succeeds without a reservation.
                 None => self.metered_balance(execution, rate, balance_key)?,
             };
@@ -738,7 +761,9 @@ impl BlockExecutor {
             None => Balance::of(self.get(balance_key)?.as_ref()),
         };
         Ok(balance
-            .and_then(|balance| settlement::failure_charge(&balance, &execution.chi_used, rate))
+            .and_then(|balance| {
+                settlement::failure_charge(&balance, &execution.chi_used, &BigInt::zero(), rate)
+            })
             .map(|charge| charge.map(|charge| charge.balance)))
     }
 
@@ -810,9 +835,11 @@ impl BlockExecutor {
     }
 }
 
-/// The sender's balance after a success: refunded against the reservation.
+/// The sender's balance after a success: refunded against the reservation,
+/// less the chi used and the unused-chi charge.
 fn refunded_balance(
     execution: &Execution,
+    unused_charge: &BigInt,
     rate: &BigInt,
     balance_key: &str,
 ) -> Result<VmValue, InvalidBalance> {
@@ -824,7 +851,8 @@ fn refunded_balance(
         Some(value) => Balance::of(Some(value))?,
         None => Balance::Fixed(reservation.spendable.clone()),
     };
-    settlement::refund(reservation, &after, &execution.chi_used, rate).map(VmValue::Decimal)
+    let charged = &execution.chi_used + unused_charge;
+    settlement::refund(reservation, &after, &charged, rate).map(VmValue::Decimal)
 }
 
 /// An event as the receipt's event dictionary.

@@ -126,7 +126,7 @@ def test_only_an_estimate_lists_a_fee_write_its_run_did_not_make_last(driver):
     assert list(estimate.writes) == ["zz_probe.values:a", BALANCE_KEY]
     assert list(block.writes) == [BALANCE_KEY, "zz_probe.values:a"]
     # A sender who can pay the supply is settled as the block settles it
-    # (reservation and refund).
+    # (reservation, refund, unused-chi charge).
     assert estimate.writes[BALANCE_KEY] == block.writes[BALANCE_KEY]
     assert estimate.chi_used == block.chi_used
 
