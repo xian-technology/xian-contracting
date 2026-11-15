@@ -30,8 +30,8 @@ Main areas:
 - `src/contracting/storage/`: LMDB-backed state, key encoding, contract
   artifacts, and ORM helpers
 - `src/contracting/stdlib/`: the stdlib manifest and host-side helpers
-  (hashing, crypto, and the zk helpers node tooling uses for shielded
-  preverification)
+  (hashing, crypto, and the zk verifier probe and proof-cache controls the
+  node uses)
 - `packages/`: separately publishable packages:
   `xian-tech-runtime-types`, `xian-tech-accounts`,
   `xian-tech-compiler-core`, `xian-tech-vm-core`, and `xian-tech-zk`; the

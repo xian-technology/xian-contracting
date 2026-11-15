@@ -1,7 +1,7 @@
 //! The node's zk proof caches: prepared verifying keys and the verified
-//! results of proofs against registered keys (`zk.verify_groth16`), shared
-//! by the block host and the node's proof pre-verification
-//! (`warm`). They only save work: both key on the verifying key's bytes
+//! results of proofs against registered keys (`zk.verify_groth16`,
+//! `zk.warm_verified_proofs`), which the node clears for every block. They
+//! only save work: both key on the verifying key's bytes
 //! (their digest), so a cached result is the result verifying the same
 //! proof against the same bytes returns, and no outcome depends on what a
 //! node has cached, even after the registry's bytes for a key id changed.
@@ -151,9 +151,9 @@ fn prepared_key(key: &RegisteredKey) -> Result<Arc<PreparedGroth16Bn254Key>, Ver
     Ok(prepared)
 }
 
-/// `zk.warm_verified_proofs` after its checks: each proof's cached result,
-/// the others verified together (the first failing one fails the call) and
-/// their results cached.
+/// `zk.warm_verified_proofs` after its checks and charge: each proof's
+/// cached result, the others verified together (the first failing one fails
+/// the call) and their results cached.
 pub(crate) fn warm(proofs: &[RegisteredProof]) -> Result<Vec<bool>, VerifierError> {
     let mut results: Vec<Option<bool>> = {
         let mut verified = locked(&VERIFIED);

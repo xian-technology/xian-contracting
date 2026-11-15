@@ -267,18 +267,6 @@ def test_a_key_registered_in_the_block_overlay_verifies(driver):
     assert rust_outcomes(driver, calls) == [("ok", "Bool(true)")]
 
 
-def test_warming_fills_the_cache_the_executor_verifies_from(driver):
-    zk_bridge.clear_verified_proof_cache()
-    request = {
-        "vk_id": "demo",
-        "proof_hex": DEMO["proof_hex"],
-        "public_inputs": DEMO["public_inputs"],
-    }
-    assert zk_bridge.warm_verified_proofs([request], driver=driver) == [True]
-    calls = [("zk.verify_groth16", ["demo", DEMO["proof_hex"], DEMO["public_inputs"]])]
-    assert rust_outcomes(driver, calls) == [("ok", "Bool(true)")]
-
-
 def test_a_result_follows_the_key_bytes_whatever_a_node_cached(driver):
     # A state patch that changes a key's bytes but not its id or hash: every
     # node verifies against the new bytes, whether or not it cached a result
