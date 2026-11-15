@@ -1,7 +1,7 @@
 //! Contract deployment (`contract.deploy`, which only submission may call): the source is
-//! compiled with the linked compiler as `compile_contract_source` compiles
-//! it, the module checked, its constructor run in a nested execution over
-//! this host and the transaction's budget, and the contract's metadata and
+//! compiled with the linked compiler's `compile_contract_source`, the module
+//! checked, its constructor run in a nested execution over this host and the
+//! transaction's budget, and the contract's metadata and
 //! the constructor's effects staged. Every failure reads as the Python
 //! host's; revision 14 defines the rest: any contract name that is not a
 //! string is refused as an empty one, constructor arguments reach the
@@ -21,8 +21,7 @@ use crate::{
 };
 use std::collections::{BTreeMap, HashMap};
 use xian_compiler_core::{
-    compiler_error_message, lower_source_to_ir_json, normalize_source, CompileOptions,
-    CompilerDiagnostic,
+    compile_contract_source, compiler_error_message, CompileOptions, CompilerDiagnostic,
 };
 
 /// `contracting.constants.DEPLOYMENT_BASE_COST` and
@@ -371,20 +370,15 @@ fn source_code(code: &VmValue) -> Result<&str, VmExecutionError> {
     }
 }
 
-/// `compile_contract_source`: the normalized source (linted) and its IR
-/// (compiled from that source without the lint).
+/// The compiler's `compile_contract_source`: the normalized source and the
+/// canonical IR lowered from it.
 pub(crate) fn compile(name: &str, code: &str) -> Result<(String, String), VmExecutionError> {
-    let linted = CompileOptions {
+    let options = CompileOptions {
         vm_profile: XIAN_VM_V2_PROFILE.to_owned(),
         lint: true,
     };
-    let source = normalize_source(name, code, &linted).map_err(compiler_failure)?;
-    let canonical = CompileOptions {
-        lint: false,
-        ..linted
-    };
-    let ir = lower_source_to_ir_json(name, &source, &canonical).map_err(compiler_failure)?;
-    Ok((source, ir))
+    let compiled = compile_contract_source(name, code, &options).map_err(compiler_failure)?;
+    Ok((compiled.source, compiled.vm_ir_json))
 }
 
 /// The compiler's `CompilerError` as the VM reports a host failure.
