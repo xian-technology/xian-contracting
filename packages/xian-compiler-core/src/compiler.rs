@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::constants::{
     COMPILER_FIXTURE_SCHEMA_V1, CONTRACT_ARTIFACT_FORMAT_V1, DEFAULT_VM_PROFILE,
-    XIAN_VM_HOST_CATALOG_V1, XIAN_VM_V1_ADMISSION_REVISION, XIAN_VM_V1_PROFILE,
-    XIAN_VM_V2_ADMISSION_REVISION, XIAN_VM_V2_PROFILE,
+    SUPPORTED_VM_PROFILES, XIAN_VM_HOST_CATALOG_V1, XIAN_VM_V1_ADMISSION_REVISION,
+    XIAN_VM_V1_PROFILE, XIAN_VM_V2_ADMISSION_REVISION, XIAN_VM_V2_PROFILE,
 };
 use crate::diagnostic::CompilerDiagnostic;
 use crate::ir::compile_contract_artifact;
@@ -59,7 +59,7 @@ pub fn compiler_version() -> CompilerVersion {
         artifact_format: CONTRACT_ARTIFACT_FORMAT_V1.to_string(),
         fixture_schema: COMPILER_FIXTURE_SCHEMA_V1.to_string(),
         vm_profile: DEFAULT_VM_PROFILE.to_owned(),
-        supported_vm_profiles: vec![XIAN_VM_V1_PROFILE.into(), XIAN_VM_V2_PROFILE.into()],
+        supported_vm_profiles: SUPPORTED_VM_PROFILES.map(str::to_owned).to_vec(),
         host_catalog_version: XIAN_VM_HOST_CATALOG_V1.to_string(),
         admission_revisions: BTreeMap::from([
             (

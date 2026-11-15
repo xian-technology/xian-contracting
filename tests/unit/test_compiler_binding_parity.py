@@ -107,3 +107,13 @@ def test_omitted_profile_uses_exact_native_compiler():
     artifact = xian_compiler_core.compile_contract_artifact(name, source)
     assert artifact["vm_profile"] == "xian_vm_v2"
     assert xian_compiler_core.diagnose_contract(name, source.replace("decimal", "float"))
+
+
+def test_python_binding_exports_the_compiler_profile_constants():
+    version = xian_compiler_core.compiler_version()
+    assert xian_compiler_core.SUPPORTED_VM_PROFILES == ("xian_vm_v1", "xian_vm_v2")
+    assert list(xian_compiler_core.SUPPORTED_VM_PROFILES) == version["supported_vm_profiles"]
+    assert xian_compiler_core.XIAN_VM_V1_PROFILE == "xian_vm_v1"
+    assert xian_compiler_core.XIAN_VM_V2_PROFILE == "xian_vm_v2"
+    assert xian_compiler_core.DEFAULT_VM_PROFILE == version["vm_profile"] == "xian_vm_v2"
+    assert xian_compiler_core.CONTRACT_ARTIFACT_FORMAT_V1 == version["artifact_format"]

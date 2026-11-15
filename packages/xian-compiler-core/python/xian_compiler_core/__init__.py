@@ -4,6 +4,11 @@ import json
 from typing import Any
 
 from ._native import (
+    CONTRACT_ARTIFACT_FORMAT_V1,
+    DEFAULT_VM_PROFILE,
+    SUPPORTED_VM_PROFILES,
+    XIAN_VM_V1_PROFILE,
+    XIAN_VM_V2_PROFILE,
     CompilerError,
     compile_contract_artifact_json,
     compile_contract_source_json,
@@ -153,6 +158,11 @@ def validate_contract_artifact(
 
 
 __all__ = [
+    "CONTRACT_ARTIFACT_FORMAT_V1",
+    "DEFAULT_VM_PROFILE",
+    "SUPPORTED_VM_PROFILES",
+    "XIAN_VM_V1_PROFILE",
+    "XIAN_VM_V2_PROFILE",
     "CompilerError",
     "compile_contract_artifact",
     "compile_contract_source",

@@ -8,12 +8,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from contracting.compilation.linter import ErrorCode, Linter, LintError
+from xian_compiler_core import (
+    DEFAULT_VM_PROFILE,
+    SUPPORTED_VM_PROFILES,
+    XIAN_VM_V2_PROFILE,
+)
+from xian_compiler_core import (
+    XIAN_VM_V1_PROFILE as XIAN_VM_V1_PROFILE,  # re-export
+)
 
-XIAN_VM_V1_PROFILE = "xian_vm_v1"
-XIAN_VM_V2_PROFILE = "xian_vm_v2"
-DEFAULT_VM_PROFILE = XIAN_VM_V2_PROFILE
-SUPPORTED_VM_PROFILES = (XIAN_VM_V1_PROFILE, XIAN_VM_V2_PROFILE)
+from contracting.compilation.linter import ErrorCode, Linter, LintError
 
 _TRACKED_CALL_FEATURES = {
     "all",

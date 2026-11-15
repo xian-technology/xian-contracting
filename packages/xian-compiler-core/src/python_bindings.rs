@@ -1,11 +1,15 @@
 use pyo3::create_exception;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyModule;
+use pyo3::types::{PyModule, PyTuple};
 use serde_json::json;
 
 use crate::artifact::{validate_contract_artifact, ContractArtifact};
 use crate::compiler::{compiler_version, diagnose_contract, CompileOptions};
+use crate::constants::{
+    CONTRACT_ARTIFACT_FORMAT_V1, DEFAULT_VM_PROFILE, SUPPORTED_VM_PROFILES, XIAN_VM_V1_PROFILE,
+    XIAN_VM_V2_PROFILE,
+};
 use crate::ir::{
     compile_contract_artifact, compile_contract_source, describe_vm_host_surface,
     lower_source_to_ir_json,
@@ -101,6 +105,14 @@ fn host_surface_json() -> PyResult<String> {
 #[pymodule]
 fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("CompilerError", py.get_type::<CompilerError>())?;
+    module.add("CONTRACT_ARTIFACT_FORMAT_V1", CONTRACT_ARTIFACT_FORMAT_V1)?;
+    module.add("DEFAULT_VM_PROFILE", DEFAULT_VM_PROFILE)?;
+    module.add(
+        "SUPPORTED_VM_PROFILES",
+        PyTuple::new(py, SUPPORTED_VM_PROFILES)?,
+    )?;
+    module.add("XIAN_VM_V1_PROFILE", XIAN_VM_V1_PROFILE)?;
+    module.add("XIAN_VM_V2_PROFILE", XIAN_VM_V2_PROFILE)?;
     module.add_function(wrap_pyfunction!(diagnose_contract_json, module)?)?;
     module.add_function(wrap_pyfunction!(normalize_source_text, module)?)?;
     module.add_function(wrap_pyfunction!(lower_source_to_ir_json_py, module)?)?;

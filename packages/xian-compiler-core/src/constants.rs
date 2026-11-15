@@ -6,6 +6,7 @@ pub const XIAN_VM_V1_PROFILE: &str = "xian_vm_v1";
 pub const XIAN_VM_V2_PROFILE: &str = "xian_vm_v2";
 
 pub const DEFAULT_VM_PROFILE: &str = XIAN_VM_V2_PROFILE;
+pub const SUPPORTED_VM_PROFILES: [&str; 2] = [XIAN_VM_V1_PROFILE, XIAN_VM_V2_PROFILE];
 
 // Source-admission rule revisions. Bump the profile's revision whenever the set
 // of accepted contracts or their canonical artifacts changes, so nodes can fence
@@ -22,11 +23,11 @@ pub const MAX_STORAGE_KEY_BYTES: usize = 511;
 pub const MAX_CONTRACT_NAME_BYTES: usize = 64;
 
 pub(crate) fn validate_profile(profile: &str) -> Result<(), crate::ValidationError> {
-    match profile {
-        XIAN_VM_V1_PROFILE | XIAN_VM_V2_PROFILE => Ok(()),
-        _ => Err(crate::ValidationError::field(
-            "vm_profile",
-            format!("unsupported profile '{profile}'"),
-        )),
+    if SUPPORTED_VM_PROFILES.contains(&profile) {
+        return Ok(());
     }
+    Err(crate::ValidationError::field(
+        "vm_profile",
+        format!("unsupported profile '{profile}'"),
+    ))
 }
