@@ -126,7 +126,10 @@ def test_native_zk_syscall_keeps_exact_metering_without_python_execution(tmp_pat
                 )
                 assert result.status_code == 0, result
                 assert result.result == digest, result
-                assert result.chi_used == 15, result
+                # 11930 raw: the payload's 2 raw, dispatch and base, and the
+                # 68-byte encoded result priced like a write (25 raw per byte
+                # since revision 14, was 1): 16 chi, not a double charge.
+                assert result.chi_used == 16, result
             failure = execute_contract(
                 driver=driver, contract_name="con_zk_host_meter",
                 function_name="payload_hash", kwargs={"payload": "0x1234"},

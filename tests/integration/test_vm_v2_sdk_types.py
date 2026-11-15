@@ -82,8 +82,10 @@ def _same(left, right):
 
 def test_decimal_arithmetic_comparison_rounding_and_text_match_the_vm():
     rows = _decimal_cases()
-    for start in range(0, len(rows), 200):
-        chunk = rows[start : start + 200]
+    # A return value is capped at 128 KiB (revision 14): 200 rows of 23
+    # results exceed it, 50 stay well below.
+    for start in range(0, len(rows), 50):
+        chunk = rows[start : start + 50]
         result = call(DECIMAL_SOURCE, kwargs={"rows": chunk})
         assert result.status_code == 0, result.result
         for row, chain in zip(chunk, result.result, strict=True):
