@@ -217,6 +217,17 @@ pub(crate) const POOL_ACCOUNT: &str = "validators";
 /// The contract whose state the validator part of the split reads.
 pub(crate) const VALIDATORS_CONTRACT: &str = "validators";
 
+/// A validator's stake as the split reads it (`validators.<variable>:<validator>`).
+const STAKE_VARIABLES: [&str; 3] = ["self_bond", "total_delegated", "total_shares"];
+
+/// Whether `key` holds a validator's stake (its self bond or delegation pool).
+pub(crate) fn is_stake_key(key: &str) -> bool {
+    key.strip_prefix(VALIDATORS_CONTRACT)
+        .and_then(|rest| rest.strip_prefix('.'))
+        .and_then(|rest| rest.split_once(':'))
+        .is_some_and(|(variable, _)| STAKE_VARIABLES.contains(&variable))
+}
+
 /// The highest commission, in basis points (all of the allotment).
 const MAX_COMMISSION_BPS: u32 = 10_000;
 
@@ -1269,6 +1280,28 @@ mod tests {
             runs.push((reads.keys, rewards.deltas.len(), rewards.records.len()));
         }
         assert_eq!(runs[0], runs[1]);
+    }
+
+    #[test]
+    fn only_self_bonds_and_delegation_pools_are_stake_keys() {
+        for key in [
+            "validators.self_bond:v",
+            "validators.total_delegated:v",
+            "validators.total_shares:v",
+        ] {
+            assert!(is_stake_key(key), "{key}");
+        }
+        for key in [
+            "validators.active_validators",
+            "validators.powers:v",
+            "validators.commission_bps:v",
+            "validators.reward_per_share:v",
+            "validatorsx.self_bond:v",
+            "con_validators.self_bond:v",
+            "validators.self_bond",
+        ] {
+            assert!(!is_stake_key(key), "{key}");
+        }
     }
 
     #[test]

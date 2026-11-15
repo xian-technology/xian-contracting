@@ -32,7 +32,7 @@ use crate::settlement::{self, Balance, InvalidBalance, Reservation, Settled, Sto
 use crate::state_view::StateView;
 use crate::stored_value_encoder::encode_stored_value;
 use crate::tx_rewards::{
-    chain_chi_rate, tx_reward_outputs, RewardState, TxRewards, CHI_RATE_KEY, VALIDATORS_CONTRACT,
+    chain_chi_rate, is_stake_key, tx_reward_outputs, RewardState, TxRewards, CHI_RATE_KEY,
 };
 use crate::{
     ValidatedModuleIr, VmBudget, VmDecimal, VmEvent, VmException, VmExecutionContext,
@@ -114,11 +114,13 @@ pub(crate) struct TxOutcome {
     pub(crate) unprepared: bool,
 }
 
-/// The state a transaction's rewards read: the fee terms (split, chi rate,
-/// foundation, developers) as the transaction found them, the `validators`
-/// state as it leaves it. A delegation pool's shares are then those its
-/// reward per share is paid to (a delegation in the same transaction set
-/// its reward debt against the rate before this transaction's credit).
+/// The state a transaction's rewards read: each validator's stake (self
+/// bond and delegation pool) as the transaction leaves it, everything else
+/// (split, chi rate, foundation, developers, active set, powers, commission)
+/// as it found it. A pool's credit then goes to the shares that exist after
+/// the transaction: a delegation in the same transaction set its reward debt
+/// against the rate before this credit, so crediting the shares before it
+/// could make the pool owe more than it holds.
 struct TxRewardState<'a> {
     view: &'a StateView,
     writes: &'a BTreeMap<String, VmValue>,
@@ -126,11 +128,8 @@ struct TxRewardState<'a> {
 
 impl RewardState for TxRewardState<'_> {
     fn get(&mut self, key: &str) -> Settled<Option<VmValue>> {
-        let validators = key
-            .strip_prefix(VALIDATORS_CONTRACT)
-            .is_some_and(|rest| rest.starts_with('.'));
         match self.writes.get(key) {
-            Some(value) if validators => Ok(Some(value.clone())),
+            Some(value) if is_stake_key(key) => Ok(Some(value.clone())),
             _ => self.view.get(key).map_err(fault),
         }
     }
