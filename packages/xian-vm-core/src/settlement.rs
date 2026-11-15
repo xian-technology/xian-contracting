@@ -183,11 +183,11 @@ fn whole_balance_chi(balance: &Balance, rate: &BigInt) -> Paid<VmDecimal> {
 /// supplied, the only cost known before execution; without this charge a
 /// sender could fill a block with budgets it never uses and pay only for
 /// the chi it used, keeping every other transaction out of the block.
-pub(crate) const UNUSED_CHI_CHARGE_PERCENT: u8 = 10;
+pub(crate) const UNUSED_CHI_CHARGE_PERCENT: u8 = 50;
 
 /// The chi charged on top of `chi_used` for the budget left unused:
-/// `UNUSED_CHI_CHARGE_PERCENT` of it, rounded down (so a margin under
-/// 10 chi is free). It is burned: rewards are paid on the chi used.
+/// `UNUSED_CHI_CHARGE_PERCENT` of it, rounded down (so a 1-chi margin is
+/// free). It is burned: rewards are paid on the chi used.
 pub(crate) fn unused_chi_charge(budget: &BigInt, chi_used: &BigInt) -> BigInt {
     let unused = budget - chi_used;
     if !unused.is_positive() {
@@ -335,15 +335,15 @@ mod tests {
     }
 
     #[test]
-    fn a_tenth_of_the_unused_budget_is_charged_rounded_down() {
+    fn half_of_the_unused_budget_is_charged_rounded_down() {
         let charge =
             |budget: i64, used: i64| unused_chi_charge(&BigInt::from(budget), &BigInt::from(used));
-        assert_eq!(charge(166_666, 255), BigInt::from(16_641));
-        assert_eq!(charge(1_000, 5), BigInt::from(99));
-        // The SDK's 2-chi margin, and any margin under 10 chi, is free.
-        assert_eq!(charge(257, 255), BigInt::zero());
-        assert_eq!(charge(264, 255), BigInt::zero());
-        assert_eq!(charge(265, 255), BigInt::from(1));
+        assert_eq!(charge(166_666, 255), BigInt::from(83_205));
+        assert_eq!(charge(1_000, 5), BigInt::from(497));
+        // A 1-chi margin is free; the SDK's 2-chi margin costs 1 chi.
+        assert_eq!(charge(256, 255), BigInt::zero());
+        assert_eq!(charge(257, 255), BigInt::from(1));
+        assert_eq!(charge(264, 255), BigInt::from(4));
         // Nothing is unused when the budget ran out (or was never positive).
         assert_eq!(charge(1_000, 1_000), BigInt::zero());
         assert_eq!(charge(0, 0), BigInt::zero());

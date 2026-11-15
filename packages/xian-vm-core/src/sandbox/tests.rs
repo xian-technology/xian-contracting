@@ -425,11 +425,11 @@ fn balance_after(chi: u64) -> String {
 }
 
 #[test]
-fn a_paid_call_pays_a_tenth_of_the_chi_it_left_unused() {
+fn a_paid_call_pays_half_of_the_chi_it_left_unused() {
     for (amount, status) in [(5, 0), (5_000, 1)] {
         let (used, outcome, balance) = paid_transfer(amount);
         assert_eq!(outcome["status"], status, "{outcome}");
-        let charged = used + (10_000 - used) / 10;
+        let charged = used + (10_000 - used) / 2;
         assert_eq!(outcome["chi_used"], charged, "{outcome}");
         assert_eq!(balance, Some(balance_after(charged)));
     }
