@@ -630,3 +630,24 @@ fn a_boundary_copy_is_paid_before_it_is_made() {
         assert_eq!(outcome["chi_used"], 5_000, "{kind}");
     }
 }
+
+#[test]
+fn iterating_a_text_holds_no_copy_of_its_characters() {
+    // A string iterator held one heap object per character, and the heap
+    // keeps every iterator until the transaction ends: 32 joins of a
+    // 20 KB text retained about 8 MB each and failed at the heap limit.
+    let chain = deployed_source(
+        "@export\ndef joins(n: int):\n    s = 'ab' * 10000\n    total = 0\n    for i in range(n):\n        total += len(''.join(s)) + len(''.join(reversed(s)))\n    for ch in s:\n        total += len(ch)\n    return total\n",
+    );
+    let outcome = parsed(
+        &chain
+            .call(
+                &json!({"sender": "alice", "contract": "con_probe", "function": "joins",
+                        "kwargs": {"n": 32}, "environment": environment()})
+                .to_string(),
+            )
+            .unwrap(),
+    );
+    assert_eq!(outcome["status"], 0, "{outcome}");
+    assert_eq!(outcome["result"], (32 * 40_000 + 20_000).to_string());
+}

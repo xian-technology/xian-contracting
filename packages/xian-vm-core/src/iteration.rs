@@ -110,7 +110,7 @@ impl VmIterator {
     ) -> Result<()> {
         match &self.kind {
             Kind::View { view, .. } => visit(&view.source),
-            Kind::Sequence { source, .. } => visit(source),
+            Kind::Sequence { source, .. } | Kind::Text { source, .. } => visit(source),
             Kind::Map { function, inputs } => {
                 visit(function)?;
                 inputs.iter().try_for_each(visit)
@@ -129,6 +129,7 @@ impl VmIterator {
             Kind::Map { .. } => name == "map",
             Kind::Filter { .. } => name == "filter",
             Kind::Zip { .. } => name == "zip",
+            Kind::Text { reverse, .. } => *reverse && name == "reversed",
             Kind::Sequence {
                 source,
                 reverse: true,
@@ -175,6 +176,14 @@ enum Kind {
         index: usize,
         reverse: bool,
         expected_size: Option<usize>,
+    },
+    /// The characters of a text, read in place: `offset` is the byte
+    /// position of the next character (of the character after the next one
+    /// when reversed).
+    Text {
+        source: VmValue,
+        offset: usize,
+        reverse: bool,
     },
     Range {
         range: VmRange,
@@ -235,6 +244,16 @@ pub(crate) fn sequence(source: &VmValue, reverse: bool, heap: &VmHeap) -> Result
                 heap,
             )
         }
+        VmValue::String(text) => {
+            return store(
+                Kind::Text {
+                    source: heap.capture(source.clone())?,
+                    offset: if reverse { text.len() } else { 0 },
+                    reverse,
+                },
+                heap,
+            )
+        }
         VmValue::Range(range) if reverse => {
             let length = range.len();
             return store(
@@ -251,7 +270,7 @@ pub(crate) fn sequence(source: &VmValue, reverse: bool, heap: &VmHeap) -> Result
         }
         _ => {}
     }
-    let (source, length, expected_size) = sequence_shape(source, &value, reverse, heap)?;
+    let (source, length, expected_size) = sequence_shape(source, &value, reverse)?;
     store(
         Kind::Sequence {
             source,
@@ -290,7 +309,6 @@ fn sequence_shape(
     source: &VmValue,
     value: &VmValue,
     reverse: bool,
-    heap: &VmHeap,
 ) -> Result<(VmValue, usize, Option<usize>)> {
     Ok(match value {
         VmValue::List(v) | VmValue::Tuple(v) => (source.clone(), v.len(), None),
@@ -298,14 +316,6 @@ fn sequence_shape(
         VmValue::Dict(v) => (source.clone(), v.len(), Some(v.len())),
         VmValue::Set(v) | VmValue::BuiltinSet(v) | VmValue::FrozenSet(v) if !reverse => {
             (source.clone(), v.len(), Some(v.len()))
-        }
-        VmValue::String(v) => {
-            let chars = v
-                .chars()
-                .map(|ch| VmValue::String(ch.to_string()))
-                .collect::<Vec<_>>();
-            let length = chars.len();
-            (heap.capture(VmValue::Tuple(chars))?, length, None)
         }
         _ => {
             return Err(VmExecutionError::new(format!(
@@ -436,6 +446,11 @@ fn advance(kind: &mut Kind, callback: &mut Callback<'_>, depth: usize) -> Result
             .map(|index| sequence_item(source, index, *expected_size))
             .transpose()
             .map(Option::flatten),
+        Kind::Text {
+            source,
+            offset,
+            reverse,
+        } => next_character(source, offset, *reverse),
         Kind::Range { range, index } => {
             let result = range.get(index);
             *index += 1;
@@ -449,6 +464,29 @@ fn advance(kind: &mut Kind, callback: &mut Callback<'_>, depth: usize) -> Result
         }
         Kind::Filter { function, input } => next_filtered(function, input, callback, depth),
     }
+}
+
+/// The character of the text `source` at byte `offset` (the one before it
+/// when reversed), as a new one-character text: one unit of element work,
+/// as each item of a copied sequence costs.
+fn next_character(source: &VmValue, offset: &mut usize, reverse: bool) -> Result<Option<VmValue>> {
+    let character = source.with_text(|text| {
+        if reverse {
+            text[..*offset].chars().next_back()
+        } else {
+            text[*offset..].chars().next()
+        }
+    })?;
+    let Some(character) = character else {
+        return Ok(None);
+    };
+    crate::work_meter::count(1)?;
+    if reverse {
+        *offset -= character.len_utf8();
+    } else {
+        *offset += character.len_utf8();
+    }
+    Ok(Some(VmValue::String(character.to_string())))
 }
 
 fn next_index(index: &mut usize, reverse: bool) -> Option<usize> {
