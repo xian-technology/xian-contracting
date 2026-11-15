@@ -543,9 +543,16 @@ fn item(value: &VmValue, index: usize, expected_size: Option<usize>) -> Result<O
         | VmValue::BuiltinSet(v)
         | VmValue::FrozenSet(v) => (v.len(), v.get(index).cloned()),
         VmValue::Dict(v) => (v.len(), v.get(index).map(|(key, _)| key.clone())),
+        // Each yielded byte is a new integer: one unit of element work, as
+        // each item of a copied list or a string's characters costs.
         VmValue::Bytes(v) | VmValue::ByteArray(v) => (
             v.len(),
-            v.get(index).map(|byte| VmValue::Int((*byte).into())),
+            v.get(index)
+                .map(|byte| {
+                    crate::work_meter::count(1)?;
+                    Ok(VmValue::Int((*byte).into()))
+                })
+                .transpose()?,
         ),
         _ => return Err(VmExecutionError::new("invalid iterable source")),
     };
