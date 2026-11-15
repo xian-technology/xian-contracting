@@ -522,33 +522,6 @@ fn validate_module_ir_json(module_ir_json: &str) -> PyResult<()> {
         .map_err(|error| VmIrValidationError::new_err(error.to_string()))
 }
 
-#[pyfunction(signature=(
-    module_name,
-    artifacts_json,
-    *,
-    input_source=None,
-    vm_profile="xian_vm_v2"
-))]
-fn validate_deployment_artifacts_json(
-    py: Python<'_>,
-    module_name: &str,
-    artifacts_json: &str,
-    input_source: Option<&str>,
-    vm_profile: &str,
-) -> PyResult<Py<PyAny>> {
-    let bundle = crate::validate_contract_artifacts_json(
-        module_name,
-        artifacts_json,
-        input_source,
-        vm_profile,
-    )
-    .map_err(|error| VmRuntimeExecutionError::new_err(error.to_string()))?;
-    let payload = PyDict::new(py);
-    payload.set_item("source", bundle.source)?;
-    payload.set_item("vm_ir_json", bundle.vm_ir_json)?;
-    Ok(payload.into_any().unbind())
-}
-
 #[pymodule]
 fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("VmIrValidationError", py.get_type::<VmIrValidationError>())?;
@@ -559,10 +532,6 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(runtime_info_json, module)?)?;
     module.add_function(wrap_pyfunction!(supports_execution_policy, module)?)?;
     module.add_function(wrap_pyfunction!(validate_module_ir_json, module)?)?;
-    module.add_function(wrap_pyfunction!(
-        validate_deployment_artifacts_json,
-        module
-    )?)?;
     module.add_function(wrap_pyfunction!(_stored_value_debug, module)?)?;
     module.add_function(wrap_pyfunction!(_vm_value_debug, module)?)?;
     module.add_function(wrap_pyfunction!(_stored_value_encode_debug, module)?)?;

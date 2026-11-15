@@ -13,7 +13,6 @@ macro_rules! resolves_to {
     };
 }
 
-mod artifacts;
 mod execution_stack;
 pub use execution_stack::MAX_EXECUTION_DEPTH;
 mod dict_index;
@@ -79,7 +78,6 @@ pub const XIAN_VM_SUPPORTED_GAS_SCHEDULES: &[&str] = &["xvm-gas-6"];
 pub const XIAN_VM_EXECUTION_REVISION: &str = "xvm-execution-14";
 pub const XIAN_VM_SET_CODEC: &str = "xian-set-1";
 
-pub use artifacts::*;
 pub use interpreter::*;
 pub use metering::*;
 pub use values::*;
