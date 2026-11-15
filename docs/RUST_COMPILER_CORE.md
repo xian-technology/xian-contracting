@@ -93,7 +93,9 @@ Compiler admission uses fixed consensus defaults across every binding:
 - 50,000 statement/expression syntax nodes
 - syntax nesting depth 64
 - 100,000 lexical tokens
-- 4,096 tokens on one logical line
+- 4,096 tokens on one logical line, where an f-string counts one token per
+  character of its content (the expressions inside it reach the parser as one
+  string token; counting them bounds their nesting before parsing)
 - 1 MiB canonical IR JSON
 - 512 contract-handle inference passes
 

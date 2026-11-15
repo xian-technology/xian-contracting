@@ -1,6 +1,6 @@
 use rustpython_parser::ast::{self, Visitor};
 use rustpython_parser::lexer::lex;
-use rustpython_parser::{Mode, Tok};
+use rustpython_parser::{Mode, StringKind, Tok};
 use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::CompilerDiagnostic;
@@ -66,7 +66,7 @@ pub(crate) fn validate_source_limits(source: &str) -> Result<(), CompilerDiagnos
             ));
         }
 
-        logical_line_tokens = logical_line_tokens.saturating_add(1);
+        logical_line_tokens = logical_line_tokens.saturating_add(logical_line_weight(&token));
         if logical_line_tokens > MAX_LOGICAL_LINE_TOKENS {
             return Err(limit_error(
                 "xian.limit.logical_line_tokens",
@@ -101,6 +101,21 @@ pub(crate) fn validate_source_limits(source: &str) -> Result<(), CompilerDiagnos
     }
 
     Ok(())
+}
+
+/// The tokens a lexical token stands for on its logical line. The parser
+/// reads the expressions inside an f-string from its one string token, so an
+/// f-string counts one token per character: that bounds the tokens, and with
+/// them the nesting depth, of those expressions like any other code.
+fn logical_line_weight(token: &Tok) -> usize {
+    match token {
+        Tok::String {
+            value,
+            kind: StringKind::FString | StringKind::RawFString,
+            ..
+        } => value.chars().count().max(1),
+        _ => 1,
+    }
 }
 
 pub(crate) fn validate_syntax_limits(suite: &[ast::Stmt]) -> Result<(), CompilerDiagnostic> {
@@ -296,6 +311,29 @@ mod tests {
         let maximum = format!("{}True\n", "not ".repeat(MAX_LOGICAL_LINE_TOKENS - 2));
         assert!(validate_source_limits(&maximum).is_ok());
         let source = format!("value = {}True\n", "not ".repeat(MAX_LOGICAL_LINE_TOKENS));
+        assert_eq!(diagnostic_code(&source), "xian.limit.logical_line_tokens");
+    }
+
+    #[test]
+    fn fstring_expressions_count_toward_the_logical_line_tokens() {
+        // The expressions inside an f-string reach the parser as one string
+        // token; their characters bound their tokens.
+        let fits = format!("value = f\"{{{}1}}\"\n", "1+".repeat(2_000));
+        assert!(validate_source_limits(&fits).is_ok());
+        let source = format!(
+            "value = f\"{{{}1}}\"\n",
+            "1+".repeat(MAX_LOGICAL_LINE_TOKENS / 2)
+        );
+        assert_eq!(diagnostic_code(&source), "xian.limit.logical_line_tokens");
+    }
+
+    #[test]
+    fn a_deeply_nested_fstring_expression_is_refused_before_parsing() {
+        // Parsed, this expression is a syntax tree 60k levels deep: dropping
+        // or cloning it overflows the stack and aborts the node.
+        let depth = (MAX_SOURCE_BYTES - 64) / 2;
+        let source = format!("x = f\"{{{}1{}}}\"\n", "[".repeat(depth), "]".repeat(depth));
+        assert!(source.len() <= MAX_SOURCE_BYTES);
         assert_eq!(diagnostic_code(&source), "xian.limit.logical_line_tokens");
     }
 

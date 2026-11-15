@@ -18,7 +18,9 @@ pub const XIAN_VM_V2_ADMISSION_REVISION: &str = "xian-admission-3";
 // xian-vm-core's MAX_STORAGE_KEY_BYTES (a contracting test pins that they
 // agree). V2 admission (xian-admission-3) rejects a storage declaration whose
 // key could not fit under the longest contract name, so the verdict does not
-// depend on the name a contract is deployed under.
+// depend on the name a contract is deployed under. It also counts an f-string's
+// characters as tokens of its logical line, so expressions inside f-strings
+// cannot nest past the token limit (a deeper syntax tree overflowed the stack).
 pub const MAX_STORAGE_KEY_BYTES: usize = 511;
 pub const MAX_CONTRACT_NAME_BYTES: usize = 64;
 
