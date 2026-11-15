@@ -25,7 +25,7 @@ fn host<'a>(fixture: &Fixture, modules: &'a Modules) -> BlockHost<'a> {
     BlockHost::new(
         fixture.view.clone(),
         modules,
-        HostCharges::new(budget(10_000_000), true, "submission"),
+        HostCharges::new(budget(100_000_000), true, "submission"),
         inputs(),
     )
 }
@@ -312,7 +312,7 @@ fn a_deployment_runs_the_constructor_and_stages_its_effects_and_metadata() {
         Some(text("alice"))
     );
     assert_eq!(host.get("con_new.__submitted__").unwrap(), Some(int(7)));
-    let Some(VmValue::String(source)) = host.get("con_new.__source__").unwrap() else {
+    let Some(VmValue::String(_)) = host.get("con_new.__source__").unwrap() else {
         panic!("the normalized source is staged");
     };
     assert!(matches!(host.ir("con_new").unwrap(), Ir::Text(_)));
@@ -328,8 +328,43 @@ fn a_deployment_runs_the_constructor_and_stages_its_effects_and_metadata() {
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].event, "Built");
     assert_eq!(events[0].caller, text("alice"));
-    // The constructor's work, the metadata writes and the deployment itself.
-    assert!(charges.raw_cost() > 5_000 + source.len() as u64);
+    // The deployment itself, the constructor's work and the metadata writes.
+    assert!(charges.raw_cost() > deployment_charge(EVENTS));
+}
+
+/// The deployment charge of submitted `code`.
+fn deployment_charge(code: &str) -> u64 {
+    deploy::DEPLOYMENT_BASE_COST + code.len() as u64 * deploy::DEPLOYMENT_COST_PER_SOURCE_BYTE
+}
+
+#[test]
+fn a_deployment_pays_for_its_source_before_compiling_it() {
+    let fixture = fixture("deploy-charge", &[], &[]);
+    let modules = Modules::default();
+    // A source that does not compile still pays for its compilation.
+    let mut host = host(&fixture, &modules);
+    let broken = "def broken(:\n";
+    let refused = deploy(&mut host, &deployment("con_new", broken, None)).unwrap_err();
+    assert!(refused.starts_with("CompilerError: "), "{refused}");
+    assert_eq!(
+        host.finish().unwrap().1.raw_cost(),
+        deployment_charge(broken)
+    );
+    // Out of budget for it: refused before compiling.
+    let mut poor = BlockHost::new(
+        fixture.view.clone(),
+        &modules,
+        HostCharges::new(budget(deployment_charge(broken) - 1), true, "submission"),
+        inputs(),
+    );
+    assert_eq!(
+        deploy(&mut poor, &deployment("con_new", broken, None)),
+        Err("VmRuntimeExecutionError: Out of chi.".to_owned())
+    );
+    // Refused names and existing contracts are refused before the charge.
+    let mut host = self::host(&fixture, &modules);
+    assert!(deploy(&mut host, &deployment("Bad", broken, None)).is_err());
+    assert_eq!(host.finish().unwrap().1.raw_cost(), 0);
 }
 
 #[test]

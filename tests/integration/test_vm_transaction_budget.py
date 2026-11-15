@@ -1,13 +1,21 @@
 """Constructors and host work spend the same transaction budget, even on failure."""
 
+import time
+
 import pytest
 from xian_runtime_types.time import Datetime
 
-from contracting.constants import TRANSACTION_BASE_CHI
+from contracting.constants import (
+    DEPLOYMENT_BASE_COST,
+    DEPLOYMENT_COST_PER_SOURCE_BYTE,
+    TRANSACTION_BASE_CHI,
+)
 from contracting.local import ContractingClient
 
 pytestmark = pytest.mark.optional_native
-BUDGET = 6_000_000
+# Enough for one deployment (15,000 chi charged before compiling) and its
+# constructor, not for two.
+BUDGET = 30_000_000
 HEAVY = """
 total = Variable()
 @construct
@@ -133,3 +141,57 @@ def test_successful_constructor_is_charged_once(client):
     assert output.writes["con_ok.total"] == 8000
     # 8000 constructor iterations cost over 4,000,000 raw (4000 chi) plus the base.
     assert 4_000 + TRANSACTION_BASE_CHI <= output.chi_used <= BUDGET // 1000
+
+
+def deployment_charge(code):
+    return DEPLOYMENT_BASE_COST + len(code.encode()) * DEPLOYMENT_COST_PER_SOURCE_BYTE
+
+
+def compile_bomb(factories, links):
+    """Factories found one whole-program pass after another, then a long
+    local alias chain: minutes of compiler work before the linear inference."""
+    parts = ["import con_token\n"]
+    for index in range(factories):
+        argument = "con_token" if index == 0 else f"F{index - 1}(con_token)"
+        parts.append(
+            f"def F{index}(p):\n return p\ndef U{index}():\n return F{index}({argument})\n"
+        )
+    parts.append("def heavy():\n")
+    parts.extend(f" a{index}=a{index - 1}\n" for index in range(links, 1, -1))
+    parts.append(" a1=con_token\n return 1\n@export\ndef go():\n return 1\n")
+    return "".join(parts)
+
+
+def test_a_source_that_fails_to_compile_pays_for_its_compilation(client):
+    client.raw_driver.set_contract_from_source("con_exists", HEAVY, owner=None)
+    client.raw_driver.commit()
+    code = "x = 1\n" * 4000 + "@export\ndef broken(:\n"
+
+    def charged(name):
+        output = call(client, "submission", "submit_contract", {"name": name, "code": code})
+        assert output.status_code == 1
+        return str(output.result), sum(output.contract_costs.values())
+
+    # An existing name is refused before the charge; the same call to a new
+    # name pays the deployment charge, then fails to compile.
+    refused, before = charged("con_exists")
+    failed, after = charged("con_absent")
+    assert "Contract already exists" in refused
+    assert "xian.syntax.parse_error" in failed
+    assert after - before == deployment_charge(code)
+
+
+def test_a_compile_bomb_compiles_promptly_and_pays_for_its_bytes(client):
+    code = compile_bomb(200, 2000)
+    started = time.perf_counter()
+    output = call(
+        client,
+        "submission",
+        "submit_contract",
+        {"name": "con_bomb", "code": code},
+        budget=200_000_000,
+    )
+    elapsed = time.perf_counter() - started
+    assert output.status_code == 0, output.result
+    assert elapsed < 5, elapsed
+    assert sum(output.contract_costs.values()) > deployment_charge(code)

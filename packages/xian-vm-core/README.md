@@ -265,8 +265,9 @@ Metering covers both host-side data costs and VM execution:
   `__source__` remains available for dashboards, BDS, and other inspection
   tooling
 - native deployment accepts cleartext source only, rejects submitted
-  `deployment_artifacts`, and derives `vm_ir_json` through the pinned compiler
-  before staging writes
+  `deployment_artifacts`, charges the deployment (15,000,000 raw plus 100 per
+  submitted source byte) before compiling, and derives `vm_ir_json` through
+  the pinned compiler before staging writes
 - native deployment requires explicit deterministic `now` context from the
   caller; the host does not fall back to local wall-clock time for submission
   metadata

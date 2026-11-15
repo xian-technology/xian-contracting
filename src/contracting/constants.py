@@ -37,8 +37,10 @@ MAX_INT_STRING_CHARS = 8192
 MAX_MODULAR_POW_EXPONENT_BITS = 8192
 MAX_RETURN_VALUE_SIZE = 1024 * 128
 MAX_CONTRACT_SUBMISSION_BYTES = 128 * 1024
-DEPLOYMENT_BASE_COST = 5_000
-DEPLOYMENT_COST_PER_SOURCE_BYTE = 1
+# Raw chi of a deployment, charged before the source is compiled (V2,
+# xian-vm-core block_host::deploy): the bounded IR work plus parsing per byte.
+DEPLOYMENT_BASE_COST = 15_000_000
+DEPLOYMENT_COST_PER_SOURCE_BYTE = 100
 ZK_VERIFY_GROTH16_BASE_COST = 750_000
 ZK_VERIFY_GROTH16_PER_PUBLIC_INPUT_COST = 50_000
 ZK_VERIFY_GROTH16_PER_PAYLOAD_BYTE_COST = 50
@@ -65,7 +67,8 @@ FILENAME_LEN_MAX = 255
 
 # Default budget of a local call. Node fee policies cap a transaction at
 # 200,000 chi or less; the largest measured real deployment (a 37 KB contract)
-# uses about 17,500 chi and a token transfer about 250 chi.
+# uses about 36,000 chi (15,000 of it charged before compiling) and a token
+# transfer about 250 chi.
 DEFAULT_CHI = 100_000
 TRANSACTION_BASE_CHI = 5
 

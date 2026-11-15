@@ -95,7 +95,11 @@ historical observations and their capture procedure.
 - **Compilation is bounded.** The Rust compiler admits at most 128 KiB source,
   50,000 syntax nodes, syntax depth 64, 100,000 tokens total, 4,096 tokens on
   one logical line, 1 MiB of canonical IR JSON, and 512 contract-handle
-  inference passes. Every binding returns the same `xian.limit.*` diagnostic.
+  inference passes. Its whole-program analyses take work linear in the
+  program and stop at a counted (not timed) ceiling of 1,000,000 work units.
+  Every binding returns the same `xian.limit.*` diagnostic. A deployment pays
+  15,000,000 raw chi plus 100 per submitted source byte before its source is
+  compiled, so a source that fails to compile pays for its compilation too.
 - **Stay scoped.** Built-in helpers serve the execution model. They do not grow
   into a general convenience framework.
 - **No node orchestration here.** Operator workflow, genesis distribution, and

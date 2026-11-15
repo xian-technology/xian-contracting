@@ -1,4 +1,5 @@
-//! Contract deployment (`contract.deploy`, which only submission may call): the source is
+//! Contract deployment (`contract.deploy`, which only submission may call): the
+//! deployment is charged by its source size, then the source is
 //! compiled with the linked compiler's `compile_contract_source`, the module
 //! checked, its constructor run in a nested execution over this host and the
 //! transaction's budget, and the contract's metadata and
@@ -25,9 +26,14 @@ use xian_compiler_core::{
 };
 
 /// `contracting.constants.DEPLOYMENT_BASE_COST` and
-/// `DEPLOYMENT_COST_PER_SOURCE_BYTE`: the raw cost of a deployment.
-const DEPLOYMENT_BASE_COST: u64 = 5_000;
-const DEPLOYMENT_COST_PER_SOURCE_BYTE: u64 = 1;
+/// `DEPLOYMENT_COST_PER_SOURCE_BYTE`: the raw cost of a deployment, charged
+/// for the submitted source before it is compiled, so a source that fails
+/// to compile (or whose module fails afterwards) pays for that work too.
+/// Revision 14 calibration at the VM's ~4 us per chi: compiling and
+/// checking a module costs at most ~60 ms for its IR (bounded by the 1 MiB
+/// IR limit, whatever the source size) plus ~350 ns per source byte.
+pub(super) const DEPLOYMENT_BASE_COST: u64 = 15_000_000;
+pub(super) const DEPLOYMENT_COST_PER_SOURCE_BYTE: u64 = 100;
 /// `contracting.names.MAX_CONTRACT_NAME_LENGTH`.
 const MAX_CONTRACT_NAME_LENGTH: usize = 64;
 /// `contract.deploy`'s arguments.
@@ -109,8 +115,8 @@ impl BlockHost<'_> {
         Ok(VmValue::None)
     }
 
-    /// `_deployment_artifacts`: a safe and unused name, then the compiled
-    /// and checked module.
+    /// `_deployment_artifacts`: a safe and unused name, then the deployment
+    /// charge, then the compiled and checked module.
     fn deployment_artifacts(
         &mut self,
         name: &VmValue,
@@ -120,7 +126,10 @@ impl BlockHost<'_> {
         if self.contract_exists(&name)? {
             return Err(host_runtime_error("Contract already exists."));
         }
-        let (source, ir) = compile(&name, source_code(code)?)?;
+        let code = source_code(code)?;
+        self.charges
+            .record(DEPLOYMENT_BASE_COST + code.len() as u64 * DEPLOYMENT_COST_PER_SOURCE_BYTE)?;
+        let (source, ir) = compile(&name, code)?;
         let module = self.checked_module(&name, &ir)?;
         let construct = module
             .functions
@@ -323,7 +332,7 @@ impl BlockHost<'_> {
     }
 
     /// The constructor's effects, then the contract's metadata, each
-    /// charged when metered; then the deployment's own cost.
+    /// charged when metered.
     fn stage_deployment(
         &mut self,
         artifacts: &Artifacts,
@@ -354,9 +363,7 @@ impl BlockHost<'_> {
         for event in events {
             self.writes.emit(event);
         }
-        let source_bytes = artifacts.source.len() as u64;
-        self.charges
-            .record(DEPLOYMENT_BASE_COST + source_bytes * DEPLOYMENT_COST_PER_SOURCE_BYTE)
+        Ok(())
     }
 }
 
