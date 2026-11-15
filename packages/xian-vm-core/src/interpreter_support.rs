@@ -1951,7 +1951,8 @@ pub(super) fn explicit_syscall_metering_cost(
         }
         "zk.warm_verified_proofs"
         | "zk.shielded_command_nullifier_digest"
-        | "zk.shielded_output_payload_hash" => 1,
+        | "zk.shielded_output_payload_hash"
+        | "zk.shielded_output_payload_hashes" => 1,
         "zk.shielded_command_binding" => return Ok(Some(100_000)),
         "zk.shielded_command_execution_tag" => return Ok(Some(50_000)),
         _ => return Ok(None),
@@ -1970,11 +1971,12 @@ fn arity_error(syscall_id: &str, arity: usize) -> VmExecutionError {
     VmExecutionError::new(format!("{syscall_id}() expects {expected}"))
 }
 
-/// The charge of a zk syscall whose call shape was checked.
+/// The charge of a zk syscall whose call shape was checked. Arguments are
+/// measured in place: a list may hold many references to one large text.
 fn zk_argument_cost(syscall_id: &str, args: &[VmValue]) -> Result<u64, VmExecutionError> {
     match syscall_id {
-        "zk.verify_groth16_bn254" => verification_cost(args, zk_payload_metering_cost),
-        "zk.verify_groth16" => verification_cost(args, zk_registry_metering_cost),
+        "zk.verify_groth16_bn254" => verification_cost(args, hex_payload_bytes, 50),
+        "zk.verify_groth16" => verification_cost(args, |vk_id| vk_id.len() as u64, 25),
         "zk.warm_verified_proofs" => Ok(zk_warm_metering_cost(&args[0])),
         "zk.shielded_note_append_commitments" => {
             per_item_cost(&args[2], "commitments", 250_000, 500_000)
@@ -1982,21 +1984,34 @@ fn zk_argument_cost(syscall_id: &str, args: &[VmValue]) -> Result<u64, VmExecuti
         "zk.shielded_command_nullifier_digest" => {
             per_item_cost(&args[0], "input_nullifiers", 100_000, 50_000)
         }
+        // One raw chi per payload byte, for each payload of the list.
+        "zk.shielded_output_payload_hashes" => Ok(hex_items(&args[0]).1),
         // zk.shielded_output_payload_hash: one raw chi per payload byte.
-        _ => Ok(hex_payload_bytes(&args[0].as_string()?)),
+        _ => text_measure(&args[0], hex_payload_bytes),
     }
 }
 
-/// A verification's charge from its key (id or bytes), proof and inputs.
+/// A verification's charge from its key (id or bytes, measured by
+/// `key_bytes`), proof and inputs.
 fn verification_cost(
     args: &[VmValue],
-    cost: fn(&str, &str, &[String]) -> u64,
+    key_bytes: fn(&str) -> u64,
+    per_byte: u64,
 ) -> Result<u64, VmExecutionError> {
-    Ok(cost(
-        &args[0].as_string()?,
-        &args[1].as_string()?,
-        &as_string_list(&args[2], "public_inputs")?,
+    let key = text_measure(&args[0], key_bytes)?;
+    let proof = text_measure(&args[1], hex_payload_bytes)?;
+    let (inputs, input_bytes) = text_list(&args[2], "public_inputs")?;
+    Ok(verification_charge(
+        inputs,
+        key + proof + input_bytes,
+        per_byte,
     ))
+}
+
+/// A Groth16 verification: the base, each public input and `per_byte`
+/// raw chi per byte of key, proof and inputs.
+fn verification_charge(inputs: u64, bytes: u64, per_byte: u64) -> u64 {
+    750_000 + inputs * 50_000 + bytes * per_byte
 }
 
 /// `base` plus `each` per string of the list `value`.
@@ -2006,23 +2021,56 @@ fn per_item_cost(
     base: u64,
     each: u64,
 ) -> Result<u64, VmExecutionError> {
-    Ok(base + as_string_list(value, label)?.len() as u64 * each)
+    Ok(base + text_list(value, label)?.0 * each)
 }
 
-pub(super) fn as_string_list(
+/// `measure` of the text `value` resolves to, read in place.
+fn text_measure(
     value: &VmValue,
-    label: &str,
-) -> Result<Vec<String>, VmExecutionError> {
-    match value {
-        VmValue::List(values) | VmValue::Tuple(values) => values
-            .iter()
-            .map(VmValue::as_string)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| VmExecutionError::new(format!("{label} must be a list of strings"))),
-        _ => Err(VmExecutionError::new(format!(
-            "{label} must be a list of strings"
+    measure: impl FnOnce(&str) -> u64,
+) -> Result<u64, VmExecutionError> {
+    value.with_resolved(|value| match value {
+        VmValue::String(text) => Ok(measure(text)),
+        other => Err(VmExecutionError::new(format!(
+            "expected string value, got {}",
+            other.type_name()
         ))),
-    }
+    })
+}
+
+/// The texts of the list or tuple `value`: how many, and their hex payload
+/// bytes.
+fn text_list(value: &VmValue, label: &str) -> Result<(u64, u64), VmExecutionError> {
+    let texts = |items: &[VmValue]| {
+        items
+            .iter()
+            .try_fold((0, 0), |(count, bytes): (u64, u64), item| {
+                let item_bytes = text_measure(item, hex_payload_bytes).ok()?;
+                Some((count + 1, bytes.saturating_add(item_bytes)))
+            })
+    };
+    value
+        .with_resolved(|value| match value {
+            VmValue::List(items) | VmValue::Tuple(items) => texts(items),
+            _ => None,
+        })
+        .ok_or_else(|| VmExecutionError::new(format!("{label} must be a list of strings")))
+}
+
+/// The items of the list `value` and the hex payload bytes of those that
+/// are texts (another value counts no bytes; the host refuses it after the
+/// charge).
+fn hex_items(value: &VmValue) -> (u64, u64) {
+    value.with_resolved(|value| match value {
+        VmValue::List(items) => (
+            items.len() as u64,
+            items
+                .iter()
+                .map(|item| text_measure(item, hex_payload_bytes).unwrap_or(0))
+                .fold(0, u64::saturating_add),
+        ),
+        _ => (0, 0),
+    })
 }
 
 pub(super) fn hex_payload_bytes(value: &str) -> u64 {
@@ -2032,57 +2080,32 @@ pub(super) fn hex_payload_bytes(value: &str) -> u64 {
     }
 }
 
-fn hex_list_bytes(values: &[String]) -> u64 {
-    values.iter().map(|value| hex_payload_bytes(value)).sum()
-}
-
-pub(super) fn zk_payload_metering_cost(
-    vk_hex: &str,
-    proof_hex: &str,
-    public_inputs: &[String],
-) -> u64 {
-    let payload_bytes =
-        hex_payload_bytes(vk_hex) + hex_payload_bytes(proof_hex) + hex_list_bytes(public_inputs);
-    750_000 + (public_inputs.len() as u64 * 50_000) + (payload_bytes * 50)
-}
-
-pub(super) fn zk_registry_metering_cost(
-    vk_id: &str,
-    proof_hex: &str,
-    public_inputs: &[String],
-) -> u64 {
-    let payload_bytes =
-        vk_id.len() as u64 + hex_payload_bytes(proof_hex) + hex_list_bytes(public_inputs);
-    500_000 + 250_000 + (public_inputs.len() as u64 * 50_000) + (payload_bytes * 25)
-}
-
 /// `zk.warm_verified_proofs(requests)`: each request may cost the host a
 /// verification, so each is charged as `zk.verify_groth16` charges its
 /// arguments (a field that is not text counts as empty; the host refuses the
 /// request after the charge).
 pub(super) fn zk_warm_metering_cost(requests: &VmValue) -> u64 {
-    let VmValue::List(requests) = requests else {
-        return 0;
-    };
-    requests
-        .iter()
-        .map(zk_warm_request_metering_cost)
-        .fold(0, u64::saturating_add)
+    requests.with_resolved(|requests| match requests {
+        VmValue::List(requests) => requests
+            .iter()
+            .map(zk_warm_request_metering_cost)
+            .fold(0, u64::saturating_add),
+        _ => 0,
+    })
 }
 
 fn zk_warm_request_metering_cost(request: &VmValue) -> u64 {
-    let public_inputs: Vec<String> = match request_field(request, "public_inputs") {
-        Some(VmValue::List(values)) => values
-            .iter()
-            .map(|value| text_or_empty(Some(value)).to_owned())
-            .collect(),
-        _ => Vec::new(),
-    };
-    zk_registry_metering_cost(
-        text_or_empty(request_field(request, "vk_id")),
-        text_or_empty(request_field(request, "proof_hex")),
-        &public_inputs,
-    )
+    request.with_resolved(|request| {
+        let text = |name, measure: fn(&str) -> u64| {
+            request_field(request, name)
+                .map_or(0, |value| text_measure(value, measure).unwrap_or(0))
+        };
+        let key = text("vk_id", |vk_id| vk_id.len() as u64);
+        let proof = text("proof_hex", hex_payload_bytes);
+        let (inputs, input_bytes) =
+            request_field(request, "public_inputs").map_or((0, 0), hex_items);
+        verification_charge(inputs, key + proof + input_bytes, 25)
+    })
 }
 
 /// `request.get(name)` of a dict request (its last entry under `name`).
@@ -2093,15 +2116,8 @@ fn request_field<'a>(request: &'a VmValue, name: &str) -> Option<&'a VmValue> {
     entries
         .iter()
         .rev()
-        .find(|(key, _)| matches!(key, VmValue::String(key) if key == name))
+        .find(|(key, _)| resolves_to!(key, VmValue::String(key) if key == name))
         .map(|(_, value)| value)
-}
-
-fn text_or_empty(value: Option<&VmValue>) -> &str {
-    match value {
-        Some(VmValue::String(text)) => text,
-        _ => "",
-    }
 }
 
 pub(super) fn resolve_contract_import_arg(
@@ -2608,6 +2624,51 @@ mod zk_metering_tests {
         let refused = explicit_syscall_metering_cost("zk.warm_verified_proofs", &not_a_list, &[]);
         assert_eq!(refused.unwrap(), Some(0));
         assert!(explicit_syscall_metering_cost("zk.warm_verified_proofs", &[], &[]).is_err());
+    }
+
+    #[test]
+    fn each_hashed_payload_costs_its_bytes() {
+        // Contract values reach the charge as heap references.
+        let heap = crate::heap::VmHeap::default();
+        let shared = heap.capture(text("0xabcd")).unwrap();
+        let payloads = heap
+            .capture(VmValue::List(vec![
+                shared.clone(),
+                shared,
+                text("0x00"),
+                VmValue::None,
+                text("0xabc"),
+            ]))
+            .unwrap();
+        let cost = |args: &[VmValue]| {
+            explicit_syscall_metering_cost("zk.shielded_output_payload_hashes", args, &[])
+        };
+        assert_eq!(cost(&[payloads.snapshot()]).unwrap(), Some(2 + 2 + 1));
+        assert_eq!(cost(&[text("0xabcd")]).unwrap(), Some(0));
+        assert_eq!(
+            cost(&[]).unwrap_err().to_string(),
+            "zk.shielded_output_payload_hashes() expects one positional argument"
+        );
+    }
+
+    #[test]
+    fn a_warmed_proof_held_by_reference_costs_its_inputs() {
+        let heap = crate::heap::VmHeap::default();
+        let field = format!("0x{}", "01".repeat(32));
+        let full = request(vec![
+            ("vk_id", text("demo")),
+            ("proof_hex", text("0xabcd")),
+            (
+                "public_inputs",
+                VmValue::List(vec![text(&field), text(&field)]),
+            ),
+        ]);
+        let plain = warm_cost(vec![full.clone()]);
+        let held = heap.capture(VmValue::List(vec![full])).unwrap().snapshot();
+        let VmValue::List(requests) = held else {
+            unreachable!()
+        };
+        assert_eq!(warm_cost(requests), plain);
     }
 
     #[test]
