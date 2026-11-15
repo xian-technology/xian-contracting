@@ -147,12 +147,18 @@ def validate_contract_artifact(
     artifact: dict[str, Any],
     *,
     input_source: str | None = None,
+    vm_profile: str | None = None,
 ) -> dict[str, str]:
+    """Validate ``artifact`` for ``module_name`` (and ``vm_profile`` when given).
+
+    Returns its ``source`` and ``vm_ir_json``; raises ``CompilerError``.
+    """
     return json.loads(
         validate_contract_artifact_json(
             module_name,
             json.dumps(artifact, separators=(",", ":"), sort_keys=True),
             input_source=input_source,
+            vm_profile=vm_profile,
         )
     )
 

@@ -7,6 +7,7 @@ import {
   compileContractSourceJson,
   compilerVersionJson,
   diagnoseContractJson,
+  validateContractArtifactJson,
 } from "../dist/xian_compiler_core.js";
 
 const fixtureDirectory = new URL("../../tests/fixtures/", import.meta.url);
@@ -52,6 +53,23 @@ for (const { name, fixture } of await compilerFixtures()) {
           ),
         ),
         { source: fixture.artifact.source, vm_ir_json: fixture.artifact.vm_ir_json },
+      );
+      const artifactJson = JSON.stringify(fixture.artifact);
+      assert.deepEqual(
+        JSON.parse(
+          validateContractArtifactJson(
+            fixture.module_name,
+            artifactJson,
+            fixture.input_source,
+            fixture.vm_profile,
+          ),
+        ),
+        { source: fixture.artifact.source, vm_ir_json: fixture.artifact.vm_ir_json },
+      );
+      const otherProfile = fixture.vm_profile === "xian_vm_v1" ? "xian_vm_v2" : "xian_vm_v1";
+      assert.throws(
+        () => validateContractArtifactJson(fixture.module_name, artifactJson, undefined, otherProfile),
+        (error) => String(error).includes("artifact.vm_profile"),
       );
     } else {
       assert.throws(() =>

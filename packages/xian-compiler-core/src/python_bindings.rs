@@ -73,15 +73,16 @@ fn compile_contract_source_json(
     serde_json::to_string(&compiled).map_err(|error| PyValueError::new_err(error.to_string()))
 }
 
-#[pyfunction(signature=(expected_module_name, artifact_json, *, input_source=None))]
+#[pyfunction(signature=(expected_module_name, artifact_json, *, input_source=None, vm_profile=None))]
 fn validate_contract_artifact_json(
     expected_module_name: &str,
     artifact_json: &str,
     input_source: Option<&str>,
+    vm_profile: Option<&str>,
 ) -> PyResult<String> {
     let artifact: ContractArtifact = serde_json::from_str(artifact_json)
         .map_err(|error| CompilerError::new_err(error.to_string()))?;
-    validate_contract_artifact(&artifact, expected_module_name, input_source)
+    validate_contract_artifact(&artifact, expected_module_name, input_source, vm_profile)
         .map_err(|error| CompilerError::new_err(error.to_string()))?;
     serde_json::to_string(&json!({
         "source": artifact.source,

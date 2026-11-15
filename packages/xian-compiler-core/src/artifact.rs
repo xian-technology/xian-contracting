@@ -62,10 +62,14 @@ pub fn build_contract_artifact(
     Ok(artifact)
 }
 
+/// Check an artifact against the module it deploys as and, when given, the
+/// execution profile it must target: its shape, hashes, IR identity and that
+/// the compiler re-lowers its source to exactly its IR.
 pub fn validate_contract_artifact(
     artifact: &ContractArtifact,
     expected_module_name: &str,
     input_source: Option<&str>,
+    expected_vm_profile: Option<&str>,
 ) -> Result<ValidatedArtifact, ValidationError> {
     ensure_eq(
         "artifact.format",
@@ -73,6 +77,13 @@ pub fn validate_contract_artifact(
         CONTRACT_ARTIFACT_FORMAT_V1,
     )?;
     validate_profile(&artifact.vm_profile)?;
+    if let Some(expected_vm_profile) = expected_vm_profile {
+        ensure_eq(
+            "artifact.vm_profile",
+            &artifact.vm_profile,
+            expected_vm_profile,
+        )?;
+    }
     ensure_eq(
         "artifact.module_name",
         &artifact.module_name,
@@ -218,9 +229,43 @@ mod tests {
         .expect("artifact should build");
         artifact.hashes.source_sha256 = "bad".to_string();
 
-        let error = validate_contract_artifact(&artifact, "con_counter", Some(source))
+        let error = validate_contract_artifact(&artifact, "con_counter", Some(source), None)
             .expect_err("artifact should fail validation");
         assert!(error.to_string().contains("artifact.hashes.source_sha256"));
+    }
+
+    #[test]
+    fn validate_contract_artifact_rejects_an_unexpected_profile() {
+        let source = "@export\ndef read():\n    return 1\n";
+        let artifact = compile_contract_artifact("con_counter", source, &CompileOptions::default())
+            .expect("artifact should build");
+
+        validate_contract_artifact(&artifact, "con_counter", None, Some("xian_vm_v2"))
+            .expect("the artifact's own profile is accepted");
+        let error = validate_contract_artifact(&artifact, "con_counter", None, Some("xian_vm_v1"))
+            .expect_err("another execution profile must be rejected");
+        assert!(error.to_string().contains("artifact.vm_profile"));
+    }
+
+    #[test]
+    fn validate_contract_artifact_rejects_non_canonical_source() {
+        let mut artifact = compile_contract_artifact(
+            "con_counter",
+            "@export\ndef read():\n    return 1\n",
+            &CompileOptions::default(),
+        )
+        .expect("artifact should build");
+        let canonical_hash = artifact.hashes.source_sha256.clone();
+        artifact.source = format!("{}\n\n", artifact.source);
+        artifact.hashes.source_sha256 = crate::hashing::sha256_hex(&artifact.source);
+        artifact.vm_ir_json = artifact
+            .vm_ir_json
+            .replace(&canonical_hash, &artifact.hashes.source_sha256);
+        artifact.hashes.vm_ir_sha256 = crate::hashing::sha256_hex(&artifact.vm_ir_json);
+
+        let error = validate_contract_artifact(&artifact, "con_counter", None, None)
+            .expect_err("non-canonical source must fail validation");
+        assert!(error.to_string().contains("artifact.vm_ir_json"));
     }
 
     #[test]
@@ -236,7 +281,7 @@ mod tests {
             .replace(r#""value": 1"#, r#""value": 999"#);
         artifact.hashes.vm_ir_sha256 = crate::hashing::sha256_hex(&artifact.vm_ir_json);
 
-        let error = validate_contract_artifact(&artifact, "con_counter", None)
+        let error = validate_contract_artifact(&artifact, "con_counter", None, None)
             .expect_err("forged artifact should fail validation");
         assert!(error.to_string().contains("artifact.vm_ir_json"));
     }

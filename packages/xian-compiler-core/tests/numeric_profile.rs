@@ -20,7 +20,7 @@ fn exact_literals_survive_artifact_generation_and_validation() {
         let source = format!("@export\ndef value(x: decimal):\n    return {literal}\n");
         let artifact = compile_contract_artifact("con_numeric", &source, &options()).unwrap();
         let validated =
-            validate_contract_artifact(&artifact, "con_numeric", Some(&source)).unwrap();
+            validate_contract_artifact(&artifact, "con_numeric", Some(&source), None).unwrap();
         let node = &validated.vm_ir["functions"][0]["body"][0]["value"];
         assert_eq!(node["value_type"], "decimal");
         assert_eq!(node["value"], json!(value));
@@ -57,7 +57,7 @@ fn v2_admits_round_but_not_float() {
         let source = format!("@export\ndef value(x: decimal):\n    return {expression}");
         let artifact = compile_contract_artifact("con_numeric", &source, &options())
             .unwrap_or_else(|error| panic!("{expression}: {error:?}"));
-        validate_contract_artifact(&artifact, "con_numeric", Some(&source)).unwrap();
+        validate_contract_artifact(&artifact, "con_numeric", Some(&source), None).unwrap();
     }
     for source in ["@export\ndef value():\n    return float(1)", "f = float\n"] {
         let error = compile_contract_artifact("con_numeric", source, &options()).unwrap_err();
@@ -88,7 +88,7 @@ fn decimal_literals_in_interpolation_keep_the_original_digits() {
     assert!(parsed
         .to_string()
         .contains(r#""value":"9007199254740993.000001""#));
-    validate_contract_artifact(&artifact, "con_numeric", Some(source)).unwrap();
+    validate_contract_artifact(&artifact, "con_numeric", Some(source), None).unwrap();
 }
 
 #[test]
@@ -103,7 +103,7 @@ fn normalized_decimal_spelling_preserves_context_and_literal_type() {
         let source = format!("@export\r\ndef value():\r\n    return {expr}\r\n");
         let artifact = compile_contract_artifact("con_context", &source, &options()).unwrap();
         let validated =
-            validate_contract_artifact(&artifact, "con_context", Some(&source)).unwrap();
+            validate_contract_artifact(&artifact, "con_context", Some(&source), None).unwrap();
         assert!(validated
             .vm_ir
             .to_string()
@@ -123,7 +123,7 @@ fn integer_limit_and_artifact_profile_are_enforced() {
     );
     assert_eq!(parsed["functions"][0]["returns"], "decimal");
     artifact.vm_profile = "xian_vm_v1".into();
-    assert!(validate_contract_artifact(&artifact, "con_profile", Some(&source)).is_err());
+    assert!(validate_contract_artifact(&artifact, "con_profile", Some(&source), None).is_err());
 }
 
 #[test]

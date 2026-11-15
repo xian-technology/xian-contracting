@@ -69,11 +69,17 @@ pub fn validate_contract_artifact_json(
     expected_module_name: &str,
     artifact_json: &str,
     input_source: Option<String>,
+    vm_profile: Option<String>,
 ) -> Result<String, JsValue> {
     let artifact: ContractArtifact = serde_json::from_str(artifact_json)
         .map_err(|error| JsValue::from_str(&error.to_string()))?;
-    validate_contract_artifact(&artifact, expected_module_name, input_source.as_deref())
-        .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    validate_contract_artifact(
+        &artifact,
+        expected_module_name,
+        input_source.as_deref(),
+        vm_profile.as_deref(),
+    )
+    .map_err(|error| JsValue::from_str(&error.to_string()))?;
     serde_json::to_string(&serde_json::json!({
         "source": artifact.source,
         "vm_ir_json": artifact.vm_ir_json,

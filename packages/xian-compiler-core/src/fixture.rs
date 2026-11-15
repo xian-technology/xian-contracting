@@ -81,19 +81,18 @@ impl CompilerFixture {
         let artifact = self.artifact.as_ref().ok_or_else(|| {
             ValidationError::field("artifact", "accepted fixture requires artifact")
         })?;
-        ensure_eq(
-            "artifact.vm_profile",
-            &artifact.vm_profile,
-            &self.vm_profile,
-        )?;
         ensure_eq("artifact.source", &artifact.source, normalized_source)?;
 
         let expected_vm_ir = self
             .vm_ir
             .as_ref()
             .ok_or_else(|| ValidationError::field("vm_ir", "accepted fixture requires IR"))?;
-        let validated =
-            validate_contract_artifact(artifact, &self.module_name, Some(&self.input_source))?;
+        let validated = validate_contract_artifact(
+            artifact,
+            &self.module_name,
+            Some(&self.input_source),
+            Some(&self.vm_profile),
+        )?;
         if &validated.vm_ir != expected_vm_ir {
             return Err(ValidationError::field(
                 "vm_ir",

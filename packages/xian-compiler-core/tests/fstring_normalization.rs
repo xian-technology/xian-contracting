@@ -38,7 +38,7 @@ fn roundtrip(expression: &str) {
     );
     let artifact = compile_contract_artifact("con_fstring", &source, &CompileOptions::default())
         .unwrap_or_else(|error| panic!("{expression}: {error:?}"));
-    validate_contract_artifact(&artifact, "con_fstring", Some(&source)).unwrap();
+    validate_contract_artifact(&artifact, "con_fstring", Some(&source), None).unwrap();
     assert_eq!(artifact.source, normalized);
     assert_eq!(
         normalize_source("con_fstring", &normalized, &CompileOptions::default()).unwrap(),
