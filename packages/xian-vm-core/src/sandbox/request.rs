@@ -90,6 +90,14 @@ impl Fields {
         }
     }
 
+    /// The wire value of field `name` of the environment, or `default`.
+    fn wire_or(&mut self, name: &str, default: VmValue) -> Result<VmValue, SandboxError> {
+        match self.take(name) {
+            None => Ok(default),
+            Some(value) => wire_value(&value, &format!("environment.{name}")),
+        }
+    }
+
     fn object(&mut self, name: &str) -> Result<Value, SandboxError> {
         match self.take(name) {
             None => Ok(Value::Object(Map::new())),
@@ -125,19 +133,49 @@ pub(crate) struct Environment {
 impl Environment {
     pub(crate) fn read(fields: &mut Fields) -> Result<Self, SandboxError> {
         let mut environment = Fields::of(fields.object("environment")?, "environment")?;
-        let mut field = |name: &str, default: VmValue| match environment.take(name) {
-            None => Ok(default),
-            Some(value) => wire_value(&value, &format!("environment.{name}")),
-        };
         let read = Self {
-            now: field("now", VmValue::None)?,
-            block_num: field("block_num", VmValue::Int(BigInt::from(-1)))?,
-            block_hash: field("block_hash", VmValue::None)?,
-            chain_id: field("chain_id", VmValue::None)?,
-            input_hash: field("input_hash", VmValue::None)?,
+            now: environment.wire_or("now", VmValue::None)?,
+            block_num: environment.wire_or("block_num", VmValue::Int(BigInt::from(-1)))?,
+            block_hash: environment.wire_or("block_hash", VmValue::None)?,
+            chain_id: environment.wire_or("chain_id", VmValue::None)?,
+            input_hash: environment.wire_or("input_hash", VmValue::None)?,
         };
         environment.finish("environment")?;
         Ok(read)
+    }
+}
+
+impl RunOptions {
+    fn read(fields: &mut Fields) -> Result<Self, SandboxError> {
+        Ok(Self {
+            metering: fields.flag("metering", true)?,
+            charge_fees: fields.flag("charge_fees", false)?,
+            commit: fields.flag("commit", true)?,
+        })
+    }
+}
+
+/// The context a block gives a transaction (`transaction_inputs::context`),
+/// with the block fields from `environment`.
+fn block_context(
+    sender: &str,
+    contract: &str,
+    function: &str,
+    kwargs: &[(String, VmValue)],
+    environment: Environment,
+) -> VmExecutionContext {
+    VmExecutionContext {
+        this: Some(contract.to_owned()),
+        caller: Some(sender.to_owned()),
+        signer: Some(sender.to_owned()),
+        owner: None,
+        entry: Some((contract.to_owned(), function.to_owned())),
+        submission_name: submission_name(contract, kwargs),
+        now: environment.now,
+        block_num: environment.block_num,
+        block_hash: environment.block_hash,
+        chain_id: environment.chain_id,
+        input_hash: environment.input_hash,
     }
 }
 
@@ -185,28 +223,12 @@ fn run(
     let kwargs = call_kwargs(&kwargs)
         .ok_or_else(|| invalid(format!("{what}: arguments the VM does not take")))?;
     let environment = Environment::read(&mut fields)?;
-    let options = RunOptions {
-        metering: fields.flag("metering", true)?,
-        charge_fees: fields.flag("charge_fees", false)?,
-        commit: fields.flag("commit", true)?,
-    };
+    let options = RunOptions::read(&mut fields)?;
     let chi_budget = BigInt::from(fields.count("chi_budget")?);
     let size_bytes = usize::try_from(fields.count("transaction_size_bytes")?)
         .map_err(|_| invalid("transaction_size_bytes is too large"))?;
     fields.finish(what)?;
-    let context = VmExecutionContext {
-        this: Some(contract.clone()),
-        caller: Some(sender.clone()),
-        signer: Some(sender.clone()),
-        owner: None,
-        entry: Some((contract.clone(), function.clone())),
-        submission_name: submission_name(&contract, &kwargs),
-        now: environment.now,
-        block_num: environment.block_num,
-        block_hash: environment.block_hash,
-        chain_id: environment.chain_id,
-        input_hash: environment.input_hash,
-    };
+    let context = block_context(&sender, &contract, &function, &kwargs, environment);
     let tx = PreparedTx {
         sender,
         contract,
