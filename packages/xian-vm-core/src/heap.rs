@@ -479,7 +479,31 @@ impl VmValue {
     }
 
     pub(crate) fn detached(&self) -> Result<Self, VmExecutionError> {
-        detach(self, &mut HashSet::new(), 0, &mut 0)
+        detach(self, &mut HashSet::new(), 0, &mut DetachedSize::default())
+    }
+}
+
+/// What a detached copy holds so far. The heap holds a shared object once,
+/// but its copy holds it once for every reference to it, so a copy is
+/// bounded like the heap itself: in nodes and in the bytes the heap
+/// accounts for them (`MAX_HEAP_BYTES`).
+#[derive(Default)]
+struct DetachedSize {
+    nodes: usize,
+    bytes: usize,
+}
+
+impl DetachedSize {
+    fn add(&mut self, value: &VmValue, depth: usize) -> Result<(), VmExecutionError> {
+        self.nodes += 1;
+        self.bytes = self.bytes.saturating_add(match value {
+            VmValue::Reference(reference) => reference.with_value(shallow_bytes),
+            other => shallow_bytes(other),
+        });
+        if depth > MAX_VALUE_DEPTH || self.nodes > MAX_VALUE_NODES || self.bytes > MAX_HEAP_BYTES {
+            return Err(VmExecutionError::new("VM value traversal limit exceeded"));
+        }
+        Ok(())
     }
 }
 
@@ -487,12 +511,9 @@ fn detach(
     value: &VmValue,
     path: &mut HashSet<usize>,
     depth: usize,
-    nodes: &mut usize,
+    size: &mut DetachedSize,
 ) -> Result<VmValue, VmExecutionError> {
-    *nodes += 1;
-    if depth > MAX_VALUE_DEPTH || *nodes > MAX_VALUE_NODES {
-        return Err(VmExecutionError::new("VM value traversal limit exceeded"));
-    }
+    size.add(value, depth)?;
     let id = match value {
         VmValue::Reference(reference) => Some(reference.id()),
         _ => None,
@@ -540,7 +561,7 @@ fn detach(
         ));
     }
     let result = map_children(value.snapshot(), |item| {
-        detach(&item, path, depth + 1, nodes)
+        detach(&item, path, depth + 1, size)
     });
     if let Some(id) = id {
         path.remove(&id);
@@ -664,6 +685,25 @@ mod tests {
         assert_eq!(heap.0.usage.borrow().bytes, MAX_HEAP_BYTES);
         assert!(heap.capture(VmValue::String("too much".into())).is_err());
         heap.0.usage.borrow_mut().bytes = list.0.bytes.get();
+    }
+
+    #[test]
+    fn a_detached_copy_holds_at_most_what_the_heap_may_hold() {
+        // The heap holds one 1 MiB string once; every list slot referencing
+        // it is a full copy once the list is detached. (Element work is
+        // charged by the interpreter; this test runs without it.)
+        let _unmetered = crate::work_meter::Unmetered::enter();
+        let heap = VmHeap::default();
+        let text = heap.capture(VmValue::String("x".repeat(1 << 20))).unwrap();
+        let within = heap
+            .capture(VmValue::List(vec![text.clone(); 100]))
+            .unwrap();
+        assert!(within.detached().is_ok());
+        let beyond = heap.capture(VmValue::List(vec![text; 200])).unwrap();
+        assert_eq!(
+            beyond.detached().unwrap_err().to_string(),
+            "VM value traversal limit exceeded"
+        );
     }
 
     #[test]
