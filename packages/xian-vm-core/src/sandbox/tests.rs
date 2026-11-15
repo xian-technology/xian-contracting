@@ -662,6 +662,34 @@ fn a_set_member_key_is_paid_before_it_is_copied() {
 }
 
 #[test]
+fn a_hash_key_too_long_is_refused_before_it_is_built() {
+    // A key of 16 references to one text built every part and the joined
+    // key before its length was checked: 16 parts of 25 MB held about
+    // 900 MB for one refused key. Refused in place, the refusal costs the
+    // same whatever the size of the key it refuses.
+    let chain = deployed_source(
+        "h = Hash()\n\n@export\ndef keyed(big: bool):\n    small = 'k' * 300\n    small = small + small\n    large = 'k' * 30000\n    large = large + large\n    t = large if big else small\n    h[t, t, t, t, t, t, t, t, t, t, t, t, t, t, t, t] = 1\n",
+    );
+    let refusal = |big: bool| {
+        parsed(
+            &chain
+                .call(
+                    &json!({"sender": "alice", "contract": "con_probe", "function": "keyed",
+                            "kwargs": {"big": big}, "environment": environment(),
+                            "chi_budget": 200_000})
+                    .to_string(),
+                )
+                .unwrap(),
+        )
+    };
+    let (small, large) = (refusal(false), refusal(true));
+    assert_eq!(small["error"], "Key is too long (9615). Max is 511.");
+    assert_eq!(large["error"], "Key is too long (960015). Max is 511.");
+    assert!(small["chi_used"].as_u64().is_some(), "{small}");
+    assert_eq!(large["chi_used"], small["chi_used"], "{small} {large}");
+}
+
+#[test]
 fn iterating_a_text_holds_no_copy_of_its_characters() {
     // A string iterator held one heap object per character, and the heap
     // keeps every iterator until the transaction ends: 32 joins of a

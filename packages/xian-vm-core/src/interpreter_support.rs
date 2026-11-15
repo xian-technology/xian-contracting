@@ -1835,8 +1835,23 @@ pub(super) fn contract_target_label(target: &VmContractTarget) -> &str {
 }
 
 pub(super) fn normalize_hash_key(value: &VmValue) -> Result<String, VmExecutionError> {
+    check_hash_key(value)?;
     let value = &value.snapshot();
-    let normalized = match value {
+    match value {
+        VmValue::Tuple(values) => Ok(values
+            .iter()
+            .map(storage_key_part)
+            .collect::<Result<Vec<_>, _>>()?
+            .join(STORAGE_DELIMITER)),
+        other => storage_key_part(other),
+    }
+}
+
+/// Refuse a key before building it: its dimensions, each part's characters
+/// and the joined length are read in place, so a refused key is never
+/// copied (16 parts can each reference one large text).
+fn check_hash_key(value: &VmValue) -> Result<(), VmExecutionError> {
+    let length = value.with_resolved(|value| match value {
         VmValue::Tuple(values) => {
             if values.len() > MAX_HASH_DIMENSIONS {
                 return Err(VmExecutionError::new(format!(
@@ -1844,25 +1859,20 @@ pub(super) fn normalize_hash_key(value: &VmValue) -> Result<String, VmExecutionE
                     values.len()
                 )));
             }
-            let mut rendered = Vec::new();
-            for item in values {
-                let part = storage_key_part(item)?;
-                rendered.push(part);
-            }
-            rendered.join(STORAGE_DELIMITER)
+            let delimiters = values.len().saturating_sub(1) * STORAGE_DELIMITER.len();
+            values.iter().try_fold(delimiters, |length, item| {
+                Ok(length + storage_key_part_length(item)?)
+            })
         }
-        other => storage_key_part(other)?,
-    };
-
+        other => storage_key_part_length(other),
+    })?;
     let max_size = crate::committed_store::MAX_STORAGE_KEY_BYTES;
-    if normalized.len() > max_size {
+    if length > max_size {
         return Err(VmExecutionError::new(format!(
-            "Key is too long ({}). Max is {max_size}.",
-            normalized.len()
+            "Key is too long ({length}). Max is {max_size}."
         )));
     }
-
-    Ok(normalized)
+    Ok(())
 }
 
 /// Hand one storage write to the host. V2 fails a write whose key the store
@@ -1891,24 +1901,42 @@ pub(super) fn hash_scan_prefix(values: &[VmValue]) -> Result<String, VmExecution
 }
 
 pub(super) fn storage_key_part(value: &VmValue) -> Result<String, VmExecutionError> {
-    let value = &value.snapshot();
-    let rendered = match value {
-        VmValue::String(value) => value.clone(),
+    let rendered = match value.snapshot() {
+        VmValue::String(value) => value,
+        other => rendered_key_part(&other),
+    };
+    checked_key_part(&rendered)?;
+    Ok(rendered)
+}
+
+/// Length of one key part, read in place.
+fn storage_key_part_length(value: &VmValue) -> Result<usize, VmExecutionError> {
+    value.with_resolved(|value| match value {
+        VmValue::String(text) => checked_key_part(text),
+        other => checked_key_part(&rendered_key_part(other)),
+    })
+}
+
+fn rendered_key_part(value: &VmValue) -> String {
+    match value {
         VmValue::Int(value) => value.to_string(),
         VmValue::Bool(true) => "True".to_owned(),
         VmValue::Bool(false) => "False".to_owned(),
         VmValue::None => "None".to_owned(),
         VmValue::TypeMarker(name) => name.clone(),
         other => other.python_repr(),
-    };
+    }
+}
 
+/// The length of a key part without a storage delimiter or index separator.
+fn checked_key_part(rendered: &str) -> Result<usize, VmExecutionError> {
     if rendered.contains(STORAGE_DELIMITER) {
         return Err(VmExecutionError::new("Illegal delimiter in key."));
     }
     if rendered.contains(STORAGE_INDEX_SEPARATOR) {
         return Err(VmExecutionError::new("Illegal separator in key."));
     }
-    Ok(rendered)
+    Ok(rendered.len())
 }
 
 pub(super) fn foreign_storage_key(contract: &str, name: &str) -> String {
