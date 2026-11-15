@@ -27,23 +27,52 @@ def test_validate_contract_artifacts_accepts_canonical_bundle() -> None:
     assert validated["vm_ir_json"] == artifacts["vm_ir_json"]
 
 
-def test_validate_contract_artifacts_accepts_compact_bundle() -> None:
+def test_build_contract_artifacts_accepts_the_compatibility_compact_flag() -> None:
     source = "@export\ndef ping():\n    return 'pong'\n"
-    artifacts = build_contract_artifacts(
+    for compact in (False, True):
+        assert build_contract_artifacts(
+            module_name="con_probe", source=source, vm_profile="xian_vm_v1", compact=compact
+        ) == build_contract_artifacts(module_name="con_probe", source=source, vm_profile="xian_vm_v1")
+
+
+def _probe_artifacts(vm_profile: str = "xian_vm_v1") -> dict:
+    return build_contract_artifacts(
         module_name="con_probe",
-        source=source,
-        vm_profile="xian_vm_v1",
-        compact=True,
+        source="@export\ndef ping():\n    return 'pong'\n",
+        vm_profile=vm_profile,
     )
 
-    validated = validate_contract_artifacts(
-        module_name="con_probe",
-        artifacts=artifacts,
-        vm_profile="xian_vm_v1",
-    )
 
-    assert validated["source"] == artifacts["source"]
-    assert validated["vm_ir_json"] == artifacts["vm_ir_json"]
+def test_validate_contract_artifacts_rejects_another_execution_profile() -> None:
+    with pytest.raises(ValueError, match="vm_profile"):
+        validate_contract_artifacts(
+            module_name="con_probe",
+            artifacts=_probe_artifacts("xian_vm_v1"),
+            vm_profile="xian_vm_v2",
+        )
+
+
+def test_validate_contract_artifacts_rejects_a_non_dictionary() -> None:
+    with pytest.raises(TypeError, match="must be a dictionary"):
+        validate_contract_artifacts(module_name="con_probe", artifacts=[], vm_profile="xian_vm_v1")
+
+
+def test_validate_contract_artifacts_rejects_runtime_code() -> None:
+    artifacts = dict(_probe_artifacts(), runtime_code="pass\n")
+    with pytest.raises(ValueError, match="runtime_code"):
+        validate_contract_artifacts(
+            module_name="con_probe", artifacts=artifacts, vm_profile="xian_vm_v1"
+        )
+
+
+def test_validate_contract_artifacts_checks_the_input_source_hash() -> None:
+    with pytest.raises(ValueError, match="input_source_sha256"):
+        validate_contract_artifacts(
+            module_name="con_probe",
+            artifacts=_probe_artifacts(),
+            input_source="@export\ndef ping():\n    return 'other'\n",
+            vm_profile="xian_vm_v1",
+        )
 
 
 def test_validate_contract_artifacts_rejects_mixed_source_and_runtime() -> None:
@@ -67,13 +96,7 @@ def test_validate_contract_artifacts_rejects_mixed_source_and_runtime() -> None:
         "source_sha256"
     ]
 
-    with pytest.raises(
-        ValueError,
-        match=(
-            "vm_ir_json does not match canonical compiler output"
-            "|artifact.vm_ir.source_hash"
-        ),
-    ):
+    with pytest.raises(ValueError, match="artifact.vm_ir.source_hash"):
         validate_contract_artifacts(
             module_name="con_probe",
             artifacts=forged,
