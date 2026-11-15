@@ -5,9 +5,10 @@
 //! Primitive helpers count units without a host. The interpreter charges
 //! pending units before its next expression or statement and when a call
 //! returns. One operation may not accumulate more than `MAX_PENDING_WORK`
-//! uncharged units, which bounds the work done before any charge.
-use crate::{VmExecutionError, VmHost};
-use std::cell::Cell;
+//! uncharged units, nor more than the transaction's budget still covers, so
+//! a checked count stops the work before it is done.
+use crate::{VmBudget, VmExecutionError, VmHost};
+use std::cell::{Cell, RefCell};
 
 /// Raw chi per unit of element work. `xvm-gas-5` raised it from 8: copying or
 /// allocating a member (a cloned integer, a split piece, a converted argument)
@@ -19,6 +20,8 @@ pub(crate) const MAX_PENDING_WORK: u64 = 1 << 20;
 thread_local! {
     static PENDING: Cell<u64> = const { Cell::new(0) };
     static UNMETERED: Cell<bool> = const { Cell::new(false) };
+    /// The budget pending units will be charged to; none when unmetered.
+    static BUDGET: RefCell<Option<VmBudget>> = const { RefCell::new(None) };
 }
 
 fn counting() -> bool {
@@ -37,7 +40,19 @@ pub(crate) fn count(units: u64) -> Result<(), VmExecutionError> {
             "operation exceeds the element work limit",
         ));
     }
+    if !affordable(pending) {
+        return Err(VmExecutionError::new("Out of chi."));
+    }
     Ok(())
+}
+
+/// Whether the budget covers charging `pending` units on top of its costs.
+fn affordable(pending: u64) -> bool {
+    BUDGET.with_borrow(|budget| {
+        budget
+            .as_ref()
+            .is_none_or(|budget| budget.covers(pending.saturating_mul(VM_GAS_ELEMENT_WORK)))
+    })
 }
 
 /// Record element work where the caller cannot fail. The pending limit is
@@ -108,18 +123,25 @@ pub(crate) fn flush(host: &mut dyn VmHost) -> Result<(), VmExecutionError> {
 }
 
 /// Isolate one execution's work from an enclosing execution on this thread:
-/// the enclosing pending units are restored when the guard drops.
-pub(crate) struct Isolation(u64);
+/// the enclosing pending units and budget are restored when the guard drops.
+pub(crate) struct Isolation(u64, Option<VmBudget>);
 
 impl Isolation {
     pub(crate) fn enter() -> Self {
-        Self(PENDING.replace(0))
+        Self::charging(None)
+    }
+
+    /// An execution whose units are charged to `budget`: a checked count
+    /// fails with `Out of chi.` once the budget no longer covers them.
+    pub(crate) fn charging(budget: Option<VmBudget>) -> Self {
+        Self(PENDING.replace(0), BUDGET.replace(budget))
     }
 }
 
 impl Drop for Isolation {
     fn drop(&mut self) {
         PENDING.set(self.0);
+        BUDGET.set(self.1.take());
     }
 }
 
@@ -175,6 +197,28 @@ mod tests {
         let _isolated = Isolation::enter();
         count(MAX_PENDING_WORK).unwrap();
         assert!(count(1).is_err());
+    }
+
+    #[test]
+    fn a_count_the_budget_cannot_cover_fails_before_the_work() {
+        // 10,000 chi leave (10,000 - 5) * 1000 - 1 raw chi before the base
+        // charge is exceeded: 416,499 units of 24.
+        let budget = VmBudget::new(10_000_000);
+        {
+            let _charged = Isolation::charging(Some(budget.clone()));
+            count(416_499).unwrap();
+            assert_eq!(count(1).unwrap_err().to_string(), "Out of chi.");
+        }
+        // Charges made elsewhere count too; without a budget only the
+        // operation limit applies.
+        budget.charge(9_995_000).unwrap();
+        {
+            let _charged = Isolation::charging(Some(budget));
+            count(41).unwrap();
+            assert_eq!(count(1).unwrap_err().to_string(), "Out of chi.");
+        }
+        let _unbudgeted = Isolation::enter();
+        count(MAX_PENDING_WORK).unwrap();
     }
 
     #[test]

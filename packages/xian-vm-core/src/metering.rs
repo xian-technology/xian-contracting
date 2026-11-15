@@ -99,6 +99,12 @@ impl VmBudget {
         raw_cost / 1_000 + VM_TRANSACTION_BASE_CHI > self.limit / 1_000
     }
 
+    /// Whether `cost` more raw chi on top of the costs charged so far stay
+    /// within the budget: the check `charge` makes, without charging.
+    pub(crate) fn covers(&self, cost: u64) -> bool {
+        !self.exceeded(self.raw_cost.load(Ordering::Relaxed).saturating_add(cost))
+    }
+
     pub(crate) fn charge(&self, cost: u64) -> Result<(), VmExecutionError> {
         let previous = self
             .raw_cost
@@ -143,6 +149,12 @@ impl VmMeter {
             contract_meter_markers: Vec::new(),
             contract_costs: HashMap::new(),
         }
+    }
+
+    /// The budget element work counts against before it is charged; none
+    /// when metering is off.
+    pub(crate) fn work_budget(&self) -> Option<VmBudget> {
+        self.enabled.then(|| self.budget.clone())
     }
 
     pub(crate) fn charge_transaction_bytes(&mut self) -> Result<(), VmExecutionError> {

@@ -494,16 +494,17 @@ struct DetachedSize {
 }
 
 impl DetachedSize {
+    /// Account for copying `value`, before the copy is made: its size, and
+    /// its element work, which the transaction's budget must cover.
     fn add(&mut self, value: &VmValue, depth: usize) -> Result<(), VmExecutionError> {
         self.nodes += 1;
-        self.bytes = self.bytes.saturating_add(match value {
-            VmValue::Reference(reference) => reference.with_value(shallow_bytes),
-            other => shallow_bytes(other),
-        });
+        self.bytes = self
+            .bytes
+            .saturating_add(value.with_resolved(shallow_bytes));
         if depth > MAX_VALUE_DEPTH || self.nodes > MAX_VALUE_NODES || self.bytes > MAX_HEAP_BYTES {
             return Err(VmExecutionError::new("VM value traversal limit exceeded"));
         }
-        Ok(())
+        crate::work_meter::count(value.with_resolved(crate::work_meter::copied))
     }
 }
 
@@ -526,7 +527,7 @@ fn detach(
         }
     }
     refuse_execution_local(value)?;
-    let result = map_children(value.snapshot(), |item| {
+    let result = map_children(value.with_resolved(VmValue::clone), |item| {
         detach(&item, path, depth + 1, size)
     });
     if let Some(id) = id {
@@ -557,8 +558,9 @@ fn refuse_execution_local(value: &VmValue) -> Result<(), VmExecutionError> {
             "mapping proxies cannot cross the VM boundary; copy them first",
         ));
     }
-    if let Some(kind) =
-        execution_local_capability(&value.snapshot()).filter(|kind| *kind != "callables")
+    if let Some(kind) = value
+        .with_resolved(execution_local_capability)
+        .filter(|kind| *kind != "callables")
     {
         return Err(VmExecutionError::new(format!(
             "{kind} cannot cross the VM boundary"
@@ -714,6 +716,9 @@ mod tests {
 
     #[test]
     fn a_detached_copy_may_reach_each_bound_but_not_pass_it() {
+        // The size bounds alone: the element work of a 128 MiB copy exceeds
+        // one operation's work limit, which metered executions also apply.
+        let _unmetered = crate::work_meter::Unmetered::enter();
         let refused = |result: Result<(), VmExecutionError>| {
             result.unwrap_err().to_string() == "VM value traversal limit exceeded"
         };

@@ -602,3 +602,31 @@ fn repeating_an_empty_sequence_is_empty_at_any_count() {
         );
     }
 }
+
+/// `n` references to one 16 KiB payload handed to the host as a storage
+/// value, a syscall argument or the result. The list costs a few hundred
+/// chi to build; each crossing copies every reference in full.
+const SHARED_PAYLOAD_CROSSINGS: &str = "v = Variable()\n\n@export\ndef cross(kind: str, n: int):\n    items = ['0x' + 'ab' * 8191] * n\n    if kind == 'set':\n        v.set(items)\n    if kind == 'syscall':\n        zk.shielded_output_payload_hashes(items)\n    if kind == 'return':\n        return items\n    return n\n";
+
+#[test]
+fn a_boundary_copy_is_paid_before_it_is_made() {
+    // 8000 references copy 125 MiB, within the bound of one copy but far
+    // beyond what 5000 chi pays for: the copy stops at the budget instead
+    // of being made first and charged (or not) afterwards.
+    let chain = deployed_source(SHARED_PAYLOAD_CROSSINGS);
+    for kind in ["set", "syscall", "return"] {
+        let outcome = parsed(
+            &chain
+                .call(
+                    &json!({"sender": "alice", "contract": "con_probe", "function": "cross",
+                            "kwargs": {"kind": kind, "n": 8_000}, "environment": environment(),
+                            "chi_budget": 5_000})
+                    .to_string(),
+                )
+                .unwrap(),
+        );
+        assert_eq!(outcome["status"], 1, "{kind}: {outcome}");
+        assert_eq!(outcome["error"], "Out of chi.", "{kind}");
+        assert_eq!(outcome["chi_used"], 5_000, "{kind}");
+    }
+}

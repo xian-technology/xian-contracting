@@ -212,15 +212,19 @@ impl<H: HostServices> BundleExecutor<H> {
         kwargs: Vec<(String, VmValue)>,
         context: VmExecutionContext,
     ) -> ExecutionOutcome {
-        let _work = crate::work_meter::Isolation::enter();
+        let _work = crate::work_meter::Isolation::charging(self.meter.work_budget());
         let execution = (|| -> Result<VmValue, VmExecutionError> {
             self.meter.charge_transaction_bytes()?;
             self.meter
                 .charge_execution_cost(crate::VM_GAS_CALL_DISPATCH)?;
             self.meter.begin_contract_metering(entry_module);
             let result = self
-                .execute_call(entry_module, function_name, args, kwargs, context)?
-                .external_value()?;
+                .execute_call(entry_module, function_name, args, kwargs, context)
+                .and_then(|value| value.external_value());
+            // Copying the result out is element work of this transaction.
+            let charged = crate::work_meter::flush(self);
+            let result = result?;
+            charged?;
             self.meter.charge_return_value(&result)?;
             Ok(result)
         })();
