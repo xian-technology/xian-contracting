@@ -207,6 +207,11 @@ impl OpenOptions {
 /// one environment twice in a process: closing either drops the other's locks.
 static OPEN_PATHS: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 
+/// Persistent query snapshots/cursors must leave slots for short reads by
+/// consensus and other storage operations. This is a host resource bound,
+/// independent of transaction execution rules.
+const RESERVED_READER_SLOTS: u32 = 16;
+
 fn claim_path(path: &Path) -> Result<PathBuf, LmdbError> {
     let canonical = std::fs::canonicalize(path)
         .map_err(|error| LmdbError::Other(format!("mdb_env_open: {error}")))?;
@@ -239,6 +244,43 @@ struct EnvState {
     next_reader: u64,
 }
 
+impl EnvState {
+    fn info(&self) -> Result<ffi::MDB_envinfo, LmdbError> {
+        let mut info = ffi::MDB_envinfo::default();
+        // SAFETY: callers hold the environment mutex and checked it is open.
+        check(
+            unsafe { ffi::mdb_env_info(self.env, &mut info) },
+            "mdb_env_info",
+        )?;
+        Ok(info)
+    }
+
+    fn max_pinned_readers(&self) -> Result<usize, LmdbError> {
+        Ok(self
+            .info()?
+            .me_maxreaders
+            .saturating_sub(RESERVED_READER_SLOTS) as usize)
+    }
+
+    fn begin_reader(&self) -> Result<*mut ffi::MDB_txn, LmdbError> {
+        let capacity = self.max_pinned_readers()?;
+        if self.readers.len() >= capacity {
+            return Err(LmdbError::Other(format!(
+                "LMDB pinned read capacity exhausted ({capacity}); retry after a snapshot or cursor is released"
+            )));
+        }
+        begin(self.env, ffi::MDB_RDONLY)
+    }
+
+    fn end_readers(&mut self) {
+        for (_, reader) in self.readers.drain() {
+            // SAFETY: every registered read transaction and cursor is live,
+            // and all access is serialized by the environment mutex.
+            unsafe { reader.end() };
+        }
+    }
+}
+
 /// A cursor and the read transaction it lives in.
 struct Reader {
     txn: *mut ffi::MDB_txn,
@@ -253,7 +295,9 @@ impl Reader {
     /// # Safety
     /// Both handles must be live.
     unsafe fn end(self) {
-        ffi::mdb_cursor_close(self.cursor);
+        if !self.cursor.is_null() {
+            ffi::mdb_cursor_close(self.cursor);
+        }
         ffi::mdb_txn_abort(self.txn);
     }
 }
@@ -339,10 +383,7 @@ impl LmdbEnv {
         if state.env.is_null() {
             return;
         }
-        for (_, reader) in state.readers.drain() {
-            // SAFETY: each registered reader is live.
-            unsafe { reader.end() };
-        }
+        state.end_readers();
         // SAFETY: no transaction of this environment is live any more.
         unsafe { ffi::mdb_env_close(state.env) };
         state.env = ptr::null_mut();
@@ -354,21 +395,25 @@ impl LmdbEnv {
     }
 
     pub fn map_size(&self) -> Result<usize, LmdbError> {
-        let state = self.state()?;
-        let mut info = ffi::MDB_envinfo::default();
-        // SAFETY: env is open.
-        check(
-            unsafe { ffi::mdb_env_info(state.env, &mut info) },
-            "mdb_env_info",
-        )?;
-        Ok(info.me_mapsize)
+        Ok(self.state()?.info()?.me_mapsize)
     }
 
-    /// Grow (or set) the map size. No write transaction may be open, which the
-    /// mutex guarantees for this process.
+    pub fn max_readers(&self) -> Result<u32, LmdbError> {
+        Ok(self.state()?.info()?.me_maxreaders)
+    }
+
+    pub fn max_pinned_readers(&self) -> Result<usize, LmdbError> {
+        self.state()?.max_pinned_readers()
+    }
+
+    /// Grow (or set) the map size. LMDB remaps the memory and requires no
+    /// active transactions: expire pinned readers before remapping. Queries
+    /// using them must retry with a fresh snapshot; writers can keep going.
     pub fn set_map_size(&self, size: usize) -> Result<(), LmdbError> {
-        let state = self.state()?;
-        // SAFETY: env is open and this process has no write transaction.
+        let mut state = self.state()?;
+        state.end_readers();
+        // SAFETY: env is open; the mutex excludes short read/write
+        // transactions and every registered long reader has been ended.
         check(
             unsafe { ffi::mdb_env_set_mapsize(state.env, size) },
             "set_mapsize",
@@ -391,6 +436,40 @@ impl LmdbEnv {
         // SAFETY: read transactions are released by aborting them.
         unsafe { ffi::mdb_txn_abort(txn) };
         result
+    }
+
+    /// Pin one committed MVCC view without holding the environment mutex
+    /// between reads. Later commits cannot change any value seen through it.
+    pub fn snapshot(&self) -> Result<ReadSnapshot, LmdbError> {
+        let mut state = self.state()?;
+        let txn = state.begin_reader()?;
+        let id = state.next_reader;
+        state.next_reader += 1;
+        state.readers.insert(
+            id,
+            Reader {
+                txn,
+                cursor: ptr::null_mut(),
+            },
+        );
+        Ok(ReadSnapshot {
+            reader: Arc::new(SnapshotReader {
+                env: self.clone(),
+                id,
+            }),
+        })
+    }
+
+    fn release_reader(&self, id: u64) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // Closing the environment already ended and removed its readers.
+        if let Some(reader) = state.readers.remove(&id) {
+            // SAFETY: the registered reader is live and access is serialized.
+            unsafe { reader.end() };
+        }
     }
 
     /// Run `write` in one write transaction, committed only if it succeeds.
@@ -420,7 +499,7 @@ impl LmdbEnv {
     /// is dropped or the environment closes.
     pub fn cursor_from(&self, start: &[u8]) -> Result<SnapshotCursor, LmdbError> {
         let mut state = self.state()?;
-        let txn = begin(state.env, ffi::MDB_RDONLY)?;
+        let txn = state.begin_reader()?;
         let mut cursor = ptr::null_mut();
         // SAFETY: txn is a live read transaction on this environment's main db.
         if let Err(error) = check(
@@ -441,18 +520,65 @@ impl LmdbEnv {
     }
 }
 
+/// A pinned read transaction shared by detached simulation workers. The
+/// environment owns its handle so close can invalidate it without dangling
+/// pointers; MDB_NOTLS and the environment mutex permit cross-thread reads.
+#[derive(Clone)]
+pub struct ReadSnapshot {
+    reader: Arc<SnapshotReader>,
+}
+
+struct SnapshotReader {
+    env: LmdbEnv,
+    id: u64,
+}
+
+impl ReadSnapshot {
+    /// Release the shared pinned transaction now, even if callers retain
+    /// handles. Repeated close, resize invalidation and later drop are safe.
+    pub fn close(&self) {
+        self.reader.env.release_reader(self.reader.id);
+    }
+
+    pub fn read<R>(
+        &self,
+        read: impl FnOnce(&Txn<'_>) -> Result<R, LmdbError>,
+    ) -> Result<R, LmdbError> {
+        let state = self.reader.env.state()?;
+        let reader = state
+            .readers
+            .get(&self.reader.id)
+            .ok_or_else(invalidated_snapshot)?;
+        read(&Txn {
+            txn: reader.txn,
+            dbi: state.dbi,
+            _state: std::marker::PhantomData,
+        })
+    }
+}
+
+impl Drop for SnapshotReader {
+    fn drop(&mut self) {
+        self.env.release_reader(self.id);
+    }
+}
+
 impl Drop for EnvState {
     fn drop(&mut self) {
-        for (_, reader) in self.readers.drain() {
-            // SAFETY: registered readers are live.
-            unsafe { reader.end() };
-        }
+        self.end_readers();
         if !self.env.is_null() {
             // SAFETY: last handle; no transactions remain.
             unsafe { ffi::mdb_env_close(self.env) };
             release_path(&self.path);
         }
     }
+}
+
+fn invalidated_snapshot() -> LmdbError {
+    LmdbError::Other(
+        "LMDB read snapshot is closed or invalidated by map resize; retry with a fresh snapshot"
+            .into(),
+    )
 }
 
 unsafe fn open_main_db(env: *mut ffi::MDB_env, readonly: bool) -> Result<ffi::MDB_dbi, LmdbError> {
@@ -611,31 +737,40 @@ unsafe fn cursor_step<'t>(
     }
 }
 
-/// The node's committed store: every read runs in its own read transaction,
-/// a scan in one snapshot.
+/// Both LMDB read sources expose the same committed bytes; only the read
+/// transaction lifetime differs (live environment or pinned snapshot).
 #[cfg(any(feature = "engine", test))]
-impl crate::committed_store::CommittedStore for LmdbEnv {
-    fn read(&self, key: &[u8], read: &mut dyn FnMut(Option<&[u8]>)) -> Result<(), String> {
-        LmdbEnv::read(self, |txn| {
-            read(txn.get(key)?);
-            Ok(())
-        })
-        .map_err(|error| error.to_string())
-    }
+macro_rules! committed_lmdb_store {
+    ($store:ty) => {
+        impl crate::committed_store::CommittedStore for $store {
+            fn read(&self, key: &[u8], read: &mut dyn FnMut(Option<&[u8]>)) -> Result<(), String> {
+                <$store>::read(self, |txn| {
+                    read(txn.get(key)?);
+                    Ok(())
+                })
+                .map_err(|error| error.to_string())
+            }
 
-    fn scan_from(
-        &self,
-        start: &[u8],
-        visit: &mut dyn FnMut(&[u8], &[u8]) -> Result<bool, String>,
-    ) -> Result<(), String> {
-        LmdbEnv::read(self, |txn| {
-            txn.scan_from(start, |key, value| {
-                visit(key, value).map_err(LmdbError::Other)
-            })
-        })
-        .map_err(|error| error.to_string())
-    }
+            fn scan_from(
+                &self,
+                start: &[u8],
+                visit: &mut dyn FnMut(&[u8], &[u8]) -> Result<bool, String>,
+            ) -> Result<(), String> {
+                <$store>::read(self, |txn| {
+                    txn.scan_from(start, |key, value| {
+                        visit(key, value).map_err(LmdbError::Other)
+                    })
+                })
+                .map_err(|error| error.to_string())
+            }
+        }
+    };
 }
+
+#[cfg(any(feature = "engine", test))]
+committed_lmdb_store!(LmdbEnv);
+#[cfg(any(feature = "engine", test))]
+committed_lmdb_store!(ReadSnapshot);
 
 /// A key-ordered cursor that keeps its read snapshot between steps.
 pub struct SnapshotCursor {
@@ -652,7 +787,10 @@ impl SnapshotCursor {
     /// The next entry, copied out of the map; `None` once the range ends.
     pub fn next_entry(&mut self) -> Result<Option<OwnedEntry>, LmdbError> {
         let state = self.env.state()?;
-        let reader = state.readers.get(&self.id).ok_or(LmdbError::Closed)?;
+        let reader = state
+            .readers
+            .get(&self.id)
+            .ok_or_else(invalidated_snapshot)?;
         let start = self.start.take();
         // SAFETY: the reader is registered, so its transaction and cursor live.
         let entry = unsafe { cursor_step(reader.cursor, start.as_deref()) }?;
@@ -662,16 +800,7 @@ impl SnapshotCursor {
 
 impl Drop for SnapshotCursor {
     fn drop(&mut self) {
-        let mut state = self
-            .env
-            .state
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        // A reader the closed environment already ended is gone from the map.
-        if let Some(reader) = state.readers.remove(&self.id) {
-            // SAFETY: the reader was still registered, so it is live.
-            unsafe { reader.end() };
-        }
+        self.env.release_reader(self.id);
     }
 }
 
@@ -712,6 +841,210 @@ mod tests {
         // SAFETY: mdb_version only writes the three integers.
         unsafe { mdb_version(&mut major, &mut minor, &mut patch) };
         assert_eq!((major, minor, patch), (0, 9, 37));
+    }
+
+    #[test]
+    fn a_read_snapshot_pins_gets_and_scans_while_writes_continue() {
+        let dir = temp_dir("read-snapshot");
+        let env = LmdbEnv::open(&dir, options()).unwrap();
+        env.write(|txn| {
+            txn.put(b"h:a", b"100")?;
+            txn.put(b"h:b", b"200")
+        })
+        .unwrap();
+        let snapshot = env.snapshot().unwrap();
+        let cloned = snapshot.clone();
+        drop(snapshot);
+        let mut cursor = env.cursor_from(b"h:").unwrap();
+        assert_eq!(
+            cursor.next_entry().unwrap(),
+            Some((b"h:a".to_vec(), b"100".to_vec()))
+        );
+        env.write(|txn| {
+            txn.put(b"h:a", b"7")?;
+            txn.delete(b"h:b")?;
+            txn.put(b"h:c", b"300")
+        })
+        .unwrap();
+        let latest = env.snapshot().unwrap();
+        assert_eq!(
+            latest
+                .read(|txn| Ok(txn.get(b"h:a")?.unwrap().to_vec()))
+                .unwrap(),
+            b"7"
+        );
+        let retained = latest.clone();
+        latest.close();
+        latest.close();
+        assert!(retained
+            .read(|_| Ok(()))
+            .unwrap_err()
+            .to_string()
+            .contains("closed"));
+        assert_eq!(
+            cursor.next_entry().unwrap(),
+            Some((b"h:b".to_vec(), b"200".to_vec()))
+        );
+        drop(cursor);
+        std::thread::spawn(move || {
+            cloned
+                .read(|txn| {
+                    assert_eq!(txn.get(b"h:a")?, Some(&b"100"[..]));
+                    let mut entries = Vec::new();
+                    txn.scan_from(b"h:", |key, value| {
+                        entries.push((key.to_vec(), value.to_vec()));
+                        Ok(true)
+                    })?;
+                    assert_eq!(
+                        entries,
+                        vec![
+                            (b"h:a".to_vec(), b"100".to_vec()),
+                            (b"h:b".to_vec(), b"200".to_vec()),
+                        ]
+                    );
+                    Ok(())
+                })
+                .unwrap();
+        })
+        .join()
+        .unwrap();
+        assert_eq!(
+            env.read(|txn| Ok(txn.get(b"h:a")?.unwrap().to_vec()))
+                .unwrap(),
+            b"7"
+        );
+        drop(latest);
+        retained.close();
+        assert!(env.state().unwrap().readers.is_empty());
+        let pinned = env.snapshot().unwrap();
+        env.close();
+        assert_eq!(pinned.read(|_| Ok(())), Err(LmdbError::Closed));
+        drop(pinned);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn map_growth_invalidates_readers_and_allows_the_writer_to_continue() {
+        let dir = temp_dir("snapshot-resize");
+        let env = LmdbEnv::open(&dir, options()).unwrap();
+        env.write(|txn| txn.put(b"a", b"old")).unwrap();
+        let snapshot = env.snapshot().unwrap();
+        let mut cursor = env.cursor_from(b"").unwrap();
+        assert!(cursor.next_entry().unwrap().is_some());
+
+        let writer = env.clone();
+        let (sent, received) = std::sync::mpsc::channel();
+        let writing = std::thread::spawn(move || {
+            let large = vec![b'x'; 2 << 20];
+            assert_eq!(
+                writer.write(|txn| txn.put(b"large", &large)),
+                Err(LmdbError::MapFull)
+            );
+            writer.set_map_size(4 << 20).unwrap();
+            writer.write(|txn| txn.put(b"large", &large)).unwrap();
+            sent.send(()).unwrap();
+        });
+        received
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .unwrap();
+        writing.join().unwrap();
+
+        let error = snapshot.read(|_| Ok(())).unwrap_err().to_string();
+        assert!(error.contains("invalidated"), "{error}");
+        assert!(cursor
+            .next_entry()
+            .unwrap_err()
+            .to_string()
+            .contains("invalidated"));
+        let fresh = env.snapshot().unwrap();
+        assert_eq!(
+            fresh
+                .read(|txn| Ok(txn.get(b"large")?.unwrap().len()))
+                .unwrap(),
+            2 << 20
+        );
+        drop(fresh);
+        drop(snapshot);
+        drop(cursor);
+        assert!(env.state().unwrap().readers.is_empty());
+        env.close();
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn pinned_reader_admission_preserves_short_read_capacity_under_races() {
+        let dir = temp_dir("reader-headroom");
+        let env = LmdbEnv::open(&dir, options()).unwrap();
+        env.write(|txn| txn.put(b"a", b"100")).unwrap();
+        let capacity = env.max_pinned_readers().unwrap();
+        assert_eq!(
+            capacity + RESERVED_READER_SLOTS as usize,
+            env.max_readers().unwrap() as usize
+        );
+        let start = Arc::new(std::sync::Barrier::new(8));
+        let workers = (0..8)
+            .map(|_| {
+                let env = env.clone();
+                let start = start.clone();
+                std::thread::spawn(move || {
+                    start.wait();
+                    let mut snapshots = Vec::new();
+                    for _ in 0..capacity {
+                        match env.snapshot() {
+                            Ok(snapshot) => snapshots.push(snapshot),
+                            Err(error) => {
+                                assert!(error.to_string().contains("capacity exhausted"));
+                                break;
+                            }
+                        }
+                    }
+                    snapshots
+                })
+            })
+            .collect::<Vec<_>>();
+        let mut snapshots = workers
+            .into_iter()
+            .flat_map(|worker| worker.join().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(snapshots.len(), capacity);
+        assert!(env
+            .snapshot()
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("capacity exhausted"));
+        assert!(env
+            .cursor_from(b"")
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("capacity exhausted"));
+        env.write(|txn| txn.put(b"a", b"7")).unwrap();
+        assert_eq!(
+            env.read(|txn| Ok(txn.get(b"a")?.unwrap().to_vec()))
+                .unwrap(),
+            b"7"
+        );
+        snapshots.pop();
+        let cursor = env.cursor_from(b"").unwrap();
+        assert!(env.snapshot().is_err());
+        drop(cursor);
+        let fresh = env.snapshot().unwrap();
+        env.set_map_size(2 << 20).unwrap();
+        assert!(fresh.read(|_| Ok(())).is_err());
+        let after_resize = env.snapshot().unwrap();
+        drop(snapshots);
+        drop(fresh);
+        assert_eq!(
+            after_resize
+                .read(|txn| Ok(txn.get(b"a")?.unwrap().to_vec()))
+                .unwrap(),
+            b"7"
+        );
+        drop(after_resize);
+        assert!(env.state().unwrap().readers.is_empty());
+        env.close();
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

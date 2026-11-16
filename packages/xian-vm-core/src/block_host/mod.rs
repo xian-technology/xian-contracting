@@ -22,7 +22,7 @@ mod writes;
 pub(crate) mod zk;
 
 pub(crate) use charges::HostCharges;
-pub(crate) use modules::{Ir, Modules};
+pub(crate) use modules::{Ir, ModuleLoads, Modules};
 pub(crate) use writes::HostWrites;
 
 use crate::settlement::Stop;
@@ -75,6 +75,7 @@ pub(crate) struct BlockHost<'a> {
     tx: TxInputs,
     /// The modules whose constructors run: what loading them reads.
     constructing: HashMap<String, Ir>,
+    module_loads: ModuleLoads,
     stop: Option<Stop>,
 }
 
@@ -94,8 +95,15 @@ impl<'a> BlockHost<'a> {
             random: TxRandom::new(&tx.context),
             tx,
             constructing: HashMap::new(),
+            module_loads: ModuleLoads::default(),
             stop: None,
         }
+    }
+
+    /// Carry preflight's charged modules into execution and nested constructors.
+    pub(crate) fn with_module_loads(mut self, module_loads: ModuleLoads) -> Self {
+        self.module_loads = module_loads;
+        self
     }
 
     /// What the transaction's host syscalls staged and cost, or why the
@@ -113,21 +121,28 @@ impl<'a> BlockHost<'a> {
         let key = format!("{name}.{IR_KEY}");
         if let Some(staged @ VmValue::String(text)) = self.writes.get(&key) {
             if !text.is_empty() {
-                return Ok(Ir::of(Some(staged.clone())));
+                let ir = Ir::of(Some(staged.clone()));
+                self.module_loads.observe(name, &ir, &mut self.charges)?;
+                return Ok(ir);
             }
         }
-        self.modules
+        let ir = self
+            .modules
             .ir(&self.view, name)
-            .map_err(|error| self.halt(fault(error)))
+            .map_err(|error| self.halt(fault(error)))?;
+        self.module_loads.observe(name, &ir, &mut self.charges)?;
+        Ok(ir)
     }
 
     /// The IR a module load reads (`load_module_ir_json`): the module whose
     /// constructor runs, else `ir`.
     fn module_ir(&mut self, name: &str) -> Result<Ir, VmExecutionError> {
-        match self.constructing.get(name) {
+        let ir = match self.constructing.get(name) {
             Some(ir) => Ok(ir.clone()),
             None => self.ir(name),
-        }
+        }?;
+        self.module_loads.observe(name, &ir, &mut self.charges)?;
+        Ok(ir)
     }
 
     fn halt(&mut self, stop: Stop) -> VmExecutionError {

@@ -11,6 +11,7 @@ from ._native import (
     LmdbEnvironment,
     LmdbItems,
     LmdbMapFullError,
+    LmdbReadSnapshot,
     LmdbStorageError,
     StateRootTree,
     VmIrValidationError,
@@ -76,8 +77,13 @@ def execute_tx(
     zk_enabled_without_state: bool = True,
     estimate_chi_supplied: int | None = None,
 ) -> TxRun:
-    """Run one call with the code a block runs, over ``environment`` (LMDB)
-    and ``overlay`` (a ``BlockState``), staging its effects into ``overlay``.
+    """Run one call with the code a block runs, over ``environment`` (an LMDB
+    environment or pinned read snapshot) and ``overlay`` (a ``BlockState``),
+    staging its effects into ``overlay``.
+
+    Use ``environment.snapshot()`` to pin committed data across detached
+    execution or estimation rounds. Map resize or environment close expires
+    the snapshot; retry the whole query with a fresh snapshot on that fault.
 
     Pass ``overlay.snapshot()`` to drop them afterwards. ``context`` is the
     call's VM context (``signer``, ``caller``, ``this``, ``entry``,
@@ -189,6 +195,7 @@ __all__ = [
     "LmdbEnvironment",
     "LmdbItems",
     "LmdbMapFullError",
+    "LmdbReadSnapshot",
     "LmdbStorageError",
     "StateRootTree",
     "VmIrValidationError",

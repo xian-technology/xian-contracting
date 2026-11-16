@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-const VM_READ_COST_PER_BYTE: u64 = 2;
+pub(crate) const VM_READ_COST_PER_BYTE: u64 = 2;
 const VM_WRITE_COST_PER_BYTE: u64 = 25;
 const VM_TRANSACTION_BYTES_COST_PER_BYTE: u64 = 1;
 pub(crate) const VM_TRANSACTION_BASE_CHI: u64 = 5;

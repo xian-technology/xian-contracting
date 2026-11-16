@@ -348,7 +348,9 @@ fn a_deployment_pays_for_its_source_before_compiling_it() {
     assert!(refused.starts_with("CompilerError: "), "{refused}");
     assert_eq!(
         host.finish().unwrap().1.raw_cost(),
-        deployment_charge(broken)
+        // Gas7 also pays 22 key bytes at the read tariff when checking
+        // whether the requested contract's IR already exists.
+        deployment_charge(broken) + 44
     );
     // Out of budget for it: refused before compiling.
     let mut poor = BlockHost::new(

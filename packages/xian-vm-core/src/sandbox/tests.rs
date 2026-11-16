@@ -348,9 +348,56 @@ fn runtime_info_names_the_engine_revision() {
         info["execution_revision"],
         crate::XIAN_VM_EXECUTION_REVISION
     );
-    assert_eq!(info["gas_schedule"], "xvm-gas-6");
+    assert_eq!(info["gas_schedule"], "xvm-gas-7");
     assert_eq!(info["vm_profile"], "xian_vm_v2");
     assert_eq!(info["version"], env!("CARGO_PKG_VERSION"));
+}
+
+#[test]
+fn preparation_spends_a_paid_calls_budget_before_parsing_imports() {
+    let chain = chain();
+    let source = format!(
+        "\"{}\"\nimport con_missing\n@export\ndef read():\n    return 1\n",
+        "x".repeat(10_000)
+    );
+    let deployed = parsed(
+        &chain
+            .deploy(
+                &json!({
+                    "sender": "alice", "name": "con_probe", "source": source,
+                    "environment": environment(),
+                })
+                .to_string(),
+            )
+            .unwrap(),
+    );
+    assert_eq!(deployed["status"], 0, "{deployed}");
+    chain.set_value("chi_cost.S:value", Some("100")).unwrap();
+    chain
+        .set_value("currency.balances:alice", Some("1000"))
+        .unwrap();
+
+    let outcome = parsed(
+        &chain
+            .call(
+                &json!({
+                    "sender": "alice", "contract": "con_probe", "function": "read",
+                    "chi_budget": 10, "charge_fees": true, "environment": environment(),
+                })
+                .to_string(),
+            )
+            .unwrap(),
+    );
+
+    assert_eq!(outcome["status"], 1, "{outcome}");
+    assert!(outcome["result"].as_str().unwrap().contains("Out of chi"));
+    assert_eq!(outcome["chi_used"], 10);
+    assert_eq!(
+        chain.get("currency.balances:alice"),
+        Some(balance_after(10))
+    );
+    assert_eq!(outcome["writes"].as_array().unwrap().len(), 1);
+    assert_eq!(outcome["events"], json!([]));
 }
 
 /// The scenario every backend runs (`tests/vectors/sandbox`): each step's

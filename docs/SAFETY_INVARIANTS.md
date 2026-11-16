@@ -50,6 +50,13 @@ This file records the runtime properties that must hold before a
   `runtime_info()["max_tx_chi"]`.
 - Failure rolls back state, not the cost of work already performed. Failed
   constructor costs remain in the transaction's charge and attribution.
+- Module IR reads must consume the execution budget before parsing or walking
+  imports, with the same charge for cold and warm caches. Static imports,
+  dynamic imports and constructors share one allowance; an absent-name lookup
+  must not hide IR subsequently deployed at that name.
+- A transaction may load at most 512 modules and 16 MiB of aggregate IR, even
+  without metering. The block's IR-read cache must also remain bounded when
+  many different transactions fail before executing any contract instructions.
 
 ## VM Conformance
 

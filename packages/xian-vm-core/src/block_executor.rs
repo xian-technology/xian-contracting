@@ -22,7 +22,7 @@
 use crate::block_host::features::{zk_disabled, zk_enabled, Unread};
 use crate::block_host::modules::{exports, runnable, uses_zk};
 use crate::block_host::{
-    fault, text, BlockHost, HostCharges, HostWrites, Ir, Modules, TxInputs, OWNER_KEY,
+    fault, text, BlockHost, HostCharges, HostWrites, Ir, ModuleLoads, Modules, TxInputs, OWNER_KEY,
 };
 use crate::block_state::lock;
 use crate::bundle_executor::{validate_bundle_module, BundleExecutor, ExecutionOutcome};
@@ -37,7 +37,7 @@ use crate::tx_rewards::{
 };
 use crate::{
     ValidatedModuleIr, VmBudget, VmDecimal, VmEvent, VmException, VmExecutionContext,
-    VmExecutionStats, VmMeterConfig, VmValue,
+    VmExecutionError, VmExecutionStats, VmMeterConfig, VmValue,
 };
 use num_bigint::BigInt;
 use num_traits::Zero;
@@ -199,6 +199,46 @@ impl Unprepared {
 enum PrepareStop {
     Stop(Stop),
     Unprepared(Unprepared),
+    Meter(VmExecutionError),
+}
+
+/// Preparation and execution share one transaction budget and module allowance.
+struct Preparation {
+    charges: HostCharges,
+    loads: ModuleLoads,
+    budget_raw: u64,
+}
+
+impl Preparation {
+    fn new(tx: &PreparedTx, metered: bool) -> Option<Self> {
+        let budget_raw = chi_budget_raw(&tx.chi_budget)?;
+        Some(Self {
+            charges: HostCharges::new(VmBudget::new(budget_raw), metered, &tx.contract),
+            loads: ModuleLoads::default(),
+            budget_raw,
+        })
+    }
+
+    fn observe(&mut self, name: &str, ir: &Ir) -> Result<(), PrepareStop> {
+        self.loads
+            .observe(name, ir, &mut self.charges)
+            .map_err(PrepareStop::Meter)
+    }
+
+    fn failed(self, mut execution: Execution) -> Execution {
+        if self.charges.raw_cost() == 0 {
+            return execution;
+        }
+        let mut stats = VmExecutionStats {
+            raw_cost: 0,
+            chi_used: 0,
+            contract_costs: HashMap::new(),
+        };
+        add_host_charges(&mut stats, &self.charges, self.charges.budget().limit());
+        execution.chi_used = BigInt::from(stats.chi_used);
+        execution.contract_costs = sorted_costs(stats.contract_costs);
+        execution
+    }
 }
 
 impl From<Stop> for PrepareStop {
@@ -390,16 +430,15 @@ impl BlockExecutor {
             Ok(reservation) => reservation,
             Err(unpaid) => return Ok(unpaid),
         };
-        let (entry, context) = match self.entry_call(tx)? {
-            Ok(call) => call,
-            Err(refused) => return Ok(refused.reserved(reservation)),
-        };
-        // The raw budget is a u64: a larger one is a failure in the host
-        // runtime.
-        let Some(budget_raw) = chi_budget_raw(&tx.chi_budget) else {
+        // Allocate the budget before touching a contract's import graph.
+        let Some(mut preparation) = Preparation::new(tx, self.policy.meter_execution) else {
             return Ok(Execution::failed(reservation, "RuntimeError", HOST_FAILURE));
         };
-        let (outcome, host_writes) = self.run_vm(tx, entry, context, budget_raw)?;
+        let (entry, context) = match self.entry_call(tx, &mut preparation)? {
+            Ok(call) => call,
+            Err(refused) => return Ok(preparation.failed(refused.reserved(reservation))),
+        };
+        let (outcome, host_writes) = self.run_vm(tx, entry, context, preparation)?;
         Ok(execution_of(outcome, host_writes, reservation))
     }
 
@@ -408,8 +447,9 @@ impl BlockExecutor {
     fn entry_call(
         &self,
         tx: &PreparedTx,
+        preparation: &mut Preparation,
     ) -> Settled<Result<(ValidatedModuleIr, VmExecutionContext), Execution>> {
-        let entry = match self.entry(tx)? {
+        let entry = match self.entry(tx, preparation)? {
             Ok(entry) => entry,
             Err(refused) => return Ok(Err(Execution::unprepared(None, refused))),
         };
@@ -426,8 +466,12 @@ impl BlockExecutor {
     /// The prepared entry module, or why the transaction fails without
     /// running: a contract the chain does not let run, or a submission
     /// without source code.
-    fn entry(&self, tx: &PreparedTx) -> Settled<Result<ValidatedModuleIr, Unprepared>> {
-        let entry = self.prepare(&tx.contract)?;
+    fn entry(
+        &self,
+        tx: &PreparedTx,
+        preparation: &mut Preparation,
+    ) -> Settled<Result<ValidatedModuleIr, Unprepared>> {
+        let entry = self.prepare(&tx.contract, preparation)?;
         if entry.is_ok() && missing_source(tx) {
             return Ok(Err(Unprepared {
                 name: "ValueError",
@@ -521,9 +565,13 @@ impl BlockExecutor {
     /// `_prepare_vm_contract_bundle`: the import graph of `contract` must
     /// be acyclic and every module in it runnable; returns the entry module,
     /// or why the chain does not let the contract run.
-    fn prepare(&self, contract: &str) -> Settled<Result<ValidatedModuleIr, Unprepared>> {
+    fn prepare(
+        &self,
+        contract: &str,
+        preparation: &mut Preparation,
+    ) -> Settled<Result<ValidatedModuleIr, Unprepared>> {
         let mut prepared = BTreeMap::new();
-        match self.prepare_module(contract, &mut Vec::new(), &mut prepared) {
+        match self.prepare_module(contract, &mut Vec::new(), &mut prepared, preparation) {
             Ok(()) => {
                 let entry = prepared
                     .remove(contract)
@@ -534,6 +582,9 @@ impl BlockExecutor {
             }
             Err(PrepareStop::Unprepared(unprepared)) => Ok(Err(unprepared)),
             Err(PrepareStop::Stop(stop)) => Err(stop),
+            Err(PrepareStop::Meter(error)) => {
+                Ok(Err(Unprepared::new("RuntimeError", error.to_string())))
+            }
         }
     }
 
@@ -542,6 +593,7 @@ impl BlockExecutor {
         name: &str,
         stack: &mut Vec<String>,
         prepared: &mut BTreeMap<String, ValidatedModuleIr>,
+        preparation: &mut Preparation,
     ) -> Result<(), PrepareStop> {
         if let Some(refused) = import_path_error(name, stack) {
             return Err(PrepareStop::Unprepared(Unprepared::prepare_error(refused)));
@@ -549,7 +601,30 @@ impl BlockExecutor {
         if prepared.contains_key(name) {
             return Ok(());
         }
-        let Ir::Text(cached) = self.ir(name)? else {
+        let module = self.preparable_module(name, preparation)?;
+        let imports: std::collections::BTreeSet<String> = module
+            .imports
+            .iter()
+            .map(|import| import.module.clone())
+            .filter(|module| !module.is_empty())
+            .collect();
+        stack.push(name.to_owned());
+        for import in imports {
+            self.prepare_module(&import, stack, prepared, preparation)?;
+        }
+        stack.pop();
+        prepared.insert(name.to_owned(), module);
+        Ok(())
+    }
+
+    fn preparable_module(
+        &self,
+        name: &str,
+        preparation: &mut Preparation,
+    ) -> Result<ValidatedModuleIr, PrepareStop> {
+        let ir = self.ir(name)?;
+        preparation.observe(name, &ir)?;
+        let Ir::Text(cached) = ir else {
             return Err(PrepareStop::Unprepared(Unprepared::prepare_error(
                 missing_ir(name),
             )));
@@ -559,19 +634,7 @@ impl BlockExecutor {
         if uses_zk(&module) {
             self.require_zk(name)?;
         }
-        let imports: std::collections::BTreeSet<String> = module
-            .imports
-            .iter()
-            .map(|import| import.module.clone())
-            .filter(|module| !module.is_empty())
-            .collect();
-        stack.push(name.to_owned());
-        for import in imports {
-            self.prepare_module(&import, stack, prepared)?;
-        }
-        stack.pop();
-        prepared.insert(name.to_owned(), module);
-        Ok(())
+        Ok(module)
     }
 
     /// `_reject_disabled_zk_feature` for `name`, which uses zk host
@@ -597,20 +660,25 @@ impl BlockExecutor {
         tx: &PreparedTx,
         entry: ValidatedModuleIr,
         context: VmExecutionContext,
-        budget_raw: u64,
+        preparation: Preparation,
     ) -> Settled<(ExecutionOutcome, HostWrites)> {
-        let budget = VmBudget::new(budget_raw);
+        let budget = preparation.charges.budget();
         let limit = budget.limit();
-        let charges = HostCharges::new(budget.clone(), self.policy.meter_execution, &tx.contract);
         let inputs = TxInputs {
             context: context.clone(),
             zk_enabled_without_state: self.policy.zk_enabled_without_state,
         };
-        let host = BlockHost::new(self.view.clone(), &self.modules, charges, inputs);
+        let host = BlockHost::new(
+            self.view.clone(),
+            &self.modules,
+            preparation.charges,
+            inputs,
+        )
+        .with_module_loads(preparation.loads);
         let bundle = HashMap::from([(tx.contract.clone(), entry)]);
         let config = VmMeterConfig {
             enabled: self.policy.meter_execution,
-            chi_budget_raw: budget_raw,
+            chi_budget_raw: preparation.budget_raw,
             transaction_size_bytes: tx.size_bytes,
         };
         let mut executor = BundleExecutor::with_modules(host, bundle, config, Some(budget));
@@ -945,13 +1013,7 @@ fn execution_of(
     let mut writes = outcome.take_writes();
     let mut events = outcome.events;
     host_writes.settle(outcome.status_code, &mut writes, &mut events);
-    let mut contract_costs: Vec<(String, BigInt)> = outcome
-        .stats
-        .contract_costs
-        .into_iter()
-        .map(|(name, cost)| (name, BigInt::from(cost)))
-        .collect();
-    contract_costs.sort();
+    let contract_costs = sorted_costs(outcome.stats.contract_costs);
     Execution {
         reservation,
         status: outcome.status_code,
@@ -963,4 +1025,13 @@ fn execution_of(
         contract_costs,
         unprepared: false,
     }
+}
+
+fn sorted_costs(costs: HashMap<String, u64>) -> Vec<(String, BigInt)> {
+    let mut costs: Vec<_> = costs
+        .into_iter()
+        .map(|(name, cost)| (name, BigInt::from(cost)))
+        .collect();
+    costs.sort();
+    costs
 }

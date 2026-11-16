@@ -60,7 +60,7 @@ def test_canonical_interpolation_preserves_expression(tmp_path, expression, expe
         ('f"slash\\\\n{value}"', "f'slash\\\\n{value}'", "slash\\n7"),
     ],
 )
-def test_established_canonical_source_result_and_chi_are_unchanged(
+def test_established_canonical_source_has_the_expected_result_and_gas7_charge(
     tmp_path, expression, canonical_expression, expected
 ):
     source = f"@export\ndef probe(value: int):\n    return {expression}\n"
@@ -70,8 +70,8 @@ def test_established_canonical_source_result_and_chi_are_unchanged(
     )
     assert result.status_code == 0, result.result
     assert result.result == expected
-    # Captured with installed pre-fix native compiler+VM (runtime-current.json).
-    assert result.chi_used == 10
+    # Gas7 includes the entry's canonical IR read before execution.
+    assert result.chi_used == 13
 
 
 @pytest.mark.parametrize(

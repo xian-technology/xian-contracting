@@ -112,7 +112,7 @@ test("contract metadata gives the call forms", async () => {
 test("helpers: canonical decimals and runtime info", () => {
   assert.equal(canonicalDecimal("1.50"), "1.5");
   assert.throws(() => canonicalDecimal("abc"));
-  assert.equal(JSON.parse(runtimeInfo()).execution_revision, "xvm-execution-14");
+  assert.equal(JSON.parse(runtimeInfo()).execution_revision, "xvm-execution-15");
 });
 
 const ZK_SOURCE = `

@@ -77,7 +77,7 @@ def assert_rejected(result):
 
 
 def test_only_the_v2_profile_has_an_execution_revision():
-    assert runtime_info("xian_vm_v2")["execution_revision"] == "xvm-execution-14"
+    assert runtime_info("xian_vm_v2")["execution_revision"] == "xvm-execution-15"
     # V1 execution was removed from current code (it replays on its pinned release).
     with pytest.raises(ValueError, match="unknown VM profile"):
         runtime_info("xian_vm_v1")

@@ -6,9 +6,9 @@ globals bound before them, also inside comprehensions and nested calls.
 """
 
 import pytest
-from tests.vm_calls import execute_contract
 
 from contracting.storage.driver import Driver
+from tests.vm_calls import execute_contract
 
 pytestmark = pytest.mark.optional_native
 
@@ -55,9 +55,9 @@ def test_declarations_and_defaults_resolve_earlier_globals(driver):
     assert output.status_code == 0, output.result
     assert output.result == 5 + 5 + 10 + 5 + 10
     assert output.events[0]["data_indexed"] == {"amount": 5}
-    # Instantiation work is metered: the exact charge (48,201 raw, measured when
-    # the Python host reported raw cost) pins how it is evaluated.
-    assert output.chi_used == 48_201 // 1000 + 5
+    # The established 48,201 raw instantiation cost plus gas7's 18,522 raw
+    # canonical IR read pins both preparation and declaration evaluation.
+    assert output.chi_used == (48_201 + 18_522) // 1000 + 5
 
 
 def test_explicit_arguments_override_global_defaults(driver):

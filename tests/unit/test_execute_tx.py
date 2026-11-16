@@ -99,14 +99,15 @@ def test_a_block_transaction_reserves_its_budget(driver):
 
 
 def test_an_estimate_reports_the_chi_without_reserving_the_budget(driver):
-    # 1 token pays 20 chi: the sender cannot pay the supply, still gets an
+    # 2 tokens pay 40 chi: the sender cannot pay the supply, still gets an
     # estimate, and the fee is metered from the balance the run leaves.
+    driver.set(BALANCE_KEY, ContractingDecimal("2"))
     run = _run(driver, estimate_chi_supplied=1_000)
 
     assert run.status_code == 0
     assert run.result == 2
     fee = ContractingDecimal(run.chi_used) / ContractingDecimal(RATE)
-    assert run.writes[BALANCE_KEY] == ContractingDecimal("1") - fee
+    assert run.writes[BALANCE_KEY] == ContractingDecimal("2") - fee
     # The fee write comes after the run's own writes, as in the Python receipt.
     assert list(run.writes) == ["con_probe.values:a", BALANCE_KEY]
     assert run.contract_costs["con_probe"] > 0
@@ -132,12 +133,25 @@ def test_only_an_estimate_lists_a_fee_write_its_run_did_not_make_last(driver):
 
 
 def test_an_estimated_failure_pays_its_fee_and_keeps_no_effects(driver):
+    driver.set(BALANCE_KEY, ContractingDecimal("2"))
     run = _run(driver, function="zap", kwargs={"key": "a"}, estimate_chi_supplied=1_000)
 
     assert run.status_code == 1
     assert isinstance(run.result, AssertionError)
     fee = ContractingDecimal(run.chi_used) / ContractingDecimal(RATE)
-    assert run.writes == {BALANCE_KEY: ContractingDecimal("1") - fee}
+    assert run.writes == {BALANCE_KEY: ContractingDecimal("2") - fee}
+
+
+@pytest.mark.parametrize("balance", ["0", "1"])
+def test_an_unfunded_estimate_takes_only_the_available_fee(driver, balance):
+    driver.set(BALANCE_KEY, ContractingDecimal(balance))
+
+    run = _run(driver, estimate_chi_supplied=1_000)
+
+    assert run.status_code == 0
+    assert run.result == 2
+    assert ContractingDecimal(run.chi_used) / ContractingDecimal(RATE) > ContractingDecimal(balance)
+    assert run.writes[BALANCE_KEY] == 0
 
 
 def test_a_fork_takes_the_effects_and_the_overlay_stays_untouched(driver):
@@ -191,12 +205,12 @@ def test_a_submission_without_source_fails_but_is_prepared(driver):
     assert str(run.result) == "xian_vm_v2 requires source code for submission.submit_contract"
 
 
-def test_an_owner_rejection_is_a_failed_run_with_the_base_chi(driver):
+def test_an_owner_rejection_pays_for_preparation_before_the_owner_check(driver):
     run = _run(
         driver, contract="con_owned", function="ping", kwargs={}, estimate_chi_supplied=1_000
     )
 
-    assert (run.status_code, run.chi_used, run.unprepared) == (1, 5, False)
+    assert (run.status_code, run.chi_used, run.unprepared) == (1, 6, False)
     assert str(run.result) == "Caller is not the owner!"
     assert not any(key.startswith("con_owned.") for key in run.writes)
 

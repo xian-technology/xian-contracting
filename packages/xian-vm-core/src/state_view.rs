@@ -301,6 +301,40 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn a_pinned_committed_store_keeps_gets_and_scans_on_one_base() {
+        let old = encoded("old");
+        let fixture = Fixture::new(
+            "pinned-base",
+            &[("h:a", &old), ("h:b", &old)],
+            &[("h:b", Some("pending"))],
+        );
+        let env = &fixture.lmdb.as_ref().unwrap().0;
+        let pinned = StateView::new(
+            Arc::new(env.snapshot().unwrap()),
+            fixture.view.overlay.clone(),
+        );
+        let new = encoded("new");
+        env.write(|txn| {
+            txn.put(b"h:a", &new)?;
+            txn.delete(b"h:b")?;
+            txn.put(b"h:c", &new)
+        })
+        .unwrap();
+
+        assert_eq!(pinned.get("h:a").unwrap(), Some(text("old")));
+        assert_eq!(pinned.get("h:c").unwrap(), None);
+        let mut seen = Vec::new();
+        pinned
+            .visit_prefix("h:", &mut |key, value| {
+                seen.push((key, value));
+                true
+            })
+            .unwrap();
+        assert_eq!(seen, entries(&[("h:a", "old"), ("h:b", "pending")]));
+        assert_eq!(fixture.view.get("h:a").unwrap(), Some(text("new")));
+    }
+
+    #[test]
     fn pending_entries_replace_or_hide_stored_ones_in_key_order() {
         for backend in BACKENDS {
             pending_entries_replace_or_hide_stored_ones(backend);

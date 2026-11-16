@@ -6,7 +6,6 @@ import textwrap
 
 import pytest
 
-
 PYTHON_ENGINE_IMPORT_GUARD = """
 import importlib.abc
 import sys
@@ -126,10 +125,10 @@ def test_native_zk_syscall_keeps_exact_metering_without_python_execution(tmp_pat
                 )
                 assert result.status_code == 0, result
                 assert result.result == digest, result
-                # 11930 raw: the payload's 2 raw, dispatch and base, and the
+                # 15554 raw: the payload's 2 raw, dispatch and base, and the
                 # 68-byte encoded result priced like a write (25 raw per byte
-                # since revision 14, was 1): 16 chi, not a double charge.
-                assert result.chi_used == 16, result
+                # since revision14), plus gas7's3,624 raw IR read:20 chi.
+                assert result.chi_used == 20, result
             failure = execute_contract(
                 driver=driver, contract_name="con_zk_host_meter",
                 function_name="payload_hash", kwargs={"payload": "0x1234"},
@@ -137,7 +136,7 @@ def test_native_zk_syscall_keeps_exact_metering_without_python_execution(tmp_pat
                 meter=True, chi_budget_raw=1,
             )
             assert failure.status_code == 1, failure
-            assert failure.result == "Out of chi.", failure
+            assert "Out of chi." in str(failure.result), failure
             assert failure.writes == {}, failure
         assert not blocked.intersection(sys.modules)
         """,

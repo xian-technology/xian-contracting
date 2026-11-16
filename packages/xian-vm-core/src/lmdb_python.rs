@@ -3,10 +3,11 @@
 //! Python objects are created only after the environment lock is released: a
 //! garbage collection run during allocation may drop a cursor, which takes it.
 use crate::lmdb_env::{
-    storage_key_error, LmdbEnv, LmdbError, OpenOptions, SnapshotCursor, MAX_STORAGE_KEY_BYTES,
+    storage_key_error, LmdbEnv, LmdbError, OpenOptions, ReadSnapshot, SnapshotCursor,
+    MAX_STORAGE_KEY_BYTES,
 };
 use pyo3::create_exception;
-use pyo3::exceptions::{PyException, PyValueError};
+use pyo3::exceptions::{PyException, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::path::PathBuf;
@@ -23,6 +24,18 @@ pub(crate) fn lmdb_error_to_py(error: LmdbError) -> PyErr {
 
 fn bytes(py: Python<'_>, value: &[u8]) -> Py<PyBytes> {
     PyBytes::new(py, value).unbind()
+}
+
+fn get_from_store(
+    py: Python<'_>,
+    store: &dyn crate::committed_store::CommittedStore,
+    key: &[u8],
+) -> PyResult<Option<Py<PyBytes>>> {
+    let mut value = None;
+    store
+        .read(key, &mut |stored| value = stored.map(<[u8]>::to_vec))
+        .map_err(LmdbStorageError::new_err)?;
+    Ok(value.map(|value| bytes(py, &value)))
 }
 
 /// One open environment (the unnamed main database of an LMDB directory).
@@ -80,6 +93,14 @@ impl PyLmdbEnvironment {
         self.env.close();
     }
 
+    /// A read-only committed view pinned now, safe to use on another thread.
+    fn snapshot(&self) -> PyResult<PyLmdbReadSnapshot> {
+        self.env
+            .snapshot()
+            .map(|snapshot| PyLmdbReadSnapshot { snapshot })
+            .map_err(lmdb_error_to_py)
+    }
+
     #[getter]
     fn closed(&self) -> bool {
         self.env.is_closed()
@@ -87,6 +108,14 @@ impl PyLmdbEnvironment {
 
     fn map_size(&self) -> PyResult<usize> {
         self.env.map_size().map_err(lmdb_error_to_py)
+    }
+
+    fn max_readers(&self) -> PyResult<u32> {
+        self.env.max_readers().map_err(lmdb_error_to_py)
+    }
+
+    fn max_pinned_readers(&self) -> PyResult<usize> {
+        self.env.max_pinned_readers().map_err(lmdb_error_to_py)
     }
 
     fn set_map_size(&self, map_size: usize) -> PyResult<()> {
@@ -98,11 +127,7 @@ impl PyLmdbEnvironment {
     }
 
     fn get(&self, py: Python<'_>, key: &[u8]) -> PyResult<Option<Py<PyBytes>>> {
-        let value = self
-            .env
-            .read(|txn| Ok(txn.get(key)?.map(<[u8]>::to_vec)))
-            .map_err(lmdb_error_to_py)?;
-        Ok(value.map(|value| bytes(py, &value)))
+        get_from_store(py, self.store().as_ref(), key)
     }
 
     /// The value of `key` and the entry count, from one snapshot.
@@ -277,6 +302,64 @@ impl PyLmdbEnvironment {
     }
 }
 
+/// A pinned committed read view; no mutable operations are exposed.
+#[pyclass(name = "LmdbReadSnapshot", module = "xian_vm_core", frozen)]
+pub(crate) struct PyLmdbReadSnapshot {
+    snapshot: ReadSnapshot,
+}
+
+impl PyLmdbReadSnapshot {
+    pub(crate) fn store(&self) -> std::sync::Arc<dyn crate::committed_store::CommittedStore> {
+        std::sync::Arc::new(self.snapshot.clone())
+    }
+}
+
+#[pymethods]
+impl PyLmdbReadSnapshot {
+    fn close(&self) {
+        self.snapshot.close();
+    }
+
+    fn get(&self, py: Python<'_>, key: &[u8]) -> PyResult<Option<Py<PyBytes>>> {
+        get_from_store(py, self.store().as_ref(), key)
+    }
+
+    fn items(&self, py: Python<'_>, prefix: &[u8]) -> PyResult<Vec<(Py<PyBytes>, Py<PyBytes>)>> {
+        let mut entries = Vec::new();
+        self.snapshot
+            .read(|txn| {
+                txn.scan_from(prefix, |key, value| {
+                    if !key.starts_with(prefix) {
+                        return Ok(false);
+                    }
+                    entries.push((key.to_vec(), value.to_vec()));
+                    Ok(true)
+                })
+            })
+            .map_err(lmdb_error_to_py)?;
+        Ok(entries
+            .into_iter()
+            .map(|(key, value)| (bytes(py, &key), bytes(py, &value)))
+            .collect())
+    }
+}
+
+/// Preserve live-environment calls while allowing simulation to pass its
+/// pinned committed snapshot through every estimation round.
+pub(crate) fn committed_store_from_py(
+    environment: &Bound<'_, PyAny>,
+) -> PyResult<std::sync::Arc<dyn crate::committed_store::CommittedStore>> {
+    if let Ok(environment) = environment.extract::<PyRef<'_, PyLmdbEnvironment>>() {
+        return Ok(environment.store());
+    }
+    if let Ok(snapshot) = environment.extract::<PyRef<'_, PyLmdbReadSnapshot>>() {
+        return Ok(snapshot.store());
+    }
+    Err(PyTypeError::new_err(
+        "environment must be an LmdbEnvironment or LmdbReadSnapshot",
+    ))
+}
+
 /// Iterator over `(key, value)` byte pairs from one read snapshot.
 #[pyclass(name = "LmdbItems", module = "xian_vm_core", frozen)]
 pub(crate) struct PyLmdbItems {
@@ -332,6 +415,7 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, pyo3::types::PyModule>
     module.add("MAX_STORAGE_KEY_BYTES", MAX_STORAGE_KEY_BYTES)?;
     module.add_function(wrap_pyfunction!(validate_storage_key, module)?)?;
     module.add_class::<PyLmdbEnvironment>()?;
+    module.add_class::<PyLmdbReadSnapshot>()?;
     module.add_class::<PyLmdbItems>()?;
     module.add("LmdbStorageError", py.get_type::<LmdbStorageError>())?;
     module.add("LmdbMapFullError", py.get_type::<LmdbMapFullError>())?;

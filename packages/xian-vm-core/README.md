@@ -28,8 +28,8 @@ Supported scope:
 
 The chain selects a profile for artifact admission and execution. Every module
 in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports
-execution revision `xvm-execution-14`, bytecode version `xvm-2` and gas schedule
-`xvm-gas-6`. Every execution entry point runs V2; `runtime_info` and
+execution revision `xvm-execution-15`, bytecode version `xvm-2` and gas schedule
+`xvm-gas-7`. Every execution entry point runs V2; `runtime_info` and
 `supports_execution_policy` know only `xian_vm_v2`. The interpreter has no
 V1 numeric rules: it refuses to instantiate a module whose `vm_profile` is not
 `xian_vm_v2`. V1 IR still validates with its own constant rules (for migration
@@ -107,6 +107,17 @@ itself instead of handing them to Python, which failed them before this
 revision (receipts had no form for either). Gas is unchanged
 (`xvm-gas-6`).
 
+`xvm-gas-7` (`xvm-execution-15`) charges module preparation before parsing or
+traversing its IR: the existing read tariff of 2 raw chi per UTF-8 IR byte and
+storage-key byte, once per module per transaction. Static imports, dynamic
+imports, metadata IR reads and nested constructors share the execution budget
+and loaded-module allowance; cache warmth does not change the price. A failed
+preparation pays for the work charged before failure and retains no contract
+effects. Every transaction, including unmetered system calls, loads at most
+512 modules and 16 MiB of aggregate IR text, with the existing depth bound of
+128. The block's IR-read cache is also bounded so failed calls cannot retain an
+unlimited number of different modules until the block ends.
+
 One V2 transaction may use at most 1,000,000 chi (`max_tx_chi` in
 `runtime_info()`); a larger or zero budget is capped there. Node fee policies set
 their per-transaction caps at or below this ceiling.
@@ -138,6 +149,17 @@ bytes LMDB will hold (or a pending deletion), the current transaction's tracked
 reads, and one discarding scope that undoes a transaction's changes. A commit
 writes the bytes unchanged in one LMDB transaction and clears the overlay only
 when the write succeeded.
+
+`LmdbEnvironment.snapshot()` pins a read-only MVCC view for a complete query or
+simulation, accepted by `execute_tx` in place of the live environment. Its
+point reads and scans see one committed state even across worker threads. A
+map resize or environment close invalidates existing snapshots and cursors;
+retry the complete query on a fresh snapshot. This lets storage grow without
+mixing commits in a query or holding consensus behind a long-running reader.
+Close a snapshot explicitly when its query finishes; `close()` is idempotent
+and releases its reader slot even if the Python object is retained. Persistent
+snapshots and cursors share `max_pinned_readers()`, derived from the store's
+actual `max_readers()` with 16 slots reserved for short consensus reads.
 
 Under V2 the VM reads contract state itself: a `Variable` or `Hash` key is read
 from the block overlay, else from LMDB, and decoded in Rust

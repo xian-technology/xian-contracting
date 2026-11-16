@@ -178,7 +178,9 @@ def test_a_source_that_fails_to_compile_pays_for_its_compilation(client):
     failed, after = charged("con_absent")
     assert "Contract already exists" in refused
     assert "xian.syntax.parse_error" in failed
-    assert after - before == deployment_charge(code)
+    # Both paths pay gas7's key lookup; only the existing name reads IR.
+    existing_ir_read = 2 * len(client.raw_driver.get_contract_ir("con_exists").encode())
+    assert after - before == deployment_charge(code) - existing_ir_read
 
 
 def test_a_compile_bomb_compiles_promptly_and_pays_for_its_bytes(client):

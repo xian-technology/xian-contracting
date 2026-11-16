@@ -10,7 +10,7 @@ use super::block_executor_python::Unshared;
 use super::{bigint_to_py, context_from_py, event_to_py, exception_to_py, py_to_vm, vm_to_py};
 use crate::block_executor::{BlockExecutor, BlockPolicy, FeeMode, PreparedTx, TxOutcome};
 use crate::block_state_python::PyBlockState;
-use crate::lmdb_python::{LmdbStorageError, PyLmdbEnvironment};
+use crate::lmdb_python::{committed_store_from_py, LmdbStorageError};
 use crate::panic_guard::catching;
 use crate::settlement::Stop;
 use crate::state_view::StateView;
@@ -154,7 +154,7 @@ fn fee_mode(estimate_chi_supplied: Option<&Bound<'_, PyAny>>) -> Option<FeeMode>
 #[allow(clippy::too_many_arguments)]
 pub(super) fn execute_tx(
     py: Python<'_>,
-    environment: PyRef<'_, PyLmdbEnvironment>,
+    environment: &Bound<'_, PyAny>,
     overlay: PyRef<'_, PyBlockState>,
     sender: String,
     contract: String,
@@ -169,6 +169,7 @@ pub(super) fn execute_tx(
     zk_enabled_without_state: bool,
     estimate_chi_supplied: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<(Option<Py<PyAny>>, Option<String>)> {
+    let store = committed_store_from_py(environment)?;
     let Some(tx) = prepared(
         sender,
         contract,
@@ -190,7 +191,7 @@ pub(super) fn execute_tx(
     let Some(fee_mode) = fee_mode(estimate_chi_supplied) else {
         return Ok((None, Some(NOT_AN_ESTIMATE_SUPPLY.to_owned())));
     };
-    let view = StateView::new(environment.store(), overlay.shared());
+    let view = StateView::new(store, overlay.shared());
     let executor = BlockExecutor::settling(view, policy, fee_mode);
     let work = Unshared((&executor, &tx));
     let run = py
