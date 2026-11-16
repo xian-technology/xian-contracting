@@ -2175,41 +2175,41 @@ fn validate_unique_module_bindings(
     statements: &[SyntaxStatement],
     fixed_bindings: &HashSet<String>,
 ) -> Result<(), IrLoweringError> {
-    let mut imports = HashSet::new();
-    let mut globals = HashSet::new();
-    let mut functions = HashSet::new();
-
+    let mut bindings = ModuleBindings::default();
     for statement in statements {
+        bindings.record(statement, fixed_bindings)?;
+    }
+    if let Some(name) = bindings.first_conflict() {
+        return Err(IrLoweringError::new(
+            format!("conflicting module binding '{name}'"),
+            None,
+        ));
+    }
+    Ok(())
+}
+
+/// The three module namespaces. Conflicts have a stable lexical order,
+/// independent of the randomized hash seeds used for membership checks.
+#[derive(Default)]
+struct ModuleBindings {
+    imports: HashSet<String>,
+    globals: HashSet<String>,
+    functions: HashSet<String>,
+}
+
+impl ModuleBindings {
+    fn record(
+        &mut self,
+        statement: &SyntaxStatement,
+        fixed_bindings: &HashSet<String>,
+    ) -> Result<(), IrLoweringError> {
         match statement {
-            SyntaxStatement::Import { names, .. } => {
-                for alias in names {
-                    let binding = alias.alias.as_deref().unwrap_or(&alias.name);
-                    if !imports.insert(binding.to_owned()) {
-                        return Err(IrLoweringError::new(
-                            format!("duplicate import binding '{binding}'"),
-                            Some(alias.span),
-                        ));
-                    }
-                }
-            }
+            SyntaxStatement::Import { names, .. } => self.record_imports(names)?,
             SyntaxStatement::Assign { targets, span, .. } => {
-                let mut assigned = HashSet::new();
-                for target in targets {
-                    collect_target_binding_names(target, &mut assigned);
-                }
-                let mut assigned: Vec<_> = assigned.into_iter().collect();
-                assigned.sort();
-                for name in assigned {
-                    if !globals.insert(name.clone()) && fixed_bindings.contains(&name) {
-                        return Err(IrLoweringError::new(
-                            format!("duplicate global declaration '{name}'"),
-                            Some(*span),
-                        ));
-                    }
-                }
+                self.record_globals(targets, *span, fixed_bindings)?;
             }
             SyntaxStatement::FunctionDef { name, span, .. } => {
-                if !functions.insert(name.to_owned()) {
+                if !self.functions.insert(name.to_owned()) {
                     return Err(IrLoweringError::new(
                         format!("duplicate function '{name}'"),
                         Some(*span),
@@ -2218,20 +2218,57 @@ fn validate_unique_module_bindings(
             }
             _ => {}
         }
+        Ok(())
     }
 
-    if let Some(name) = globals
-        .iter()
-        .find(|name| imports.contains(*name) || functions.contains(*name))
-        .or_else(|| imports.iter().find(|name| functions.contains(*name)))
-    {
-        return Err(IrLoweringError::new(
-            format!("conflicting module binding '{name}'"),
-            None,
-        ));
+    fn record_imports(&mut self, names: &[SyntaxImportAlias]) -> Result<(), IrLoweringError> {
+        for alias in names {
+            let binding = alias.alias.as_deref().unwrap_or(&alias.name);
+            if !self.imports.insert(binding.to_owned()) {
+                return Err(IrLoweringError::new(
+                    format!("duplicate import binding '{binding}'"),
+                    Some(alias.span),
+                ));
+            }
+        }
+        Ok(())
     }
 
-    Ok(())
+    fn record_globals(
+        &mut self,
+        targets: &[SyntaxExpression],
+        span: SourceRange,
+        fixed_bindings: &HashSet<String>,
+    ) -> Result<(), IrLoweringError> {
+        let mut assigned = HashSet::new();
+        for target in targets {
+            collect_target_binding_names(target, &mut assigned);
+        }
+        let mut assigned: Vec<_> = assigned.into_iter().collect();
+        assigned.sort();
+        for name in assigned {
+            if !self.globals.insert(name.clone()) && fixed_bindings.contains(&name) {
+                return Err(IrLoweringError::new(
+                    format!("duplicate global declaration '{name}'"),
+                    Some(span),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn first_conflict(&self) -> Option<&String> {
+        self.globals
+            .iter()
+            .filter(|name| self.imports.contains(*name) || self.functions.contains(*name))
+            .min()
+            .or_else(|| {
+                self.imports
+                    .iter()
+                    .filter(|name| self.functions.contains(*name))
+                    .min()
+            })
+    }
 }
 
 fn collect_function_local_bindings(

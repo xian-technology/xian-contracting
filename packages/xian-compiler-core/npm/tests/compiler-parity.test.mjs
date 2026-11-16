@@ -10,6 +10,25 @@ import {
   validateContractArtifactJson,
 } from "../dist/xian_compiler_core.js";
 
+test("deep source is rejected before cloning its parsed syntax tree", () => {
+  const expressions = [
+    "not ".repeat(4090) + "True",
+    Array(2000).fill("1").join("+"),
+    "a" + ".value".repeat(2000),
+    'f"{' + "[".repeat(1900) + "1" + "]".repeat(1900) + '}"',
+  ];
+  for (const expression of expressions) {
+    const source = "@export\ndef f():\n    return " + expression + "\n";
+    const diagnostics = JSON.parse(diagnoseContractJson("con_deep", source));
+    assert.equal(diagnostics[0].code, "xian.limit.syntax_depth");
+    // A refused source must leave the compiler usable for the next request.
+    assert.deepEqual(
+      JSON.parse(diagnoseContractJson("con_after", "@export\ndef f():\n    return 1\n")),
+      [],
+    );
+  }
+});
+
 const fixtureDirectory = new URL("../../tests/fixtures/", import.meta.url);
 
 async function compilerFixtures() {

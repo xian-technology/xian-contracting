@@ -4,6 +4,24 @@ use serde_json::Value;
 use xian_compiler_core::{lower_source_to_ir_json, CompileOptions};
 
 #[test]
+fn conflicting_module_binding_diagnostics_are_stable_across_hash_seeds() {
+    for declarations in ["a = 1\nb = 2\n", "import a\nimport b\n"] {
+        let source = format!(
+            "{declarations}@export\ndef a():\n    return 1\n@export\ndef b():\n    return 2\n"
+        );
+        // A fresh lowering creates fresh randomly seeded sets. Returning the
+        // first hash-set collision changes paid deployment failure receipts.
+        for _ in 0..64 {
+            let diagnostics =
+                lower_source_to_ir_json("con_conflicts", &source, &CompileOptions::default())
+                    .expect_err("conflicting bindings must be rejected");
+            assert_eq!(diagnostics[0].code, "xian.ir.lowering_error");
+            assert_eq!(diagnostics[0].message, "conflicting module binding 'a'");
+        }
+    }
+}
+
+#[test]
 fn lower_source_preserves_interface_storage_type_host_bindings() {
     let source = r#"
 TOKEN_INTERFACE = [

@@ -1,0 +1,21 @@
+{
+  "diagnostics": [
+    {
+      "code": "xian.ir.lowering_error",
+      "message": "conflicting module binding 'a'",
+      "severity": "error"
+    }
+  ],
+  "expected": {
+    "accepted": false
+  },
+  "generator": {
+    "artifact_format": "xian_contract_artifact_v1",
+    "name": "xian-compiler-core-python-binding"
+  },
+  "input_source": "import a\nimport b\n@export\ndef a():\n    return 1\n@export\ndef b():\n    return 2\n",
+  "module_name": "con_rejected_conflicting_imports_v2",
+  "name": "rejected_conflicting_imports_v2",
+  "schema": "xian.compiler_fixture.v1",
+  "vm_profile": "xian_vm_v2"
+}
