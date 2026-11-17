@@ -30,7 +30,7 @@ Repository = "https://github.com/xian-technology/xian-contracting"
 [project.optional-dependencies]
 v2 = []  # Compatibility alias for projects which already request this extra.
 zk = [
-    "xian-tech-zk>=0.2.0,<0.3",
+    "xian-tech-zk>=0.2.1,<0.3",
 ]
 
 [dependency-groups]

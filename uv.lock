@@ -344,7 +344,7 @@ requires-dist = [{ name = "xian-tech-runtime-types", editable = "packages/xian-r
 
 [[package]]
 name = "xian-tech-zk"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "packages/xian-zk" }
 dependencies = [
     { name = "pynacl" },
