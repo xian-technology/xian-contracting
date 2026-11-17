@@ -32,3 +32,16 @@ runtime/VM work. They are not node operation scripts.
   The current VM must not generate its own expected parity results.
 - Do not put node lifecycle, genesis, or operator workflow scripts here; those
   belong in `xian-stack`, `xian-cli`, or `xian-abci`.
+
+## Release backfills
+
+To recover an existing package tag after a release-infrastructure failure:
+
+```bash
+gh workflow run release.yml --ref main -f release_tag=compiler-core-v0.2.1
+```
+
+The workflow uses the current release infrastructure, checks out the requested
+`refs/tags/...` source in every validation/build job, validates it again, and
+publishes artifacts under that same tag. Do not move an existing release tag.
+Native wheels use `macos-15` for ARM and `macos-15-intel` for Intel.

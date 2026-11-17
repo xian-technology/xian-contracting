@@ -9,9 +9,18 @@ on:
       - "compiler-core-v*"
       - "zk-v*"
       - "vm-core-v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing immutable package tag to publish or backfill"
+        required: true
+        type: string
+
+env:
+  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-refs/tags/${{ inputs.release_tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -36,7 +45,7 @@ jobs:
       - name: Resolve package from tag
         id: resolve
         run: |
-          tag="${GITHUB_REF_NAME}"
+          tag="${RELEASE_TAG}"
           has_npm_package="false"
           npm_package_dir=""
           npm_package_name=""
@@ -120,6 +129,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.release_tag || github.ref_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -158,6 +169,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.release_tag || github.ref_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -228,6 +241,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.release_tag || github.ref_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -272,7 +287,7 @@ jobs:
         os:
           - ubuntu-latest
           - macos-15-intel
-          - macos-14
+          - macos-15
           - windows-latest
     runs-on: ${{ matrix.os }}
     permissions:
@@ -280,6 +295,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.release_tag || github.ref_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -317,6 +334,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.release_tag || github.ref_name }}
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@1.100.0
@@ -540,7 +559,7 @@ jobs:
           if [[ "${RELEASE_VERSION}" == *"-"* ]]; then
             release_flags+=(--prerelease)
           fi
-          gh release create "${GITHUB_REF_NAME}" dist/* \
+          gh release create "${RELEASE_TAG}" dist/* \
             --repo "${GITHUB_REPOSITORY}" \
             --verify-tag \
             --title "${{ needs.release-context.outputs.release_name }}" \
