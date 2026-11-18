@@ -11,8 +11,9 @@ Capture scripts verify the archived bytes before executing them with
 `xian-contracting@3b82001f2d587bbfb51f3d9235a2a8dcd0078a9a` and Python 3.12.10.
 The application capture stages these files and an unchanged corpus into a
 temporary observer directory so their relative imports and fixture paths work
-without modifying historical code. Current compatibility runners execute native
-V1 directly and do not import these observers.
+without modifying historical code. Current surface runners execute V2; the V1 application runner needs its pinned
+older installation. Neither imports these archived observers into the current
+runtime.
 
 Use the capture commands in the [compatibility guide](../README.md) to recapture
 historical snapshots. Do not run these archived observers against the current

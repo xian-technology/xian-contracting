@@ -24,7 +24,7 @@ small, purpose-built packages instead of growing one monolithic runtime.
 flowchart LR
   Contracting["xian-tech-contracting"] --> RuntimeTypes["xian-runtime-types"]
   Contracting --> Compiler["xian-compiler-core"]
-  Contracting -->|v2 extra| VM["xian-vm-core"]
+  Contracting --> VM["xian-vm-core"]
   Contracting -->|zk extra| ZK["xian-zk"]
   ABCI["xian-abci"] --> VM
   VM --> Fastpath["xian-fastpath-core"]

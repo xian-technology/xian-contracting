@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-  Source["Contract source"] --> Compiler["xian-contracting compiler"]
+  Source["Contract source"] --> Compiler["xian-compiler-core"]
   Compiler --> IR["xian_ir_v1"]
   IR --> Validator["Rust IR validator"]
   Validator --> VM["Native VM interpreter"]
@@ -50,7 +50,7 @@ V2 `Hash.all(*prefix)` and `Hash.clear(*prefix)` select the whole hash only
 when called without arguments; `""` is an ordinary first dimension. V2
 `crypto.key_is_valid` accepts exactly 64 lowercase hex characters.
 
-`xvm-gas-5` charges element work: every value comparison (including identical
+The current `xvm-gas-7` schedule charges element work: every value comparison (including identical
 members) and dictionary key probe, every member of a container that is copied
 or allocated, and every node of a value passed across a contract boundary costs
 one unit of 24 raw chi, in addition to the operation's own gas. Text and binary
@@ -66,46 +66,29 @@ is charged, and exceeding that fails the transaction. CPU time per charged chi
 of every operation family stays within a small constant factor of plain
 interpreter work (`tests/metering_bounds.rs`, `scripts/metering_calibration.py`).
 
-`xvm-gas-6` (`xvm-execution-12`) gives V2 dictionaries a hash index. A lookup,
+V2 dictionaries use a hash index. A lookup,
 membership test, `get`, insert, overwrite, `setdefault`, `update` entry, `pop` or
 `popitem` hashes the key (one unit per key node and per 8 payload bytes),
 compares the key only with entries of the same hash (one unit each, as before)
-and changes the dictionary in place, so its cost no longer grows with the
-dictionary. Removing an entry also costs one unit per 16 later entries it moves
+and changes the dictionary in place, so lookup and update costs do not grow
+with the dictionary size. Removing an entry also costs one unit per 16 later entries it moves
 up. Dictionary displays, comprehensions, `dict()`, `fromkeys()` and `|` build
 through the same index. Insertion order, the retained first key, iteration and
 the errors are unchanged. Equal keys hash equally under V2 equality: integers
 by value (`True` and `1` are different V2 keys), text and bytes by payload,
 tuples by their items and frozensets by their size.
 
-`xvm-execution-13` bounds V2 storage keys by what the node's store can hold:
-LMDB 0.9 stores keys of at most 511 bytes (`MAX_STORAGE_KEY_BYTES`). A V2
-write whose whole key (`contract.variable` or `contract.hash:key`, in UTF-8
-bytes) is longer fails the transaction at the write, with `Storage key is too
-long (N bytes). Max is 511.`; this covers `Variable.set`, hash assignment and
-`clone_from`, including constructor writes during deployment. A hash key
-longer than 511 bytes is invalid for reads as well; a lookup whose hash key
-fits but whose whole key is longer finds nothing. Before this revision such a
-write succeeded during execution and only LMDB refused it when the block
-committed. The storage driver refuses to stage a longer key in every
-profile. Gas is unchanged (`xvm-gas-6`). V2 contract admission (`xian-admission-3`,
-compiler-core `xian.lint.E024`) rejects a storage declaration whose
-`contract.name` key (plus `:` for a hash) could exceed the limit under the
-longest, 64-byte contract name: variable names may have 446 bytes and hash
-names 445, so only hash entry keys can exceed it at runtime.
+V2 storage keys are bounded to LMDB's 511-byte maximum
+(`MAX_STORAGE_KEY_BYTES`). An oversized write fails its transaction, including
+constructor writes and `clone_from`. A hash key longer than 511 bytes is invalid
+for reads too; a whole key that exceeds the limit only after its contract/hash
+prefix is added finds nothing. Compiler admission (`xian.lint.E024`) limits
+variable names to 446 bytes and hash names to 445 bytes so declarations fit under
+a 64-byte contract name. Hash entry keys remain checked at runtime.
 
-`xvm-execution-14` reads a `{"__delta__": ...}` wrapper only as the encoder
-writes it: an array of exactly two safe integers `[days, seconds]`, as the
-stored-value reader already did. Before this revision the V2 wire decoder also
-took a two-character string (`"12"`, including non-ASCII digits) or the two
-keys of an object, fed through `int()`; a transaction with an argument spelled
-that way is now not canonical and is not admitted, where it used to run with a
-timedelta. `{"__time__": ...}`
-likewise takes only an array of three to seven safe integers. The block
-executor now settles writes and events holding a timedelta or a bytearray
-itself instead of handing them to Python, which failed them before this
-revision (receipts had no form for either). Gas is unchanged
-(`xvm-gas-6`).
+Canonical timedelta wire values use `{"__delta__":[days,seconds]}`, exactly two
+safe integers; datetimes use `{"__time__":[...]}`, three to seven safe integers.
+The block executor settles timedelta and bytearray writes and events natively.
 
 `xvm-gas-7` (`xvm-execution-15`) charges module preparation before parsing or
 traversing its IR: the existing read tariff of 2 raw chi per UTF-8 IR byte and
@@ -145,8 +128,8 @@ only used by contracting's tests that prove file and lock compatibility.
 
 The block's pending writes live in `xian_vm_core.BlockState` (`src/block_state.rs`),
 owned by the contracting `Driver`: a key-ordered map from key to the stored value
-bytes LMDB will hold (or a pending deletion), the current transaction's tracked
-reads, and one discarding scope that undoes a transaction's changes. A commit
+bytes LMDB will hold (or a pending deletion), and one discarding scope that
+undoes a transaction's changes. A commit
 writes the bytes unchanged in one LMDB transaction and clears the overlay only
 when the write succeeded.
 
@@ -275,7 +258,7 @@ Metering covers both host-side data costs and VM execution:
   contract cost attribution, including failed constructors
 - storage reads, writes, transaction bytes, and return-value bytes are charged
   directly in the VM host path
-- execution cost is driven by the explicit gas schedule (`xvm-gas-6`) over VM
+- execution cost is driven by the explicit gas schedule (`xvm-gas-7`) over VM
   statements, expressions, calls, and loop iterations
 - module initialization is metered, so first-load authored contracts do not get
   free global-declaration and module-body execution
@@ -332,10 +315,12 @@ The crate ships a small PyO3/maturin surface for integration work:
 - `decode_and_validate_transaction(raw, chain_id)`: transaction admission
 - `BlockExecutor`: a block's transactions from their wire bytes, with fees,
   rewards and receipts. Fees and rewards use `ContractingDecimal` arithmetic
-  (`settlement.rs`, `tx_rewards.rs`): the fee is `chi_used / chi_rate`, every
-  share is truncated, the payouts never exceed the fee and the rest (burn
-  share and dust) is burned; a split whose paid ratios are negative or exceed
-  one pays no rewards
+  (`settlement.rs`, `tx_rewards.rs`): paid mode charges execution chi plus half
+  of unused supplied chi, rounded down, divided by `chi_rate`. Reward shares
+  use execution chi alone, are truncated, and never exceed that execution fee.
+  Unused-chi charges, the burn share and dust are burned. Invalid paid ratios
+  (negative or totaling more than one) pay no rewards. Free mode creates no
+  fee debit or fee-derived reward
 - `execute_tx(environment, overlay, ...)`: one call by the block executor's
   rules over any `BlockState` (pass `overlay.snapshot()` to drop the
   effects); the simulator, contract views, genesis deploys and the local
@@ -350,11 +335,9 @@ Node-side code uses the capability surface to check exact runtime policy before
 executing transactions through the Rust engine. There is no Python execution
 host.
 
-The largest remaining runtime work is metering drift on the heaviest authored
-flows and the host-operation split between delegated calls and Rust-owned
-implementations. Integer width, basic authored shielded execution, and
-pre-call setup flows are covered by the authored parity corpus and fixture
-generator.
+Execution and its host operations run in Rust. Follow
+[the runtime backlog](../../docs/EXECUTION_BACKLOG.md) for pending work; the
+parity corpus is evidence for its recorded cases, not full language coverage.
 
 ## Releases
 

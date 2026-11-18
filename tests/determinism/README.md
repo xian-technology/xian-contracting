@@ -71,7 +71,7 @@ workload let a failure be reproduced without choosing fresh inputs.
 Use the repository's Python 3.14 environment with native dependencies installed:
 
 ```sh
-uv sync --group dev --extra native --extra zk
+uv sync --group dev --extra zk
 uv pip install --no-deps ./packages/xian-vm-core
 .venv/bin/python -m tests.determinism.campaign \
   --output .artifacts/determinism-local --seed 20261103 --generated 32

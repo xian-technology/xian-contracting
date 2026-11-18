@@ -11,8 +11,8 @@ harness, manages contract storage, and exposes the contract-side stdlib bridge.
   its host catalog against this runtime's host bindings
 - `compiler/`: public compiler import surface
 - `local/`: `ContractingClient` facade used by tests, tools, and local callers
-- `compilation/`: linter, compiler internals, conformance checks, and
-  `xian_ir_v1` lowering
+- `compilation/`: Python compiler/linter adapters, whitelists and conformance
+  checks; canonical parsing and IR lowering live in `xian-compiler-core`
 - `execution/`: shared native host context and execution errors
 - `storage/`: LMDB-backed driver, contract storage helpers, and ORM objects
 - `stdlib/`: deterministic builtins and bridge modules exposed to contracts
