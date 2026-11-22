@@ -49,7 +49,6 @@ class NativeExecutor:
         auto_commit=False,
         driver=None,
         transaction_size_bytes=0,
-        chi_cost=constants.CHI_PER_T,
     ):
         from xian_vm_core import execute_tx
 
