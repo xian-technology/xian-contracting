@@ -5,11 +5,27 @@
 //! stored-value reader defines. A transaction refused here never executes.
 use crate::stored_value::decode_stored_value;
 use serde_json::Value;
-use xian_fastpath_core::{decode_transaction, validate_transaction_static, AdmissionError};
+use xian_fastpath_core::{
+    decode_transaction, decode_transaction_with_chi_limit, validate_transaction_static,
+    AdmissionError, DecodedTransaction,
+};
 
 /// The decoded transaction document if `raw` is admitted for `chain_id`.
 pub(crate) fn admit_transaction(raw: &[u8], chain_id: &str) -> Result<Value, AdmissionError> {
-    let decoded = decode_transaction(raw)?;
+    admit_decoded(decode_transaction(raw)?, chain_id)
+}
+
+pub(crate) fn admit_transaction_with_chi_limit(
+    raw: &[u8],
+    chain_id: &str,
+    max_chi: u64,
+) -> Result<Option<Value>, AdmissionError> {
+    decode_transaction_with_chi_limit(raw, max_chi)?
+        .map(|decoded| admit_decoded(decoded, chain_id))
+        .transpose()
+}
+
+fn admit_decoded(decoded: DecodedTransaction, chain_id: &str) -> Result<Value, AdmissionError> {
     validate_transaction_static(&decoded.document, chain_id)?;
     require_wire_payload(&decoded.payload_json)?;
     Ok(decoded.document)

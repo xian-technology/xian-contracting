@@ -1,6 +1,7 @@
 import json
 
 import pytest
+import xian_vm_core
 from nacl.signing import SigningKey
 from xian_vm_core import TransactionAdmissionCache, decode_and_validate_transaction
 
@@ -35,6 +36,30 @@ def test_cached_admission_returns_fresh_documents():
     stats = cache.stats()
     assert (stats["hits"], stats["misses"], stats["entries"]) == (1, 1, 1)
     assert len(raw) <= stats["retained_bytes"] <= 64_000
+
+
+@pytest.mark.parametrize("use_cache", [False, True])
+def test_proposal_admission_filters_by_budget_before_signature_validation(use_cache):
+    raw = signed_wire(0)
+    document = json.loads(bytes.fromhex(raw.decode()))
+    document["metadata"]["signature"] = "00" * 64
+    bad_signature = json.dumps(document, sort_keys=True, separators=(",", ":")).encode().hex()
+    cache = (
+        TransactionAdmissionCache("local", max_entries=2, max_bytes=64_000) if use_cache else None
+    )
+    admit = xian_vm_core.decode_transaction_for_proposal
+
+    assert admit(raw, "local", 9, cache) is None
+    assert admit(bad_signature.encode(), "local", 9, cache) is None
+    if cache is not None:
+        assert cache.stats()["entries"] == 0
+
+    with pytest.raises(ValueError, match="Bad signature"):
+        admit(bad_signature.encode(), "local", 10, cache)
+    assert admit(raw, "local", 10, cache) == decode_and_validate_transaction(raw, "local")
+    assert admit(raw, "local", 9, cache) is None
+    with pytest.raises(ValueError, match="Wrong chain_id"):
+        admit(raw, "other", 10, cache)
 
 
 def test_cache_keys_are_exact_and_instances_are_isolated():

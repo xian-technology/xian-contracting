@@ -65,8 +65,37 @@ pub struct DecodedTransaction {
 /// Read the wire bytes: hex, UTF-8, JSON (at most 127 levels deep), and the
 /// canonical spelling (sorted keys, no whitespace, no redundant escapes).
 pub fn decode_transaction(raw: &[u8]) -> Result<DecodedTransaction> {
+    let (text, document) = parse_wire_document(raw)?;
+    canonical_transaction(text, document)
+}
+
+/// Drop a candidate whose declared chi exceeds the remaining proposal budget.
+/// A candidate that fits still has to pass canonical decoding and admission.
+pub fn decode_transaction_with_chi_limit(
+    raw: &[u8],
+    max_chi: u64,
+) -> Result<Option<DecodedTransaction>> {
+    let (text, document) = parse_wire_document(raw)?;
+    if exceeds_chi_limit(&document, max_chi) {
+        return Ok(None);
+    }
+    canonical_transaction(text, document).map(Some)
+}
+
+/// Use the exact integer read by admission. Other shapes go through admission.
+pub fn exceeds_chi_limit(document: &Value, max_chi: u64) -> bool {
+    document["payload"]["chi_supplied"]
+        .as_u64()
+        .is_some_and(|chi| chi > max_chi)
+}
+
+fn parse_wire_document(raw: &[u8]) -> Result<(String, Value)> {
     let text = wire_text(raw)?;
     let document: Value = serde_json::from_str(&text).map_err(json_parse_error)?;
+    Ok((text, document))
+}
+
+fn canonical_transaction(text: String, document: Value) -> Result<DecodedTransaction> {
     if text != canonical_json(&document)? {
         return Err(AdmissionError::new("Transaction bytes are not canonical"));
     }
