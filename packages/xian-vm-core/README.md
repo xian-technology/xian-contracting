@@ -314,6 +314,13 @@ The crate ships a small PyO3/maturin surface for integration work:
 - `supports_execution_policy(...)`
 - `validate_module_ir(...)` / `validate_module_ir_json(...)`
 - `decode_and_validate_transaction(raw, chain_id)`: transaction admission
+- `TransactionAdmissionCache(chain_id, max_entries=..., max_bytes=...)`:
+  application-scoped reuse of successful static admission for exact wire
+  bytes. `decode(raw)` returns a fresh Python document. The caller still
+  applies its raw transaction size and live-state rules. The cache evicts
+  least-recently-used entries against both limits and can be disabled with a
+  zero limit. `stats()` reports hits, misses, evictions, entries and the
+  conservative byte charge for retained wire bytes and native documents.
 - `BlockExecutor`: a block's transactions from their wire bytes, with fees,
   rewards and receipts. Fees and rewards use `ContractingDecimal` arithmetic
   (`settlement.rs`, `tx_rewards.rs`): paid mode charges execution chi plus half

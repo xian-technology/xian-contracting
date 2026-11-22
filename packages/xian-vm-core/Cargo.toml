@@ -26,6 +26,7 @@ engine = []
 python-extension = [
     "engine",
     "lmdb",
+    "dep:lru",
     "dep:pyo3",
     "pyo3/extension-module",
     "dep:pyo3-build-config",
@@ -46,6 +47,7 @@ ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
 hex = "0.4"
 # Consensus arithmetic must not select host libm or architecture-specific kernels.
 libm = { version = "=0.2.16", default-features = false, features = ["force-soft-floats"] }
+lru = { version = "0.19", default-features = false, optional = true }
 memchr = { version = "2.8", default-features = false, features = ["std"] }
 num-bigint = "0.4"
 num-traits = "0.2"
