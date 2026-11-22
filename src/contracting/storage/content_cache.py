@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from threading import Lock
 from typing import Any
 
 
@@ -23,31 +24,36 @@ class ContentKeyedCache:
         self._max_entries = max_entries
         self._max_size = max_size
         self._size = 0
+        self._lock = Lock()
 
     def get(self, key, content: str | bytes):
         """The value kept for ``key`` if it was derived from ``content``, else None."""
-        entry = self._entries.get(key)
-        if entry is None or entry[0] != content:
-            return None
-        # Insertion order is recency: move the entry to the most recent end.
-        del self._entries[key]
-        self._entries[key] = entry
-        return entry[1]
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None or entry[0] != content:
+                return None
+            # Insertion order is recency: move the entry to the most recent end.
+            del self._entries[key]
+            self._entries[key] = entry
+            return entry[1]
 
     def put(self, key, content: str | bytes, value) -> None:
-        self._forget(key)
-        if len(content) > self._max_size:
-            return
-        while self._entries and (
-            len(self._entries) >= self._max_entries or self._size + len(content) > self._max_size
-        ):
-            self._forget(next(iter(self._entries)))
-        self._entries[key] = (content, value)
-        self._size += len(content)
+        with self._lock:
+            self._forget(key)
+            if self._max_entries <= 0 or len(content) > self._max_size:
+                return
+            while self._entries and (
+                len(self._entries) >= self._max_entries
+                or self._size + len(content) > self._max_size
+            ):
+                self._forget(next(iter(self._entries)))
+            self._entries[key] = (content, value)
+            self._size += len(content)
 
     def clear(self) -> None:
-        self._entries.clear()
-        self._size = 0
+        with self._lock:
+            self._entries.clear()
+            self._size = 0
 
     def _forget(self, key) -> None:
         entry = self._entries.pop(key, None)
