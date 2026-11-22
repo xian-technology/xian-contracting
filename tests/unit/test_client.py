@@ -28,6 +28,8 @@ class TestClient(TestCase):
         original_ir = self.client.get_contract_ir("submission")
         replacement = Path.home() / "updated_submission.s.py"
         replacement.write_text("@export\ndef version():\n    return 2\n")
+        self.driver.set_var("submission", "old_value", value=1)
+        self.driver.commit()
 
         self.client.set_submission_contract(filename=replacement)
 
@@ -37,6 +39,27 @@ class TestClient(TestCase):
         with Driver(storage_home=self.driver.storage_home) as reopened:
             with ContractingClient(submission_filename=None, driver=reopened) as reader:
                 self.assertEqual(reader.submission_contract.version(), 2)
+                self.assertIsNone(reopened.get_var("submission", "old_value"))
+
+    def test_set_submission_without_commit_keeps_previous_submission_on_disk(self):
+        self.client = ContractingClient(driver=self.driver)
+        original_source = self.client.get_contract_source("submission")
+        self.driver.set_var("submission", "old_value", value=1)
+        self.driver.commit()
+        replacement = Path.home() / "updated_submission.s.py"
+        replacement.write_text("@export\ndef version():\n    return 2\n")
+
+        self.client.set_submission_contract(filename=replacement, commit=False)
+
+        self.assertEqual(self.client.submission_contract.version(), 2)
+        self.assertIsNone(self.driver.get_var("submission", "old_value"))
+        with Driver(storage_home=self.driver.storage_home) as reopened:
+            self.assertEqual(reopened.get_contract_source("submission"), original_source)
+            self.assertEqual(reopened.get_var("submission", "old_value"), 1)
+
+        self.driver.rollback()
+        self.assertEqual(self.client.get_contract_source("submission"), original_source)
+        self.assertEqual(self.driver.get_var("submission", "old_value"), 1)
 
     def test_default_submission_seeds_source_and_ir(self):
         self.client = ContractingClient(driver=self.driver)
@@ -355,6 +378,53 @@ def test_native_client_defaults_to_unmetered_calls_and_supports_explicit_meterin
         assert unmetered["result"] == metered["result"] == 42
         assert unmetered["chi_used"] == constants.TRANSACTION_BASE_CHI
         assert metered["chi_used"] > unmetered["chi_used"]
+
+
+def test_local_proxy_forwards_declared_arguments_that_match_call_options(tmp_path):
+    source = """\
+@export
+def inspect_call(signer: str, executor: str, func: str, chi: int, return_full_output: bool):
+    return [signer, executor, func, chi, return_full_output, ctx.signer]
+"""
+    with ContractingClient(storage_home=tmp_path, signer="alice") as client:
+        client.submit(source, name="con_call_options")
+        contract = client.get_contract_proxy("con_call_options")
+
+        assert contract.inspect_call(
+            signer="owner", executor="worker", func="action", chi=7, return_full_output=True
+        ) == ["owner", "worker", "action", 7, True, "alice"]
+
+
+def test_local_proxy_calls_export_named_now(tmp_path):
+    with ContractingClient(storage_home=tmp_path) as client:
+        client.submit("@export\ndef now():\n    return 42", name="con_clock")
+
+        assert client.get_contract_proxy("con_clock").now() == 42
+
+
+def test_local_proxy_calls_export_named_environment(tmp_path):
+    from xian_runtime_types.time import Datetime
+
+    environment = {"now": Datetime(2020, 1, 1)}
+    with ContractingClient(storage_home=tmp_path, environment=environment) as client:
+        client.submit("@export\ndef environment():\n    return now.year", name="con_environment")
+
+        assert client.get_contract_proxy("con_environment").environment() == 2020
+
+
+def test_local_proxy_can_override_context_without_shadowing_exports(tmp_path):
+    from xian_runtime_types.time import Datetime
+
+    with ContractingClient(storage_home=tmp_path) as client:
+        client.submit("@export\ndef year():\n    return now.year", name="con_context")
+        contract = client.get_contract_proxy("con_context")
+
+        contract.environment = {"now": Datetime(2024, 1, 1)}
+        assert contract.year() == 2024
+
+        contract.environment = {}
+        contract.now = lambda: Datetime(2025, 1, 1)
+        assert contract.year() == 2025
 
 
 def test_ordinary_call_name_argument_cannot_spoof_submission_context(tmp_path):

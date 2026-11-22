@@ -44,19 +44,26 @@ class AbstractContract:
         self.environment = environment
         self.executor = executor
         self.functions = funcs
+        self._configured_environment = environment
+        self._export_names = set()
 
-        for func, _ in funcs:
+        for func, parameters in funcs:
+            self._export_names.add(func)
+            call_defaults = {
+                "signer": signer,
+                "contract_name": name,
+                "executor": executor,
+                "func": func,
+                "return_full_output": return_full_output,
+                "environment": None,
+                "chi": constants.DEFAULT_CHI,
+                "metering": None,
+                "now": None,
+            }
             setattr(
                 self,
                 func,
-                partial(
-                    self._abstract_function_call,
-                    signer=self.signer,
-                    contract_name=self.name,
-                    executor=self.executor,
-                    func=func,
-                    return_full_output=return_full_output,
-                ),
+                partial(self._abstract_function_call, frozenset(parameters), call_defaults),
             )
 
     def keys(self):
@@ -126,41 +133,42 @@ class AbstractContract:
         d = datetime.today()
         return Datetime(d.year, d.month, d.day, hour=d.hour, minute=d.minute)
 
-    def _abstract_function_call(
-        self,
-        signer,
-        executor,
-        contract_name,
-        func,
-        return_full_output,
-        environment=None,
-        chi=constants.DEFAULT_CHI,
-        metering=None,
-        now=None,
-        **kwargs,
-    ):
-
-        environment = dict(environment or self.environment)
+    def _abstract_function_call(self, parameters, call_defaults, /, **kwargs):
+        # A keyword declared by the contract belongs to its ABI, even when it
+        # has the same name as a local call option.
+        options = {
+            name: default if name in parameters else kwargs.pop(name, default)
+            for name, default in call_defaults.items()
+        }
+        default_environment = (
+            self._configured_environment
+            if "environment" in self._export_names
+            else self.environment
+        )
+        environment = dict(options["environment"] or default_environment)
+        now = options["now"]
 
         if now is None:
-            now = self.now()
+            now = type(self).now(self) if "now" in self._export_names else self.now()
 
         if environment.get("now") is None:
             environment.update({"now": now})
 
-        output = executor.execute(
-            sender=signer,
-            contract_name=contract_name,
-            function_name=func,
+        output = options["executor"].execute(
+            sender=options["signer"],
+            contract_name=options["contract_name"],
+            function_name=options["func"],
             kwargs=kwargs,
-            chi=chi,
+            chi=options["chi"],
             environment=environment,
-            metering=metering,
+            metering=options["metering"],
         )
 
-        if output["status_code"] == 1 and not return_full_output:
+        if options["return_full_output"]:
+            return output
+        if output["status_code"] == 1:
             raise output["result"]
-        return output["result"] if not return_full_output else output
+        return output["result"]
 
 
 class ContractingClient:
@@ -222,6 +230,7 @@ class ContractingClient:
         self.close()
 
     def set_submission_contract(self, filename=None, commit=True):
+        """Replace submission in the driver's pending state; commit it by default."""
         state_contract = self.get_contract_proxy("submission")
 
         if filename is None:
@@ -232,7 +241,8 @@ class ContractingClient:
 
         if filename is not None:
             source_code, vm_ir_json = self._load_submission_artifacts(filename)
-            self.raw_driver.delete_contract(name="submission")
+            submission_keys = self.raw_driver.keys(f"submission{constants.INDEX_SEPARATOR}")
+            self.raw_driver.apply_writes(dict.fromkeys(submission_keys))
             self.raw_driver.set_contract(
                 name="submission",
                 source=source_code,

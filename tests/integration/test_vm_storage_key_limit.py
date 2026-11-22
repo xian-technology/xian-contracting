@@ -1,6 +1,6 @@
 """A storage key is at most 511 bytes: the largest key LMDB 0.9 stores.
 
-V2 admission (xian-admission-3) rejects a storage binding whose key could
+V2 admission rejects a storage binding whose key could
 not fit under the longest contract name, and V2 fails the transaction at the
 write that forms a longer key. The driver refuses to stage such a key, so it
 can never reach a commit.
