@@ -87,6 +87,10 @@ the canonical IR. Python and JavaScript SDKs submit cleartext source. The
 browser IDE submits source through the wallet provider and uses the WASM
 compiler for diagnostics and optional artifact inspection.
 
+Fresh V2 genesis uses `xian-admission-4`. The compiler scans f-strings using
+UTF-8 byte offsets and records zero-based Unicode character columns in their
+canonical IR spans.
+
 Compiler admission uses fixed consensus defaults across every binding:
 
 - 131,072 UTF-8 source bytes

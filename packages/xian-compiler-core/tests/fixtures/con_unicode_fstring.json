@@ -1,0 +1,169 @@
+{
+  "artifact": {
+    "format": "xian_contract_artifact_v1",
+    "hashes": {
+      "input_source_sha256": "9d095777e049adedd490488c1ae53ff3c0d2779e1abe235285ecd89ba00856a2",
+      "source_sha256": "e5b18fa9029971128859e8bdb93845aff27a2517143e2ab346794a7a36404d12",
+      "vm_ir_sha256": "12f7d4a2dc8303cded4ad338964bd4a1fff1260a1444611d473c6c7f50b7bcd3"
+    },
+    "module_name": "con_unicode_fstring",
+    "source": "@export\ndef render(value: int):\n    return '\u96ea' + f'\ud83e\udd8a{value}\u00e9'",
+    "vm_ir_json": "{\"docstring\": null, \"functions\": [{\"body\": [{\"node\": \"return\", \"span\": {\"col\": 4, \"end_col\": 29, \"end_line\": 3, \"line\": 3}, \"value\": {\"left\": {\"node\": \"constant\", \"span\": {\"col\": 11, \"end_col\": 14, \"end_line\": 3, \"line\": 3}, \"value\": \"\u96ea\", \"value_type\": \"str\"}, \"node\": \"bin_op\", \"operator\": \"add\", \"right\": {\"node\": \"f_string\", \"span\": {\"col\": 17, \"end_col\": 29, \"end_line\": 3, \"line\": 3}, \"values\": [{\"node\": \"constant\", \"span\": {\"col\": 19, \"end_col\": 20, \"end_line\": 3, \"line\": 3}, \"value\": \"\ud83e\udd8a\", \"value_type\": \"str\"}, {\"conversion\": null, \"format_spec\": null, \"node\": \"formatted_value\", \"span\": {\"col\": 20, \"end_col\": 27, \"end_line\": 3, \"line\": 3}, \"value\": {\"host_binding_id\": null, \"id\": \"value\", \"node\": \"name\", \"span\": {\"col\": 21, \"end_col\": 26, \"end_line\": 3, \"line\": 3}}}, {\"node\": \"constant\", \"span\": {\"col\": 27, \"end_col\": 28, \"end_line\": 3, \"line\": 3}, \"value\": \"\u00e9\", \"value_type\": \"str\"}]}, \"span\": {\"col\": 11, \"end_col\": 29, \"end_line\": 3, \"line\": 3}}}], \"decorator\": {\"args\": [], \"keywords\": [], \"name\": \"export\", \"node\": \"decorator\", \"span\": {\"col\": 1, \"end_col\": 7, \"end_line\": 1, \"line\": 1}}, \"docstring\": null, \"name\": \"render\", \"node\": \"function\", \"parameters\": [{\"annotation\": \"int\", \"default\": null, \"kind\": \"positional_or_keyword\", \"name\": \"value\", \"span\": {\"col\": 11, \"end_col\": 21, \"end_line\": 2, \"line\": 2}}], \"returns\": null, \"span\": {\"col\": 0, \"end_col\": 29, \"end_line\": 3, \"line\": 2}, \"visibility\": \"export\"}], \"global_declarations\": [], \"host_catalog_version\": \"xian_vm_v1_host_v1\", \"host_dependencies\": [], \"imports\": [], \"ir_version\": \"xian_ir_v1\", \"module_body\": [], \"module_name\": \"con_unicode_fstring\", \"source_hash\": \"e5b18fa9029971128859e8bdb93845aff27a2517143e2ab346794a7a36404d12\", \"vm_profile\": \"xian_vm_v2\"}",
+    "vm_profile": "xian_vm_v2"
+  },
+  "diagnostics": [],
+  "expected": {
+    "accepted": true
+  },
+  "generator": {
+    "artifact_format": "xian_contract_artifact_v1",
+    "name": "xian-compiler-core-python-binding"
+  },
+  "input_source": "@export\ndef render(value: int):\n    return '\u96ea' + f'\ud83e\udd8a{value}\u00e9'\n",
+  "module_name": "con_unicode_fstring",
+  "name": "con_unicode_fstring",
+  "normalized_source": "@export\ndef render(value: int):\n    return '\u96ea' + f'\ud83e\udd8a{value}\u00e9'",
+  "schema": "xian.compiler_fixture.v1",
+  "source_path": "packages/xian-compiler-core/tests/sources_v2/con_unicode_fstring.py",
+  "vm_ir": {
+    "docstring": null,
+    "functions": [
+      {
+        "body": [
+          {
+            "node": "return",
+            "span": {
+              "col": 4,
+              "end_col": 29,
+              "end_line": 3,
+              "line": 3
+            },
+            "value": {
+              "left": {
+                "node": "constant",
+                "span": {
+                  "col": 11,
+                  "end_col": 14,
+                  "end_line": 3,
+                  "line": 3
+                },
+                "value": "\u96ea",
+                "value_type": "str"
+              },
+              "node": "bin_op",
+              "operator": "add",
+              "right": {
+                "node": "f_string",
+                "span": {
+                  "col": 17,
+                  "end_col": 29,
+                  "end_line": 3,
+                  "line": 3
+                },
+                "values": [
+                  {
+                    "node": "constant",
+                    "span": {
+                      "col": 19,
+                      "end_col": 20,
+                      "end_line": 3,
+                      "line": 3
+                    },
+                    "value": "\ud83e\udd8a",
+                    "value_type": "str"
+                  },
+                  {
+                    "conversion": null,
+                    "format_spec": null,
+                    "node": "formatted_value",
+                    "span": {
+                      "col": 20,
+                      "end_col": 27,
+                      "end_line": 3,
+                      "line": 3
+                    },
+                    "value": {
+                      "host_binding_id": null,
+                      "id": "value",
+                      "node": "name",
+                      "span": {
+                        "col": 21,
+                        "end_col": 26,
+                        "end_line": 3,
+                        "line": 3
+                      }
+                    }
+                  },
+                  {
+                    "node": "constant",
+                    "span": {
+                      "col": 27,
+                      "end_col": 28,
+                      "end_line": 3,
+                      "line": 3
+                    },
+                    "value": "\u00e9",
+                    "value_type": "str"
+                  }
+                ]
+              },
+              "span": {
+                "col": 11,
+                "end_col": 29,
+                "end_line": 3,
+                "line": 3
+              }
+            }
+          }
+        ],
+        "decorator": {
+          "args": [],
+          "keywords": [],
+          "name": "export",
+          "node": "decorator",
+          "span": {
+            "col": 1,
+            "end_col": 7,
+            "end_line": 1,
+            "line": 1
+          }
+        },
+        "docstring": null,
+        "name": "render",
+        "node": "function",
+        "parameters": [
+          {
+            "annotation": "int",
+            "default": null,
+            "kind": "positional_or_keyword",
+            "name": "value",
+            "span": {
+              "col": 11,
+              "end_col": 21,
+              "end_line": 2,
+              "line": 2
+            }
+          }
+        ],
+        "returns": null,
+        "span": {
+          "col": 0,
+          "end_col": 29,
+          "end_line": 3,
+          "line": 2
+        },
+        "visibility": "export"
+      }
+    ],
+    "global_declarations": [],
+    "host_catalog_version": "xian_vm_v1_host_v1",
+    "host_dependencies": [],
+    "imports": [],
+    "ir_version": "xian_ir_v1",
+    "module_body": [],
+    "module_name": "con_unicode_fstring",
+    "source_hash": "e5b18fa9029971128859e8bdb93845aff27a2517143e2ab346794a7a36404d12",
+    "vm_profile": "xian_vm_v2"
+  },
+  "vm_profile": "xian_vm_v2"
+}

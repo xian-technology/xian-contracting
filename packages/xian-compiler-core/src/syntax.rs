@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use rustpython_parser::ast::{self, Constant, Ranged};
 use rustpython_parser::source_code::RandomLocator;
-use rustpython_parser::text_size::TextRange;
+use rustpython_parser::text_size::{TextRange, TextSize};
 use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::{CompilerDiagnostic, SourceRange};
@@ -658,7 +658,7 @@ impl<'a> SyntaxBuilder<'a> {
                 let span = self.span(node.range);
                 Some(SyntaxExpression::FString {
                     span,
-                    values: self.convert_fstring_values(span, &node.values)?,
+                    values: self.convert_fstring_values(node.range, &node.values)?,
                 })
             }
             ast::Expr::FormattedValue(node)
@@ -731,80 +731,44 @@ impl<'a> SyntaxBuilder<'a> {
 
     fn convert_fstring_values(
         &mut self,
-        fstring_span: SourceRange,
+        range: TextRange,
         values: &[ast::Expr],
     ) -> Option<Vec<SyntaxExpression>> {
         let mut converted = self.convert_expressions(values)?;
-        self.refine_fstring_value_spans(fstring_span, &mut converted);
+        if is_legacy_syntax_profile(self.parsed.source_unit().vm_profile()) {
+            let span = self.span(range);
+            refine_legacy_fstring_spans(self.locator.source, span, &mut converted);
+        } else {
+            self.refine_fstring_value_spans(range, &mut converted);
+        }
         Some(converted)
     }
 
-    fn refine_fstring_value_spans(
-        &self,
-        fstring_span: SourceRange,
-        values: &mut [SyntaxExpression],
-    ) {
-        if fstring_span.start_line != fstring_span.end_line {
-            return;
-        }
-        let Some(line) = self
-            .parsed
-            .source()
-            .lines()
-            .nth(fstring_span.start_line.saturating_sub(1) as usize)
-        else {
+    fn refine_fstring_value_spans(&mut self, range: TextRange, values: &mut [SyntaxExpression]) {
+        let source = self.locator.source;
+        let Some(text) = source.get(usize::from(range.start())..usize::from(range.end())) else {
             return;
         };
-        let Some((content_start, content_end)) = fstring_content_bounds(
-            line,
-            fstring_span.start_column as usize,
-            fstring_span.end_column as usize,
-        ) else {
+        let Some((quote_start, quote)) = fstring_quote(text) else {
             return;
         };
-
-        let mut cursor = content_start;
-        for value in values {
-            match value {
-                SyntaxExpression::Constant {
-                    value: SyntaxConstant::Str(_),
-                    ..
-                } => {
-                    let end = find_next_fstring_expression(line, cursor, content_end)
-                        .unwrap_or(content_end);
-                    set_expression_span(
-                        value,
-                        SourceRange {
-                            start_line: fstring_span.start_line,
-                            start_column: cursor as u32,
-                            end_line: fstring_span.start_line,
-                            end_column: end as u32,
-                        },
-                    );
-                    cursor = end;
-                }
-                SyntaxExpression::FormattedValue { .. } => {
-                    let Some(start) = find_next_fstring_expression(line, cursor, content_end)
-                    else {
-                        return;
-                    };
-                    let Some(end) = find_fstring_expression_end(line, start, content_end) else {
-                        return;
-                    };
-                    set_expression_span(
-                        value,
-                        SourceRange {
-                            start_line: fstring_span.start_line,
-                            start_column: start as u32,
-                            end_line: fstring_span.start_line,
-                            end_column: end as u32,
-                        },
-                    );
-                    cursor = end;
-                }
-                _ => {}
-            }
-        }
+        let width = if text.as_bytes()[quote_start..].starts_with(&[quote; 3]) {
+            3
+        } else {
+            1
+        };
+        refine_fstring_spans(
+            text,
+            quote_start + width,
+            text.len() - width,
+            values,
+            |lo, hi| {
+                self.span(TextRange::new(
+                    range.start() + TextSize::from(lo as u32),
+                    range.start() + TextSize::from(hi as u32),
+                ))
+            },
+        );
     }
 
     fn convert_optional_expr(
@@ -1047,25 +1011,70 @@ fn ambiguous_format_literal(part: &ast::Expr) -> bool {
     text.contains(|ch: char| ch.is_control() || matches!(ch, '\\' | '{' | '}' | '\'' | '"'))
 }
 
-fn fstring_content_bounds(
-    line: &str,
-    start_column: usize,
-    end_column: usize,
-) -> Option<(usize, usize)> {
-    let bounded_end = end_column.min(line.len());
-    let mut quote_start = None;
-    for (offset, character) in line.get(start_column..bounded_end)?.char_indices() {
-        if character == '\'' || character == '"' {
-            quote_start = Some(start_column + offset + character.len_utf8());
-            break;
-        }
+fn fstring_quote(text: &str) -> Option<(usize, u8)> {
+    text.bytes()
+        .enumerate()
+        .find(|&(_, byte)| matches!(byte, b'\'' | b'"'))
+}
+
+// Archived V1 artifacts used byte columns for the refined spans.
+fn refine_legacy_fstring_spans(source: &str, span: SourceRange, values: &mut [SyntaxExpression]) {
+    if span.start_line != span.end_line {
+        return;
     }
-    let content_start = quote_start?;
-    let content_end = bounded_end.checked_sub(1)?;
-    if content_start <= content_end {
-        Some((content_start, content_end))
-    } else {
-        None
+    let Some(line) = source
+        .lines()
+        .nth(span.start_line.saturating_sub(1) as usize)
+    else {
+        return;
+    };
+    let start = span.start_column as usize;
+    let end = (span.end_column as usize).min(line.len());
+    let Some((quote_start, _)) = line.get(start..end).and_then(fstring_quote) else {
+        return;
+    };
+    refine_fstring_spans(line, start + quote_start + 1, end - 1, values, |lo, hi| {
+        SourceRange {
+            start_line: span.start_line,
+            start_column: lo as u32,
+            end_line: span.start_line,
+            end_column: hi as u32,
+        }
+    });
+}
+
+fn refine_fstring_spans(
+    text: &str,
+    mut cursor: usize,
+    end: usize,
+    values: &mut [SyntaxExpression],
+    mut span_for: impl FnMut(usize, usize) -> SourceRange,
+) {
+    if cursor > end {
+        return;
+    }
+    for value in values {
+        match value {
+            SyntaxExpression::Constant {
+                value: SyntaxConstant::Str(_),
+                span,
+            } => {
+                let stop = find_next_fstring_expression(text, cursor, end).unwrap_or(end);
+                *span = span_for(cursor, stop);
+                cursor = stop;
+            }
+            SyntaxExpression::FormattedValue { span, .. } => {
+                let Some(start) = find_next_fstring_expression(text, cursor, end) else {
+                    return;
+                };
+                let Some(stop) = find_fstring_expression_end(text, start, end) else {
+                    return;
+                };
+                *span = span_for(start, stop);
+                cursor = stop;
+            }
+            _ => {}
+        }
     }
 }
 
@@ -1121,30 +1130,6 @@ fn find_fstring_expression_end(line: &str, start: usize, end: usize) -> Option<u
         cursor += character.len_utf8();
     }
     None
-}
-
-fn set_expression_span(expression: &mut SyntaxExpression, next_span: SourceRange) {
-    match expression {
-        SyntaxExpression::Name { span, .. }
-        | SyntaxExpression::Constant { span, .. }
-        | SyntaxExpression::Starred { span, .. }
-        | SyntaxExpression::List { span, .. }
-        | SyntaxExpression::ListComp { span, .. }
-        | SyntaxExpression::DictComp { span, .. }
-        | SyntaxExpression::Tuple { span, .. }
-        | SyntaxExpression::Dict { span, .. }
-        | SyntaxExpression::Attribute { span, .. }
-        | SyntaxExpression::Subscript { span, .. }
-        | SyntaxExpression::Slice { span, .. }
-        | SyntaxExpression::Call { span, .. }
-        | SyntaxExpression::Compare { span, .. }
-        | SyntaxExpression::BoolOp { span, .. }
-        | SyntaxExpression::BinOp { span, .. }
-        | SyntaxExpression::UnaryOp { span, .. }
-        | SyntaxExpression::IfExpr { span, .. }
-        | SyntaxExpression::FString { span, .. }
-        | SyntaxExpression::FormattedValue { span, .. } => *span = next_span,
-    }
 }
 
 fn convert_context(context: ast::ExprContext) -> SyntaxExpressionContext {

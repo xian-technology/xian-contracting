@@ -265,6 +265,10 @@ pub(crate) fn runtime_info() -> String {
         .text("vm_profile", crate::XIAN_VM_V2_PROFILE)
         .text("execution_revision", crate::XIAN_VM_EXECUTION_REVISION)
         .text("gas_schedule", crate::XIAN_VM_SUPPORTED_GAS_SCHEDULES[0])
+        .text(
+            "compiler_admission_revision",
+            xian_compiler_core::XIAN_VM_V2_ADMISSION_REVISION,
+        )
         .raw("zk", "true")
         .finish()
 }

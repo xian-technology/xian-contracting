@@ -113,6 +113,7 @@ test("helpers: canonical decimals and runtime info", () => {
   assert.equal(canonicalDecimal("1.50"), "1.5");
   assert.throws(() => canonicalDecimal("abc"));
   assert.equal(JSON.parse(runtimeInfo()).execution_revision, "xvm-execution-15");
+  assert.equal(JSON.parse(runtimeInfo()).compiler_admission_revision, "xian-admission-4");
 });
 
 const ZK_SOURCE = `

@@ -28,6 +28,81 @@ fn syntax(source: &str) -> Value {
     without_locations(serde_json::to_value(parse_to_syntax(&unit).unwrap()).unwrap())
 }
 
+#[test]
+fn v2_fstring_parts_use_character_columns_in_canonical_ir() {
+    for (expression, expected_columns) in [
+        ("f'plain{value}postfix'", (18, 25)),
+        ("f'雪{value}postfix'", (14, 21)),
+        ("f'雪{value}'", (14, 21)),
+        ("'雪' + f'🦊{value}é'", (20, 27)),
+    ] {
+        let source = format!("@export\ndef render(value: int):\n    return {expression}\n");
+        let artifact =
+            compile_contract_artifact("con_fstring", &source, &CompileOptions::default()).unwrap();
+        let ir: Value = serde_json::from_str(&artifact.vm_ir_json).unwrap();
+        let returned = &ir["functions"][0]["body"][0]["value"];
+        let fstring = if expression.starts_with('f') {
+            returned
+        } else {
+            &returned["right"]
+        };
+        let section = &fstring["values"][1];
+        assert_eq!(section["node"], "formatted_value", "{expression}");
+        let span = &section["span"];
+        assert_eq!(
+            (span["col"].as_u64(), span["end_col"].as_u64()),
+            (Some(expected_columns.0), Some(expected_columns.1)),
+            "{expression}"
+        );
+        let literal = &fstring["values"][0]["span"];
+        assert_eq!(literal["col"], fstring["span"]["col"].as_u64().unwrap() + 2);
+        assert_eq!(literal["end_col"], expected_columns.0);
+        if let Some(tail) = fstring["values"].get(2) {
+            assert_eq!(tail["span"]["col"], expected_columns.1);
+            assert_eq!(
+                tail["span"]["end_col"],
+                fstring["span"]["end_col"].as_u64().unwrap() - 1
+            );
+        }
+    }
+}
+
+#[test]
+fn v2_multiline_fstring_fields_keep_their_original_line() {
+    let source = "@export\ndef render(value: int):\n    return f'''雪\n🦊{value}é'''\n";
+    let unit = SourceUnit::new("con_fstring", source).unwrap();
+    let syntax = serde_json::to_value(parse_to_syntax(&unit).unwrap()).unwrap();
+    let parts = &syntax["body"][0]["body"][0]["value"]["values"];
+    assert_eq!(parts[0]["span"]["start_column"], 15);
+    assert_eq!(parts[1]["node"], "formatted_value");
+    assert_eq!(
+        parts[1]["span"],
+        serde_json::json!({
+            "start_line": 4,
+            "start_column": 1,
+            "end_line": 4,
+            "end_column": 8,
+        })
+    );
+}
+
+#[test]
+fn archival_v1_keeps_its_fstring_artifact_locations() {
+    let source = "@export\ndef render(value: int):\n    return f'雪{value}postfix'\n";
+    let artifact = compile_contract_artifact(
+        "con_fstring",
+        source,
+        &CompileOptions {
+            vm_profile: "xian_vm_v1".into(),
+        },
+    )
+    .unwrap();
+    let ir: Value = serde_json::from_str(&artifact.vm_ir_json).unwrap();
+    let span = &ir["functions"][0]["body"][0]["value"]["values"][1]["span"];
+    assert_eq!(span["col"], 16);
+    assert_eq!(span["end_col"], 23);
+}
+
 fn roundtrip(expression: &str) {
     let source = format!("@export\ndef render(value: int, data: dict):\n    return {expression}\n");
     let normalized = normalize_source("con_fstring", &source, &CompileOptions::default()).unwrap();

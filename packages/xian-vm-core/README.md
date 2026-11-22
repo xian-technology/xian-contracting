@@ -29,7 +29,8 @@ Supported scope:
 The chain selects a profile for artifact admission and execution. Every module
 in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports
 execution revision `xvm-execution-15`, bytecode version `xvm-2` and gas schedule
-`xvm-gas-7`. Every execution entry point runs V2; `runtime_info` and
+`xvm-gas-7`. It also reports the admission revision of the compiler linked
+into the VM. Every execution entry point runs V2. `runtime_info` and
 `supports_execution_policy` know only `xian_vm_v2`. The interpreter has no
 V1 numeric rules: it refuses to instantiate a module whose `vm_profile` is not
 `xian_vm_v2`. V1 IR still validates with its own constant rules (for migration
