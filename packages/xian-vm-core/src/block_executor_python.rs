@@ -6,10 +6,11 @@ use super::{bigint_to_py, event_to_py, exception_to_py, vm_to_py};
 use crate::block_executor::{BlockExecutor, BlockPolicy, PreparedTx, TxOutcome};
 use crate::block_state_python::PyBlockState;
 use crate::lmdb_python::{LmdbStorageError, PyLmdbEnvironment};
+use crate::receipt_wire::encode_receipt;
 use crate::state_view::StateView;
 use crate::transaction_inputs::{prepared_tx, BlockMeta};
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList};
+use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
 use std::time::Instant;
 
 /// Values the executor moves across `Python::detach`.
@@ -50,7 +51,11 @@ fn list_to_py<T>(
     Ok(list.into_any().unbind())
 }
 
-fn outcome_to_py(py: Python<'_>, outcome: &TxOutcome) -> PyResult<Py<PyAny>> {
+fn outcome_to_py(
+    py: Python<'_>,
+    outcome: &TxOutcome,
+    include_details: bool,
+) -> PyResult<Py<PyAny>> {
     let writes = list_to_py(py, &outcome.writes, |(key, value)| {
         Ok((key, vm_to_py(py, value)?)
             .into_pyobject(py)?
@@ -62,24 +67,36 @@ fn outcome_to_py(py: Python<'_>, outcome: &TxOutcome) -> PyResult<Py<PyAny>> {
     })?;
     let fields: Vec<Py<PyAny>> = vec![
         outcome.status.into_pyobject(py)?.into_any().unbind(),
-        vm_to_py(py, &outcome.result)?,
-        exception_to_py(py, outcome.exception.as_ref())?,
+        if include_details {
+            vm_to_py(py, &outcome.result)?
+        } else {
+            py.None()
+        },
+        if include_details {
+            exception_to_py(py, outcome.exception.as_ref())?
+        } else {
+            py.None()
+        },
         writes,
         events,
         bigint_to_py(py, &outcome.chi_used)?,
-        optional_to_py(py, outcome.rewards.as_ref(), |rewards| {
-            rewards_to_py(py, rewards)
-        })?,
+        if include_details {
+            optional_to_py(py, outcome.rewards.as_ref(), |rewards| {
+                rewards_to_py(py, rewards)
+            })?
+        } else {
+            py.None()
+        },
         optional_to_py(py, outcome.chi_rate.as_ref(), |rate| bigint_to_py(py, rate))?,
         outcome.output_writes.into_pyobject(py)?.into_any().unbind(),
     ];
-    Ok(pyo3::types::PyTuple::new(py, fields)?.into_any().unbind())
+    Ok(PyTuple::new(py, fields)?.into_any().unbind())
 }
 
 fn outcomes_to_py(py: Python<'_>, outcomes: &[TxOutcome]) -> PyResult<Vec<Py<PyAny>>> {
     outcomes
         .iter()
-        .map(|outcome| outcome_to_py(py, outcome))
+        .map(|outcome| outcome_to_py(py, outcome, true))
         .collect()
 }
 
@@ -90,6 +107,59 @@ fn optional_to_py<T>(
     convert: impl Fn(&T) -> PyResult<Py<PyAny>>,
 ) -> PyResult<Py<PyAny>> {
     value.map_or_else(|| Ok(py.None()), convert)
+}
+
+type PythonReceipt = (Py<PyBytes>, Py<PyAny>);
+type ReceiptRun = (Vec<PythonReceipt>, u128, u128, u128);
+
+struct NativeReceipt {
+    hash: String,
+    outcome: TxOutcome,
+    wire: Option<Vec<u8>>,
+}
+
+impl NativeReceipt {
+    fn new(hash: String, outcome: TxOutcome) -> PyResult<Self> {
+        let wire = (outcome.status == 0)
+            .then(|| encode_receipt(&hash, &outcome, None))
+            .transpose()
+            .map_err(receipt_error)?;
+        Ok(Self {
+            hash,
+            outcome,
+            wire,
+        })
+    }
+
+    fn into_python(
+        self,
+        py: Python<'_>,
+        include_details: bool,
+        failure_text: &Bound<'_, PyAny>,
+    ) -> PyResult<PythonReceipt> {
+        let details = include_details || self.outcome.status != 0;
+        let fields = outcome_to_py(py, &self.outcome, details)?;
+        let wire = match self.wire {
+            Some(wire) => wire,
+            None => {
+                // Preserve the host's human-readable failure representation.
+                let tuple = fields.bind(py).cast::<PyTuple>()?;
+                let text: Option<String> = failure_text
+                    .call1((self.outcome.status, tuple.get_item(1)?, tuple.get_item(2)?))?
+                    .extract()?;
+                encode_receipt(&self.hash, &self.outcome, text.as_deref()).map_err(receipt_error)?
+            }
+        };
+        Ok((PyBytes::new(py, &wire).unbind(), fields))
+    }
+}
+
+fn receipt_error(error: crate::VmExecutionError) -> PyErr {
+    super::VmRuntimeExecutionError::new_err(error.to_string())
+}
+
+fn elapsed_ns(start: Option<Instant>) -> u128 {
+    start.map_or(0, |start| start.elapsed().as_nanos())
 }
 
 #[pymethods]
@@ -153,41 +223,99 @@ impl PyBlockExecutor {
     /// per-transaction log records). A host fault raises
     /// `LmdbStorageError`: the node halts.
     fn run(&self, py: Python<'_>) -> PyResult<Vec<Py<PyAny>>> {
-        let (outcomes, _) = self.execute::<false>(py)?;
+        let (outcomes, _) = self.execute_detached::<false>(py)?;
         outcomes_to_py(py, &outcomes)
     }
 
     /// The outcomes from `run` plus the execution and conversion durations
     /// in nanoseconds. Execution is timed inside the detached region.
     fn run_profiled(&self, py: Python<'_>) -> PyResult<(Vec<Py<PyAny>>, u128, u128)> {
-        let (outcomes, execution_ns) = self.execute::<true>(py)?;
+        let (outcomes, execution_ns) = self.execute_detached::<true>(py)?;
         let start = Instant::now();
         let converted = outcomes_to_py(py, &outcomes)?;
         Ok((converted, execution_ns, start.elapsed().as_nanos()))
     }
+
+    /// Encode receipt bytes alongside the projection needed by ABCI.
+    fn run_receipts(
+        &self,
+        py: Python<'_>,
+        hashes: Vec<String>,
+        include_details: bool,
+        failure_text: &Bound<'_, PyAny>,
+    ) -> PyResult<Vec<PythonReceipt>> {
+        self.receipt_run::<false>(py, hashes, include_details, failure_text)
+            .map(|(receipts, _, _, _)| receipts)
+    }
+
+    /// Return the receipts and timings for execution, detached success
+    /// encoding, and projection (including Python-assisted failures).
+    fn run_receipts_profiled(
+        &self,
+        py: Python<'_>,
+        hashes: Vec<String>,
+        include_details: bool,
+        failure_text: &Bound<'_, PyAny>,
+    ) -> PyResult<ReceiptRun> {
+        self.receipt_run::<true>(py, hashes, include_details, failure_text)
+    }
 }
 
 impl PyBlockExecutor {
-    fn execute<const PROFILE: bool>(&self, py: Python<'_>) -> PyResult<(Vec<TxOutcome>, u128)> {
-        let work = Unshared((&self.executor, self.txs.as_slice()));
-        let (outcomes, execution_ns) = py
-            .detach(move || {
-                let (executor, txs) = work.into_inner();
-                let start = PROFILE.then(Instant::now);
-                executor.begin_run();
-                let outcomes: Result<Vec<TxOutcome>, _> =
-                    txs.iter().map(|tx| executor.execute(tx)).collect();
-                Unshared((
-                    outcomes,
-                    start.map_or(0, |start| start.elapsed().as_nanos()),
-                ))
-            })
-            .into_inner();
-        let outcomes = outcomes.map_err(|fault| {
-            let crate::settlement::Stop::Fault(fault) = fault;
-            LmdbStorageError::new_err(fault)
+    fn execute<const PROFILE: bool>(&self) -> PyResult<(Vec<TxOutcome>, u128)> {
+        let start = PROFILE.then(Instant::now);
+        self.executor.begin_run();
+        let outcomes = self
+            .txs
+            .iter()
+            .map(|tx| self.executor.execute(tx))
+            .collect::<Result<_, _>>()
+            .map_err(|fault| {
+                let crate::settlement::Stop::Fault(fault) = fault;
+                LmdbStorageError::new_err(fault)
+            })?;
+        Ok((outcomes, elapsed_ns(start)))
+    }
+
+    fn execute_detached<const PROFILE: bool>(
+        &self,
+        py: Python<'_>,
+    ) -> PyResult<(Vec<TxOutcome>, u128)> {
+        let work = Unshared(self);
+        py.detach(move || Unshared(work.into_inner().execute::<PROFILE>()))
+            .into_inner()
+    }
+
+    fn receipt_run<const PROFILE: bool>(
+        &self,
+        py: Python<'_>,
+        hashes: Vec<String>,
+        include_details: bool,
+        failure_text: &Bound<'_, PyAny>,
+    ) -> PyResult<ReceiptRun> {
+        if hashes.len() != self.txs.len() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "one receipt hash is required per transaction",
+            ));
+        }
+        let work = Unshared(self);
+        let (receipts, execution_ns, encoding_ns) = py.detach(move || {
+            let (outcomes, execution_ns) = work.into_inner().execute::<PROFILE>()?;
+            let start = PROFILE.then(Instant::now);
+            let receipts = hashes
+                .into_iter()
+                .zip(outcomes)
+                .map(|(hash, outcome)| NativeReceipt::new(hash, outcome))
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok::<_, PyErr>((Unshared(receipts), execution_ns, elapsed_ns(start)))
         })?;
-        Ok((outcomes, execution_ns))
+        let start = PROFILE.then(Instant::now);
+        let projected = receipts
+            .into_inner()
+            .into_iter()
+            .map(|receipt| receipt.into_python(py, include_details, failure_text))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok((projected, execution_ns, encoding_ns, elapsed_ns(start)))
     }
 }
 

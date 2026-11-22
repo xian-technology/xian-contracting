@@ -31,6 +31,17 @@ pub(crate) fn encode_stored_value(value: &VmValue) -> Result<Vec<u8>> {
     Ok(writer.out.into_bytes())
 }
 
+#[cfg(feature = "python-extension")]
+pub(crate) fn write_scalar(out: &mut String, value: &VmValue) -> Result<()> {
+    let mut writer = Writer {
+        out: std::mem::take(out),
+        nodes: 0,
+    };
+    let result = writer.scalar(value);
+    *out = writer.out;
+    result
+}
+
 #[derive(Default)]
 struct Writer {
     out: String,
@@ -184,7 +195,7 @@ impl Writer {
 /// A JSON string as Python's `json.dumps` writes it with `ensure_ascii`:
 /// printable ASCII as is, the short escapes, everything else as lower-case
 /// `\uXXXX` (UTF-16 surrogate pairs above the BMP).
-fn write_string(out: &mut String, text: &str) {
+pub(crate) fn write_string(out: &mut String, text: &str) {
     out.push('"');
     for character in text.chars() {
         match character {
