@@ -10,6 +10,7 @@ use crate::state_view::StateView;
 use crate::transaction_inputs::{prepared_tx, BlockMeta};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
+use std::time::Instant;
 
 /// Values the executor moves across `Python::detach`.
 ///
@@ -73,6 +74,13 @@ fn outcome_to_py(py: Python<'_>, outcome: &TxOutcome) -> PyResult<Py<PyAny>> {
         outcome.output_writes.into_pyobject(py)?.into_any().unbind(),
     ];
     Ok(pyo3::types::PyTuple::new(py, fields)?.into_any().unbind())
+}
+
+fn outcomes_to_py(py: Python<'_>, outcomes: &[TxOutcome]) -> PyResult<Vec<Py<PyAny>>> {
+    outcomes
+        .iter()
+        .map(|outcome| outcome_to_py(py, outcome))
+        .collect()
 }
 
 /// `value` converted, or `None`.
@@ -145,24 +153,41 @@ impl PyBlockExecutor {
     /// per-transaction log records). A host fault raises
     /// `LmdbStorageError`: the node halts.
     fn run(&self, py: Python<'_>) -> PyResult<Vec<Py<PyAny>>> {
+        let (outcomes, _) = self.execute::<false>(py)?;
+        outcomes_to_py(py, &outcomes)
+    }
+
+    /// The outcomes from `run` plus the execution and conversion durations
+    /// in nanoseconds. Execution is timed inside the detached region.
+    fn run_profiled(&self, py: Python<'_>) -> PyResult<(Vec<Py<PyAny>>, u128, u128)> {
+        let (outcomes, execution_ns) = self.execute::<true>(py)?;
+        let start = Instant::now();
+        let converted = outcomes_to_py(py, &outcomes)?;
+        Ok((converted, execution_ns, start.elapsed().as_nanos()))
+    }
+}
+
+impl PyBlockExecutor {
+    fn execute<const PROFILE: bool>(&self, py: Python<'_>) -> PyResult<(Vec<TxOutcome>, u128)> {
         let work = Unshared((&self.executor, self.txs.as_slice()));
-        let outcomes = py
+        let (outcomes, execution_ns) = py
             .detach(move || {
                 let (executor, txs) = work.into_inner();
+                let start = PROFILE.then(Instant::now);
                 executor.begin_run();
                 let outcomes: Result<Vec<TxOutcome>, _> =
                     txs.iter().map(|tx| executor.execute(tx)).collect();
-                Unshared(outcomes)
+                Unshared((
+                    outcomes,
+                    start.map_or(0, |start| start.elapsed().as_nanos()),
+                ))
             })
             .into_inner();
         let outcomes = outcomes.map_err(|fault| {
             let crate::settlement::Stop::Fault(fault) = fault;
             LmdbStorageError::new_err(fault)
         })?;
-        outcomes
-            .iter()
-            .map(|outcome| outcome_to_py(py, outcome))
-            .collect()
+        Ok((outcomes, execution_ns))
     }
 }
 
