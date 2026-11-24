@@ -43,6 +43,8 @@ mod metering;
 mod module_cache;
 #[cfg(any(feature = "engine", test))]
 mod panic_guard;
+#[cfg(feature = "python-extension")]
+mod receipt_wire;
 #[cfg(any(feature = "wasm", test))]
 mod sandbox;
 mod set_member_codec;
