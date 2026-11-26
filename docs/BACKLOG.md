@@ -17,9 +17,9 @@ Current themes:
 - keep VM conformance, metering calibration, and authored fixture coverage moving
 - simplify storage/runtime internals only when deterministic behavior is
   unchanged and regression coverage is clear
-- keep compiler cleanup behind behavior parity and measurable justification;
-  use `RUST_COMPILER_CORE.md` as the migration plan if compiler ownership moves
-  from Python to Rust
+- keep compiler cleanup behind behavior parity and measurable justification.
+  [Compiler architecture](RUST_COMPILER_CORE.md) records the Rust compiler
+  core's ownership of source admission and artifact building.
 
 ## Source parser compatibility
 

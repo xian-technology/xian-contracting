@@ -1,10 +1,13 @@
 # Shielded State Redesign V2
 
-## Why Another Redesign Pass
+Implementation record for moving shielded output history out of consensus
+storage and into indexed reads. The benchmark below describes the runtime and
+circuits used for that redesign.
 
-Xian already removed raw encrypted note payload bytes from consensus state, but
-shielded transactions still carry too much on-chain historical baggage for what
-consensus actually needs.
+## Original Motivation
+
+Before this redesign, consensus state still held redundant per-output and
+execution history after removal of the raw encrypted note payloads.
 
 Current research and deployed privacy systems keep pointing in the same
 direction:
@@ -37,7 +40,7 @@ transaction payloads and emitted events.
 
 ## V2 Scope
 
-This redesign round does two things:
+The redesign changed three areas:
 
 1. removes more non-critical shielded history from consensus state
 2. adds BDS-side shielded output tag indexing for selective wallet retrieval
@@ -128,8 +131,8 @@ chi cost. The real bottleneck was Python execution inside the contracts,
 especially MiMC tree updates and command-binding digests.
 
 After moving those hot paths into native `xian-zk` bindings and metering them
-explicitly through the `zk` stdlib bridge, the current local shielded benchmark
-in `xian-abci/scripts/benchmark_shielded_chi.py` reports:
+explicitly through the `zk` stdlib bridge, the redesign's local benchmark
+using `xian-abci/scripts/benchmark_shielded_chi.py` reported:
 
 - deposit with 2 outputs: `3,347` chi
 - transfer with 2 inputs / 2 outputs: `3,600` chi
@@ -159,11 +162,11 @@ not just moving metadata out of consensus state.
 
 ## Follow-Up Work
 
-After this redesign slice, the next steps are:
+Wallet sync uses the shielded history feed and can query
+`shielded_output_tags` through the indexed client. Remaining work:
 
-1. teach clients and wallets to prefer BDS `shielded_output_tags` queries
-2. keep measuring against the benchmark harness as circuit/runtime work changes
-3. evaluate whether commitment listings can also leave consensus state in a
+1. keep measuring against the benchmark harness as circuit/runtime work changes
+2. evaluate whether commitment listings can also leave consensus state in a
    later phase
-4. evaluate block-local batch verification once shielded transaction volume is
+3. evaluate block-local batch verification once shielded transaction volume is
    high enough

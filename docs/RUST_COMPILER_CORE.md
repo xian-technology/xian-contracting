@@ -3,10 +3,9 @@
 This document defines the architecture for contract compilation. Standalone
 tools default to the fresh-chain execution profile, `xian_vm_v2`.
 
-The decision: Xian should have one authoritative compiler core. SDKs, the CLI,
-the browser IDE, CI, and optional node-side validation should all call that same
-core through thin language bindings. The compiler core should be written in Rust
-and packaged for native Python, native/Node JavaScript, and browser WASM.
+The Rust compiler core is authoritative for source validation and compilation.
+The SDKs, CLI, browser IDE, CI, and node admission use the same compiler through
+native bindings or WebAssembly.
 
 Launch-readiness status is tracked in
 `../xian-meta/docs/COMPILER_RUNTIME_LAUNCH_STATUS.md`. This document defines
@@ -82,8 +81,8 @@ AST or bytecode compilation through `parse`, `compile` or `parse_legacy_runtime`
 V1 compilation and IR validation remain for archival tooling and migration;
 current code executes only V2.
 
-Validators compile submitted source with the Rust compiler binding and persist
-the canonical IR. Python and JavaScript SDKs submit cleartext source. The
+Validators compile submitted source in the Rust VM's deployment host and
+persist the canonical IR. Python and JavaScript SDKs submit cleartext source. The
 browser IDE submits source through the wallet provider and uses the WASM
 compiler for diagnostics and optional artifact inspection.
 
@@ -106,7 +105,7 @@ Compiler admission uses fixed consensus defaults across every binding:
 Limit failures use stable `xian.limit.*` diagnostics before deployment work is
 accepted.
 
-## Target Topology
+## Compiler Integration
 
 ```mermaid
 flowchart LR
@@ -118,8 +117,8 @@ flowchart LR
   Core --> Ide["xian-ide-web diagnostics"]
   Core --> Node["validator deployment admission"]
   Py --> Contracting["xian-contracting public APIs"]
-  Contracting --> XianPy["xian-py deploy_contract"]
-  Js --> XianJs["xian-js deployContract"]
+  Contracting --> XianPy["Optional Python SDK compiler helpers"]
+  Js --> XianJs["Optional JavaScript SDK compiler helpers"]
   Cli --> CI["CI/release artifact builds"]
   Source --> Submit["submission.submit_contract(code)"]
   Submit --> Node
@@ -182,25 +181,25 @@ argues for an in-house parser.
 
 ## Public APIs
 
-The Rust core should expose these logical operations. Bindings should preserve
-the same names and data shapes where language conventions allow it.
+The Python binding exposes these operations. The
+[WASM package reference](../packages/xian-compiler-core/npm/README.md)
+lists the corresponding JavaScript exports.
 
 ```text
-compile_contract_source(module_name, source, options) -> canonical_source_and_ir
-build_contract_artifacts(module_name, source, options) -> artifact
-validate_contract_artifacts(module_name, artifact, options) -> validated_artifact
-diagnose_contract(module_name, source, options) -> diagnostics
-normalize_source(module_name, source, options) -> normalized_source
-lower_source_to_ir(module_name, source, options) -> vm_ir
-lower_source_to_ir_json(module_name, source, options) -> vm_ir_json
+compile_contract_source(module_name, source, *, vm_profile=None) -> canonical_source_and_ir
+compile_contract_artifact(module_name, source, *, vm_profile=None) -> artifact
+validate_contract_artifact(module_name, artifact, *, input_source=None, vm_profile=None) -> canonical_source_and_ir
+diagnose_contract(module_name, source, *, vm_profile=None) -> diagnostics
+normalize_source(module_name, source, *, vm_profile=None) -> normalized_source
+lower_source_to_ir(module_name, source, *, vm_profile=None) -> vm_ir
+lower_source_to_ir_json(module_name, source, *, vm_profile=None) -> vm_ir_json
 describe_vm_host_surface() -> host catalog metadata
 compiler_version() -> version metadata
 ```
 
-Options:
-
-- `vm_profile`: defaults to `xian_vm_v2`. Select `xian_vm_v1` explicitly for V1 fixtures.
-- `diagnostic_format`: default stable machine-readable diagnostics.
+`vm_profile` defaults to `xian_vm_v2` for compilation and diagnostics. Select
+`xian_vm_v1` explicitly for V1 fixtures. Artifact validation can enforce an
+expected profile and, when supplied, the original input source.
 
 There is no lint switch: lint rules are part of admission and always run. An
 unknown option (for example `lint`) is rejected.
@@ -251,24 +250,20 @@ source directly; validators compile and persist canonical IR.
 
 ### JavaScript
 
-Add a compiler package used by both SDK and browser apps:
+SDK and browser tooling can build an offline artifact:
 
 ```ts
-import { buildContractArtifacts } from "@xian-tech/compiler";
+import { compileContractArtifactJson } from "@xian-tech/compiler";
 
-const artifacts = await buildContractArtifacts({
-  moduleName: "con_counter",
-  source
-});
+const artifact = JSON.parse(compileContractArtifactJson("con_counter", source));
 ```
 
-Then `xian-js` can expose:
+For network deployment, the SDK submits the source:
 
 ```ts
 await client.deployContract({
   name: "con_counter",
   source,
-  args: {},
   signer
 });
 ```
@@ -284,10 +279,6 @@ inspection, not a network deployment payload.
 `xian-tech-contracting` through `xian-tech-abci` for node init and genesis.
 
 `xian client tx submit-source` is the signed network submitter.
-
-When the Rust compiler becomes authoritative, the CLI should get the new
-compiler behavior by dependency upgrade, not by implementing compiler logic in
-`xian-cli`.
 
 ### xian-ide-web
 
@@ -320,7 +311,7 @@ check, not contract execution.
 - Resource limits must produce deterministic errors instead of panics or host
   crashes.
 
-## Migration Plan
+## Original Migration Plan
 
 1. Freeze the source-to-IR contract.
    - Document canonical source and canonical JSON IR settings.
@@ -386,7 +377,7 @@ The Rust compiler authority is validated by:
 - The Python local harness transformer is not a consensus compiler. New public
   tooling must call the Rust compiler rather than extending that transformer.
 
-## First Implementation Slice
+## Original First Implementation Slice
 
 Do not begin by rewriting the whole compiler.
 
