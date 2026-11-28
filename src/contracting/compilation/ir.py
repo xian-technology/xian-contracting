@@ -232,6 +232,12 @@ _HOST_BINDINGS = (
         category="crypto",
     ),
     _host_binding(
+        "crypto.verify_ml_dsa_65",
+        "crypto.ml_dsa_65_verify",
+        kind="syscall",
+        category="crypto",
+    ),
+    _host_binding(
         "crypto.key_is_valid",
         "crypto.key_is_valid",
         kind="syscall",

@@ -187,6 +187,14 @@ static CATALOG: &[HostCallableSpec] = &[
         3,
     ),
     named(
+        "crypto.verify_ml_dsa_65",
+        "crypto.ml_dsa_65_verify",
+        &["vk", "msg", "signature"],
+        &[Missing, Missing, Missing],
+        3,
+        3,
+    ),
+    named(
         "crypto.key_is_valid",
         "crypto.key_is_valid",
         &["key"],

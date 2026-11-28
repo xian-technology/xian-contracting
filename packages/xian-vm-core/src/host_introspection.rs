@@ -148,6 +148,14 @@ static CATALOG: &[(&str, CodeMetadata)] = &[
         },
     ),
     (
+        "crypto.verify_ml_dsa_65",
+        CodeMetadata {
+            name: "verify_ml_dsa_65",
+            args: &["vk", "msg", "signature"],
+            function: true,
+        },
+    ),
+    (
         "crypto.key_is_valid",
         CodeMetadata {
             name: "key_is_valid",
@@ -988,7 +996,7 @@ mod tests {
             "importlib.Var",
         ];
         let bindings = host_callables::catalog_bindings().collect::<Vec<_>>();
-        assert_eq!(bindings.len(), 53);
+        assert_eq!(bindings.len(), 54);
         for binding in bindings {
             assert_ne!(
                 named(binding).is_some(),

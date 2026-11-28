@@ -86,7 +86,7 @@ persist the canonical IR. Python and JavaScript SDKs submit cleartext source. Th
 browser IDE submits source through the wallet provider and uses the WASM
 compiler for diagnostics and optional artifact inspection.
 
-Fresh V2 genesis uses `xian-admission-4`. The compiler scans f-strings using
+Fresh V2 genesis uses `xian-admission-5`. It lowers `crypto.verify_ml_dsa_65` to a metered host call. The compiler scans f-strings using
 UTF-8 byte offsets and records zero-based Unicode character columns in their
 canonical IR spans.
 

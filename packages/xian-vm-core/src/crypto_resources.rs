@@ -43,6 +43,7 @@ pub(super) fn dispatch(
     }
     match id {
         "crypto.ed25519_verify" => Some(verify_call(args, kwargs, host)),
+        "crypto.ml_dsa_65_verify" => Some(verify_ml_dsa_65(args, kwargs, host)),
         "crypto.key_is_valid" => Some(key_is_valid(args, kwargs)),
         _ => None,
     }
@@ -213,6 +214,52 @@ fn verify(key: &str, message: &str, signature: &str) -> Result<bool> {
         return Ok(false);
     };
     Ok(key.verify_strict(message.as_bytes(), &signature).is_ok())
+}
+
+fn verify_ml_dsa_65(
+    args: &[VmValue],
+    kwargs: &[(String, VmValue)],
+    host: &mut dyn VmHost,
+) -> Result<VmValue> {
+    use libcrux_ml_dsa::ml_dsa_65::{verify, MLDSA65Signature, MLDSA65VerificationKey};
+
+    let ([key, message, signature], []) = (args, kwargs) else {
+        return Err(VmExecutionError::new(
+            "crypto.verify_ml_dsa_65() expects three positional arguments",
+        ));
+    };
+    with_string(key, |key| {
+        with_string(message, |message| {
+            with_string(signature, |signature| {
+                limit(key.len(), MLDSA65VerificationKey::len() * 2, "verify key")?;
+                limit(
+                    signature.len(),
+                    MLDSA65Signature::len() * 2,
+                    "verify signature",
+                )?;
+                limit(message.len(), TEXT_LIMIT, "verify message")?;
+                host.charge_execution_cost(
+                    500_000 + 4 * message.len() as u64 + 2 * (key.len() + signature.len()) as u64,
+                )?;
+                let mut vk = MLDSA65VerificationKey::zero();
+                let mut sig = MLDSA65Signature::zero();
+                if !decode_lower_hex(key, vk.as_mut_slice())
+                    || !decode_lower_hex(signature, sig.as_mut_slice())
+                {
+                    return Ok(VmValue::Bool(false));
+                }
+                Ok(VmValue::Bool(
+                    verify(&vk, message.as_bytes(), b"", &sig).is_ok(),
+                ))
+            })
+        })
+    })
+}
+
+fn decode_lower_hex(input: &str, output: &mut [u8]) -> bool {
+    input.len() == output.len() * 2
+        && !input.bytes().any(|b| b.is_ascii_uppercase())
+        && hex::decode_to_slice(input, output).is_ok()
 }
 
 fn key_is_valid(args: &[VmValue], kwargs: &[(String, VmValue)]) -> Result<VmValue> {

@@ -239,6 +239,12 @@ pub const HOST_BINDINGS: &[HostBinding] = &[
         "crypto",
     ),
     host_binding(
+        "crypto.verify_ml_dsa_65",
+        "crypto.ml_dsa_65_verify",
+        "syscall",
+        "crypto",
+    ),
+    host_binding(
         "crypto.key_is_valid",
         "crypto.key_is_valid",
         "syscall",

@@ -45,6 +45,7 @@ xian_zk = { package = "xian-zk", path = "../xian-zk" }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
 hex = "0.4"
+libcrux-ml-dsa = { version = "=0.0.12", default-features = false, features = ["mldsa65"] }
 # Consensus arithmetic must not select host libm or architecture-specific kernels.
 libm = { version = "=0.2.16", default-features = false, features = ["force-soft-floats"] }
 lru = { version = "0.19", default-features = false, optional = true }

@@ -12,7 +12,7 @@ pub const SUPPORTED_VM_PROFILES: [&str; 2] = [XIAN_VM_V1_PROFILE, XIAN_VM_V2_PRO
 // of accepted contracts or their canonical artifacts changes, so nodes can fence
 // on it. V1 is archival and keeps its original rules.
 pub const XIAN_VM_V1_ADMISSION_REVISION: &str = "xian-admission-1";
-pub const XIAN_VM_V2_ADMISSION_REVISION: &str = "xian-admission-4";
+pub const XIAN_VM_V2_ADMISSION_REVISION: &str = "xian-admission-5";
 
 // The longest storage key a node stores: LMDB 0.9's 511 bytes, the same value as
 // xian-vm-core's MAX_STORAGE_KEY_BYTES (a contracting test pins that they

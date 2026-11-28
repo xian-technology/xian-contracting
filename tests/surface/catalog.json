@@ -77,7 +77,8 @@
         "kind": "module",
         "exports": [
           "key_is_valid",
-          "verify"
+          "verify",
+          "verify_ml_dsa_65"
         ]
       },
       "ctx": {
@@ -411,6 +412,12 @@
       {
         "binding": "crypto.verify",
         "id": "crypto.ed25519_verify",
+        "kind": "syscall",
+        "category": "crypto"
+      },
+      {
+        "binding": "crypto.verify_ml_dsa_65",
+        "id": "crypto.ml_dsa_65_verify",
         "kind": "syscall",
         "category": "crypto"
       },
@@ -1330,6 +1337,15 @@
       "reason": "Declared public surface; direct behavioral cases are listed separately.",
       "existing_test_files": [
         "tests/unit/test_ir_lowering.py"
+      ]
+    },
+    {
+      "id": "api.crypto.verify_ml_dsa_65",
+      "kind": "syscall",
+      "implementation": "declared",
+      "reason": "Declared public surface; direct behavioral cases are listed separately.",
+      "existing_test_files": [
+        "tests/integration/test_vm_ml_dsa_65.py"
       ]
     },
     {

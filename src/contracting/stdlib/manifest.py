@@ -14,7 +14,7 @@ PUBLIC_ENV_SURFACE = {
     "Variable": {"kind": "value"},
     "bytearray": {"kind": "value"},
     "bytes": {"kind": "value"},
-    "crypto": {"exports": ["key_is_valid", "verify"], "kind": "module"},
+    "crypto": {"exports": ["key_is_valid", "verify", "verify_ml_dsa_65"], "kind": "module"},
     "ctx": {"kind": "value"},
     "datetime": {
         "exports": ["DAYS", "HOURS", "MINUTES", "SECONDS", "WEEKS", "datetime", "timedelta"],
