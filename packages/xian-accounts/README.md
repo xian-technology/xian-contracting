@@ -24,9 +24,16 @@ are invalid. Account construction validates the key before retaining it.
 `sign_msg(...)` and `verify_msg(...)` remain small aliases for wallet-style
 callers in the wider Xian workspace.
 
+Install `xian-tech-accounts[hybrid]` for the `xian_account_v1` protocol.
+`xian_accounts.hybrid` signs role-separated messages with Ed25519 and
+ML-DSA-65 and requires both signatures. The caller supplies canonical payload
+bytes and obtains the keys and epoch from trusted account state. New account
+addresses commit to the initial active and recovery key pairs through
+`account_address(record)`. An enrolled legacy account retains its address.
+
 ## Validation
 
 ```bash
 cd packages/xian-accounts
-uv run pytest -q
+uv run --extra hybrid --with pytest pytest -q
 ```
