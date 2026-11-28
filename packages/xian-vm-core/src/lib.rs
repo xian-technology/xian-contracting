@@ -87,6 +87,8 @@ pub use values::*;
 #[cfg(feature = "python-extension")]
 mod block_state_python;
 #[cfg(feature = "python-extension")]
+mod live_admission;
+#[cfg(feature = "python-extension")]
 mod lmdb_python;
 #[cfg(feature = "python-extension")]
 mod python_bindings;

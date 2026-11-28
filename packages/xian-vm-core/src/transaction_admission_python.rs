@@ -1,5 +1,6 @@
 //! `decode_and_validate_transaction`: static admission for the node.
 use crate::transaction_admission::{admit_transaction, admit_transaction_with_chi_limit};
+use crate::{block_state::lock, block_state_python::PyBlockState, lmdb_python::PyLmdbEnvironment};
 use lru::LruCache;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -56,6 +57,38 @@ impl TransactionAdmissionCache {
         self.decode_with_limit(py, raw, None)
     }
 
+    /// Check the admitted transaction against committed state. The Python
+    /// document is only needed when the caller must handle the state check.
+    #[pyo3(signature = (raw, environment, overlay, *, max_chi, require_balance))]
+    fn check_live(
+        &mut self,
+        py: Python<'_>,
+        raw: &[u8],
+        environment: &PyLmdbEnvironment,
+        overlay: &PyBlockState,
+        max_chi: Option<u64>,
+        require_balance: bool,
+    ) -> PyResult<Option<Py<PyAny>>> {
+        // CheckTx normally sees only committed state. An explicit overlay
+        // needs the driver's existing state view and error handling.
+        let committed_only = lock(&overlay.shared()).len() == 0;
+        self.with_admitted(raw, None, |document| {
+            if committed_only {
+                if let Some(decision) = crate::live_admission::check(
+                    document,
+                    environment.env(),
+                    max_chi,
+                    require_balance,
+                ) {
+                    return Ok(decision.map(|()| None));
+                }
+            }
+            json_to_py(py, document).map(|tx| Ok(Some(tx)))
+        })?
+        .expect("check_live has no proposal limit")
+        .map_err(PyValueError::new_err)
+    }
+
     fn stats(&self) -> HashMap<&'static str, u64> {
         HashMap::from([
             ("hits", self.hits),
@@ -74,12 +107,21 @@ impl TransactionAdmissionCache {
         raw: &[u8],
         max_chi: Option<u64>,
     ) -> PyResult<Option<Py<PyAny>>> {
+        self.with_admitted(raw, max_chi, |document| json_to_py(py, document))
+    }
+
+    fn with_admitted<T>(
+        &mut self,
+        raw: &[u8],
+        max_chi: Option<u64>,
+        use_document: impl FnOnce(&Value) -> PyResult<T>,
+    ) -> PyResult<Option<T>> {
         if let Some(cached) = self.transactions.get(raw) {
             self.hits = self.hits.saturating_add(1);
             if max_chi.is_some_and(|limit| exceeds_chi_limit(&cached.document, limit)) {
                 return Ok(None);
             }
-            return json_to_py(py, &cached.document).map(Some);
+            return use_document(&cached.document).map(Some);
         }
         self.misses = self.misses.saturating_add(1);
         let admitted = match max_chi {
@@ -89,7 +131,7 @@ impl TransactionAdmissionCache {
         let Some(document) = admitted.map_err(admission_error)? else {
             return Ok(None);
         };
-        let output = json_to_py(py, &document)?;
+        let output = use_document(&document)?;
         if self.max_entries != 0 && raw.len() < self.max_bytes {
             self.retain(raw, document);
         }
