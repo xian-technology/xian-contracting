@@ -109,5 +109,19 @@ def test_initial_account_address_vector():
         b"XIAN_ACCOUNT_ADDRESS_V1\0" + first + bytes([3]) * 1952 + second + bytes([4]) * 1952
     )
     assert hybrid.account_address(record) == digest.hexdigest()
+    assert digest.hexdigest() == "a57b9aef6491b741f6850d4e7c0f8cdc01a3f63169d5bcfd854fbd8b97dcc257"
     with pytest.raises(ValueError):
         hybrid.account_address(hybrid.AccountRecord(1, record.active, record.recovery))
+
+
+def test_compact_spend_keeps_the_signed_bytes(material):
+    keys, seed, secret = material
+    message = b'{"chain_id":"local"}'
+    signature = hybrid.sign(keys, 0, message, ed_seed=seed, pq_secret=secret)
+    assert hybrid.compact_transaction(message, signature) == b"XIAN\x01" + signature + message
+    for malformed in [signature[:-1], b"?" + signature[1:], signature + b"x"]:
+        with pytest.raises(ValueError):
+            hybrid.compact_transaction(message, malformed)
+    for invalid in [b"", bytes(hybrid.MAX_PAYLOAD_BYTES + 1)]:
+        with pytest.raises(ValueError):
+            hybrid.compact_transaction(invalid, signature)

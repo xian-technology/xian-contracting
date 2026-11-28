@@ -13,6 +13,7 @@ from nacl.bindings import crypto_core_ed25519_is_valid_point
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
 
+COMPACT_TAG = b"XIAN\x01"
 TX_FORMAT = "xian_account_v1"
 SCHEME = "ed25519_ml_dsa_65_v1"
 CREATE_SCHEME = "xian_account_create_v1"
@@ -22,7 +23,8 @@ MAX_WIRE_BYTES = 524_288
 PQ_PUBLIC_BYTES = 1952
 PQ_SIGNATURE_BYTES = 3309
 AUTH_DOMAIN = b"XIAN-ACCOUNT-AUTH\0"
-HEADER_BYTES = len(AUTH_DOMAIN) + 2 + 8
+FRAME_TAG = AUTH_DOMAIN + b"\x01\x01"
+HEADER_BYTES = len(FRAME_TAG) + 8
 AUTH_BYTES = HEADER_BYTES + 64 + PQ_SIGNATURE_BYTES
 ROLES = frozenset({"transaction", "authority", "new_active", "new_recovery"})
 
@@ -132,10 +134,26 @@ def account_address(record: AccountRecord) -> str:
     ).hexdigest()
 
 
-def _payload(payload: bytes) -> bytes:
+def _check_payload(payload: bytes) -> None:
     if type(payload) is not bytes or not 1 <= len(payload) <= MAX_PAYLOAD_BYTES:
         raise ValueError("invalid hybrid payload size/type")
+
+
+def _payload(payload: bytes) -> bytes:
+    _check_payload(payload)
     return len(payload).to_bytes(4, "big") + payload
+
+
+def compact_transaction(payload: bytes, signature: bytes) -> bytes:
+    """Frame an ordinary strict-policy spend from its canonical signed payload."""
+    _check_payload(payload)
+    if (
+        type(signature) is not bytes
+        or len(signature) != AUTH_BYTES
+        or not signature.startswith(FRAME_TAG)
+    ):
+        raise ValueError("invalid hybrid signature frame")
+    return COMPACT_TAG + signature + payload
 
 
 def enrollment_transcript(payload: bytes) -> bytes:
@@ -158,7 +176,7 @@ def signing_transcript(keys: PublicKeys, epoch: int, payload: bytes, *, role: st
 
 
 def _header(epoch: int) -> bytes:
-    return AUTH_DOMAIN + b"\x01\x01" + uint64(epoch).to_bytes(8, "big")
+    return FRAME_TAG + uint64(epoch).to_bytes(8, "big")
 
 
 def verify(
