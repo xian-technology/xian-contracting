@@ -376,7 +376,7 @@ source = { editable = "packages/xian-runtime-types" }
 
 [[package]]
 name = "xian-tech-vm-core"
-version = "0.1.4"
+version = "0.1.5"
 source = { directory = "packages/xian-vm-core" }
 dependencies = [
     { name = "xian-tech-runtime-types" },
