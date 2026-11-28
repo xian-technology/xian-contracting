@@ -125,3 +125,26 @@ def test_compact_spend_keeps_the_signed_bytes(material):
     for invalid in [b"", bytes(hybrid.MAX_PAYLOAD_BYTES + 1)]:
         with pytest.raises(ValueError):
             hybrid.compact_transaction(invalid, signature)
+
+
+def test_consensus_backend_receives_both_components_after_framing(material):
+    keys, seed, secret = material
+    msg = b'{"chain_id":"local"}'
+    sig = hybrid.sign(keys, 3, msg, ed_seed=seed, pq_secret=secret, role="new_active")
+    seen = []
+
+    def backend(ed, pq, transcript, proofs):
+        seen.append((ed, pq, transcript, proofs))
+        return False
+
+    assert not hybrid.verify(keys, 4, msg, sig, role="new_active", verifier=backend)
+    assert not seen
+    assert not hybrid.verify(keys, 3, msg, sig, role="new_active", verifier=backend)
+    assert seen == [
+        (
+            keys.ed25519,
+            keys.ml_dsa_65,
+            hybrid.signing_transcript(keys, 3, msg, role="new_active"),
+            sig[hybrid.HEADER_BYTES :],
+        )
+    ]

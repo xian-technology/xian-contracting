@@ -27,6 +27,7 @@ from ._native import (
     validate_module_ir_json,
     validate_storage_key,
     validated_chi_rate,
+    verify_account_components,
 )
 from ._native import (
     execute_tx as _execute_tx,
@@ -220,4 +221,5 @@ __all__ = [
     "validate_module_ir_json",
     "validate_storage_key",
     "validated_chi_rate",
+    "verify_account_components",
 ]

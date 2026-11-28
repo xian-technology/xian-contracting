@@ -50,6 +50,7 @@ mod receipt_wire;
 #[cfg(any(feature = "wasm", test))]
 mod sandbox;
 mod set_member_codec;
+mod signature_components;
 #[cfg(any(feature = "engine", test))]
 mod settlement;
 pub mod state_root;

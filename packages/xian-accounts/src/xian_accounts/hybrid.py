@@ -179,20 +179,30 @@ def _header(epoch: int) -> bytes:
     return FRAME_TAG + uint64(epoch).to_bytes(8, "big")
 
 
+def _verify_components(ed_public: bytes, pq_public: bytes, message: bytes, proofs: bytes) -> bool:
+    try:
+        VerifyKey(ed_public).verify(message, proofs[:64])
+    except (ValueError, BadSignatureError):
+        return False
+    return backend().verify(pq_public, message, proofs[64:])
+
+
 def verify(
-    keys: PublicKeys, epoch: int, payload: bytes, signature: bytes, *, role="transaction"
+    keys: PublicKeys,
+    epoch: int,
+    payload: bytes,
+    signature: bytes,
+    *,
+    role="transaction",
+    verifier=_verify_components,
 ) -> bool:
+    """Check the frame, role and epoch before passing both proofs to the verifier."""
     if type(signature) is not bytes or len(signature) != AUTH_BYTES:
         return False
     if signature[:HEADER_BYTES] != _header(epoch):
         return False
     message = signing_transcript(keys, epoch, payload, role=role)
-    ed_end = HEADER_BYTES + 64
-    try:
-        VerifyKey(keys.ed25519).verify(message, signature[HEADER_BYTES:ed_end])
-    except (ValueError, BadSignatureError):
-        return False
-    return backend().verify(keys.ml_dsa_65, message, signature[ed_end:])
+    return verifier(keys.ed25519, keys.ml_dsa_65, message, signature[HEADER_BYTES:])
 
 
 def sign(

@@ -374,7 +374,10 @@ These timestamps are operator metadata; they are never part of VM outputs.
 
 `decode_account_candidate(raw, chain_id)` checks the canonical V2 wire
 grammar and returns a candidate. ABCI verifies the account proofs against
-the current registry and policy before calling the block executor. Ordinary
+the current registry and policy before calling the block executor.
+`verify_account_components` uses strict Ed25519 and pure ML-DSA-65 with the
+empty context. The node passes it the validated record's keys, the role-bound
+signing transcript, and the two fixed-size signatures. Both must verify. Ordinary
 hybrid calls retain their sender and use the full framed signature for
 `__input_hash` and meter the complete wire form. Strict-policy ordinary spends use
 five tag/version bytes (`5849414e01` in hex), 3,401 raw signature bytes and

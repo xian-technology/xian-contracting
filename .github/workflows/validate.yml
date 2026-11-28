@@ -37,7 +37,7 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Verify account framing and both signature components
-        run: uv run --project packages/xian-accounts --extra hybrid --with pytest pytest -q packages/xian-accounts/tests
+        run: uv run --with './packages/xian-accounts[hybrid]' pytest -q packages/xian-accounts/tests tests/integration/test_native_account_components.py
 
       - name: Run tests with coverage
         run: uv run pytest --cov=contracting --cov-report=term-missing --cov-report=xml

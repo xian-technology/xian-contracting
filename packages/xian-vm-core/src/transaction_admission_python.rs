@@ -205,6 +205,18 @@ fn decode_and_validate_transaction(
     json_to_py(py, &document)
 }
 
+/// Verify both signature components over the same transcript. The caller
+/// selects the keys from authenticated chain state and validates frame/epoch.
+#[pyfunction]
+fn verify_account_components(
+    ed_public: &[u8],
+    pq_public: &[u8],
+    message: &[u8],
+    proofs: &[u8],
+) -> bool {
+    crate::signature_components::account(ed_public, pq_public, message, proofs)
+}
+
 /// Decode canonical account bytes. This never authenticates a sender or grants admission.
 #[pyfunction]
 fn decode_account_candidate(py: Python<'_>, raw: &[u8], chain_id: &str) -> PyResult<Py<PyAny>> {
@@ -275,6 +287,7 @@ pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(decode_and_validate_transaction, module)?)?;
     module.add_function(wrap_pyfunction!(decode_transaction_for_proposal, module)?)?;
     module.add_function(wrap_pyfunction!(decode_account_candidate, module)?)?;
+    module.add_function(wrap_pyfunction!(verify_account_components, module)?)?;
     module.add_class::<TransactionAdmissionCache>()?;
     Ok(())
 }

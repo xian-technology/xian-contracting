@@ -225,7 +225,7 @@ fn verify_ml_dsa_65(
     kwargs: &[(String, VmValue)],
     host: &mut dyn VmHost,
 ) -> Result<VmValue> {
-    use libcrux_ml_dsa::ml_dsa_65::{verify, MLDSA65Signature, MLDSA65VerificationKey};
+    use libcrux_ml_dsa::ml_dsa_65::{MLDSA65Signature, MLDSA65VerificationKey};
 
     let ([key, message, signature], []) = (args, kwargs) else {
         return Err(VmExecutionError::new(
@@ -252,9 +252,11 @@ fn verify_ml_dsa_65(
                 {
                     return Ok(VmValue::Bool(false));
                 }
-                Ok(VmValue::Bool(
-                    verify(&vk, message.as_bytes(), b"", &sig).is_ok(),
-                ))
+                Ok(VmValue::Bool(crate::signature_components::ml_dsa_65(
+                    &vk,
+                    message.as_bytes(),
+                    &sig,
+                )))
             })
         })
     })
