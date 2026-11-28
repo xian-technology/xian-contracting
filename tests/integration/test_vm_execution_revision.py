@@ -13,9 +13,9 @@ def test_native_execution_policy_is_v2_only():
     info = runtime_info()
     assert info == runtime_info("xian_vm_v2") == json.loads(runtime_info_json())
     assert info["vm_profile"] == "xian_vm_v2"
-    assert info["execution_revision"] == "xvm-execution-15"
+    assert info["execution_revision"] == "xvm-execution-16"
     assert info["set_codec"] == "xian-set-1"
-    assert info["tx_admission_revision"] == "xian-fastpath-admission-3"
+    assert info["tx_admission_revision"] == "xian-fastpath-admission-4"
     assert info["supported_bytecode_versions"] == ["xvm-2"]
     assert info["supported_gas_schedules"] == ["xvm-gas-7"]
     assert info["max_tx_chi"] == 1_000_000

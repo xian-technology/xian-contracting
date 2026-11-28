@@ -21,6 +21,8 @@ pub(crate) fn not_owner() -> VmExecutionError {
 }
 
 pub(crate) trait HostServices {
+    fn legacy_signature_allowed(&mut self, owner: &str) -> Result<bool, VmExecutionError>;
+
     /// The IR JSON text of `module`, or `None` when it has none.
     fn module_ir_json(&mut self, module: &str) -> Result<Option<String>, VmExecutionError>;
     /// `module` validated as a bundle module, or `None` when it has no IR.
@@ -76,6 +78,10 @@ pub(crate) trait HostServices {
 /// A host lent to a nested execution (a contract's constructor during its
 /// deployment), which reads and stages through it for its duration.
 impl<H: HostServices + ?Sized> HostServices for &mut H {
+    fn legacy_signature_allowed(&mut self, owner: &str) -> Result<bool, VmExecutionError> {
+        (**self).legacy_signature_allowed(owner)
+    }
+
     fn module_ir_json(&mut self, module: &str) -> Result<Option<String>, VmExecutionError> {
         (**self).module_ir_json(module)
     }
@@ -394,6 +400,10 @@ impl<H: HostServices> BundleExecutor<H> {
 }
 
 impl<H: HostServices> VmHost for BundleExecutor<H> {
+    fn legacy_signature_allowed(&mut self, owner: &str) -> Result<bool, VmExecutionError> {
+        self.host.legacy_signature_allowed(owner)
+    }
+
     fn interface_member(
         &mut self,
         contract: &str,

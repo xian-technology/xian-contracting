@@ -532,3 +532,28 @@ fn a_code_hash_charges_the_bytes_it_hashes_first() {
         "VmRuntimeExecutionError: Out of chi."
     );
 }
+
+#[test]
+fn registered_accounts_and_strict_policy_disable_classical_signature_authority() {
+    use crate::bundle_executor::HostServices;
+    let name = "ab".repeat(32);
+    let record = format!("_accounts.records:{name}");
+    let transition = r#"{"version":1,"transition_chi":10,"enrollment_open":false}"#;
+    let f = Fixture::new("classical-authority", &[], &[]);
+    let modules = Modules::default();
+    let mut host = self::host(&f, &modules);
+    assert!(host.legacy_signature_allowed(&name).unwrap());
+    for (policy, enrolled, expected) in [
+        (transition, false, true),
+        (transition, true, false),
+        (r#"{"version":2,"transition_chi":100}"#, false, false),
+        (r#"{"version":1,"enrollment_open":true}"#, false, false),
+        ("null", false, false),
+    ] {
+        let mut overlay = crate::block_state::lock(f.view.overlay());
+        overlay.write("_accounts.policy", Some(policy.as_bytes().into()));
+        overlay.write(&record, enrolled.then(|| b"malformed".as_slice().into()));
+        drop(overlay);
+        assert_eq!(host.legacy_signature_allowed(&name).unwrap(), expected);
+    }
+}

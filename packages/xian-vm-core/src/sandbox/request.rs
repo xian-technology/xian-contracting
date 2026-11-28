@@ -230,6 +230,7 @@ fn run(
     fields.finish(what)?;
     let context = block_context(&sender, &contract, &function, &kwargs, environment);
     let tx = PreparedTx {
+        transition_chi: None,
         sender,
         contract,
         function,

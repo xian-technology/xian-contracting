@@ -28,7 +28,7 @@ Supported scope:
 
 The chain selects a profile for artifact admission and execution. Every module
 in a call uses that profile. `runtime_info(vm_profile="xian_vm_v2")` reports
-execution revision `xvm-execution-15`, bytecode version `xvm-2` and gas schedule
+execution revision `xvm-execution-16`, bytecode version `xvm-2` and gas schedule
 `xvm-gas-7`. It also reports the admission revision of the compiler linked
 into the VM. Every execution entry point runs V2. `runtime_info` and
 `supports_execution_policy` know only `xian_vm_v2`. The interpreter has no
@@ -369,3 +369,24 @@ They omit caller/signer identifiers,
 arguments, return values, storage contents and exception text. Diagnostic sink
 errors are ignored so a closed stderr cannot change execution results or chi.
 These timestamps are operator metadata; they are never part of VM outputs.
+
+### Account authorization in execution revision 16
+
+`decode_account_candidate(raw, chain_id)` checks the canonical V2 wire
+grammar and returns a candidate. ABCI verifies the account proofs against
+the current registry and policy before calling the block executor. Ordinary
+hybrid calls retain their sender and use the full framed signature for
+`__input_hash` and meter the complete wire form. Strict-policy ordinary spends use
+five tag/version bytes (`5849414e01` in hex), 3,401 raw signature bytes and
+the canonical UTF-8 V2 payload. Byte metering counts the actual compact
+wire length. The migration envelope keeps its canonical ASCII document size.
+Lifecycle operations use `add_account_transition(raw, transition_chi)` only
+after authorization. They settle fees, rewards, receipts and the one account
+record in the normal ordered block overlay.
+
+Both spellings of the VM's Ed25519 verification primitive consult consensus
+state before accepting a signature. A recorded owner always requires hybrid
+transaction authority. Strict account policy v2 also disables Ed25519
+verification for unknown owners and disables the zk host, including raw and
+registered BN254 proof verification. The migration policy v1 retains legacy
+verification for accounts without a record. The node owns policy activation.

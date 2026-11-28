@@ -46,6 +46,18 @@ impl StateView {
             .map_err(|error| format!("corrupt stored value at {key:?}: {error}"))
     }
 
+    /// Presence alone controls account enrollment, including malformed stored
+    /// records. Avoid copying or decoding several kilobytes to answer it.
+    pub(crate) fn contains(&self, key: &str) -> Result<bool, String> {
+        if let Some(pending) = lock(&self.overlay).lookup(key) {
+            return Ok(pending.is_some());
+        }
+        let mut present = false;
+        self.store
+            .read(key.as_bytes(), &mut |raw| present = raw.is_some())?;
+        Ok(present)
+    }
+
     /// The entries under `prefix` as `Driver.iter_items` yields them, in key
     /// order: the overlay's pending entries over the committed entries, a
     /// pending deletion hiding the stored entry. Pending values are decoded

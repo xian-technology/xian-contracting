@@ -2,9 +2,8 @@
 
 Small shared account and signing primitives for the Xian workspace.
 
-This package is intentionally narrow. It is the neutral home for reusable
-Ed25519 key, signing, and verification helpers that should not live in the
-external SDK and should not be mixed into deterministic runtime types.
+Wallets and nodes share the Ed25519 helpers and the hybrid account wire
+protocol from this package.
 
 ## API
 
@@ -27,7 +26,8 @@ callers in the wider Xian workspace.
 Install `xian-tech-accounts[hybrid]` for the `xian_account_v1` protocol.
 `xian_accounts.hybrid` signs role-separated messages with Ed25519 and
 ML-DSA-65 and requires both signatures. The caller supplies canonical payload
-bytes and obtains the keys and epoch from trusted account state. New account
+bytes and obtains the keys and epoch from trusted account state. Use
+`compact_transaction(payload, signature)` for ordinary strict-policy spends. New account
 addresses commit to the initial active and recovery key pairs through
 `account_address(record)`. An enrolled legacy account retains its address.
 

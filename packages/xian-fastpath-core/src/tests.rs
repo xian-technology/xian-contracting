@@ -38,7 +38,7 @@ fn refusal(document: &Value) -> String {
 
 #[test]
 fn admission_revision_identifies_the_exact_document_keys_rule() {
-    assert_eq!(ADMISSION_REVISION, "xian-fastpath-admission-3");
+    assert_eq!(ADMISSION_REVISION, "xian-fastpath-admission-4");
 }
 
 #[test]

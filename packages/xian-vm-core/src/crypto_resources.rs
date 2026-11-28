@@ -191,6 +191,10 @@ fn verify_call(
                     + 4 * message.len() as u64
                     + 2 * (key.len() + signature.len()) as u64;
                 host.charge_execution_cost(cost)?;
+                // Ed25519 accepts either hex case. Account state always uses lowercase.
+                if !host.legacy_signature_allowed(&key.to_ascii_lowercase())? {
+                    return Ok(VmValue::Bool(false));
+                }
                 verify(key, message, signature).map(VmValue::Bool)
             })
         })

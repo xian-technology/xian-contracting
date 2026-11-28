@@ -205,6 +205,14 @@ fn decode_and_validate_transaction(
     json_to_py(py, &document)
 }
 
+/// Decode canonical account bytes. This never authenticates a sender or grants admission.
+#[pyfunction]
+fn decode_account_candidate(py: Python<'_>, raw: &[u8], chain_id: &str) -> PyResult<Py<PyAny>> {
+    let doc =
+        crate::transaction_admission::account_candidate(raw, chain_id).map_err(admission_error)?;
+    json_to_py(py, &doc)
+}
+
 /// Return a fully admitted document, or None when it exceeds the proposal budget.
 #[pyfunction]
 #[pyo3(signature = (raw, chain_id, max_chi, cache=None))]
@@ -266,6 +274,7 @@ fn number_to_py(py: Python<'_>, number: &serde_json::Number) -> PyResult<Py<PyAn
 pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(decode_and_validate_transaction, module)?)?;
     module.add_function(wrap_pyfunction!(decode_transaction_for_proposal, module)?)?;
+    module.add_function(wrap_pyfunction!(decode_account_candidate, module)?)?;
     module.add_class::<TransactionAdmissionCache>()?;
     Ok(())
 }

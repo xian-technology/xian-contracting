@@ -124,3 +124,36 @@ fn any_integer_budget_reaches_the_executor() {
         );
     }
 }
+
+#[test]
+fn account_call_uses_the_signed_envelope_for_input_hash_and_byte_metering() {
+    let document = json!({"metadata":{"tx_format":"xian_account_v1","auth":{"signature":"signed"}},
+        "payload": payload("currency",json!({"memo":"ä"}))});
+    let text = canonical_json(&document).unwrap();
+    let tx = prepared_tx(hex::encode(&text).as_bytes(), &meta()).unwrap();
+    assert_eq!(
+        tx.context.input_hash,
+        VmValue::String(input_hash(meta().nanos, "signed"))
+    );
+    assert_eq!(tx.size_bytes, ascii_json_size(&text));
+}
+
+#[test]
+fn compact_call_meters_wire_bytes_and_hashes_the_fixed_signature() {
+    let mut signature = b"XIAN-ACCOUNT-AUTH\0\x01\x01".to_vec();
+    signature.resize(3401, 7);
+    let body = canonical_json(&payload("currency", json!({"memo":"ä"}))).unwrap();
+    let raw = [
+        b"XIAN\x01".as_slice(),
+        signature.as_slice(),
+        body.as_bytes(),
+    ]
+    .concat();
+    let tx = prepared_tx(&raw, &meta()).unwrap();
+    assert_eq!(tx.size_bytes, raw.len());
+    assert_eq!(
+        tx.context.input_hash,
+        VmValue::String(input_hash(meta().nanos, &hex::encode(signature)))
+    );
+    assert!(prepared_transition(&raw, &meta(), 1).is_none());
+}

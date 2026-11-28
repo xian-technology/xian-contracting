@@ -381,7 +381,7 @@ impl BlockExecutor {
         let balance_key = format!("currency.balances:{}", tx.sender);
         let execution =
             self.discarding(|| self.execute_in_scope(tx, rate.as_ref(), &balance_key))?;
-        let execution = self.charge_failure(self.validated(execution), tx);
+        let execution = self.charge_failure(self.validated(execution, tx), tx);
         self.settle(tx, execution, rate.as_ref(), &balance_key)
     }
 
@@ -430,6 +430,23 @@ impl BlockExecutor {
             Ok(reservation) => reservation,
             Err(unpaid) => return Ok(unpaid),
         };
+        if let Some(chi) = tx.transition_chi {
+            let record = &tx.kwargs[0].1; // checked by prepared_transition
+            return Ok(Execution {
+                reservation,
+                status: 0,
+                result: VmValue::String("Account authorization updated".into()),
+                exception: None,
+                writes: BTreeMap::from([(
+                    crate::account_policy::record_key(&tx.sender),
+                    record.clone(),
+                )]),
+                events: Vec::new(),
+                chi_used: BigInt::from(chi),
+                contract_costs: Vec::new(),
+                unprepared: false,
+            });
+        }
         // Allocate the budget before touching a contract's import graph.
         let Some(mut preparation) = Preparation::new(tx, self.policy.meter_execution) else {
             return Ok(Execution::failed(reservation, "RuntimeError", HOST_FAILURE));
@@ -895,16 +912,21 @@ impl BlockExecutor {
     /// encoding refuses fails with its chi. The writes and events are encoded
     /// as one document, as `validate_persistent_value((writes, events))`
     /// traverses them.
-    fn validated(&self, execution: Execution) -> Execution {
-        if execution.status != 0 || self.storable(&execution) {
+    fn validated(&self, execution: Execution, tx: &PreparedTx) -> Execution {
+        if execution.status != 0 || self.storable(&execution, tx) {
             return execution;
         }
         execution.refused("ValueError", UNENCODABLE)
     }
 
-    fn storable(&self, execution: &Execution) -> bool {
+    fn storable(&self, execution: &Execution, tx: &PreparedTx) -> bool {
+        let transition_key = tx
+            .transition_chi
+            .map(|_| crate::account_policy::record_key(&tx.sender));
         let keys_ok = execution.writes.keys().all(|key| {
-            !self.policy.protected_keys.contains(key) && storage_key_error(key).is_none()
+            (!key.starts_with("_accounts.") || Some(key) == transition_key.as_ref())
+                && !self.policy.protected_keys.contains(key)
+                && storage_key_error(key).is_none()
         });
         let writes = VmValue::Dict(
             execution

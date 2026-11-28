@@ -10,13 +10,17 @@
 //! stored-value reader in `xian-vm-core`, which links this crate and exposes
 //! admission to the node.
 mod canonical;
+pub mod compact_account;
 mod rules;
 
 use serde_json::Value;
 use std::fmt;
 
 pub use canonical::canonical_json;
-pub use rules::validate_transaction_static;
+pub use rules::{
+    validate_account_candidate, validate_account_payload, validate_transaction_static,
+    ACCOUNT_TX_FORMAT,
+};
 
 /// Transaction-admission rule revision. Bump it whenever the set of admitted
 /// transactions changes; nodes fence on it at startup.
@@ -25,7 +29,8 @@ pub use rules::validate_transaction_static;
 /// keys beside them changed the transaction hash and the block bytes), and the
 /// wire hex must be lowercase (uppercase digits gave one signed document many
 /// transaction hashes).
-pub const ADMISSION_REVISION: &str = "xian-fastpath-admission-3";
+/// Revision 4 adds a separate, explicitly unauthenticated account candidate decoder.
+pub const ADMISSION_REVISION: &str = "xian-fastpath-admission-4";
 
 /// Why a transaction is not admitted; the text reaches receipts and logs.
 #[derive(Debug, Clone, PartialEq, Eq)]

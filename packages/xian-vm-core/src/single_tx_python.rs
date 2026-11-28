@@ -49,6 +49,7 @@ fn prepared(
         return None;
     };
     Some(PreparedTx {
+        transition_chi: None,
         kwargs: kwargs_from_py(kwargs).ok()?,
         context: context_from_py(context.as_any()).ok()?,
         sender,

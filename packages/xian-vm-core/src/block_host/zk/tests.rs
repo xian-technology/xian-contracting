@@ -399,3 +399,26 @@ fn with_zk_off_only_the_capability_probe_answers_and_says_no() {
         assert!(host.stop.is_none());
     }
 }
+
+#[test]
+fn strict_account_policy_disables_both_bn254_routes_even_with_zk_enabled() {
+    let f = Fixture::new(
+        "strict-zk",
+        &[
+            ("_accounts.policy", br#"{"transition_chi":100,"version":2}"#),
+            ("__runtime_features.zk", b"true"),
+        ],
+        &[],
+    );
+    let modules = Modules::default();
+    let mut h = host(&f, &modules);
+    assert_eq!(
+        zk(&mut h, "is_available", &[]).unwrap(),
+        VmValue::Bool(false)
+    );
+    for name in ["verify_groth16", "verify_groth16_bn254"] {
+        assert!(zk(&mut h, name, &[])
+            .unwrap_err()
+            .contains("feature is disabled"));
+    }
+}

@@ -201,6 +201,23 @@ mod services {
     use crate::{ValidatedModuleIr, VmExecutionError, VmValue};
 
     impl HostServices for BlockHost<'_> {
+        fn legacy_signature_allowed(&mut self, owner: &str) -> Result<bool, VmExecutionError> {
+            use crate::account_policy::{allows_classical, record_key, POLICY_KEY};
+            // Only consensus state can select an authority. Ignore contract-local
+            // writes, even transient ones made in a nested call or constructor.
+            let policy = self
+                .view
+                .get(POLICY_KEY)
+                .map_err(|e| self.halt(super::fault(e)))?;
+            if !allows_classical(policy.as_ref()) {
+                return Ok(false);
+            }
+            self.view
+                .contains(&record_key(owner))
+                .map(|present| !present)
+                .map_err(|e| self.halt(super::fault(e)))
+        }
+
         fn module_ir_json(&mut self, module: &str) -> Result<Option<String>, VmExecutionError> {
             match self.module_ir(module)? {
                 Ir::Text(cached) => Ok(Some(cached.text.clone())),

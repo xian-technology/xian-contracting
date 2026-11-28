@@ -28,6 +28,10 @@ pub(crate) fn zk_enabled(
     view: &StateView,
     without_state: bool,
 ) -> Result<Result<bool, Unread>, String> {
+    let policy = view.get(crate::account_policy::POLICY_KEY)?;
+    if !crate::account_policy::allows_classical(policy.as_ref()) {
+        return Ok(Ok(false));
+    }
     Ok(match view.get(ZK_FEATURE_KEY)? {
         None | Some(VmValue::None) => Ok(without_state),
         Some(value) => feature_value(&value),

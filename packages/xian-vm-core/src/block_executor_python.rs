@@ -8,7 +8,7 @@ use crate::block_state_python::PyBlockState;
 use crate::lmdb_python::{LmdbStorageError, PyLmdbEnvironment};
 use crate::receipt_wire::encode_receipt;
 use crate::state_view::StateView;
-use crate::transaction_inputs::{prepared_tx, BlockMeta};
+use crate::transaction_inputs::{prepared_transition, prepared_tx, BlockMeta};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
 use std::time::Instant;
@@ -208,6 +208,16 @@ impl PyBlockExecutor {
     fn add(&mut self, raw: &[u8]) -> PyResult<()> {
         let tx = prepared_tx(raw, &self.block_meta).ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err("not an admitted transaction")
+        })?;
+        self.txs.push(tx);
+        Ok(())
+    }
+
+    /// Queue a lifecycle change only after ABCI has authenticated this exact wire
+    /// document, its current record, proofs and fee policy.
+    fn add_account_transition(&mut self, raw: &[u8], transition_chi: u64) -> PyResult<()> {
+        let tx = prepared_transition(raw, &self.block_meta, transition_chi).ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("not an authorized account transition")
         })?;
         self.txs.push(tx);
         Ok(())

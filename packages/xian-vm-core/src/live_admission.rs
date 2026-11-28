@@ -23,6 +23,22 @@ pub(crate) fn check(
     let supplied = payload["chi_supplied"].as_u64()?;
     environment
         .read(|state| {
+            // A native cache hit proves only the legacy static signature. The
+            // decision to accept it must come from the same current snapshot.
+            let policy = state.get(crate::account_policy::POLICY_KEY.as_bytes())?;
+            let legacy_allowed = policy.is_none_or(|bytes| {
+                decode_stored_value(bytes)
+                    .is_ok_and(|v| crate::account_policy::allows_classical(Some(&v)))
+            });
+            if !legacy_allowed
+                || state
+                    .get(crate::account_policy::record_key(sender).as_bytes())?
+                    .is_some()
+            {
+                return Ok(Some(Err(
+                    "Account authorization requires hybrid signatures".into(),
+                )));
+            }
             let Some(nonce_check) = check_nonce(state, sender, nonce)? else {
                 return Ok(None);
             };

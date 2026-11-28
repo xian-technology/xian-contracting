@@ -28,7 +28,6 @@ fn refused(message: &str) -> AdmissionError {
 /// The fields of a payload whose shape passed the key checks.
 struct Fields<'a> {
     sender: &'a str,
-    signature: &'a str,
     contract: &'a str,
     function: &'a str,
     chain_id: &'a str,
@@ -39,14 +38,45 @@ struct Fields<'a> {
 pub fn validate_transaction_static(document: &Value, chain_id: &str) -> Result<()> {
     let (metadata, payload) = sections(document)?;
     require_payload_keys(payload)?;
-    let fields = fields(metadata, payload)?;
-    require_formats(&fields, payload)?;
-    require_signature(&fields, payload)?;
+    let signature = string(metadata.get("signature"))?;
+    let fields = fields(payload)?;
+    require_formats(&fields, payload, false)?;
+    if !is_canonical_hex(signature, 128) {
+        return Err(refused(MALFORMED));
+    }
+    require_signature(&fields, signature, payload)?;
     if fields.chain_id != chain_id {
         return Err(refused("Wrong chain_id"));
     }
     require_submission_name(&fields)
 }
+
+/// Check the shape shared by account candidates and legacy transactions. Account
+/// proofs and the choice of signing keys depend on state and are checked by ABCI.
+pub fn validate_account_candidate(document: &Value, chain_id: &str) -> Result<()> {
+    let document = object(Some(document), MALFORMED)?;
+    exact_keys(document, &DOCUMENT_KEYS)?;
+    let metadata = object(document.get("metadata"), MALFORMED)?;
+    exact_keys(metadata, &["tx_format", "auth"])?;
+    if metadata["tx_format"] != ACCOUNT_TX_FORMAT || !metadata["auth"].is_object() {
+        return Err(refused("Invalid account metadata"));
+    }
+    validate_account_payload(&document["payload"], chain_id)
+}
+
+/// Apply the common account payload rules to either wire encoding.
+pub fn validate_account_payload(payload: &Value, chain_id: &str) -> Result<()> {
+    let payload = object(Some(payload), MALFORMED)?;
+    require_payload_keys(payload)?;
+    let fields = fields(payload)?;
+    require_formats(&fields, payload, true)?;
+    if fields.chain_id != chain_id {
+        return Err(refused("Wrong chain_id"));
+    }
+    require_submission_name(&fields)
+}
+
+pub const ACCOUNT_TX_FORMAT: &str = "xian_account_v1";
 
 /// The metadata and payload objects, and nothing beside them; metadata holds
 /// exactly the signature.
@@ -76,13 +106,9 @@ fn require_payload_keys(payload: &Map<String, Value>) -> Result<()> {
     exact_keys(payload, &PAYLOAD_KEYS)
 }
 
-fn fields<'a>(
-    metadata: &'a Map<String, Value>,
-    payload: &'a Map<String, Value>,
-) -> Result<Fields<'a>> {
+fn fields(payload: &Object) -> Result<Fields<'_>> {
     Ok(Fields {
         sender: string(payload.get("sender"))?,
-        signature: string(metadata.get("signature"))?,
         contract: string(payload.get("contract"))?,
         function: string(payload.get("function"))?,
         chain_id: string(payload.get("chain_id"))?,
@@ -90,10 +116,9 @@ fn fields<'a>(
     })
 }
 
-fn require_formats(fields: &Fields<'_>, payload: &Map<String, Value>) -> Result<()> {
+fn require_formats(fields: &Fields<'_>, payload: &Object, registry_call: bool) -> Result<()> {
     let formatted = is_canonical_hex(fields.sender, 64)
-        && is_canonical_hex(fields.signature, 128)
-        && is_identifier(fields.contract)
+        && (is_identifier(fields.contract) || registry_call && fields.contract == "_accounts")
         && is_identifier(fields.function)
         && fields.kwargs.keys().all(|key| is_identifier(key))
         && is_non_negative_integer(payload.get("nonce"))
@@ -105,13 +130,17 @@ fn require_formats(fields: &Fields<'_>, payload: &Map<String, Value>) -> Result<
     }
 }
 
-fn require_signature(fields: &Fields<'_>, payload: &Map<String, Value>) -> Result<()> {
+fn require_signature(
+    fields: &Fields<'_>,
+    signature: &str,
+    payload: &Map<String, Value>,
+) -> Result<()> {
     let signed = Value::Object(payload.clone());
     if contains_non_integer_number(&signed) {
         return Err(refused(MALFORMED));
     }
     let message = canonical_json(&signed)?;
-    if verify_signature(fields.sender, fields.signature, &message) {
+    if verify_signature(fields.sender, signature, &message) {
         Ok(())
     } else {
         Err(refused("Bad signature"))

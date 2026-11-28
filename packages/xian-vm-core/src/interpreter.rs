@@ -627,6 +627,12 @@ pub(crate) fn charge_scan_entry(
 }
 
 pub trait VmHost {
+    /// Standalone interpreters without chain state use the classical profile.
+    /// The transaction engine checks the committed policy and enrollment.
+    fn legacy_signature_allowed(&mut self, _owner: &str) -> Result<bool, VmExecutionError> {
+        Ok(true)
+    }
+
     fn charge_execution_cost(&mut self, _cost: u64) -> Result<(), VmExecutionError> {
         Ok(())
     }

@@ -36,6 +36,8 @@ pub(crate) struct PreparedTx {
     pub(crate) context: VmExecutionContext,
     pub(crate) chi_budget: BigInt,
     pub(crate) size_bytes: usize,
+    /// Set only by the node's dedicated, authenticated lifecycle entry point.
+    pub(crate) transition_chi: Option<u64>,
 }
 
 /// What every transaction of a block shares (`current_block_meta`).
@@ -51,12 +53,75 @@ pub(crate) struct BlockMeta {
 /// The transaction `raw` as the block executor runs it, or `None` for bytes
 /// admission refuses.
 pub(crate) fn prepared_tx(raw: &[u8], meta: &BlockMeta) -> Option<PreparedTx> {
+    use xian_fastpath_core::compact_account;
+    if raw.starts_with(compact_account::TAG) {
+        let compact = compact_account::decode(raw).ok()?;
+        return prepare(
+            compact.payload.as_object()?,
+            &hex::encode(compact.signature),
+            raw.len(),
+            meta,
+            None,
+        );
+    }
     let decoded = decode_transaction(raw).ok()?;
+    if decoded.document["payload"]["contract"] == "_accounts" {
+        return None;
+    }
     let (payload, signature) = sections(&decoded.document)?;
+    prepare(
+        payload,
+        signature,
+        ascii_json_size(&decoded.text),
+        meta,
+        None,
+    )
+}
+
+/// ABCI has authenticated the lifecycle proofs and the policy fee. Derive the
+/// recipient and replacement record from the same signed bytes as the proofs.
+pub(crate) fn prepared_transition(raw: &[u8], meta: &BlockMeta, chi: u64) -> Option<PreparedTx> {
+    let decoded = decode_transaction(raw).ok()?;
+    let doc = &decoded.document;
+    let VmValue::String(chain_id) = &meta.chain_id else {
+        return None;
+    };
+    xian_fastpath_core::validate_account_candidate(doc, chain_id).ok()?;
+    let payload = &doc["payload"];
+    if payload["contract"] != "_accounts"
+        || chi == 0
+        || payload["chi_supplied"].as_u64()? < chi
+        || !matches!(
+            payload["function"].as_str()?,
+            "create" | "enroll" | "rotate" | "recover"
+        )
+        || payload["kwargs"].as_object()?.len() != 1
+        || !payload["kwargs"]["record"].is_object()
+    {
+        return None;
+    }
+    let (payload, signature) = sections(&decoded.document)?;
+    prepare(
+        payload,
+        signature,
+        ascii_json_size(&decoded.text),
+        meta,
+        Some(chi),
+    )
+}
+
+fn prepare(
+    payload: &Map<String, Value>,
+    signature: &str,
+    size_bytes: usize,
+    meta: &BlockMeta,
+    transition_chi: Option<u64>,
+) -> Option<PreparedTx> {
     let call = Call::read(payload)?;
     let context = context(meta, &call, signature)?;
     Some(PreparedTx {
-        size_bytes: ascii_json_size(&decoded.text),
+        size_bytes,
+        transition_chi,
         sender: call.sender,
         contract: call.contract,
         function: call.function,
@@ -72,7 +137,15 @@ fn sections(document: &Value) -> Option<(&Map<String, Value>, &str)> {
         .as_object()
         .filter(|document| document.len() == 2)?;
     let payload = document.get("payload")?.as_object()?;
-    let signature = document.get("metadata")?.get("signature")?.as_str()?;
+    let metadata = document.get("metadata")?.as_object()?;
+    let signature = match metadata.get("tx_format") {
+        None if metadata.len() == 1 => metadata.get("signature")?,
+        Some(format) if format == xian_fastpath_core::ACCOUNT_TX_FORMAT && metadata.len() == 2 => {
+            metadata.get("auth")?.get("signature")?
+        }
+        _ => return None,
+    }
+    .as_str()?;
     Some((payload, signature))
 }
 
