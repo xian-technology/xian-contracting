@@ -98,6 +98,7 @@ def test_cached_classical_signature_rechecks_current_policy_and_enrollment(tmp_p
         return cache.check_live(wire, env, state, max_chi=100, require_balance=False)
 
     assert check() is None
+    assert not cache.check_account_live(wire, env, state, max_chi=100, require_balance=False)
     record = ("_accounts.records:" + sender).encode()
     env.write([(record, b"null")])
     with pytest.raises(ValueError, match="hybrid"):

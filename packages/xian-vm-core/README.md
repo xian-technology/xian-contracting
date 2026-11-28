@@ -393,3 +393,13 @@ transaction authority. Strict account policy v2 also disables Ed25519
 verification for unknown owners and disables the zk host, including raw and
 registered BN254 proof verification. The migration policy v1 retains legacy
 verification for accounts without a record. The node owns policy activation.
+
+
+For CheckTx, `TransactionAdmissionCache.remember_account(raw, record, policy)`
+takes an already authenticated strict spend and the exact committed bytes used
+to verify it. The cache belongs to one application and chain ID. A subsequent
+`check_account_live` hit reads the current record, policy, nonce, balance and
+chi rate in one LMDB snapshot and applies the current fee limits. A changed
+authority, overlay, cache miss or irregular state uses the application's full
+checks. Account and legacy entries share a bounded LRU. Only the strict
+CheckTx path can reuse a remembered account proof.

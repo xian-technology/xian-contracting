@@ -15,8 +15,17 @@ use xian_fastpath_core::{exceeds_chi_limit, AdmissionError};
 // raw key bytes and the document's heap allocations.
 const ENTRY_OVERHEAD: usize = 256;
 
+enum Admitted {
+    Legacy(Value),
+    Account {
+        payload: Value,
+        record: Box<[u8]>,
+        policy: Box<[u8]>,
+    },
+}
+
 struct CachedTransaction {
-    document: Value,
+    admitted: Admitted,
     retained_bytes: usize,
 }
 
@@ -75,7 +84,8 @@ impl TransactionAdmissionCache {
         self.with_admitted(raw, None, |document| {
             if committed_only {
                 if let Some(decision) = crate::live_admission::check(
-                    document,
+                    &document["payload"],
+                    None,
                     environment.env(),
                     max_chi,
                     require_balance,
@@ -87,6 +97,97 @@ impl TransactionAdmissionCache {
         })?
         .expect("check_live has no proposal limit")
         .map_err(PyValueError::new_err)
+    }
+
+    /// Trusted ABCI entry point after proof and live checks. The witnesses are
+    /// the exact committed bytes that authenticated this wire, never a fresh
+    /// lookup. Structural decoding alone must never call this method.
+    fn remember_account(
+        &mut self,
+        raw: &[u8],
+        expected_record: &[u8],
+        expected_policy: &[u8],
+    ) -> PyResult<()> {
+        let bytes = raw
+            .len()
+            .saturating_add(expected_record.len())
+            .saturating_add(expected_policy.len())
+            .saturating_add(ENTRY_OVERHEAD);
+        if self.max_entries == 0 || bytes > self.max_bytes {
+            return Ok(());
+        }
+        let policy = crate::stored_value::decode_stored_value(expected_policy).ok();
+        if expected_record.is_empty()
+            || policy
+                .as_ref()
+                .and_then(crate::account_policy::policy_version)
+                != Some(2)
+        {
+            return Err(PyValueError::new_err(
+                "a committed record and a strict account policy are required",
+            ));
+        }
+        let compact = crate::transaction_admission::compact_candidate(raw, &self.chain_id)
+            .map_err(admission_error)?;
+        let retained = bytes.saturating_add(json_heap_bytes(&compact.payload));
+        if retained <= self.max_bytes {
+            self.retain(
+                raw,
+                Admitted::Account {
+                    payload: compact.payload,
+                    record: expected_record.into(),
+                    policy: expected_policy.into(),
+                },
+                retained,
+            );
+        }
+        Ok(())
+    }
+
+    /// True means this exact proof and current live state passed. A miss,
+    /// overlay, changed authority or irregular state takes the full ABCI path.
+    #[pyo3(signature = (raw, environment, overlay, *, max_chi, require_balance))]
+    fn check_account_live(
+        &mut self,
+        raw: &[u8],
+        environment: &PyLmdbEnvironment,
+        overlay: &PyBlockState,
+        max_chi: Option<u64>,
+        require_balance: bool,
+    ) -> PyResult<bool> {
+        if lock(&overlay.shared()).len() != 0 {
+            return Ok(false);
+        }
+        let Some(CachedTransaction {
+            admitted:
+                Admitted::Account {
+                    payload,
+                    record,
+                    policy,
+                },
+            ..
+        }) = self.transactions.get(raw)
+        else {
+            self.misses = self.misses.saturating_add(1);
+            return Ok(false);
+        };
+        let result = crate::live_admission::check(
+            payload,
+            Some((record, policy)),
+            environment.env(),
+            max_chi,
+            require_balance,
+        );
+        match result {
+            None => {
+                self.misses = self.misses.saturating_add(1);
+                Ok(false)
+            }
+            Some(decision) => {
+                self.hits = self.hits.saturating_add(1);
+                decision.map(|()| true).map_err(PyValueError::new_err)
+            }
+        }
     }
 
     fn stats(&self) -> HashMap<&'static str, u64> {
@@ -116,12 +217,16 @@ impl TransactionAdmissionCache {
         max_chi: Option<u64>,
         use_document: impl FnOnce(&Value) -> PyResult<T>,
     ) -> PyResult<Option<T>> {
-        if let Some(cached) = self.transactions.get(raw) {
+        if let Some(CachedTransaction {
+            admitted: Admitted::Legacy(document),
+            ..
+        }) = self.transactions.get(raw)
+        {
             self.hits = self.hits.saturating_add(1);
-            if max_chi.is_some_and(|limit| exceeds_chi_limit(&cached.document, limit)) {
+            if max_chi.is_some_and(|limit| exceeds_chi_limit(document, limit)) {
                 return Ok(None);
             }
-            return use_document(&cached.document).map(Some);
+            return use_document(document).map(Some);
         }
         self.misses = self.misses.saturating_add(1);
         let admitted = match max_chi {
@@ -133,18 +238,21 @@ impl TransactionAdmissionCache {
         };
         let output = use_document(&document)?;
         if self.max_entries != 0 && raw.len() < self.max_bytes {
-            self.retain(raw, document);
+            let bytes = raw
+                .len()
+                .saturating_add(ENTRY_OVERHEAD)
+                .saturating_add(json_heap_bytes(&document));
+            self.retain(raw, Admitted::Legacy(document), bytes);
         }
         Ok(Some(output))
     }
 
-    fn retain(&mut self, raw: &[u8], document: Value) {
-        let retained_bytes = raw
-            .len()
-            .saturating_add(ENTRY_OVERHEAD)
-            .saturating_add(json_heap_bytes(&document));
+    fn retain(&mut self, raw: &[u8], admitted: Admitted, retained_bytes: usize) {
         if retained_bytes > self.max_bytes {
             return;
+        }
+        if let Some(previous) = self.transactions.pop(raw) {
+            self.retained_bytes -= previous.retained_bytes;
         }
         while retained_bytes > self.max_bytes - self.retained_bytes
             || self.transactions.len() == self.max_entries
@@ -159,7 +267,7 @@ impl TransactionAdmissionCache {
         self.transactions.put(
             raw.into(),
             CachedTransaction {
-                document,
+                admitted,
                 retained_bytes,
             },
         );

@@ -12,29 +12,25 @@ type Decision = Result<(), String>;
 /// An ambiguous stored value or amount is left to the application, which
 /// defines how to report irregular state and non-numeric inputs.
 pub(crate) fn check(
-    document: &Value,
+    payload: &Value,
+    expected_authority: Option<(&[u8], &[u8])>,
     environment: &LmdbEnv,
     max_chi: Option<u64>,
     require_balance: bool,
 ) -> Option<Decision> {
-    let payload = &document["payload"];
     let sender = payload["sender"].as_str()?;
     let nonce = payload["nonce"].as_u64()?;
     let supplied = payload["chi_supplied"].as_u64()?;
     environment
         .read(|state| {
-            // A native cache hit proves only the legacy static signature. The
-            // decision to accept it must come from the same current snapshot.
             let policy = state.get(crate::account_policy::POLICY_KEY.as_bytes())?;
-            let legacy_allowed = policy.is_none_or(|bytes| {
-                decode_stored_value(bytes)
-                    .is_ok_and(|v| crate::account_policy::allows_classical(Some(&v)))
-            });
-            if !legacy_allowed
-                || state
-                    .get(crate::account_policy::record_key(sender).as_bytes())?
-                    .is_some()
-            {
+            let record = state.get(crate::account_policy::record_key(sender).as_bytes())?;
+            if let Some((expected_record, expected_policy)) = expected_authority {
+                // One snapshot covers authority, nonce, budget and fee inputs.
+                if record != Some(expected_record) || policy != Some(expected_policy) {
+                    return Ok(None);
+                }
+            } else if record.is_some() || !legacy_policy(policy) {
                 return Ok(Some(Err(
                     "Account authorization requires hybrid signatures".into(),
                 )));
@@ -52,6 +48,13 @@ pub(crate) fn check(
         })
         .ok()
         .flatten()
+}
+
+fn legacy_policy(raw: Option<&[u8]>) -> bool {
+    raw.is_none_or(|bytes| {
+        decode_stored_value(bytes)
+            .is_ok_and(|value| crate::account_policy::allows_classical(Some(&value)))
+    })
 }
 
 fn read_value(state: &Txn<'_>, key: &str) -> Result<Option<VmValue>, LmdbError> {

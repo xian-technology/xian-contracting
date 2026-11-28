@@ -31,15 +31,22 @@ fn admit_decoded(decoded: DecodedTransaction, chain_id: &str) -> Result<Value, A
     Ok(decoded.document)
 }
 
+pub(crate) fn compact_candidate<'a>(
+    raw: &'a [u8],
+    chain_id: &str,
+) -> Result<xian_fastpath_core::compact_account::CompactAccount<'a>, AdmissionError> {
+    let compact = xian_fastpath_core::compact_account::decode(raw)?;
+    xian_fastpath_core::validate_account_payload(&compact.payload, chain_id)?;
+    require_wire_payload(compact.payload_bytes)?;
+    Ok(compact)
+}
+
 /// Structural decoding only. The caller must verify account proofs against
 /// committed state before admitting, executing or caching a decision.
 pub(crate) fn account_candidate(raw: &[u8], chain_id: &str) -> Result<Value, AdmissionError> {
     use xian_fastpath_core::compact_account;
     if raw.starts_with(compact_account::TAG) {
-        let compact = compact_account::decode(raw)?;
-        xian_fastpath_core::validate_account_payload(&compact.payload, chain_id)?;
-        require_wire_payload(compact.payload_bytes)?;
-        return Ok(compact.into_document());
+        return compact_candidate(raw, chain_id).map(|compact| compact.into_document());
     }
     if raw.len() > 524_288 {
         return Err(AdmissionError::new(

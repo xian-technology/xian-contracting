@@ -12,16 +12,34 @@ pub(crate) fn record_key(owner: &str) -> String {
 
 pub(crate) fn allows_classical(policy: Option<&VmValue>) -> bool {
     let Some(value) = policy else { return true };
+    policy_version(value) == Some(1)
+}
+
+/// Recognize the two exact policy encodings. Unknown or malformed state
+/// grants neither legacy authority nor a reusable strict-account proof.
+pub(crate) fn policy_version(value: &VmValue) -> Option<u64> {
     let VmValue::Dict(entries) = value else {
-        return false;
+        return None;
     };
     let field = |name: &str| {
         entries.iter().find_map(|(key, value)| {
             matches!(key, VmValue::String(key) if key == name).then_some(value)
         })
     };
-    entries.len() == 3
-        && matches!(field("version"), Some(VmValue::Int(version)) if version.to_u64() == Some(1))
-        && matches!(field("enrollment_open"), Some(VmValue::Bool(_)))
-        && matches!(field("transition_chi"), Some(VmValue::Int(chi)) if chi.to_u64().is_some_and(|n| n > 0))
+    let VmValue::Int(chi) = field("transition_chi")? else {
+        return None;
+    };
+    if chi.to_u64()? == 0 {
+        return None;
+    }
+    let VmValue::Int(version) = field("version")? else {
+        return None;
+    };
+    match version.to_u64()? {
+        1 if entries.len() == 3 && matches!(field("enrollment_open"), Some(VmValue::Bool(_))) => {
+            Some(1)
+        }
+        2 if entries.len() == 2 => Some(2),
+        _ => None,
+    }
 }
